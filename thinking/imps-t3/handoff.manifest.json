@@ -3,8 +3,8 @@
   "topic": "imps-t3",
   "output_type": "implementation",
   "discovery_sha256": "370bd6f60ba22d90dfeb7c380b7645c455abbf49209c4415a4696475e7e2ef0c",
-  "spec_sha256": "00f3cd850007110d1c3b061b00cc974afe99e06498f33929cb11f616700db7cd",
-  "handoff_sha256": "6c82587eb5ed489c8e8d9ca1958cb8d79ffe0135f1ac9ad8af4506bcf8e7dde3",
+  "spec_sha256": "90bf7452f35cffaeb6dc8b9037d7777f365048fbd51e532250ba2887bfd6b7fe",
+  "handoff_sha256": "ff5e5e2a034e943ca43c2bf4754cad8a762a8b3e3261879c3389306f2714f3f6",
   "requirement_ids": [
     "REQ-CORE",
     "REQ-CLI",
