@@ -1,0 +1,76 @@
+# Spec: grading rubric for imps-t3 v1
+
+All paths are relative to the root of `seankoji-com/t3-plugins` unless stated. "The test command" means `python3 -m unittest discover -s tests -v` run from the repo root. Every criterion lists its verification method. Unverified means incomplete, and no criterion may be weakened to make it pass.
+
+## 1. Pass/fail criteria
+
+### Core
+
+- `[REQ-CORE]` `[verify:command]` The test command exits 0. `tests/README.md` has a table mapping each source-spec §14 case 1–16 to at least one test ID (`module.Class.test_name`), and every mapped test runs in the test command's output. Each mapped test drives `core/` code or the core CLI. A test that only reads Markdown text does not count toward a case.
+- `[REQ-CLI]` `[verify:command]` The core CLI (`python3 core/cli.py <op>` or the equivalent documented entry) implements `init`, `status`, `claim`, `release`, `recover`, `next`, `record`, `validate` and `report`. Every invocation writes exactly one JSON object to stdout with `schema_version`, `ok`, `run_id` (when applicable) and either `data` or `error{code,message,details}`; diagnostics go only to stderr. At least one test asserts each exit code 0, 2, 3, 4 and 5.
+- `[REQ-OWNERSHIP]` `[verify:command]` A named regression test proves that a mutation with no prior claim is rejected with exit 3 **when no owner file exists**. This is the hole at `claude-plugins/plugins/imps/scripts/workflow-evidence.py:212` (discovery §6). A stale-generation write exits 3, and the state file's bytes match exactly before and after the rejected call. `recover` without an explicit confirmed-dead flag exits non-zero even when the owner's deadline has passed.
+- `[REQ-SNAPSHOT]` `[verify:command]` A test makes a fixture file dirty, records readiness, then edits that **same already-dirty file** again so `git status --porcelain` output is unchanged. `validate` must then report readiness stale. A boolean clean/dirty snapshot fails this test, by design. Edits under the run's state/evidence dir and progress-checkbox-only edits to the requirements source do not invalidate readiness.
+- `[REQ-SCHEMAS]` `[verify:command]` Every `core/schemas/*.json` (and `plugins/imps/schemas/*.json`) parses. A parity test runs each fixture in `tests/fixtures/schemas/valid/` and `.../invalid/` through the stdlib validator and gets accept/reject matching the fixture's directory. A file with an unsupported newer `schema_version` is rejected and left byte-identical. Unknown fields survive a compatible update. No third-party imports: `grep -rnE "^(import|from) (jsonschema|pydantic|yaml|attrs)" core plugins scripts` returns nothing, and no dependency manifest declares runtime deps.
+- `[REQ-PURITY]` `[verify:command]` A test fails if any file under `core/` imports from `plugins/` or contains (case-insensitive) `implementer`, `reviewer`, `researcher`, `bug-fix`, `bugfix` or `playbook`.
+
+### Entry and T3 adapter
+
+- `[REQ-ENTRY]` `[verify:command]` `wc -w plugins/imps/entry.md` is < 1,500, and `wc -w plugins/imps/entry.md plugins/imps/playbooks/bug-fix.md` totals ≤ 3,000. `[verify:inspection]` entry.md supports the operations `doctor`, `run`, `resume`, `status`, `cancel` and `verification-init`. It locates the core relative to its own installed path, with no hard-coded home directory. It names every other file it may load and the condition for loading it, and contains no second copy of playbook policy.
+- `[REQ-T3-SURFACE]` `[verify:command]` `grep -rn "acp-mcp-call\|preview_status\|preview_open" core plugins scripts` returns nothing. `link_pull_request` appears only as an action of `t3_thread_update`. `create_threads` and `t3_thread_launch` appear in `plugins/` only as prohibitions for child work. No file instructs calling a PR-watcher tool. `[verify:inspection]` `plugins/imps/references/t3-adapter.md` states the tested T3 version (`0.0.46-nightly.20261009.2861` or the later version actually tested) and links the orchestrator doc. It specifies runtime discovery by semantics for the preview toolkit, with an `unavailable` outcome when none is found.
+- `[REQ-TASKS]` `[verify:command]` Tests with scripted T3 responses prove six things: a `mode: wait` timeout keeps the `taskId` and the next `next` does not request a second dispatch; a retry reuses the same `clientRequestId`; each repair or review round gets a new one; `waiting_for_children` is never treated as a final result; resuming under a different parent thread ID refuses to query old task IDs and returns a blocked handoff; cancellation records `cancelled` only after a confirmed stop and otherwise stays blocked with the exact task IDs.
+- `[REQ-RESULT]` `[verify:command]` Tests prove: a child's final message with one fenced JSON block is extracted, written to run state as an artifact and validated; malformed JSON yields exactly one correction request, then a blocked task with the raw output preserved; a result claiming changed files or a commit that don't exist in the task worktree is rejected; a result that tries to change constraints, authorised actions or completion status is rejected.
+- `[REQ-ISOLATION]` `[verify:command]` Both delegated-implementation modes exist and are tested with fixtures: parallel writers in separate task worktrees, and serialised writers in one task worktree. Mode selection reads a per-provider probe result recorded in run state. `[verify:runtime]` The child-write probe ("can a delegated child write to a sibling worktree outside the parent's checkout?") ran live for every provider tested, and the result appears in `conformance/compatibility.json`.
+
+### Review, blocking, cleanup
+
+- `[REQ-REVIEW]` `[verify:command]` With the default imps config, tests prove five things: a reviewer `unavailable` advances to the next non-implementer catalog provider, then to a fresh same-provider reviewer; an adverse verdict is retained and triggers **no** fallback; a repository policy naming a reviewer overrides the default chain; the report records which reviewer ran and why; a repair invalidates prior acceptance and review, and repair counters persist across `resume`.
+- `[REQ-BLOCKED]` `[verify:command]` One test drives every code path that can produce `blocked`. Each output has a non-empty `reason`, the involved `task_ids` (empty only when no task is involved) and a `resume` object whose command is a complete argv with no unresolved placeholder.
+- `[REQ-CLEANUP]` `[verify:command]` In a fixture repo, after a successful run, `git worktree list` and `git branch --list` show no task-owned worktree or branch, and no task-owned process is still running. After a failed integration they are all preserved, and the Markdown report lists each with one exact cleanup command. In both cases the run's evidence dir is intact.
+- `[REQ-ACCEPTANCE]` `[verify:command]` These tests cover source-spec §14 cases 4, 5 and 12, and also show the status labels `unverified`, `failed`, `unavailable` and `waived` staying distinct (a waiver never counts as a pass).
+
+### Workflows
+
+- `[REQ-BUGFIX]` `[verify:command]` §14 cases 14 (direct) and 15 (delegated) run against a fixture repo under `tests/fixtures/` with a deterministic CLI defect. Each shows red before the fix, green after, the original reproduction repeated and a valid core `report`. `[verify:runtime]` At least one report produced by the **installed** package (not the source checkout) is committed under `conformance/results/` (source-spec §18).
+- `[REQ-VERIFY-INIT]` `[verify:command]` §14 case 16: a generated verification recipe drives a small fixture product end to end, cleanup removes task-owned resources, and the captured evidence still exists afterwards. The output lands in `.agents/skills/verify-<project>/` of the fixture.
+- `[REQ-INVESTIGATION]` `[verify:inspection]` `plugins/imps/playbooks/investigation.md` exists, is read-only (it creates no branches, worktrees or remote artifacts) and requires cited sources in its output.
+
+### Install, repo, CI
+
+- `[REQ-INSTALL]` `[verify:command]` Under a temp `HOME`, a test proves eight things: `scripts/install.py --dry-run` writes nothing; two installs of the same version leave an identical manifest; `~/.local/share/t3-plugins/imps/current` points at the version dir; `current/entry.md` resolves; with the source checkout renamed away, the installed core CLI `status` still succeeds; a locally modified owned file makes install refuse without an explicit override; uninstall removes only manifest-owned files and leaves `~/.local/state/t3-plugins/` hash-identical; an unrelated file in the install root survives. `[verify:runtime]` A real install exists at `~/.local/share/t3-plugins/imps/current/entry.md` and its version matches the PR head.
+- `[REQ-NO-PATHS]` `[verify:command]` `grep -rn "/Users/\|/home/" --exclude-dir=thinking --exclude-dir=.git .` returns nothing. Conformance artifacts are sanitised, with the home directory replaced by `~`.
+- `[REQ-CI]` `[verify:inspection]` `.github/workflows/*.yml` runs the test command and `python3 -m py_compile` over `core/`, `plugins/` and `scripts/` on `runs-on: [self-hosted, Linux]`. `[verify:runtime]` CI on the PR head is green.
+- `[REQ-NO-CLAUDE-PLUGINS]` `[verify:inspection]` The build made no commit, branch or file change in `seankoji-com/claude-plugins` or its local checkout. This replaces source-spec REQ-REGRESSION, which does not apply in this repo.
+
+### Live compatibility (graded separately from implementation)
+
+- `[REQ-COMPATIBILITY]` `[verify:inspection]` `conformance/compatibility.json` and `conformance/compatibility.md` exist and agree. Every provider in the live T3 catalog has a row with these fields: status ∈ {`verified`, `partial`, `unavailable`, `not tested`}, provider instance ID, model ID, T3 version, plugin version, starting revision, cases run, outcome per repeat, interventions, elapsed time, and usage/cost (`null` when unknown). The Claude-as-parent row (the build thread) is present.
+- `[REQ-VERIFIED-BAR]` `[verify:inspection]` A provider is `verified` only if every critical live case passed **3/3** repeats with zero interventions and no false completion. 1–2 of 3 means `partial`. Each repeat has retained artifacts at `conformance/results/<t3-version>/<provider>/<case>/<repeat>/`: result JSON, core report, sanitised transcript excerpt and usage. The critical cases are those in source-spec §15: bug-fix workflow with a valid structured result, scripted missing capability, adverse review without false completion, and pending-delegated-task reconciliation after interruption where available.
+- `[REQ-LIVE-T3]` `[verify:runtime]` Real `delegate_task` and `task_cancel` were exercised, and the artifacts show a cancelled child confirmed stopped. Switching the parent provider within one T3 thread followed by a resume from persisted state was attempted, with the outcome recorded, including `unsupported` if T3 doesn't allow it.
+
+### Handoff and PR
+
+- `[REQ-HANDOFF]` `[verify:inspection]` The repo README gives exact, copy-pasteable commands for install, first-run invocation (the absolute `current/entry.md` path plus a ready-to-paste T3 prompt), resume, status, cancel, test and uninstall. Examples use a real run ID from a committed report. No `TODO`, `TBD` or angle-bracket placeholder remains in these commands.
+- `[REQ-PR]` `[verify:inspection]` There is exactly one PR on `seankoji-com/t3-plugins` against `master`, containing the implementation and the committed conformance results. Its description records each Codex adversarial-review round dispatched via `delegate_task` (taskId, clientRequestId, reviewed commit SHA, verdict), shows no unresolved blocker or major finding at the final reviewed SHA, includes the source-spec §18 handoff items, and ends with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+
+## 2. Auto-reject conditions
+
+- Any file, branch or commit changed in `seankoji-com/claude-plugins` (discovery §5).
+- Any provider marked `verified` without retained artifacts for all three repeats of every critical case.
+- Any non-T3 delegation path for the package's delegated work: native `Agent`/`Workflow`/`Task`, `codex exec`, `claude -p`, `opencode run` or any shell-launched provider process.
+- Any source-spec §14 case with no mapped, executing test.
+
+## 3. Quality bar
+
+- **Direct mode stays light.** An expert result keeps a direct bug fix to entry.md plus bug-fix.md, with everything else loaded only when a named condition fires. A mediocre one reproduces imps' long mandatory preamble (discovery §6: ~39k tokens projected).
+- **Blocks are cheap to recover from.** A grader reading any `blocked` report knows what happened and what to type next without opening state files.
+- **The core reads like a library babysitter could adopt today.** It has a small public surface, explicit errors and no imps nouns. Generations, ownership and atomic writes follow the pattern in `claude-plugins/plugins/imps/scripts/workflow-evidence.py` lines 25–43 and 187–240, minus its two known defects.
+- **Live results are honest.** `partial` and `unavailable` rows with real artifacts beat a page of `verified` rows. Failures are kept, not rerun until they pass.
+- **No speculative T3 surface.** Every T3 tool name used appears in the pinned orchestrator doc or was discovered live, and the adapter says which.
+
+## 4. Grading notes
+
+- **This rubric overrides `thinking/imps-t3/source-spec.md`** wherever they conflict. Specific reversals: location (`t3-plugins` repo with `core/` and `plugins/imps/`, not `claude-plugins/plugins/imps/t3/`); state root `~/.local/state/t3-plugins/imps/`; the `acp-mcp-call` fallback is removed; `preview_status`/`preview_open` become runtime discovery; `link_pull_request` is a `t3_thread_update` action; PR-watcher use is removed; the child result is final-message JSON written to state by the parent; the pre-PR gate is a Codex review via `delegate_task`, replacing `cc:adversarial-review`; REQ-REGRESSION is replaced by REQ-NO-CLAUDE-PLUGINS. Everything else in the source spec still applies, and its scope was explicitly kept whole. Do not re-propose cutting delegated implementation, verification-init, the 3x matrix or the installer.
+- **Implementation and live compatibility are graded separately.** The implementation passes on §1 Core through Handoff/PR. Live compatibility can honestly be mostly `unavailable` or `not tested` (no auth, provider disabled) and still pass REQ-COMPATIBILITY if every row is accurate and evidenced. It cannot claim `verified` without meeting REQ-VERIFIED-BAR.
+- **Child-write probe.** Either answer is acceptable. What fails is shipping only the parallel-worktree path without a tested serialised fallback.
+- **Open questions from discovery §7** (whether T3's Claude provider loads Claude Code plugins, the preview toolkit's names, provider auth) are acceptable as recorded "not knowable here" outcomes with the observation that settled them. Guessing is not acceptable.
+- **Partial credit:** none within a criterion. A criterion with one failing sub-check fails. The final report lists each REQ as pass, fail or unverified with its evidence path.
