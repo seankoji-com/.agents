@@ -81,6 +81,7 @@ class InstallTest(CoreTestCase):
         code, env = self.installed_cli('status', '--run-id', run_id)
         self.assertEqual(code, 0, env)
         self.assertEqual(env['data']['plugin']['entry'], str(current / 'entry.md'))
+        self.assertEqual(env['data']['plugin']['version'], first['version'], 'runs record the installed version label')
         moved.rename(self.source)
 
         # 6. a locally modified owned file makes install refuse without --force

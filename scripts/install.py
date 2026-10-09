@@ -59,8 +59,10 @@ def source_files(source: Path, plugin: str) -> dict:
 
 
 def git_commit(source: Path, paths) -> tuple[str | None, bool]:
-    head = subprocess.run(['git', '-C', str(source), 'rev-parse', 'HEAD'], capture_output=True, text=True)
-    if head.returncode != 0:
+    """The last commit that touched the installed paths, and whether they are dirty.
+    Commits elsewhere in the repository (docs, conformance results) leave it unchanged."""
+    head = subprocess.run(['git', '-C', str(source), 'log', '-1', '--format=%H', '--', *paths], capture_output=True, text=True)
+    if head.returncode != 0 or not head.stdout.strip():
         return None, True
     dirty = subprocess.run(['git', '-C', str(source), 'status', '--porcelain', '--', *paths], capture_output=True, text=True)
     return head.stdout.strip(), bool(dirty.stdout.strip())

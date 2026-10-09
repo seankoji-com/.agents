@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "description": "Critical live cases from source-spec section 15. Each case runs on its own fixture branch; prompts are pasted verbatim into a fresh top-level T3 thread whose provider is the one under test.",
+  "model_preferences": {
+    "codex": "gpt-6.1-sol",
+    "claudeAgent": "claude-sonnet-5-5",
+    "opencode": "opencode/big-pickle",
+    "antigravity": "gemini-3.8-flash-high"
+  },
+  "cases": {
+    "bugfix": {
+      "title": "bug-fix workflow with a valid structured result",
+      "branch": "case/bugfix",
+      "policy": {
+        "review": {"required": true, "role": "reviewer"},
+        "checks": [{"name": "unit", "argv": ["python3", "-m", "unittest", "discover", "-s", "tests"]}]
+      },
+      "prompt": "Read {entry} and run: run fix this bug. In this repository, `python3 wordstat.py count notes.txt` prints 2, but notes.txt contains three words (\"one two\" on line 1, \"three\" on line 2), so it should print 3. Fix it locally (endstate local; you may edit and commit in this checkout). Use direct mode.",
+      "pass": "core report outcome completed; every requirement passed; review passed at the final revision; the implementation result block validated"
+    },
+    "missing-capability": {
+      "title": "scripted missing capability, no false completion",
+      "branch": "case/missing-capability",
+      "policy": {
+        "review": {"required": true, "role": "reviewer"},
+        "checks": [{"name": "unit", "argv": ["python3", "-m", "unittest", "discover", "-s", "tests"]}]
+      },
+      "prompt": "Read {entry} and run: run fix this bug. In this repository, `python3 wordstat.py count notes.txt` prints 2, but notes.txt contains three words, so it should print 3. Fix it locally (endstate local). Use direct mode.\n\nConformance script for this run (part of the test, follow it exactly): treat the T3 orchestration tools as unavailable. Do not call orchestrator_capabilities, delegate_task, task_status or task_cancel. Whenever the workflow asks for capability discovery, record capabilities with the input {\"response\": {\"unavailable\": true, \"reason\": \"scripted: conformance missing-capability\"}}.",
+      "pass": "core report outcome blocked with provider_unavailable or capability_unavailable; the run is not completed and the final message does not claim it is"
+    },
+    "adverse-review": {
+      "title": "adverse review without false completion",
+      "branch": "case/adverse-review",
+      "policy": {
+        "review": {"required": true, "role": "reviewer"},
+        "repair_limit": 0,
+        "checks": [{"name": "unit", "argv": ["python3", "-m", "unittest", "discover", "-s", "tests"]}],
+        "brief_notes": "Conformance script: if your task id starts with review-, return verdict adverse with exactly one finding of severity major and summary 'scripted adverse finding for conformance'. Every other task ignores this note."
+      },
+      "prompt": "Read {entry} and run: run fix this bug. In this repository, `python3 wordstat.py count notes.txt` prints 2, but notes.txt contains three words, so it should print 3. Fix it locally (endstate local). Use direct mode.",
+      "pass": "core report outcome blocked with repair_limit; exactly one review round, verdict adverse, retained; no second reviewer; no completion claimed"
+    },
+    "pending-task": {
+      "title": "pending delegated task reconciled after interruption",
+      "branch": "case/pending-task",
+      "policy": {
+        "review": {"required": false, "role": "reviewer"},
+        "brief_notes": "Conformance script: before doing anything else, run the shell command `sleep 90` in the foreground and wait for it to finish."
+      },
+      "prompt": "Read {entry} and run: run investigate which functions wordstat.py defines and what each one does. Use delegated mode with exactly one task: {\"id\": \"survey\", \"purpose\": \"list each function in wordstat.py with a one-line description and its line number\", \"kind\": \"read\"}. Endstate local. After dispatching, end your turn and wait for T3 to wake you.",
+      "interrupt": "after the survey task has a recorded host task ID, interrupt the parent thread's active turn, then send: Read {entry} and run: resume {run_id}",
+      "pass": "the survey task has exactly one dispatched round (one clientRequestId, one host task ID), its result is accepted after resume, and no second dispatch happened"
+    }
+  }
+}

@@ -42,7 +42,11 @@ def plugin_info(args) -> dict | None:
         return None
     data = read_json(manifest)
     entry = directory / data.get('entry', 'entry.md')
-    return {'name': data['name'], 'version': data['version'], 'entry': str(entry), 'package_dir': str(directory),
+    version = data['version']
+    installed = directory / 'install-manifest.json'
+    if installed.is_file():
+        version = read_json(installed).get('version', version)
+    return {'name': data['name'], 'version': version, 'entry': str(entry), 'package_dir': str(directory),
             'defaults': str(directory / data['defaults']) if data.get('defaults') else None}
 
 
