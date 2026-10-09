@@ -99,9 +99,16 @@ def validate(state: dict, task: dict, result: dict, worktree: str | None) -> dic
                            {'commit': result['commit']})
         if result['status'] == 'done' and not actual:
             raise Rejected('result_no_changes', 'a writing task reported done with no changes in its worktree')
+        if result['status'] == 'done' and Path(worktree).resolve() != Path(state['repo']['worktree']).resolve():
+            dirty = snapshot.git(worktree, 'status', '--porcelain', '--untracked-files=normal').strip()
+            head = snapshot.git(worktree, 'rev-parse', 'HEAD').strip()
+            if dirty or head == base:
+                raise Rejected('result_uncommitted', 'a task worktree must hold its work as commits; integration merges '
+                                                     'commits only', {'uncommitted': dirty.splitlines()[:20]})
     elif not task.get('writes') and result['changed_files']:
-        raise Rejected('result_unexpected_writes', 'a read-only task reported changed files',
-                       {'files': result['changed_files']})
+        # Usually the files it read (a review listing what it reviewed). One correction round fixes the report.
+        raise Malformed('a read-only task must report "changed_files": [] (list files you read in findings or notes, '
+                        f'not here); got {result["changed_files"][:10]}')
     roots = [root for root in (worktree, state['repo'].get('worktree')) if root]
     for item in result['requirements']:
         for evidence in item.get('evidence', []):

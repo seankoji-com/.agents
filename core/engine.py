@@ -29,7 +29,7 @@ class Ctx:
 # Args that describe the moment `next` ran rather than the action itself. They are
 # echoed back by the record that reports the action, so a tree change between the
 # two does not orphan an action that was already carried out.
-VOLATILE_ARGS = ('snapshot',)
+VOLATILE_ARGS = ('snapshot', 'binding')
 
 
 def needs_stop(item: dict) -> bool:
@@ -61,6 +61,17 @@ def live_round(task: dict):
     if rounds and rounds[-1].get('task_id') and not rounds[-1].get('terminal'):
         return rounds[-1]
     return None
+
+
+def uncertain_requests(state: dict) -> list:
+    """clientRequestIds whose dispatch outcome is unknown and never reconciled."""
+    found = []
+    for task in state.get('tasks', []):
+        recorded = {item.get('client_request_id') for item in task.get('rounds') or []}
+        for attempt in task.get('uncertain_dispatches') or []:
+            if attempt['client_request_id'] not in recorded and not attempt.get('operator_cleared'):
+                found.append(attempt['client_request_id'])
+    return sorted(set(found))
 
 
 def live_host_tasks(state: dict) -> list:
@@ -139,9 +150,12 @@ def brief(state: dict, task: dict, purpose: str) -> str:
     if notes:
         lines += ['', '## Notes from the run policy', str(notes)]
     verdict = ', "verdict": "approve|adverse"' if task.get('kind') == 'review' else ''
+    shape = RESULT_SHAPE % (task['id'], verdict)
+    if not task.get('writes'):
+        shape = shape.replace('"changed_files": ["path"], "commit": "sha or null"', '"changed_files": [], "commit": null')
     lines += ['', '## Result',
               'End your final message with exactly one fenced block whose info string is `json t3-result`:',
-              '```json t3-result', RESULT_SHAPE % (task['id'], verdict), '```',
+              '```json t3-result', shape, '```',
               'Never set constraints, authorization, endstate or phase; the parent owns them. Your status is a '
               'report, not acceptance: the parent checks every claimed file, commit and artifact.']
     return '\n'.join(lines)
@@ -242,13 +256,15 @@ def _dispatch_action(ctx, state, task, purpose):
     call = t3.delegate_call(brief=brief(state, task, purpose), title=f'{state["run_id"]} {task["id"]}: {task["purpose"]}',
                             role=host_role, client_request_id=client_request_id(state, task, round_no),
                             target=target, mode='async')
-    args_snapshot = None
+    args_snapshot = binding = None
     if task.get('kind') == 'review':
-        args_snapshot = snapshot.token(snapshot.take(state['repo']['worktree'],
-                                                     acceptance.exclusions(state, ctx.state_root)))
+        bound = acceptance.binding(state, ctx.state_root)
+        args_snapshot = snapshot.token(bound['snapshot'])
+        binding = {'snapshot': bound['snapshot'], 'contract_hash': bound['contract_hash'],
+                   'policy_hash': bound['policy_hash']}
     return action('dispatch', 'dispatch', task_id=task['id'],
                   args={'round': round_no, 'purpose': purpose, 'target': target, 'why': why, 'base_sha': base_sha,
-                        'snapshot': args_snapshot,
+                        'snapshot': args_snapshot, 'binding': binding,
                         'create_task': task if task.get('ephemeral') else None},
                   host_call=call,
                   note='Call delegate_task with exactly these arguments (retries reuse the clientRequestId), '
@@ -322,6 +338,8 @@ def _probe_actions(ctx, state, providers):
 
 def executing(ctx, state):
     tasks = state.get('tasks', [])
+    if needs_delegation(state) and not state.get('capabilities'):
+        return {'actions': [_discover()]}
     actions, task_blocks = [], []
     mode, unknown = isolation(state)
     if mode is None:
@@ -421,11 +439,11 @@ def verifying(ctx, state):
     review dispatched before the tree moved is tracked, never orphaned)."""
     result = _verifying(ctx, state)
     if not result.get('blocked'):
-        present = {a['task_id'] for a in result['actions'] if a['action'] == 'query_task'}
-        for task in state.get('tasks', []):
-            item = live_round(task)
-            if task['status'] == 'active' and item and task['id'] not in present:
-                result['actions'].append(_query(task, item))
+        present = {a['host_call']['arguments']['taskId'] for a in result['actions'] if a['action'] == 'query_task'}
+        result['actions'] += [q for q in _live_queries(state) if q['host_call']['arguments']['taskId'] not in present]
+        if any(a['action'] == 'query_task' for a in result['actions']):
+            result['actions'] = [a for a in result['actions']
+                                 if not (a['action'] == 'transition' and a['args'].get('to') == 'ready')]
     return result
 
 
@@ -486,6 +504,8 @@ def _verifying(ctx, state):
 
 
 def _review_actions(ctx, state):
+    if not state.get('capabilities'):
+        return {'actions': [_discover()]}
     round_no = state.get('counters', {}).get('review_rounds', 0)
     task = task_by_id(state, f'review-{round_no}') if round_no else None
     if task and task['status'] in ('active', 'awaiting_text', 'correction_needed', 'pending'):
@@ -519,7 +539,19 @@ def _review_actions(ctx, state):
     return {'actions': [built]}
 
 
+def _live_queries(state):
+    """Queries for children (or their later runs) that may still be working."""
+    out = []
+    for task in state.get('tasks', []):
+        for item in task.get('rounds') or []:
+            if needs_stop(item):
+                out.append(_query(task, item))
+    return out
+
+
 def ready(ctx, state):
+    if _live_queries(state):
+        return {'actions': _live_queries(state)}
     ev = acceptance.evaluate(state, ctx.state_root, ctx.run_dir)
     if not ev['ready']:
         return {'actions': [action('transition', 'transition', args={'to': 'verifying', 'reason': 'evidence is stale'})]}
@@ -532,6 +564,8 @@ def ready(ctx, state):
 
 
 def publishing(ctx, state):
+    if _live_queries(state):
+        return {'actions': _live_queries(state)}
     ev = acceptance.evaluate(state, ctx.state_root, ctx.run_dir)
     if not ev['ready']:
         return {'actions': [action('transition', 'transition', args={'to': 'verifying', 'reason': 'evidence is stale'})]}
@@ -615,7 +649,7 @@ def next_actions(ctx: Ctx, state: dict) -> dict:
     if phase in TERMINAL:
         result = terminal(ctx, state)
     else:
-        live = live_host_tasks(state)
+        live = live_host_tasks(state) + uncertain_requests(state)
         recorded_parent = (state.get('host') or {}).get('parent_thread_id')
         if (ctx.parent_thread_id and recorded_parent and ctx.parent_thread_id != recorded_parent and live):
             result = _blocked(ctx, state, 'cross_parent_resume',

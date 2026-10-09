@@ -315,7 +315,12 @@ def op_recipe_stamp(args, plugin, root):
     run = _run(args, root)
     if not (args.recipe and args.feature and args.requirement):
         raise InvalidInput('recipe_args', 'pass --recipe, --feature and --requirement')
-    return run.run_id, recipe.stamp(Path(args.recipe), run.load(), run.run_dir, args.feature, args.requirement)
+    state = run.load()
+    ev = acceptance.evaluate(state, root, run.run_dir)
+    if not ev['ready']:
+        raise Prohibited('stale_evidence', 'the completed run no longer matches the current tree (including the recipe); '
+                                           'prove the recipe again in a new run', {'stale': ev['stale'], 'missing': ev['missing']})
+    return run.run_id, recipe.stamp(Path(args.recipe), state, run.run_dir, args.feature, args.requirement)
 
 
 HANDLERS = {'init': op_init, 'status': op_status, 'claim': op_claim, 'release': op_release, 'recover': op_recover,

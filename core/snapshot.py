@@ -78,7 +78,11 @@ def take(worktree, exclude=()) -> dict:
         except OSError:
             mode = 0
         digest.update(b'mode:' + oct(mode & 0o170111).encode() + b'\0')
-        if absolute.is_symlink():
+        if absolute.is_dir() and not absolute.is_symlink() and (absolute / '.git').exists():
+            # A submodule: its own HEAD and dirty content, recursively.
+            inner = take(absolute)
+            digest.update(b'submodule:' + token(inner).encode())
+        elif absolute.is_symlink():
             digest.update(b'link:' + os.readlink(absolute).encode(errors='surrogateescape'))
         elif absolute.is_file():
             with open(absolute, 'rb') as stream:
@@ -87,6 +91,10 @@ def take(worktree, exclude=()) -> dict:
         else:
             digest.update(b'absent')
         digest.update(b'\0')
+    if paths:
+        # Staged blobs too: the same working bytes with different staged content commit differently.
+        staged = subprocess.run(['git', '-C', str(root), 'ls-files', '-s', '-z', '--', *paths], capture_output=True)
+        digest.update(b'index:' + staged.stdout)
     return {'worktree': str(root), 'head': head, 'branch': branch,
             'dirty_paths': len(paths), 'content_hash': digest.hexdigest()}
 

@@ -17,9 +17,15 @@ def build(ctx, state: dict) -> dict:
     resources = []
     for item in state.get('resources', []):
         live = item.get('status') == 'live' and resource_live(item)
+        argv = list(item['cleanup_argv'])
+        note = None
+        if live and item['kind'] == 'branch' and state['phase'] != 'completed':
+            # A preserved branch may hold unmerged work; removing it is a deliberate discard.
+            argv = [('-D' if arg == '-d' else arg) for arg in argv]
+            note = 'discards any unmerged commits on this branch'
         resources.append({'id': item['id'], 'kind': item['kind'], 'status': 'live' if live else item.get('status'),
                           'path': item.get('path'), 'branch': item.get('branch'), 'pid': item.get('pid'),
-                          'cleanup_command': shlex.join(item['cleanup_argv']) if live else None})
+                          'cleanup_command': shlex.join(argv) if live else None, 'note': note})
     tasks = []
     for task in state.get('tasks', []):
         tasks.append({'id': task['id'], 'kind': task.get('kind'), 'status': task['status'],
@@ -114,7 +120,7 @@ def markdown(report: dict) -> str:
     if live:
         lines += ['## Preserved resources', '', 'Each line is the exact cleanup command for one run-owned resource.', '']
         lines += [f'- {row["kind"]} {row.get("path") or row.get("branch") or row.get("pid")}: `{row["cleanup_command"]}`'
-                  for row in live]
+                  + (f' ({row["note"]})' if row.get('note') else '') for row in live]
         lines.append('')
     elif report['resources']:
         lines += ['## Resources', '', 'All run-owned worktrees, branches and processes were removed.', '']

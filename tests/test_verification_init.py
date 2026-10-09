@@ -171,7 +171,8 @@ class VerificationInitTest(CoreTestCase):
         state_file.write_text(json.dumps(state))
         code, env, _ = cli('recipe-stamp', *run.args('--recipe', recipe_path, '--feature', 'F-CREATE',
                                                      '--requirement', 'REQ-VERIFY-CREATE'))
-        self.assertEqual((code, env['error']['code']), (4, 'recipe_unproven'), 'no passed runtime acceptance exists')
+        self.assertEqual(code, 4)
+        self.assertIn(env['error']['code'], ('recipe_unproven', 'stale_evidence'), 'no passed runtime acceptance exists')
         recipe = json.loads(recipe_path.read_text())
         recipe['status'] = 'verified'
         recipe_path.write_text(json.dumps(recipe))

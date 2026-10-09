@@ -35,6 +35,26 @@ def _inherit(caps, host):
     return {'providerInstanceId': provider, 'model': model, 'options': {}}
 
 
+def actual_providers(state: dict, roles) -> list:
+    """Providers that actually wrote this run's changes under the given roles:
+    the parent for self-executed work, each dispatched target for delegated work."""
+    found = []
+    host = (state.get('host') or {}).get('provider_instance_id')
+    for task in state.get('tasks', []):
+        if not task.get('writes') or task.get('kind') in ('review', 'probe') or task.get('role') not in roles:
+            continue
+        if task.get('executor') == 'self':
+            if host:
+                found.append(host)
+            continue
+        for item in task.get('rounds') or []:
+            if item.get('task_id') and (item.get('target') or {}).get('providerInstanceId'):
+                found.append(item['target']['providerInstanceId'])
+        if (task.get('target') or {}).get('providerInstanceId'):
+            found.append(task['target']['providerInstanceId'])
+    return sorted(set(found))
+
+
 def candidates(state: dict, role: str, depth: int = 0) -> list:
     """Ordered (target, why) pairs for a role, before availability filtering."""
     if depth > 4:
@@ -61,7 +81,7 @@ def candidates(state: dict, role: str, depth: int = 0) -> list:
             for target, _ in candidates(state, entry['of_role'], depth + 1)[:1]:
                 result.append((dict(target), why + f'; fresh isolated child on the {entry["of_role"]} target'))
         elif kind == 'catalog':
-            excluded = set()
+            excluded = set(actual_providers(state, entry.get('exclude_roles', [])))
             for other in entry.get('exclude_roles', []):
                 for target, _ in candidates(state, other, depth + 1)[:1]:
                     excluded.add(target['providerInstanceId'])

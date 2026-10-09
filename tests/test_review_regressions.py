@@ -381,3 +381,235 @@ class Round2InstallerTest(test_install.InstallTest):
         out = self.installer('--uninstall', expect=2)
         self.assertEqual(out['error']['code'], 'manifest_path_escape')
         self.assertTrue((elsewhere / 'entry.md').is_file(), 'nothing outside the prefix was deleted')
+
+
+class Round3FindingsTest(CoreTestCase):
+    """Round-3 adversarial review findings; see conformance/review/round-3.md."""
+
+    def run_with(self, tasks=None, mode='direct', isolation=None, review=False, caps=None, **policy):
+        repo = self.make_repo()
+        execution = {'mode': mode}
+        if isolation:
+            execution['isolation'] = isolation
+        settings = {'review': {'required': review, 'role': 'reviewer'}, 'checks': [], 'worktree_root': str(self.tmp / 'wt')}
+        settings.update(policy)
+        overrides = {'execution': execution, 'policy': settings}
+        if tasks:
+            overrides['tasks'] = tasks
+        run = self.init(self.plan(repo, **overrides))
+        run.claim()
+        if mode == 'delegated' or review:
+            run.record('capabilities', {'response': caps or capabilities()})
+        run.record('transition', {'to': 'executing'})
+        return repo, run, FakeT3()
+
+    def accept(self, run):
+        log = run.scratch(f'ok-{run.generation}.log', 'ok')
+        run.record('acceptance', {'requirement_id': 'REQ-MULTILINE', 'status': 'passed', 'kind': 'command',
+                                  'explanation': 'ok', 'artifacts': [str(log)]})
+
+    def test_1_no_completion_while_child_runs_are_pending(self):
+        repo, run, t3 = self.run_with([{'id': 'survey', 'purpose': 'read', 'kind': 'read'}], mode='delegated')
+        dispatch = run.only('dispatch')
+        t3.script(dispatch['host_call']['arguments']['clientRequestId'],
+                  dict(done(result_block('survey')), hasPendingChildRuns=True))
+        run.record('dispatch', {'action_id': dispatch['id'], 'response': t3.call(dispatch['host_call'])})
+        run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        run.record('transition', {'to': 'verifying'})
+        self.accept(run)
+        self.assertFalse([a for a in run.next()['actions'] if a['action'] == 'transition'])
+        code, env, _ = run.record_raw('transition', {'to': 'ready'})
+        self.assertEqual((code, env['error']['code']), (4, 'children_running'))
+        task_id = run.state['tasks'][0]['rounds'][0]['task_id']
+        t3.tasks[task_id]['queue'] = [done(result_block('survey'))]
+        run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        run.record('transition', {'to': 'ready'})
+
+    def test_2_late_dispatch_receipt_is_tracked_during_cancellation(self):
+        repo, run, t3 = self.run_with([{'id': 'survey', 'purpose': 'read', 'kind': 'read'}], mode='delegated')
+        dispatch = run.only('dispatch')
+        response = t3.call(dispatch['host_call'])
+        run.record('transition', {'to': 'cancelling'})
+        self.assertEqual(run.only('transition')['args']['to'], 'cancelled', 'nothing recorded yet')
+        run.record('dispatch', {'action': dispatch, 'response': response})
+        self.assertEqual([a['action'] for a in run.next()['actions']], ['cancel_task'])
+
+    def test_3_review_binding_includes_issue_time_policy(self):
+        repo, run, t3 = self.run_with(review=True)
+        edit(repo)
+        run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['wordstat.py'])})
+        run.record('transition', {'to': 'verifying'})
+        self.accept(run)
+        review = run.only('dispatch')
+        t3.script(review['host_call']['arguments']['clientRequestId'], done(result_block(review['task_id'], verdict='approve')))
+        response = t3.call(review['host_call'])
+        run.record('policy', {'policy': {'role_overrides': {'reviewer': {'providerInstanceId': 'antigravity',
+                                                                          'model': 'gemini-3.8-flash-high'}}}})
+        run.record('dispatch', {'action': review, 'response': response, 'snapshot': review['args']['snapshot'],
+                                'binding': review['args']['binding']})
+        run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        self.assertNotEqual(cli('validate', *run.args())[1]['data']['review']['status'], 'passed')
+
+    def test_4_approve_with_major_findings_counts_as_adverse(self):
+        repo, run, t3 = self.run_with(review=True)
+        edit(repo)
+        run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['wordstat.py'])})
+        run.record('transition', {'to': 'verifying'})
+        self.accept(run)
+        review = run.only('dispatch')
+        t3.script(review['host_call']['arguments']['clientRequestId'], done(result_block(
+            review['task_id'], verdict='approve', findings=[{'severity': 'major', 'summary': 'breaks tabs'}])))
+        run.record('dispatch', {'action_id': review['id'], 'response': t3.call(review['host_call']),
+                                'binding': review['args']['binding']})
+        run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        self.assertEqual(run.state['reviews'][-1]['verdict'], 'adverse')
+        self.assertEqual(run.only('repair')['args']['stage'], 'review')
+
+    def test_5_uncommitted_child_work_is_rejected_not_lost(self):
+        repo, run, t3 = self.run_with([{'id': 'fix', 'purpose': 'fix', 'files': ['wordstat.py']}], mode='delegated',
+                                      isolation='parallel')
+        tree = run.only('create_worktree')
+        native(tree['args']['argv'])
+        run.record('resource', {'kind': 'worktree', 'name': tree['args']['name'], 'path': tree['args']['path'],
+                                'branch': tree['args']['branch'], 'task_id': 'fix'})
+        dispatch = run.only('dispatch')
+        response = t3.call(dispatch['host_call'])
+        run.record('dispatch', {'action_id': dispatch['id'], 'response': response})
+        (Path(tree['args']['path']) / 'wordstat.py').write_text('edited but never committed\n')
+        t3.tasks[response['taskId']]['queue'] = [done(result_block('fix', changed_files=['wordstat.py']))]
+        out = run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        self.assertIn('must hold its work as commits', out['result']['blocker']['reason'])
+        cleanup = next(r for r in run.state['resources'] if r['kind'] == 'worktree')['cleanup_argv']
+        self.assertNotIn('--force', cleanup, 'cleanup never force-discards a task worktree')
+
+    def test_6_recipe_stamp_refuses_a_tree_changed_after_completion(self):
+        repo, run, t3 = self.run_with()
+        edit(repo)
+        run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['wordstat.py'])})
+        run.record('transition', {'to': 'verifying'})
+        self.accept(run)
+        run.record('transition', {'to': 'ready'})
+        run.record('transition', {'to': 'completed'})
+        edit(repo, '\n# the recipe or product changed after completion\n')
+        code, env, _ = cli('recipe-stamp', *run.args('--recipe', repo / 'recipe.json', '--feature', 'F-X',
+                                                     '--requirement', 'REQ-MULTILINE'))
+        self.assertEqual((code, env['error']['code']), (4, 'stale_evidence'))
+
+    def test_7_uncertain_dispatch_blocks_cross_parent_resume(self):
+        repo, run, t3 = self.run_with([{'id': 'survey', 'purpose': 'read', 'kind': 'read'}], mode='delegated')
+        dispatch = run.only('dispatch')
+        run.record('dispatch', {'action_id': dispatch['id'], 'error': {'code': 'transport', 'message': 'timed out'}})
+        blocked = run.next(parent='thread-elsewhere')['blocked']
+        self.assertEqual(blocked['code'], 'cross_parent_resume')
+        self.assertEqual(blocked['task_ids'], [dispatch['host_call']['arguments']['clientRequestId']])
+
+    def test_9_dirty_submodule_content_invalidates(self):
+        repo, run, t3 = self.run_with()
+        sub = self.tmp / 'subsrc'
+        sub.mkdir()
+        (sub / 'lib.py').write_text('X = 1\n')
+        git(sub, 'init', '-q', '-b', 'main')
+        git(sub, 'add', '-A')
+        git(sub, 'commit', '-qm', 'lib')
+        git(repo, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', str(sub), 'dep')
+        git(repo, 'commit', '-qm', 'add dep')
+        (repo / 'dep' / 'lib.py').write_text('X = 2\n')
+        run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['dep'])})
+        run.record('transition', {'to': 'verifying'})
+        self.accept(run)
+        self.assertTrue(cli('validate', *run.args())[1]['data']['ready'])
+        porcelain = git(repo, 'status', '--porcelain').stdout
+        (repo / 'dep' / 'lib.py').write_text('X = 3\n')
+        self.assertEqual(git(repo, 'status', '--porcelain').stdout, porcelain)
+        self.assertEqual(cli('validate', *run.args())[1]['data']['status'], 'stale')
+
+    def test_11_scaffold_refuses_symlinked_destination(self):
+        repo = self.make_repo('verify-product')
+        outside = self.tmp / 'outside-agents'
+        outside.mkdir()
+        os.symlink(outside, repo / '.agents')
+        from test_verification_init import facts
+        code, env, _ = cli('recipe-scaffold', '--plugin-dir', ROOT / 'plugins' / 'imps', '--repo', repo, '--json',
+                           json.dumps(facts()))
+        self.assertEqual((code, env['error']['code']), (2, 'path_escape'))
+        self.assertEqual(list(outside.iterdir()), [])
+
+    def test_12_reviewer_excludes_the_provider_that_actually_wrote(self):
+        repo, run, t3 = self.run_with([{'id': 'fix', 'purpose': 'fix', 'files': ['wordstat.py'],
+                                        'target': {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol'}}],
+                                      mode='delegated', isolation='serial', review=True)
+        dispatch = run.only('dispatch')
+        response = t3.call(dispatch['host_call'])
+        run.record('dispatch', {'action_id': dispatch['id'], 'response': response})
+        edit(repo)
+        commit_all(repo, 'codex child fix')
+        t3.tasks[response['taskId']]['queue'] = [done(result_block('fix', changed_files=['wordstat.py']))]
+        run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        run.record('transition', {'to': 'verifying'})
+        self.accept(run)
+        target = run.only('dispatch')['args']['target']['providerInstanceId']
+        self.assertNotIn(target, ('codex', 'claudeAgent'), 'neither the parent nor the codex writer reviews')
+
+    def test_13_retry_after_no_review_target_rediscovers(self):
+        caps = capabilities()
+        for provider in caps['providers']:
+            provider['canRunChildTask'] = False
+        repo, run, t3 = self.run_with(review=True, caps=caps)
+        edit(repo)
+        run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['wordstat.py'])})
+        run.record('transition', {'to': 'verifying'})
+        self.accept(run)
+        blocked = run.next()['blocked']
+        self.assertEqual(blocked['code'], 'provider_unavailable')
+        run.record('block', {'blocker': blocked})
+        run.release()
+        self.assertEqual(native([sys.executable, *blocked['resume']['argv'][1:]]).returncode, 0)
+        run.claim()
+        self.assertEqual([a['action'] for a in run.next()['actions']], ['discover'])
+
+
+class Round3InstallerTest(test_install.InstallTest):
+    def test_install_lifecycle(self):
+        pass  # covered by test_install.InstallTest
+
+    def test_new_version_and_rollback(self):
+        pass  # covered by test_install.InstallTest
+
+    def test_8_uninstall_version_cannot_traverse(self):
+        self.installer()
+        victim_dir = self.prefix / 'victim'
+        victim_dir.mkdir(parents=True)
+        (victim_dir / 'keep.txt').write_text('outside the plugin root')
+        out = self.installer('--uninstall', '--version', '../victim', expect=2)
+        self.assertEqual(out['error']['code'], 'unknown_version')
+        self.assertTrue((victim_dir / 'keep.txt').is_file())
+
+    def test_10_uninstall_keeps_unowned_bytecode(self):
+        first = self.installer()['data']
+        mine = Path(first['version_dir']) / 'unrelated' / '__pycache__' / 'user-data.cpython-314.pyc'
+        mine.parent.mkdir(parents=True)
+        mine.write_bytes(b'not ours')
+        self.installer('--uninstall')
+        self.assertTrue(mine.is_file())
+
+
+class MatrixFindingsTest(CoreTestCase):
+    """Defects found by the live conformance matrix (conformance/compatibility.md)."""
+
+    def test_read_only_child_listing_files_gets_a_correction_not_a_block(self):
+        repo = self.make_repo()
+        run = self.init(self.plan(repo, execution={'mode': 'delegated'},
+                                  tasks=[{'id': 'survey', 'purpose': 'read', 'kind': 'read'}],
+                                  policy={'review': {'required': False, 'role': 'reviewer'}, 'checks': []}))
+        run.claim()
+        run.record('capabilities', {'response': capabilities()})
+        run.record('transition', {'to': 'executing'})
+        t3 = FakeT3()
+        dispatch = run.only('dispatch')
+        self.assertIn('"changed_files": [], "commit": null', dispatch['host_call']['arguments']['task'])
+        t3.script(dispatch['host_call']['arguments']['clientRequestId'],
+                  done(result_block('survey', changed_files=['wordstat.py'])))
+        run.record('dispatch', {'action_id': dispatch['id'], 'response': t3.call(dispatch['host_call'])})
+        out = run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        self.assertEqual(out['result']['outcome'], 'correction_requested')
+        self.assertIn('changed_files', out['result']['problem'])

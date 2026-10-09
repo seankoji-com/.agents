@@ -119,6 +119,11 @@ def _head(state) -> str:
 def rec_transition(ctx, state, payload):
     _require(payload, 'to')
     target = payload['to']
+    if target in ('ready', 'completed', 'publishing'):
+        still = engine.live_host_tasks(state) + engine.uncertain_requests(state)
+        if still:
+            raise Prohibited('children_running', 'delegated work may still be running; observe it first',
+                             {'task_ids': still})
     if target in ('ready', 'completed'):
         bind = _bind(ctx, state)
         ev = acceptance.evaluate(state, ctx.state_root, ctx.run_dir, bind)
@@ -174,8 +179,10 @@ def _sent_dispatch(ctx, state, payload):
     carry the full action; it is accepted when its id matches its contents and its
     clientRequestId is exactly the next round of that task."""
     try:
+        if not payload.get('action_id') and payload.get('action'):
+            raise Prohibited('action_not_permitted', 'falling back to the echoed action')
         return _permitted(ctx, state, 'dispatch', payload)
-    except Prohibited:
+    except (Prohibited, InvalidInput):
         echoed = payload.get('action')
         if not isinstance(echoed, dict) or echoed.get('action') != 'dispatch' or not echoed.get('host_call'):
             raise
@@ -194,7 +201,12 @@ def _sent_dispatch(ctx, state, payload):
 
 
 def rec_dispatch(ctx, state, payload):
-    _phase(state, 'executing', 'verifying')
+    if state['phase'] in ('cancelling', 'blocked'):
+        if not payload.get('action'):
+            raise Prohibited('wrong_phase', 'only an already-sent dispatch (with its full action) can be recorded now')
+        payload = dict(payload, action_id=None)
+    else:
+        _phase(state, 'executing', 'verifying')
     permitted = _sent_dispatch(ctx, state, payload)
     args = permitted['args']
     task = engine.task_by_id(state, permitted['task_id'])
@@ -260,13 +272,10 @@ def rec_dispatch(ctx, state, payload):
     if task.get('kind') == 'review':
         # Bind the verdict to the revision the review was asked to read: the
         # snapshot `next` saw when it issued the dispatch, echoed by this record.
-        bind = _bind(ctx, state)
-        echoed = payload.get('snapshot') or args.get('snapshot')
-        if echoed and echoed != snapshot.token(bind['snapshot']):
-            head, _, content = echoed.partition(':')
-            bind = dict(bind, snapshot=dict(bind['snapshot'], head=None if head == 'None' else head,
-                                            content_hash=content))
-        task['review_binding'] = bind
+        echoed = payload.get('binding') or args.get('binding')
+        if not isinstance(echoed, dict) or not {'snapshot', 'contract_hash', 'policy_hash'} <= set(echoed):
+            raise InvalidInput('binding_missing', 'record the binding from the review dispatch action')
+        task['review_binding'] = {key: echoed[key] for key in ('snapshot', 'contract_hash', 'policy_hash')}
     if task.get('next_round'):
         task['next_round'] = None
     if task.get('writes') and task.get('executor') == 'delegate':
@@ -365,9 +374,14 @@ def _take_result(ctx, state, task, text):
         state['execution']['serial_base'] = _head(state)
     if task.get('kind') == 'review':
         bind = task.get('review_binding') or _bind(ctx, state)
+        verdict = result['verdict']
+        serious = [f for f in result['findings'] if f['severity'] in ('blocker', 'major')]
+        if verdict == 'approve' and serious:
+            verdict = 'adverse'  # the brief's rule: any blocker or major finding makes the verdict adverse
         state.setdefault('reviews', []).append({
             'round': task['review_round'], 'task_id': task['id'], 'selection': task.get('target'),
-            'why': task.get('target_why'), 'verdict': result['verdict'], 'findings': result['findings'],
+            'why': task.get('target_why'), 'verdict': verdict, 'reported_verdict': result['verdict'],
+            'findings': result['findings'],
             'artifact': artifact, 'snapshot': bind['snapshot'], 'contract_hash': bind['contract_hash'],
             'policy_hash': bind['policy_hash'], 'recorded_at': ctx.at,
             'host_task_id': (rounds[-1] if rounds else {}).get('task_id'),
@@ -559,12 +573,14 @@ def rec_resource(ctx, state, payload):
             raise InvalidInput('worktree_missing', f'{path} is not the top of a git worktree')
         entry = {'id': rid, 'kind': 'worktree', 'name': payload['name'], 'path': str(path.resolve()),
                  'branch': payload.get('branch'), 'task_id': payload.get('task_id'), 'status': 'live',
-                 'created_at': ctx.at, 'cleanup_argv': ['git', '-C', repo, 'worktree', 'remove', '--force', str(path.resolve())]}
+                 'created_at': ctx.at,
+                 'cleanup_argv': ['git', '-C', repo, 'worktree', 'remove', *(['--force'] if payload['name'].startswith('probe-') else []),
+                                  str(path.resolve())]}
         created.append(entry)
         if payload.get('branch'):
             created.append({'id': f'R-{uuid.uuid4().hex[:8]}', 'kind': 'branch', 'name': payload['name'],
                             'branch': payload['branch'], 'repo': repo, 'status': 'live', 'created_at': ctx.at,
-                            'cleanup_argv': ['git', '-C', repo, 'branch', '-D', payload['branch']]})
+                            'cleanup_argv': ['git', '-C', repo, 'branch', '-d', payload['branch']]})
         name = payload['name']
         if name.startswith('probe-'):
             provider = name[len('probe-'):]
@@ -643,6 +659,11 @@ def rec_integration(ctx, state, payload):
         transitions.apply(state, 'blocked', 'integration failed', ctx.at)
         return out
     repo = state['repo']['worktree']
+    for task_id in ids:
+        base = _task(state, task_id).get('base_sha')
+        tip = snapshot.git(repo, 'rev-parse', '--verify', branch, check=False).strip()
+        if base and tip == base:
+            raise Prohibited('nothing_integrated', f'{branch} has no commits beyond its baseline; the child did not commit')
     merged = subprocess.run(['git', '-C', repo, 'merge-base', '--is-ancestor', branch, 'HEAD'], capture_output=True)
     if merged.returncode != 0:
         raise Prohibited('not_integrated', f'{branch} is not an ancestor of {repo} HEAD; integration did not happen')
@@ -734,7 +755,8 @@ def apply(ctx, state: dict, kind: str, payload: dict):
         raise InvalidInput('record_payload', 'record input must be a JSON object')
     if state['phase'] in ('completed', 'cancelled', 'failed') and kind not in ('cleanup', 'note'):
         raise Prohibited('terminal', f'run is {state["phase"]}; only cleanup and notes may be recorded')
-    if state['phase'] == 'blocked' and kind not in ('cleanup', 'note', 'block', 'transition', 'observation', 'cancel'):
+    if state['phase'] == 'blocked' and kind not in ('cleanup', 'note', 'block', 'transition', 'observation', 'cancel',
+                                                    'dispatch'):
         raise Prohibited('blocked', 'run is blocked; resolve it with the blocker resume command first')
     result = HANDLERS[kind](ctx, state, payload)
     transitions.event(state, f'record:{kind}', str(result)[:300], ctx.at)

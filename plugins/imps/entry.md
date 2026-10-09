@@ -41,7 +41,7 @@ The operator names one operation: `doctor`, `run <task>`, `resume <run-id>`, `st
 
 ## The loop
 
-Each turn: `claim` (keep the token) → `next` → do each action → `record` → `next` again, until no actions remain or you must wait. Then `release` before you end the turn. Every `record` passes `--run-id`, `--kind`, `--token`, `--expect-generation <current generation>`, `--parent-thread-id <this thread>` and `--input`. A `dispatch` or `integration` record carries the action's `id` as `action_id`; if a dispatch you already sent is refused as no longer permitted, record it again with the whole action as `action`. When an action has `args.snapshot`, its record carries that value as `snapshot`. If the tree changed in between, the record is refused and `next` asks again.
+Each turn: `claim` (keep the token) → `next` → do each action → `record` → `next` again, until no actions remain or you must wait. Then `release` before you end the turn. Every `record` passes `--run-id`, `--kind`, `--token`, `--expect-generation <current generation>`, `--parent-thread-id <this thread>` and `--input`. A `dispatch` or `integration` record carries the action's `id` as `action_id`; if a dispatch you already sent is refused as no longer permitted, record it again with the whole action as `action`. When an action has `args.snapshot` or `args.binding`, its record carries those values under the same names. If the tree changed in between, the record is refused and `next` asks again.
 
 | Action | What you do | Record kind |
 | --- | --- | --- |

@@ -87,7 +87,15 @@ def scaffold(facts: dict, template_dir: Path, repo_root: Path) -> dict:
     slug = facts['project']
     if not SLUG.match(slug):
         raise InvalidInput('project_slug', 'project slug is lowercase letters, digits and dashes')
-    target = Path(repo_root) / '.agents' / 'skills' / f'verify-{slug}'
+    root = Path(repo_root).resolve()
+    target = root
+    for part in ('.agents', 'skills', f'verify-{slug}'):
+        target = target / part
+        if target.is_symlink():
+            raise InvalidInput('path_escape', 'recipe destination component is a symlink', {'path': str(target)})
+    for path in (target / 'features',):
+        if path.is_symlink():
+            raise InvalidInput('path_escape', 'recipe destination component is a symlink', {'path': str(path)})
     features = facts['features'][:5]
     recipe = {
         'schema_version': 1, 'project': slug, 'status': 'draft',

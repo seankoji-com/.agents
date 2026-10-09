@@ -200,7 +200,11 @@ def uninstall(args) -> dict:
     refuse_symlinks(plugin_root)
     if plugin_root.is_dir():
         refuse_symlinks(*[p for p in plugin_root.iterdir() if p.name != 'current' and not p.name.startswith('.current')])
-    versions = [args.version] if args.version else installed_versions(plugin_root)
+    installed = installed_versions(plugin_root)
+    if args.version and args.version not in installed:
+        raise InstallError('unknown_version', f'{args.version!r} is not an installed version of {args.plugin}',
+                           {'installed': installed})
+    versions = [args.version] if args.version else installed
     removed, kept = [], []
     for version in versions:
         version_dir = plugin_root / version
@@ -230,10 +234,17 @@ def uninstall(args) -> dict:
                 write_atomic(manifest_path, (json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode(), 0o644)
             else:
                 manifest_path.unlink()
+            owned_modules = {(owned_path(version_dir, e['path']).parent, Path(e['path']).stem)
+                             for e in manifest['files'] if e['path'].endswith('.py')}
             for cache in sorted(version_dir.rglob('__pycache__')):
-                if cache.is_dir() and all(item.suffix in ('.pyc', '.pyo') for item in cache.iterdir()):
-                    for item in cache.iterdir():
+                if cache.is_symlink() or not cache.is_dir():
+                    continue
+                for item in cache.iterdir():
+                    # Bytecode of an owned module only (name.<tag>.pyc next to an owned name.py).
+                    if (item.suffix in ('.pyc', '.pyo') and not item.is_symlink()
+                            and (cache.parent, item.name.split('.')[0]) in owned_modules):
                         item.unlink()
+                if not any(cache.iterdir()):
                     cache.rmdir()
             for directory in sorted({p for p in version_dir.rglob('*') if p.is_dir()}, key=lambda p: len(p.parts), reverse=True):
                 if not any(directory.iterdir()):
