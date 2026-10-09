@@ -19,13 +19,13 @@ python3 ~/repos/t3-plugins/scripts/install.py --dry-run
 python3 ~/repos/t3-plugins/scripts/install.py
 ```
 
-The installer copies a versioned snapshot to `~/.local/share/t3-plugins/imps/<version>/`, writes `install-manifest.json` there, and points `~/.local/share/t3-plugins/imps/current` at it. It prints the fully expanded entry path. That path stays the same across upgrades:
+The installer copies a versioned snapshot to a directory such as `~/.local/share/t3-plugins/imps/0.1.0+ga50f506cd178/`, writes `install-manifest.json` there, and points `~/.local/share/t3-plugins/imps/current` at it. It prints the fully expanded entry path. That path stays the same across upgrades:
 
 ```text
 ~/.local/share/t3-plugins/imps/current/entry.md
 ```
 
-Upgrade: `git -C ~/repos/t3-plugins pull`, then run the installer again. Roll back: `python3 ~/repos/t3-plugins/scripts/install.py --activate 0.1.0+g6ad2d0b1c5e3` (the installer output and the directory listing name each installed version). A locally edited installed file makes the installer refuse; `--force` overwrites it.
+Upgrade: `git -C ~/repos/t3-plugins pull`, then run the installer again. Roll back: `python3 ~/repos/t3-plugins/scripts/install.py --activate 0.1.0+ga50f506cd178` (the installer output and `ls ~/.local/share/t3-plugins/imps` name each installed version). A locally edited installed file makes the installer refuse; `--force` overwrites it.
 
 ## Use it from a T3 thread
 
@@ -42,25 +42,25 @@ Read ~/.local/share/t3-plugins/imps/current/entry.md and run: run fix the wordst
 The run prints its run ID and ends with a report. To pick it up again later, or after an interruption, in the same thread:
 
 ```text
-Read ~/.local/share/t3-plugins/imps/current/entry.md and run: resume 20261009-131500-5f0c2a
+Read ~/.local/share/t3-plugins/imps/current/entry.md and run: resume 20261009-130019-c0244e
 ```
 
 ```text
-Read ~/.local/share/t3-plugins/imps/current/entry.md and run: status 20261009-131500-5f0c2a
+Read ~/.local/share/t3-plugins/imps/current/entry.md and run: status 20261009-130019-c0244e
 ```
 
 ```text
-Read ~/.local/share/t3-plugins/imps/current/entry.md and run: cancel 20261009-131500-5f0c2a
+Read ~/.local/share/t3-plugins/imps/current/entry.md and run: cancel 20261009-130019-c0244e
 ```
 
 The same operations from a shell, without a model:
 
 ```bash
-python3 ~/.local/share/t3-plugins/imps/current/core/cli.py status --run-id 20261009-131500-5f0c2a
-python3 ~/.local/share/t3-plugins/imps/current/core/cli.py report --run-id 20261009-131500-5f0c2a
+python3 ~/.local/share/t3-plugins/imps/current/core/cli.py status --run-id 20261009-130019-c0244e
+python3 ~/.local/share/t3-plugins/imps/current/core/cli.py report --run-id 20261009-130019-c0244e
 ```
 
-Run state and evidence live in `~/.local/state/t3-plugins/imps/runs/<run-id>/`. Nothing there is removed by cleanup or uninstall. A blocked run's report prints its exact resume command; `conformance/results/` has real examples.
+Run state and evidence live under `~/.local/state/t3-plugins/imps/runs/`, one directory per run (for example `~/.local/state/t3-plugins/imps/runs/20261009-130019-c0244e/`). If a provider's sandbox cannot write there, entry.md tells it to pass `--state-root` to a writable directory and say so. Nothing there is removed by cleanup or uninstall. Run `20261009-130019-c0244e` is a real completed bug fix by Codex; its report is committed at `conformance/results/0.0.46-nightly.20261008.2849/codex/bugfix/1/report.md`. A blocked run's report prints its exact resume command, as in `conformance/results/0.0.46-nightly.20261008.2849/codex/missing-capability/1/report.md`.
 
 ## Test
 

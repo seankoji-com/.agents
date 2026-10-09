@@ -1,0 +1,100 @@
+{
+  "586fb24c56de-main-r1.json": {
+    "schema_version": 1,
+    "task_id": "main",
+    "status": "done",
+    "changed_files": [
+      "wordstat.py",
+      "tests/test_wordstat.py"
+    ],
+    "commit": "b23848940657837959aa5f108a52a8c046270129",
+    "requirements": [
+      {
+        "id": "REQ-REPRO",
+        "status": "unverified",
+        "explanation": "Fix implemented; acceptance follows.",
+        "evidence": []
+      },
+      {
+        "id": "REQ-REGRESSION",
+        "status": "unverified",
+        "explanation": "New CLI regressions failed before fix; current revision check follows.",
+        "evidence": [
+          {
+            "path": "~/.local/state/t3-plugins/imps/runs/20261009-130942-ae73ae/scratch/regression-red.log"
+          }
+        ]
+      }
+    ],
+    "verification": [],
+    "findings": [],
+    "blockers": []
+  },
+  "8600a0b9347a-review-1-r1.json": {
+    "schema_version": 1,
+    "task_id": "review-1",
+    "status": "done",
+    "changed_files": [],
+    "commit": null,
+    "requirements": [
+      {
+        "id": "REQ-REPRO",
+        "status": "passed",
+        "explanation": "python3 wordstat.py count notes.txt (notes.txt = 'one two\\nthree\\n') prints 3 at the current head.",
+        "evidence": [
+          {
+            "path": "wordstat.py"
+          },
+          {
+            "path": "notes.txt"
+          }
+        ]
+      },
+      {
+        "id": "REQ-REGRESSION",
+        "status": "passed",
+        "explanation": "New CLI-level subprocess tests (test_multiline, test_whitespace) fail 3 subtests/tests against base wordstat.py and all 4 tests pass with the fix.",
+        "evidence": [
+          {
+            "path": "tests/test_wordstat.py"
+          }
+        ]
+      }
+    ],
+    "verification": [
+      {
+        "argv": [
+          "python3",
+          "wordstat.py",
+          "count",
+          "notes.txt"
+        ],
+        "cwd": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-b0af15e7/bugfix-2",
+        "exit_code": 0,
+        "summary": "printed 3"
+      },
+      {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests"
+        ],
+        "cwd": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-b0af15e7/bugfix-2",
+        "exit_code": 0,
+        "summary": "4 tests OK with fix; with base wordstat.py temporarily restored, FAILED (failures=3); file then restored from HEAD, tree clean"
+      }
+    ],
+    "findings": [
+      {
+        "severity": "note",
+        "summary": "open() uses default encoding; pre-existing and out of scope for this fix.",
+        "file": "wordstat.py"
+      }
+    ],
+    "blockers": [],
+    "verdict": "approve"
+  }
+}

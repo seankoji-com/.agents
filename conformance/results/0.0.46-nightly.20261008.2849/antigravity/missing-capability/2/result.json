@@ -1,0 +1,52 @@
+{
+  "6cf047d54a07-main-r1.json": {
+    "schema_version": 1,
+    "task_id": "main",
+    "status": "done",
+    "changed_files": [
+      "tests/test_wordstat.py",
+      "wordstat.py"
+    ],
+    "commit": "352be6ddcd1ecf1759e4c8c38e773afd1e15444d",
+    "requirements": [
+      {
+        "id": "REQ-REGRESSION",
+        "status": "passed",
+        "explanation": "Added test_multiline in tests/test_wordstat.py testing a multiline string with 3 words"
+      },
+      {
+        "id": "REQ-REPRO",
+        "status": "passed",
+        "explanation": "wordstat count notes.txt now prints 3"
+      }
+    ],
+    "verification": [
+      {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests"
+        ],
+        "cwd": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-e47be5ec/missing-capability-2",
+        "exit_code": 0,
+        "summary": "All 3 unit tests passed"
+      },
+      {
+        "argv": [
+          "python3",
+          "wordstat.py",
+          "count",
+          "notes.txt"
+        ],
+        "cwd": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-e47be5ec/missing-capability-2",
+        "exit_code": 0,
+        "summary": "CLI returned 3"
+      }
+    ],
+    "findings": [],
+    "blockers": []
+  }
+}

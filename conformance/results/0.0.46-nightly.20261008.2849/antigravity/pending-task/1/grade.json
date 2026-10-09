@@ -1,0 +1,35 @@
+{
+  "case": "pending-task",
+  "repeat": 1,
+  "run_id": "20261009-140511-6dab7e",
+  "thread_id": "mcp:b3423abd-3f5d-4bb4-955c-fd4be47be5ec",
+  "plugin_version": "0.1.0+ga50f506cd178",
+  "starting_revision": "d7f0a6c2396a9750253f1893c819008556b3392d",
+  "outcome": "in_progress",
+  "blocker": null,
+  "grade": {
+    "checks": [
+      {
+        "name": "exactly one initial dispatch",
+        "passed": true
+      },
+      {
+        "name": "every round has its own clientRequestId",
+        "passed": true
+      },
+      {
+        "name": "result accepted after resume",
+        "passed": false
+      },
+      {
+        "name": "resume recorded",
+        "passed": true
+      }
+    ],
+    "passed": false
+  },
+  "interventions": 0,
+  "elapsed_seconds": 3300.0,
+  "note": "FAIL (incomplete): reconciliation correct, but the antigravity survey child never returned within 55 minutes",
+  "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/antigravity/pending-task/1"
+}

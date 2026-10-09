@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "run_id": "20261009-135712-f3efc0",
+  "generation": 10,
+  "generated_at": "2026-10-09T14:02:12Z",
+  "phase": "blocked",
+  "outcome": "blocked",
+  "plugin": {
+    "name": "imps",
+    "version": "0.1.0+ga50f506cd178",
+    "entry": "~/.local/share/t3-plugins/imps/current/entry.md",
+    "package_dir": "~/.local/share/t3-plugins/imps/current"
+  },
+  "labels": {
+    "workflow": "bug-fix"
+  },
+  "repo": {
+    "worktree": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-e47be5ec/missing-capability-3",
+    "base_ref": "origin/main",
+    "base_sha": "c8214f8c8d1d7f2903d62a4872669626a5e3a5bb",
+    "branch": "case/missing-capability",
+    "head": "27e2f500346077da2d283dfac9b6a505f3b291d6",
+    "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "brief": "wordstat count prints 2 for a two-line file with three words; expected 3",
+  "readiness": {
+    "status": "incomplete",
+    "ready": false,
+    "counts": {
+      "passed": 2,
+      "failed": 0,
+      "unverified": 0,
+      "unavailable": 0,
+      "waived": 0
+    },
+    "missing": [
+      {
+        "obligation": "review",
+        "status": "unverified"
+      }
+    ],
+    "failed": [],
+    "stale": []
+  },
+  "requirements": [
+    {
+      "id": "REQ-REPRO",
+      "text": "the original reproduction prints the expected output",
+      "kind": "command",
+      "required": true,
+      "status": "passed",
+      "explanation": "The original reproduction command 'python3 wordstat.py count notes.txt' now prints 3 as expected.",
+      "evidence": [
+        {
+          "path": "artifacts/evidence/a6b4309bd3d6-red.log",
+          "sha256": "a6b4309bd3d6632e1535dc40f36812ec1b898a26d87ebe932724c1ba625162fc",
+          "source": "~/.local/state/t3-plugins/imps/runs/20261009-135712-f3efc0/scratch/red.log"
+        },
+        {
+          "path": "artifacts/evidence/1121cfccd591-green.log",
+          "sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+          "source": "~/.local/state/t3-plugins/imps/runs/20261009-135712-f3efc0/scratch/green.log"
+        }
+      ],
+      "evidence_kind": "command"
+    },
+    {
+      "id": "REQ-REGRESSION",
+      "text": "a regression test at the public seam fails before the fix and passes after",
+      "kind": "command",
+      "required": true,
+      "status": "passed",
+      "explanation": "A regression test test_multiline added to tests/test_wordstat.py failed before the fix and passed after the fix.",
+      "evidence": [
+        {
+          "path": "artifacts/evidence/4fd4a787ebd2-regression_red.log",
+          "sha256": "4fd4a787ebd21b3a01d5d9061d85f786acee05357d733f6409f04ad34a6fd443",
+          "source": "~/.local/state/t3-plugins/imps/runs/20261009-135712-f3efc0/scratch/regression_red.log"
+        },
+        {
+          "path": "artifacts/evidence/903a37105492-regression_green.log",
+          "sha256": "903a371054920cecf53d6e8054f10298ffa960bbb71e7c70d5f2485c5a7350d9",
+          "source": "~/.local/state/t3-plugins/imps/runs/20261009-135712-f3efc0/scratch/regression_green.log"
+        }
+      ],
+      "evidence_kind": "command"
+    }
+  ],
+  "checks": [
+    {
+      "name": "unit",
+      "required": true,
+      "status": "passed",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests"
+      ],
+      "exit_code": 0,
+      "artifact": {
+        "path": "artifacts/checks/beea0a065531-unit-g5.log",
+        "sha256": "beea0a065531a47eb23b13aebb2e8c9a9c32867fcfbc6a100d7f7bb6b56a08ee",
+        "source": "~/.local/state/t3-plugins/imps/runs/20261009-135712-f3efc0/scratch/unit-g5.log"
+      }
+    }
+  ],
+  "review": {
+    "required": true,
+    "status": "unverified"
+  },
+  "reviews": [],
+  "tasks": [
+    {
+      "id": "main",
+      "kind": "code",
+      "status": "accepted",
+      "executor": "self",
+      "target": null,
+      "worktree": null,
+      "result_artifact": {
+        "path": "artifacts/results/3153cc4fd1bc-main-r1.json",
+        "sha256": "3153cc4fd1bc0a42cd1a8dd37647339148fdbd2cace47b058da05e23779743da"
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "purpose": "self",
+          "client_request_id": null,
+          "host_task_id": null,
+          "last_status": null,
+          "last_work_state": null,
+          "cancel": null,
+          "dispatch_error": null
+        }
+      ]
+    }
+  ],
+  "execution": {
+    "mode": "direct",
+    "isolation": null,
+    "concurrency": 4,
+    "serial_base": "ae656c8f67898e4e9e5e0b46800a42cb69338e4e"
+  },
+  "probes": {},
+  "blocker": {
+    "id": "B-acd683c106",
+    "code": "provider_unavailable",
+    "reason": "no available review target (no available candidate)",
+    "meaning": "every configured target for this work is unavailable; retry after enabling one",
+    "task_ids": [],
+    "resume": {
+      "argv": [
+        "python3",
+        "~/.local/share/t3-plugins/imps/current/core/cli.py",
+        "unblock",
+        "--state-root",
+        "~/.local/state/t3-plugins/imps",
+        "--run-id",
+        "20261009-135712-f3efc0",
+        "--blocker-id",
+        "B-acd683c106",
+        "--decision",
+        "retry"
+      ],
+      "decision": "retry",
+      "then": "Read ~/.local/share/t3-plugins/imps/current/entry.md and run: resume 20261009-135712-f3efc0"
+    },
+    "status": "active",
+    "at": "2026-10-09T14:01:20Z"
+  },
+  "resources": [],
+  "remote": {
+    "receipts": [],
+    "observations": []
+  },
+  "budget": {
+    "seconds": 14400,
+    "spent_seconds": 247.031
+  },
+  "counters": {
+    "repairs": {},
+    "review_rounds": 0
+  },
+  "cancellation": null,
+  "notes": {},
+  "completed_binding": null,
+  "next_actions": [],
+  "evidence_dir": "~/.local/state/t3-plugins/imps/runs/20261009-135712-f3efc0/artifacts"
+}

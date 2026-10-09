@@ -1,0 +1,113 @@
+{
+  "1f8cbb189038-main-r1.json": {
+    "schema_version": 1,
+    "task_id": "main",
+    "status": "done",
+    "changed_files": [
+      "wordstat.py",
+      "tests/test_wordstat.py"
+    ],
+    "commit": "ca3202634ceb1d3a5466509d90cd97337b62dd46",
+    "requirements": [
+      {
+        "id": "REQ-REPRO",
+        "status": "unverified",
+        "explanation": "Fix implemented; acceptance follows.",
+        "evidence": []
+      },
+      {
+        "id": "REQ-REGRESSION",
+        "status": "unverified",
+        "explanation": "New CLI regressions failed before the fix; green check follows.",
+        "evidence": [
+          {
+            "path": "~/.local/state/t3-plugins/imps/runs/20261009-130019-c0244e/scratch/regression-red.log"
+          }
+        ]
+      }
+    ],
+    "verification": [],
+    "findings": [],
+    "blockers": []
+  },
+  "8d2165e1115d-review-1-r1.json": {
+    "schema_version": 1,
+    "task_id": "review-1",
+    "status": "done",
+    "changed_files": [],
+    "commit": null,
+    "requirements": [
+      {
+        "id": "REQ-REPRO",
+        "status": "passed",
+        "explanation": "python3 wordstat.py count notes.txt prints 3, exit 0 (notes.txt = 'one two\\nthree\\n'). Fix is text.split() replacing split(' ').",
+        "evidence": [
+          {
+            "path": "wordstat.py"
+          },
+          {
+            "path": "notes.txt"
+          }
+        ]
+      },
+      {
+        "id": "REQ-REGRESSION",
+        "status": "passed",
+        "explanation": "New CLI-level subprocess tests (multiline, whitespace) fail 3 of 4 tests against base wordstat.py and all 4 pass with the fix.",
+        "evidence": [
+          {
+            "path": "tests/test_wordstat.py"
+          }
+        ]
+      }
+    ],
+    "verification": [
+      {
+        "argv": [
+          "python3",
+          "wordstat.py",
+          "count",
+          "notes.txt"
+        ],
+        "cwd": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-b0af15e7/bugfix-1",
+        "exit_code": 0,
+        "summary": "printed 3"
+      },
+      {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests"
+        ],
+        "cwd": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-b0af15e7/bugfix-1",
+        "exit_code": 0,
+        "summary": "4 tests OK on fixed code"
+      },
+      {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests"
+        ],
+        "cwd": "temp copy with base wordstat.py and new tests",
+        "exit_code": 1,
+        "summary": "3 failures on base code, confirming the regression test detects the bug"
+      }
+    ],
+    "findings": [
+      {
+        "severity": "note",
+        "summary": "Reviewer accidentally ran 'git stash' on a clean tree; no effect (stash list empty, tree clean).",
+        "file": "wordstat.py"
+      }
+    ],
+    "blockers": [],
+    "verdict": "approve"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "ef7595637239-survey-r1.json": {
+    "schema_version": 1,
+    "task_id": "survey",
+    "status": "done",
+    "changed_files": [],
+    "commit": null,
+    "requirements": [
+      {
+        "id": "REQ-FUNCTIONS",
+        "status": "passed",
+        "explanation": "wordstat.py defines exactly two functions: count_words (line 9) and main (line 13); each is listed with a one-line description.",
+        "evidence": [
+          {
+            "path": "wordstat.py"
+          }
+        ]
+      }
+    ],
+    "verification": [
+      {
+        "argv": [
+          "grep",
+          "-nE",
+          "^\\s*(async\\s+)?def ",
+          "wordstat.py"
+        ],
+        "cwd": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-f9ad676c/pending-task-3",
+        "exit_code": 0,
+        "summary": "Found def at lines 9 and 13; full-file read confirmed no other functions."
+      },
+      {
+        "argv": [
+          "sleep",
+          "90"
+        ],
+        "cwd": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-f9ad676c",
+        "exit_code": 0,
+        "summary": "Foreground run was blocked by the harness; ran with run_in_background and confirmed via pgrep that it had finished before reporting."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "note",
+        "summary": "count_words splits only on a single space, so newlines and tabs do not separate words (not executed; from inspection).",
+        "file": "wordstat.py"
+      }
+    ],
+    "blockers": []
+  }
+}

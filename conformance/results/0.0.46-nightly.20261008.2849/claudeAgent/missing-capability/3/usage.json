@@ -1,0 +1,11 @@
+{
+  "run_id": "20261009-133242-083dd9",
+  "thread_id": "mcp:5e3e1a7e-feeb-48e6-9add-29baf9ad676c",
+  "provider": "claudeAgent",
+  "model": "claude-sonnet-5-5",
+  "elapsed_seconds": 32.0,
+  "active_budget_seconds": 11.342,
+  "tokens": null,
+  "cost_usd": null,
+  "note": "T3 does not expose token usage or cost to the parent at the tested version; recorded as null"
+}

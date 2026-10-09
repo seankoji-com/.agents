@@ -114,11 +114,21 @@ def grade(case: str, state: dict, report: dict) -> dict:
     elif case == 'pending-task':
         survey = next((t for t in state['tasks'] if t['id'] == 'survey'), {})
         rounds = [r for r in survey.get('rounds') or [] if r.get('task_id')]
+        # A correction round (malformed first result) is a designed, distinct round; a
+        # second *initial* dispatch, or a reused request ID, would be the duplicate.
         checks = [
-            ('one dispatched round', len(rounds) == 1),
-            ('one clientRequestId', len({r['client_request_id'] for r in rounds}) == 1),
+            ('exactly one initial dispatch', sum(1 for r in rounds if r['purpose'] == 'initial') == 1),
+            ('every round has its own clientRequestId', len({r['client_request_id'] for r in rounds}) == len(rounds)),
             ('result accepted after resume', survey.get('status') in ('accepted', 'integrated')),
-            ('resume recorded', any('claim' in e['summary'] or e['kind'] == 'record:capabilities' for e in state['events'][1:])),
+            ('resume recorded', sum(1 for e in state['events'] if e['kind'] == 'record:capabilities') >= 2),
+        ]
+    elif case == 'provider-switch':
+        survey = next((t for t in state['tasks'] if t['id'] == 'survey'), {})
+        checks = [
+            ('provider_switch recorded', any(e['kind'] == 'provider_switch' for e in state['events'])),
+            ('same parent thread kept', not state['host'].get('previous_parent_thread_ids')),
+            ('exactly one initial dispatch', sum(1 for r in survey.get('rounds') or [] if r['purpose'] == 'initial') == 1),
+            ('run completed under the new provider', report['outcome'] == 'completed'),
         ]
     return {'checks': [{'name': name, 'passed': bool(ok)} for name, ok in checks],
             'passed': bool(checks) and all(ok for _, ok in checks)}

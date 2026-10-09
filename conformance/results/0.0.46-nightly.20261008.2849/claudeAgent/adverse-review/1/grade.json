@@ -1,0 +1,35 @@
+{
+  "case": "adverse-review",
+  "repeat": 1,
+  "run_id": "20261009-134537-5ede92",
+  "thread_id": "mcp:5e3e1a7e-feeb-48e6-9add-29baf9ad676c",
+  "plugin_version": "0.1.0+ga50f506cd178",
+  "starting_revision": "3659628e645be54637e42c37361c663bca72dea0",
+  "outcome": "blocked",
+  "blocker": "task_failed",
+  "grade": {
+    "checks": [
+      {
+        "name": "not completed",
+        "passed": true
+      },
+      {
+        "name": "blocked at the repair limit",
+        "passed": false
+      },
+      {
+        "name": "adverse verdict retained",
+        "passed": false
+      },
+      {
+        "name": "exactly one reviewer dispatched",
+        "passed": false
+      }
+    ],
+    "passed": false
+  },
+  "interventions": 1,
+  "elapsed_seconds": 124.0,
+  "note": "FAIL (infrastructure): codex review child crashed twice ('Codex App Server process exited with code 0'); operator typed 'try it again'. No false completion.",
+  "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/adverse-review/1"
+}
