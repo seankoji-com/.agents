@@ -29,7 +29,7 @@ The core writes each child's brief from these fields, the run's constraints and 
 T3 children inherit the parent's checkout and have no worktree parameter. Before the first writing task, `next` runs a probe for each writer provider. It creates a sibling worktree under the state root, asks a child to write a nonce file there, and then reads the file itself.
 
 - **Probe passed** (the child can write outside your checkout): writers run in parallel, each in its own worktree and branch `t3p/<run-id>/<task-id>`.
-- **Probe failed:** writers run one at a time in a single shared worktree (`t3p/<run-id>/shared`). Read-only tasks still run in parallel.
+- **Probe failed:** writers run one at a time in your own checkout, the one place the child is known to be able to write. Each writer is judged only on the commits it adds after its dispatch. Read-only tasks still run in parallel.
 
 The result is stored per provider in the run's `probes` and shown in the report.
 
@@ -39,7 +39,7 @@ Each child ends its final message with one fenced block tagged `json t3-result`.
 
 ## Integration and repair
 
-When the writers are accepted, `next` offers `integrate` actions (`git merge --no-ff` into your checkout) in dependency order. A failed merge blocks the run and keeps every worktree and branch. The report lists each one with its cleanup command. A review repair creates a `repair-N` task: in parallel mode it gets a new worktree from the integrated HEAD; in serial mode it reuses the shared worktree.
+In parallel mode, each accepted writer is integrated as soon as it is ready (`git merge --no-ff` into your checkout, one at a time). A task that depends on a writer starts only after that writer is integrated, so its new worktree contains the prerequisite. Serial mode needs no integration: the writers already worked in your checkout. A failed merge blocks the run and keeps every worktree and branch. The report lists each one with its cleanup command. A review repair creates a `repair-N` task: in parallel mode it gets a new worktree from the integrated HEAD; in serial mode it works in your checkout.
 
 ## Waiting
 

@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import acceptance, blockers, selection, t3
+from . import acceptance, blockers, resources, selection, snapshot, t3
 from .fsutil import hash_value
 from .transitions import TERMINAL
 
@@ -218,11 +218,16 @@ def _dispatch_action(ctx, state, task, purpose):
             return None, picked
     role_spec = (state.get('roles') or {}).get(task['role'], {})
     host_role = task.get('host_role') or role_spec.get('host_role') or 'general'
+    base_sha = None
+    if task.get('writes'):
+        # The baseline is fixed before the child can commit anything.
+        base_sha = task.get('base_sha') or snapshot.git(task.get('worktree') or state['repo']['worktree'],
+                                                        'rev-parse', 'HEAD').strip()
     call = t3.delegate_call(brief=brief(state, task, purpose), title=f'{state["run_id"]} {task["id"]}: {task["purpose"]}',
                             role=host_role, client_request_id=client_request_id(state, task, round_no),
                             target=target, mode='async')
     return action('dispatch', 'dispatch', task_id=task['id'],
-                  args={'round': round_no, 'purpose': purpose, 'target': target, 'why': why,
+                  args={'round': round_no, 'purpose': purpose, 'target': target, 'why': why, 'base_sha': base_sha,
                         'create_task': task if task.get('ephemeral') else None},
                   host_call=call,
                   note='Call delegate_task with exactly these arguments (retries reuse the clientRequestId), '
@@ -264,8 +269,17 @@ def _task_actions(ctx, state, task):
     return [built]
 
 
-def _deps_done(state, task):
-    return all((task_by_id(state, dep) or {}).get('status') in DONE_TASK for dep in task.get('depends_on') or [])
+def _deps_done(state, task, mode=None):
+    """Read-only and self-executed prerequisites are done once accepted. A delegated
+    writer in parallel mode is done only once its branch is integrated, so a
+    dependent task starts from a checkout that contains its prerequisite."""
+    for dep in task.get('depends_on') or []:
+        other = task_by_id(state, dep) or {}
+        needed = ('integrated',) if (mode == 'parallel' and other.get('executor') == 'delegate'
+                                     and other.get('writes')) else DONE_TASK
+        if other.get('status') not in needed:
+            return False
+    return True
 
 
 def _probe_actions(ctx, state, providers):
@@ -293,35 +307,29 @@ def executing(ctx, state):
         probes = _probe_actions(ctx, state, unknown)
         if probes:
             return {'actions': probes}
+    actions += _integration_actions(state, mode)
     live = [t for t in tasks if t['status'] == 'active']
     limit = state['execution'].get('concurrency', 4)
     writer_live = any(t.get('writes') and t['status'] == 'active' and t.get('executor') == 'delegate' for t in tasks)
     for task in tasks:
         if task.get('kind') in ('review', 'probe'):
             continue
-        if task['status'] in ('pending', 'correction_needed') and not _deps_done(state, task):
+        if task['status'] in ('pending', 'correction_needed') and not _deps_done(state, task, mode):
             continue
         if task['status'] in ('pending', 'correction_needed') and task.get('executor') == 'delegate':
             if task.get('writes'):
-                if mode == 'serial' and writer_live:
-                    continue
-                name = task['id'] if mode == 'parallel' else 'shared'
-                if not task.get('worktree'):
-                    plan = worktree_plan(state, name)
-                    existing = resource(state, 'worktree', name=name)
-                    if existing:
-                        actions.append(action('assign_worktree', 'assign', task_id=task['id'],
-                                              args={'task_id': task['id'], 'name': name},
-                                              note='Record the assignment; the worktree already exists.'))
-                    else:
-                        base = state['repo']['worktree']
-                        actions.append(action('create_worktree', 'resource', task_id=task['id'],
-                                              args={'name': name, 'path': plan['path'], 'branch': plan['branch'],
-                                                    'argv': ['git', '-C', base, 'worktree', 'add', '-b',
-                                                             plan['branch'], plan['path'], 'HEAD']},
-                                              note='Run argv natively, then record the resource.'))
-                    if mode == 'serial':
-                        break
+                if mode == 'serial':
+                    # Serial writers work one at a time in the parent's own checkout,
+                    # the one place a sandboxed child is known to be able to write.
+                    if writer_live:
+                        continue
+                elif not task.get('worktree'):
+                    plan = worktree_plan(state, task['id'])
+                    actions.append(action('create_worktree', 'resource', task_id=task['id'],
+                                          args={'name': task['id'], 'path': plan['path'], 'branch': plan['branch'],
+                                                'argv': ['git', '-C', state['repo']['worktree'], 'worktree', 'add',
+                                                         '-b', plan['branch'], plan['path'], 'HEAD']},
+                                          note='Run argv natively, then record the resource.'))
                     continue
             if len(live) >= limit:
                 continue
@@ -349,30 +357,28 @@ def executing(ctx, state):
                                                          note='Independent work is finished; this block remains.')]}
     if open_tasks:
         return {'actions': [], 'waiting': [t['id'] for t in open_tasks]}
-    integration = _integration_actions(state, mode)
-    if integration:
-        return {'actions': integration}
     return {'actions': [action('transition', 'transition', args={'to': 'verifying'})]}
 
 
+def needs_integration(state: dict) -> list:
+    if state['execution'].get('isolation') != 'parallel':
+        return []
+    return [t for t in delegated_writers(state) if t['status'] == 'accepted' and t.get('branch')]
+
+
 def _integration_actions(state, mode):
-    writers = [t for t in delegated_writers(state) if t['status'] == 'accepted']
+    """Parallel mode merges each accepted writer branch as soon as it is ready,
+    one at a time, so dependants start from the integrated checkout."""
+    if mode != 'parallel':
+        return []
+    writers = needs_integration(state)
     if not writers:
         return []
-    repo = state['repo']['worktree']
-    if mode == 'serial':
-        shared = resource(state, 'worktree', name='shared')
-        branch = shared.get('branch') if shared else None
-        return [action('integrate', 'integration', task_id=writers[0]['id'],
-                       args={'task_ids': [t['id'] for t in writers], 'branch': branch,
-                             'argv': ['git', '-C', repo, 'merge', '--no-ff', '--no-edit', branch]},
-                       note='Run argv natively and record the exit code and log.')]
-    ordered = sorted(writers, key=lambda t: len(t.get('depends_on') or []))
-    task = ordered[0]
+    task = writers[0]
     return [action('integrate', 'integration', task_id=task['id'],
-                   args={'task_ids': [task['id']], 'branch': task.get('branch'),
-                         'argv': ['git', '-C', repo, 'merge', '--no-ff', '--no-edit', task.get('branch')]},
-                   note='Integrate in dependency order; record the exit code and log.')]
+                   args={'task_ids': [task['id']], 'branch': task['branch'],
+                         'argv': ['git', '-C', state['repo']['worktree'], 'merge', '--no-ff', '--no-edit', task['branch']]},
+                   note='Run argv natively, keep the output as a log, then record the exit code and log.')]
 
 
 def scratch(ctx, state, name: str) -> str:
@@ -391,6 +397,12 @@ def _repair_or_block(ctx, state, stage, reason, findings):
 
 def verifying(ctx, state):
     ev = acceptance.evaluate(state, ctx.state_root, ctx.run_dir)
+    current = ev['binding']['snapshot']
+    if state['authorization']['endstate'] in ('pr', 'merge') and current['dirty_paths']:
+        return {'actions': [action('commit', None, args={'dirty_paths': current['dirty_paths']},
+                                   note='A pull request carries commits only. Commit the change (leave unrelated work '
+                                        'out of it), then call next; evidence is gathered at the committed revision.')]}
+    token = snapshot.token(current)
     failing_checks = [row for row in ev['checks'] if row['status'] == 'failed' and row['required']]
     if failing_checks:
         return _repair_or_block(ctx, state, 'checks', f'check {failing_checks[0]["name"]} failed',
@@ -402,9 +414,10 @@ def verifying(ctx, state):
             acts.append(action('run_check', 'check', args={'name': check['name'], 'argv': check['argv'],
                                                            'cwd': check.get('cwd') or state['repo']['worktree'],
                                                            'timeout_seconds': check.get('timeout_seconds', 600),
-                                                           'log_path': scratch(ctx, state, check['name'])},
-                               note='Run argv with your native foreground command tool, save the full output to a '
-                                    'log file, then record name, argv, cwd, exit_code and log.'))
+                                                           'log_path': scratch(ctx, state, check['name']),
+                                                           'snapshot': token},
+                               note='Run argv with your native foreground command tool, save the full output to '
+                                    'log_path, then record name, argv, cwd, exit_code, log and snapshot.'))
     unavailable = [row for row in ev['checks'] if row['required'] and row['status'] == 'unavailable']
     if unavailable and not acts:
         return _blocked(ctx, state, 'evidence_unavailable', f'check {unavailable[0]["name"]} could not run')
@@ -419,9 +432,10 @@ def verifying(ctx, state):
         if row['required'] and row['status'] == 'unverified':
             acts.append(action('accept', 'acceptance', args={'requirement_id': row['id'], 'kind': row['kind'],
                                                              'text': row['text'],
-                                                             'evidence_dir': str(ctx.run_dir / 'scratch')},
+                                                             'evidence_dir': str(ctx.run_dir / 'scratch'),
+                                                             'snapshot': token},
                                note=f'Gather {row["kind"]} evidence for this requirement at the current revision, '
-                                    'then record status, explanation and artifact paths.'))
+                                    'then record status, explanation, artifact paths and snapshot.'))
     stuck = [row for row in ev['requirements'] if row['required'] and row['status'] == 'unavailable']
     if stuck and not acts:
         return _blocked(ctx, state, 'evidence_unavailable',
@@ -536,8 +550,14 @@ def cancelling(ctx, state):
 
 
 def cleanup_action(item: dict) -> dict:
+    """Offer a cleanup command only while the resource is still the one recorded."""
+    found = resources.identity(item)
+    if found != 'live':
+        return action('cleanup', 'cleanup', args={'resource_id': item['id'], 'kind': item['kind'], 'argv': None,
+                                                  'identity': found},
+                      note='Already gone or replaced by something unrelated: run nothing, just record the cleanup.')
     return action('cleanup', 'cleanup', args={'resource_id': item['id'], 'kind': item['kind'],
-                                              'argv': item.get('cleanup_argv')},
+                                              'argv': item.get('cleanup_argv'), 'identity': found},
                   note='Run argv natively (it targets only this run-owned resource), then record the outcome.')
 
 

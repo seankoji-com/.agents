@@ -31,7 +31,7 @@ Load this when a T3 tool is missing, errors, or behaves unexpectedly.
 
 - **Tools not callable at all:** record `capabilities` with `{"response": {"unavailable": true, "reason": "<what you saw>"}}`. Delegated mode and independent review become `unavailable`, and the run blocks with a resume command. Direct work that needs neither still runs. There is no fallback transport.
 - **A provider cannot run child tasks:** the catalog reason is kept and classed as `disabled`, `not_installed`, `unauthenticated` or `other`. Do not try to log in, install or enable anything.
-- **`delegate_task` errors:** record `dispatch` with `{"action_id", "error": {"code", "message"}}`. Unavailable targets advance only an explicit fallback chain; a named target blocks instead.
+- **`delegate_task` errors:** record `dispatch` with `{"action_id", "error": {"code", "message"}}`. The core classes the error. An unavailable target advances only an explicit fallback chain; a named target blocks instead. A timeout or transport error is uncertain, because T3 may already have created the task: `next` repeats the identical call with the same `clientRequestId`, which T3 deduplicates. It never mints a new request for an uncertain one.
 - **Argument errors:** fix the call. Never swap in a different tool.
 
 ## Preview toolkit (browser checks)

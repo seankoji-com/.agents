@@ -51,3 +51,4 @@ Stdlib only. No network, credentials or model calls: T3 orchestration responses 
 | REQ-ACCEPTANCE | `test_readiness.LabelTest`, cases 4, 5 and 12 above |
 | REQ-INSTALL | `test_install.InstallTest` |
 | REQ-NO-PATHS | `test_contract.NoMachinePathsTest` |
+| Round-1 adversarial review findings | `test_review_regressions` (one test per finding; see `conformance/review/round-1.md`) |

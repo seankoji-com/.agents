@@ -43,6 +43,7 @@
     "outcome": {
       "enum": [
         "completed",
+        "stale",
         "blocked",
         "cancelled",
         "failed",

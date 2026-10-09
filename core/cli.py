@@ -229,6 +229,15 @@ def _decision(state, blocker, args):
                 if item.get('task_id') in task_ids and not item.get('terminal'):
                     item['cancel'] = None
     elif decision == 'retry':
+        label = f'operator retry of {blocker["id"]}'
+        if blocker['code'] == 'evidence_unavailable':
+            for entry in state.get('checks', []) + state.get('acceptance', []):
+                if entry.get('status') == 'unavailable' and not entry.get('invalidated'):
+                    entry['invalidated'] = label
+        if blocker['code'] == 'remote_unconfirmed':
+            remote = state.setdefault('remote', {'receipts': [], 'observations': []})
+            remote['superseded_observations'] = remote.get('superseded_observations', []) + remote.get('observations', [])
+            remote['observations'] = []
         for task in state['tasks']:
             if task['id'] in task_ids:
                 task.update(unavailable_targets=[], blocker_id=None)
@@ -363,10 +372,14 @@ def main(argv=None) -> int:
         return exc.exit_code
     except OSError as exc:
         error = Environment('io_error', str(exc))
-        print(json.dumps({'schema_version': ENVELOPE_VERSION, 'ok': False, 'op': op, 'run_id': run_id,
-                          'error': error.to_json()}))
-        print(f'io_error: {exc}', file=sys.stderr)
-        return error.exit_code
+    except (ValueError, TypeError, KeyError) as exc:
+        error = InvalidInput('invalid_input', f'{type(exc).__name__}: {exc}')
+    except Exception as exc:  # the envelope contract holds even for bugs
+        error = Environment('internal_error', f'{type(exc).__name__}: {exc}')
+    print(json.dumps({'schema_version': ENVELOPE_VERSION, 'ok': False, 'op': op, 'run_id': run_id,
+                      'error': error.to_json()}))
+    print(f'{error.code}: {error.message}', file=sys.stderr)
+    return error.exit_code
 
 
 if __name__ == '__main__':

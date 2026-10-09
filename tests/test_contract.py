@@ -33,7 +33,7 @@ class PurityTest(CoreTestCase):
             self.assertIsNone(re.search(r'^\s*(from|import)\s+plugins\b', text, re.M), path)
             lowered = text.lower()
             for word in FORBIDDEN_CORE_WORDS:
-                self.assertNotIn(word, lowered, f'{path.relative_to(ROOT)} contains {word!r}')
+                self.assertFalse(word in lowered, f'{path.relative_to(ROOT)} contains {word!r}')
 
     def test_core_imports_only_stdlib_and_itself(self):
         allowed = set(sys.stdlib_module_names) | {'core'}

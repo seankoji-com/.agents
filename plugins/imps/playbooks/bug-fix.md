@@ -68,10 +68,10 @@ Then record a `result` for the task. The text ends with one fenced block tagged 
 
 After `transition` to `verifying`, `next` offers:
 
-- `run_check` for each required check. Run it with your native foreground command tool and its own time limit, and save the full output to `args.log_path`. A failing check returns you to a bounded repair. An infrastructure failure (exit 124, 126 or 127, or a missing tool) is recorded as `unavailable`, never patched around with product edits.
+- `run_check` for each required check. Run it with your native foreground command tool and its own time limit, and save the full output to `args.log_path`. Record it with the action's `args.snapshot`. A failing check returns you to a bounded repair. An infrastructure failure (exit 124, 126 or 127, or a missing tool) is recorded as `unavailable`, never patched around with product edits.
 - `accept` for each requirement. For the reproduction, rerun the original command from `red.log` unchanged and save the new output as `green.log`. Record `passed` only if the actual output matches the expected output. Attach `red.log` and `green.log` together as evidence of before and after.
 
-Machine checks come before review.
+Machine checks come before review. For a PR endstate, `next` first asks you to commit: a pull request carries commits, so evidence is gathered at the committed revision.
 
 ## 7. Review and repair
 

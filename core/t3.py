@@ -141,12 +141,20 @@ def capabilities(response: dict) -> dict:
 
 
 def classify_dispatch_error(error: dict) -> str:
-    """'unavailable' when the target cannot run (so a configured fallback may
-    apply); 'error' otherwise."""
+    """'unavailable': the target cannot run (an explicit fallback chain may advance).
+    'rejected': T3 refused the request outright (nothing was created).
+    'uncertain': anything else, including timeouts and transport errors. T3 may
+    have created the task, so the same clientRequestId must be retried, never a
+    new one."""
     code = str((error or {}).get('code') or '').lower()
     message = str((error or {}).get('message') or '').lower()
-    unavailable_markers = ('capability_denied', 'unavailable', 'disabled', 'not authenticated', 'not installed',
-                           'provider', 'no_active_run', 'unknown model')
-    if any(marker in code or marker in message for marker in unavailable_markers):
+    text = code + ' ' + message
+    if any(marker in text for marker in ('timeout', 'timed out', 'transport', 'connection', 'econn', 'network',
+                                          'socket', 'aborted', 'interrupted')):
+        return 'uncertain'
+    if any(marker in text for marker in ('capability_denied', 'unavailable', 'disabled', 'not authenticated',
+                                          'not installed', 'unknown model', 'not logged in')):
         return 'unavailable'
-    return 'error'
+    if any(marker in text for marker in ('invalid', 'validation', 'schema', 'bad request', 'no_active_run')):
+        return 'rejected'
+    return 'uncertain'

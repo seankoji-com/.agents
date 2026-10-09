@@ -205,3 +205,20 @@ class BlockedPathsTest(CoreTestCase):
         self.assertEqual(run.only('repair')['args']['stage'], 'checks')
         markdown_code, env, _ = cli('report', *run.args())
         self.assertEqual(markdown_code, 0)
+
+    def test_every_resume_command_unblocks(self):
+        """The printed resume command runs as printed and the run does not fall
+        straight back into the same block."""
+        for code in CODES:
+            with self.subTest(code=code):
+                run, blocker = getattr(self, code)()
+                if run.status()['owner']:
+                    run.release()
+                result = subprocess.run([sys.executable, *blocker['resume']['argv'][1:]], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, f'{code}: {result.stdout} {result.stderr}')
+                self.assertTrue(json.loads(result.stdout)['ok'])
+                run.claim()
+                after = run.next()
+                self.assertNotEqual((after.get('blocked') or {}).get('code'), code,
+                                    f'{code} re-blocked immediately: {after.get("blocked")}')
+                run.release()

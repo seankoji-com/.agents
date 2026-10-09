@@ -6,7 +6,7 @@ from pathlib import Path
 
 from . import acceptance, engine, schema
 from .fsutil import atomic_json, atomic_write_bytes
-from .records import resource_live
+from .resources import live as resource_live
 
 OUTCOME = {'completed': 'completed', 'blocked': 'blocked', 'cancelled': 'cancelled', 'failed': 'failed'}
 
@@ -37,6 +37,9 @@ def build(ctx, state: dict) -> dict:
                 'artifact': r.get('artifact')} for r in state.get('reviews', [])]
     active = upcoming.get('blocked')
     outcome = OUTCOME.get(state['phase'], 'blocked' if active else 'in_progress')
+    if outcome == 'completed' and not ev['ready']:
+        # Completed at an earlier revision; the current tree is not what was verified.
+        outcome = 'stale'
     report = {
         'schema_version': 1, 'run_id': state['run_id'], 'generation': state['generation'],
         'generated_at': ctx.at, 'phase': state['phase'], 'outcome': outcome,
@@ -51,6 +54,7 @@ def build(ctx, state: dict) -> dict:
         'blocker': active, 'resources': resources,
         'remote': state.get('remote'), 'budget': state['budget'], 'counters': state.get('counters'),
         'cancellation': state.get('cancellation'), 'notes': state.get('notes', {}),
+        'completed_binding': (state.get('readiness') or {}).get('binding') if state['phase'] == 'completed' else None,
         'next_actions': [a['action'] for a in upcoming['actions']],
         'evidence_dir': str(ctx.run_dir / 'artifacts'),
     }
@@ -59,7 +63,12 @@ def build(ctx, state: dict) -> dict:
 
 
 def markdown(report: dict) -> str:
-    lines = [f'# Run {report["run_id"]}: {report["outcome"]}', '',
+    lines = [f'# Run {report["run_id"]}: {report["outcome"]}', '']
+    if report['outcome'] == 'stale':
+        done = (report.get('completed_binding') or {}).get('snapshot') or {}
+        lines += [f'Completed at `{(done.get("head") or "")[:12]}`, but the working tree has changed since; '
+                  'that completion does not cover the current tree. Start a new run to verify it.', '']
+    lines += [
              f'Phase `{report["phase"]}` at generation {report["generation"]}. Readiness: '
              f'`{report["readiness"]["status"]}`. Repository `{report["repo"]["worktree"]}` '
              f'on `{report["repo"].get("branch")}` at `{(report["repo"].get("head") or "")[:12]}`.', '']

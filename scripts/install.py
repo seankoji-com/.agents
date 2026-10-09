@@ -84,6 +84,23 @@ def plan_install(source: Path, plugin: str) -> dict:
     return {'manifest': manifest, 'mapping': mapping, 'entry': meta.get('entry', 'entry.md')}
 
 
+def owned_path(version_dir: Path, rel: str) -> Path:
+    """Resolve a manifest path inside its version directory, refusing absolute
+    paths, `..`, and symlinked components that would lead elsewhere."""
+    candidate = Path(rel)
+    if candidate.is_absolute() or not rel or any(part in ('..', '') for part in candidate.parts):
+        raise InstallError('manifest_path_escape', 'manifest path must be relative and inside the version directory',
+                           {'path': rel})
+    current = version_dir
+    for part in candidate.parts:
+        current = current / part
+        if current.is_symlink():
+            raise InstallError('manifest_path_escape', 'manifest path crosses a symlink', {'path': rel})
+    if version_dir.exists() and not current.resolve().is_relative_to(version_dir.resolve()):
+        raise InstallError('manifest_path_escape', 'manifest path resolves outside the version directory', {'path': rel})
+    return current
+
+
 def write_atomic(path: Path, data: bytes, mode: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix='.' + path.name + '.', dir=path.parent)
@@ -113,7 +130,7 @@ def repoint(plugin_root: Path, version: str) -> None:
 def local_modifications(version_dir: Path, manifest: dict) -> list:
     changed = []
     for entry in manifest['files']:
-        path = version_dir / entry['path']
+        path = owned_path(version_dir, entry['path'])
         if path.is_file() and sha256(path) != entry['sha256']:
             changed.append(entry['path'])
     return changed
@@ -142,9 +159,11 @@ def install(args) -> dict:
               'files': len(manifest['files'])}
     if args.dry_run:
         return result
+    if version_dir.is_symlink():
+        raise InstallError('manifest_path_escape', f'{version_dir} is a symlink; refusing to write through it')
     for item in manifest['files']:
         source = planned['mapping'][item['path']]
-        target = version_dir / item['path']
+        target = owned_path(version_dir, item['path'])
         if target.is_file() and sha256(target) == item['sha256'] and (target.stat().st_mode & 0o777) == item['mode']:
             continue
         write_atomic(target, source.read_bytes(), item['mode'])
@@ -181,18 +200,27 @@ def uninstall(args) -> dict:
         if not manifest_path.is_file():
             raise InstallError('unknown_version', f'no installed version {version}')
         manifest = json.loads(manifest_path.read_text())
-        for entry in manifest['files']:
-            path = version_dir / entry['path']
+        paths = [(entry, owned_path(version_dir, entry['path'])) for entry in manifest['files']]
+        kept_entries = []
+        for entry, path in paths:
             if not path.is_file():
                 continue
             if sha256(path) != entry['sha256'] and not args.force:
                 kept.append(str(path))
+                kept_entries.append(entry)
                 continue
             if not args.dry_run:
                 path.unlink()
             removed.append(str(path))
         if not args.dry_run:
-            manifest_path.unlink()
+            if kept_entries:
+                # Keep ownership of what we did not delete, so a reinstall still
+                # sees the local modification and refuses to overwrite it.
+                manifest['files'] = kept_entries
+                manifest['preserved_modified'] = True
+                write_atomic(manifest_path, (json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode(), 0o644)
+            else:
+                manifest_path.unlink()
             for cache in sorted(version_dir.rglob('__pycache__')):
                 if cache.is_dir() and all(item.suffix in ('.pyc', '.pyo') for item in cache.iterdir()):
                     for item in cache.iterdir():
@@ -204,7 +232,8 @@ def uninstall(args) -> dict:
             if version_dir.is_dir() and not any(version_dir.iterdir()):
                 version_dir.rmdir()
     link = plugin_root / 'current'
-    if not args.dry_run and link.is_symlink() and not (plugin_root / os.readlink(link) / MANIFEST).is_file():
+    if not args.dry_run and link.is_symlink() and (os.readlink(link) in versions
+                                                   or not (plugin_root / os.readlink(link) / MANIFEST).is_file()):
         link.unlink()
     if not args.dry_run and plugin_root.is_dir() and not any(plugin_root.iterdir()):
         plugin_root.rmdir()

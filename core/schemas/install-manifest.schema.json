@@ -51,6 +51,10 @@
         },
         "additionalProperties": false
       }
+    },
+    "preserved_modified": {
+      "type": "boolean",
+      "description": "set by uninstall when locally modified owned files were kept"
     }
   },
   "additionalProperties": false

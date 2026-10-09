@@ -189,34 +189,32 @@ class DelegatedBugFixTest(CoreTestCase):
         flow.dispatch(probe, [done(result_block(probe['task_id'], status='blocked', blockers=[{'reason': 'EPERM'}]))])
         flow.observe(run.only('query_task'))
         self.assertFalse(run.state['probes']['claudeAgent']['sibling_write'])
-        tree = run.only('create_worktree')
-        self.assertEqual(tree['args']['name'], 'shared')
-        flow.create_worktree(tree)
         actions = run.next()['actions']
+        self.assertFalse([a for a in actions if a['action'] == 'create_worktree'],
+                         'serial writers use the parent checkout, where the child is known to be able to write')
         dispatches = [a for a in actions if a['action'] == 'dispatch']
         self.assertEqual([a['task_id'] for a in dispatches], ['fix'], 'serial mode dispatches one writer')
+        self.assertIn(f'Working directory (absolute; work only here): {repo}', dispatches[0]['host_call']['arguments']['task'])
         flow.dispatch(dispatches[0], [])
         self.assertEqual(run.state['execution']['isolation'], 'serial')
-        self.assertFalse([a for a in run.next()['actions'] if a['action'] in ('dispatch', 'assign_worktree')
-                          and a['task_id'] == 'tests'], 'second writer waits while the first is active')
-        shared = Path(run.state['tasks'][0]['worktree'])
-        source = (shared / 'wordstat.py').read_text()
-        (shared / 'wordstat.py').write_text(source.replace("text.split(' ')", 'text.split()'))
-        sha = commit_all(shared, 'fix')
+        self.assertFalse([a for a in run.next()['actions'] if a['action'] == 'dispatch' and a['task_id'] == 'tests'],
+                         'second writer waits while the first is active')
+        source = (repo / 'wordstat.py').read_text()
+        (repo / 'wordstat.py').write_text(source.replace("text.split(' ')", 'text.split()'))
+        sha = commit_all(repo, 'fix')
         t3.tasks['task:' + dispatches[0]['host_call']['arguments']['clientRequestId']]['queue'] = [done(result_block(
             'fix', changed_files=['wordstat.py'], commit=sha))]
         flow.observe(run.only('query_task'))
-        assign = run.only('assign_worktree')
-        run.record('assign', {'task_id': assign['args']['task_id'], 'name': assign['args']['name']})
         second = run.only('dispatch')
         self.assertEqual(second['task_id'], 'tests')
-        self.assertEqual(run.state['tasks'][1]['worktree'], str(shared))
+        self.assertEqual(second['args']['base_sha'], sha, 'the second writer is judged only on its own changes')
         flow.dispatch(second, [])
-        apply_fix(shared)
-        sha = commit_all(shared, 'test: multiline regression')
+        apply_fix(repo)
+        sha = commit_all(repo, 'test: multiline regression')
         t3.tasks['task:' + second['host_call']['arguments']['clientRequestId']]['queue'] = [done(result_block(
             'tests', changed_files=['tests/test_wordstat.py'], commit=sha))]
         flow.observe(run.only('query_task'))
-        integrate = run.only('integrate')
-        self.assertEqual(integrate['args']['task_ids'], ['fix', 'tests'])
-        self.assertTrue(integrate['args']['branch'].endswith('/shared'))
+        self.assertEqual({t['id']: t['status'] for t in run.state['tasks'] if t['kind'] == 'code'},
+                         {'fix': 'accepted', 'tests': 'accepted'})
+        self.assertEqual(run.only('transition')['args']['to'], 'verifying', 'no integration step in serial mode')
+        self.assertEqual(reproduce(repo).stdout.strip(), '3')

@@ -8,13 +8,13 @@ import subprocess
 import uuid
 from pathlib import Path
 
-from . import acceptance, blockers, contract, engine, results, selection, snapshot, t3, transitions
+from . import acceptance, blockers, contract, engine, resources, results, selection, snapshot, t3, transitions
 from .errors import InvalidInput, Prohibited
 from .fsutil import copy_artifact, write_artifact
 from .store import now_iso
 
 KINDS = ('capabilities', 'transition', 'dispatch', 'observation', 'result', 'cancel', 'check', 'acceptance',
-         'waiver', 'repair', 'resource', 'assign', 'cleanup', 'integration', 'remote-receipt',
+         'waiver', 'repair', 'resource', 'cleanup', 'integration', 'remote-receipt',
          'remote-observation', 'block', 'note', 'policy', 'fail')
 
 
@@ -54,6 +54,19 @@ def _roots(ctx, state):
 
 def _bind(ctx, state):
     return acceptance.binding(state, ctx.state_root)
+
+
+def _require_current(ctx, state, payload):
+    """Evidence names the snapshot it was gathered at (the `snapshot` from its
+    next action). If the tree changed since, the evidence describes another
+    revision and is refused."""
+    expected = payload.get('snapshot')
+    if not expected:
+        raise InvalidInput('snapshot_missing', 'record the snapshot token from the next action that asked for this evidence')
+    current = snapshot.token(_bind(ctx, state)['snapshot'])
+    if expected != current:
+        raise Prohibited('stale_evidence', 'the working tree changed after this evidence was requested; call next again',
+                         {'expected': expected, 'current': current})
 
 
 def _permitted(ctx, state, wanted_kind, payload):
@@ -128,7 +141,7 @@ def rec_transition(ctx, state, payload):
     if target == 'verifying' and state['phase'] == 'executing':
         open_tasks = [t['id'] for t in state['tasks'] if t.get('kind') not in ('review', 'probe')
                       and t['status'] not in engine.DONE_TASK + ('cancelled',)]
-        pending_integration = [t['id'] for t in engine.delegated_writers(state) if t['status'] == 'accepted']
+        pending_integration = [t['id'] for t in engine.needs_integration(state)]
         if open_tasks or pending_integration:
             raise Prohibited('tasks_open', 'tasks are not finished or integrated',
                              {'open': open_tasks, 'awaiting_integration': pending_integration})
@@ -163,9 +176,20 @@ def rec_dispatch(ctx, state, payload):
              'parent_thread_id': state['host'].get('parent_thread_id'), 'task_id': None, 'terminal': False,
              'observations': []}
     if payload.get('error'):
+        kind = t3.classify_dispatch_error(payload['error'])
+        if kind == 'uncertain':
+            # T3 may have accepted the request. Keep the round open-ended: the next
+            # dispatch reuses this clientRequestId, which T3 deduplicates.
+            attempts = task.setdefault('uncertain_dispatches', [])
+            attempts.append({'client_request_id': call['clientRequestId'], 'error': payload['error'], 'at': ctx.at})
+            if len([a for a in attempts if a['client_request_id'] == call['clientRequestId']]) >= 3:
+                return _block_task(ctx, state, task, 'task_failed',
+                                   f'dispatch outcome unknown after 3 attempts with clientRequestId {call["clientRequestId"]}; '
+                                   'check T3 for a task with that request ID before retrying (a retry reuses it)')
+            return {'task': task['id'], 'outcome': 'uncertain', 'client_request_id': call['clientRequestId'],
+                    'note': 'retry the identical delegate_task call; T3 returns the existing task for this clientRequestId'}
         entry['dispatch_error'] = payload['error']
         entry['terminal'] = True
-        kind = t3.classify_dispatch_error(payload['error'])
         task['rounds'].append(entry)
         if kind == 'unavailable' and args.get('target'):
             skipped = set(task.get('unavailable_targets') or [])
@@ -194,8 +218,11 @@ def rec_dispatch(ctx, state, payload):
     task['rounds'].append(entry)
     task['status'] = 'active'
     task['target'] = task.get('target') or args['target']
-    if task.get('worktree') and task.get('writes'):
-        task['base_sha'] = snapshot.git(task['worktree'], 'rev-parse', 'HEAD').strip()
+    if task.get('writes') and not task.get('base_sha'):
+        task['base_sha'] = args.get('base_sha')
+    if task.get('kind') == 'review':
+        # Bind the verdict to the revision the review was asked to read.
+        task['review_binding'] = _bind(ctx, state)
     if task.get('next_round'):
         task['next_round'] = None
     if task.get('writes') and task.get('executor') == 'delegate':
@@ -264,7 +291,7 @@ def _take_result(ctx, state, task, text):
     rounds = task.get('rounds') or []
     round_no = rounds[-1]['round'] if rounds else 1
     raw = write_artifact(ctx.run_dir, 'results', f'{task["id"]}-r{round_no}-raw.txt', text.encode())
-    worktree = task.get('worktree') or (state['repo']['worktree'] if task.get('executor') == 'self' else None)
+    worktree = task.get('worktree') or state['repo']['worktree']
     try:
         result = results.extract(text)
         results.validate(state, task, result, worktree)
@@ -289,7 +316,7 @@ def _take_result(ctx, state, task, text):
         return _block_task(ctx, state, task, 'task_failed', reason)
     task['status'] = 'accepted'
     if task.get('kind') == 'review':
-        bind = _bind(ctx, state)
+        bind = task.get('review_binding') or _bind(ctx, state)
         state.setdefault('reviews', []).append({
             'round': task['review_round'], 'task_id': task['id'], 'selection': task.get('target'),
             'why': task.get('target_why'), 'verdict': result['verdict'], 'findings': result['findings'],
@@ -362,6 +389,13 @@ def rec_check(ctx, state, payload):
     if payload.get('argv') != check['argv']:
         raise InvalidInput('argv_mismatch', 'recorded argv must equal the planned argv exactly',
                            {'planned': check['argv'], 'recorded': payload.get('argv')})
+    planned_cwd = Path(check.get('cwd') or state['repo']['worktree'])
+    if not planned_cwd.is_absolute():
+        planned_cwd = Path(state['repo']['worktree']) / planned_cwd
+    if payload.get('cwd') and Path(payload['cwd']).resolve() != planned_cwd.resolve():
+        raise InvalidInput('cwd_mismatch', 'recorded cwd must be the planned cwd',
+                           {'planned': str(planned_cwd), 'recorded': payload['cwd']})
+    _require_current(ctx, state, payload)
     code = payload.get('exit_code')
     reason = payload.get('unavailable_reason')
     if code is None and not reason:
@@ -391,6 +425,7 @@ def rec_acceptance(ctx, state, payload):
         raise InvalidInput('acceptance_status', 'status must be passed, failed, unverified or unavailable; waivers use record --kind waiver')
     if payload['kind'] != req['kind']:
         raise Prohibited('evidence_kind', f'{req["id"]} needs {req["kind"]} evidence, got {payload["kind"]}')
+    _require_current(ctx, state, payload)
     paths = payload.get('artifacts') or []
     if payload['status'] == 'passed' and not paths:
         raise Prohibited('evidence_missing', 'a passed requirement needs at least one evidence artifact')
@@ -457,12 +492,6 @@ def rec_repair(ctx, state, payload):
     return {'repair_task': task['id'], 'stage': stage, 'used': used + 1, 'limit': state['policy']['repair_limit']}
 
 
-def _ps(pid: int) -> str | None:
-    out = subprocess.run(['ps', '-o', 'lstart=', '-o', 'command=', '-p', str(pid)], capture_output=True)
-    text = out.stdout.decode(errors='replace').strip()
-    return text or None
-
-
 def rec_resource(ctx, state, payload):
     _require(payload, 'kind')
     kind = payload['kind']
@@ -481,7 +510,7 @@ def rec_resource(ctx, state, payload):
         created.append(entry)
         if payload.get('branch'):
             created.append({'id': f'R-{uuid.uuid4().hex[:8]}', 'kind': 'branch', 'name': payload['name'],
-                            'branch': payload['branch'], 'status': 'live', 'created_at': ctx.at,
+                            'branch': payload['branch'], 'repo': repo, 'status': 'live', 'created_at': ctx.at,
                             'cleanup_argv': ['git', '-C', repo, 'branch', '-D', payload['branch']]})
         name = payload['name']
         if name.startswith('probe-'):
@@ -504,11 +533,14 @@ def rec_resource(ctx, state, payload):
                 'probe': {'provider': provider, 'nonce': nonce, 'marker': str(path.resolve() / '.t3-probe-marker')}})
         else:
             for task in state['tasks']:
-                if task['id'] == payload.get('task_id') or (name == 'shared' and task['id'] == payload.get('task_id')):
+                if task['id'] == payload.get('task_id'):
                     task['worktree'], task['branch'] = str(path.resolve()), payload.get('branch')
+                    task['base_sha'] = snapshot.git(path, 'rev-parse', 'HEAD').strip()
     elif kind == 'process':
         _require(payload, 'pid')
-        fingerprint = _ps(int(payload['pid']))
+        if not isinstance(payload['pid'], int) or isinstance(payload['pid'], bool) or payload['pid'] <= 1:
+            raise InvalidInput('pid', 'pid must be a positive integer', {'pid': payload['pid']})
+        fingerprint = resources.fingerprint(payload['pid'])
         if not fingerprint:
             raise InvalidInput('process_missing', f'no process {payload["pid"]}')
         created.append({'id': rid, 'kind': 'process', 'pid': int(payload['pid']), 'fingerprint': fingerprint,
@@ -520,26 +552,8 @@ def rec_resource(ctx, state, payload):
     return {'resources': created}
 
 
-def rec_assign(ctx, state, payload):
-    _require(payload, 'task_id', 'name')
-    task = _task(state, payload['task_id'])
-    tree = engine.resource(state, 'worktree', name=payload['name'])
-    if not tree:
-        raise Prohibited('no_worktree', f'no live worktree named {payload["name"]}')
-    task['worktree'], task['branch'] = tree['path'], tree.get('branch')
-    return {'task': task['id'], 'worktree': tree['path']}
-
-
 def resource_live(item: dict) -> bool:
-    if item['kind'] == 'worktree':
-        return Path(item['path']).exists()
-    if item['kind'] == 'branch':
-        repo_check = subprocess.run(['git', '-C', item['cleanup_argv'][2], 'rev-parse', '--verify', '-q',
-                                     'refs/heads/' + item['branch']], capture_output=True)
-        return repo_check.returncode == 0
-    if item['kind'] == 'process':
-        return _ps(item['pid']) == item['fingerprint']
-    return False
+    return resources.live(item)
 
 
 def rec_cleanup(ctx, state, payload):
@@ -547,7 +561,7 @@ def rec_cleanup(ctx, state, payload):
     item = next((r for r in state.get('resources', []) if r['id'] == payload['resource_id']), None)
     if item is None:
         raise InvalidInput('unknown_resource', f'no resource {payload["resource_id"]}')
-    if item['kind'] == 'process' and _ps(item['pid']) not in (None, item['fingerprint']):
+    if item['kind'] == 'process' and resources.fingerprint(item['pid']) not in (None, item['fingerprint']):
         item['status'] = 'gone'
         item['note'] = 'pid now belongs to an unrelated process; nothing was signalled'
         return {'resource': item['id'], 'status': 'gone'}
@@ -619,7 +633,7 @@ def rec_block(ctx, state, payload):
         _require(payload, 'reason')
         item = blockers.make(ctx, state, payload.get('code') or 'operator', payload['reason'],
                              payload.get('task_ids') or [], ctx.at)
-    if any(existing['id'] == item['id'] for existing in state.get('blockers', [])):
+    if any(existing['id'] == item['id'] and existing['status'] == 'active' for existing in state.get('blockers', [])):
         return {'blocker': item, 'note': 'already recorded'}
     state.setdefault('blockers', []).append(item)
     if state['phase'] != 'blocked':
@@ -654,7 +668,7 @@ HANDLERS = {
     'capabilities': rec_capabilities, 'transition': rec_transition, 'dispatch': rec_dispatch,
     'observation': rec_observation, 'result': rec_result, 'cancel': rec_cancel, 'check': rec_check,
     'acceptance': rec_acceptance, 'waiver': rec_waiver, 'repair': rec_repair, 'resource': rec_resource,
-    'assign': rec_assign, 'cleanup': rec_cleanup, 'integration': rec_integration,
+    'cleanup': rec_cleanup, 'integration': rec_integration,
     'remote-receipt': rec_remote_receipt, 'remote-observation': rec_remote_observation, 'block': rec_block,
     'note': rec_note, 'policy': rec_policy, 'fail': rec_fail,
 }

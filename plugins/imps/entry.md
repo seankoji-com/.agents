@@ -41,7 +41,7 @@ The operator names one operation: `doctor`, `run <task>`, `resume <run-id>`, `st
 
 ## The loop
 
-Each turn: `claim` (keep the token) → `next` → do each action → `record` → `next` again, until no actions remain or you must wait. Then `release` before you end the turn. Every `record` passes `--run-id`, `--kind`, `--token`, `--expect-generation <current generation>`, `--parent-thread-id <this thread>` and `--input`. A `dispatch` or `integration` record carries the action's `id` as `action_id` in its input.
+Each turn: `claim` (keep the token) → `next` → do each action → `record` → `next` again, until no actions remain or you must wait. Then `release` before you end the turn. Every `record` passes `--run-id`, `--kind`, `--token`, `--expect-generation <current generation>`, `--parent-thread-id <this thread>` and `--input`. A `dispatch` or `integration` record carries the action's `id` as `action_id`; `check` and `acceptance` carry the action's `args.snapshot`. If the tree changed in between, the record is refused and `next` asks again.
 
 | Action | What you do | Record kind |
 | --- | --- | --- |
@@ -52,15 +52,15 @@ Each turn: `claim` (keep the token) → `next` → do each action → `record` �
 | `query_task` | end your turn if nothing else is actionable; T3 wakes you when the child finishes. Call `task_status` only when you need the result now | `observation` (`{"response"}`) |
 | `collect_result` | `t3_thread_read` the child thread's final message | `result` (`{"task_id", "text"}`) |
 | `create_worktree` | run `args.argv` | `resource` (`kind: worktree`, `name`, `path`, `branch`, `task_id`) |
-| `assign_worktree` | nothing | `assign` |
 | `integrate` | run `args.argv` and keep the log | `integration` (`{"action_id", "exit_code", "log"}`) |
-| `run_check` | run `args.argv` in `args.cwd` with your native foreground command tool and save the output to `args.log_path` | `check` (`name`, `argv`, `cwd`, `exit_code`, `log`) |
-| `accept` | gather evidence of `args.kind` at the current revision and save it under `args.evidence_dir` | `acceptance` (`requirement_id`, `status`, `kind`, `explanation`, `artifacts`) |
+| `commit` | commit the change (PR endstates publish commits only) | none; call `next` |
+| `run_check` | run `args.argv` in `args.cwd` with your native foreground command tool and save the output to `args.log_path` | `check` (`name`, `argv`, `cwd`, `exit_code`, `log`, `snapshot`) |
+| `accept` | gather evidence of `args.kind` at the current revision and save it under `args.evidence_dir` | `acceptance` (`requirement_id`, `status`, `kind`, `explanation`, `artifacts`, `snapshot`) |
 | `repair` | nothing yet; next offers the repair work | `repair` (`stage`, `findings`) |
 | `publish` | push and open the PR with native tools | `remote-receipt` |
 | `confirm_remote` | run `args.argv` and read the real state | `remote-observation` (`kind`, `url`, `state`, `head_sha`) |
 | `cancel_task` / `confirm_stop` | call the `host_call` | `cancel` / `observation` |
-| `cleanup` | run `args.argv` | `cleanup` (`resource_id`, `exit_code`) |
+| `cleanup` | run `args.argv`; if it is null the resource is already gone, so run nothing | `cleanup` (`resource_id`, `exit_code`) |
 | `block` | nothing | `block` (`{"blocker": args.blocker}`), then `release` and report |
 | `report` | run `report` | none |
 

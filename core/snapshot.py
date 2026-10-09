@@ -73,6 +73,11 @@ def take(worktree, exclude=()) -> dict:
             continue
         paths.append(rel)
         digest.update(status.encode() + b'\0' + rel.encode(errors='surrogateescape') + b'\0')
+        try:
+            mode = os.lstat(absolute).st_mode
+        except OSError:
+            mode = 0
+        digest.update(b'mode:' + oct(mode & 0o170111).encode() + b'\0')
         if absolute.is_symlink():
             digest.update(b'link:' + os.readlink(absolute).encode(errors='surrogateescape'))
         elif absolute.is_file():
@@ -84,6 +89,11 @@ def take(worktree, exclude=()) -> dict:
         digest.update(b'\0')
     return {'worktree': str(root), 'head': head, 'branch': branch,
             'dirty_paths': len(paths), 'content_hash': digest.hexdigest()}
+
+
+def token(snap: dict) -> str:
+    """Compact identity of a snapshot, carried by actions and echoed by records."""
+    return f'{snap.get("head")}:{snap.get("content_hash")}'
 
 
 def same(a: dict | None, b: dict | None) -> bool:

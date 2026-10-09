@@ -148,7 +148,15 @@ class Run:
         self.test.assertEqual(code, 0, env)
         return env['data']
 
+    def snapshot_token(self):
+        code, env, _ = cli('validate', *self.args())
+        snap = env['data']['binding']['snapshot']
+        return f'{snap["head"]}:{snap["content_hash"]}'
+
     def record_raw(self, kind, payload, parent=None, token=None, generation=None):
+        if kind in ('check', 'acceptance') and 'snapshot' not in payload:
+            # An agent echoes the snapshot token from the next action that asked for the evidence.
+            payload = dict(payload, snapshot=self.snapshot_token())
         return cli('record', *self.args('--kind', kind, '--token', token or self.token or '',
                                         '--expect-generation', generation if generation is not None else self.generation,
                                         '--parent-thread-id', parent or self.parent, '--json', json.dumps(payload)))
@@ -229,4 +237,4 @@ class CoreTestCase(unittest.TestCase):
         log = Path(args['log_path'])
         log.write_text(result.stdout + result.stderr)
         return run.record('check', {'name': args['name'], 'argv': args['argv'], 'cwd': args['cwd'],
-                                    'exit_code': result.returncode, 'log': str(log)})
+                                    'exit_code': result.returncode, 'log': str(log), 'snapshot': args['snapshot']})

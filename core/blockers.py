@@ -44,7 +44,10 @@ def make(ctx, state: dict, code: str, reason: str, task_ids=(), at: str = '') ->
         code = 'operator'
     task_ids = sorted({str(item) for item in task_ids if item})
     decision, meaning = CODES[code]
-    blocker_id = 'B-' + hash_value([code, task_ids, reason, state['generation']])[:10]
+    # Stable across claim/release (which bump the generation) so a printed resume
+    # command stays valid; distinct from any earlier, already resolved occurrence.
+    resolved = sum(1 for item in state.get('blockers', []) if item.get('status') == 'resolved')
+    blocker_id = 'B-' + hash_value([code, task_ids, reason, resolved])[:10]
     prompt = None
     entry = (state.get('plugin') or {}).get('entry')
     if entry:

@@ -105,8 +105,7 @@ def copy_artifact(source: Path, run_dir: Path, category: str, roots) -> dict:
     digest = sha256_file(source)
     if not category.replace('-', '').isalnum():
         raise InvalidInput('bad_category', 'artifact category must be alphanumeric', {'category': category})
-    target_dir = Path(run_dir) / 'artifacts' / category
-    target_dir.mkdir(parents=True, exist_ok=True)
+    target_dir = safe_dir(run_dir, 'artifacts', category)
     stem = ''.join(ch if ch.isalnum() or ch in '._-' else '_' for ch in source.name)[:80] or 'artifact'
     target = target_dir / f'{digest[:12]}-{stem}'
     if not target.exists():
@@ -116,9 +115,24 @@ def copy_artifact(source: Path, run_dir: Path, category: str, roots) -> dict:
     return {'path': target.relative_to(run_dir).as_posix(), 'sha256': digest, 'source': str(source)}
 
 
+def safe_dir(run_dir: Path, *parts: str) -> Path:
+    """Create run_dir/parts... and refuse if any component is a symlink or the
+    result resolves outside the run directory."""
+    root = Path(run_dir).resolve()
+    current = Path(run_dir)
+    for part in parts:
+        current = current / part
+        if current.is_symlink():
+            raise InvalidInput('path_escape', 'run directory component is a symlink', {'path': str(current)})
+        current.mkdir(exist_ok=True)
+    if not current.resolve().is_relative_to(root):
+        raise InvalidInput('path_escape', 'artifact directory resolves outside the run directory', {'path': str(current)})
+    return current
+
+
 def write_artifact(run_dir: Path, category: str, name: str, data: bytes) -> dict:
     digest = sha256_bytes(data)
-    target = Path(run_dir) / 'artifacts' / category / f'{digest[:12]}-{name}'
+    target = safe_dir(run_dir, 'artifacts', category) / f'{digest[:12]}-{name}'
     if not target.exists():
         atomic_write_bytes(target, data)
     return {'path': target.relative_to(run_dir).as_posix(), 'sha256': digest}

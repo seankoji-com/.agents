@@ -147,6 +147,8 @@ def remote_confirmed(state: dict, bind: dict) -> tuple[bool, str]:
     endstate = state['authorization']['endstate']
     if endstate == 'local':
         return True, 'local endstate'
+    if bind['snapshot'].get('dirty_paths'):
+        return False, 'verified changes are not committed, so no pull request can contain them'
     observations = (state.get('remote') or {}).get('observations', [])
     wanted = {'pr': ('open', 'merged'), 'merge': ('merged',)}.get(endstate, ())
     for item in reversed(observations):
