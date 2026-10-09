@@ -1,0 +1,135 @@
+# PR Gatekeeper — synced from seankoji-com/.github (panel/call-reusable-pr-gatekeeper.yml)
+# Posts the single aggregator check `gatekeeper / all-checks-passed`, required
+# org-wide, which blocks on ANY red check rather than only the ones this repo
+# happens to list as required.
+# Uses this repository's own GITHUB_TOKEN to post the check run — never an App
+# identity, so the ruleset's context match stays unambiguous.
+name: PR Gatekeeper
+
+on:
+  # The wildcard is deliberate and load-bearing: `workflows` is a REQUIRED key
+  # with minItems 1, so it cannot be omitted, and an enumerated list would go
+  # stale the moment a repo adds a workflow. check_run/check_suite cannot be
+  # used at all — GitHub suppresses both for any head SHA that ran an Actions
+  # workflow, which is every PR here.
+  workflow_run:
+    workflows: ['*']
+    types: [completed]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  # Seed the required context the moment a PR opens or its head moves.
+  # pull_request_target, NOT pull_request: on a fork, pull_request hands the
+  # reusable a read-only token, the check-run POST 403s, and this job goes red —
+  # pinning the required context red permanently, which nothing can clear.
+  # pull_request_target runs this base-branch workflow with the base repo's
+  # write token and executes no PR code: the reusable checks nothing out, it
+  # only curls the evaluator from this org's raw URL at the reusable's own
+  # commit. The caller job's own composite check run already carries the
+  # required name and the evaluator drops every run with that name, so the
+  # seed cannot block on itself. The queued job's check run is what makes the
+  # gate visible before any evaluation, even with every runner busy.
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  # The reconciler's path, for a PR the event route never noticed.
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: 'Commit SHA to evaluate and report the gate against.'
+        required: true
+        type: string
+      persona_state:
+        description: 'Private controller signal for the Grumpy review job.'
+        type: string
+        default: ''
+      persona_pr:
+        description: 'PR number for the exact-head persona signal.'
+        type: string
+        default: ''
+
+# Deliberately NOT `contents: read` alone. A reusable workflow can never be
+# granted more than its caller holds, so narrowing here would 403 the check-run
+# POST in every repo — invisibly, since a resolution failure produces no check
+# run to go red.
+permissions:
+  actions: read
+  checks: write
+  statuses: read
+  pull-requests: read
+  contents: read
+
+# Coalesce routine CI completions before they enter the serialized writer queue.
+# Seeds, controller signals and fork review resolution retain their own run IDs.
+concurrency:
+  group: >-
+    ${{ github.event_name == 'workflow_run' &&
+    github.event.workflow_run.event != 'pull_request_review' &&
+    github.event.workflow_run.name != 'PR Gatekeeper' &&
+    (github.event.workflow_run.pull_requests[0] != null ||
+    contains(fromJSON('["pull_request", "pull_request_target", "dynamic"]'), github.event.workflow_run.event)) &&
+    format('pr-gatekeeper-refresh-{0}', github.repository) ||
+    format('pr-gatekeeper-event-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+jobs:
+  recover-persona:
+    # An independent event path; the reusable sends only PR identity to the
+    # private controller and never checks out PR code.
+    # No continue-on-error and no secrets in this `if`: GitHub rejects both on
+    # a reusable-workflow caller job, and the whole file then fails to parse,
+    # so the required gate never posts. The reusable skips itself when the
+    # key is absent and marks every step advisory, so this job cannot go red.
+    if: github.event_name == 'pull_request_target'
+    # Must cover the called job's own grant (contents + pull-requests read): a
+    # called workflow can only downgrade permissions, so a narrower caller is
+    # also a load-time failure that actionlint cannot see for a remote reusable.
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: seankoji-com/.github/.github/workflows/reusable-persona-recovery-request.yml@main
+    with:
+      target_repository: ${{ github.repository }}
+      pr_number: ${{ format('{0}', github.event.pull_request.number) }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
+    secrets:
+      SEANKOJI_CI_PRIVATE_KEY: ${{ secrets.SEANKOJI_CI_PRIVATE_KEY }}
+
+  review-event:
+    # Reviews on forks have read-only tokens. This signal finishes without
+    # fetching PR code; workflow_run then evaluates with default-branch code.
+    if: github.event_name == 'pull_request_review'
+    permissions:
+      contents: read
+    uses: seankoji-com/.github/.github/workflows/reusable-review-event.yml@main
+
+  gatekeeper:
+    # Serialize every head/merge publication. Routine CI arrivals are bounded
+    # above; keep event payloads in this queue until their signals are published.
+    concurrency:
+      group: pr-gatekeeper-${{ github.repository }}
+      cancel-in-progress: false
+      queue: max
+    # Guarding at the job level, not inside a step: an in-job early exit still
+    # claims a self-hosted runner first, and fleet capacity is scarce.
+    #   - Skipping the gate's own runs stops it re-triggering itself, which
+    #     would burn workflow_run's three-level chain cap.
+    #   - `pull_requests` is empty on fork runs, so the event allowlist is what
+    #     keeps fork PRs gated rather than ignored.
+    #   - On `pull_request_target` the job's own queued composite check run is
+    #     the pending seed: it carries the required name with no runner needed.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request_target' ||
+      (github.event_name == 'workflow_run' &&
+       (github.event.workflow_run.name != 'PR Gatekeeper' ||
+        github.event.workflow_run.event == 'pull_request_review') &&
+       (github.event.workflow_run.pull_requests[0] != null ||
+        contains(fromJSON('["pull_request", "pull_request_target", "pull_request_review", "dynamic"]'), github.event.workflow_run.event)))
+    uses: seankoji-com/.github/.github/workflows/reusable-pr-gatekeeper.yml@main
+    with:
+      head_sha: ${{ github.event.workflow_run.pull_requests[0].head.sha || github.event.workflow_run.head_sha || github.event.pull_request.head.sha || inputs.head_sha }}
+      review_run_id: ${{ github.event.workflow_run.event == 'pull_request_review' && format('{0}', github.event.workflow_run.id) || '' }}
+      runner-json: '["ubuntu-latest"]'
+      reconcile_open: true
+      seed: ${{ github.event_name == 'pull_request_target' }}
+      persona_state: ${{ inputs.persona_state || '' }}
+      persona_pr: ${{ inputs.persona_pr || '' }}
