@@ -261,3 +261,123 @@ class InstallerFindingsTest(test_install.InstallTest):
         refused = self.installer(expect=4)
         self.assertEqual(refused['error']['code'], 'locally_modified')
         self.assertEqual(entry.read_text(), 'my edits\n')
+
+
+class Round2FindingsTest(CoreTestCase):
+    """Gaps reported by the (interrupted) round-2 review; see conformance/review/round-2.md."""
+
+    def delegated(self, tasks, isolation=None, review=False, **policy):
+        repo = self.make_repo()
+        execution = {'mode': 'delegated'}
+        if isolation:
+            execution['isolation'] = isolation
+        settings = {'review': {'required': review, 'role': 'reviewer'}, 'checks': [], 'worktree_root': str(self.tmp / 'wt')}
+        settings.update(policy)
+        run = self.init(self.plan(repo, execution=execution, tasks=tasks, policy=settings))
+        run.claim()
+        run.record('capabilities', {'response': capabilities()})
+        run.record('transition', {'to': 'executing'})
+        return repo, run, FakeT3()
+
+    def test_a_review_binding_is_the_snapshot_next_issued(self):
+        repo = self.make_repo()
+        run = self.init(self.plan(repo, policy={'review': {'required': True, 'role': 'reviewer'}, 'checks': []}))
+        run.claim()
+        run.record('capabilities', {'response': capabilities()})
+        run.record('transition', {'to': 'executing'})
+        edit(repo)
+        run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['wordstat.py'])})
+        run.record('transition', {'to': 'verifying'})
+        log = run.scratch('ok.log', 'ok')
+        run.record('acceptance', {'requirement_id': 'REQ-MULTILINE', 'status': 'passed', 'kind': 'command',
+                                  'explanation': 'ok', 'artifacts': [str(log)]})
+        t3 = FakeT3()
+        review = run.only('dispatch')
+        issued = review['args']['snapshot']
+        t3.script(review['host_call']['arguments']['clientRequestId'], done(result_block(review['task_id'], verdict='approve')))
+        response = t3.call(review['host_call'])
+        edit(repo, '\n# edited while the reviewer was starting\n')
+        code, env, _ = run.record_raw('dispatch', {'action_id': review['id'], 'response': response, 'snapshot': issued})
+        self.assertEqual(code, 4, 'the run moved on, so the bare action id is no longer offered')
+        run.record('dispatch', {'action': review, 'response': response, 'snapshot': issued})
+        self.assertEqual(run.state['tasks'][-1]['rounds'][0]['task_id'], response['taskId'], 'the sent child is tracked')
+        run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        code, env, _ = cli('validate', *run.args())
+        self.assertNotEqual(env['data']['review']['status'], 'passed', 'the verdict covers the issued tree only')
+
+    def test_b_fast_serial_child_keeps_its_dispatch_valid(self):
+        repo, run, t3 = self.delegated([{'id': 'fix', 'purpose': 'fix', 'files': ['wordstat.py']}], isolation='serial')
+        dispatch = run.only('dispatch')
+        response = t3.call(dispatch['host_call'])
+        edit(repo, '\n# child change\n')
+        commit_all(repo, 'child committed before the parent recorded the dispatch')
+        run.record('dispatch', {'action_id': dispatch['id'], 'response': response})
+        t3.tasks[response['taskId']]['queue'] = [done(result_block('fix', changed_files=['wordstat.py']))]
+        out = run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        self.assertEqual(out['result']['outcome'], 'accepted')
+
+    def test_c_cancel_does_not_ignore_uncertain_dispatches(self):
+        repo, run, t3 = self.delegated([{'id': 'survey', 'purpose': 'read', 'kind': 'read'}])
+        dispatch = run.only('dispatch')
+        request = dispatch['host_call']['arguments']['clientRequestId']
+        run.record('dispatch', {'action_id': dispatch['id'], 'error': {'code': 'transport', 'message': 'timed out'}})
+        run.record('transition', {'to': 'cancelling'})
+        blocked = run.next()['blocked']
+        self.assertEqual(blocked['code'], 'cancel_unconfirmed')
+        self.assertEqual(blocked['task_ids'], [request])
+        code, env, _ = run.record_raw('transition', {'to': 'cancelled'})
+        self.assertEqual(code, 4)
+        run.release()
+        self.assertEqual(native([sys.executable, *blocked['resume']['argv'][1:]]).returncode, 0)
+        run.claim()
+        self.assertEqual(run.only('transition')['args']['to'], 'cancelled')
+
+    def test_d_cancel_reaches_accepted_children_with_pending_runs(self):
+        repo, run, t3 = self.delegated([{'id': 'survey', 'purpose': 'read', 'kind': 'read'}])
+        dispatch = run.only('dispatch')
+        t3.script(dispatch['host_call']['arguments']['clientRequestId'],
+                  dict(done(result_block('survey')), hasPendingChildRuns=True))
+        run.record('dispatch', {'action_id': dispatch['id'], 'response': t3.call(dispatch['host_call'])})
+        run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        self.assertEqual(run.state['tasks'][0]['status'], 'accepted')
+        run.record('transition', {'to': 'cancelling'})
+        self.assertEqual([a['action'] for a in run.next()['actions']], ['cancel_task'])
+
+    def test_e_planted_artifact_target_symlink_is_refused(self):
+        repo = self.make_repo()
+        run = self.init(self.plan(repo, policy={'review': {'required': False, 'role': 'reviewer'}, 'checks': []}))
+        run.claim()
+        run.record('transition', {'to': 'executing'})
+        edit(repo)
+        run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['wordstat.py'])})
+        run.record('transition', {'to': 'verifying'})
+        log = run.scratch('ok.log', 'ok')
+        import hashlib
+        digest = hashlib.sha256(b'ok').hexdigest()
+        victim = self.tmp / 'victim.txt'
+        victim.write_text('do not overwrite')
+        planted = run.run_dir / 'artifacts' / 'evidence'
+        planted.mkdir(parents=True, exist_ok=True)
+        os.symlink(victim, planted / f'{digest[:12]}-ok.log')
+        code, env, _ = run.record_raw('acceptance', {'requirement_id': 'REQ-MULTILINE', 'status': 'passed',
+                                                     'kind': 'command', 'explanation': 'ok', 'artifacts': [str(log)]})
+        self.assertEqual((code, env['error']['code']), (2, 'path_escape'))
+        self.assertEqual(victim.read_text(), 'do not overwrite')
+
+
+class Round2InstallerTest(test_install.InstallTest):
+    def test_install_lifecycle(self):
+        pass  # covered by test_install.InstallTest
+
+    def test_new_version_and_rollback(self):
+        pass  # covered by test_install.InstallTest
+
+    def test_f_symlinked_version_directory_is_refused(self):
+        first = self.installer()['data']
+        version_dir = Path(first['version_dir'])
+        elsewhere = self.tmp / 'elsewhere'
+        shutil.move(str(version_dir), elsewhere)
+        os.symlink(elsewhere, version_dir)
+        out = self.installer('--uninstall', expect=2)
+        self.assertEqual(out['error']['code'], 'manifest_path_escape')
+        self.assertTrue((elsewhere / 'entry.md').is_file(), 'nothing outside the prefix was deleted')

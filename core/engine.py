@@ -26,10 +26,26 @@ class Ctx:
     at: str = ''
 
 
+# Args that describe the moment `next` ran rather than the action itself. They are
+# echoed back by the record that reports the action, so a tree change between the
+# two does not orphan an action that was already carried out.
+VOLATILE_ARGS = ('snapshot',)
+
+
+def needs_stop(item: dict) -> bool:
+    """A delegated round whose child may still be doing work: not terminal, or
+    terminal with later child-thread runs pending, and not confirmed stopped."""
+    if not item.get('task_id') or (item.get('cancel') or {}).get('confirmed'):
+        return False
+    pending = bool(item.get('observations')) and item['observations'][-1].get('has_pending_child_runs')
+    return not item.get('terminal') or pending
+
+
 def action(kind: str, record: str | None, *, task_id=None, args=None, host_call=None, note=None) -> dict:
     body = {'action': kind, 'task_id': task_id, 'args': args or {}, 'host_call': host_call,
             'record': record, 'note': note}
-    body['id'] = 'A-' + hash_value([kind, task_id, host_call, args])[:12]
+    stable = {key: value for key, value in (args or {}).items() if key not in VOLATILE_ARGS}
+    body['id'] = 'A-' + hash_value([kind, task_id, host_call, stable])[:12]
     return body
 
 
@@ -48,11 +64,11 @@ def live_round(task: dict):
 
 
 def live_host_tasks(state: dict) -> list:
-    """Delegated host task IDs that are not confirmed terminal."""
+    """Delegated host task IDs whose child may still be working."""
     found = []
     for task in state.get('tasks', []):
         for item in task.get('rounds') or []:
-            if item.get('task_id') and not item.get('terminal'):
+            if needs_stop(item):
                 found.append(item['task_id'])
     return found
 
@@ -221,13 +237,18 @@ def _dispatch_action(ctx, state, task, purpose):
     base_sha = None
     if task.get('writes'):
         # The baseline is fixed before the child can commit anything.
-        base_sha = task.get('base_sha') or snapshot.git(task.get('worktree') or state['repo']['worktree'],
-                                                        'rev-parse', 'HEAD').strip()
+        base_sha = (task.get('base_sha') or state['execution'].get('serial_base')
+                    or snapshot.git(task.get('worktree') or state['repo']['worktree'], 'rev-parse', 'HEAD').strip())
     call = t3.delegate_call(brief=brief(state, task, purpose), title=f'{state["run_id"]} {task["id"]}: {task["purpose"]}',
                             role=host_role, client_request_id=client_request_id(state, task, round_no),
                             target=target, mode='async')
+    args_snapshot = None
+    if task.get('kind') == 'review':
+        args_snapshot = snapshot.token(snapshot.take(state['repo']['worktree'],
+                                                     acceptance.exclusions(state, ctx.state_root)))
     return action('dispatch', 'dispatch', task_id=task['id'],
                   args={'round': round_no, 'purpose': purpose, 'target': target, 'why': why, 'base_sha': base_sha,
+                        'snapshot': args_snapshot,
                         'create_task': task if task.get('ephemeral') else None},
                   host_call=call,
                   note='Call delegate_task with exactly these arguments (retries reuse the clientRequestId), '
@@ -396,6 +417,19 @@ def _repair_or_block(ctx, state, stage, reason, findings):
 
 
 def verifying(ctx, state):
+    """Verification obligations, plus a query for any child still running (a
+    review dispatched before the tree moved is tracked, never orphaned)."""
+    result = _verifying(ctx, state)
+    if not result.get('blocked'):
+        present = {a['task_id'] for a in result['actions'] if a['action'] == 'query_task'}
+        for task in state.get('tasks', []):
+            item = live_round(task)
+            if task['status'] == 'active' and item and task['id'] not in present:
+                result['actions'].append(_query(task, item))
+    return result
+
+
+def _verifying(ctx, state):
     ev = acceptance.evaluate(state, ctx.state_root, ctx.run_dir)
     current = ev['binding']['snapshot']
     if state['authorization']['endstate'] in ('pr', 'merge') and current['dirty_paths']:
@@ -524,8 +558,12 @@ def publishing(ctx, state):
 def cancelling(ctx, state):
     acts, uncertain = [], []
     for task in state.get('tasks', []):
+        recorded = {item.get('client_request_id') for item in task.get('rounds') or []}
+        for attempt in task.get('uncertain_dispatches') or []:
+            if attempt['client_request_id'] not in recorded and not attempt.get('operator_cleared'):
+                uncertain.append(attempt['client_request_id'])
         for item in task.get('rounds') or []:
-            if not item.get('task_id') or item.get('terminal'):
+            if not needs_stop(item):
                 continue
             cancel = item.get('cancel')
             if not cancel:
@@ -542,7 +580,9 @@ def cancelling(ctx, state):
     if acts:
         return {'actions': acts}
     if uncertain:
-        return _blocked(ctx, state, 'cancel_unconfirmed', 'cancellation requested but stop not confirmed', uncertain)
+        return _blocked(ctx, state, 'cancel_unconfirmed',
+                        'cancellation requested but stop not confirmed for these tasks or uncertain dispatch request IDs; '
+                        'stop them in T3 (or confirm none exists) before resuming', sorted(set(uncertain)))
     procs = [item for item in state.get('resources', []) if item['kind'] == 'process' and item.get('status') == 'live']
     if procs:
         return {'actions': [cleanup_action(item) for item in procs]}

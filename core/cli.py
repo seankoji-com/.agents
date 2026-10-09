@@ -226,8 +226,12 @@ def _decision(state, blocker, args):
     elif decision == 'retry-cancel':
         for task in state['tasks']:
             for item in task.get('rounds') or []:
-                if item.get('task_id') in task_ids and not item.get('terminal'):
+                if item.get('task_id') in task_ids and not (item.get('cancel') or {}).get('confirmed'):
                     item['cancel'] = None
+            for attempt in task.get('uncertain_dispatches') or []:
+                if attempt['client_request_id'] in task_ids:
+                    # The operator checked T3 and stopped, or found no, task for this request ID.
+                    attempt['operator_cleared'] = True
     elif decision == 'retry':
         label = f'operator retry of {blocker["id"]}'
         if blocker['code'] == 'evidence_unavailable':

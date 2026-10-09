@@ -112,6 +112,10 @@ def schema_json(value) -> bytes:
     return (json.dumps(value, indent=2, ensure_ascii=False) + '\n').encode()
 
 
+def _head(state) -> str:
+    return snapshot.git(state['repo']['worktree'], 'rev-parse', 'HEAD').strip()
+
+
 def rec_transition(ctx, state, payload):
     _require(payload, 'to')
     target = payload['to']
@@ -132,6 +136,14 @@ def rec_transition(ctx, state, payload):
         caps = state.get('capabilities') or {}
         if not caps.get('available'):
             raise Prohibited('capability_unavailable', 'delegated execution needs discovered T3 capabilities')
+    uncertain = [a['client_request_id'] for t in state['tasks'] for a in t.get('uncertain_dispatches') or []
+                 if not a.get('operator_cleared')
+                 and a['client_request_id'] not in {r.get('client_request_id') for r in t.get('rounds') or []}]
+    if target == 'cancelled' and uncertain:
+        raise Prohibited('cancel_unconfirmed', 'uncertain dispatches may have started children',
+                         {'client_request_ids': uncertain})
+    if target == 'executing':
+        state['execution']['serial_base'] = _head(state)
     if target == 'cancelled' and engine.live_host_tasks(state):
         raise Prohibited('cancel_unconfirmed', 'tasks are not confirmed stopped',
                          {'task_ids': engine.live_host_tasks(state)})
@@ -156,9 +168,34 @@ def _new_task(spec: dict) -> dict:
     return task
 
 
+def _sent_dispatch(ctx, state, payload):
+    """A dispatch that was already sent must be tracked even if the run moved on
+    since `next` issued it (otherwise its child would be orphaned). The record may
+    carry the full action; it is accepted when its id matches its contents and its
+    clientRequestId is exactly the next round of that task."""
+    try:
+        return _permitted(ctx, state, 'dispatch', payload)
+    except Prohibited:
+        echoed = payload.get('action')
+        if not isinstance(echoed, dict) or echoed.get('action') != 'dispatch' or not echoed.get('host_call'):
+            raise
+        rebuilt = engine.action('dispatch', 'dispatch', task_id=echoed.get('task_id'), args=echoed.get('args'),
+                                host_call=echoed['host_call'], note=echoed.get('note'))
+        if rebuilt['id'] != echoed.get('id'):
+            raise Prohibited('action_tampered', 'echoed action does not match its id')
+        task = engine.task_by_id(state, echoed['task_id']) or (echoed['args'] or {}).get('create_task')
+        if not task:
+            raise
+        expected = engine.client_request_id(state, task, len(task.get('rounds') or []) + 1)
+        if echoed['host_call']['arguments'].get('clientRequestId') != expected:
+            raise Prohibited('action_not_permitted', 'echoed dispatch is not the next round of its task',
+                             {'expected_client_request_id': expected})
+        return rebuilt
+
+
 def rec_dispatch(ctx, state, payload):
     _phase(state, 'executing', 'verifying')
-    permitted = _permitted(ctx, state, 'dispatch', payload)
+    permitted = _sent_dispatch(ctx, state, payload)
     args = permitted['args']
     task = engine.task_by_id(state, permitted['task_id'])
     if task is None:
@@ -221,8 +258,15 @@ def rec_dispatch(ctx, state, payload):
     if task.get('writes') and not task.get('base_sha'):
         task['base_sha'] = args.get('base_sha')
     if task.get('kind') == 'review':
-        # Bind the verdict to the revision the review was asked to read.
-        task['review_binding'] = _bind(ctx, state)
+        # Bind the verdict to the revision the review was asked to read: the
+        # snapshot `next` saw when it issued the dispatch, echoed by this record.
+        bind = _bind(ctx, state)
+        echoed = payload.get('snapshot') or args.get('snapshot')
+        if echoed and echoed != snapshot.token(bind['snapshot']):
+            head, _, content = echoed.partition(':')
+            bind = dict(bind, snapshot=dict(bind['snapshot'], head=None if head == 'None' else head,
+                                            content_hash=content))
+        task['review_binding'] = bind
     if task.get('next_round'):
         task['next_round'] = None
     if task.get('writes') and task.get('executor') == 'delegate':
@@ -250,7 +294,8 @@ def _observe(ctx, state, task, entry, obs):
         if t3.stop_confirmed(obs):
             entry['cancel']['confirmed'] = True
             entry['terminal'] = True
-            task['status'] = 'cancelled'
+            if task['status'] not in engine.DONE_TASK:
+                task['status'] = 'cancelled'
             state['cancellation']['outcomes'].append({'task_id': entry['task_id'], 'confirmed': True,
                                                       'status': obs['status'], 'at': ctx.at})
         return {'task': task['id'], 'outcome': 'cancel_confirmed' if entry['terminal'] else 'cancel_unconfirmed'}
@@ -315,6 +360,9 @@ def _take_result(ctx, state, task, text):
         reason = '; '.join(item['reason'] for item in result['blockers']) or f'child reported {result["status"]}'
         return _block_task(ctx, state, task, 'task_failed', reason)
     task['status'] = 'accepted'
+    if task.get('writes') and task.get('executor') == 'delegate' and state['execution'].get('isolation') == 'serial':
+        # The next serial writer is judged only on what it adds after this one.
+        state['execution']['serial_base'] = _head(state)
     if task.get('kind') == 'review':
         bind = task.get('review_binding') or _bind(ctx, state)
         state.setdefault('reviews', []).append({
@@ -336,7 +384,10 @@ def rec_observation(ctx, state, payload):
         raise Prohibited('cross_parent', 'task status is parent-scoped; this thread cannot use the old task IDs')
     task, entry = _round_for_host_id(state, obs['task_id'])
     if entry.get('terminal') and entry.get('cancel') is None:
-        return {'task': task['id'], 'outcome': 'already_terminal'}
+        entry['observations'].append({'at': ctx.at, 'status': obs['status'], 'work_state': obs['work_state'],
+                                      'has_pending_child_runs': obs['has_pending_child_runs']})
+        return {'task': task['id'], 'outcome': 'already_terminal',
+                'has_pending_child_runs': obs['has_pending_child_runs']}
     return _observe(ctx, state, task, entry, obs)
 
 
@@ -373,7 +424,8 @@ def rec_cancel(ctx, state, payload):
                        'confirm_attempted': False}
     if result['confirmed']:
         entry['terminal'] = True
-        task['status'] = 'cancelled'
+        if task['status'] not in engine.DONE_TASK:
+            task['status'] = 'cancelled'
         state['cancellation']['outcomes'].append({'task_id': host_id, 'confirmed': True, 'status': result['status'],
                                                   'at': ctx.at})
     return {'task': task['id'], 'confirmed': result['confirmed'], 'status': result['status'],
@@ -488,6 +540,7 @@ def rec_repair(ctx, state, payload):
             'next_round': {'purpose': 'repair', 'context': {'findings': payload.get('findings') or []}},
             'target': template.get('target') if template.get('pinned_target') else None}
     state['tasks'].append(task)
+    state['execution']['serial_base'] = _head(state)
     transitions.apply(state, 'executing', label, ctx.at)
     return {'repair_task': task['id'], 'stage': stage, 'used': used + 1, 'limit': state['policy']['repair_limit']}
 

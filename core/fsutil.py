@@ -108,10 +108,17 @@ def copy_artifact(source: Path, run_dir: Path, category: str, roots) -> dict:
     target_dir = safe_dir(run_dir, 'artifacts', category)
     stem = ''.join(ch if ch.isalnum() or ch in '._-' else '_' for ch in source.name)[:80] or 'artifact'
     target = target_dir / f'{digest[:12]}-{stem}'
+    if target.is_symlink():
+        raise InvalidInput('path_escape', 'artifact target is a symlink', {'path': str(target)})
     if not target.exists():
-        tmp = target.with_name('.' + target.name + '.tmp')
-        shutil.copyfile(source, tmp)
-        os.replace(tmp, target)
+        fd, tmp = tempfile.mkstemp(prefix='.artifact.', dir=target_dir)  # O_EXCL: never follows a planted link
+        try:
+            with os.fdopen(fd, 'wb') as out, open(source, 'rb') as src:
+                shutil.copyfileobj(src, out)
+            os.replace(tmp, target)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
     return {'path': target.relative_to(run_dir).as_posix(), 'sha256': digest, 'source': str(source)}
 
 

@@ -141,6 +141,9 @@ def stamp(recipe_path: Path, state: dict, run_dir: Path, feature_id: str, requir
     if not entry or entry['status'] != 'passed' or entry['kind'] != 'runtime':
         raise Prohibited('recipe_unproven', 'stamping needs a passed runtime acceptance from an actual run')
     target = recipe_path.parent / 'evidence' / state['run_id']
+    for part in (recipe_path.parent / 'evidence', target):
+        if part.is_symlink():
+            raise InvalidInput('path_escape', 'recipe evidence directory is a symlink', {'path': str(part)})
     copied = []
     for artifact in entry['artifacts']:
         source = Path(run_dir) / artifact['path']
@@ -148,6 +151,8 @@ def stamp(recipe_path: Path, state: dict, run_dir: Path, feature_id: str, requir
             raise Prohibited('evidence_missing', f'run evidence {artifact["path"]} is missing or changed')
         destination = target / Path(artifact['path']).name
         destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.is_symlink() or not destination.parent.resolve().is_relative_to(recipe_path.parent.resolve()):
+            raise InvalidInput('path_escape', 'evidence destination escapes the recipe directory', {'path': str(destination)})
         shutil.copyfile(source, destination)
         copied.append({'path': destination.relative_to(recipe_path.parent).as_posix(), 'sha256': artifact['sha256']})
     recipe['status'] = 'verified'

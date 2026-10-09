@@ -159,8 +159,7 @@ def install(args) -> dict:
               'files': len(manifest['files'])}
     if args.dry_run:
         return result
-    if version_dir.is_symlink():
-        raise InstallError('manifest_path_escape', f'{version_dir} is a symlink; refusing to write through it')
+    refuse_symlinks(plugin_root, version_dir)
     for item in manifest['files']:
         source = planned['mapping'][item['path']]
         target = owned_path(version_dir, item['path'])
@@ -190,12 +189,22 @@ def installed_versions(plugin_root: Path) -> list:
     return sorted(p.name for p in plugin_root.iterdir() if not p.is_symlink() and (p / MANIFEST).is_file())
 
 
+def refuse_symlinks(*paths: Path) -> None:
+    for path in paths:
+        if path.is_symlink():
+            raise InstallError('manifest_path_escape', f'{path} is a symlink; refusing to work through it')
+
+
 def uninstall(args) -> dict:
     plugin_root = Path(args.prefix).expanduser() / args.plugin
+    refuse_symlinks(plugin_root)
+    if plugin_root.is_dir():
+        refuse_symlinks(*[p for p in plugin_root.iterdir() if p.name != 'current' and not p.name.startswith('.current')])
     versions = [args.version] if args.version else installed_versions(plugin_root)
     removed, kept = [], []
     for version in versions:
         version_dir = plugin_root / version
+        refuse_symlinks(version_dir)
         manifest_path = version_dir / MANIFEST
         if not manifest_path.is_file():
             raise InstallError('unknown_version', f'no installed version {version}')
