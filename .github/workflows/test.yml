@@ -1,0 +1,41 @@
+# Byte-compiles the stdlib-only Python and runs the unittest suite.
+# No secrets, no network, no third-party packages: the runner's own python3
+# (3.10 or later) is the whole toolchain.
+name: Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: [self-hosted, Linux]
+    timeout-minutes: 15
+    # The runners are persistent and shared: never run code from a fork.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Python version
+        run: python3 -c 'import sys; print(sys.version); raise SystemExit(sys.version_info < (3, 10))'
+
+      - name: Byte-compile core, plugins and scripts
+        run: git ls-files -z -- 'core/*.py' 'plugins/*.py' 'scripts/*.py' | xargs -0 python3 -m py_compile
+
+      - name: Unit tests
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -m unittest discover -s tests -v

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "review-1",
+  "status": "done",
+  "changed_files": [],
+  "commit": null,
+  "requirements": [],
+  "verification": [
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "findings": [
+    {
+      "severity": "major",
+      "summary": "missing test",
+      "file": "wordstat.py",
+      "line": 9
+    }
+  ],
+  "blockers": [],
+  "verdict": "adverse"
+}

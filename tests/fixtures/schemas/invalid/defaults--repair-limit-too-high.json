@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "description": "imps defaults. Repository policy (.t3-plugins/imps.json) and the run plan override these.",
+  "roles": {
+    "implementer": {
+      "description": "Writes the change. Defaults to the active T3 provider and model.",
+      "host_role": "implementation",
+      "chain": [
+        {
+          "select": "inherit",
+          "why": "implementation defaults to the active provider and model"
+        }
+      ]
+    },
+    "reviewer": {
+      "description": "Independent review. Falls back only when a target is unavailable, never on a verdict.",
+      "host_role": "review",
+      "chain": [
+        {
+          "select": "catalog",
+          "exclude_roles": [
+            "implementer"
+          ],
+          "why": "default chain: first available catalog provider that is not the implementer"
+        },
+        {
+          "select": "same_provider",
+          "of_role": "implementer",
+          "why": "default chain: no other provider available, so a fresh isolated same-provider reviewer"
+        }
+      ]
+    },
+    "researcher": {
+      "description": "Read-only investigation.",
+      "host_role": "research",
+      "chain": [
+        {
+          "select": "inherit",
+          "why": "research defaults to the active provider and model"
+        }
+      ]
+    }
+  },
+  "policy": {
+    "review": {
+      "required": true,
+      "role": "reviewer",
+      "waivable": true
+    },
+    "repair_limit": 99,
+    "budget_seconds": 14400,
+    "work_role": "implementer",
+    "checks": []
+  },
+  "execution": {
+    "mode": "direct",
+    "concurrency": 4
+  }
+}

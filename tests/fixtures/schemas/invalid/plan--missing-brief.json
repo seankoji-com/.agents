@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "repo": {
+    "worktree": ".",
+    "base_ref": "HEAD"
+  },
+  "authorization": {
+    "endstate": "local",
+    "local": [
+      "edit"
+    ],
+    "evidence": "operator asked for a local fix"
+  },
+  "execution": {
+    "mode": "direct"
+  }
+}

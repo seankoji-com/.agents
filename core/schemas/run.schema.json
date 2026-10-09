@@ -1,0 +1,799 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "run.schema.json",
+  "title": "Authoritative run record (run.json)",
+  "description": "Unknown fields are preserved across compatible updates.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "generation",
+    "created_at",
+    "updated_at",
+    "plugin",
+    "phase",
+    "repo",
+    "brief",
+    "authorization",
+    "execution",
+    "host",
+    "policy",
+    "tasks",
+    "budget",
+    "blockers"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "updated_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "plugin": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "phase": {
+      "enum": [
+        "planned",
+        "executing",
+        "verifying",
+        "ready",
+        "publishing",
+        "completed",
+        "blocked",
+        "cancelling",
+        "cancelled",
+        "failed"
+      ]
+    },
+    "resume_phase": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "planned",
+            "executing",
+            "verifying",
+            "ready",
+            "publishing",
+            "completed",
+            "blocked",
+            "cancelling",
+            "cancelled",
+            "failed"
+          ]
+        }
+      ]
+    },
+    "repo": {
+      "type": "object",
+      "required": [
+        "worktree",
+        "base_sha"
+      ],
+      "properties": {
+        "worktree": {
+          "type": "string",
+          "minLength": 1
+        },
+        "base_ref": {
+          "type": "string"
+        },
+        "base_sha": {
+          "type": "string",
+          "minLength": 1
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "brief": {
+      "type": "object",
+      "required": [
+        "text",
+        "requirements",
+        "constraints",
+        "contract_hash"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "requirements": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "text",
+              "kind",
+              "required"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_-]+$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "enum": [
+                  "inspection",
+                  "command",
+                  "runtime",
+                  "manual"
+                ]
+              },
+              "required": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requirements_source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contract_hash": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "required": [
+        "endstate"
+      ],
+      "properties": {
+        "endstate": {
+          "enum": [
+            "local",
+            "pr",
+            "merge",
+            "release"
+          ]
+        },
+        "local": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "remote": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "mode",
+        "concurrency"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "direct",
+            "delegated"
+          ]
+        },
+        "isolation": {
+          "enum": [
+            "parallel",
+            "serial",
+            null
+          ]
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        }
+      }
+    },
+    "host": {
+      "type": "object",
+      "properties": {
+        "parent_thread_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "checks",
+        "review",
+        "repair_limit",
+        "worktree_root"
+      ],
+      "properties": {
+        "checks": {
+          "type": "array"
+        },
+        "repair_limit": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "worktree_root": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "sibling_write"
+        ],
+        "properties": {
+          "sibling_write": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/check_entry"
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence"
+      }
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/resource"
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/blocker"
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "seconds",
+        "spent_seconds"
+      ],
+      "properties": {
+        "seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "spent_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "$defs": {
+    "snapshot": {
+      "type": "object",
+      "required": [
+        "worktree",
+        "head",
+        "content_hash"
+      ],
+      "properties": {
+        "worktree": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dirty_paths": {
+          "type": "integer"
+        },
+        "content_hash": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "round": {
+      "type": "object",
+      "required": [
+        "round",
+        "purpose"
+      ],
+      "properties": {
+        "round": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "purpose": {
+          "enum": [
+            "initial",
+            "correction",
+            "repair",
+            "self"
+          ]
+        },
+        "client_request_id": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "child_thread_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_thread_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "terminal": {
+          "type": "boolean"
+        },
+        "wait_timed_out": {
+          "type": "boolean"
+        },
+        "observations": {
+          "type": "array"
+        },
+        "cancel": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "required": [
+        "id",
+        "purpose",
+        "status",
+        "rounds"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "code",
+            "read",
+            "review",
+            "probe"
+          ]
+        },
+        "executor": {
+          "enum": [
+            "self",
+            "delegate"
+          ]
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "writes": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "active",
+            "awaiting_text",
+            "correction_needed",
+            "accepted",
+            "integrated",
+            "blocked",
+            "cancelled",
+            "failed",
+            "unavailable"
+          ]
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requirement_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "worktree": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/target"
+            }
+          ]
+        },
+        "rounds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/round"
+          }
+        },
+        "result": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "correction_used": {
+          "type": "boolean"
+        }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "required": [
+        "id",
+        "code",
+        "reason",
+        "task_ids",
+        "resume",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resume": {
+          "type": "object",
+          "required": [
+            "argv",
+            "decision"
+          ],
+          "properties": {
+            "argv": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "decision": {
+              "type": "string",
+              "minLength": 1
+            },
+            "then": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "status": {
+          "enum": [
+            "active",
+            "resolved"
+          ]
+        }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "status",
+        "cleanup_argv"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "worktree",
+            "branch",
+            "process"
+          ]
+        },
+        "status": {
+          "enum": [
+            "live",
+            "removed",
+            "gone"
+          ]
+        },
+        "cleanup_argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "requirement_id",
+        "status",
+        "kind",
+        "explanation",
+        "artifacts",
+        "snapshot",
+        "contract_hash",
+        "policy_hash"
+      ],
+      "properties": {
+        "requirement_id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_-]+$"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "unverified",
+            "unavailable"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "inspection",
+            "command",
+            "runtime",
+            "manual"
+          ]
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "verifier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "snapshot": {
+          "$ref": "#/$defs/snapshot"
+        },
+        "contract_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "invalidated": {
+          "type": "string"
+        }
+      }
+    },
+    "check_entry": {
+      "type": "object",
+      "required": [
+        "name",
+        "argv",
+        "status",
+        "artifact",
+        "snapshot",
+        "contract_hash",
+        "policy_hash"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "unavailable"
+          ]
+        },
+        "artifact": {
+          "$ref": "#/$defs/artifact"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/snapshot"
+        },
+        "contract_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "invalidated": {
+          "type": "string"
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "providerInstanceId"
+      ],
+      "properties": {
+        "providerInstanceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "options": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

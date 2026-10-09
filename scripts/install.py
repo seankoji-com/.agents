@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""Install, activate or uninstall a t3-plugins plugin.
+
+  python3 scripts/install.py [--plugin imps] [--dry-run] [--force]
+  python3 scripts/install.py --activate VERSION      # roll back or forward
+  python3 scripts/install.py --uninstall [--version VERSION]
+
+Copies plugins/<plugin>/ plus its own copy of core/ to
+<prefix>/<plugin>/<version>/, writes an ownership manifest there and atomically
+repoints <prefix>/<plugin>/current. The prefix defaults to
+~/.local/share/t3-plugins. Run state (~/.local/state/t3-plugins) is never touched.
+Prints one JSON object on stdout."""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+SOURCE = Path(__file__).resolve().parent.parent
+MANIFEST = 'install-manifest.json'
+SKIP_DIRS = {'__pycache__', '.pytest_cache'}
+SKIP_SUFFIXES = ('.pyc', '.pyo')
+
+
+class InstallError(Exception):
+    def __init__(self, code, message, details=None):
+        super().__init__(message)
+        self.code, self.message, self.details = code, message, details or {}
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def files_under(root: Path):
+    for path in sorted(root.rglob('*')):
+        if any(part in SKIP_DIRS for part in path.relative_to(root).parts):
+            continue
+        if path.is_file() and not path.name.endswith(SKIP_SUFFIXES):
+            yield path
+
+
+def source_files(source: Path, plugin: str) -> dict:
+    """Installed relative path -> source file."""
+    plugin_dir = source / 'plugins' / plugin
+    if not (plugin_dir / 'plugin.json').is_file():
+        raise InstallError('unknown_plugin', f'no plugin named {plugin} under {source / "plugins"}')
+    mapping = {path.relative_to(plugin_dir).as_posix(): path for path in files_under(plugin_dir)}
+    for path in files_under(source / 'core'):
+        mapping['core/' + path.relative_to(source / 'core').as_posix()] = path
+    if MANIFEST in mapping:
+        raise InstallError('reserved_name', f'{MANIFEST} is reserved for the installer')
+    return mapping
+
+
+def git_commit(source: Path, paths) -> tuple[str | None, bool]:
+    head = subprocess.run(['git', '-C', str(source), 'rev-parse', 'HEAD'], capture_output=True, text=True)
+    if head.returncode != 0:
+        return None, True
+    dirty = subprocess.run(['git', '-C', str(source), 'status', '--porcelain', '--', *paths], capture_output=True, text=True)
+    return head.stdout.strip(), bool(dirty.stdout.strip())
+
+
+def plan_install(source: Path, plugin: str) -> dict:
+    mapping = source_files(source, plugin)
+    meta = json.loads((source / 'plugins' / plugin / 'plugin.json').read_text())
+    entries = [{'path': rel, 'sha256': sha256(path), 'mode': 0o755 if os.access(path, os.X_OK) else 0o644}
+               for rel, path in sorted(mapping.items())]
+    content = hashlib.sha256(json.dumps(entries, sort_keys=True).encode()).hexdigest()
+    commit, dirty = git_commit(source, ['plugins/' + plugin, 'core'])
+    if commit and not dirty:
+        version = f'{meta["version"]}+g{commit[:12]}'
+    else:
+        version = f'{meta["version"]}+content.{content[:12]}'
+    manifest = {'schema_version': 1, 'plugin': plugin, 'version': version,
+                'source_commit': commit if commit and not dirty else None, 'files': entries}
+    return {'manifest': manifest, 'mapping': mapping, 'entry': meta.get('entry', 'entry.md')}
+
+
+def write_atomic(path: Path, data: bytes, mode: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix='.' + path.name + '.', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def repoint(plugin_root: Path, version: str) -> None:
+    link = plugin_root / 'current'
+    if link.exists() and not link.is_symlink():
+        raise InstallError('current_not_symlink', f'{link} exists and is not a symlink; refusing to replace it')
+    tmp = plugin_root / f'.current.{os.getpid()}'
+    if tmp.is_symlink() or tmp.exists():
+        tmp.unlink()
+    os.symlink(version, tmp)
+    os.replace(tmp, link)
+
+
+def local_modifications(version_dir: Path, manifest: dict) -> list:
+    changed = []
+    for entry in manifest['files']:
+        path = version_dir / entry['path']
+        if path.is_file() and sha256(path) != entry['sha256']:
+            changed.append(entry['path'])
+    return changed
+
+
+def install(args) -> dict:
+    prefix = Path(args.prefix).expanduser()
+    planned = plan_install(SOURCE if not args.source else Path(args.source), args.plugin)
+    manifest = planned['manifest']
+    plugin_root = prefix / args.plugin
+    version_dir = plugin_root / manifest['version']
+    entry = plugin_root / 'current' / planned['entry']
+    existing = version_dir / MANIFEST
+    action = 'install'
+    if existing.is_file():
+        old = json.loads(existing.read_text())
+        modified = local_modifications(version_dir, old)
+        if modified and not args.force:
+            raise InstallError('locally_modified', 'installed files were modified locally; rerun with --force to overwrite',
+                               {'files': modified, 'version_dir': str(version_dir)})
+        if old == manifest and not modified:
+            action = 'already_installed'
+    result = {'action': action, 'plugin': args.plugin, 'version': manifest['version'],
+              'source_commit': manifest['source_commit'], 'version_dir': str(version_dir), 'entry': str(entry),
+              'paste': f'Read {entry} and run: doctor', 'dry_run': bool(args.dry_run),
+              'files': len(manifest['files'])}
+    if args.dry_run:
+        return result
+    for item in manifest['files']:
+        source = planned['mapping'][item['path']]
+        target = version_dir / item['path']
+        if target.is_file() and sha256(target) == item['sha256'] and (target.stat().st_mode & 0o777) == item['mode']:
+            continue
+        write_atomic(target, source.read_bytes(), item['mode'])
+    write_atomic(existing, (json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode(), 0o644)
+    repoint(plugin_root, manifest['version'])
+    return result
+
+
+def activate(args) -> dict:
+    plugin_root = Path(args.prefix).expanduser() / args.plugin
+    manifest = plugin_root / args.activate / MANIFEST
+    if not manifest.is_file():
+        raise InstallError('unknown_version', f'no installed version {args.activate}',
+                           {'installed': installed_versions(plugin_root)})
+    if not args.dry_run:
+        repoint(plugin_root, args.activate)
+    return {'action': 'activate', 'version': args.activate, 'dry_run': bool(args.dry_run),
+            'entry': str(plugin_root / 'current' / 'entry.md')}
+
+
+def installed_versions(plugin_root: Path) -> list:
+    if not plugin_root.is_dir():
+        return []
+    return sorted(p.name for p in plugin_root.iterdir() if not p.is_symlink() and (p / MANIFEST).is_file())
+
+
+def uninstall(args) -> dict:
+    plugin_root = Path(args.prefix).expanduser() / args.plugin
+    versions = [args.version] if args.version else installed_versions(plugin_root)
+    removed, kept = [], []
+    for version in versions:
+        version_dir = plugin_root / version
+        manifest_path = version_dir / MANIFEST
+        if not manifest_path.is_file():
+            raise InstallError('unknown_version', f'no installed version {version}')
+        manifest = json.loads(manifest_path.read_text())
+        for entry in manifest['files']:
+            path = version_dir / entry['path']
+            if not path.is_file():
+                continue
+            if sha256(path) != entry['sha256'] and not args.force:
+                kept.append(str(path))
+                continue
+            if not args.dry_run:
+                path.unlink()
+            removed.append(str(path))
+        if not args.dry_run:
+            manifest_path.unlink()
+            for cache in sorted(version_dir.rglob('__pycache__')):
+                if cache.is_dir() and all(item.suffix in ('.pyc', '.pyo') for item in cache.iterdir()):
+                    for item in cache.iterdir():
+                        item.unlink()
+                    cache.rmdir()
+            for directory in sorted({p for p in version_dir.rglob('*') if p.is_dir()}, key=lambda p: len(p.parts), reverse=True):
+                if not any(directory.iterdir()):
+                    directory.rmdir()
+            if version_dir.is_dir() and not any(version_dir.iterdir()):
+                version_dir.rmdir()
+    link = plugin_root / 'current'
+    if not args.dry_run and link.is_symlink() and not (plugin_root / os.readlink(link) / MANIFEST).is_file():
+        link.unlink()
+    if not args.dry_run and plugin_root.is_dir() and not any(plugin_root.iterdir()):
+        plugin_root.rmdir()
+    return {'action': 'uninstall', 'versions': versions, 'removed': len(removed), 'kept_modified': kept,
+            'dry_run': bool(args.dry_run), 'state_untouched': True}
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    parser.add_argument('--plugin', default='imps')
+    parser.add_argument('--prefix', default=os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins'))
+    parser.add_argument('--source', help=argparse.SUPPRESS)
+    parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--force', action='store_true', help='overwrite or remove locally modified owned files')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--uninstall', action='store_true')
+    group.add_argument('--activate', metavar='VERSION')
+    parser.add_argument('--version', help='with --uninstall: remove only this version')
+    args = parser.parse_args(argv)
+    try:
+        if args.uninstall:
+            data = uninstall(args)
+        elif args.activate:
+            data = activate(args)
+        else:
+            data = install(args)
+        print(json.dumps({'ok': True, 'data': data}))
+        return 0
+    except InstallError as exc:
+        print(json.dumps({'ok': False, 'error': {'code': exc.code, 'message': exc.message, 'details': exc.details}}))
+        print(f'{exc.code}: {exc.message}', file=sys.stderr)
+        return 4 if exc.code == 'locally_modified' else 2
+    except OSError as exc:
+        print(json.dumps({'ok': False, 'error': {'code': 'io_error', 'message': str(exc), 'details': {}}}))
+        return 5
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

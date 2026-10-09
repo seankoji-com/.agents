@@ -1,0 +1,26 @@
+{
+  "_comment": "Trimmed from a live orchestrator_capabilities response on T3 0.0.46-nightly.20261008.2849 (model option lists removed).",
+  "parentThreadId": "thread-parent-0001",
+  "inheritedProviderInstanceId": "claudeAgent",
+  "inheritedModel": "claude-opus-5-5",
+  "runtimeMode": "full-access",
+  "interactionMode": "default",
+  "providers": [
+    {"providerInstanceId": "codex", "driverKind": "codex", "displayName": "Codex",
+     "models": [{"id": "gpt-6.1-sol"}, {"id": "gpt-6-sol"}], "canRunChildTask": true, "canRunCrossProviderChildTask": true, "constraints": []},
+    {"providerInstanceId": "claudeAgent", "driverKind": "claudeAgent", "displayName": "Claude",
+     "models": [{"id": "claude-opus-5-5"}, {"id": "claude-haiku-5-5"}], "canRunChildTask": true, "canRunCrossProviderChildTask": true, "constraints": []},
+    {"providerInstanceId": "cursor", "driverKind": "cursor", "displayName": "Cursor", "models": [],
+     "canRunChildTask": false, "canRunCrossProviderChildTask": false,
+     "constraints": ["Provider instance is disabled.", "Provider executable is not installed.", "Cursor is disabled in T3 Code settings."]},
+    {"providerInstanceId": "grok", "driverKind": "grok", "displayName": "Grok", "models": [{"id": "grok-4.6"}],
+     "canRunChildTask": false, "canRunCrossProviderChildTask": false,
+     "constraints": ["Grok CLI is installed but not logged in. Run `grok login`.", "Provider is not authenticated."]},
+    {"providerInstanceId": "opencode", "driverKind": "opencode", "displayName": "OpenCode",
+     "models": [{"id": "opencode/big-pickle"}], "canRunChildTask": true, "canRunCrossProviderChildTask": true, "constraints": []},
+    {"providerInstanceId": "antigravity", "driverKind": "antigravity", "displayName": "Antigravity",
+     "models": [{"id": "gemini-3.8-flash-high"}], "canRunChildTask": true, "canRunCrossProviderChildTask": true, "constraints": []}
+  ],
+  "features": {"appOwnedSubagents": true, "asyncPolling": true, "cancellation": true, "batchThreadCreation": true,
+               "threadManagement": true, "incrementalThreadRead": true, "scheduledTasks": true, "maxBatchThreads": 20}
+}
