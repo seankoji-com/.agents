@@ -113,9 +113,14 @@ def validate(state: dict, task: dict, result: dict, worktree: str | None) -> dic
     for item in result['requirements']:
         for evidence in item.get('evidence', []):
             path = Path(evidence['path'])
+            if item['status'] != 'passed':
+                continue
             if not path.is_absolute():
-                path = Path(roots[0]) / path if roots else path
-            if item['status'] == 'passed' and not path.is_file():
+                if not any((Path(root) / path).is_file() for root in roots):
+                    # Probably relative to the child's own working directory; ask once for absolute paths.
+                    raise Malformed(f'evidence path {evidence["path"]!r} for {item["id"]} is relative and does not '
+                                    'exist under the task directory; report absolute paths')
+            elif not path.is_file():
                 raise Rejected('result_evidence_absent', 'result claims evidence that does not exist',
                                {'id': item['id'], 'path': evidence['path']})
     return result

@@ -95,7 +95,7 @@ class ResultFlowTest(CoreTestCase):
         out = run.record('result', {'task_id': 'main', 'text': result_block(
             'main', changed_files=['wordstat.py'], requirements=[
                 {'id': 'REQ-MULTILINE', 'status': 'passed', 'explanation': 'tested',
-                 'evidence': [{'path': 'logs/never-written.txt'}]}])})
+                 'evidence': [{'path': str(self.tmp / 'logs' / 'never-written.txt')}]}])})
         self.assertIn('evidence that does not exist', out['result']['blocker']['reason'])
         repo, run = self.executing()
         out = run.record('result', {'task_id': 'main', 'text': result_block('main')})

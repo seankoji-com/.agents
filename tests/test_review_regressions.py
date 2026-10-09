@@ -613,3 +613,14 @@ class MatrixFindingsTest(CoreTestCase):
         out = run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
         self.assertEqual(out['result']['outcome'], 'correction_requested')
         self.assertIn('changed_files', out['result']['problem'])
+
+    def test_relative_evidence_path_gets_a_correction_not_a_rejection(self):
+        repo = self.make_repo()
+        run = self.init(self.plan(repo, policy={'review': {'required': False, 'role': 'reviewer'}, 'checks': []}))
+        run.claim()
+        run.record('transition', {'to': 'executing'})
+        edit(repo)
+        out = run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['wordstat.py'], requirements=[
+            {'id': 'REQ-MULTILINE', 'status': 'passed', 'explanation': 'x', 'evidence': [{'path': 'clone-dir/wordstat.py'}]}])})
+        self.assertEqual(out['result']['outcome'], 'correction_requested')
+        self.assertIn('report absolute paths', out['result']['problem'])

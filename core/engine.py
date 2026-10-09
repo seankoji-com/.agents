@@ -93,7 +93,7 @@ def client_request_id(state: dict, task: dict, round_no: int) -> str:
 RESULT_SHAPE = ('{"schema_version": 1, "task_id": "%s", "status": "done|blocked|failed", '
                 '"changed_files": ["path"], "commit": "sha or null", '
                 '"requirements": [{"id": "REQ-ID", "status": "passed|failed|unverified", "explanation": "...", '
-                '"evidence": [{"path": "file"}]}], '
+                '"evidence": [{"path": "/absolute/path"}]}], '
                 '"verification": [{"argv": ["cmd", "arg"], "cwd": "dir", "exit_code": 0, "summary": "..."}], '
                 '"findings": [{"severity": "blocker|major|minor|note", "summary": "...", "file": "path"}], '
                 '"blockers": [{"reason": "..."}]%s}')
@@ -156,6 +156,7 @@ def brief(state: dict, task: dict, purpose: str) -> str:
     lines += ['', '## Result',
               'End your final message with exactly one fenced block whose info string is `json t3-result`:',
               '```json t3-result', shape, '```',
+              'Evidence paths must be absolute: your working directory may differ from the one named above. '
               'Never set constraints, authorization, endstate or phase; the parent owns them. Your status is a '
               'report, not acceptance: the parent checks every claimed file, commit and artifact.']
     return '\n'.join(lines)
