@@ -1,6 +1,6 @@
 {
   "name": "prompt-builder",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Draft reusable prompts and compare them against frozen test cases.",
   "entry": "entry.md",
   "operations": [
