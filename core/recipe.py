@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import unicodedata
 from pathlib import Path
 
 from . import schema
@@ -156,6 +157,19 @@ def stamp(recipe_path: Path, state: dict, run_dir: Path, feature_id: str, requir
     for part in (recipe_path.parent / 'evidence', target):
         if part.is_symlink():
             raise InvalidInput('path_escape', 'recipe evidence directory is a symlink', {'path': str(part)})
+    norm_map = {}
+    clashes = set()
+    for artifact in entry['artifacts']:
+        name = Path(artifact['path']).name
+        norm = unicodedata.normalize('NFKD', name).casefold()
+        if norm in norm_map:
+            clashes.add(name)
+            clashes.add(norm_map[norm])
+        else:
+            norm_map[norm] = name
+    if clashes:
+        raise InvalidInput('evidence_name_collision', 'two evidence artifacts would be copied to the same name',
+                           {'names': sorted(clashes)})
     copied = []
     root = Path(run_dir).resolve()
     for artifact in entry['artifacts']:

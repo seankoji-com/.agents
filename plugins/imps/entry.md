@@ -31,7 +31,7 @@ The operator names one operation: `doctor`, `run <task>`, `resume <run-id>`, `st
 4. Choose the mode. Use **direct** (the default) when you can make and verify the change yourself. Use **delegated** only when each task resolves a distinct unknown or produces an independently checkable output. If you choose delegated, load `PKG/references/delegation.md`.
 5. Run `init --input plan.json` and note the `run_id`. Then run the loop.
 
-**resume <run-id>.** Call `orchestrator_capabilities`, run `claim`, and record the capabilities response. Then run the loop. If `claim` exits 3 and the owner is a prior turn of this same thread, that turn has ended, because a thread runs one turn at a time. Run `recover --token <owner token from status> --confirmed-dead` and claim again. Never recover a claim held by a different thread.
+**resume <run-id>.** Call `orchestrator_capabilities`, run `claim`, and record the capabilities response. Then run the loop. If `claim` exits 3 and the owner is a prior turn of this same thread, that turn has ended, because a thread runs one turn at a time. Run `recover --token <owner token from status> --confirmed-dead` and claim again. Never recover a claim held by a different thread. Recovery charges the dead turn's time to the budget up to its claim deadline, so a long-abandoned claim can leave little budget; the budget blocker then offers more.
 
 **status <run-id>.** Run `status`, `validate` and `report`, then show the Markdown report. Change nothing.
 

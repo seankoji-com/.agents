@@ -376,6 +376,10 @@ def executing(ctx, state):
             continue
         if task['status'] in ('pending', 'correction_needed') and task.get('executor') == 'delegate':
             if task.get('writes'):
+                if mode is None:
+                    # Isolation is decided only by probe evidence; a probe that could not
+                    # run (blocked) leaves writers waiting and its blocker surfaces below.
+                    continue
                 if mode == 'serial':
                     # Serial writers work one at a time in the parent's own checkout,
                     # the one place a sandboxed child is known to be able to write.

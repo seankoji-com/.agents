@@ -102,23 +102,25 @@ def copy_artifact(source: Path, run_dir: Path, category: str, roots) -> dict:
     source = contained(source, roots)
     if not source.is_file():
         raise InvalidInput('artifact_not_file', 'evidence artifact must be a regular file', {'path': str(source)})
-    digest = sha256_file(source)
     if not category.replace('-', '').isalnum():
         raise InvalidInput('bad_category', 'artifact category must be alphanumeric', {'category': category})
     target_dir = safe_dir(run_dir, 'artifacts', category)
     stem = ''.join(ch if ch.isalnum() or ch in '._-' else '_' for ch in source.name)[:80] or 'artifact'
-    target = target_dir / f'{digest[:12]}-{stem}'
-    if target.is_symlink():
-        raise InvalidInput('path_escape', 'artifact target is a symlink', {'path': str(target)})
-    if not target.exists():
-        fd, tmp = tempfile.mkstemp(prefix='.artifact.', dir=target_dir)  # O_EXCL: never follows a planted link
-        try:
-            with os.fdopen(fd, 'wb') as out, open(source, 'rb') as src:
-                shutil.copyfileobj(src, out)
+    fd, tmp = tempfile.mkstemp(prefix='.artifact.', dir=target_dir)  # O_EXCL: never follows a planted link
+    try:
+        with os.fdopen(fd, 'wb') as out, open(source, 'rb') as src:
+            shutil.copyfileobj(src, out)
+        # Hash the copy, not the source, so the recorded digest is of the bytes kept.
+        digest = sha256_file(Path(tmp))
+        target = target_dir / f'{digest[:12]}-{stem}'
+        if target.is_symlink() or (target.exists() and not target.is_file()):
+            raise InvalidInput('path_escape', 'artifact target is a symlink or not a regular file', {'path': str(target)})
+        if not target.exists() or sha256_file(target) != digest:
+            # An existing file at the content-addressed name is reused only when it still holds these bytes.
             os.replace(tmp, target)
-        finally:
-            if os.path.exists(tmp):
-                os.unlink(tmp)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
     return {'path': target.relative_to(run_dir).as_posix(), 'sha256': digest, 'source': str(source)}
 
 
