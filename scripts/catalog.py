@@ -34,8 +34,11 @@ def main(argv=None):
     parser.add_argument('--prefix', default=os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins'))
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('list', help='list bundled plugins')
+    helps = {'path': 'print the installed entry path of one plugin',
+             'prompt': 'print a prompt that reads the installed entry and runs REQUEST (default: doctor)',
+             'doctor': 'check installed file integrity for all plugins or one named plugin'}
     for name in ('path', 'prompt', 'doctor'):
-        command = sub.add_parser(name)
+        command = sub.add_parser(name, help=helps[name])
         command.add_argument('plugin', nargs='?' if name == 'doctor' else None)
         if name == 'prompt':
             command.add_argument('request', nargs='*', default=['doctor'])
@@ -46,6 +49,8 @@ def main(argv=None):
     remove = sub.add_parser('uninstall', help='remove owned files, preserving state and local edits')
     remove.add_argument('plugin')
     remove.add_argument('--dry-run', action='store_true')
+    remove.add_argument('--force', action='store_true', help='also remove locally modified owned files')
+    remove.add_argument('--version', help='remove only this installed snapshot')
     activate = sub.add_parser('activate', help='activate an installed snapshot')
     activate.add_argument('plugin')
     activate.add_argument('version')
@@ -69,6 +74,8 @@ def main(argv=None):
                 forwarded = ['--plugin', meta['name'], '--prefix', str(prefix)]
                 if args.command == 'uninstall':
                     forwarded.append('--uninstall')
+                    if getattr(args, 'version', None):
+                        forwarded.extend(['--version', args.version])
                 if args.command == 'activate':
                     forwarded.extend(['--activate', args.version])
                 for flag in ('dry_run', 'force'):
@@ -98,8 +105,11 @@ def main(argv=None):
                             errors.append('missing_or_modified:' + item['path'])
                     if not entry.is_file():
                         errors.append('missing_entry')
-                except (OSError, ValueError, installer.InstallError):
-                    errors.append('installation_invalid')
+                except (OSError, ValueError, installer.InstallError) as exc:
+                    if not current.is_symlink() and not current.exists():
+                        errors.append(f"not_installed: run t3-plugins install {meta['name']}")
+                    else:
+                        errors.append(f'installation_invalid: {exc}')
                 failed |= bool(errors)
                 print(json.dumps({'plugin': meta['name'], 'ok': not errors, 'errors': errors,
                                   'scope': 'installed file integrity and package currency; provider behavior not tested'}))

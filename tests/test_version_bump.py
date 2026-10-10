@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @unittest.skipUnless(shutil.which('jq'), 'jq required by the workflow')
 class VersionBumpTest(unittest.TestCase):
-    def test_shared_change_bumps_existing_but_preserves_new_and_explicit_versions(self):
+    def test_shared_change_bumps_existing_from_the_fork_point_and_preserves_new_and_explicit_versions(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
 
@@ -25,7 +25,7 @@ class VersionBumpTest(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(json.dumps({'name': name, 'version': version}))
 
-            git('init', '-q')
+            git('init', '-q', '-b', 'main')
             git('config', 'user.name', 'Fixture')
             git('config', 'user.email', 'fixture@example.invalid')
             write('existing', '1.0.0')
@@ -35,16 +35,26 @@ class VersionBumpTest(unittest.TestCase):
             contract.write_text('old')
             git('add', '.')
             git('commit', '-qm', 'base')
-            base = git('rev-parse', 'HEAD')
+            git('checkout', '-q', '-b', 'topic')
             write('new-plugin', '0.1.0')
             write('explicit', '1.1.0')
             contract.write_text('new')
             git('add', '.')
             git('commit', '-qm', 'contract and catalog')
             head = git('rev-parse', 'HEAD')
+            # The base branch moves on after the fork point. Diffing against its tip would
+            # read 1.0.5 as the base version and skip the bump; the fork point says 1.0.0.
+            git('checkout', '-q', 'main')
+            write('existing', '1.0.5')
+            git('add', '.')
+            git('commit', '-qm', 'release bump on main after the branch point')
+            git('update-ref', 'refs/remotes/origin/main', 'main')
+            git('checkout', '-q', 'topic')
             workflow = (ROOT / '.github/workflows/version-bump.yml').read_text()
             script = textwrap.dedent(workflow.split('run: |\n', 1)[1].split('\n      - name:', 1)[0])
-            script = script.replace('${{ github.event.pull_request.base.sha }}', base)
+            self.assertIn('git merge-base', script)
+            self.assertNotIn('pull_request.base.sha', workflow)
+            script = script.replace('${{ github.event.pull_request.base.ref }}', 'main')
             script = script.replace('${{ github.event.pull_request.head.sha }}', head)
             output = root / 'output'
             for expected in ('changed=1', 'changed=0'):

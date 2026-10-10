@@ -118,3 +118,92 @@ class InstallTest(CoreTestCase):
         self.assertEqual(os.readlink(current), first['version'])
         self.assertTrue((Path(first['version_dir']) / 'entry.md').is_file())
         self.installer('--activate', 'no-such-version', expect=2)
+
+    def test_reinstall_after_rollback_reports_reactivated(self):
+        first = self.installer()['data']
+        (self.source / 'plugins' / 'imps' / 'references' / 'extra-note.md').write_text('a change\n')
+        second = self.installer()['data']
+        self.installer('--activate', first['version'])
+        current = self.prefix / 'imps' / 'current'
+        self.assertEqual(os.readlink(current), first['version'])
+        third = self.installer()['data']
+        self.assertEqual(third['action'], 'reactivated', 'the receipt says current moved')
+        self.assertEqual(third['version'], second['version'])
+        self.assertEqual(os.readlink(current), second['version'])
+        self.assertEqual(self.installer()['data']['action'], 'already_installed', 'nothing changed this time')
+
+    def test_half_uninstalled_snapshot_is_not_installed_or_activatable(self):
+        first = self.installer()['data']
+        (Path(first['version_dir']) / 'entry.md').write_text('edited by hand\n')
+        (self.source / 'plugins' / 'imps' / 'references' / 'extra-note.md').write_text('a change\n')
+        second = self.installer()['data']
+        kept = self.installer('--uninstall', '--version', first['version'])['data']
+        self.assertEqual(kept['kept_modified'], [str(Path(first['version_dir']) / 'entry.md')])
+        manifest = json.loads((Path(first['version_dir']) / 'install-manifest.json').read_text())
+        self.assertTrue(manifest['preserved_modified'])
+        out = self.installer('--activate', first['version'], expect=2)
+        self.assertEqual(out['error']['code'], 'unknown_version')
+        self.assertEqual(out['error']['details']['installed'], [second['version']])
+        self.assertEqual(out['error']['details']['preserved_modified'], [first['version']])
+        self.assertEqual(os.readlink(self.prefix / 'imps' / 'current'), second['version'])
+        # --force still finishes the half-done uninstall
+        self.installer('--uninstall', '--version', first['version'], '--force')
+        self.assertFalse(Path(first['version_dir']).exists())
+
+    def test_missing_git_binary_falls_back_to_content_version(self):
+        nothing = self.tmp / 'empty-bin'
+        nothing.mkdir()
+        self.env['PATH'] = str(nothing)
+        out = self.installer()['data']
+        self.assertIn('+content.', out['version'])
+        self.assertIsNone(out['source_commit'])
+        self.assertTrue((Path(out['version_dir']) / 'entry.md').is_file())
+
+    def test_uninstall_keeps_user_created_empty_directories(self):
+        first = self.installer()['data']
+        version_dir = Path(first['version_dir'])
+        mine = version_dir / 'my-scratch'
+        mine.mkdir()
+        self.assertTrue((version_dir / 'references').is_dir(), 'an owned directory to compare against')
+        self.installer('--uninstall')
+        self.assertTrue(mine.is_dir(), 'an empty directory the installer never owned survives')
+        self.assertFalse((version_dir / 'references').exists(), 'owned directories emptied by the uninstall go')
+        self.assertFalse((version_dir / 'install-manifest.json').exists())
+
+    def test_relative_prefix_yields_absolute_receipt_paths(self):
+        script = self.source / 'scripts' / 'install.py'
+        result = subprocess.run([sys.executable, str(script), '--prefix', 'rel/prefix', '--dry-run'],
+                                capture_output=True, text=True, env=self.env, cwd=self.tmp)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        data = json.loads(result.stdout)['data']
+        self.assertEqual(Path(data['version_dir']).parts[:len(self.tmp.parts)], self.tmp.parts)
+        self.assertTrue(Path(data['entry']).is_absolute())
+
+    def test_version_without_uninstall_is_a_usage_error(self):
+        script = self.source / 'scripts' / 'install.py'
+        result = subprocess.run([sys.executable, str(script), '--version', '1.0.0+g0', '--dry-run'],
+                                capture_output=True, text=True, env=self.env)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('--version requires --uninstall', result.stderr)
+        self.assertFalse(self.prefix.exists())
+
+    def test_activate_receipt_uses_declared_entry(self):
+        demo = self.source / 'plugins' / 'demo'
+        demo.mkdir()
+        (demo / 'plugin.json').write_text(json.dumps({'name': 'demo', 'version': '0.1.0', 'entry': 'start.md',
+                                                      'description': 'fixture'}))
+        (demo / 'start.md').write_text('# demo\n')
+        first = self.installer('--plugin', 'demo')['data']
+        self.assertTrue(first['entry'].endswith('/demo/current/start.md'))
+        out = self.installer('--plugin', 'demo', '--activate', first['version'])['data']
+        self.assertEqual(out['entry'], str(self.prefix / 'demo' / 'current' / 'start.md'))
+
+    def test_finder_and_explorer_litter_is_not_installed(self):
+        baseline = self.installer('--dry-run')['data']
+        (self.source / 'plugins' / 'imps' / '.DS_Store').write_bytes(b'\x00')
+        (self.source / 'core' / 'Thumbs.db').write_bytes(b'\x00')
+        out = self.installer()['data']
+        self.assertEqual(out['version'], baseline['version'], 'the snapshot identity does not change')
+        self.assertEqual(out['files'], baseline['files'])
+        self.assertFalse((Path(out['version_dir']) / '.DS_Store').exists())
+        self.assertFalse((Path(out['version_dir']) / 'core' / 'Thumbs.db').exists())

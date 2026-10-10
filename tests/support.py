@@ -23,7 +23,7 @@ TIMEOUT = 120  # seconds; a hung child process fails the test instead of the sui
 
 GIT_ENV = {'GIT_AUTHOR_NAME': 'Fixture', 'GIT_AUTHOR_EMAIL': 'fixture@example.invalid',
            'GIT_COMMITTER_NAME': 'Fixture', 'GIT_COMMITTER_EMAIL': 'fixture@example.invalid',
-           'GIT_CONFIG_NOSYSTEM': '1'}
+           'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull}  # a global hooksPath or gpgsign must not break fixtures
 
 
 def git(cwd, *args, check=True):

@@ -83,6 +83,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree
 import zipfile
@@ -126,10 +127,9 @@ DEFAULT_AGY_TIMEOUT = 300
 # Notional context for the cloud budget guard. Gemini models take ~1M tokens;
 # half that keeps the same reserve-for-output logic as the ollama tiers.
 DEFAULT_AGY_NUM_CTX = 524288
-# Above this many input bytes the content is not inlined into agy's argv
-# (macOS ARG_MAX is ~1MB) — agy is told the file path and reads it with its
-# own tools instead.
-AGY_INLINE_LIMIT_BYTES = 200_000
+# Input content is never placed on agy's argv: `ps` and process accounting
+# would expose it to every local user, and ARG_MAX would truncate it. agy is
+# always told a staged file path and reads it with its own tools.
 # Default per-window call budgets. Deliberately conservative: Google
 # publishes no numeric quotas; community-observed limits on the base
 # subscription are a ~250-unit 5h bucket and a weekly hard cap where
@@ -269,6 +269,21 @@ def _check_within_root(root, real_path, label):
         raise SidecarError(f"{label} escapes the allowed project root: {real_path}")
 
 
+# Writing into .git/.hg/.svn is inside the root but can rewrite hooks, config
+# or history — nothing this tool produces belongs there.
+_VCS_METADATA_DIRS = frozenset({".git", ".hg", ".svn"})
+
+
+def _check_not_vcs_metadata(root, real_path, label):
+    relative = os.path.relpath(real_path, root)
+    for part in relative.split(os.sep):
+        if part in _VCS_METADATA_DIRS:
+            raise SidecarError(
+                f"{label} is inside a version-control metadata directory "
+                f"('{part}'); refusing to write there: {real_path}"
+            )
+
+
 def resolve_input_path(root, input_path):
     if not input_path:
         raise SidecarError("input_path is required")
@@ -291,7 +306,9 @@ def resolve_output_path(root, output_path):
         raise SidecarError(f"output directory does not exist: {parent}")
     real_parent = os.path.realpath(parent)
     _check_within_root(root, real_parent, "output_path")
-    return os.path.join(real_parent, os.path.basename(output_path))
+    resolved = os.path.join(real_parent, os.path.basename(output_path))
+    _check_not_vcs_metadata(root, resolved, "output_path")
+    return resolved
 
 
 def resolve_output_dir(root, output_dir_path):
@@ -310,6 +327,7 @@ def resolve_output_dir(root, output_dir_path):
         )
     real = os.path.realpath(output_dir_path)
     _check_within_root(root, real, "output_path")
+    _check_not_vcs_metadata(root, real, "output_path")
     return real
 
 
@@ -557,6 +575,8 @@ def check_cloud_budget(cfg, now=None):
 
     usage = quota_usage(state, model, now)
     for window, cap in cfg["caps"].items():
+        # A cap of 0 switches that window's limit off; the operator's documented
+        # way to disable a tier is to leave agy unconfigured or use a local tier.
         if cap > 0 and usage[window] >= cap:
             return (
                 False,
@@ -644,11 +664,12 @@ class AgyError(Exception):
         self.unreachable = unreachable
 
 
-def call_agy(cfg, system_prompt, input_text=None, input_path=None):
-    """One non-interactive agy run. Exactly one of input_text / input_path:
-    text is inlined into the prompt (small inputs); a path makes agy read
-    the file with its own tools via --add-dir (large inputs, and all media —
-    images/PDFs can't be inlined as text at all).
+def call_agy(cfg, system_prompt, input_path):
+    """One non-interactive agy run. The input always travels as a file: a
+    copy is staged in a fresh directory and agy reads it with its own tools
+    via --add-dir. Content is never inlined into the prompt (and therefore
+    never onto argv, where it would be visible to every local process and
+    subject to ARG_MAX) — the same path for text, images and PDFs.
 
     Flag shape matters: --print takes the prompt as its VALUE. A positional
     prompt after other flags is silently dropped by agy's parser (verified
@@ -663,31 +684,30 @@ def call_agy(cfg, system_prompt, input_text=None, input_path=None):
             unreachable=True,
         )
 
+    if not input_path:
+        raise AgyError("call_agy requires an input_path; content is never inlined")
+
     argv = [bin_, "--model", cfg["model"]]
     staged_dir = None
     try:
-        if input_path is not None:
-            # agy is an autonomous agent, and --add-dir grants it a whole
-            # directory — pointing that at the input's real parent (often
-            # the repo root) would let a prompt-injected PDF/image/log talk
-            # it into reading sibling files. Stage a copy of just this one
-            # file in a fresh temp dir so the only thing agy can see is the
-            # input itself.
-            staged_dir = tempfile.mkdtemp(prefix="offload-sidecar-")
-            staged_path = os.path.join(staged_dir, os.path.basename(input_path))
-            try:
-                shutil.copy2(input_path, staged_path)
-            except OSError as e:
-                raise AgyError(f"failed to stage input for agy: {e}")
-            prompt = (
-                f"{system_prompt}\n\nThe input is the file at {staged_path} — "
-                "read it with your file tools (it may be an image or PDF; "
-                "look at it). Do not read, write, or execute anything else."
-            )
-            argv += ["--add-dir", staged_dir]
-        else:
-            prompt = f"{system_prompt}\n\nInput data follows:\n\n{input_text}"
-        argv += ["--print", prompt]
+        # agy is an autonomous agent, and --add-dir grants it a whole
+        # directory — pointing that at the input's real parent (often
+        # the repo root) would let a prompt-injected PDF/image/log talk
+        # it into reading sibling files. Stage a copy of just this one
+        # file in a fresh temp dir so the only thing agy can see is the
+        # input itself.
+        staged_dir = tempfile.mkdtemp(prefix="offload-sidecar-")
+        staged_path = os.path.join(staged_dir, os.path.basename(input_path))
+        try:
+            shutil.copy2(input_path, staged_path)
+        except OSError as e:
+            raise AgyError(f"failed to stage input for agy: {e}")
+        prompt = (
+            f"{system_prompt}\n\nThe input is the file at {staged_path} — "
+            "read it with your file tools (it may be text, an image or a PDF; "
+            "look at it). Do not read, write, or execute anything else."
+        )
+        argv += ["--add-dir", staged_dir, "--print", prompt]
 
         output = ""
         # agy has a known intermittent bug where the final response is
@@ -698,11 +718,17 @@ def call_agy(cfg, system_prompt, input_text=None, input_path=None):
             # Google quota too.
             record_cloud_call(cfg["model"])
             try:
+                # Run from the staging directory: agy treats the working
+                # directory as its workspace, so inheriting the caller's cwd
+                # (often the repository) would hand a prompt-injected input
+                # the whole tree. The one-file boundary is cwd + --add-dir of
+                # the same fresh directory.
                 proc = subprocess.run(
                     argv,
                     capture_output=True,
                     text=True,
                     timeout=cfg["timeout"] + 30,
+                    cwd=staged_dir,
                 )
             except subprocess.TimeoutExpired:
                 raise AgyError(
@@ -1787,7 +1813,10 @@ def _det_sqlite_dump_to_json(input_path, params, instruction, output_path):
     True) — sqlite3 needs a real file to open (locking, page format), not an
     in-memory blob."""
     tables_filter = params.get("tables")
-    uri = f"file:{input_path}?mode=ro"
+    # Percent-encode the path: a literal '?' or '#' in it would otherwise end
+    # the path early, drop mode=ro, and have sqlite create an empty database
+    # at the truncated name — then "succeed" with zero tables.
+    uri = f"file:{urllib.parse.quote(input_path)}?mode=ro"
     try:
         conn = sqlite3.connect(uri, uri=True)
     except sqlite3.Error as e:
@@ -1801,6 +1830,11 @@ def _det_sqlite_dump_to_json(input_path, params, instruction, output_path):
             table_names = [row[0] for row in cur.fetchall()]
         except sqlite3.DatabaseError as e:
             raise SidecarError(f"input is not a valid sqlite database: {e}")
+        if not table_names and os.path.getsize(input_path) > 0:
+            raise SidecarError(
+                f"sqlite database has no tables to dump: {input_path} — refusing "
+                "to write an empty result for a non-empty file"
+            )
         if tables_filter:
             table_names = [t for t in table_names if t in tables_filter]
         result = {}
@@ -2444,12 +2478,26 @@ def _xlsx_cell_column(ref):
     return col - 1
 
 
+def _xlsx_parse_part(data, member):
+    """ElementTree.fromstring with the same entity-expansion refusal as
+    xml_to_json: every XML part inside an .xlsx is attacker-controlled."""
+    if re.search(rb"<!(DOCTYPE|ENTITY)\b", data, re.IGNORECASE):
+        raise SidecarError(
+            f"xlsx_extract refuses '{member}': it contains a DOCTYPE or ENTITY "
+            "declaration (entity-expansion safety)"
+        )
+    return xml.etree.ElementTree.fromstring(data)
+
+
 def _xlsx_shared_strings(zf):
     try:
         data = zf.read("xl/sharedStrings.xml")
     except KeyError:
         return []
-    root = xml.etree.ElementTree.fromstring(data)
+    try:
+        root = _xlsx_parse_part(data, "xl/sharedStrings.xml")
+    except xml.etree.ElementTree.ParseError as e:
+        raise SidecarError(f"could not read shared strings: {e}")
     strings = []
     for si in root:
         # A shared string is either one <t> or a series of rich-text <r>
@@ -2498,9 +2546,9 @@ def _det_xlsx_extract(input_path, params, instruction, output_path):
         raise SidecarError(f"input is not a valid .xlsx (zip) file: {e}")
     with zf:
         try:
-            wb = xml.etree.ElementTree.fromstring(zf.read("xl/workbook.xml"))
-            rels = xml.etree.ElementTree.fromstring(
-                zf.read("xl/_rels/workbook.xml.rels")
+            wb = _xlsx_parse_part(zf.read("xl/workbook.xml"), "xl/workbook.xml")
+            rels = _xlsx_parse_part(
+                zf.read("xl/_rels/workbook.xml.rels"), "xl/_rels/workbook.xml.rels"
             )
         except (KeyError, xml.etree.ElementTree.ParseError) as e:
             raise SidecarError(f"input is not a valid .xlsx workbook: {e}")
@@ -2524,7 +2572,7 @@ def _det_xlsx_extract(input_path, params, instruction, output_path):
             t = target.lstrip("/")
             member = t if t.startswith("xl/") else "xl/" + t
             try:
-                ws = xml.etree.ElementTree.fromstring(zf.read(member))
+                ws = _xlsx_parse_part(zf.read(member), member)
             except (KeyError, xml.etree.ElementTree.ParseError) as e:
                 raise SidecarError(f"could not read worksheet '{name}': {e}")
             rows = []
@@ -3337,10 +3385,9 @@ def handle_process_local_file(args):
                     "Split the file into smaller chunks."
                 )
             try:
-                if is_media or input_byte_count > AGY_INLINE_LIMIT_BYTES:
-                    output_text = call_agy(cfg, system_prompt, input_path=input_real)
-                else:
-                    output_text = call_agy(cfg, system_prompt, input_text=input_text)
+                # Always by staged path, never inlined: file content must not
+                # appear on the agy process's argv.
+                output_text = call_agy(cfg, system_prompt, input_path=input_real)
             except (AgyError, SidecarError) as e:
                 # No automatic cloud->local failover: a text op CAN be
                 # retried on 'deep'/'fast' (the error says so), but silently
@@ -3563,6 +3610,15 @@ def main():
             msg = json.loads(line)
         except json.JSONDecodeError:
             print(json.dumps(rpc_error(None, -32700, "parse error")), flush=True)
+            continue
+        if not isinstance(msg, dict):
+            # Valid JSON but not a request object (an array, a string, a
+            # number): JSON-RPC says Invalid Request, id null. Batches are
+            # not supported by this server.
+            print(
+                json.dumps(rpc_error(None, -32600, "invalid request: expected a JSON object")),
+                flush=True,
+            )
             continue
         try:
             response = handle_message(msg)

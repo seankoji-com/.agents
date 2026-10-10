@@ -1782,26 +1782,35 @@ class CallAgyTest(unittest.TestCase):
     def _proc(self, stdout="", stderr="", returncode=0):
         return mock.Mock(stdout=stdout, stderr=stderr, returncode=returncode)
 
+    def _input(self, text="data", name="input.txt"):
+        path = os.path.join(self.tmp.name, name)
+        with open(path, "w") as f:
+            f.write(text)
+        return path
+
     def test_missing_binary_is_unreachable(self):
         with mock.patch.object(sidecar.shutil, "which", return_value=None):
             with self.assertRaises(sidecar.AgyError) as ctx:
-                sidecar.call_agy(self.cfg, "sys", input_text="data")
+                sidecar.call_agy(self.cfg, "sys", self._input())
         self.assertTrue(ctx.exception.unreachable)
 
-    def test_inline_success_and_argv_shape(self):
+    def test_success_argv_shape_never_inlines_content(self):
+        # File content must travel by staged path only: never in the prompt, and
+        # therefore never on argv where every local process could read it.
+        src = self._input("the data")
         with mock.patch.object(sidecar.shutil, "which", return_value="/usr/bin/agy"):
             with mock.patch.object(
                 sidecar.subprocess, "run", return_value=self._proc("OUT")
             ) as run:
-                out = sidecar.call_agy(self.cfg, "sys prompt", input_text="the data")
+                out = sidecar.call_agy(self.cfg, "sys prompt", src)
         self.assertEqual(out, "OUT")
         argv = run.call_args[0][0]
         self.assertEqual(argv[0], "agy")
         self.assertEqual(argv[argv.index("--model") + 1], "TestFlash")
         prompt = argv[argv.index("--print") + 1]
         self.assertIn("sys prompt", prompt)
-        self.assertIn("the data", prompt)
-        self.assertNotIn("--add-dir", argv)
+        self.assertNotIn("the data", " ".join(argv))
+        self.assertIn("--add-dir", argv)
         # exactly one call recorded against the budget
         state = sidecar.load_quota_state()
         self.assertEqual(len(state["calls"]["TestFlash"]), 1)
@@ -1817,7 +1826,7 @@ class CallAgyTest(unittest.TestCase):
             with mock.patch.object(
                 sidecar.subprocess, "run", return_value=self._proc("OUT")
             ) as run:
-                sidecar.call_agy(self.cfg, "sys", input_path=src)
+                sidecar.call_agy(self.cfg, "sys", src)
         argv = run.call_args[0][0]
         add_dir = argv[argv.index("--add-dir") + 1]
         self.assertNotEqual(
@@ -1826,6 +1835,9 @@ class CallAgyTest(unittest.TestCase):
         prompt = argv[argv.index("--print") + 1]
         self.assertIn(os.path.join(add_dir, "big.log"), prompt)
         self.assertNotIn(src, prompt)
+        # The child runs inside the staging directory, never the caller's cwd,
+        # so agy's workspace is the one staged file and nothing else.
+        self.assertEqual(os.path.realpath(run.call_args.kwargs["cwd"]), os.path.realpath(add_dir))
         # staging dir is removed after the call
         self.assertFalse(os.path.exists(add_dir))
 
@@ -1835,7 +1847,7 @@ class CallAgyTest(unittest.TestCase):
                 sidecar.subprocess, "run", return_value=self._proc("")
             ) as run:
                 with self.assertRaises(sidecar.AgyError) as ctx:
-                    sidecar.call_agy(self.cfg, "sys", input_text="d")
+                    sidecar.call_agy(self.cfg, "sys", self._input("d"))
         self.assertEqual(run.call_count, 2)
         self.assertIn("empty output", str(ctx.exception))
         # each spawn burned real quota, so each must be counted
@@ -1849,7 +1861,7 @@ class CallAgyTest(unittest.TestCase):
                 sidecar.subprocess, "run", return_value=self._proc(msg)
             ):
                 with self.assertRaises(sidecar.AgyError) as ctx:
-                    sidecar.call_agy(self.cfg, "sys", input_text="d")
+                    sidecar.call_agy(self.cfg, "sys", self._input("d"))
         self.assertIn("quota-locked", str(ctx.exception))
         state = sidecar.load_quota_state()
         self.assertIn("TestFlash", state["lockouts"])
@@ -1862,7 +1874,7 @@ class CallAgyTest(unittest.TestCase):
                 return_value=self._proc("", "boom", returncode=2),
             ):
                 with self.assertRaises(sidecar.AgyError) as ctx:
-                    sidecar.call_agy(self.cfg, "sys", input_text="d")
+                    sidecar.call_agy(self.cfg, "sys", self._input("d"))
         self.assertIn("exited 2", str(ctx.exception))
 
 

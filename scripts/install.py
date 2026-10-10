@@ -26,6 +26,7 @@ SOURCE = Path(__file__).resolve().parent.parent
 MANIFEST = 'install-manifest.json'
 SKIP_DIRS = {'__pycache__', '.pytest_cache'}
 SKIP_SUFFIXES = ('.pyc', '.pyo')
+SKIP_FILES = {'.DS_Store', 'Thumbs.db'}
 
 
 class InstallError(Exception):
@@ -42,7 +43,7 @@ def files_under(root: Path):
     for path in sorted(root.rglob('*')):
         if any(part in SKIP_DIRS for part in path.relative_to(root).parts):
             continue
-        if path.is_file() and not path.name.endswith(SKIP_SUFFIXES):
+        if path.is_file() and path.name not in SKIP_FILES and not path.name.endswith(SKIP_SUFFIXES):
             yield path
 
 
@@ -73,7 +74,10 @@ def validate_name(plugin: str) -> None:
 def git_commit(source: Path, paths) -> tuple[str | None, bool]:
     """The last commit that touched the installed paths, and whether they are dirty.
     Commits elsewhere in the repository (docs, conformance results) leave it unchanged."""
-    head = subprocess.run(['git', '-C', str(source), 'log', '-1', '--format=%H', '--', *paths], capture_output=True, text=True)
+    try:
+        head = subprocess.run(['git', '-C', str(source), 'log', '-1', '--format=%H', '--', *paths], capture_output=True, text=True)
+    except FileNotFoundError:
+        return None, True  # no git binary: fall back to the content-hash version, as for a non-git source
     if head.returncode != 0 or not head.stdout.strip():
         return None, True
     dirty = subprocess.run(['git', '-C', str(source), 'status', '--porcelain', '--', *paths], capture_output=True, text=True)
@@ -153,8 +157,17 @@ def local_modifications(version_dir: Path, manifest: dict) -> list:
     return changed
 
 
+def prefix_path(args) -> Path:
+    return Path(args.prefix).expanduser().absolute()
+
+
+def active_version(plugin_root: Path) -> str | None:
+    link = plugin_root / 'current'
+    return os.readlink(link) if link.is_symlink() else None
+
+
 def install(args) -> dict:
-    prefix = Path(args.prefix).expanduser()
+    prefix = prefix_path(args)
     planned = plan_install(SOURCE if not args.source else Path(args.source), args.plugin)
     manifest = planned['manifest']
     plugin_root = prefix / args.plugin
@@ -169,7 +182,8 @@ def install(args) -> dict:
             raise InstallError('locally_modified', 'installed files were modified locally; rerun with --force to overwrite',
                                {'files': modified, 'version_dir': str(version_dir)})
         if old == manifest and not modified:
-            action = 'already_installed'
+            # Identical snapshot already on disk; only `current` may still need repointing.
+            action = 'already_installed' if active_version(plugin_root) == manifest['version'] else 'reactivated'
     result = {'action': action, 'plugin': args.plugin, 'version': manifest['version'],
               'source_commit': manifest['source_commit'], 'version_dir': str(version_dir), 'entry': str(entry),
               'paste': f'Read {entry} and run: doctor', 'dry_run': bool(args.dry_run),
@@ -189,14 +203,24 @@ def install(args) -> dict:
 
 
 def activate(args) -> dict:
-    plugin_root = Path(args.prefix).expanduser() / args.plugin
+    plugin_root = prefix_path(args) / args.plugin
     if args.activate not in installed_versions(plugin_root):
         raise InstallError('unknown_version', f'no installed version {args.activate}',
-                           {'installed': installed_versions(plugin_root)})
+                           {'installed': installed_versions(plugin_root),
+                            'preserved_modified': preserved_versions(plugin_root)})
     if not args.dry_run:
         repoint(plugin_root, args.activate)
     return {'action': 'activate', 'version': args.activate, 'dry_run': bool(args.dry_run),
-            'entry': str(plugin_root / 'current' / 'entry.md')}
+            'entry': str(plugin_root / 'current' / snapshot_entry(plugin_root / args.activate))}
+
+
+def snapshot_entry(version_dir: Path) -> str:
+    """The entry file a snapshot declares in its own plugin.json."""
+    try:
+        entry = json.loads((version_dir / 'plugin.json').read_text()).get('entry')
+    except (OSError, ValueError, AttributeError):
+        entry = None
+    return entry if isinstance(entry, str) and entry else 'entry.md'
 
 
 def load_manifest(path: Path, strict=True) -> dict | None:
@@ -215,10 +239,23 @@ def load_manifest(path: Path, strict=True) -> dict | None:
     return manifest
 
 
-def installed_versions(plugin_root: Path) -> list:
+def snapshot_manifests(plugin_root: Path):
     if not plugin_root.is_dir():
-        return []
-    return sorted(p.name for p in plugin_root.iterdir() if not p.is_symlink() and (p / MANIFEST).is_file())
+        return
+    for path in sorted(plugin_root.iterdir()):
+        if not path.is_symlink() and (path / MANIFEST).is_file():
+            yield path.name, load_manifest(path / MANIFEST, strict=False)
+
+
+def installed_versions(plugin_root: Path, include_preserved=False) -> list:
+    """Complete snapshots. A half-uninstalled snapshot that only keeps ownership of
+    locally modified files (`preserved_modified`) is not installed unless asked for."""
+    return sorted(name for name, manifest in snapshot_manifests(plugin_root)
+                  if include_preserved or not (manifest or {}).get('preserved_modified'))
+
+
+def preserved_versions(plugin_root: Path) -> list:
+    return sorted(name for name, manifest in snapshot_manifests(plugin_root) if (manifest or {}).get('preserved_modified'))
 
 
 def refuse_symlinks(*paths: Path) -> None:
@@ -228,11 +265,11 @@ def refuse_symlinks(*paths: Path) -> None:
 
 
 def uninstall(args) -> dict:
-    plugin_root = Path(args.prefix).expanduser() / args.plugin
+    plugin_root = prefix_path(args) / args.plugin
     refuse_symlinks(plugin_root)
     if plugin_root.is_dir():
         refuse_symlinks(*[p for p in plugin_root.iterdir() if p.name != 'current' and not p.name.startswith('.current')])
-    installed = installed_versions(plugin_root)
+    installed = installed_versions(plugin_root, include_preserved=True)
     if args.version and args.version not in installed:
         raise InstallError('unknown_version', f'{args.version!r} is not an installed version of {args.plugin}',
                            {'installed': installed})
@@ -247,6 +284,7 @@ def uninstall(args) -> dict:
         manifest = load_manifest(manifest_path)
         paths = [(entry, owned_path(version_dir, entry['path'])) for entry in manifest['files']]
         owned_modules = {(path.parent, path.stem) for entry, path in paths if entry['path'].endswith('.py')}
+        owned_dirs = {parent for _, path in paths for parent in path.parents if version_dir in parent.parents}
         kept_entries = []
         for entry, path in paths:
             if not path.is_file():
@@ -277,8 +315,9 @@ def uninstall(args) -> dict:
                         item.unlink()
                 if not any(cache.iterdir()):
                     cache.rmdir()
-            for directory in sorted({p for p in version_dir.rglob('*') if p.is_dir()}, key=lambda p: len(p.parts), reverse=True):
-                if not any(directory.iterdir()):
+            # Only directories that held owned files; a user-created directory stays even when empty.
+            for directory in sorted(owned_dirs, key=lambda p: len(p.parts), reverse=True):
+                if directory.is_dir() and not directory.is_symlink() and not any(directory.iterdir()):
                     directory.rmdir()
             if version_dir.is_dir() and not any(version_dir.iterdir()):
                 version_dir.rmdir()
@@ -304,6 +343,8 @@ def main(argv=None) -> int:
     group.add_argument('--activate', metavar='VERSION')
     parser.add_argument('--version', help='with --uninstall: remove only this version')
     args = parser.parse_args(argv)
+    if args.version and not args.uninstall:
+        parser.error('--version requires --uninstall')
     try:
         validate_name(args.plugin)
         if args.uninstall:

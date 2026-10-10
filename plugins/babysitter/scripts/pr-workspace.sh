@@ -16,7 +16,10 @@
 #
 # Usage:
 #   pr-workspace.sh --repo <owner/name> --pr <N> --branch <head-ref> [--root <dir>]
-#   pr-workspace.sh --repo <owner/name> --pr <N> --remove [--root <dir>]
+#   pr-workspace.sh --repo <owner/name> --pr <N> --remove [--force] [--root <dir>]
+#
+# --remove refuses to delete a worktree with uncommitted or untracked changes (exit
+# 4, left untouched). --force discards them; nothing else does.
 #
 # On success the worktree path is the only thing written to stdout; progress goes to
 # stderr. Callers can therefore do: WT="$(pr-workspace.sh ...)"
@@ -24,8 +27,9 @@
 # Exit codes:
 #   0 — worktree ready (path on stdout), or removed
 #   2 — precondition failed (bad arguments, missing git/gh)
-#   3 — clone, fetch, or worktree creation failed
-#   4 — the worktree exists and has uncommitted changes; left untouched
+#   3 — clone, fetch, worktree creation, or worktree removal failed
+#   4 — the worktree exists and has uncommitted changes; left untouched (both when
+#       reusing it and when asked to --remove it without --force)
 
 set -euo pipefail
 
@@ -40,6 +44,7 @@ REPO=""
 PR_NUMBER=""
 BRANCH=""
 REMOVE=0
+FORCE=0
 # Left empty rather than defaulted to "${HOME}/..." directly: under `set -u` an unset
 # HOME aborts with a raw "unbound variable", and defaulting HOME to "" would silently
 # produce the absolute-looking /.local/state/t3-plugins/babysitter. Empty here, validated below.
@@ -95,23 +100,31 @@ verify_origin_transport() {
 while [ $# -gt 0 ]; do
   case "$1" in
   --repo)
-    REPO="${2:-}"
+    [ $# -ge 2 ] || die "--repo requires a value"
+    REPO="$2"
     shift 2
     ;;
   --pr)
-    PR_NUMBER="${2:-}"
+    [ $# -ge 2 ] || die "--pr requires a value"
+    PR_NUMBER="$2"
     shift 2
     ;;
   --branch)
-    BRANCH="${2:-}"
+    [ $# -ge 2 ] || die "--branch requires a value"
+    BRANCH="$2"
     shift 2
     ;;
   --root)
-    ROOT="${2:-}"
+    [ $# -ge 2 ] || die "--root requires a value"
+    ROOT="$2"
     shift 2
     ;;
   --remove)
     REMOVE=1
+    shift
+    ;;
+  --force)
+    FORCE=1
     shift
     ;;
   -h | --help)
@@ -126,7 +139,7 @@ done
 
 command -v git >/dev/null 2>&1 || die "git not found on PATH"
 
-# Every path this script creates, and the one it `rm -rf`s, is derived from ROOT.
+# Every path this script creates, and the ones it deletes, is derived from ROOT.
 # An empty ROOT — `--root ""`, or BABYSITTER_HOME set empty with HOME unset — would
 # put those paths at the filesystem root and point a recursive delete at
 # /worktrees/<slug>__pr-<N>. Validate before deriving anything from it.
@@ -157,8 +170,25 @@ WORKTREE="${ROOT}/worktrees/${SLUG}__pr-${PR_NUMBER}"
 
 if [ "$REMOVE" = "1" ]; then
   if [ -d "$CLONE/.git" ] && [ -e "$WORKTREE" ]; then
-    git -C "$CLONE" worktree remove --force "$WORKTREE" 2>/dev/null ||
-      rm -rf "$WORKTREE"
+    if [ "$FORCE" = "1" ]; then
+      # Explicitly authorized to discard whatever is there, including a directory
+      # Git no longer recognizes as a worktree.
+      git -C "$CLONE" worktree remove --force "$WORKTREE" 2>/dev/null ||
+        rm -rf "$WORKTREE"
+    else
+      # Never discard work unasked: an agent that left changes behind may still
+      # need them. Say so and let the caller decide, exactly as the reuse path does.
+      if ! pending="$(git -C "$WORKTREE" status --porcelain 2>/dev/null)"; then
+        echo "$WORKTREE"
+        die "cannot inspect ${WORKTREE} for uncommitted changes — left untouched (pass --force to delete it anyway)" 4
+      fi
+      if [ -n "$pending" ]; then
+        echo "$WORKTREE"
+        die "worktree ${WORKTREE} has uncommitted changes — left untouched (pass --force to discard them)" 4
+      fi
+      git -C "$CLONE" worktree remove "$WORKTREE" ||
+        die "could not remove ${WORKTREE}; left untouched (pass --force to delete it anyway)" 3
+    fi
     git -C "$CLONE" branch -D "babysitter/pr-${PR_NUMBER}" >/dev/null 2>&1 || true
     note "removed ${WORKTREE}"
   else
@@ -168,6 +198,12 @@ if [ "$REMOVE" = "1" ]; then
 fi
 
 [ -n "$BRANCH" ] || die "--branch <head-ref> is required unless --remove is given"
+# The head ref is interpolated into refs/remotes/origin/<branch> and handed to git as
+# an argument. An option-like name would be parsed as a flag, and `..` is a revision
+# range, not a branch.
+case "$BRANCH" in
+-* | *..* | *' '* | *[[:cntrl:]]*) die "--branch must be a plain head ref name, got: ${BRANCH}" ;;
+esac
 
 mkdir -p "${ROOT}/repos" "${ROOT}/worktrees" || die "cannot create ${ROOT}" 3
 
@@ -395,7 +431,7 @@ if [ -d "$WORKTREE/.git" ] || [ -f "$WORKTREE/.git" ]; then
     echo "$WORKTREE"
     die "worktree ${WORKTREE} has uncommitted changes — inspect it before reusing" 4
   fi
-  git -C "$WORKTREE" fetch --quiet origin "$BRANCH" || die "fetch failed in worktree" 3
+  git -C "$WORKTREE" fetch --quiet origin -- "$BRANCH" || die "fetch failed in worktree" 3
   git -C "$WORKTREE" checkout --quiet -B "$LOCAL_BRANCH" "origin/${BRANCH}" ||
     die "could not point ${LOCAL_BRANCH} at origin/${BRANCH}" 3
   note "reused ${WORKTREE}"

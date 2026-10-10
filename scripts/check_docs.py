@@ -2,24 +2,123 @@
 """Check local Markdown links, catalog coverage, and portable entry budgets."""
 import json
 import re
+import unicodedata
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 
+FENCE = re.compile(r'^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$', re.S | re.M)
+CODE_SPAN = re.compile(r'(`+)[^`]*?\1')
+LIST_ITEM = re.compile(r'^\s*(?:[-*+]|\d+[.)])\s')
+IMAGE = re.compile(r'!\[[^\]]*\]\(([^\s)]+)(?:\s+"[^"]*")?\)')
+LINK = re.compile(r'\[[^\]]*\]\(([^\s)]+)(?:\s+"[^"]*")?\)')
+HTML_TARGET = re.compile(r'<(?:a|img)\b[^>]*?\b(?:href|src)=["\']([^"\']+)["\']', re.I)
+REFERENCE = re.compile(r'^ {0,3}\[[^\]]+\]:[ \t]*<?(\S+?)>?(?:[ \t]+["\'(].*)?$', re.M)
+ATX_HEADING = re.compile(r'^ {0,3}#{1,6}[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$', re.M)
+SETEXT_HEADING = re.compile(r'^ {0,3}(\S[^\n]*)\n {0,3}(?:=+|-+)[ \t]*$', re.M)
+HTML_ID = re.compile(r'<[a-zA-Z][^>]*?\b(?:id|name)=["\']([^"\']+)["\']', re.I)
+ATTR_ID = re.compile(r'\{:?\s*#([^\s}]+)[^}]*\}\s*$')
+
+
+def strip_code(text: str) -> str:
+    """Drop fenced blocks, indented code blocks, and inline code spans."""
+    text = FENCE.sub('', text)
+    lines, kept, previous_blank, in_block, before = text.split('\n'), [], True, False, ''
+    for line in lines:
+        indented = line.startswith(('    ', '\t'))
+        if in_block and (indented or not line.strip()):
+            continue
+        in_block = False
+        if indented and previous_blank and not LIST_ITEM.match(before):
+            in_block = True
+            continue
+        if line.strip():
+            previous_blank, before = False, line
+        else:
+            previous_blank = True
+        kept.append(line)
+    return CODE_SPAN.sub('', '\n'.join(kept))
+
+
+def slugify(value: str) -> str:
+    """python-markdown's toc slug: ASCII fold, drop non-word characters, hyphenate spaces."""
+    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('ascii')
+    value = re.sub(r'[^\w\s-]', '', value).strip().lower()
+    return re.sub(r'[-\s]+', '-', value)
+
+
+def heading_text(raw: str) -> str:
+    raw = CODE_SPAN.sub(lambda m: m.group(0).strip('`'), raw)
+    raw = IMAGE.sub('', raw)
+    raw = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', raw)
+    raw = re.sub(r'<[^>]+>', '', raw)
+    return raw.replace('*', '')
+
+
+def anchors(text: str) -> set:
+    """Every fragment a Markdown page answers to: heading slugs (with python-markdown's
+    `_n` suffix for repeats), attr_list ids, and raw HTML id/name attributes."""
+    found, seen = set(), {}
+    stripped = FENCE.sub('', text)
+    headings = [m.group(1) for m in ATX_HEADING.finditer(stripped)]
+    headings += [m.group(1) for m in SETEXT_HEADING.finditer(stripped) if not LIST_ITEM.match(m.group(1))]
+    for raw in headings:
+        explicit = ATTR_ID.search(raw)
+        if explicit:
+            found.add(explicit.group(1))
+            raw = raw[:explicit.start()]
+        slug = slugify(heading_text(raw))
+        if slug in seen:
+            seen[slug] += 1
+            slug = f'{slug}_{seen[slug]}'
+        else:
+            seen[slug] = 0
+        found.add(slug)
+    found.update(HTML_ID.findall(text))
+    return found
+
+
+def link_targets(text: str) -> list:
+    """Every local-looking target in a page, from Markdown, badges, raw HTML, and reference definitions."""
+    body = strip_code(text)
+    targets = IMAGE.findall(body)
+    body = IMAGE.sub('img', body)  # keeps [![badge](x)](target) checkable as a plain link
+    targets += LINK.findall(body)
+    targets += HTML_TARGET.findall(body)
+    targets += REFERENCE.findall(body)
+    return targets
+
+
+def check_page(path: Path, root: Path, anchor_cache: dict) -> list:
+    errors = []
+    text = path.read_text()
+    for target in link_targets(text):
+        if target.startswith('PKG/'):
+            continue  # a plugin's installed-snapshot placeholder, not a file in the tree
+        parsed = urlsplit(target)
+        if parsed.scheme or parsed.netloc or target.startswith(('{{', '<')):
+            continue
+        if not parsed.path and not parsed.fragment:
+            continue
+        resolved = path if not parsed.path else path.parent / unquote(parsed.path)
+        if not resolved.exists():
+            errors.append(f'{path.relative_to(root)}: missing link {target}')
+            continue
+        if parsed.fragment and resolved.suffix == '.md':
+            if resolved not in anchor_cache:
+                anchor_cache[resolved] = anchors(resolved.read_text())
+            if unquote(parsed.fragment) not in anchor_cache[resolved]:
+                errors.append(f'{path.relative_to(root)}: missing anchor {target}')
+    return errors
+
 
 def check(root=ROOT):
     errors = []
-    pages = [*root.glob('*.md'), *(root / 'docs').rglob('*.md')]
-    for path in pages:
-        text = re.sub(r'```[^\n]*\n.*?```', '', path.read_text(), flags=re.S)
-        for target in re.findall(r'!?\[[^\]]*\]\(([^\s)]+)(?:\s+"[^"]*")?\)', text):
-            parsed = urlsplit(target)
-            if parsed.scheme or parsed.netloc or not parsed.path:
-                continue
-            resolved = path.parent / unquote(parsed.path)
-            if not resolved.exists():
-                errors.append(f'{path.relative_to(root)}: missing link {target}')
+    pages = [*root.glob('*.md'), *(root / 'docs').rglob('*.md'), *(root / 'plugins').rglob('*.md')]
+    anchor_cache = {}
+    for path in sorted(pages):
+        errors.extend(check_page(path, root, anchor_cache))
     for manifest in (root / 'plugins').glob('*/plugin.json'):
         meta = json.loads(manifest.read_text())
         name = meta['name']

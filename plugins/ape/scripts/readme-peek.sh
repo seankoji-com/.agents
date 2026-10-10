@@ -11,4 +11,5 @@ if [ "$#" -ne 1 ]; then
   exit 2
 fi
 
-gh api "repos/$1/readme" -q .content 2>/dev/null | base64 -d 2>/dev/null | head -40 || true
+# --decode rather than -d: -d is GNU-only, and older macOS base64 rejects it.
+gh api "repos/$1/readme" -q .content 2>/dev/null | base64 --decode 2>/dev/null | head -40 || true
