@@ -1,0 +1,162 @@
+{
+  "repository": "https://github.com/seankoji-com/claude-plugins",
+  "commit": "edddf829de3c87515b44e8b816eaf03878e3f9de",
+  "files": [
+    {
+      "source": "plugins/ape/scripts/readme-peek.sh",
+      "destination": "plugins/ape/scripts/readme-peek.sh",
+      "source_sha256": "cdabca41649be59ccdf2817523e70e982e168f954c5ad549e47a365e552ba3d2",
+      "adapted": false
+    },
+    {
+      "source": "plugins/ape/scripts/init-workspace.sh",
+      "destination": "plugins/ape/scripts/init-workspace.sh",
+      "source_sha256": "735ebebc80eac754bedd191354249b6377939bceca4f857c68b56698b418a447",
+      "adapted": false
+    },
+    {
+      "source": "plugins/ape/scripts/search-repos.sh",
+      "destination": "plugins/ape/scripts/search-repos.sh",
+      "source_sha256": "25f9002c8079c2b3921061c30acd768904e3ae2751533b5c17f24ebb83bf3b5d",
+      "adapted": false
+    },
+    {
+      "source": "plugins/ape/scripts/clean-ape-workspace.sh",
+      "destination": "plugins/ape/scripts/clean-ape-workspace.sh",
+      "source_sha256": "3921e78193ca8cc5859f1b79b457e9e68dcd02cfd50adb7d1166485b119f8118",
+      "adapted": false
+    },
+    {
+      "source": "plugins/ape/scripts/study-repo.sh",
+      "destination": "plugins/ape/scripts/study-repo.sh",
+      "source_sha256": "e6899fe7fb958b01e713c202f1c3321e0fb173e26e18716fcf7dcefa3d9530d5",
+      "adapted": false
+    },
+    {
+      "source": "plugins/ape/scripts/triage-repos.sh",
+      "destination": "plugins/ape/scripts/triage-repos.sh",
+      "source_sha256": "14f01c0a7e3b39c9e95ff1d1e3e790d64fe9d41c0553347ce9b35cce13d8a83a",
+      "adapted": false
+    },
+    {
+      "source": "plugins/ape/scripts/clone-candidates.sh",
+      "destination": "plugins/ape/scripts/clone-candidates.sh",
+      "source_sha256": "8f641a94eef89796776f7949c744a5b1c06267ba1a077425989c051d63a8e52f",
+      "adapted": false
+    },
+    {
+      "source": "plugins/elephant-goldfish/scripts/thinking_state.py",
+      "destination": "plugins/elephant-goldfish/scripts/thinking_state.py",
+      "source_sha256": "2fd5fcf36b14a6f207b440f0f637c1325171adac3622ea9c175ec23dbb6aa6b5",
+      "adapted": false
+    },
+    {
+      "source": "plugins/elephant-goldfish/scripts/render_handoff.py",
+      "destination": "plugins/elephant-goldfish/scripts/render_handoff.py",
+      "source_sha256": "7f0c101cc956985e3b37757165acb9b61edb05818a24e42e676f65019009b573",
+      "adapted": true
+    },
+    {
+      "source": "plugins/elephant-goldfish/scripts/gh_publish.py",
+      "destination": "plugins/elephant-goldfish/scripts/gh_publish.py",
+      "source_sha256": "fe81aafecb9e3e172ff63a1f634d8f5b1cef7bf458558f95e57d2ed5201e3be9",
+      "adapted": false
+    },
+    {
+      "source": "plugins/elephant-goldfish/templates/probes.research.md",
+      "destination": "plugins/elephant-goldfish/templates/probes.research.md",
+      "source_sha256": "d2b68ba3ce9bbc48dc68ae51baf112b512d50fa9538bc36db8276378c21fc6da",
+      "adapted": false
+    },
+    {
+      "source": "plugins/elephant-goldfish/templates/handoff.research.md",
+      "destination": "plugins/elephant-goldfish/templates/handoff.research.md",
+      "source_sha256": "356b072f0eb2e7b77dfc7317e03dca172558a32799b5b4e20958eac0bfc41c29",
+      "adapted": false
+    },
+    {
+      "source": "plugins/elephant-goldfish/templates/spec.skeleton.md",
+      "destination": "plugins/elephant-goldfish/templates/spec.skeleton.md",
+      "source_sha256": "73d11c320f7fed46d5b105ece5f4a2047559aae7b6193fdd208d3612f4bdead0",
+      "adapted": false
+    },
+    {
+      "source": "plugins/elephant-goldfish/templates/probes.implementation.md",
+      "destination": "plugins/elephant-goldfish/templates/probes.implementation.md",
+      "source_sha256": "3b5be07c61cf2f9efe3318ad0a0c20bdf1d86164f1d0f48e1a7637c5c50995e1",
+      "adapted": false
+    },
+    {
+      "source": "plugins/elephant-goldfish/templates/discovery.skeleton.md",
+      "destination": "plugins/elephant-goldfish/templates/discovery.skeleton.md",
+      "source_sha256": "738ce65ae0fe3faaf00e51628246d3ed145ad3d8530a13d991d0ed2ae763a06d",
+      "adapted": false
+    },
+    {
+      "source": "plugins/elephant-goldfish/templates/handoff.implementation.md",
+      "destination": "plugins/elephant-goldfish/templates/handoff.implementation.md",
+      "source_sha256": "d6ccc8c54c3d98003963d0a8d3af96b8e9966a61064b9f00d20dc9ed5afce10d",
+      "adapted": false
+    },
+    {
+      "source": "plugins/prompt-builder/scripts/evaluate.py",
+      "destination": "plugins/prompt-builder/scripts/evaluate.py",
+      "source_sha256": "8c937430388c9e610b8b69ea2b50f01bf43438f322d9d399439abaab92b2bbb9",
+      "adapted": false
+    },
+    {
+      "source": "plugins/claude-tuneup/scripts/scan_perms.py",
+      "destination": "plugins/agent-tuneup/scripts/scan_perms.py",
+      "source_sha256": "80afa6da2a726cda5498f0670dbc5a5eb99d9a529326303a12264f0211732beb",
+      "adapted": true
+    },
+    {
+      "source": "plugins/offload-sidecar/scripts/offload_sidecar.py",
+      "destination": "plugins/offload-sidecar/scripts/offload_sidecar.py",
+      "source_sha256": "96046a94c7128090e7357cf022c9b1f9050fc920eaf4267ade922452feb44f2f",
+      "adapted": false
+    },
+    {
+      "source": "plugins/babysitter/scripts/list-prs.sh",
+      "destination": "plugins/babysitter/scripts/list-prs.sh",
+      "source_sha256": "6d76a8e34c03738135a934a108e6e405635cd31c791518cce84ffdffba324de0",
+      "adapted": false
+    },
+    {
+      "source": "plugins/babysitter/scripts/pr-workspace.sh",
+      "destination": "plugins/babysitter/scripts/pr-workspace.sh",
+      "source_sha256": "68611144415abd066f4fe1a2fc50d2b09e7f28c4925623276535581829634fda",
+      "adapted": true
+    },
+    {
+      "source": "plugins/babysitter/scripts/merge-pr.sh",
+      "destination": "plugins/babysitter/scripts/merge-pr.sh",
+      "source_sha256": "9dd7994d289919d4d05820ae8cd0aa7d663378721f898511d571a36c7e6b2d8e",
+      "adapted": false
+    },
+    {
+      "source": "plugins/babysitter/scripts/pr-events.sh",
+      "destination": "plugins/babysitter/scripts/pr-events.sh",
+      "source_sha256": "12f708719beca7deb32861fa8f5c2e5acaea1802a4a25139a4ec91f1394b74e7",
+      "adapted": false
+    },
+    {
+      "source": "plugins/babysitter/scripts/workflow-evidence.py",
+      "destination": "plugins/babysitter/scripts/workflow-evidence.py",
+      "source_sha256": "cec71e6fac97bb3e7ee25d9d9903f27fd80d8d1af5eb2609b4b8dffe7efe5cce",
+      "adapted": false
+    }
+  ],
+  "test_suites": [
+    "test_prompt_evaluate.py",
+    "test_thinking_state.py",
+    "test_render_handoff.py",
+    "test_publish_transactions.py",
+    "test_scan_perms.py",
+    "test_ape_workspace.py",
+    "test_offload_sidecar.py",
+    "test_offload_sidecar_cli.py",
+    "test_merge_pr.py",
+    "test_pr_workspace_push_policy.py"
+  ]
+}

@@ -55,14 +55,13 @@ class PurityTest(CoreTestCase):
 class SurfaceTest(CoreTestCase):
     def test_no_undocumented_t3_tools(self):
         for path, text in text_files('core', 'plugins', 'scripts'):
-            for banned in ('acp-mcp-call', 'preview_status', 'preview_open'):
+            for banned in ('acp-mcp-call',):
                 self.assertNotIn(banned, text, path)
 
-    def test_link_pull_request_only_as_thread_update_action(self):
-        for path, text in text_files('core', 'plugins', 'scripts', 'README.md'):
-            for line in text.splitlines():
-                if 'link_pull_request' in line:
-                    self.assertIn('t3_thread_update', line, f'{path}: {line}')
+    def test_pr_linking_uses_discovered_host_tools(self):
+        text = (ROOT / 'shared' / 't3-runtime.md').read_text()
+        self.assertIn('`link_pull_request`', text)
+        self.assertIn('when exposed', text)
 
     def test_top_level_thread_tools_appear_only_as_prohibitions(self):
         for path, text in text_files('plugins'):
@@ -70,13 +69,11 @@ class SurfaceTest(CoreTestCase):
                 if 'create_threads' in line or 't3_thread_launch' in line:
                     self.assertRegex(line.lower(), r'never|prohibited', f'{path}: {line}')
 
-    def test_no_pr_watcher_tool_instructions(self):
-        for path, text in text_files('core', 'plugins', 'scripts'):
-            for banned in ('watch_pull_request', 'unwatch_pull_request'):
-                self.assertNotIn(banned, text, path)
-            for line in text.splitlines():
-                if re.search(r'pr[- ]watcher', line, re.I):
-                    self.assertRegex(line.lower(), r'no pr-watcher|never|not', f'{path}: {line}')
+    def test_pr_monitoring_yields_to_host_and_has_handoff_cleanup(self):
+        text = (ROOT / 'shared' / 't3-runtime.md').read_text()
+        self.assertIn('`watch_pull_request` and yield', text)
+        self.assertIn('`unwatch_pull_request`', text)
+        self.assertIn('Do not start a polling loop', text)
 
     def test_adapter_pins_version_doc_and_preview_discovery(self):
         adapter = (PLUGIN / 'references' / 't3-adapter.md').read_text()

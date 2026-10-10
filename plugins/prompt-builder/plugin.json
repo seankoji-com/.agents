@@ -1,0 +1,19 @@
+{
+  "name": "prompt-builder",
+  "version": "0.1.0",
+  "description": "Draft reusable prompts and compare them against frozen test cases.",
+  "entry": "entry.md",
+  "operations": [
+    "doctor",
+    "build",
+    "brief-only",
+    "evaluate"
+  ],
+  "kind": "workflow",
+  "compatibility": "experimental",
+  "origin": {
+    "repository": "seankoji-com/claude-plugins",
+    "plugin": "prompt-builder",
+    "version": "0.1.22"
+  }
+}

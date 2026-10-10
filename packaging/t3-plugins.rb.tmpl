@@ -1,5 +1,5 @@
 class T3Plugins < Formula
-  desc "Plugin engine and imps workflow for T3 Code"
+  desc "Provider-neutral workflows and file tools for T3 Code"
   homepage "https://github.com/seankoji-com/t3-plugins"
   url "__URL__"
   sha256 "__SHA256__"
@@ -9,27 +9,35 @@ class T3Plugins < Formula
   depends_on "python@3.12"
 
   def install
-    libexec.install "core", "plugins", "scripts"
+    libexec.install "core", "plugins", "scripts", "shared"
 
     python3 = formula_opt_bin("python@3.12")/"python3"
     (bin/"t3-plugins").write <<~EOS
       #!/bin/bash
-      exec "#{python3}" "#{libexec}/scripts/install.py" "$@"
+      exec "#{python3}" "#{libexec}/scripts/catalog.py" "$@"
     EOS
 
     (bin/"imps").write <<~EOS
       #!/bin/bash
-      TARGET_VERSION="__VERSION__"
-      LINK="$HOME/.local/share/t3-plugins/imps/current"
-      if [ ! -L "$LINK" ] || [[ "$(readlink "$LINK" 2>/dev/null)" != *"/imps/${TARGET_VERSION}"* ]]; then
-        "#{python3}" "#{libexec}/scripts/install.py" --force >/dev/null 2>&1 || true
-      fi
       exec "#{python3}" "#{libexec}/plugins/imps/cli.py" "$@"
     EOS
   end
 
   test do
-    system bin/"t3-plugins", "--dry-run"
+    system bin/"t3-plugins", "--prefix", testpath/"plugins", "install"
+    system bin/"t3-plugins", "--prefix", testpath/"plugins", "doctor"
+    assert_match "prompt-builder", shell_output("#{bin}/t3-plugins list")
     system bin/"imps", "--help"
+  end
+
+  def caveats
+    <<~EOS
+      Install or update your user's plugin snapshots:
+        t3-plugins install
+      Print a prompt to paste into a T3 thread:
+        t3-plugins prompt imps doctor
+      Check installed file integrity:
+        t3-plugins doctor
+    EOS
   end
 end

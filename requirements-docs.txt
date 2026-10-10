@@ -1,0 +1,2 @@
+# Documentation tooling only. Plugin runtime remains Python stdlib.
+mkdocs-material==9.7.7

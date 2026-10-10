@@ -40,4 +40,11 @@ The pinned doc says T3 registers a preview toolkit but does not list its tools. 
 
 ## Pull requests
 
-T3's documented surface has no PR-watcher tools, so the package never relies on one. When the operator asked for a PR, the publish step pushes and opens it with native tools, then links it with `t3_thread_update` (`link_pull_request`). `confirm_remote` observes it with `gh pr view <url> --json state,headRefOid,url,number` at the moment completion is claimed.
+The original conformance run predates T3's dedicated PR tools. As inspected on
+10 October 2026 (AEDT, UTC+11), the host exposes `link_pull_request`,
+`watch_pull_request`, and `unwatch_pull_request`. Discover them at runtime and use
+the live schema. Link each PR immediately, register requested monitoring, and yield
+to host wake-ups rather than polling. Unwatch when handing work back. On older
+hosts, discover their documented link operation; report monitoring unavailable if
+no watch tool exists. `confirm_remote` still observes
+`gh pr view <url> --json state,headRefOid,url,number` before claiming completion.

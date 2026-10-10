@@ -73,5 +73,12 @@ Several actions at once are independent and may run in parallel. Long processes 
 - **Labels stay distinct.** `unverified`, `failed`, `unavailable` and `waived` mean different things. Record a waiver (`record --kind waiver`) only when the operator explicitly asks, and quote them. A waiver covers only the evidence recorded before it; newer evidence for the same obligation needs a new waiver.
 - **Adverse review is final for that revision.** Repair within the limit or stop. Never ask another reviewer for a second opinion.
 - **Blocked is a complete answer.** When `next` reports a block, record it, release, and show the report's Blocked section: the reason, the task IDs, the `resume` command and the paste line. Finish independent work first; `next` keeps offering it.
-- **Endstates need proof.** Report `completed` only when the core says so. For a PR, completion needs an observed PR at the verified head. If the operator authorised a PR, link it with `t3_thread_update` (action `link_pull_request`). T3 has no PR-watcher tools; observe the PR with `gh pr view` when you claim the outcome.
+- **Endstates need proof.** Report `completed` only when the core says so. For a PR, completion needs an observed PR at the verified head. If the operator authorised a PR, link it with `link_pull_request` when exposed (discover the older host's documented alternative if absent). For requested monitoring use `watch_pull_request` and yield. At handoff use `unwatch_pull_request`. Observe the PR at its current head before claiming the outcome.
 - **Finish with the report.** End every run turn by running `report` and showing the Markdown it writes, or its path if it is long. Do not restate it in different words.
+
+## Additional workflows
+
+For `blast-radius <target>`, load `PKG/playbooks/blast-radius.md`. For `audit [focus]`,
+load `PKG/playbooks/audit.md`. For `issues <numbers>`, load `PKG/playbooks/issues.md`.
+For `prs <scope>`, use the installed babysitter entry reported by `t3-plugins path babysitter`.
+These modes use `PKG/shared/t3-runtime.md`; they do not change core run-state rules.

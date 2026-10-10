@@ -1,3 +1,7 @@
 .claude/.cc-writes/
 .DS_Store
 __pycache__/
+site/
+.venv-docs/
+.coverage
+htmlcov/

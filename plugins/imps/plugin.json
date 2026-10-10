@@ -4,5 +4,19 @@
   "description": "Provider-neutral imps workflow for T3 Code: direct and delegated bug fixes with revision-bound evidence.",
   "entry": "entry.md",
   "defaults": "config.json",
-  "tested_t3_version": "0.0.46-nightly.20261008.2849"
+  "tested_t3_version": "0.0.46-nightly.20261008.2849",
+  "operations": [
+    "doctor",
+    "run",
+    "resume",
+    "status",
+    "cancel",
+    "verification-init",
+    "blast-radius",
+    "audit",
+    "issues",
+    "prs"
+  ],
+  "kind": "workflow",
+  "compatibility": "partial"
 }
