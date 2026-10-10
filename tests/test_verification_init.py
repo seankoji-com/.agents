@@ -1,18 +1,20 @@
 """Source-spec case 16 and REQ-VERIFY-INIT: a generated verification recipe drives
 a small fixture product end to end; cleanup removes the run-owned process and
 the captured evidence survives."""
+import importlib.util
 import json
 import re
 import socket
 import subprocess
 import sys
 import time
+import threading
 import urllib.error
 import urllib.request
 from unittest import mock
 from pathlib import Path
 
-from support import PLUGIN, CoreTestCase, cli, native, result_block
+from support import FIXTURES, PLUGIN, CoreTestCase, cli, native, result_block
 
 
 def free_port():
@@ -74,6 +76,22 @@ def json_path(value, path):
 
 
 class VerificationInitTest(CoreTestCase):
+    def test_fixture_serves_without_reverse_dns(self):
+        spec = importlib.util.spec_from_file_location('notes_fixture', FIXTURES / 'verify-product' / 'app.py')
+        app = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(app)
+        with mock.patch('socket.getfqdn', side_effect=AssertionError('unexpected reverse DNS lookup')):
+            with app.LoopbackHTTPServer(('127.0.0.1', 0), app.make_handler(self.tmp / 'notes.json')) as server:
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                try:
+                    status, body = http({'method': 'GET', 'url': f'http://127.0.0.1:{server.server_port}/health'})
+                    self.assertEqual((status, body), (200, {'ok': True}))
+                finally:
+                    server.shutdown()
+                    thread.join(timeout=5)
+                self.assertFalse(thread.is_alive())
+
     def launch(self, spec, repo, attempts=5):
         """Start the service on a free port; a port taken between probe and bind makes
         the service exit, so retry on a fresh port instead of waiting out the deadline."""

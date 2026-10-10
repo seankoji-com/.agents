@@ -10,6 +10,16 @@ import argparse
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from socketserver import TCPServer
+
+
+class LoopbackHTTPServer(ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer resolves its address before listening. This numeric-only
+        # fixture needs no DNS, which can stall on macOS hosted runners:
+        # https://github.com/actions/runner-images/issues/14409
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address
 
 
 def make_handler(store: Path):
@@ -57,7 +67,7 @@ def main():
     args = parser.parse_args()
     data = Path(args.data)
     data.mkdir(parents=True, exist_ok=True)
-    ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(data / 'notes.json')).serve_forever()
+    LoopbackHTTPServer(('127.0.0.1', args.port), make_handler(data / 'notes.json')).serve_forever()
 
 
 if __name__ == '__main__':
