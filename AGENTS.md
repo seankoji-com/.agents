@@ -11,10 +11,11 @@
 
 ## UI & Aesthetic Directive
 
-Before creating or modifying any frontend components, read [DESIGN.md](DESIGN.md).
-Every colour class, typography style, border treatment, and spatial token MUST map
-strictly to the tokens defined in `DESIGN.md`. Never fall back to default Tailwind
-neutrals or vanilla component patterns.
+Before changing the documentation site, read [DESIGN.md](DESIGN.md). It describes
+the field-guide system that `docs/stylesheets/extra.css`, `overrides/`, and
+`scripts/field_guide.py` implement. Colours, type, spacing, and components come from
+its tokens; the homepage, plugin headers, and sightings table are generated from
+repository data, so change the data or the generator, not the rendered HTML.
 
 ## Rules
 
