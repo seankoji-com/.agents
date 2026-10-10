@@ -185,7 +185,8 @@ class Run:
 
 class CoreTestCase(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix='t3p-test-'))
+        # Resolved: on macOS TMPDIR is under /var, a symlink to /private/var, and the core records real paths.
+        self.tmp = Path(tempfile.mkdtemp(prefix='t3p-test-')).resolve()
         self.state_root = self.tmp / 'state'
         self.addCleanup(shutil.rmtree, self.tmp, True)
 

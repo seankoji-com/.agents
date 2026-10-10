@@ -156,6 +156,11 @@ def stamp(recipe_path: Path, state: dict, run_dir: Path, feature_id: str, requir
     for part in (recipe_path.parent / 'evidence', target):
         if part.is_symlink():
             raise InvalidInput('path_escape', 'recipe evidence directory is a symlink', {'path': str(part)})
+    names = [Path(artifact['path']).name for artifact in entry['artifacts']]
+    clashes = sorted({name for name in names if names.count(name) > 1})
+    if clashes:
+        raise InvalidInput('evidence_name_collision', 'two evidence artifacts would be copied to the same name',
+                           {'names': clashes})
     copied = []
     root = Path(run_dir).resolve()
     for artifact in entry['artifacts']:

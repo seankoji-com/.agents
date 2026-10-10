@@ -558,7 +558,11 @@ def rec_waiver(ctx, state, payload):
     elif target == 'review':
         if not (state['policy'].get('review') or {}).get('waivable', True):
             raise Prohibited('waiver_forbidden', 'repository policy forbids waiving review')
-    elif not target.startswith('requirement:'):
+    elif target.startswith('requirement:'):
+        known = {item['id'] for item in contract.current_contract(state)['requirements']}
+        if target[len('requirement:'):] not in known:
+            raise InvalidInput('unknown_requirement', f'no requirement {target[len("requirement:"):]}')
+    else:
         raise InvalidInput('waiver_target', 'target is requirement:<ID>, check:<name> or review')
     bind = _bind(ctx, state)
     entry = {'target': target, 'reason': payload['reason'], 'decided_by': payload['decided_by'],
@@ -841,6 +845,10 @@ def _check_policy(state, changes):
         for check in checks:
             if not isinstance(check.get('argv'), list) or not check['argv'] or not all(isinstance(a, str) and a for a in check['argv']):
                 raise InvalidInput('check_argv', f'check {check.get("name")} needs a literal argv array')
+        names = [c['name'] for c in checks]
+        if len(names) != len(set(names)):
+            raise InvalidInput('duplicate_check', 'check names must be unique',
+                               {'names': sorted({n for n in names if names.count(n) > 1})})
         new = {c['name']: dict(c, required=c.get('required', True) is not False) for c in checks}
         for old in state['policy'].get('checks', []):
             kept = new.get(old['name'])
