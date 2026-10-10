@@ -316,8 +316,8 @@ def rec_dispatch(ctx, state, payload):
         # Bind the verdict to the revision the review was asked to read: the binding
         # the dispatch was sent with, echoed by this record. An action's id ignores
         # its binding, so `next` may re-offer the same dispatch with a newer one after
-        # the tree moved; that newer binding would certify content the reviewer never
-        # saw. An echoed binding can only be the current one or older (and so stale).
+        # the tree moved; that newer binding would certify content the review never
+        # read. An echoed binding can only be the current one or older (and so stale).
         echoed = payload.get('binding') or args.get('binding')
         if not isinstance(echoed, dict) or not {'snapshot', 'contract_hash', 'policy_hash'} <= set(echoed):
             raise InvalidInput('binding_missing', 'record the binding from the review dispatch action')
