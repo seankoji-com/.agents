@@ -20,13 +20,17 @@ def _git(cwd, *args) -> str | None:
 
 def worktree_identity(path) -> dict | None:
     """The worktree's own `.git` file and admin directory: recreating a worktree at
-    the same path makes new ones."""
+    the same path makes new ones. Inodes can be reused, so also bind the stable
+    `.git` pointer file's device and change timestamp. Do not use the admin
+    directory's timestamp: ordinary Git operations change its contents."""
     gitdir = _git(path, 'rev-parse', '--absolute-git-dir')
     if not gitdir:
         return None
     try:
+        dotgit = os.lstat(Path(path) / '.git')
         return {'gitdir': gitdir, 'gitdir_inode': os.stat(gitdir).st_ino,
-                'dotgit_inode': os.lstat(Path(path) / '.git').st_ino}
+                'dotgit_inode': dotgit.st_ino, 'dotgit_device': dotgit.st_dev,
+                'dotgit_ctime_ns': dotgit.st_ctime_ns}
     except OSError:
         return None
 
