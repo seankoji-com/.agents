@@ -56,6 +56,9 @@ if [ "$workspace_real" = "$allowed_real" ]; then
   exit 1
 fi
 
+script_dir="$(cd "$(dirname "$0")" && pwd -P)"
+python3 "$script_dir/workspace.py" validate "$workspace"
+
 if [ "$all" = true ]; then
   echo "Removing entire workspace: $workspace_real"
   rm -rf "$workspace_real"

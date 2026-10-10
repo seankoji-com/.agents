@@ -56,8 +56,9 @@ def default_template_dir() -> Path:
 def read_required(path: Path, what: str) -> str:
     if not path.exists():
         raise RenderError(f"missing {what}: {path} — run the earlier phase first")
-    text = path.read_text(encoding="utf-8").strip()
-    if not text:
+    with path.open(encoding="utf-8", newline='') as stream:
+        text = stream.read()
+    if not text.strip():
         raise RenderError(f"{what} at {path} is empty")
     return text
 

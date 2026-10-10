@@ -32,4 +32,8 @@ A source-pinned report with adopt, adapt, and reject decisions, plus bounded exp
 
 ## Limits
 
+Cleanup accepts only workspaces carrying a matching `.ape-workspace.json` marker
+from the initializer. Unmarked legacy folders are left untouched; inspect and archive
+them manually before creating a new workspace. Initialization does not adopt existing data.
+
 Research stays read-only in the current project. It never executes third-party code or silently starts implementing recommendations. See [compatibility](../compatibility.md) for the distinction between deterministic tests and live provider results.

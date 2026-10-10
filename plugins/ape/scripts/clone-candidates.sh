@@ -47,7 +47,7 @@ while [ "$i" -lt "${#args[@]}" ]; do
     echo "clone-candidates: invalid repository URL '$url' (must be https://github.com/<owner>/<repo>[.git])" >&2
     exit 1
   fi
-  if ! [[ "$name" =~ $name_re ]]; then
+  if ! [[ "$name" =~ $name_re ]] || [ "$name" = '.' ] || [ "$name" = '..' ]; then
     echo "clone-candidates: invalid repository name '$name' (must match ^[A-Za-z0-9_.-]+\$)" >&2
     exit 1
   fi

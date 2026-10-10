@@ -235,6 +235,26 @@ class TestSet(unittest.TestCase):
 
 
 class TestGate(unittest.TestCase):
+    def test_empty_unknown_and_escaping_requirements_are_rejected(self):
+        with sandbox():
+            run(['init', 't', '--output-type', 'research'])
+            write('external.md', 'outside topic')
+            for required in ('', ' , ', 'other', '../../external', os.path.abspath('external.md')):
+                with self.subTest(required=required):
+                    code, out = run(['gate', 't', '--require', required])
+                    self.assertEqual(code, 1)
+                    self.assertIn('error', out)
+
+    def test_symlinked_artifacts_cannot_satisfy_gate_or_state(self):
+        with sandbox():
+            run(['init', 't', '--output-type', 'research'])
+            write('external.md', 'outside topic')
+            os.symlink(os.path.abspath('external.md'), 'thinking/t/discovery.md')
+            for args in (['gate', 't', '--require', 'discovery'], ['resolve', 't']):
+                code, out = run(args)
+                self.assertEqual(code, 1)
+                self.assertIn('symlink', out['error'])
+
     def test_fails_closed_and_names_every_missing_artifact(self):
         with sandbox():
             run(["init", "t", "--output-type", "research"])
@@ -283,6 +303,22 @@ class TestGate(unittest.TestCase):
 
 
 class TestListAndLegacy(unittest.TestCase):
+    def test_listing_ignores_external_topic_symlinks(self):
+        with sandbox():
+            os.mkdir('thinking')
+            os.mkdir('external')
+            write('external/meta.json', 'invalid metadata must never be read')
+            os.symlink(os.path.abspath('external'), 'thinking/outside')
+            code, out = run(['list'])
+            self.assertEqual(code, 0)
+            self.assertEqual(out['topics'], [])
+
+    def test_slug_with_trailing_newline_is_rejected_without_writes(self):
+        with sandbox():
+            code, out = run(['init', 'topic\n', '--output-type', 'research'])
+            self.assertEqual(code, 1)
+            self.assertFalse(os.path.exists('thinking'))
+
     def test_list_on_empty_root(self):
         with sandbox():
             code, out = run(["list"])

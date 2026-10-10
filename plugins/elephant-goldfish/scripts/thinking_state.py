@@ -65,7 +65,7 @@ def utcnow() -> str:
 
 
 def validate_slug(slug: str) -> str:
-    if not SLUG_RE.match(slug or ""):
+    if not SLUG_RE.fullmatch(slug or ""):
         raise StateError(
             f"invalid slug {slug!r}: use lowercase kebab-case, 1-63 chars, "
             "starting and ending alphanumeric (e.g. 'buy-family-car')"
@@ -127,6 +127,8 @@ def artifact_state(tdir: Path, meta: dict) -> dict:
     out = {}
     for name in ARTIFACTS:
         path = tdir / name
+        if path.is_symlink():
+            raise StateError(f'topic artifact may not be a symlink: {name}')
         if not path.exists():
             out[name] = {"exists": False}
             continue
@@ -166,7 +168,7 @@ def cmd_list(args) -> dict:
     root = Path(args.root)
     topics = []
     if root.is_dir():
-        for tdir in sorted(p for p in root.iterdir() if p.is_dir()):
+        for tdir in sorted(p for p in root.iterdir() if not p.is_symlink() and p.is_dir()):
             meta = read_meta(tdir)
             artifacts = artifact_state(tdir, meta)
             topics.append(
@@ -268,10 +270,16 @@ def cmd_gate(args) -> dict:
     root = Path(args.root)
     tdir = topic_dir(root, args.slug)
     required = [r.strip() for r in args.require.split(",") if r.strip()]
+    if not required:
+        raise StateError('at least one known artifact is required')
+    names = [req if req.endswith('.md') else f'{req}.md' for req in required]
+    if any(name not in ARTIFACTS for name in names):
+        raise StateError('required artifacts must be discovery, spec, or handoff')
     missing, empty = [], []
-    for req in required:
-        name = req if req.endswith(".md") else f"{req}.md"
+    for name in names:
         path = tdir / name
+        if path.is_symlink():
+            raise StateError(f'topic artifact may not be a symlink: {name}')
         if not path.exists():
             missing.append(name)
         elif not path.read_text(encoding="utf-8").strip():

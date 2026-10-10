@@ -26,16 +26,9 @@ if remote_url=$(git remote get-url origin 2>/dev/null); then
 fi
 workspace="$HOME/tmp/repo-research/$slug"
 
-# -- Migration: rename old-format workspace if it exists --
-# mv(1) on the same filesystem is an atomic rename(2) — no partial-state risk.
-# Two concurrent initializers may both detect the old dir; `mv -n` makes the
-# second one a safe no-op rather than a race.
-old_workspace="$HOME/tmp/repo-research/$repo_basename"
-if [ "$old_workspace" != "$workspace" ] && [ -d "$old_workspace" ] && [ ! -d "$workspace" ]; then
-  mkdir -p "$(dirname "$workspace")"
-  mv -n "$old_workspace" "$workspace" 2>/dev/null || true
-fi
-# -- end migration --
+# Never adopt or rename an existing unmarked research directory.
+script_dir="$(cd "$(dirname "$0")" && pwd -P)"
+python3 "$script_dir/workspace.py" init "$workspace"
 
 mkdir -p "$workspace/reports"
 reports_dir="$(mktemp -d "$workspace/reports/run.XXXXXXXX")"

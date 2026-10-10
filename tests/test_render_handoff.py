@@ -125,6 +125,19 @@ class TestRenderCLIWithBraceContent(unittest.TestCase):
 
 
 class TestRenderCLI(unittest.TestCase):
+    def test_boundary_whitespace_and_line_endings_are_preserved(self):
+        discovery = '\n  Discovery\r\n\r\n'
+        spec = '\tSpec\n \n'
+        with topic(discovery=discovery, spec=spec):
+            code, _, error = run(['t'])
+            self.assertEqual(code, 0, error)
+            with open('thinking/t/handoff.md', 'rb') as stream:
+                output = stream.read()
+            self.assertIn(discovery.encode(), output)
+            self.assertIn(spec.encode(), output)
+            code, _, error = run(['t', '--check'])
+            self.assertEqual(code, 0, error)
+
     def test_writes_handoff_with_verbatim_bodies(self):
         with topic(discovery="## Problem\n\nUNIQUE-D-STRING", spec="## Criteria\n\nUNIQUE-S-STRING"):
             code, out, _ = run(["t"])

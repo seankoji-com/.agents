@@ -12,7 +12,7 @@
       "source": "plugins/ape/scripts/init-workspace.sh",
       "destination": "plugins/ape/scripts/init-workspace.sh",
       "source_sha256": "735ebebc80eac754bedd191354249b6377939bceca4f857c68b56698b418a447",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/ape/scripts/search-repos.sh",
@@ -24,7 +24,7 @@
       "source": "plugins/ape/scripts/clean-ape-workspace.sh",
       "destination": "plugins/ape/scripts/clean-ape-workspace.sh",
       "source_sha256": "3921e78193ca8cc5859f1b79b457e9e68dcd02cfd50adb7d1166485b119f8118",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/ape/scripts/study-repo.sh",
@@ -42,7 +42,7 @@
       "source": "plugins/ape/scripts/clone-candidates.sh",
       "destination": "plugins/ape/scripts/clone-candidates.sh",
       "source_sha256": "8f641a94eef89796776f7949c744a5b1c06267ba1a077425989c051d63a8e52f",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/elephant-goldfish/scripts/thinking_state.py",
