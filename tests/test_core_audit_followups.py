@@ -1,7 +1,7 @@
 """Core audit follow-ups: adverse reviews cannot be reset by out-of-band edits,
 policy records cannot retarget a role, evidence stores the snapshot it attested,
-engine bugs are not reported as bad input, the review binding on a permitted
-dispatch comes from `next`, and delegated tasks resolve a role at init."""
+engine bugs are not reported as bad input, a review stays bound to the revision
+it was sent at, and delegated tasks resolve a role at init."""
 import contextlib
 import io
 import json
@@ -182,14 +182,26 @@ class ExitCodeTruthTest(Flow):
         self.assertEqual(run.state['tasks'][0]['rounds'], [])
 
 
-class PermittedDispatchBindingTest(Flow):
-    def test_permitted_review_dispatch_binds_next_not_the_payload(self):
-        _, run, t3, review = self.to_review()
-        forged = dict(review['args']['binding'], contract_hash='0' * 64)
-        run.record('dispatch', {'action_id': review['id'], 'response': t3.call(review['host_call']),
-                                'binding': forged})
+class ReviewBindingTest(Flow):
+    def test_a_review_sent_before_an_edit_stays_bound_to_what_it_read(self):
+        # Dispatch at snapshot A, edit, re-gather acceptance at B: `next` re-offers the
+        # same action id with B's binding. Recording the response that was sent at A
+        # must keep A, so the reviewer's approval is stale rather than certifying B.
+        repo, run, t3, review = self.to_review()
+        sent = review['args']['binding']
+        t3.script(review['host_call']['arguments']['clientRequestId'], done(result_block(
+            review['task_id'], verdict='approve', findings=[])))
+        response = t3.call(review['host_call'])
+        edit(repo, '\n# edited after the review was sent\n')
+        self.accept(run)
+        reoffered = run.only('dispatch')
+        self.assertEqual(reoffered['id'], review['id'])
+        self.assertNotEqual(reoffered['args']['binding']['snapshot'], sent['snapshot'])
+        run.record('dispatch', {'action_id': review['id'], 'response': response, 'binding': sent})
         task = next(t for t in run.state['tasks'] if t['id'] == review['task_id'])
-        self.assertEqual(task['review_binding'], review['args']['binding'])
+        self.assertEqual(task['review_binding'], sent)
+        run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        self.assertFalse(cli('validate', *run.args())[1]['data']['ready'], 'an approval of A must not make B ready')
 
 
 class DelegatedRoleAtInitTest(Flow):

@@ -114,11 +114,15 @@ class SyntheticRootTest(unittest.TestCase):
     def test_unsafe_mark_fails_the_build(self):
         for svg in ('<svg><script>alert(1)</script></svg>', '<svg onload="alert(1)"></svg>',
                     '<svg><image href="https://example.invalid/x.png"/></svg>',
-                    '<svg><a xlink:href="javascript:alert(1)"/></svg>', '<p>not svg</p>'):
+                    '<svg><a xlink:href="javascript:alert(1)"/></svg>', '<p>not svg</p>',
+                    '<svg><style>@import url("https://example.invalid/a.css");</style></svg>',
+                    '<svg><rect fill="url(https://example.invalid/a.svg#x)"/></svg>',
+                    '<svg><rect style="fill:url( \'//example.invalid/p.svg#x\')"/></svg>'):
             (self.tmp / 'docs/assets/specimens/alpha.svg').write_text(svg)
             with self.assertRaisesRegex(field_guide.FieldGuideError, 'self-contained SVG', msg=svg):
                 field_guide.load_guide(self.tmp)
-        (self.tmp / 'docs/assets/specimens/alpha.svg').write_text('<svg><defs><g id="a"/></defs><use href="#a"/></svg>')
+        (self.tmp / 'docs/assets/specimens/alpha.svg').write_text(
+            '<svg><defs><g id="a"/></defs><use href="#a"/><rect fill="url(#a)"/></svg>')
         self.assertEqual(len(field_guide.load_guide(self.tmp)), 1)
 
     def test_empty_catalog_fails_the_build(self):

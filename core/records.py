@@ -193,12 +193,11 @@ def _sent_dispatch(ctx, state, payload):
     """A dispatch that was already sent must be tracked even if the run moved on
     since `next` issued it (otherwise its child would be orphaned). The record may
     carry the full action; it is accepted when its id matches its contents and its
-    clientRequestId is exactly the next round of that task. Returns the action and
-    whether it was echoed (True) rather than currently permitted by `next`."""
+    clientRequestId is exactly the next round of that task."""
     try:
         if not payload.get('action_id') and payload.get('action'):
             raise Prohibited('action_not_permitted', 'falling back to the echoed action')
-        return _permitted(ctx, state, 'dispatch', payload), False
+        return _permitted(ctx, state, 'dispatch', payload)
     except (Prohibited, InvalidInput):
         echoed = payload.get('action')
         if not isinstance(echoed, dict) or echoed.get('action') != 'dispatch' or not echoed.get('host_call'):
@@ -221,7 +220,7 @@ def _sent_dispatch(ctx, state, payload):
         if echoed['host_call']['arguments'].get('clientRequestId') != expected:
             raise Prohibited('action_not_permitted', 'echoed dispatch is not the next round of its task',
                              {'expected_client_request_id': expected})
-        return rebuilt, True
+        return rebuilt
 
 
 def _dispatch_args_shape(args):
@@ -251,7 +250,7 @@ def rec_dispatch(ctx, state, payload):
         payload = dict(payload, action_id=None)
     else:
         _phase(state, 'executing', 'verifying')
-    permitted, was_echoed = _sent_dispatch(ctx, state, payload)
+    permitted = _sent_dispatch(ctx, state, payload)
     args = permitted['args']
     task = engine.task_by_id(state, permitted['task_id'])
     if task is None:
@@ -314,10 +313,12 @@ def rec_dispatch(ctx, state, payload):
     if task.get('writes') and not task.get('base_sha'):
         task['base_sha'] = args.get('base_sha')
     if task.get('kind') == 'review':
-        # Bind the verdict to the revision the review was asked to read. A dispatch
-        # `next` permits now carries the authoritative binding; only an echoed
-        # action (the run moved on since) takes the binding the record echoes.
-        echoed = (payload.get('binding') or args.get('binding')) if was_echoed else args.get('binding')
+        # Bind the verdict to the revision the review was asked to read: the binding
+        # the dispatch was sent with, echoed by this record. An action's id ignores
+        # its binding, so `next` may re-offer the same dispatch with a newer one after
+        # the tree moved; that newer binding would certify content the reviewer never
+        # saw. An echoed binding can only be the current one or older (and so stale).
+        echoed = payload.get('binding') or args.get('binding')
         if not isinstance(echoed, dict) or not {'snapshot', 'contract_hash', 'policy_hash'} <= set(echoed):
             raise InvalidInput('binding_missing', 'record the binding from the review dispatch action')
         task['review_binding'] = {key: echoed[key] for key in ('snapshot', 'contract_hash', 'policy_hash')}

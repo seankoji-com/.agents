@@ -128,8 +128,13 @@ jobs:
         run: |
           # A partially created release (no assets) would otherwise block the retry.
           # Delete it first and stop if that fails, so a release never outlives its tag.
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          # Only a confirmed "not found" counts as no release; an inconclusive lookup
+          # (timeout, 5xx, auth) keeps the tag so nothing is left half-deleted.
+          if lookup=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName 2>&1); then
             gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes
+          elif ! grep -qi 'release not found' <<<"$lookup"; then
+            echo "cannot tell whether release $TAG exists ($lookup); keeping the tag for manual cleanup" >&2
+            exit 1
           fi
           git push --delete origin "$TAG"
 

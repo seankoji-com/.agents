@@ -31,8 +31,8 @@ class FieldGuideError(ValueError):
 
 # Marks are inlined into pages unescaped, so anything that could run script or fetch
 # a resource is refused here rather than trusted because it was committed.
-UNSAFE_SVG = re.compile(r'<script|<foreignObject|\son[a-z]+\s*=|javascript:|(?:href|src)\s*=\s*(?!["\']?#)',
-                        re.IGNORECASE)
+UNSAFE_SVG = re.compile(r'<script|<foreignObject|<style|@import|\son[a-z]+\s*=|javascript:'
+                        r'|(?:href|src)\s*=\s*(?!["\']?#)|url\(\s*(?!["\']?#)', re.IGNORECASE)
 
 
 def check_mark(name: str, svg: str) -> str:
