@@ -69,14 +69,17 @@ def _bind(ctx, state):
 def _require_current(ctx, state, payload):
     """Evidence names the snapshot it was gathered at (the `snapshot` from its
     next action). If the tree changed since, the evidence describes another
-    revision and is refused."""
+    revision and is refused. Returns the binding it compared, so the record
+    stores exactly the snapshot the evidence was attested against."""
     expected = payload.get('snapshot')
     if not expected:
         raise InvalidInput('snapshot_missing', 'record the snapshot token from the next action that asked for this evidence')
-    current = snapshot.token(_bind(ctx, state)['snapshot'])
+    bind = _bind(ctx, state)
+    current = snapshot.token(bind['snapshot'])
     if expected != current:
         raise Prohibited('stale_evidence', 'the working tree changed after this evidence was requested; call next again',
                          {'expected': expected, 'current': current})
+    return bind
 
 
 def _permitted(ctx, state, wanted_kind, payload):
@@ -190,11 +193,12 @@ def _sent_dispatch(ctx, state, payload):
     """A dispatch that was already sent must be tracked even if the run moved on
     since `next` issued it (otherwise its child would be orphaned). The record may
     carry the full action; it is accepted when its id matches its contents and its
-    clientRequestId is exactly the next round of that task."""
+    clientRequestId is exactly the next round of that task. Returns the action and
+    whether it was echoed (True) rather than currently permitted by `next`."""
     try:
         if not payload.get('action_id') and payload.get('action'):
             raise Prohibited('action_not_permitted', 'falling back to the echoed action')
-        return _permitted(ctx, state, 'dispatch', payload)
+        return _permitted(ctx, state, 'dispatch', payload), False
     except (Prohibited, InvalidInput):
         echoed = payload.get('action')
         if not isinstance(echoed, dict) or echoed.get('action') != 'dispatch' or not echoed.get('host_call'):
@@ -207,6 +211,7 @@ def _sent_dispatch(ctx, state, payload):
                                 host_call=call, note=echoed.get('note'))
         if rebuilt['id'] != echoed.get('id'):
             raise Prohibited('action_tampered', 'echoed action does not match its id')
+        _dispatch_args_shape(args)
         task = engine.task_by_id(state, echoed['task_id']) or args.get('create_task')
         if task is not None and not isinstance(task, dict):
             raise Prohibited('action_tampered', 'echoed action names a malformed task')
@@ -216,7 +221,27 @@ def _sent_dispatch(ctx, state, payload):
         if echoed['host_call']['arguments'].get('clientRequestId') != expected:
             raise Prohibited('action_not_permitted', 'echoed dispatch is not the next round of its task',
                              {'expected_client_request_id': expected})
-        return rebuilt
+        return rebuilt, True
+
+
+def _dispatch_args_shape(args):
+    """An echoed dispatch's args come from the agent, so their shape is checked
+    here rather than surfacing later as a KeyError."""
+    problems = []
+    if not isinstance(args.get('round'), int) or isinstance(args.get('round'), bool) or args['round'] < 1:
+        problems.append('round must be a positive integer')
+    if not isinstance(args.get('purpose'), str):
+        problems.append('purpose must be a string')
+    if 'target' not in args or not isinstance(args['target'], (dict, type(None))):
+        problems.append('target must be an object or null')
+    if 'why' not in args or not isinstance(args['why'], (str, type(None))):
+        problems.append('why must be a string or null')
+    created = args.get('create_task')
+    if created is not None and (not isinstance(created, dict) or not isinstance(created.get('id'), str) or (
+            created.get('kind') == 'review' and not isinstance(created.get('review_round'), int))):
+        problems.append('create_task must be a task object with an id (and review_round for a review)')
+    if problems:
+        raise InvalidInput('action_args', 'echoed dispatch args are malformed: ' + '; '.join(problems))
 
 
 def rec_dispatch(ctx, state, payload):
@@ -226,7 +251,7 @@ def rec_dispatch(ctx, state, payload):
         payload = dict(payload, action_id=None)
     else:
         _phase(state, 'executing', 'verifying')
-    permitted = _sent_dispatch(ctx, state, payload)
+    permitted, was_echoed = _sent_dispatch(ctx, state, payload)
     args = permitted['args']
     task = engine.task_by_id(state, permitted['task_id'])
     if task is None:
@@ -289,9 +314,10 @@ def rec_dispatch(ctx, state, payload):
     if task.get('writes') and not task.get('base_sha'):
         task['base_sha'] = args.get('base_sha')
     if task.get('kind') == 'review':
-        # Bind the verdict to the revision the review was asked to read: the
-        # snapshot `next` saw when it issued the dispatch, echoed by this record.
-        echoed = payload.get('binding') or args.get('binding')
+        # Bind the verdict to the revision the review was asked to read. A dispatch
+        # `next` permits now carries the authoritative binding; only an echoed
+        # action (the run moved on since) takes the binding the record echoes.
+        echoed = (payload.get('binding') or args.get('binding')) if was_echoed else args.get('binding')
         if not isinstance(echoed, dict) or not {'snapshot', 'contract_hash', 'policy_hash'} <= set(echoed):
             raise InvalidInput('binding_missing', 'record the binding from the review dispatch action')
         task['review_binding'] = {key: echoed[key] for key in ('snapshot', 'contract_hash', 'policy_hash')}
@@ -495,7 +521,7 @@ def rec_check(ctx, state, payload):
     if payload.get('cwd') and Path(payload['cwd']).resolve() != planned_cwd.resolve():
         raise InvalidInput('cwd_mismatch', 'recorded cwd must be the planned cwd',
                            {'planned': str(planned_cwd), 'recorded': payload['cwd']})
-    _require_current(ctx, state, payload)
+    bind = _require_current(ctx, state, payload)
     code = payload.get('exit_code')
     if code is not None and (not isinstance(code, int) or isinstance(code, bool)):
         raise InvalidInput('exit_code', 'exit_code is an integer or null', {'exit_code': code})
@@ -505,7 +531,6 @@ def rec_check(ctx, state, payload):
     if code == 0 and reason:
         raise InvalidInput('check_contradiction', 'a zero exit cannot be recorded as unavailable')
     artifact = copy_artifact(Path(payload['log']), ctx.run_dir, 'checks', _roots(ctx, state))
-    bind = _bind(ctx, state)
     status = 'passed' if code == 0 else 'unavailable' if reason or code in (124, 126, 127) else 'failed'
     entry = {'name': check['name'], 'argv': check['argv'], 'cwd': payload.get('cwd') or check.get('cwd'),
              'exit_code': code, 'status': status, 'unavailable_reason': reason, 'artifact': artifact,
@@ -528,14 +553,13 @@ def rec_acceptance(ctx, state, payload):
         raise InvalidInput('acceptance_status', 'status must be passed, failed, unverified or unavailable; waivers use record --kind waiver')
     if payload['kind'] != req['kind']:
         raise Prohibited('evidence_kind', f'{req["id"]} needs {req["kind"]} evidence, got {payload["kind"]}')
-    _require_current(ctx, state, payload)
+    bind = _require_current(ctx, state, payload)
     paths = payload.get('artifacts') or []
     if payload['status'] == 'passed' and not paths:
         raise Prohibited('evidence_missing', 'a passed requirement needs at least one evidence artifact')
     if payload['kind'] == 'manual' and payload['status'] == 'passed' and not payload.get('verifier'):
         raise InvalidInput('manual_verifier', 'manual evidence names its verifier')
     stored = [copy_artifact(Path(path), ctx.run_dir, 'evidence', _roots(ctx, state)) for path in paths]
-    bind = _bind(ctx, state)
     entry = {'requirement_id': req['id'], 'status': payload['status'], 'kind': payload['kind'],
              'explanation': payload['explanation'], 'artifacts': stored, 'verifier': payload.get('verifier'),
              'snapshot': bind['snapshot'], 'contract_hash': bind['contract_hash'], 'policy_hash': bind['policy_hash'],
@@ -718,10 +742,6 @@ def rec_resource(ctx, state, payload):
     return {'resources': created}
 
 
-def resource_live(item: dict) -> bool:
-    return resources.live(item)
-
-
 def rec_cleanup(ctx, state, payload):
     _require(payload, 'resource_id')
     item = next((r for r in state.get('resources', []) if r['id'] == payload['resource_id']), None)
@@ -732,7 +752,7 @@ def rec_cleanup(ctx, state, payload):
         item['note'] = ('pid now belongs to an unrelated process; nothing was signalled' if item['kind'] == 'process'
                         else f'{item["kind"]} was removed and replaced by an unrelated one; nothing was touched')
         return {'resource': item['id'], 'status': 'gone'}
-    still = resource_live(item)
+    still = resources.live(item)
     item['status'] = 'live' if still else 'removed'
     item['cleaned_at'] = ctx.at
     if still:
@@ -826,12 +846,14 @@ def rec_note(ctx, state, payload):
     return {'note': payload['key']}
 
 
-POLICY_EDITABLE = ('checks', 'review', 'role_overrides', 'model_preferences', 'brief_notes', 'work_role')
+POLICY_EDITABLE = ('checks', 'review', 'model_preferences', 'brief_notes', 'work_role')
 
 
 def _check_policy(state, changes):
-    """A policy record may add obligations or retarget selection; it may never
-    weaken an obligation the run already carries."""
+    """A policy record may add obligations or adjust preferences; it may never
+    weaken an obligation the run already carries. Fixed targets (role_overrides)
+    come only from the plan or repository policy at init: selection reports them as
+    repository policy, so a mid-run record could otherwise retarget an independent role."""
     for forbidden in ('repair_limit', 'budget_seconds'):
         if forbidden in changes:
             raise Prohibited('operator_only', f'{forbidden} changes through unblock decisions only')

@@ -7,7 +7,7 @@
 <text id="demo-l2" x="28" y="82" class="cmd"><tspan class="prompt">$ </tspan>t3-plugins doctor imps</text>
 <text id="demo-l3" x="28" y="106" class="out">{"plugin": "imps", "ok": true, "errors": [], "scope": "installed file integrity; provider behavior not tested"}</text>
 <text id="demo-l4" x="28" y="130" class="cmd"><tspan class="prompt">$ </tspan>t3-plugins prompt imps doctor</text>
-<text id="demo-l5" x="28" y="154" class="out">Read /home/you/.local/share/t3-plugins/imps/current/entry.md and run: doctor</text>
+<text id="demo-l5" x="28" y="154" class="out">Read ~/.local/share/t3-plugins/imps/current/entry.md and run: doctor</text>
 <text id="demo-l7" x="28" y="202" class="note">pasted into a T3 thread, on whichever provider is selected</text>
 <text id="demo-l8" x="28" y="226" class="out">imps doctor</text>
 <text id="demo-l9" x="28" y="250" class="out">  python3 3.12.6 · git 2.46.0 · state root writable</text>

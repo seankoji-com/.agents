@@ -520,7 +520,10 @@ def _verifying(ctx, state):
     review = ev['review']
     if review['required'] and review['status'] not in ('passed', 'waived'):
         latest = next((r for r in reversed(state.get('reviews', [])) if not r.get('invalidated')), None)
-        if latest and latest['verdict'] == 'adverse' and 'stale_reason' not in review:
+        # An adverse verdict is final until a recorded repair invalidates it. A stale
+        # one (the tree, contract or policy moved without `record --kind repair`)
+        # still needs a counted repair round, never a fresh review.
+        if latest and latest['verdict'] == 'adverse':
             return _repair_or_block(ctx, state, 'review', 'review verdict adverse', latest.get('findings', []))
         return _review_actions(ctx, state)
     return {'actions': [action('transition', 'transition', args={'to': 'ready'})]}

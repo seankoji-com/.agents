@@ -197,6 +197,10 @@ class CoreTestCase(unittest.TestCase):
             repo = self.tmp / f'{name}{counter}'
         shutil.copytree(FIXTURES / fixture, repo, ignore=shutil.ignore_patterns('__pycache__', '.claude', '.mcp.json'))
         git(repo, 'init', '-q', '-b', 'main')
+        # Checks run Python inside the fixture. GIT_CONFIG_GLOBAL hides the developer's
+        # global excludes, so ignore bytecode here rather than rely on them (CI also
+        # sets PYTHONDONTWRITEBYTECODE).
+        (repo / '.git' / 'info' / 'exclude').write_text('__pycache__/\n')
         git(repo, 'add', '-A')
         git(repo, 'commit', '-q', '-m', 'fixture')
         return repo

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import copy
 import fcntl
-import json
 import os
 import re
 import time
@@ -189,10 +188,6 @@ class RunStore:
             working['updated_at'] = now_iso()
             self._write(working)
             return working, result
-
-
-def json_dumps(value) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=False)
 
 
 def env_state_root(plugin: str | None) -> Path | None:

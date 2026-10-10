@@ -41,17 +41,35 @@ class TaskIdSchemaTest(unittest.TestCase):
     def test_run_schema_refuses_path_like_task_ids(self):
         run = json.loads((ROOT / 'tests/fixtures/schemas/valid/run--verifying.json').read_text())
         schema.validate(run, 'run')
-        for bad in ('../../escaped', 'a/b', '.hidden', ''):
+        for bad in ('../../escaped', 'a/b', '.hidden', '', 'a\\b', 'a\x01b', 'x' * 121):
             broken = json.loads(json.dumps(run))
             broken['tasks'][0]['id'] = bad
             with self.assertRaises(InvalidInput, msg=bad):
                 schema.validate(broken, 'run')
-        ok = json.loads(json.dumps(run))
-        ok['tasks'][0]['id'] = 'probe-claudeAgent.v2'
-        schema.validate(ok, 'run')
+        for good in ('probe-claudeAgent.v2', 'review code', 'x' * 120):
+            ok = json.loads(json.dumps(run))
+            ok['tasks'][0]['id'] = good  # ids persisted before the pattern existed stay writable
+            schema.validate(ok, 'run')
+
+    def test_run_and_task_schemas_share_the_task_id_rule(self):
+        run_id = schema.load_schema('run')
+        task_id = schema.load_schema('task')['properties']['id']
+        found = [node for node in json.loads(json.dumps(run_id['$defs'])).values()
+                 if isinstance(node, dict) and 'id' in (node.get('properties') or {})]
+        self.assertTrue(any(node['properties']['id'] == task_id for node in found))
 
 
 class PorcelainRenameTest(unittest.TestCase):
+    def test_worktree_column_rename_skips_its_source(self):
+        # porcelain v1 -z: ` R` (renamed in the work tree, after `git add -N`) is
+        # followed by the source path, exactly like an index rename.
+        from unittest import mock
+        out = b' R new.txt\0old.txt\0 C copy.txt\0orig.txt\0?? other.txt\0'
+        fake = mock.Mock(returncode=0, stdout=out, stderr=b'')
+        with mock.patch.object(snapshot.subprocess, 'run', return_value=fake):
+            entries = list(snapshot._porcelain(Path('.')))
+        self.assertEqual(entries, [(' R', 'new.txt'), (' C', 'copy.txt'), ('??', 'other.txt')])
+
     def test_rename_source_is_skipped_not_hashed_as_a_path(self):
         import os
         import subprocess

@@ -26,7 +26,9 @@ FRAMES = [
     ('cmd', 't3-plugins doctor imps'),
     ('out', '{"plugin": "imps", "ok": true, "errors": [], "scope": "installed file integrity; provider behavior not tested"}'),
     ('cmd', 't3-plugins prompt imps doctor'),
-    ('out', 'Read /home/you/.local/share/t3-plugins/imps/current/entry.md and run: doctor'),
+    # catalog.py prints the absolute entry path; the home directory is shown as ~ so
+    # no machine path ships in the repository (tests/test_contract.py enforces that).
+    ('out', 'Read ~/.local/share/t3-plugins/imps/current/entry.md and run: doctor'),
     ('gap', ''),
     ('note', 'pasted into a T3 thread, on whichever provider is selected'),
     ('out', 'imps doctor'),
