@@ -9,6 +9,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from unittest import mock
 from pathlib import Path
 
 from support import PLUGIN, CoreTestCase, cli, native, result_block
@@ -57,7 +58,10 @@ def http(step):
     request = urllib.request.Request(step['url'], data=data, method=step['method'],
                                      headers={'Content-Type': 'application/json'})
     try:
-        with urllib.request.urlopen(request, timeout=5) as response:
+        # These requests belong to the loopback fixture. In particular, Darwin's
+        # system proxy discovery must not send them to an external proxy.
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(request, timeout=5) as response:
             return response.status, json.loads(response.read() or b'null')
     except urllib.error.HTTPError as exc:
         return exc.code, json.loads(exc.read() or b'null')
@@ -73,23 +77,47 @@ class VerificationInitTest(CoreTestCase):
     def launch(self, spec, repo, attempts=5):
         """Start the service on a free port; a port taken between probe and bind makes
         the service exit, so retry on a fresh port instead of waiting out the deadline."""
-        for _ in range(attempts):
+        diagnostics = []
+        for attempt in range(attempts):
             variables = {'PORT': free_port(), 'DATA': str(self.tmp / 'notes-data')}
             launch = substitute(spec, variables)
-            process = subprocess.Popen([sys.executable if a == 'python3' else a for a in launch['argv']],
-                                       cwd=repo / launch['cwd'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.addCleanup(lambda p=process: p.poll() is None and p.kill())
-            deadline = time.time() + launch['ready']['timeout_seconds']
+            log = self.tmp / f'notes-server-{attempt}.log'
+            with log.open('wb') as output:
+                process = subprocess.Popen([sys.executable if a == 'python3' else a for a in launch['argv']],
+                                           cwd=repo / launch['cwd'], stdout=output, stderr=output)
+
+            def stop(p=process):
+                if p.poll() is None:
+                    p.kill()
+                p.wait(timeout=5)
+
+            self.addCleanup(stop)
+            deadline = time.monotonic() + launch['ready']['timeout_seconds']
+            last_error = 'no response'
             while process.poll() is None:
                 try:
-                    if http({'method': 'GET', 'url': launch['ready']['url']})[0] == 200:
+                    status, _ = http({'method': 'GET', 'url': launch['ready']['url']})
+                    if status == 200:
                         variables['PID'] = process.pid
                         return variables, process
-                except OSError:
-                    pass
-                self.assertLess(time.time(), deadline, 'service never became ready')
+                    last_error = f'HTTP {status}'
+                except OSError as exc:
+                    last_error = repr(exc)
+                self.assertLess(time.monotonic(), deadline,
+                                f'service never became ready: {last_error}; '
+                                f'exit={process.poll()}; output={log.read_text()}')
                 time.sleep(0.1)
-        self.fail(f'service exited on launch {attempts} times')
+            diagnostics.append(f'exit={process.returncode}: {log.read_text()}')
+        self.fail(f'service exited on launch {attempts} times: {diagnostics}')
+
+    def test_fixture_http_ignores_ambient_proxy_configuration(self):
+        repo = self.make_repo('verify-product')
+        # A real fixture interaction must succeed without even discovering the
+        # caller's proxy configuration, whether it comes from env or macOS.
+        with mock.patch('urllib.request.getproxies', side_effect=AssertionError('ambient proxy lookup')):
+            variables, _ = self.launch(facts()['launch'], repo)
+            status, body = http({'method': 'GET', 'url': f"http://127.0.0.1:{variables['PORT']}/health"})
+        self.assertEqual((status, body), (200, {'ok': True}))
 
     def test_generated_recipe_drives_fixture_and_evidence_survives_cleanup(self):
         repo = self.make_repo('verify-product')
