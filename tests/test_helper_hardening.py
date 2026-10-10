@@ -70,7 +70,7 @@ class VcsMetadataGuardTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = os.path.realpath(tmp)  # the sidecar's root is always realpath'd; macOS tmp is a symlink
             os.makedirs(os.path.join(tmp, '.git', 'hooks'))
-            os.makedirs(os.path.join(tmp, '.GIT'))
+            os.makedirs(os.path.join(tmp, '.GIT'), exist_ok=True)  # the same directory as .git on macOS
             for target in ('.git/hooks/pre-commit', '.git/config', 'sub/.hg/hgrc', '.svn/entries', '.GIT/config'):
                 with self.assertRaises(sidecar.SidecarError, msg=target):
                     sidecar.resolve_output_path(tmp, target)
