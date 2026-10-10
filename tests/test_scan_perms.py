@@ -54,6 +54,19 @@ def _write_transcript(dir_path, filename, lines):
     return path
 
 
+class TranscriptEncodingTest(unittest.TestCase):
+    def test_bad_encoding_does_not_abort_remaining_transcripts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = os.path.join(tmp, 'bad.jsonl')
+            with open(bad, 'wb') as stream:
+                stream.write(b'\xff\xfe\n')
+            good = _write_transcript(tmp, 'good.jsonl', [_tool_use_line('Bash', {'command': 'git status'})])
+            self.assertEqual(len(list(scan_perms.iter_tool_uses([bad, good]))), 1)
+            evidence = list(scan_perms.iter_tool_evidence([bad, good]))
+            self.assertEqual(len(evidence), 1)
+            self.assertEqual(evidence[0]['call']['input']['command'], 'git status')
+
+
 class FirstRealTokenTest(unittest.TestCase):
     def test_simple_head_and_sub(self):
         self.assertEqual(scan_perms.first_real_token("git status"), ([], "git", "status"))

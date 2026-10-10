@@ -7,7 +7,7 @@ with their contents. Read `PKG/shared/t3-runtime.md`, then `PKG/references/opera
 - `serve`: start `python3 PKG/scripts/offload_sidecar.py` only when explicitly asked
   to run an MCP stdio server. T3's shell path works without registering an MCP server.
 - `doctor`: run `python3 PKG/scripts/process.py --doctor` for local prerequisites.
-- `status`: run `python3 PKG/scripts/offload_sidecar.py status` to probe configured engines.
+- `status`: run `python3 PKG/scripts/offload_sidecar.py status` to probe configured Ollama endpoints and report cloud quota state without cloud calls.
 
 Deterministic operations need only Python. Model operations use explicitly configured
 Ollama or agy engines, independent of the provider running the T3 thread. Cloud calls

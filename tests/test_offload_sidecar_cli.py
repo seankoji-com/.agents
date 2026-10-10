@@ -384,37 +384,25 @@ class OperationCoverageContractTest(unittest.TestCase):
         ops = self._operations_from_script()
         det_ops = sorted(k for k, v in ops.items() if v["kind"] == "deterministic")
 
-        # Read test_offload_sidecar.py and look for test methods referencing
-        # each op. A test named `test_<op>` or containing `<op>` in its name
-        # or body is counted.
-        test_file = os.path.join(_HERE, "test_offload_sidecar.py")
-        with open(test_file, "r", encoding="utf-8") as f:
-            test_src = f.read()
-
-        missing = []
-        # Some operation names appear in the test file under older/alternative
-        # names (aliases, function names). Map canonical op names to the
-        # strings actually found in test_offload_sidecar.py.
-        _NAME_ALIASES = {
-            "extract_fields": "extract_field_list",
-            "sqlite_to_json": "sqlite_dump_to_json",
-        }
-        # Also read this CLI test file — some ops have tests only here.
-        cli_test_file = os.path.join(_HERE, "test_offload_sidecar_cli.py")
-        with open(cli_test_file, "r", encoding="utf-8") as f:
-            cli_src = f.read()
-        both_src = test_src + cli_src
-        for op_name in det_ops:
-            search_for = _NAME_ALIASES.get(op_name, op_name)
-            if search_for not in both_src:
-                missing.append(op_name)
-
-        self.assertEqual(
-            missing,
-            [],
-            f"Deterministic operations without any reference in "
-            f"test_offload_sidecar.py or test_offload_sidecar_cli.py: {missing}",
-        )
+        # A bare mention or coverage-set entry is not a transform invocation.
+        # Require a direct call in a test method that also asserts a result.
+        called = set()
+        for filename in ("test_offload_sidecar.py", "test_offload_sidecar_cli.py"):
+            with open(os.path.join(_HERE, filename), encoding="utf-8") as stream:
+                tree = ast.parse(stream.read())
+            for method in ast.walk(tree):
+                if not isinstance(method, ast.FunctionDef) or not method.name.startswith("test_"):
+                    continue
+                calls = [node for node in ast.walk(method) if isinstance(node, ast.Call)
+                         and isinstance(node.func, ast.Attribute)]
+                if any(node.func.attr.startswith("assert") for node in calls):
+                    called.update(node.func.attr for node in calls)
+        # json_format is exercised through the real subprocess/MCP boundary.
+        # Resolve the callable test, rather than accepting a name in source text.
+        self.assertTrue(callable(getattr(McpToolsCallDeterministicOpTest, 'test_json_format_round_trip')))
+        called.add(ops['json_format']['transform'].__name__)
+        missing = [name for name in det_ops if ops[name]["transform"].__name__ not in called]
+        self.assertEqual(missing, [], f"Deterministic transforms without asserted test calls: {missing}")
 
 
 

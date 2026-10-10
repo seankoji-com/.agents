@@ -15,7 +15,13 @@ for arg in "$@"; do
   case "$arg" in
   --confirm) confirm=true ;;
   --all) all=true ;;
-  *) workspace="$arg" ;;
+  -*) echo "ERROR: unknown option: $arg" >&2; exit 2 ;;
+  *)
+    if [ -n "$workspace" ]; then
+      echo "ERROR: only one workspace is allowed" >&2
+      exit 2
+    fi
+    workspace="$arg" ;;
   esac
 done
 

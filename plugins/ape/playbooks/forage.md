@@ -2,7 +2,8 @@
 
 1. Inspect the current project and write a short fingerprint of its stack, relevant
    weaknesses, and techniques it already uses. Resolve the focus from the request.
-2. Run `bash PKG/scripts/init-workspace.sh` from the project. Use the returned workspace.
+2. Run `bash PKG/scripts/init-workspace.sh` from the project. Use the returned workspace
+   and save the fingerprint to the returned `fingerprint` path.
 3. Form several focused queries. Use `scripts/search-repos.sh` and
    `scripts/readme-peek.sh` to screen candidates, then `scripts/triage-repos.sh` to
    inspect maintainership, license, and fit. Stars alone are not evidence of fit.

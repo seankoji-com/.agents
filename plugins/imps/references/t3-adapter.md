@@ -15,7 +15,8 @@ Load this when a T3 tool is missing, errors, or behaves unexpectedly.
 | `task_status` | doc, confirmed live | `query_task` and `confirm_stop` |
 | `task_cancel` | doc, confirmed live | `cancel_task` |
 | `t3_thread_read` | doc | `collect_result` when the summary lacks the result block |
-| `t3_thread_update` | doc | action `link_pull_request` (repository, number, URL) for an authorised PR |
+| `link_pull_request` | confirmed live | Register an authorised PR with this thread |
+| `watch_pull_request` / `unwatch_pull_request` | confirmed live | Start monitoring and yield; stop monitoring before handing work back |
 | `create_threads`, `t3_thread_launch` | doc | prohibited for child work: they create top-level threads |
 | `t3_thread_send` | doc | never sent to a child thread; a new round is a new `delegate_task` |
 

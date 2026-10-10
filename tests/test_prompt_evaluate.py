@@ -24,6 +24,17 @@ class EvaluationTest(unittest.TestCase):
         self.candidate = copy.deepcopy(self.baseline)
         self.candidate["prompt"] = "A much longer prompt that also returns OK."
 
+    def test_malformed_input_names_the_role_and_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = [Path(tmp) / f'{role}.json' for role in ('suite', 'baseline', 'candidate')]
+            for bad in paths:
+                for path, data in zip(paths, (self.suite, self.baseline, self.candidate)):
+                    path.write_text('{' if path == bad else json.dumps(data))
+                result = subprocess.run([sys.executable, str(SCRIPT), *map(str, paths)],
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn(f'{bad.stem} ({bad})', result.stderr)
+
     def evaluate(self):
         return evaluator.evaluate(self.suite, self.baseline, self.candidate)
 

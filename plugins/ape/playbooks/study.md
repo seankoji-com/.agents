@@ -5,6 +5,8 @@
    the clone, and prints its revision and report path. Stop on nonzero exit.
 2. Inspect the current project's relevant code and dirty changes. Write a fingerprint
    of at most 150 words: stack, architecture, gaps, and practices already in use.
+   Save it to the returned `fingerprint_path`; reuse it only when reported fresh
+   and still accurate for the project.
 3. Read the source README, directory tree, and only the code needed to substantiate
    transferable ideas. Pin claims to blob URLs at the resolved commit with line numbers.
 4. Write a report of at most 900 words with Overlap, Adopt, Adapt, Reject, and Command

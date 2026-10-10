@@ -73,6 +73,6 @@ checkable by a reviewer who wasn't in this conversation.
 Refuse vague criteria and show the upgrade:
 
 > **Vague (reject):** "Add tests."
-> **Checkable (accept):** "`pytest tests/python/test_thinking_state.py` passes, and includes at
+> **Checkable (accept):** "`python3 -m unittest discover -s tests -p test_thinking_state.py` passes, and includes at
 > least one case per error branch in `gate` — missing artifact, bad slug, absent topic. A
 > change that only tests the happy path is an auto-reject."

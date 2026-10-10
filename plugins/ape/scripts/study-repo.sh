@@ -62,8 +62,17 @@ parse_target "$1" >/dev/null
 if ! project_root="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)"; then
   project_root="$PWD"
 fi
-host_slug="$(basename "$project_root")"
-workspace="$HOME/tmp/repo-research/$host_slug/studies/$dir_name"
+script_dir="$(cd "$(dirname "$0")" && pwd -P)"
+host_slug="$(cd "$project_root" && bash "$script_dir/workspace-slug.sh")"
+host_workspace="$HOME/tmp/repo-research/$host_slug"
+python3 "$script_dir/workspace.py" init "$host_workspace"
+workspace="$host_workspace/studies/$dir_name"
+for path in "$host_workspace/studies" "$workspace" "$workspace/repos" "$workspace/reports"; do
+  if [ -L "$path" ]; then
+    echo "study-repo: workspace directories must not be symlinks" >&2
+    exit 1
+  fi
+done
 repo_path="$workspace/repos/$dir_name"
 mkdir -p "$workspace/repos" "$workspace/reports"
 repos_root="$(cd "$workspace/repos" && pwd -P)"

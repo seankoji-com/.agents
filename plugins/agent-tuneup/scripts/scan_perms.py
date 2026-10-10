@@ -93,7 +93,7 @@ def iter_tool_evidence(transcripts):
     for path in transcripts:
         calls, outcomes = {}, {}
         try:
-            with open(path, "r") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 for line, raw in enumerate(f, 1):
                     try:
                         msg = json.loads(raw)
@@ -131,7 +131,7 @@ def iter_tool_evidence(transcripts):
                         # aborted turn with "message": null) shouldn't abort
                         # the scan of every remaining transcript.
                         continue
-        except (FileNotFoundError, PermissionError):
+        except (OSError, UnicodeDecodeError):
             continue
         for key, evidence in calls.items():
             replay_key = evidence.pop("replay_key")
@@ -146,7 +146,7 @@ def iter_tool_uses(transcripts):
     """Keep the legacy text report streaming, with raw occurrence counts."""
     for path in transcripts:
         try:
-            with open(path, "r") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 for raw in f:
                     try:
                         msg = json.loads(raw)
@@ -160,7 +160,7 @@ def iter_tool_uses(transcripts):
                                 yield block
                     except (json.JSONDecodeError, AttributeError, TypeError):
                         continue
-        except (FileNotFoundError, PermissionError):
+        except (OSError, UnicodeDecodeError):
             continue
 
 

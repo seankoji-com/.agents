@@ -161,11 +161,9 @@ gh_token() {
   printf '%s' "$GH_TOKEN"
 }
 
-# POSTs a GraphQL body, retrying twice on a non-200. Mirrors list-prs.sh's
-# curl_graphql_retry exactly (see its comment for why curl, not `gh api graphql`) —
-# duplicated rather than sourced, matching this plugin's existing pattern of each
-# script standing alone (no intra-plugin require path; see pr-workspace.sh,
-# pr-events.sh, run-note.sh).
+# POSTs a GraphQL body with two retries after 2 and 4 seconds. Like
+# list-prs.sh, uses curl for TLS compatibility, but keeps fixed retry delays
+# and sends failure details to stderr; stdout contains successful JSON only.
 curl_graphql_retry() {
   local body="$1" attempt=1 code="" content="" tmp errfile token
   token="$(gh_token)" || return 1
@@ -238,7 +236,7 @@ fetch_state() {
     query: "query($owner:String!,$name:String!,$number:Int!){ repository(owner:$owner,name:$name){ pullRequest(number:$number){ id state headRefOid mergeable mergeStateStatus reviewDecision baseRefName headRefName autoMergeRequest{ enabledAt } reviewThreads(first:100){ pageInfo{ hasNextPage } nodes{ id isResolved } } commits(last:1){ nodes{ commit{ statusCheckRollup{ state } } } } } } }",
     variables: { owner: $owner, name: $name, number: $number }
   }')
-  resp="$(curl_graphql_retry "$query")" || { echo "merge-pr.sh: state query failed: $resp" >&2; return 1; }
+  resp="$(curl_graphql_retry "$query")" || { echo "merge-pr.sh: state query failed (details above)" >&2; return 1; }
   if jq -e '.errors' >/dev/null 2>&1 <<<"$resp"; then
     echo "merge-pr.sh: GraphQL returned errors: $(jq -c '.errors' <<<"$resp")" >&2
     return 1

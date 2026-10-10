@@ -10,6 +10,67 @@ SCRIPTS = Path(__file__).resolve().parents[1] / 'plugins/ape/scripts'
 
 
 class ResearchBoundaryTest(unittest.TestCase):
+    def test_clone_requires_owned_workspace_and_regular_repos_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            env = {**os.environ, 'HOME': tmp}
+            tools = root / 'bin'
+            tools.mkdir()
+            (tools / 'git').write_text('#!/bin/sh\nprintf "called" >> "$HOME/git-called"\n')
+            (tools / 'git').chmod(0o755)
+            env['PATH'] = f'{tools}:{env["PATH"]}'
+            owned = root / 'tmp/repo-research/owned'
+            outside = root / 'outside'
+            unmarked = root / 'tmp/repo-research/unmarked'
+            unmarked.mkdir(parents=True)
+            def clone(path):
+                return subprocess.run(['bash', str(SCRIPTS / 'clone-candidates.sh'), str(path),
+                                       'https://github.com/example/project', 'project', '0'],
+                                      env=env, capture_output=True, text=True, timeout=5)
+            for path in (outside, unmarked):
+                self.assertNotEqual(clone(path).returncode, 0)
+                self.assertFalse((path / 'repos').exists())
+            subprocess.run(['python3', str(SCRIPTS / 'workspace.py'), 'init', str(owned)],
+                           env=env, check=True, capture_output=True, timeout=5)
+            outside.mkdir()
+            (owned / 'repos').symlink_to(outside, target_is_directory=True)
+            self.assertNotEqual(clone(owned).returncode, 0)
+            self.assertFalse((root / 'git-called').exists())
+            (owned / 'repos').unlink()
+            self.assertEqual(clone(owned).returncode, 0)
+            self.assertEqual((root / 'git-called').read_text(), 'called')
+
+    def test_cleanup_rejects_unknown_flags_and_extra_paths_before_deletion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for args in ([tmp, '--al', '--confirm'], [tmp, tmp, '--all', '--confirm']):
+                result = subprocess.run(['bash', str(SCRIPTS / 'clean-ape-workspace.sh'), *args],
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 2)
+                self.assertTrue(Path(tmp).is_dir())
+
+    def test_triage_marks_failures_and_continues_and_readme_is_fail_soft(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gh = root / 'gh'
+            gh.write_text('#!/bin/sh\nif [ "$1" = api ]; then cat "$HOME/readme.b64"; exit 0; fi\nif [ "$3" = bad/repo ]; then echo "not found" >&2; exit 1; fi\necho "{}"\n')
+            gh.chmod(0o755)
+            env = {**os.environ, 'HOME': tmp, 'PATH': f'{root}:{os.environ["PATH"]}'}
+            def run(script, *args):
+                return subprocess.run(['bash', str(SCRIPTS / script), *args], env=env,
+                                      capture_output=True, text=True, timeout=5)
+            self.assertEqual(run('triage-repos.sh').returncode, 2)
+            result = run('triage-repos.sh', 'bad/repo', 'good/repo')
+            self.assertEqual(result.returncode, 1)
+            self.assertIn('=== bad/repo === (FAILED)', result.stdout)
+            self.assertIn('=== good/repo ===\n{}', result.stdout)
+            import base64
+            (root / 'readme.b64').write_bytes(base64.b64encode(b'line\n' * 100000))
+            result = run('readme-peek.sh', 'good/repo')
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout.splitlines(), ['line'] * 40)
+            (root / 'readme.b64').write_text('!')
+            self.assertEqual(run('readme-peek.sh', 'good/repo').returncode, 0)
+
     def test_cleanup_refuses_unmarked_or_copied_marker_inside_allowed_root(self):
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp) / 'tmp/repo-research/unrelated'

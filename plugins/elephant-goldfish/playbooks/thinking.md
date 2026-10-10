@@ -13,10 +13,10 @@
    with concrete counterexamples. Name unresolved decisions and their owners. Explore
    doing nothing, simpler alternatives, failure consequences, and reversibility.
    Continue while the operator finds it useful; respect their request to stop.
-4. Synthesize `thinking/<slug>/discovery.md` using `discovery.skeleton.md`. Preserve
+4. Synthesize `thinking/<slug>/discovery.md` using `PKG/templates/discovery.skeleton.md`. Preserve
    agreed constraints verbatim. Distinguish facts, hypotheses, preferences, and open
    questions. Review the discovery with the operator before building the rubric.
-5. Load `spec.skeleton.md`. Define observable acceptance criteria with stable
+5. Load `PKG/templates/spec.skeleton.md`. Define observable acceptance criteria with stable
    `[REQ-...]` IDs, test methods, failure conditions, and explicit out-of-scope work.
    Settle which unknowns block execution. Save `thinking/<slug>/spec.md`.
 6. Run `thinking_state.py gate <slug> --require discovery,spec`, then

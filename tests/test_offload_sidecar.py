@@ -1029,7 +1029,7 @@ class DeterministicOperationsTest(unittest.TestCase):
         )
         lines = out.decode().strip().split("\r\n" if "\r\n" in out.decode() else "\n")
         self.assertEqual(len(lines), 3)  # header + 2 rows
-        self.assertIn("a,b", lines[0] or "a,b")
+        self.assertIn("a,b", lines[0])
 
     def test_json_to_csv_with_fields(self):
         out = sidecar._det_json_to_csv(
@@ -1580,8 +1580,7 @@ class RpcTransportTest(unittest.TestCase):
         self.assertEqual(payload["status"], "error")
 
 
-if __name__ == "__main__":
-    unittest.main()
+
 
 
 class CloudTierResolutionTest(unittest.TestCase):
@@ -2221,3 +2220,24 @@ class NewDeterministicOpsTest(unittest.TestCase):
         self.assertEqual(sidecar._xlsx_cell_column("A1"), 0)
         self.assertEqual(sidecar._xlsx_cell_column("Z9"), 25)
         self.assertEqual(sidecar._xlsx_cell_column("AA3"), 26)
+
+
+class JsonToYamlTest(unittest.TestCase):
+    def test_json_to_yaml_uses_local_converter_and_validates_roundtrip(self):
+        source, converted = b'{"a": 1}', b'a: 1\n'
+        with mock.patch.object(sidecar, 'yq_available', return_value=True), mock.patch.object(
+                sidecar.subprocess, 'run') as command:
+            command.return_value.returncode = 0
+            command.return_value.stdout = converted
+            output = sidecar._det_json_to_yaml(source, {}, '', 'out.yaml')
+            self.assertEqual(output, converted)
+            self.assertEqual(command.call_args.args[0], ['yq', 'eval', '-P', '-o=yaml', '.'])
+            self.assertEqual(command.call_args.kwargs['input'], source)
+            command.return_value.stdout = source
+            self.assertEqual(sidecar._val_json_to_yaml(source, output, 'out.yaml', {}), (True, None))
+            command.return_value.stdout = b'{"a": 2}'
+            self.assertFalse(sidecar._val_json_to_yaml(source, output, 'out.yaml', {})[0])
+
+
+if __name__ == "__main__":
+    unittest.main()

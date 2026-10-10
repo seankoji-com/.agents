@@ -145,7 +145,12 @@ case "$PR_NUMBER" in
 esac
 
 OWNER="${REPO%%/*}"
-NAME="${REPO##*/}"
+NAME="${REPO#*/}"
+for component in "$OWNER" "$NAME"; do
+  case "$component" in
+  '' | . | .. | *[!A-Za-z0-9._-]*) die "--repo must contain plain owner/name components" ;;
+  esac
+done
 SLUG="${OWNER}__${NAME}"
 CLONE="${ROOT}/repos/${SLUG}"
 WORKTREE="${ROOT}/worktrees/${SLUG}__pr-${PR_NUMBER}"

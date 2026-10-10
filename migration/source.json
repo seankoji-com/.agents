@@ -6,7 +6,7 @@
       "source": "plugins/ape/scripts/readme-peek.sh",
       "destination": "plugins/ape/scripts/readme-peek.sh",
       "source_sha256": "cdabca41649be59ccdf2817523e70e982e168f954c5ad549e47a365e552ba3d2",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/ape/scripts/init-workspace.sh",
@@ -30,13 +30,13 @@
       "source": "plugins/ape/scripts/study-repo.sh",
       "destination": "plugins/ape/scripts/study-repo.sh",
       "source_sha256": "e6899fe7fb958b01e713c202f1c3321e0fb173e26e18716fcf7dcefa3d9530d5",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/ape/scripts/triage-repos.sh",
       "destination": "plugins/ape/scripts/triage-repos.sh",
       "source_sha256": "14f01c0a7e3b39c9e95ff1d1e3e790d64fe9d41c0553347ce9b35cce13d8a83a",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/ape/scripts/clone-candidates.sh",
@@ -102,7 +102,7 @@
       "source": "plugins/prompt-builder/scripts/evaluate.py",
       "destination": "plugins/prompt-builder/scripts/evaluate.py",
       "source_sha256": "8c937430388c9e610b8b69ea2b50f01bf43438f322d9d399439abaab92b2bbb9",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/claude-tuneup/scripts/scan_perms.py",
@@ -114,7 +114,7 @@
       "source": "plugins/offload-sidecar/scripts/offload_sidecar.py",
       "destination": "plugins/offload-sidecar/scripts/offload_sidecar.py",
       "source_sha256": "96046a94c7128090e7357cf022c9b1f9050fc920eaf4267ade922452feb44f2f",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/babysitter/scripts/list-prs.sh",

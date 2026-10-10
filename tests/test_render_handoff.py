@@ -156,8 +156,8 @@ class TestRenderCLI(unittest.TestCase):
         with topic(output_type="implementation"):
             run(["t"])
             implementation = read("thinking/t/handoff.md")
-        self.assertIn("t3-plugins path imps", implementation)
-        self.assertNotIn("t3-plugins path imps", research)
+        self.assertIn("t3-plugins prompt imps", implementation)
+        self.assertNotIn("t3-plugins prompt imps", research)
         self.assertIn("Research brief", research)
 
     def test_stdout_mode_writes_no_file(self):
@@ -288,8 +288,7 @@ class TestGraphQLErrorHandling(unittest.TestCase):
             self.assertEqual(gp.graphql("query{x}")["data"]["repository"]["id"], "R_1")
 
 
-if __name__ == "__main__":
-    unittest.main()
+
 
 
 class TestHandoffManifest(unittest.TestCase):
@@ -302,3 +301,21 @@ class TestHandoffManifest(unittest.TestCase):
                 self.assertEqual(manifest['requirement_ids'], ['REQ-ONE'])
                 write('thinking/t/' + changed, 'changed content')
                 self.assertNotEqual(run(['t', '--check'])[0], 0)
+
+
+class TestWriteFailures(unittest.TestCase):
+    def test_write_failures_return_clean_diagnostic_and_preserve_handoff(self):
+        for operation in ('mkstemp', 'replace'):
+            with self.subTest(operation=operation), topic():
+                write('thinking/t/handoff.md', 'previous handoff')
+                target = rh.tempfile if operation == 'mkstemp' else rh.os
+                with mock.patch.object(target, operation, side_effect=OSError('fixture disk failure')):
+                    code, out, err = run(['t'])
+                self.assertEqual(code, 1)
+                self.assertIn('render_handoff: fixture disk failure', err)
+                self.assertEqual(read('thinking/t/handoff.md'), 'previous handoff')
+                self.assertFalse(any(name.startswith('handoff.md.') for name in os.listdir('thinking/t')))
+
+
+if __name__ == "__main__":
+    unittest.main()

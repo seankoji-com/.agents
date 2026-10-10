@@ -10,6 +10,13 @@ Save an explicit request file, then pass its path to `scripts/process.py`:
 {"operation":"sort_lines","input_path":"input.txt","output_path":"sorted.txt"}
 ```
 
+`filter_lines` requires `params.pattern`; `extract_fields` requires `params.fields`;
+`split_file` requires `params.lines_per_chunk` or `params.num_chunks`. For example:
+
+```json
+{"operation":"filter_lines","input_path":"input.txt","output_path":"errors.txt","params":{"pattern":"ERROR"}}
+```
+
 Run from the intended project directory, or set `SIDECAR_ROOT` explicitly. Inputs and
 outputs must satisfy the engine's containment checks. Use a new output path; inspect
 the receipt and output before replacing important source data. The receipt records
@@ -20,7 +27,8 @@ Local model tiers `deep` and `fast` use `OLLAMA_HOST` and `OLLAMA_MODEL`; option
 `OLLAMA_FAST_HOST` / `OLLAMA_FAST_MODEL` select the second tier. Local failover stays
 local. Cloud tiers `flash` and `pro` use `AGY_BIN` and configured model IDs. They retain
 the upstream call-budget and lockout guards. A quota limit is not a monetary cap.
-Inspect `status` before model work; it probes engines and may contact configured hosts.
+Inspect `status` before model work; it contacts configured Ollama endpoints. Cloud
+tiers are reported from local quota state without contacting agy.
 
 The one-shot adapter requires `allow_cloud: true` for cloud execution after the
 operator authorizes sending that input. This receipt field is not a security boundary

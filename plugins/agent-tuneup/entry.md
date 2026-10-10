@@ -4,6 +4,7 @@ Audit agent configuration without weakening permissions. Read
 `PKG/shared/t3-runtime.md`, then `PKG/playbooks/audit.md`.
 
 - `audit --provider <name> --settings <path>`: inspect explicitly supplied settings.
+  Exit codes: `0` clean, `1` findings present, `2` unreadable or invalid settings.
 - `scan --provider claude`: read recent Claude transcript tool-call frequencies with
   `python3 PKG/scripts/scan_perms.py --json`. This is usage evidence, not a permission recommendation.
 - `doctor`: check Python and list supported adapters with

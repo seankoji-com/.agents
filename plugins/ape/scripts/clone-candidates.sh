@@ -16,7 +16,7 @@
 #      regardless.
 set -uo pipefail
 
-workspace="$1"
+workspace="${1:-}"
 shift
 args=("$@")
 
@@ -60,7 +60,13 @@ while [ "$i" -lt "${#args[@]}" ]; do
 done
 
 # --- Pass 2: every triple validated — safe to start cloning ---------------
-mkdir -p "$workspace/repos"
+script_dir="$(cd "$(dirname "$0")" && pwd -P)"
+python3 "$script_dir/workspace.py" validate "$workspace" || exit 1
+if [ -L "$workspace/repos" ]; then
+  echo "clone-candidates: repos directory must not be a symlink" >&2
+  exit 1
+fi
+mkdir -p "$workspace/repos" || exit 1
 log="$workspace/repos/clone.log"
 : >"$log"
 pids=()

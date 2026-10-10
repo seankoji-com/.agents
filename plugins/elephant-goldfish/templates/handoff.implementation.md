@@ -10,9 +10,8 @@ Verify `handoff.manifest.json` against this file and the discovery/spec inputs b
 
 ## Run it
 
-```text
-Read the imps entry path printed by `t3-plugins path imps` and run:
-run Read thinking/{{TOPIC_SLUG}}/handoff.md in full and implement what it describes. Treat the evaluation criteria as hard requirements and the auto-reject conditions as absolute. Do not re-propose any approach the problem definition rules out.
+```sh
+t3-plugins prompt imps "Read thinking/{{TOPIC_SLUG}}/handoff.md in full and implement what it describes. Treat the evaluation criteria as hard requirements and the auto-reject conditions as absolute. Do not re-propose any approach the problem definition rules out."
 ```
 
 Or paste everything below as the first message of a fresh session.

@@ -43,7 +43,6 @@ def default_template_dir() -> Path:
     __file__-relative fallback means the script also works when run directly from a
     checkout or a test harness.
     """
-    import os
 
     root = os.environ.get("T3_PLUGIN_ROOT")
     if root:
@@ -144,28 +143,29 @@ def main(argv=None) -> int:
                 raise RenderError("handoff provenance mismatch; re-render from the reviewed inputs")
             print("handoff provenance verified")
             return 0
+
+        if args.stdout:
+            sys.stdout.write(out)
+        else:
+            target = tdir / "handoff.md"
+            # Each file is atomic. Consumers compare the output hash, so a crash between
+            # the two replaces is detected instead of accepting a stale manifest.
+            for dest, content in ((target, out), (tdir / "handoff.manifest.json", json.dumps(manifest, indent=2) + "\n")):
+                fd, temporary = tempfile.mkstemp(prefix=dest.name + '.', dir=tdir)
+                try:
+                    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                        stream.write(content)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    os.replace(temporary, dest)
+                finally:
+                    if os.path.exists(temporary):
+                        os.unlink(temporary)
+            print(target)
     except (RenderError, json.JSONDecodeError, OSError) as exc:
         print(f"render_handoff: {exc}", file=sys.stderr)
         return 1
 
-    if args.stdout:
-        sys.stdout.write(out)
-    else:
-        target = tdir / "handoff.md"
-        # Each file is atomic. Consumers compare the output hash, so a crash between
-        # the two replaces is detected instead of accepting a stale manifest.
-        for dest, content in ((target, out), (tdir / "handoff.manifest.json", json.dumps(manifest, indent=2) + "\n")):
-            fd, temporary = tempfile.mkstemp(prefix=dest.name + '.', dir=tdir)
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as stream:
-                    stream.write(content)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                os.replace(temporary, dest)
-            finally:
-                if os.path.exists(temporary):
-                    os.unlink(temporary)
-        print(target)
     return 0
 
 

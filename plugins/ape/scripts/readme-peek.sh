@@ -6,4 +6,9 @@
 # fail-soft: report available README content, tolerate fetch/decode failures
 set -uo pipefail
 
-gh api "repos/$1/readme" -q .content 2>&1 | base64 -d 2>/dev/null | head -40
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 <owner/repo>" >&2
+  exit 2
+fi
+
+gh api "repos/$1/readme" -q .content 2>/dev/null | base64 -d 2>/dev/null | head -40 || true

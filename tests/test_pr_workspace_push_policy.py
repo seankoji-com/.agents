@@ -11,6 +11,17 @@ SCRIPT = Path(__file__).resolve().parents[1] / 'plugins/babysitter/scripts/pr-wo
 
 
 class PushPolicyTest(unittest.TestCase):
+    def test_invalid_repo_components_never_touch_workspaces(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'cache'
+            for repo in ('../../etc/foo', 'owner/../repo', '/repo', 'owner/', '../repo', 'owner/..', 'owner/repo;bad'):
+                for action in (['--remove'], ['--branch', 'feature']):
+                    result = subprocess.run(['bash', str(SCRIPT), '--repo', repo, '--pr', '1',
+                                             '--root', str(root), *action], capture_output=True, text=True, timeout=5)
+                    self.assertNotEqual(result.returncode, 0, repo)
+                    self.assertIn('plain owner/name', result.stderr)
+                    self.assertFalse(root.exists())
+
     def test_reused_clone_refuses_upstream_misrouting_but_explicit_push_works(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -22,7 +33,7 @@ class PushPolicyTest(unittest.TestCase):
             (tools / 'gh').chmod(0o755)
             env = {**os.environ, 'HOME': str(home),
                    'GIT_CONFIG_GLOBAL': str(home / '.gitconfig'),
-                   'GIT_CONFIG_NOSYSTEM': '1',
+                   'GIT_CONFIG_NOSYSTEM': '1', 'GIT_TERMINAL_PROMPT': '0',
                    'PATH': f'{tools}:{os.environ["PATH"]}', 'TMPDIR': str(root)}
             for key in list(env):
                 if key.startswith('GIT_CONFIG_KEY_') or key.startswith('GIT_CONFIG_VALUE_'):
@@ -34,7 +45,7 @@ class PushPolicyTest(unittest.TestCase):
 
             def git(path, *args, check=True):
                 return subprocess.run(['git', '-C', str(path), *args], env=env,
-                                      capture_output=True, text=True, check=check)
+                                      capture_output=True, text=True, check=check, timeout=60)
 
             remote = root / 'remote.git'
             git(root, 'init', '--bare', '--initial-branch=master', str(remote))
@@ -65,9 +76,9 @@ class PushPolicyTest(unittest.TestCase):
                 'if action is not None:\n'
                 ' args = [remote if item == "https://github.com/test/repo.git" or item == "origin" else item for item in args]\n'
                 ' if action == "fetch": args.append("+refs/heads/*:refs/remotes/origin/*")\n'
-                'result = subprocess.call([real_git, *args])\n'
+                'result = subprocess.call([real_git, *args], timeout=60)\n'
                 'if action == "push" and uses_origin and result == 0:\n'
-                ' subprocess.check_call([real_git, *args[:args.index("push")], "fetch", "--quiet", remote, "+refs/heads/*:refs/remotes/origin/*"])\n'
+                ' subprocess.check_call([real_git, *args[:args.index("push")], "fetch", "--quiet", remote, "+refs/heads/*:refs/remotes/origin/*"], timeout=60)\n'
                 'sys.exit(result)\n')
             wrapper.chmod(0o755)
 
@@ -75,7 +86,7 @@ class PushPolicyTest(unittest.TestCase):
                 result = subprocess.run(
                     ['bash', str(SCRIPT), '--repo', 'test/repo', '--pr', '1',
                      '--branch', 'feature', '--root', str(root / cache)],
-                    env=env, capture_output=True, text=True, check=True)
+                    env=env, capture_output=True, text=True, check=True, timeout=60)
                 return Path(result.stdout.strip())
 
             git(root, 'config', '--global', 'url.git@github.com:.insteadOf', 'https://github.com/')

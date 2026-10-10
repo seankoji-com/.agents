@@ -36,10 +36,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 DEFAULT_ROOT = "thinking"
@@ -115,7 +117,17 @@ def load_meta(meta_file: Path) -> dict:
 
 
 def save_meta(meta_file: Path, meta: dict) -> None:
-    meta_file.write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    content = json.dumps(meta, indent=2, sort_keys=True) + "\n"
+    fd, temporary = tempfile.mkstemp(prefix=meta_file.name + ".", dir=meta_file.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, meta_file)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def graphql(query: str, **variables) -> dict:

@@ -110,7 +110,8 @@ DEFAULT_TIMEOUT_FAST = 120
 YQ_TIMEOUT_SECONDS = 60
 MCP_PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "offload-sidecar"
-# Kept in lockstep with plugin.json / marketplace.json.
+# Imported engine protocol version; matches plugin.json origin.version.
+# The T3 package has its own independent release version.
 SERVER_VERSION = "0.3.7"
 
 # --- agy (Google Antigravity CLI) engine defaults ---------------------------

@@ -27,6 +27,16 @@ class PublishTransactions(unittest.TestCase):
         (self.topic / "spec.md").write_text("Original artifact")
         self.args = argparse.Namespace(root=str(self.root), slug="topic", artifact="spec.md", dry_run=False)
 
+    def test_metadata_replace_failure_preserves_original_and_cleans_temporary(self):
+        before = self.meta.read_bytes()
+        with patch.object(gp.os, 'replace', side_effect=OSError('disk failure')):
+            with self.assertRaises(OSError):
+                gp.save_meta(self.meta, {'changed': True})
+        self.assertEqual(self.meta.read_bytes(), before)
+        self.assertEqual(list(self.topic.glob('meta.json.*')), [])
+        gp.save_meta(self.meta, {'changed': True})
+        self.assertEqual(json.loads(self.meta.read_text()), {'changed': True})
+
     def post(self):
         with contextlib.redirect_stdout(io.StringIO()):
             return gp.cmd_post(self.args)

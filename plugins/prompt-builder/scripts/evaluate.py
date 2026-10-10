@@ -94,8 +94,15 @@ def main():
     parser.add_argument("candidate", type=Path)
     args = parser.parse_args()
     try:
-        evidence = {name: getattr(args, name).read_bytes() for name in ("suite", "baseline", "candidate")}
-        report = evaluate(*(json.loads(evidence[name]) for name in ("suite", "baseline", "candidate")))
+        evidence, parsed = {}, []
+        for name in ("suite", "baseline", "candidate"):
+            path = getattr(args, name)
+            try:
+                evidence[name] = path.read_bytes()
+                parsed.append(json.loads(evidence[name]))
+            except (OSError, ValueError) as exc:
+                raise ValueError(f"{name} ({path}): {exc}") from exc
+        report = evaluate(*parsed)
         report["sha256"] = {name: hashlib.sha256(data).hexdigest() for name, data in evidence.items()}
     except (OSError, ValueError, TypeError) as exc:
         print(f"evaluate.py: {exc}", file=sys.stderr)
