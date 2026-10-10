@@ -19,7 +19,9 @@ class T3Plugins < Formula
 
     (bin/"imps").write <<~EOS
       #!/bin/bash
-      if [ ! -e "$HOME/.local/share/t3-plugins/imps/current" ]; then
+      TARGET_VERSION="__VERSION__"
+      LINK="$HOME/.local/share/t3-plugins/imps/current"
+      if [ ! -L "$LINK" ] || [[ "$(readlink "$LINK" 2>/dev/null)" != *"/imps/${TARGET_VERSION}"* ]]; then
         "#{python3}" "#{libexec}/scripts/install.py" --force >/dev/null 2>&1 || true
       fi
       exec "#{python3}" "#{libexec}/plugins/imps/cli.py" "$@"

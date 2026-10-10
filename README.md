@@ -20,7 +20,9 @@ brew tap seankoji-com/tap
 brew install t3-plugins
 ```
 
-Formula aliases allow installing directly via `brew install imps`. This installs `t3-plugins` and `imps` command-line tools into your `$PATH` and links `~/.local/share/t3-plugins/imps/current`.
+Formula aliases allow installing directly via `brew install imps`. This installs `t3-plugins` and `imps` command-line tools into your `$PATH`.
+
+On first invocation of `imps` (or by running `t3-plugins`), `~/.local/share/t3-plugins/imps/current` is automatically initialized/updated to point to the current formula installation, ensuring compatibility with T3 agent prompt instructions (`Read ~/.local/share/t3-plugins/imps/current/entry.md...`).
 
 ### From Source
 
