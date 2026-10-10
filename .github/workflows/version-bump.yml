@@ -1,0 +1,65 @@
+name: Auto-bump plugin versions
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: version-bump-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Detect changed plugins and bump versions
+        id: bump
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+
+          changed=0
+
+          for plugin_dir in plugins/*/; do
+            [ -d "$plugin_dir" ] || continue
+            manifest="${plugin_dir}plugin.json"
+            [ -f "$manifest" ] || continue
+            plugin_name=$(basename "$plugin_dir")
+
+            if ! git diff --quiet "$BASE" "$HEAD" -- "$plugin_dir" "core/"; then
+              base_version=$(git show "$BASE:$manifest" 2>/dev/null | jq -r '.version // "0.0.0"')
+              current_version=$(jq -r '.version' "$manifest")
+
+              if [ "$current_version" = "$base_version" ]; then
+                IFS='.' read -r major minor patch <<< "$current_version"
+                new_version="${major}.${minor}.$((patch + 1))"
+
+                echo "Bumping $plugin_name: $current_version -> $new_version"
+
+                tmp=$(mktemp)
+                jq --arg v "$new_version" '.version = $v' "$manifest" > "$tmp"
+                mv "$tmp" "$manifest"
+
+                changed=1
+              fi
+            fi
+          done
+
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bumps
+        if: steps.bump.outputs.changed == '1'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -u -- plugins/
+          git commit -m "chore: auto-bump plugin versions"
+          git push origin "HEAD:${{ github.head_ref }}"
