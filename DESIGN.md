@@ -127,7 +127,7 @@ Use sentence case. Preserve exact plugin names and command spelling. Do not impl
 | UI/body | [Instrument Sans](https://fonts.google.com/specimen/Instrument+Sans) | 400, 500, 600, 700 | Prose, controls, navigation |
 | Mono | [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) | 400, 500, 600 | Commands, labels, measurements, identifiers |
 
-CDN reference:
+CDN reference for prototypes only:
 
 ```html
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -138,7 +138,7 @@ CDN reference:
 >
 ```
 
-Use `font-display: swap` when self-hosting. Self-hosting the same families is preferred for production when the build supports it; retain their licenses. Do not load both self-hosted and CDN copies.
+Production must self-host these families with `font-display: swap`. When implementing the site, commit the exact WOFF2 files and their license texts under `docs/assets/fonts/`. Record each file's family, weight range, upstream release or commit, source URL, and SHA-256 checksum in `docs/assets/fonts/manifest.json`. Record subset settings and the resulting file checksum when subsetting. Font updates must change this manifest and pass visual verification in the same PR. Do not fetch mutable font assets during builds or load the CDN stylesheet in production. The CDN example is not a version pin. Do not load both self-hosted and CDN copies.
 
 ```css
 :root {
@@ -298,6 +298,7 @@ All authored colours must come from these tokens. Do not use Tailwind slate, zin
 ### Colour rules
 
 - Primary surface covers the page; secondary groups related content; recessed holds code and inset data.
+- The four `--terminal-*` tokens are intentionally theme-invariant. Both themes inherit their exact `:root` values, keeping a dark terminal surface with light text. Apply the contrast checks to that same palette in both themes.
 - Subtle borders separate noninteractive regions. Strong borders identify controls and interactive boundaries.
 - Acid yellow is a filled background or graphic marker. Never use it as small text on a light surface.
 - Accent-filled controls always use `--on-accent`.
@@ -472,6 +473,8 @@ Custom menu geometry:
 - Gap from trigger: `0.5rem`.
 - Padding: `0.25rem`.
 - Maximum height: `20rem`, with internal scrolling.
+- Keep the menu inside the visual viewport with a `0.5rem` edge inset. Open below when it fits; otherwise use the side with more available space, preserving the `0.5rem` trigger gap. Set its maximum height to the smaller of `20rem` and that side's available height after the gap and inset. Clamp its horizontal position and width to the same viewport inset. Recalculate on scroll, resize, and visual-viewport changes, including the on-screen keyboard.
+- If neither side can show one `2.75rem` option plus `0.5rem` total padding and the two `1px` borders, use a viewport-inset dialog with internal scrolling and focus return to the trigger instead of an anchored menu.
 - Option height: minimum `2.75rem`.
 - Background: primary surface.
 - Border: strong.
@@ -530,8 +533,8 @@ Motion explains a transition or directs attention to a result.
 
 - Hero copy and installation commands are immediately visible.
 - Only decorative hero elements may animate on entry.
-- Maximum stagger: `60ms`; maximum animated sequence: `600ms`.
-- Architecture motion starts through an explicit `Trace a workflow` control.
+- Automatic entry animations have a maximum stagger of `60ms` and a maximum complete sequence of `600ms`, including stagger delays.
+- Architecture motion starts through an explicit `Trace a workflow` control and runs once for `1200ms` total. This user-triggered demonstration is outside the automatic entry-animation cap.
 - No looping animation except a bounded loading indicator during actual work.
 - Do not animate layout dimensions for decoration.
 - Never use `transition: all`.
