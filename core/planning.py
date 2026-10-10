@@ -95,6 +95,11 @@ def build(plan: dict, defaults: dict, *, state_root: Path, plugin: dict, clock_i
         names = {check['name'] for check in repo_checks}
         policy['checks'] = repo_checks + [c for c in (merged.get('policy') or {}).get('checks', []) if c['name'] not in names]
         policy['repository_policy'] = repo_policy['_source']
+    if 'checks' in policy:
+        names = [c['name'] for c in policy['checks'] if isinstance(c, dict) and 'name' in c]
+        if len(names) != len(set(names)):
+            raise InvalidInput('duplicate_check', 'check names must be unique',
+                               {'names': sorted({n for n in names if names.count(n) > 1})})
     base_ref = (plan.get('repo') or {}).get('base_ref') or 'HEAD'
     base_sha = snapshot.git(worktree, 'rev-parse', '--verify', f'{base_ref}^{{commit}}').strip()
     source = (plan.get('brief') or {}).get('requirements_source')

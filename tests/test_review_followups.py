@@ -67,17 +67,28 @@ class FollowupTest(delegated.DelegatedBugFixTest):
         recipe_path.write_text(json.dumps({'features': [{'id': 'F-X'}]}))
         run_dir = self.tmp / 'run'
         artifacts = []
-        for folder, text in (('a', 'one'), ('b', 'two')):
-            path = run_dir / folder / 'out.log'
+        # Case-insensitive / Unicode normalization collision ('out.log' vs 'OUT.LOG')
+        for folder, filename, text in (('a', 'out.log', 'one'), ('b', 'OUT.LOG', 'two')):
+            path = run_dir / folder / filename
             path.parent.mkdir(parents=True)
             path.write_text(text)
-            artifacts.append({'path': f'{folder}/out.log', 'sha256': hashlib.sha256(text.encode()).hexdigest()})
+            artifacts.append({'path': f'{folder}/{filename}', 'sha256': hashlib.sha256(text.encode()).hexdigest()})
         state = {'phase': 'completed', 'run_id': 'r1', 'acceptance': [
             {'requirement_id': 'REQ-X', 'status': 'passed', 'kind': 'runtime', 'artifacts': artifacts,
              'recorded_at': '2026-10-10T00:00:00Z', 'snapshot': {'head': 'x'}}]}
         with self.assertRaises(InvalidInput) as caught:
             recipe.stamp(recipe_path, state, run_dir, 'F-X', 'REQ-X')
         self.assertEqual(caught.exception.code, 'evidence_name_collision')
+
+    def test_plan_construction_refuses_duplicate_check_names(self):
+        repo = self.make_repo()
+        check = {'name': 'lint', 'argv': [sys.executable, '-c', 'pass']}
+        plan = self.delegated_plan(repo, [
+            {'id': 'fix', 'purpose': 'fix counting', 'files': ['wordstat.py'], 'requirement_ids': ['REQ-MULTILINE']}],
+            review=False)
+        plan['policy'] = {'checks': [check, dict(check, required=False)]}
+        env = self.init(plan, expect=2)
+        self.assertEqual(env['error']['code'], 'duplicate_check')
 
 
 if __name__ == '__main__':
