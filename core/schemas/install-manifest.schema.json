@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "install-manifest.schema.json",
+  "title": "Ownership manifest written by scripts/install.py",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "plugin",
+    "version",
+    "source_commit",
+    "files"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "plugin": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_commit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mode": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "preserved_modified": {
+      "type": "boolean",
+      "description": "set by uninstall when locally modified owned files were kept"
+    }
+  },
+  "additionalProperties": false
+}

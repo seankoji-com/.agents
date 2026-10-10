@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evidence.schema.json",
+  "title": "Requirement evidence as stored in run.json (same as run.schema.json $defs/evidence)",
+  "type": "object",
+  "required": [
+    "requirement_id",
+    "status",
+    "kind",
+    "explanation",
+    "artifacts",
+    "snapshot",
+    "contract_hash",
+    "policy_hash"
+  ],
+  "properties": {
+    "requirement_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_-]+$"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed",
+        "unverified",
+        "unavailable"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "inspection",
+        "command",
+        "runtime",
+        "manual"
+      ]
+    },
+    "explanation": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "verifier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "snapshot": {
+      "$ref": "#/$defs/snapshot"
+    },
+    "contract_hash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy_hash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "invalidated": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "required": [
+        "worktree",
+        "head",
+        "content_hash"
+      ],
+      "properties": {
+        "worktree": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dirty_paths": {
+          "type": "integer"
+        },
+        "content_hash": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

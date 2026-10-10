@@ -1,0 +1,302 @@
+{
+  "schema_version": 1,
+  "run_id": "20261009-121018-0f6d5d",
+  "generation": 21,
+  "generated_at": "2026-10-09T12:16:59Z",
+  "phase": "cancelled",
+  "outcome": "cancelled",
+  "plugin": {
+    "name": "imps",
+    "version": "0.1.0",
+    "entry": "~/.local/share/t3-plugins/imps/current/entry.md",
+    "package_dir": "~/.local/share/t3-plugins/imps/current"
+  },
+  "labels": {},
+  "repo": {
+    "worktree": "/tmp/claude-1000/imps-probe-fixture",
+    "base_ref": "HEAD",
+    "base_sha": "7008f23c6ca6340cbc753c4494d7547f9618d021",
+    "branch": "main",
+    "head": "7008f23c6ca6340cbc753c4494d7547f9618d021",
+    "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "brief": "Live child-write probe for every child-capable provider (conformance REQ-ISOLATION)",
+  "readiness": {
+    "status": "incomplete",
+    "ready": false,
+    "counts": {
+      "passed": 0,
+      "failed": 0,
+      "unverified": 1,
+      "unavailable": 0,
+      "waived": 0
+    },
+    "missing": [
+      {
+        "obligation": "requirement:REQ-PROBE",
+        "status": "unverified"
+      }
+    ],
+    "failed": [],
+    "stale": []
+  },
+  "requirements": [
+    {
+      "id": "REQ-PROBE",
+      "text": "each writer provider has a recorded sibling-write probe result",
+      "kind": "runtime",
+      "required": true,
+      "status": "unverified",
+      "explanation": null,
+      "evidence": []
+    }
+  ],
+  "checks": [],
+  "review": {
+    "required": false,
+    "status": "unverified"
+  },
+  "reviews": [],
+  "tasks": [
+    {
+      "id": "w-codex",
+      "kind": "code",
+      "status": "pending",
+      "executor": "delegate",
+      "target": {
+        "providerInstanceId": "codex",
+        "model": "gpt-6.1-sol"
+      },
+      "worktree": null,
+      "result_artifact": null,
+      "rounds": []
+    },
+    {
+      "id": "w-claude",
+      "kind": "code",
+      "status": "pending",
+      "executor": "delegate",
+      "target": {
+        "providerInstanceId": "claudeAgent",
+        "model": "claude-haiku-5-5"
+      },
+      "worktree": null,
+      "result_artifact": null,
+      "rounds": []
+    },
+    {
+      "id": "w-opencode",
+      "kind": "code",
+      "status": "pending",
+      "executor": "delegate",
+      "target": {
+        "providerInstanceId": "opencode",
+        "model": "opencode/big-pickle"
+      },
+      "worktree": null,
+      "result_artifact": null,
+      "rounds": []
+    },
+    {
+      "id": "w-antigravity",
+      "kind": "code",
+      "status": "pending",
+      "executor": "delegate",
+      "target": {
+        "providerInstanceId": "antigravity",
+        "model": "gemini-3.8-flash-high"
+      },
+      "worktree": null,
+      "result_artifact": null,
+      "rounds": []
+    },
+    {
+      "id": "probe-codex",
+      "kind": "probe",
+      "status": "accepted",
+      "executor": "delegate",
+      "target": {
+        "providerInstanceId": "codex",
+        "model": "gpt-6.1-sol"
+      },
+      "worktree": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-codex",
+      "result_artifact": null,
+      "rounds": [
+        {
+          "round": 1,
+          "purpose": "initial",
+          "client_request_id": "20261009-121018-0f6d5d:probe-codex:r1",
+          "host_task_id": "node:delegated-task:command%3Amcp%3Ae8eb6bcd-a2f7-437b-9d1e-575bca98bf84%3Adelegate-task%3A20261009-121018-0f6d5d%253Aprobe-codex%253Ar1",
+          "last_status": "completed",
+          "last_work_state": "result_available",
+          "cancel": null,
+          "dispatch_error": null
+        }
+      ]
+    },
+    {
+      "id": "probe-claudeAgent",
+      "kind": "probe",
+      "status": "accepted",
+      "executor": "delegate",
+      "target": {
+        "providerInstanceId": "claudeAgent",
+        "model": "claude-haiku-5-5"
+      },
+      "worktree": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-claudeAgent",
+      "result_artifact": null,
+      "rounds": [
+        {
+          "round": 1,
+          "purpose": "initial",
+          "client_request_id": "20261009-121018-0f6d5d:probe-claudeAgent:r1",
+          "host_task_id": "node:delegated-task:command%3Amcp%3Ae8eb6bcd-a2f7-437b-9d1e-575bca98bf84%3Adelegate-task%3A20261009-121018-0f6d5d%253Aprobe-claudeAgent%253Ar1",
+          "last_status": "completed",
+          "last_work_state": "result_available",
+          "cancel": null,
+          "dispatch_error": null
+        }
+      ]
+    },
+    {
+      "id": "probe-opencode",
+      "kind": "probe",
+      "status": "accepted",
+      "executor": "delegate",
+      "target": {
+        "providerInstanceId": "opencode",
+        "model": "opencode/big-pickle"
+      },
+      "worktree": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-opencode",
+      "result_artifact": null,
+      "rounds": [
+        {
+          "round": 1,
+          "purpose": "initial",
+          "client_request_id": "20261009-121018-0f6d5d:probe-opencode:r1",
+          "host_task_id": "node:delegated-task:command%3Amcp%3Ae8eb6bcd-a2f7-437b-9d1e-575bca98bf84%3Adelegate-task%3A20261009-121018-0f6d5d%253Aprobe-opencode%253Ar1",
+          "last_status": "completed",
+          "last_work_state": "result_available",
+          "cancel": null,
+          "dispatch_error": null
+        }
+      ]
+    },
+    {
+      "id": "probe-antigravity",
+      "kind": "probe",
+      "status": "accepted",
+      "executor": "delegate",
+      "target": {
+        "providerInstanceId": "antigravity",
+        "model": "gemini-3.8-flash-high"
+      },
+      "worktree": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-antigravity",
+      "result_artifact": null,
+      "rounds": [
+        {
+          "round": 1,
+          "purpose": "initial",
+          "client_request_id": "20261009-121018-0f6d5d:probe-antigravity:r1",
+          "host_task_id": "node:delegated-task:command%3Amcp%3Ae8eb6bcd-a2f7-437b-9d1e-575bca98bf84%3Adelegate-task%3A20261009-121018-0f6d5d%253Aprobe-antigravity%253Ar1",
+          "last_status": "completed",
+          "last_work_state": "result_available",
+          "cancel": null,
+          "dispatch_error": null
+        }
+      ]
+    }
+  ],
+  "execution": {
+    "mode": "delegated",
+    "isolation": null,
+    "concurrency": 4
+  },
+  "probes": {
+    "codex": {
+      "sibling_write": true,
+      "observed_at": "2026-10-09T12:13:02Z",
+      "marker": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-codex/.t3-probe-marker",
+      "evidence": "parent read the nonce from the marker file"
+    },
+    "claudeAgent": {
+      "sibling_write": true,
+      "observed_at": "2026-10-09T12:13:02Z",
+      "marker": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-claudeAgent/.t3-probe-marker",
+      "evidence": "parent read the nonce from the marker file"
+    },
+    "opencode": {
+      "sibling_write": true,
+      "observed_at": "2026-10-09T12:13:02Z",
+      "marker": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-opencode/.t3-probe-marker",
+      "evidence": "parent read the nonce from the marker file"
+    },
+    "antigravity": {
+      "sibling_write": true,
+      "observed_at": "2026-10-09T12:16:48Z",
+      "marker": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-antigravity/.t3-probe-marker",
+      "evidence": "parent read the nonce from the marker file"
+    }
+  },
+  "blocker": null,
+  "resources": [
+    {
+      "id": "R-a0e5b5f5",
+      "kind": "worktree",
+      "status": "removed",
+      "path": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-codex",
+      "branch": null,
+      "pid": null,
+      "cleanup_command": null
+    },
+    {
+      "id": "R-d10e0551",
+      "kind": "worktree",
+      "status": "removed",
+      "path": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-claudeAgent",
+      "branch": null,
+      "pid": null,
+      "cleanup_command": null
+    },
+    {
+      "id": "R-c6158ef8",
+      "kind": "worktree",
+      "status": "removed",
+      "path": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-opencode",
+      "branch": null,
+      "pid": null,
+      "cleanup_command": null
+    },
+    {
+      "id": "R-2250b59d",
+      "kind": "worktree",
+      "status": "removed",
+      "path": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-antigravity",
+      "branch": null,
+      "pid": null,
+      "cleanup_command": null
+    }
+  ],
+  "remote": {
+    "receipts": [],
+    "observations": []
+  },
+  "budget": {
+    "seconds": 14400,
+    "spent_seconds": 0
+  },
+  "counters": {
+    "repairs": {},
+    "review_rounds": 0
+  },
+  "cancellation": {
+    "requested_at": "2026-10-09T12:16:48Z",
+    "reason": "probe complete; writer tasks were probe targets only",
+    "outcomes": []
+  },
+  "notes": {},
+  "next_actions": [
+    "report"
+  ],
+  "evidence_dir": "~/.local/state/t3-plugins/imps/runs/20261009-121018-0f6d5d/artifacts"
+}

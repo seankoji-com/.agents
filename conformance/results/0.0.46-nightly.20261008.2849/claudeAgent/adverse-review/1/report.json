@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "run_id": "20261009-134537-5ede92",
+  "generation": 20,
+  "generated_at": "2026-10-09T13:50:59Z",
+  "phase": "verifying",
+  "outcome": "blocked",
+  "plugin": {
+    "name": "imps",
+    "version": "0.1.0+ga50f506cd178",
+    "entry": "~/.local/share/t3-plugins/imps/current/entry.md",
+    "package_dir": "~/.local/share/t3-plugins/imps/current"
+  },
+  "labels": {
+    "workflow": "bug-fix"
+  },
+  "repo": {
+    "worktree": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-f9ad676c/adverse-review-1",
+    "base_ref": "HEAD",
+    "base_sha": "3659628e645be54637e42c37361c663bca72dea0",
+    "branch": "case/adverse-review",
+    "head": "3fe1b58b572cb2b30a4a90fb1c272ad0da7d0158",
+    "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "brief": "wordstat count prints 2 for notes.txt (\"one two\" line 1, \"three\" line 2); expected 3",
+  "readiness": {
+    "status": "incomplete",
+    "ready": false,
+    "counts": {
+      "passed": 2,
+      "failed": 0,
+      "unverified": 0,
+      "unavailable": 0,
+      "waived": 0
+    },
+    "missing": [
+      {
+        "obligation": "review",
+        "status": "unverified"
+      }
+    ],
+    "failed": [],
+    "stale": []
+  },
+  "requirements": [
+    {
+      "id": "REQ-REPRO",
+      "text": "python3 wordstat.py count notes.txt prints 3",
+      "kind": "command",
+      "required": true,
+      "status": "passed",
+      "explanation": "Original command rerun unchanged prints 3 (was 2 in red.log).",
+      "evidence": [
+        {
+          "path": "artifacts/evidence/4025ad741432-red.log",
+          "sha256": "4025ad74143210299ffffd3896b2ae332841bfe5f359a4ce5417703d17af9625",
+          "source": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/scratch/red.log"
+        },
+        {
+          "path": "artifacts/evidence/6d34951a2a6b-green.log",
+          "sha256": "6d34951a2a6b111c321e6849d443845a131b859feec73c0b7a17772d4cb58512",
+          "source": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/scratch/green.log"
+        }
+      ],
+      "evidence_kind": "command"
+    },
+    {
+      "id": "REQ-REGRESSION",
+      "text": "a regression test at the CLI seam fails before the fix and passes after",
+      "kind": "command",
+      "required": true,
+      "status": "passed",
+      "explanation": "CLI-seam test_multiline failed before the fix (2 != 3, red-test.log) and passes after (unit check, exit 0).",
+      "evidence": [
+        {
+          "path": "artifacts/evidence/4fd53a86a4d4-red-test.log",
+          "sha256": "4fd53a86a4d4372c1928c53eaf2e7e11217fc512f2b1dec6e3dacfd0cb2b5153",
+          "source": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/scratch/red-test.log"
+        },
+        {
+          "path": "artifacts/evidence/beea0a065531-unit-g5.log",
+          "sha256": "beea0a065531a47eb23b13aebb2e8c9a9c32867fcfbc6a100d7f7bb6b56a08ee",
+          "source": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/scratch/unit-g5.log"
+        }
+      ],
+      "evidence_kind": "command"
+    }
+  ],
+  "checks": [
+    {
+      "name": "unit",
+      "required": true,
+      "status": "passed",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests"
+      ],
+      "exit_code": 0,
+      "artifact": {
+        "path": "artifacts/checks/beea0a065531-unit-g5.log",
+        "sha256": "beea0a065531a47eb23b13aebb2e8c9a9c32867fcfbc6a100d7f7bb6b56a08ee",
+        "source": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/scratch/unit-g5.log"
+      }
+    }
+  ],
+  "review": {
+    "required": true,
+    "status": "unverified"
+  },
+  "reviews": [],
+  "tasks": [
+    {
+      "id": "main",
+      "kind": "code",
+      "status": "accepted",
+      "executor": "self",
+      "target": null,
+      "worktree": null,
+      "result_artifact": {
+        "path": "artifacts/results/82821d3ad1bc-main-r1.json",
+        "sha256": "82821d3ad1bcc1249779855608611ea39323d32ec71ce4311c1663e142a36493"
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "purpose": "self",
+          "client_request_id": null,
+          "host_task_id": null,
+          "last_status": null,
+          "last_work_state": null,
+          "cancel": null,
+          "dispatch_error": null
+        }
+      ]
+    },
+    {
+      "id": "review-1",
+      "kind": "review",
+      "status": "blocked",
+      "executor": "delegate",
+      "target": {
+        "providerInstanceId": "codex",
+        "model": "gpt-6.1-sol",
+        "options": {}
+      },
+      "worktree": null,
+      "result_artifact": null,
+      "rounds": [
+        {
+          "round": 1,
+          "purpose": "initial",
+          "client_request_id": "20261009-134537-5ede92:review-1:r1",
+          "host_task_id": "node:delegated-task:command%3Amcp%3A68535842-bb29-4811-b2f9-7961027b0015%3Adelegate-task%3A20261009-134537-5ede92%253Areview-1%253Ar1",
+          "last_status": "failed",
+          "last_work_state": "result_available",
+          "cancel": null,
+          "dispatch_error": null
+        },
+        {
+          "round": 2,
+          "purpose": "initial",
+          "client_request_id": "20261009-134537-5ede92:review-1:r2",
+          "host_task_id": "node:delegated-task:command%3Amcp%3A68535842-bb29-4811-b2f9-7961027b0015%3Adelegate-task%3A20261009-134537-5ede92%253Areview-1%253Ar2",
+          "last_status": "failed",
+          "last_work_state": "result_available",
+          "cancel": null,
+          "dispatch_error": null
+        }
+      ]
+    }
+  ],
+  "execution": {
+    "mode": "direct",
+    "isolation": null,
+    "concurrency": 4,
+    "serial_base": "3659628e645be54637e42c37361c663bca72dea0"
+  },
+  "probes": {},
+  "blocker": {
+    "id": "B-bc5080fe68",
+    "code": "task_failed",
+    "reason": "child ended failed; raw output artifacts/results/12b64cf25e05-review-1-r2-raw.txt",
+    "meaning": "delegated task ended in failure",
+    "task_ids": [
+      "review-1"
+    ],
+    "resume": {
+      "argv": [
+        "python3",
+        "~/.local/share/t3-plugins/imps/current/core/cli.py",
+        "unblock",
+        "--state-root",
+        "/tmp/claude-1000/a1/state",
+        "--run-id",
+        "20261009-134537-5ede92",
+        "--blocker-id",
+        "B-bc5080fe68",
+        "--decision",
+        "retry-task",
+        "--task-id",
+        "review-1"
+      ],
+      "decision": "retry-task",
+      "then": "Read ~/.local/share/t3-plugins/imps/current/entry.md and run: resume 20261009-134537-5ede92"
+    },
+    "status": "active",
+    "at": "2026-10-09T13:47:21Z"
+  },
+  "resources": [],
+  "remote": {
+    "receipts": [],
+    "observations": []
+  },
+  "budget": {
+    "seconds": 14400,
+    "spent_seconds": 45.452
+  },
+  "counters": {
+    "repairs": {},
+    "review_rounds": 1
+  },
+  "cancellation": null,
+  "notes": {},
+  "completed_binding": null,
+  "next_actions": [],
+  "evidence_dir": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/artifacts"
+}

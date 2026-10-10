@@ -1,0 +1,33 @@
+{
+  "fa4b9d40c40f-main-r1.json": {
+    "schema_version": 1,
+    "task_id": "main",
+    "status": "done",
+    "changed_files": [
+      "wordstat.py",
+      "tests/test_wordstat.py"
+    ],
+    "commit": "0b61bbdb487d60571f3ca939aad036d8a68c2831",
+    "requirements": [
+      {
+        "id": "REQ-REPRO",
+        "status": "unverified",
+        "explanation": "Fix implemented; acceptance follows.",
+        "evidence": []
+      },
+      {
+        "id": "REQ-REGRESSION",
+        "status": "unverified",
+        "explanation": "CLI regression failed before fix; green check follows.",
+        "evidence": [
+          {
+            "path": "~/.local/state/t3-plugins/imps/runs/20261009-132708-8cb900/scratch/regression-red.log"
+          }
+        ]
+      }
+    ],
+    "verification": [],
+    "findings": [],
+    "blockers": []
+  }
+}

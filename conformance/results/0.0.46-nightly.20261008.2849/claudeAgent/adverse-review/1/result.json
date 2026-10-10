@@ -1,0 +1,43 @@
+{
+  "82821d3ad1bc-main-r1.json": {
+    "schema_version": 1,
+    "task_id": "main",
+    "status": "done",
+    "changed_files": [
+      "wordstat.py",
+      "tests/test_wordstat.py"
+    ],
+    "commit": "3fe1b58b572cb2b30a4a90fb1c272ad0da7d0158",
+    "requirements": [
+      {
+        "id": "REQ-REPRO",
+        "status": "passed",
+        "explanation": "count notes.txt now prints 3",
+        "evidence": []
+      },
+      {
+        "id": "REQ-REGRESSION",
+        "status": "passed",
+        "explanation": "test_multiline failed before (2 != 3), passes after",
+        "evidence": []
+      }
+    ],
+    "verification": [
+      {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests"
+        ],
+        "cwd": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-f9ad676c/adverse-review-1",
+        "exit_code": 0,
+        "summary": "3 tests pass"
+      }
+    ],
+    "findings": [],
+    "blockers": []
+  }
+}

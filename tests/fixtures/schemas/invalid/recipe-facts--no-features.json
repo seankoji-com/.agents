@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "project": "notes",
+  "prerequisites": [
+    "python3"
+  ],
+  "variables": {
+    "PORT": "free local port chosen at launch",
+    "PID": "process id recorded at launch"
+  },
+  "launch": {
+    "argv": [
+      "python3",
+      "app.py",
+      "--port",
+      "${PORT}"
+    ],
+    "ready": {
+      "kind": "http",
+      "url": "http://127.0.0.1:${PORT}/health",
+      "timeout_seconds": 10
+    }
+  },
+  "doctor": [
+    {
+      "argv": [
+        "python3",
+        "--version"
+      ]
+    }
+  ],
+  "cleanup": [
+    {
+      "argv": [
+        "kill",
+        "${PID}"
+      ]
+    }
+  ],
+  "features": []
+}

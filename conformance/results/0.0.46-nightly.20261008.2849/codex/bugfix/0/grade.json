@@ -1,0 +1,35 @@
+{
+  "case": "bugfix",
+  "repeat": 0,
+  "run_id": "20261009-121041-089adf",
+  "thread_id": "mcp:44ec519d-41e8-4226-a33d-b421b0af15e7",
+  "plugin_version": "0.1.0",
+  "starting_revision": "d500fe91b41c16e6e13ff77564671ec8ff358d4a",
+  "outcome": "completed",
+  "blocker": null,
+  "grade": {
+    "checks": [
+      {
+        "name": "outcome completed",
+        "passed": true
+      },
+      {
+        "name": "every requirement passed",
+        "passed": true
+      },
+      {
+        "name": "review passed",
+        "passed": true
+      },
+      {
+        "name": "implementation result block validated",
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "interventions": 0,
+  "elapsed_seconds": 217.0,
+  "note": "pilot run before the official repeats; same prompt, clone dir bugfix-pilot",
+  "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/codex/bugfix/0"
+}

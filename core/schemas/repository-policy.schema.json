@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "repository-policy.schema.json",
+  "title": "Repository policy at <repo>/.t3-plugins/<plugin>.json; overrides plugin defaults and plans",
+  "type": "object",
+  "required": [
+    "schema_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "policy": {
+      "$ref": "#/$defs/policy"
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/role"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "target": {
+      "type": "object",
+      "required": [
+        "providerInstanceId"
+      ],
+      "properties": {
+        "providerInstanceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "options": {
+          "type": "object"
+        }
+      }
+    },
+    "chain_entry": {
+      "type": "object",
+      "required": [
+        "select"
+      ],
+      "properties": {
+        "select": {
+          "enum": [
+            "inherit",
+            "fixed",
+            "catalog",
+            "same_provider"
+          ]
+        },
+        "providerInstanceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string"
+        },
+        "options": {
+          "type": "object"
+        },
+        "exclude_roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "of_role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "role": {
+      "type": "object",
+      "required": [
+        "chain"
+      ],
+      "properties": {
+        "chain": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/chain_entry"
+          }
+        },
+        "host_role": {
+          "enum": [
+            "implementation",
+            "research",
+            "review",
+            "design",
+            "test",
+            "general"
+          ]
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "required": [
+        "name",
+        "argv"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "repository_required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "review_policy": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "waivable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "properties": {
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/check"
+          }
+        },
+        "review": {
+          "$ref": "#/$defs/review_policy"
+        },
+        "repair_limit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "budget_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "worktree_root": {
+          "type": "string"
+        },
+        "work_role": {
+          "type": "string"
+        },
+        "brief_notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role_overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/target"
+          }
+        },
+        "model_preferences": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "evidence_roots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

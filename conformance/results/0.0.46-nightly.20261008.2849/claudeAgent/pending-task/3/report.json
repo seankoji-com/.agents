@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "run_id": "20261009-140236-6d333a",
+  "generation": 16,
+  "generated_at": "2026-10-09T14:11:10Z",
+  "phase": "completed",
+  "outcome": "completed",
+  "plugin": {
+    "name": "imps",
+    "version": "0.1.0+ga50f506cd178",
+    "entry": "~/.local/share/t3-plugins/imps/current/entry.md",
+    "package_dir": "~/.local/share/t3-plugins/imps/current"
+  },
+  "labels": {
+    "workflow": "investigation"
+  },
+  "repo": {
+    "worktree": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-f9ad676c/pending-task-3",
+    "base_ref": "HEAD",
+    "base_sha": "d7f0a6c2396a9750253f1893c819008556b3392d",
+    "branch": "case/pending-task",
+    "head": "d7f0a6c2396a9750253f1893c819008556b3392d",
+    "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "brief": "Investigate which functions wordstat.py defines and what each one does",
+  "readiness": {
+    "status": "ready",
+    "ready": true,
+    "counts": {
+      "passed": 1,
+      "failed": 0,
+      "unverified": 0,
+      "unavailable": 0,
+      "waived": 0
+    },
+    "missing": [],
+    "failed": [],
+    "stale": []
+  },
+  "requirements": [
+    {
+      "id": "REQ-FUNCTIONS",
+      "text": "every function in wordstat.py is listed with a one-line description and its line number, each cited",
+      "kind": "inspection",
+      "required": true,
+      "status": "passed",
+      "explanation": "wordstat.py defines exactly two functions, count_words (line 9) and main (line 13), confirmed by grep at the current revision; each is described with a line citation in answer.md.",
+      "evidence": [
+        {
+          "path": "artifacts/evidence/568b35f12af0-answer.md",
+          "sha256": "568b35f12af06c0e760b16bb11d9cccd10fbdb8ad5e287ce39339be77f1fcc16",
+          "source": "/tmp/claude-1000/p3/state/runs/20261009-140236-6d333a/scratch/answer.md"
+        }
+      ],
+      "evidence_kind": "inspection"
+    }
+  ],
+  "checks": [],
+  "review": {
+    "required": false,
+    "status": "unverified"
+  },
+  "reviews": [],
+  "tasks": [
+    {
+      "id": "survey",
+      "kind": "read",
+      "status": "accepted",
+      "executor": "delegate",
+      "target": {
+        "providerInstanceId": "claudeAgent",
+        "model": "claude-sonnet-5-5",
+        "options": {}
+      },
+      "worktree": null,
+      "result_artifact": {
+        "path": "artifacts/results/ef7595637239-survey-r1.json",
+        "sha256": "ef75956372392ac546c97050a4968c6e7ddb98cb85fedc490d1e3858352e956e"
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "purpose": "initial",
+          "client_request_id": "20261009-140236-6d333a:survey:r1",
+          "host_task_id": "node:delegated-task:command%3Amcp%3A2b779a2a-4f9a-4bc9-800f-d4a9c75f3b0c%3Adelegate-task%3A20261009-140236-6d333a%253Asurvey%253Ar1",
+          "last_status": "completed",
+          "last_work_state": "result_available",
+          "cancel": null,
+          "dispatch_error": null
+        }
+      ]
+    }
+  ],
+  "execution": {
+    "mode": "delegated",
+    "isolation": null,
+    "concurrency": 4,
+    "serial_base": "d7f0a6c2396a9750253f1893c819008556b3392d"
+  },
+  "probes": {},
+  "blocker": null,
+  "resources": [],
+  "remote": {
+    "receipts": [],
+    "observations": []
+  },
+  "budget": {
+    "seconds": 14400,
+    "spent_seconds": 40.871
+  },
+  "counters": {
+    "repairs": {},
+    "review_rounds": 0
+  },
+  "cancellation": null,
+  "notes": {},
+  "completed_binding": {
+    "snapshot": {
+      "worktree": "~/.t3/scratch/2026-10-09-this-thread-runs-the-imps-f9ad676c/pending-task-3",
+      "head": "d7f0a6c2396a9750253f1893c819008556b3392d",
+      "branch": "case/pending-task",
+      "dirty_paths": 0,
+      "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "contract_hash": "1b5fce337e578091f9ed2de50c2a4c8ea677b164dbfcd10267cadfeb6d4453ad",
+    "policy_hash": "e22074993ecff101f302d49565f3447f16696c54f062fbfddadd8486ec0d15bd"
+  },
+  "next_actions": [
+    "report"
+  ],
+  "evidence_dir": "/tmp/claude-1000/p3/state/runs/20261009-140236-6d333a/artifacts"
+}
