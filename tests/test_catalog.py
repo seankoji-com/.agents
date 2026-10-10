@@ -1,5 +1,6 @@
 """Installed-artifact tests: catalog, ownership, relocation, and offline invocation."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -48,6 +49,29 @@ class CatalogTest(unittest.TestCase):
     def test_dry_run_does_not_create_prefix(self):
         self.call('install', '--dry-run')
         self.assertFalse(self.prefix.exists())
+
+    def test_healthy_old_snapshot_is_reported_and_cli_warns_without_rewriting(self):
+        self.call('install', 'imps')
+        command = [sys.executable, str(ROOT / 'scripts/run_imps.py'), '--help']
+        env = {**os.environ, 'T3_PLUGINS_PREFIX': str(self.prefix)}
+        result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('snapshot differs', result.stderr)
+        current = self.prefix / 'imps/current'
+        contract = current / 'shared/t3-runtime.md'
+        contract.write_text('previous release contract')
+        manifest_path = current / 'install-manifest.json'
+        manifest = json.loads(manifest_path.read_text())
+        for item in manifest['files']:
+            if item['path'] == 'shared/t3-runtime.md':
+                item['sha256'] = hashlib.sha256(contract.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest))
+        receipt = json.loads(self.call('doctor', 'imps', expected=1).stdout)
+        self.assertEqual(receipt['errors'], ['snapshot_outdated: run t3-plugins install imps'])
+        result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('snapshot differs', result.stderr)
+        self.assertEqual(contract.read_text(), 'previous release contract')
 
     def test_unknown_and_traversal_names_fail_without_writes(self):
         for name in ('../elsewhere', '/tmp', 'unknown-plugin'):

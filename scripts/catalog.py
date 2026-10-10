@@ -24,6 +24,11 @@ def catalog():
     return plugins
 
 
+def snapshot_matches_bundle(manifest, plugin):
+    """Compare content, not Git provenance: archives and checkouts can be identical."""
+    return manifest['files'] == installer.plan_install(ROOT, plugin)['manifest']['files']
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prefix', default=os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins'))
@@ -85,6 +90,8 @@ def main(argv=None):
                     manifest = installer.load_manifest(current / installer.MANIFEST)
                     if manifest.get('plugin') != meta['name']:
                         raise ValueError('manifest plugin mismatch')
+                    if not snapshot_matches_bundle(manifest, meta['name']):
+                        errors.append('snapshot_outdated: run t3-plugins install ' + meta['name'])
                     for item in manifest['files']:
                         path = installer.owned_path(current.resolve(), item['path'])
                         if not path.is_file() or installer.sha256(path) != item['sha256']:
@@ -95,7 +102,7 @@ def main(argv=None):
                     errors.append('installation_invalid')
                 failed |= bool(errors)
                 print(json.dumps({'plugin': meta['name'], 'ok': not errors, 'errors': errors,
-                                  'scope': 'installed file integrity; provider behavior not tested'}))
+                                  'scope': 'installed file integrity and package currency; provider behavior not tested'}))
             else:
                 if not entry.is_file():
                     raise ValueError(f"{meta['name']} is not installed; run t3-plugins install {meta['name']}")

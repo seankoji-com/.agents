@@ -448,7 +448,8 @@ class StatusDiagnosticTest(unittest.TestCase):
         self.assertIn("error:             timed out", report)
         self.assertIn("hint:              retry", report)
 
-    def test_cmd_status_exit_code_reflects_reachability(self):
+    @mock.patch.object(sidecar, 'format_cloud_status', return_value='cloud fixture')
+    def test_cmd_status_exit_code_reflects_reachability(self, cloud_status):
         with mock.patch.object(
             sidecar, "gather_status", return_value={"host": "h", "reachable": False}
         ):

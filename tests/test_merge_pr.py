@@ -23,6 +23,9 @@ class MergeTest(unittest.TestCase):
 import json, os, sys
 from pathlib import Path
 a = sys.argv[1:]
+assert not any("fixture-token" in arg for arg in a), "credential leaked in argv"
+assert "@-" in a, "header must be read from stdin"
+assert sys.stdin.read().strip() == "Authorization: bearer fixture-token"
 mode = os.environ["MERGE_FIXTURE_MODE"]
 body = json.loads(a[a.index("--data")+1]) if "--data" in a else {}
 with open(os.environ["MERGE_FIXTURE_LOG"], "a") as log:

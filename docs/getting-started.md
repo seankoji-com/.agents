@@ -74,7 +74,11 @@ Use a version printed by the installer to roll back:
 t3-plugins activate imps VERSION
 ```
 
-Activation changes only `current`. Run `doctor` afterward. Installing the full catalog
+Activation changes only `current`. Run `doctor` afterward: an intentional rollback
+reports `snapshot_outdated` when its files differ from the bundled package. The Homebrew
+`imps` command also warns about this mismatch; it does not rewrite snapshots. Use the
+rolled-back snapshot's `cli.py` when you need its matching state engine.
+Installing the full catalog
 activates each plugin separately; a failure can leave a partial catalog upgrade.
 Read the per-plugin receipts and retry after resolving the error.
 

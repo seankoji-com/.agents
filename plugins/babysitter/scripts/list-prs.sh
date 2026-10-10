@@ -121,10 +121,10 @@ curl_graphql_retry() {
   errfile="${tmp}.err"
   while :; do
     code="$(curl -sS -o "$tmp" -w '%{http_code}' \
-      -H "Authorization: bearer ${token}" \
+      -H @- \
       -H "Content-Type: application/json" \
       -X POST --data "$body" \
-      https://api.github.com/graphql 2>"$errfile")" || code="000"
+      https://api.github.com/graphql <<<"Authorization: bearer ${token}" 2>"$errfile")" || code="000"
     if [ "$code" = "200" ]; then
       cat "$tmp"
       rm -f "$tmp" "$errfile"

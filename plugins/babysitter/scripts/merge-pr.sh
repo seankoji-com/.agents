@@ -173,10 +173,10 @@ curl_graphql_retry() {
   errfile="${tmp}.err"
   while :; do
     code="$(curl -sS -o "$tmp" -w '%{http_code}' \
-      -H "Authorization: bearer ${token}" \
+      -H @- \
       -H "Content-Type: application/json" \
       -X POST --data "$body" \
-      https://api.github.com/graphql 2>"$errfile")" || code="000"
+      https://api.github.com/graphql <<<"Authorization: bearer ${token}" 2>"$errfile")" || code="000"
     if [ "$code" = "200" ]; then
       cat "$tmp"
       rm -f "$tmp" "$errfile"
@@ -207,17 +207,17 @@ curl_rest() {
   tmp="$(mktemp "${TMPDIR:-/tmp}/babysitter-rest.XXXXXX")" || return 1
   if [ -n "$data" ]; then
     code="$(curl -sS -o "$tmp" -w '%{http_code}' \
-      -H "Authorization: bearer ${token}" \
+      -H @- \
       -H "Accept: application/vnd.github+json" \
       -H "Content-Type: application/json" \
       -X "$method" --data "$data" \
-      "https://api.github.com${path}")" || curl_rc=$?
+      "https://api.github.com${path}" <<<"Authorization: bearer ${token}")" || curl_rc=$?
   else
     code="$(curl -sS -o "$tmp" -w '%{http_code}' \
-      -H "Authorization: bearer ${token}" \
+      -H @- \
       -H "Accept: application/vnd.github+json" \
       -X "$method" \
-      "https://api.github.com${path}")" || curl_rc=$?
+      "https://api.github.com${path}" <<<"Authorization: bearer ${token}")" || curl_rc=$?
   fi
   if [ "$curl_rc" -ne 0 ]; then
     echo "merge-pr.sh: curl transport failure (exit ${curl_rc}) calling ${method} ${path}: $(cat "$tmp" 2>/dev/null)" >&2

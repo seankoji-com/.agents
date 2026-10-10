@@ -120,7 +120,7 @@
       "source": "plugins/babysitter/scripts/list-prs.sh",
       "destination": "plugins/babysitter/scripts/list-prs.sh",
       "source_sha256": "6d76a8e34c03738135a934a108e6e405635cd31c791518cce84ffdffba324de0",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/babysitter/scripts/pr-workspace.sh",
@@ -132,7 +132,7 @@
       "source": "plugins/babysitter/scripts/merge-pr.sh",
       "destination": "plugins/babysitter/scripts/merge-pr.sh",
       "source_sha256": "9dd7994d289919d4d05820ae8cd0aa7d663378721f898511d571a36c7e6b2d8e",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/babysitter/scripts/pr-events.sh",

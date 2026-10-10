@@ -19,7 +19,7 @@ class T3Plugins < Formula
 
     (bin/"imps").write <<~EOS
       #!/bin/bash
-      exec "#{python3}" "#{libexec}/plugins/imps/cli.py" "$@"
+      exec "#{python3}" "#{libexec}/scripts/run_imps.py" "$@"
     EOS
   end
 

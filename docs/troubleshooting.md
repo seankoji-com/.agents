@@ -6,6 +6,13 @@ Run `t3-plugins path PLUGIN` on the same machine as the provider. Check that the
 is inside its readable roots. Use a custom installation prefix if needed. A local
 desktop install does not populate a remote provider's filesystem.
 
+## `doctor` reports an outdated snapshot
+
+Homebrew upgrades the package; `t3-plugins install` updates user snapshots. Run that
+command after an upgrade. `doctor` compares snapshot contents with the bundled
+package and reports `snapshot_outdated` when they differ, including intentional
+rollbacks. The packaged `imps` command warns too, without changing installed files.
+
 ## `doctor` reports modified or missing files
 
 The shell command checks installation integrity. Inspect the named files before
