@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import sys
+import traceback
 from pathlib import Path
 
 sys.dont_write_bytecode = True  # keep installed package directories exactly as the manifest lists them
@@ -279,7 +280,11 @@ def op_unblock(args, plugin, root):
         blocker = found['blocker']
         _decision(state, blocker, args)
         for item in state.get('blockers', []):
-            if item['id'] == blocker['id'] or (set(item['task_ids']) & set(blocker['task_ids']) and item['status'] == 'active'):
+            # Another active blocker on the same tasks is resolved too only when this
+            # decision is the one it asks for; an unrelated blocker stays active.
+            same_decision = (item.get('resume') or {}).get('decision') == args.decision
+            if item['id'] == blocker['id'] or (item['status'] == 'active' and same_decision
+                                               and set(item['task_ids']) & set(blocker['task_ids'])):
                 item['status'] = 'resolved'
                 item['resolved_by'] = args.decision
         if state['phase'] == 'blocked' and not active_blockers(state):
@@ -384,6 +389,7 @@ def main(argv=None) -> int:
     except (ValueError, TypeError, KeyError) as exc:
         error = InvalidInput('invalid_input', f'{type(exc).__name__}: {exc}')
     except Exception as exc:  # the envelope contract holds even for bugs
+        traceback.print_exc(file=sys.stderr)  # stderr is diagnostics only; stdout stays one envelope
         error = Environment('internal_error', f'{type(exc).__name__}: {exc}')
     print(json.dumps({'schema_version': ENVELOPE_VERSION, 'ok': False, 'op': op, 'run_id': run_id,
                       'error': error.to_json()}, ensure_ascii=False))

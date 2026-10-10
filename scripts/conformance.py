@@ -184,7 +184,7 @@ def compile_report(args):
     lines = ['# Provider compatibility', '',
              f'Generated from `compatibility.json`. T3 server `{data["t3_version"]}`; plugin `{data["plugin_version"]}`. '
              'A provider is `verified` only when every critical case passed 3/3 repeats with no intervention and no '
-             'false completion; 1-2 of 3 is `partial`.', '',
+             'false completion; 1-2 of 3, or a case that could not run, is `partial`.', '',
              '| Provider | Model | Status | Cases (passes/repeats) | Child-write probe | Interventions | Usage/cost |',
              '| --- | --- | --- | --- | --- | --- | --- |']
     for row in data['providers']:
@@ -198,6 +198,8 @@ def compile_report(args):
     lines += ['']
     for row in data['providers']:
         lines += [f'## {row["provider_instance_id"]}', '', row.get('summary', ''), '']
+        if not row.get('cases'):
+            continue
         for name, reps in row.get('cases', {}).items():
             for rep in reps:
                 lines.append(f'- {name} #{rep["repeat"]}: {"pass" if rep["passed"] else "FAIL"}; outcome `{rep.get("outcome")}`'

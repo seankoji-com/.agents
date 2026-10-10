@@ -11,14 +11,14 @@ from support import ROOT, CoreTestCase, FakeT3, capabilities, cli, done, git, na
 from test_bugfix_delegated import commit_all
 
 sys.path.insert(0, str(ROOT))
-from core import engine, planning, results, snapshot, t3  # noqa: E402
+from core import engine, planning, recipe, results, snapshot, t3  # noqa: E402
 
 
 def edit(repo, text='\n# changed\n'):
     (repo / 'wordstat.py').write_text((repo / 'wordstat.py').read_text() + text)
 
 
-class Round5CoreTest(CoreTestCase):
+class Round5Base(CoreTestCase):
     def start(self, tasks=None, mode='direct', isolation=None, review=False, plan=None, **policy):
         repo = self.make_repo()
         execution = {'mode': mode}
@@ -46,6 +46,8 @@ class Round5CoreTest(CoreTestCase):
         run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['wordstat.py'])})
         run.record('transition', {'to': 'verifying'})
 
+
+class Round5CoreTest(Round5Base):
     # -- seankoji P1: self tasks get their own baseline -------------------------------
 
     def test_disjoint_self_writers_keep_their_own_baselines_and_preexisting_dirt(self):
@@ -385,6 +387,75 @@ class LauncherTest(CoreTestCase):
             envelope = json.loads(result.stdout)
             self.assertEqual((result.returncode, envelope['op'], envelope['error']['code']), (2, 'status', 'run_id'), launcher)
 
+
+class Round6Test(Round5Base):
+    """Persona review of 46c22e1."""
+
+    def test_newer_failed_evidence_is_not_hidden_by_an_older_waiver(self):
+        repo, run, t3 = self.start()
+        self.to_verifying(repo, run)
+        log = run.scratch('fail.log', 'still wrong')
+        failed = {'requirement_id': 'REQ-MULTILINE', 'status': 'failed', 'kind': 'command', 'explanation': 'wrong',
+                  'artifacts': [str(log)]}
+        run.record('acceptance', failed)
+        run.record('waiver', {'target': 'requirement:REQ-MULTILINE', 'reason': 'known', 'decided_by': 'operator',
+                              'operator_quote': 'waive it'})
+        code, env, _ = cli('validate', *run.args())
+        self.assertEqual(env['data']['requirements'][0]['status'], 'waived')
+        run.record('acceptance', failed)
+        code, env, _ = cli('validate', *run.args())
+        self.assertEqual(env['data']['requirements'][0]['status'], 'failed', 'a repeat failure after the waiver shows')
+
+    def test_unblock_leaves_an_unrelated_blocker_on_the_same_task(self):
+        repo, run, t3 = self.start([{'id': 'fix', 'purpose': 'fix', 'files': ['wordstat.py']}],
+                                   mode='delegated', isolation='serial')
+        dispatch = run.only('dispatch')
+        run.record('dispatch', {'action_id': dispatch['id'], 'error': {'code': 'invalid_request', 'message': 'bad'}})
+        operator = run.record('block', {'reason': 'operator pause', 'task_ids': ['fix']})['result']['blocker']
+        run.release()
+        self.assertEqual(native([sys.executable, *operator['resume']['argv'][1:]]).returncode, 0)
+        active = {b['code']: b['status'] for b in run.state['blockers']}
+        self.assertEqual(active, {'task_failed': 'active', 'operator': 'resolved'})
+        self.assertEqual(run.status()['phase'], 'blocked')
+
+    def test_recipe_stamp_refuses_evidence_outside_the_run_directory(self):
+        recipe_path = self.tmp / 'r' / 'recipe.json'
+        recipe_path.parent.mkdir()
+        recipe_path.write_text(json.dumps({'features': [{'id': 'F-X'}]}))
+        outside = self.write('secret.txt', 'x')
+        state = {'phase': 'completed', 'run_id': 'r1', 'acceptance': [{
+            'requirement_id': 'REQ-X', 'status': 'passed', 'kind': 'runtime',
+            'artifacts': [{'path': '../secret.txt', 'sha256': __import__('hashlib').sha256(b'x').hexdigest()}]}]}
+        run_dir = self.tmp / 'run'
+        run_dir.mkdir()
+        with self.assertRaises(Exception) as caught:
+            recipe.stamp(recipe_path, state, run_dir, 'F-X', 'REQ-X')
+        self.assertEqual(caught.exception.code, 'path_escape')
+        self.assertFalse((recipe_path.parent / 'evidence').exists())
+
+    def test_uninstall_keeps_current_for_a_version_kept_for_local_edits(self):
+        home = self.tmp / 'home'
+        source = self.tmp / 'src'
+        for part in ('core', 'plugins', 'scripts'):
+            shutil.copytree(ROOT / part, source / part, ignore=shutil.ignore_patterns('__pycache__'))
+        env = {key: value for key, value in os.environ.items()
+               if key not in ('T3_PLUGINS_PREFIX', 'T3_PLUGINS_STATE_ROOT', 'XDG_STATE_HOME')}
+        env['HOME'] = str(home)
+        installer = [sys.executable, str(source / 'scripts' / 'install.py')]
+        self.assertEqual(subprocess.run(installer, capture_output=True, env=env).returncode, 0)
+        current = home / '.local' / 'share' / 't3-plugins' / 'imps' / 'current'
+        (current / 'entry.md').write_text((current / 'entry.md').read_text() + '\nlocal note\n')
+        out = subprocess.run(installer + ['--uninstall'], capture_output=True, text=True, env=env)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertTrue(current.is_symlink() and (current / 'entry.md').is_file(), 'the kept version stays active')
+
+    def test_launcher_without_a_core_explains_itself(self):
+        lonely = self.tmp / 'lonely'
+        lonely.mkdir()
+        shutil.copy(ROOT / 'plugins' / 'imps' / 'cli.py', lonely / 'cli.py')
+        result = subprocess.run([sys.executable, str(lonely / 'cli.py'), 'status'], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('no usable core/cli.py', result.stderr)
 
 if __name__ == '__main__':
     import unittest

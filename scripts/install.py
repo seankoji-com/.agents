@@ -266,8 +266,8 @@ def uninstall(args) -> dict:
             if version_dir.is_dir() and not any(version_dir.iterdir()):
                 version_dir.rmdir()
     link = plugin_root / 'current'
-    if not args.dry_run and link.is_symlink() and (os.readlink(link) in versions
-                                                   or not (plugin_root / os.readlink(link) / MANIFEST).is_file()):
+    # Only when the active version is really gone: a version kept for its local edits keeps its manifest.
+    if not args.dry_run and link.is_symlink() and not (plugin_root / os.readlink(link) / MANIFEST).is_file():
         link.unlink()
     if not args.dry_run and plugin_root.is_dir() and not any(plugin_root.iterdir()):
         plugin_root.rmdir()

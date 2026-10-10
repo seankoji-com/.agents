@@ -25,7 +25,7 @@ The installer copies a versioned snapshot to a directory such as `~/.local/share
 ~/.local/share/t3-plugins/imps/current/entry.md
 ```
 
-Upgrade: `git -C ~/repos/t3-plugins pull`, then run the installer again. Roll back: `python3 ~/repos/t3-plugins/scripts/install.py --activate 0.1.0+ga50f506cd178` (the installer output and `ls ~/.local/share/t3-plugins/imps` name each installed version). A locally edited installed file makes the installer refuse; `--force` overwrites it.
+Upgrade: `git -C ~/repos/t3-plugins pull`, then run the installer again. Roll back: `python3 ~/repos/t3-plugins/scripts/install.py --activate <version>`, where `<version>` is one the installer reported (`ls ~/.local/share/t3-plugins/imps` lists them). A locally edited installed file makes the installer refuse; `--force` overwrites it.
 
 ## Use it from a T3 thread
 

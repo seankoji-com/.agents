@@ -1,6 +1,6 @@
 # Provider compatibility
 
-Generated from `compatibility.json`. T3 server `0.0.46-nightly.20261008.2849`; plugin `0.1.0+ga50f506cd178`. A provider is `verified` only when every critical case passed 3/3 repeats with no intervention and no false completion; 1-2 of 3 is `partial`.
+Generated from `compatibility.json`. T3 server `0.0.46-nightly.20261008.2849`; plugin `0.1.0+ga50f506cd178`. A provider is `verified` only when every critical case passed 3/3 repeats with no intervention and no false completion; 1-2 of 3, or a case that could not run, is `partial`.
 
 | Provider | Model | Status | Cases (passes/repeats) | Child-write probe | Interventions | Usage/cost |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -56,26 +56,21 @@ missing-capability 3/3. bugfix 1/3: repeats 2 and 3 blocked when the Codex revie
 
 Partial (procedure.md section 5: a case could not run): the provider can run, but T3 never opened its parent session, an infrastructure gap rather than a catalog refusal. As a parent: three attempts, none started. T3 reported 'Failed to open opencode provider session provider-session:provider-instance:opencode:shared' after 25 minutes in 'starting'. As a child it works: the live child-write probe ran on opencode/big-pickle and passed. Catalog lists it as able to run child tasks. plugin_version and starting_revision are empty because no conformance case run started; the probe result carries its own provenance in child_write_probe.source.
 
-
 ## grok
 
 Catalog: 'Grok CLI is installed but not logged in. Run `grok login`.' / 'Provider is not authenticated.' Not logged in or enabled by this build, by design.
-
 
 ## cursor
 
 Catalog: provider instance disabled, executable not installed, disabled in T3 Code settings.
 
-
 ## muse
 
 Catalog: provider instance disabled, executable not installed, disabled in T3 Code settings.
 
-
 ## pi
 
 Catalog: provider instance disabled, executable not installed, disabled in T3 Code settings.
-
 
 ## Where this was run
 

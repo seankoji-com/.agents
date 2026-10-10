@@ -157,8 +157,12 @@ def stamp(recipe_path: Path, state: dict, run_dir: Path, feature_id: str, requir
         if part.is_symlink():
             raise InvalidInput('path_escape', 'recipe evidence directory is a symlink', {'path': str(part)})
     copied = []
+    root = Path(run_dir).resolve()
     for artifact in entry['artifacts']:
-        source = Path(run_dir) / artifact['path']
+        rel = Path(artifact['path'])
+        source = (Path(run_dir) / rel).resolve()
+        if rel.is_absolute() or '..' in rel.parts or not source.is_relative_to(root):
+            raise InvalidInput('path_escape', 'run evidence path escapes the run directory', {'path': artifact['path']})
         if not source.is_file() or sha256_file(source) != artifact['sha256']:
             raise Prohibited('evidence_missing', f'run evidence {artifact["path"]} is missing or changed')
         destination = target / Path(artifact['path']).name

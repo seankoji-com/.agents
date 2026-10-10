@@ -54,6 +54,14 @@ def _roots(ctx, state):
     return roots + list(extra)
 
 
+def _supersede_waivers(state, target, at):
+    """A waiver covers the evidence recorded before it. Newer evidence for the same
+    obligation (a repeat failure, say) is judged on its own until the operator waives again."""
+    for waiver in state.get('waivers', []):
+        if waiver['target'] == target and not waiver.get('invalidated'):
+            waiver['invalidated'] = f'superseded by evidence recorded at {at}'
+
+
 def _bind(ctx, state):
     return acceptance.binding(state, ctx.state_root)
 
@@ -396,6 +404,7 @@ def _take_result(ctx, state, task, text):
             'policy_hash': bind['policy_hash'], 'recorded_at': ctx.at,
             'host_task_id': (rounds[-1] if rounds else {}).get('task_id'),
             'client_request_id': (rounds[-1] if rounds else {}).get('client_request_id')})
+        _supersede_waivers(state, 'review', ctx.at)
     return {'task': task['id'], 'outcome': 'accepted', 'artifact': artifact,
             'verdict': result.get('verdict')}
 
@@ -504,6 +513,7 @@ def rec_check(ctx, state, payload):
              'recorded_at': ctx.at, 'started_at': payload.get('started_at'), 'finished_at': payload.get('finished_at'),
              'invocation': payload.get('invocation'), 'attestation': 'model-mediated native tool observation'}
     state.setdefault('checks', []).append(entry)
+    _supersede_waivers(state, f'check:{check["name"]}', ctx.at)
     return {'name': check['name'], 'status': status, 'artifact': artifact}
 
 
@@ -531,6 +541,7 @@ def rec_acceptance(ctx, state, payload):
              'snapshot': bind['snapshot'], 'contract_hash': bind['contract_hash'], 'policy_hash': bind['policy_hash'],
              'recorded_at': ctx.at}
     state.setdefault('acceptance', []).append(entry)
+    _supersede_waivers(state, f'requirement:{req["id"]}', ctx.at)
     return {'requirement_id': req['id'], 'status': payload['status'], 'artifacts': stored}
 
 
