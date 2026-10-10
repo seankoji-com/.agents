@@ -159,6 +159,16 @@ class InstallTest(CoreTestCase):
         self.assertIsNone(out['source_commit'])
         self.assertTrue((Path(out['version_dir']) / 'entry.md').is_file())
 
+    def test_git_vanishing_between_log_and_status_still_falls_back(self):
+        import importlib.util
+        from unittest import mock
+        spec = importlib.util.spec_from_file_location('install_under_test', ROOT / 'scripts' / 'install.py')
+        install = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(install)
+        log = subprocess.CompletedProcess([], 0, stdout='abc123\n', stderr='')
+        with mock.patch.object(install.subprocess, 'run', side_effect=[log, FileNotFoundError('git')]):
+            self.assertEqual(install.git_commit(self.source, ['core']), (None, True))
+
     def test_uninstall_keeps_user_created_empty_directories(self):
         first = self.installer()['data']
         version_dir = Path(first['version_dir'])

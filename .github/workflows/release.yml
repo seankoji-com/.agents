@@ -118,7 +118,10 @@ jobs:
         run: |
           TAG="${{ steps.semver.outputs.tag }}"
           # A partially created release (no assets) would otherwise block the retry.
-          gh release delete "$TAG" --yes || true
+          # Delete it first and stop if that fails, so a release never outlives its tag.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes
+          fi
           git push --delete origin "$TAG"
 
       - name: Resolve an existing release for a formula-only retry
@@ -128,10 +131,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="$EXISTING_TAG"
-          case "$TAG" in
-            v[0-9]*.[0-9]*.[0-9]*) ;;
-            *) echo "existing_tag must look like vMAJOR.MINOR.PATCH, got '$TAG'" >&2; exit 1 ;;
-          esac
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "existing_tag must look like vMAJOR.MINOR.PATCH, got '$TAG'" >&2; exit 1
+          fi
           TARBALL="t3-plugins-${TAG}.tar.gz"
           # The checksum comes from the published asset, not from a fresh archive, so the
           # formula matches exactly what users download.

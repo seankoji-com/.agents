@@ -29,6 +29,20 @@ class FieldGuideError(ValueError):
     """The guide and the catalog disagree; the build must fail loudly."""
 
 
+# Marks are inlined into pages unescaped, so anything that could run script or fetch
+# a resource is refused here rather than trusted because it was committed.
+UNSAFE_SVG = re.compile(r'<script|<foreignObject|\son[a-z]+\s*=|javascript:|(?:href|src)\s*=\s*(?!["\']?#)',
+                        re.IGNORECASE)
+
+
+def check_mark(name: str, svg: str) -> str:
+    """Return a specimen mark unchanged, or fail if it is not a self-contained SVG."""
+    if not svg.lstrip().startswith('<svg') or UNSAFE_SVG.search(svg):
+        raise FieldGuideError(f'{name}: specimen mark must be a self-contained SVG with no '
+                              'scripts, event handlers, or external references')
+    return svg
+
+
 def load_guide(root: Path = ROOT) -> list[dict]:
     """Merge each plugin manifest with its field-guide entry, ordered by plate number."""
     guide = json.loads((root / 'docs' / 'field-guide.json').read_text())
@@ -63,10 +77,12 @@ def load_guide(root: Path = ROOT) -> list[dict]:
             'version': meta['version'],
             'operations': list(meta['operations']),
             'compatibility': meta['compatibility'],
-            'mark_svg': mark.read_text(),
+            'mark_svg': check_mark(name, mark.read_text()),
             'page': f'plugins/{name}.md',
             'url': f'plugins/{name}/',
         })
+    if not specimens:
+        raise FieldGuideError('the field guide is empty: no plugins under plugins/*/plugin.json')
     specimens.sort(key=lambda s: s['order'])
     orders = [s['order'] for s in specimens]
     if orders != list(range(1, len(specimens) + 1)):

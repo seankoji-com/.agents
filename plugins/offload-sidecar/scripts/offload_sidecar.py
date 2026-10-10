@@ -277,7 +277,9 @@ _VCS_METADATA_DIRS = frozenset({".git", ".hg", ".svn"})
 def _check_not_vcs_metadata(root, real_path, label):
     relative = os.path.relpath(real_path, root)
     for part in relative.split(os.sep):
-        if part in _VCS_METADATA_DIRS:
+        # casefold: on case-insensitive filesystems (macOS default) `.GIT`
+        # is the same directory as `.git`.
+        if part.casefold() in _VCS_METADATA_DIRS:
             raise SidecarError(
                 f"{label} is inside a version-control metadata directory "
                 f"('{part}'); refusing to write there: {real_path}"
@@ -676,7 +678,8 @@ def call_agy(cfg, system_prompt, input_path):
     against v1.1.1 — it answers the next flag name as if it were the
     question)."""
     bin_ = cfg["bin"]
-    if shutil.which(bin_) is None:
+    found = shutil.which(bin_)
+    if found is None:
         raise AgyError(
             f"agy binary '{bin_}' not found on PATH — install the Google "
             "Antigravity CLI or set agy_bin in the plugin config. Local "
@@ -687,7 +690,9 @@ def call_agy(cfg, system_prompt, input_path):
     if not input_path:
         raise AgyError("call_agy requires an input_path; content is never inlined")
 
-    argv = [bin_, "--model", cfg["model"]]
+    # agy runs with cwd set to the staging directory, so a relative agy_bin
+    # must be pinned to an absolute path first.
+    argv = [os.path.abspath(found), "--model", cfg["model"]]
     staged_dir = None
     try:
         # agy is an autonomous agent, and --add-dir grants it a whole

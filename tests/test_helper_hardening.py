@@ -68,8 +68,10 @@ class SqlitePathTest(unittest.TestCase):
 class VcsMetadataGuardTest(unittest.TestCase):
     def test_output_inside_git_directory_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
+            tmp = os.path.realpath(tmp)  # the sidecar's root is always realpath'd; macOS tmp is a symlink
             os.makedirs(os.path.join(tmp, '.git', 'hooks'))
-            for target in ('.git/hooks/pre-commit', '.git/config', 'sub/.hg/hgrc', '.svn/entries'):
+            os.makedirs(os.path.join(tmp, '.GIT'))
+            for target in ('.git/hooks/pre-commit', '.git/config', 'sub/.hg/hgrc', '.svn/entries', '.GIT/config'):
                 with self.assertRaises(sidecar.SidecarError, msg=target):
                     sidecar.resolve_output_path(tmp, target)
             os.makedirs(os.path.join(tmp, 'notes'))

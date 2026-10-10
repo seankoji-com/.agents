@@ -11,5 +11,6 @@ if [ "$#" -ne 1 ]; then
   exit 2
 fi
 
-# --decode rather than -d: -d is GNU-only, and older macOS base64 rejects it.
-gh api "repos/$1/readme" -q .content 2>/dev/null | base64 --decode 2>/dev/null | head -40 || true
+# Ask for the raw media type so no base64 decoder (whose flags differ between GNU
+# and BSD) is involved.
+gh api -H 'Accept: application/vnd.github.raw' "repos/$1/readme" 2>/dev/null | head -40 || true

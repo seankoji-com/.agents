@@ -35,5 +35,5 @@ If Pages fails, retain the last successful deployment
 and fix its build. Users can reactivate an earlier installed snapshot with
 `t3-plugins activate PLUGIN VERSION`; run state is independent of the package version.
 
-The formula's `imps` command is a second executable from the same catalog package. Its `imps` executable
-is a direct state CLI; only `t3-plugins install` updates user snapshots.
+The formula's `imps` command is a second executable from the same catalog package and a
+direct state CLI; only `t3-plugins install` updates user snapshots.

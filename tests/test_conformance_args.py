@@ -24,6 +24,13 @@ class CollectArgumentTest(unittest.TestCase):
                     self.collect(**{name: value})
                 self.assertIn('not a safe path segment', str(caught.exception))
 
+    def test_counts_must_be_positive_or_zero(self):
+        for overrides in ({'repeat': '0'}, {'interventions': '-1'}, {'elapsed': '-2.5'}):
+            with self.subTest(**overrides):
+                with self.assertRaises(SystemExit) as caught:
+                    self.collect(**overrides)
+                self.assertIn('counts from 1', str(caught.exception))
+
     def test_safe_version_passes_validation_and_fails_later_on_the_missing_run(self):
         with self.assertRaises((SystemExit, FileNotFoundError)) as caught:
             self.collect(**{'run-id': 'no-such-run-for-this-test'})

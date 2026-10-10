@@ -76,12 +76,12 @@ def git_commit(source: Path, paths) -> tuple[str | None, bool]:
     Commits elsewhere in the repository (docs, conformance results) leave it unchanged."""
     try:
         head = subprocess.run(['git', '-C', str(source), 'log', '-1', '--format=%H', '--', *paths], capture_output=True, text=True)
+        if head.returncode != 0 or not head.stdout.strip():
+            return None, True
+        dirty = subprocess.run(['git', '-C', str(source), 'status', '--porcelain', '--', *paths], capture_output=True, text=True)
     except FileNotFoundError:
         return None, True  # no git binary: fall back to the content-hash version, as for a non-git source
-    if head.returncode != 0 or not head.stdout.strip():
-        return None, True
-    dirty = subprocess.run(['git', '-C', str(source), 'status', '--porcelain', '--', *paths], capture_output=True, text=True)
-    return head.stdout.strip(), bool(dirty.stdout.strip())
+    return head.stdout.strip(), dirty.returncode != 0 or bool(dirty.stdout.strip())
 
 
 def plan_install(source: Path, plugin: str) -> dict:
@@ -249,9 +249,10 @@ def snapshot_manifests(plugin_root: Path):
 
 def installed_versions(plugin_root: Path, include_preserved=False) -> list:
     """Complete snapshots. A half-uninstalled snapshot that only keeps ownership of
-    locally modified files (`preserved_modified`) is not installed unless asked for."""
+    locally modified files (`preserved_modified`), or one whose manifest is corrupt,
+    is not installed unless asked for (uninstall asks, and reports the corruption)."""
     return sorted(name for name, manifest in snapshot_manifests(plugin_root)
-                  if include_preserved or not (manifest or {}).get('preserved_modified'))
+                  if include_preserved or (manifest is not None and not manifest.get('preserved_modified')))
 
 
 def preserved_versions(plugin_root: Path) -> list:

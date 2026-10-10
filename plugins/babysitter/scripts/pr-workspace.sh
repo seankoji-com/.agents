@@ -199,11 +199,13 @@ fi
 
 [ -n "$BRANCH" ] || die "--branch <head-ref> is required unless --remove is given"
 # The head ref is interpolated into refs/remotes/origin/<branch> and handed to git as
-# an argument. An option-like name would be parsed as a flag, and `..` is a revision
-# range, not a branch.
+# an argument. Git's own ref checker refuses option-like names and ref syntax with
+# special meaning (`..`, `:`, `*`, `^`, `~`, `[`, `@{`), so only one branch can match.
 case "$BRANCH" in
--* | *..* | *' '* | *[[:cntrl:]]*) die "--branch must be a plain head ref name, got: ${BRANCH}" ;;
+-* | *' '* | *[[:cntrl:]]*) die "--branch must be a plain head ref name, got: ${BRANCH}" ;;
 esac
+git check-ref-format --branch "$BRANCH" >/dev/null 2>&1 ||
+  die "--branch must be a plain head ref name, got: ${BRANCH}"
 
 mkdir -p "${ROOT}/repos" "${ROOT}/worktrees" || die "cannot create ${ROOT}" 3
 

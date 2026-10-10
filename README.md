@@ -24,6 +24,7 @@ without evidence.
 ```sh
 brew install seankoji-com/tap/t3-plugins
 t3-plugins install
+t3-plugins doctor
 t3-plugins prompt imps doctor
 ```
 

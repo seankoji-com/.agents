@@ -8,7 +8,8 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 
-FENCE = re.compile(r'^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$', re.S | re.M)
+# A closing fence uses the opening character at least as many times (CommonMark).
+FENCE = re.compile(r'^[ \t]*((`){3,}|(~){3,})[^\n]*\n.*?^[ \t]*\1(?:\2|\3)*[ \t]*$', re.S | re.M)
 CODE_SPAN = re.compile(r'(`+)[^`]*?\1')
 LIST_ITEM = re.compile(r'^\s*(?:[-*+]|\d+[.)])\s')
 IMAGE = re.compile(r'!\[[^\]]*\]\(([^\s)]+)(?:\s+"[^"]*")?\)')
@@ -75,7 +76,7 @@ def anchors(text: str) -> set:
         else:
             seen[slug] = 0
         found.add(slug)
-    found.update(HTML_ID.findall(text))
+    found.update(HTML_ID.findall(strip_code(text)))  # an id shown in a code sample is not an anchor
     return found
 
 
@@ -101,7 +102,10 @@ def check_page(path: Path, root: Path, anchor_cache: dict) -> list:
             continue
         if not parsed.path and not parsed.fragment:
             continue
-        resolved = path if not parsed.path else path.parent / unquote(parsed.path)
+        resolved = (path if not parsed.path else path.parent / unquote(parsed.path)).resolve()
+        if not resolved.is_relative_to(root.resolve()):
+            errors.append(f'{path.relative_to(root)}: link leaves the repository {target}')
+            continue
         if not resolved.exists():
             errors.append(f'{path.relative_to(root)}: missing link {target}')
             continue

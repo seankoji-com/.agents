@@ -111,6 +111,23 @@ class SyntheticRootTest(unittest.TestCase):
         with self.assertRaisesRegex(field_guide.FieldGuideError, 'missing specimen mark'):
             field_guide.load_guide(self.tmp)
 
+    def test_unsafe_mark_fails_the_build(self):
+        for svg in ('<svg><script>alert(1)</script></svg>', '<svg onload="alert(1)"></svg>',
+                    '<svg><image href="https://example.invalid/x.png"/></svg>',
+                    '<svg><a xlink:href="javascript:alert(1)"/></svg>', '<p>not svg</p>'):
+            (self.tmp / 'docs/assets/specimens/alpha.svg').write_text(svg)
+            with self.assertRaisesRegex(field_guide.FieldGuideError, 'self-contained SVG', msg=svg):
+                field_guide.load_guide(self.tmp)
+        (self.tmp / 'docs/assets/specimens/alpha.svg').write_text('<svg><defs><g id="a"/></defs><use href="#a"/></svg>')
+        self.assertEqual(len(field_guide.load_guide(self.tmp)), 1)
+
+    def test_empty_catalog_fails_the_build(self):
+        shutil.rmtree(self.tmp / 'plugins/alpha')
+        self.guide = {}
+        self.write_guide()
+        with self.assertRaisesRegex(field_guide.FieldGuideError, 'empty'):
+            field_guide.load_guide(self.tmp)
+
     def test_plate_gaps_fail_the_build(self):
         self.guide['alpha']['plate'] = 'III'
         self.write_guide()

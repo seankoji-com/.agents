@@ -7,9 +7,9 @@ description: "Live provider results for imps on T3 Code, generated from the conf
 Live provider results for imps, generated at build time from
 `conformance/compatibility.json`. A unit test passing is not a sighting. A plausible
 answer from a model is not a sighting. A row here means a real T3 thread, on the named
-provider and model, ran the case and the artifacts are in the repository. The ledger
-was recorded on imps 0.1.0 against one T3 nightly; the current release has not been
-re-run, and the table says which version it describes.
+provider and model, ran the case and the artifacts are in the repository. The caption
+under the table names the imps version and T3 build the ledger describes; it says
+nothing about any other version.
 
 <!-- sightings-matrix -->
 
@@ -17,7 +17,7 @@ re-run, and the table says which version it describes.
 
 - **Passes over repeats.** `3/3` means three fresh clones of the fixture branch, three separate messages, three correct outcomes. `1/3` is reported as `1/3`, not rounded up.
 - **not run** means the case could not start on that provider during the matrix. The reason is in the ledger, and it counts against the provider's status.
-- **Status.** `verified` needs every critical case at 3/3 with no operator intervention and no false completion. Nothing has reached it yet. `partial` means some cases passed. `unavailable` means the provider was disabled, not installed, or not authenticated in the T3 build under test.
+- **Status.** `verified` needs every critical case at 3/3 with no operator intervention and no false completion. `partial` means some cases passed. `unavailable` means the provider was disabled, not installed, or not authenticated in the T3 build under test.
 
 ## What the matrix found
 

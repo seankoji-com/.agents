@@ -173,6 +173,8 @@ class Round5InstallerTest(test_install.InstallTest):
             with self.subTest(args=args):
                 out = self.installer(*args, expect=2)
                 self.assertEqual(out['error']['code'], 'manifest_corrupt')
+        out = self.installer('--activate', version_dir.name, expect=2)
+        self.assertEqual(out['error']['code'], 'unknown_version', 'a corrupt snapshot is not activatable')
         self.installer('--force')
         self.assertIsInstance(json.loads((version_dir / 'install-manifest.json').read_text())['files'], list)
         self.installer('--uninstall')

@@ -1805,7 +1805,8 @@ class CallAgyTest(unittest.TestCase):
                 out = sidecar.call_agy(self.cfg, "sys prompt", src)
         self.assertEqual(out, "OUT")
         argv = run.call_args[0][0]
-        self.assertEqual(argv[0], "agy")
+        # pinned to the resolved absolute path: agy runs with cwd=staging dir
+        self.assertEqual(argv[0], "/usr/bin/agy")
         self.assertEqual(argv[argv.index("--model") + 1], "TestFlash")
         prompt = argv[argv.index("--print") + 1]
         self.assertIn("sys prompt", prompt)

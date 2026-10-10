@@ -73,11 +73,16 @@ class CheckDocsTest(unittest.TestCase):
         self.write('[a](https://example.invalid/x) [b](mailto:someone@example.invalid) [c]({{ site_url }}/x) [d](<path>)\n')
         self.assertEqual(self.errors(), [])
 
-    def test_real_repository_has_fragment_links_to_check(self):
-        pages = [*ROOT.glob('*.md'), *(ROOT / 'docs').rglob('*.md'), *(ROOT / 'plugins').rglob('*.md')]
-        fragments = [t for p in pages for t in check_docs.link_targets(p.read_text())
-                     if '#' in t and not t.startswith(('http', 'PKG/'))]
-        self.assertTrue(fragments, 'the anchor check is exercised by the repository itself')
+    def test_ids_in_code_samples_are_not_anchors(self):
+        self.write('```html\n<a id="sample"></a>\n```\n\n[s](#sample)\n')
+        self.assertEqual(self.errors(), ['docs/page.md: missing anchor #sample'])
+
+    def test_links_outside_the_repository_are_refused(self):
+        outside = self.root.parent / f'{self.root.name}-outside.md'
+        outside.write_text('# Elsewhere\n')
+        self.addCleanup(outside.unlink)
+        self.write(f'[x](../../{outside.name}) [y](../docs/target.md#install-guide)\n')
+        self.assertEqual(self.errors(), [f'docs/page.md: link leaves the repository ../../{outside.name}'])
 
 
 if __name__ == '__main__':

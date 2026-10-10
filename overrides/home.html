@@ -2,7 +2,9 @@
 
 {#- The homepage. Specimens come from config.extra.field_guide, which the
     scripts/field_guide.py hook assembles from plugins/*/plugin.json and
-    docs/field-guide.json at build time. -#}
+    docs/field-guide.json at build time. The hook fails the build on an empty
+    catalog and refuses any mark that is not a self-contained SVG, which is why
+    mark_svg can be inlined with | safe. -#}
 {% block tabs %}
   {{ super() }}
   {% set guide = config.extra.field_guide %}
