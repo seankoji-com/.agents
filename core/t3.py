@@ -69,8 +69,12 @@ def outcome(obs: dict) -> str:
     """working | result | failed | stopped.
 
     `waiting_for_children` is never a final result even when the child's own
-    turn finished: its nested work is still live."""
+    turn finished: its nested work is still live. Neither is any status while
+    `hasPendingChildRuns` is set, so a result is read only once nothing it
+    started can still write."""
     status = obs.get('status') or ''
+    if obs.get('has_pending_child_runs'):
+        return 'working'
     if obs.get('work_state') != 'result_available' and not (
             obs.get('work_state') is None and status in TERMINAL_STOPPED | TERMINAL_FAILED):
         # A stopped or failed child that reports no workState has no nested work to wait for.

@@ -216,7 +216,7 @@ class DelegationFindingsTest(CoreTestCase):
         run = self.init(self.plan(repo, policy={'review': {'required': False, 'role': 'reviewer'}, 'checks': []}))
         run.claim()
         sleeper = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
-        self.addCleanup(sleeper.wait)
+        self.addCleanup(lambda: sleeper.wait(timeout=10))
         self.addCleanup(sleeper.kill)
         run.record('resource', {'kind': 'process', 'pid': sleeper.pid, 'purpose': 'server'})
         state_file = run.run_dir / 'run.json'
@@ -339,7 +339,7 @@ class Round2FindingsTest(CoreTestCase):
                   dict(done(result_block('survey')), hasPendingChildRuns=True))
         run.record('dispatch', {'action_id': dispatch['id'], 'response': t3.call(dispatch['host_call'])})
         run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
-        self.assertEqual(run.state['tasks'][0]['status'], 'accepted')
+        self.assertEqual(run.state['tasks'][0]['status'], 'active', 'pending child runs keep the task live')
         run.record('transition', {'to': 'cancelling'})
         self.assertEqual([a['action'] for a in run.next()['actions']], ['cancel_task'])
 
@@ -415,14 +415,15 @@ class Round3FindingsTest(CoreTestCase):
                   dict(done(result_block('survey')), hasPendingChildRuns=True))
         run.record('dispatch', {'action_id': dispatch['id'], 'response': t3.call(dispatch['host_call'])})
         run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
-        run.record('transition', {'to': 'verifying'})
-        self.accept(run)
+        self.assertEqual(run.state['tasks'][0]['status'], 'active', 'a result is not read while child runs are pending')
         self.assertFalse([a for a in run.next()['actions'] if a['action'] == 'transition'])
-        code, env, _ = run.record_raw('transition', {'to': 'ready'})
-        self.assertEqual((code, env['error']['code']), (4, 'children_running'))
+        code, env, _ = run.record_raw('transition', {'to': 'verifying'})
+        self.assertEqual((code, env['error']['code']), (4, 'tasks_open'))
         task_id = run.state['tasks'][0]['rounds'][0]['task_id']
         t3.tasks[task_id]['queue'] = [done(result_block('survey'))]
         run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
+        run.record('transition', {'to': 'verifying'})
+        self.accept(run)
         run.record('transition', {'to': 'ready'})
 
     def test_2_late_dispatch_receipt_is_tracked_during_cancellation(self):

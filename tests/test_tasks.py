@@ -192,7 +192,7 @@ class CancellationTest(TaskBase):
     def test_cleanup_never_signals_an_unrelated_process(self):
         repo, run = self.read_run()
         sleeper = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
-        self.addCleanup(sleeper.wait)
+        self.addCleanup(lambda: sleeper.wait(timeout=10))
         self.addCleanup(sleeper.kill)
         run.record('resource', {'kind': 'process', 'pid': sleeper.pid, 'purpose': 'dev server'})
         resource = run.state['resources'][0]

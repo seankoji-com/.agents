@@ -1,6 +1,6 @@
 # Provider compatibility
 
-Generated from `compatibility.json`. T3 server `0.0.46-nightly.20261008.2849`; plugin `0.1.0+ga50f506cd178 (installed snapshot every matrix repeat ran on; the final PR head adds the round-3 review fixes and two matrix-found fixes, see notes)`. A provider is `verified` only when every critical case passed 3/3 repeats with no intervention and no false completion; 1-2 of 3 is `partial`.
+Generated from `compatibility.json`. T3 server `0.0.46-nightly.20261008.2849`; plugin `0.1.0+ga50f506cd178`. A provider is `verified` only when every critical case passed 3/3 repeats with no intervention and no false completion; 1-2 of 3 is `partial`.
 
 | Provider | Model | Status | Cases (passes/repeats) | Child-write probe | Interventions | Usage/cost |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -54,7 +54,7 @@ missing-capability 3/3. bugfix 1/3: repeats 2 and 3 blocked when the Codex revie
 
 ## opencode
 
-Partial (procedure.md section 5: a case could not run): the provider can run, but T3 never opened its parent session, an infrastructure gap rather than a catalog refusal. As a parent: three attempts, none started. T3 reported 'Failed to open opencode provider session provider-session:provider-instance:opencode:shared' after 25 minutes in 'starting'. As a child it works: the live child-write probe ran on opencode/big-pickle and passed. Catalog lists it as able to run child tasks.
+Partial (procedure.md section 5: a case could not run): the provider can run, but T3 never opened its parent session, an infrastructure gap rather than a catalog refusal. As a parent: three attempts, none started. T3 reported 'Failed to open opencode provider session provider-session:provider-instance:opencode:shared' after 25 minutes in 'starting'. As a child it works: the live child-write probe ran on opencode/big-pickle and passed. Catalog lists it as able to run child tasks. plugin_version and starting_revision are empty because no conformance case run started; the probe result carries its own provenance in child_write_probe.source.
 
 
 ## grok
@@ -112,3 +112,11 @@ This T3 build injects agent instructions that mention an ACP fallback transport 
 ## Usage and cost
 
 T3 does not expose token usage or cost to the parent at this version, so usage/cost is null for every repeat. usage.json in each repeat records the run's active-budget seconds.
+
+## Plugin version
+
+0.1.0+ga50f506cd178 is the installed snapshot every matrix repeat ran on. The final PR head adds the round-3 review fixes and two matrix-found fixes on top of it (see the other notes).
+
+## Row fields
+
+`starting_revision` lists the distinct fixture base SHAs that provider's repeats started from, in run order (each repeat used a fresh clone of the fixture branch, so a row can carry several); it is empty when no case run started. `child_write_probe.source` names the single probe run all rows share: run 20261009-121018-0f6d5d, plugin 0.1.0, base 7008f23c6ca6340cbc753c4494d7547f9618d021, evidence in conformance/probes/0.0.46-nightly.20261008.2849/.

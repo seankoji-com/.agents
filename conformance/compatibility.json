@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "t3_version": "0.0.46-nightly.20261008.2849",
-  "plugin_version": "0.1.0+ga50f506cd178 (installed snapshot every matrix repeat ran on; the final PR head adds the round-3 review fixes and two matrix-found fixes, see notes)",
+  "plugin_version": "0.1.0+ga50f506cd178",
   "generated_from": "conformance/results/0.0.46-nightly.20261008.2849",
   "critical_cases": [
     "bugfix",
@@ -18,7 +18,10 @@
       "summary": "bugfix 3/3 and missing-capability 3/3 with no intervention and no false completion. adverse-review and pending-task could not run: from about 13:45Z every Codex session in T3 failed to start ('Codex App Server process exited with code 0'), including review children and health probes; the T3 Codex driver path stayed down for the rest of the matrix. Not rerun to a pass: the gap is recorded.",
       "t3_version": "0.0.46-nightly.20261008.2849",
       "plugin_version": "0.1.0+ga50f506cd178",
-      "starting_revision": "ae656c8f67898e4e9e5e0b46800a42cb69338e4e, d500fe91b41c16e6e13ff77564671ec8ff358d4a",
+      "starting_revision": [
+        "ae656c8f67898e4e9e5e0b46800a42cb69338e4e",
+        "d500fe91b41c16e6e13ff77564671ec8ff358d4a"
+      ],
       "cases": {
         "bugfix": [
           {
@@ -108,7 +111,13 @@
         "sibling_write": true,
         "observed_at": "2026-10-09T12:13:02Z",
         "marker": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-codex/.t3-probe-marker",
-        "evidence": "parent read the nonce from the marker file"
+        "evidence": "parent read the nonce from the marker file",
+        "source": {
+          "run_id": "20261009-121018-0f6d5d",
+          "plugin_version": "0.1.0",
+          "starting_revision": "7008f23c6ca6340cbc753c4494d7547f9618d021",
+          "evidence": "conformance/probes/0.0.46-nightly.20261008.2849/"
+        }
       }
     },
     {
@@ -119,7 +128,12 @@
       "summary": "bugfix 3/3, missing-capability 3/3, pending-task 2/3 (repeat 2 failed on a relative evidence path, a brief defect since fixed), adverse-review 0/1 (the Codex reviewer crashed; one operator message 'try it again' arrived from the T3 web UI). The Claude provider's sandbox makes ~/.local/state read-only, so every run used the documented --state-root fallback under $TMPDIR. Also: the build thread itself (claude-opus-5-5) acted as parent for the live delegate/cancel probe, the child-write probe run and every pre-PR review dispatch; see conformance/live-t3 and conformance/probes.",
       "t3_version": "0.0.46-nightly.20261008.2849",
       "plugin_version": "0.1.0+ga50f506cd178",
-      "starting_revision": "3659628e645be54637e42c37361c663bca72dea0, ae656c8f67898e4e9e5e0b46800a42cb69338e4e, d500fe91b41c16e6e13ff77564671ec8ff358d4a, d7f0a6c2396a9750253f1893c819008556b3392d",
+      "starting_revision": [
+        "3659628e645be54637e42c37361c663bca72dea0",
+        "ae656c8f67898e4e9e5e0b46800a42cb69338e4e",
+        "d500fe91b41c16e6e13ff77564671ec8ff358d4a",
+        "d7f0a6c2396a9750253f1893c819008556b3392d"
+      ],
       "cases": {
         "bugfix": [
           {
@@ -284,7 +298,13 @@
         "sibling_write": true,
         "observed_at": "2026-10-09T12:13:02Z",
         "marker": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-claudeAgent/.t3-probe-marker",
-        "evidence": "parent read the nonce from the marker file"
+        "evidence": "parent read the nonce from the marker file",
+        "source": {
+          "run_id": "20261009-121018-0f6d5d",
+          "plugin_version": "0.1.0",
+          "starting_revision": "7008f23c6ca6340cbc753c4494d7547f9618d021",
+          "evidence": "conformance/probes/0.0.46-nightly.20261008.2849/"
+        }
       }
     },
     {
@@ -295,7 +315,10 @@
       "summary": "missing-capability 3/3. bugfix 1/3: repeats 2 and 3 blocked when the Codex reviewer listed the files it reviewed as changed_files (result_rejected); the parent reported the block both times without claiming completion. pending-task 1: correct reconciliation on resume (no second dispatch), but the survey child never returned within 30 minutes, so the run did not finish. adverse-review not run (Codex reviewer down).",
       "t3_version": "0.0.46-nightly.20261008.2849",
       "plugin_version": "0.1.0+ga50f506cd178",
-      "starting_revision": "c8214f8c8d1d7f2903d62a4872669626a5e3a5bb, d7f0a6c2396a9750253f1893c819008556b3392d",
+      "starting_revision": [
+        "c8214f8c8d1d7f2903d62a4872669626a5e3a5bb",
+        "d7f0a6c2396a9750253f1893c819008556b3392d"
+      ],
       "cases": {
         "bugfix": [
           {
@@ -408,7 +431,13 @@
         "sibling_write": true,
         "observed_at": "2026-10-09T12:16:48Z",
         "marker": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-antigravity/.t3-probe-marker",
-        "evidence": "parent read the nonce from the marker file"
+        "evidence": "parent read the nonce from the marker file",
+        "source": {
+          "run_id": "20261009-121018-0f6d5d",
+          "plugin_version": "0.1.0",
+          "starting_revision": "7008f23c6ca6340cbc753c4494d7547f9618d021",
+          "evidence": "conformance/probes/0.0.46-nightly.20261008.2849/"
+        }
       }
     },
     {
@@ -416,10 +445,10 @@
       "model_id": "opencode/big-pickle",
       "role": "parent (top-level thread)",
       "status": "partial",
-      "summary": "Partial (procedure.md section 5: a case could not run): the provider can run, but T3 never opened its parent session, an infrastructure gap rather than a catalog refusal. As a parent: three attempts, none started. T3 reported 'Failed to open opencode provider session provider-session:provider-instance:opencode:shared' after 25 minutes in 'starting'. As a child it works: the live child-write probe ran on opencode/big-pickle and passed. Catalog lists it as able to run child tasks.",
+      "summary": "Partial (procedure.md section 5: a case could not run): the provider can run, but T3 never opened its parent session, an infrastructure gap rather than a catalog refusal. As a parent: three attempts, none started. T3 reported 'Failed to open opencode provider session provider-session:provider-instance:opencode:shared' after 25 minutes in 'starting'. As a child it works: the live child-write probe ran on opencode/big-pickle and passed. Catalog lists it as able to run child tasks. plugin_version and starting_revision are empty because no conformance case run started; the probe result carries its own provenance in child_write_probe.source.",
       "t3_version": "0.0.46-nightly.20261008.2849",
       "plugin_version": null,
-      "starting_revision": null,
+      "starting_revision": [],
       "cases": {},
       "cases_run": [],
       "interventions": 0,
@@ -429,7 +458,13 @@
         "sibling_write": true,
         "observed_at": "2026-10-09T12:13:02Z",
         "marker": "~/.local/state/t3-plugins/imps/worktrees/20261009-121018-0f6d5d/probe-opencode/.t3-probe-marker",
-        "evidence": "parent read the nonce from the marker file"
+        "evidence": "parent read the nonce from the marker file",
+        "source": {
+          "run_id": "20261009-121018-0f6d5d",
+          "plugin_version": "0.1.0",
+          "starting_revision": "7008f23c6ca6340cbc753c4494d7547f9618d021",
+          "evidence": "conformance/probes/0.0.46-nightly.20261008.2849/"
+        }
       }
     },
     {
@@ -440,7 +475,7 @@
       "summary": "Catalog: 'Grok CLI is installed but not logged in. Run `grok login`.' / 'Provider is not authenticated.' Not logged in or enabled by this build, by design.",
       "t3_version": "0.0.46-nightly.20261008.2849",
       "plugin_version": null,
-      "starting_revision": null,
+      "starting_revision": [],
       "cases": {},
       "cases_run": [],
       "interventions": 0,
@@ -456,7 +491,7 @@
       "summary": "Catalog: provider instance disabled, executable not installed, disabled in T3 Code settings.",
       "t3_version": "0.0.46-nightly.20261008.2849",
       "plugin_version": null,
-      "starting_revision": null,
+      "starting_revision": [],
       "cases": {},
       "cases_run": [],
       "interventions": 0,
@@ -472,7 +507,7 @@
       "summary": "Catalog: provider instance disabled, executable not installed, disabled in T3 Code settings.",
       "t3_version": "0.0.46-nightly.20261008.2849",
       "plugin_version": null,
-      "starting_revision": null,
+      "starting_revision": [],
       "cases": {},
       "cases_run": [],
       "interventions": 0,
@@ -488,7 +523,7 @@
       "summary": "Catalog: provider instance disabled, executable not installed, disabled in T3 Code settings.",
       "t3_version": "0.0.46-nightly.20261008.2849",
       "plugin_version": null,
-      "starting_revision": null,
+      "starting_revision": [],
       "cases": {},
       "cases_run": [],
       "interventions": 0,
@@ -533,6 +568,14 @@
     {
       "title": "Usage and cost",
       "text": "T3 does not expose token usage or cost to the parent at this version, so usage/cost is null for every repeat. usage.json in each repeat records the run's active-budget seconds."
+    },
+    {
+      "title": "Plugin version",
+      "text": "0.1.0+ga50f506cd178 is the installed snapshot every matrix repeat ran on. The final PR head adds the round-3 review fixes and two matrix-found fixes on top of it (see the other notes)."
+    },
+    {
+      "title": "Row fields",
+      "text": "`starting_revision` lists the distinct fixture base SHAs that provider's repeats started from, in run order (each repeat used a fresh clone of the fixture branch, so a row can carry several); it is empty when no case run started. `child_write_probe.source` names the single probe run all rows share: run 20261009-121018-0f6d5d, plugin 0.1.0, base 7008f23c6ca6340cbc753c4494d7547f9618d021, evidence in conformance/probes/0.0.46-nightly.20261008.2849/."
     }
   ]
 }

@@ -82,7 +82,7 @@ class Round5CoreTest(CoreTestCase):
         t3.tasks[response['taskId']]['queue'] = [dict(done(result_block('a', changed_files=['wordstat.py'])),
                                                       hasPendingChildRuns=True)]
         run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})
-        self.assertEqual(run.state['tasks'][0]['status'], 'accepted')
+        self.assertEqual(run.state['tasks'][0]['status'], 'active', 'a result is not read while nested runs are pending')
         actions = run.next()['actions']
         self.assertEqual([(a['action'], a['task_id']) for a in actions], [('query_task', 'a')],
                          'b waits while a nested run of a may still write')
@@ -346,6 +346,8 @@ class Round5CoreTest(CoreTestCase):
 
     def test_terminal_status_without_work_state_is_terminal(self):
         self.assertEqual(t3.outcome(t3.observation({'taskId': 't', 'status': 'failed'})), 'failed')
+        self.assertEqual(t3.outcome(t3.observation({'taskId': 't', 'status': 'completed', 'workState': 'result_available',
+                                                    'hasPendingChildRuns': True})), 'working')
         self.assertEqual(t3.outcome(t3.observation({'taskId': 't', 'status': 'running'})), 'working')
 
     def test_whitespace_brief_still_reports(self):
@@ -360,10 +362,6 @@ class Round5CoreTest(CoreTestCase):
         tasks[0]['files'].append('x')
         self.assertEqual(tasks[1]['files'], [])
         self.assertEqual(planning.TASK_DEFAULTS['files'], [])
-
-if __name__ == '__main__':
-    import unittest
-    unittest.main()
 
 
 class LauncherTest(CoreTestCase):
@@ -386,3 +384,8 @@ class LauncherTest(CoreTestCase):
                                      '--run-id', 'bad'], capture_output=True, text=True, env=env)
             envelope = json.loads(result.stdout)
             self.assertEqual((result.returncode, envelope['op'], envelope['error']['code']), (2, 'status', 'run_id'), launcher)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

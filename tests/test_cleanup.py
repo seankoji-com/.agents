@@ -20,7 +20,7 @@ class CleanupTest(CoreTestCase):
         run.record('capabilities', {'response': capabilities()})
         run.record('transition', {'to': 'executing'})
         server = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
-        self.addCleanup(server.wait)
+        self.addCleanup(lambda: server.wait(timeout=10))
         self.addCleanup(lambda: server.poll() is None and server.kill())
         run.record('resource', {'kind': 'process', 'pid': server.pid, 'purpose': 'dev server'})
         tree = run.only('create_worktree')

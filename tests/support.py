@@ -153,6 +153,7 @@ class Run:
 
     def snapshot_token(self):
         code, env, _ = cli('validate', *self.args())
+        self.test.assertEqual(code, 0, env)
         snap = env['data']['binding']['snapshot']
         return f'{snap["head"]}:{snap["content_hash"]}'
 

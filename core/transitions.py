@@ -28,7 +28,7 @@ def allowed(current: str, target: str) -> bool:
     if current in TERMINAL:
         return False
     if target in ('blocked', 'cancelling', 'failed'):
-        return current != target and not (current == 'cancelling' and target == 'cancelling')
+        return current != target
     return target in FORWARD.get(current, set())
 
 

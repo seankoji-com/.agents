@@ -141,11 +141,17 @@ def grade(case: str, state: dict, report: dict) -> dict:
 def collect(args):
     run_dir = state_root() / 'runs' / args.run_id
     state = json.loads((run_dir / 'run.json').read_text())
-    cli = Path.home() / '.local' / 'share' / 't3-plugins' / 'imps' / 'current' / 'core' / 'cli.py'
+    prefix = Path(os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins')).expanduser()
+    cli = prefix / 'imps' / 'current' / 'core' / 'cli.py'
+    if not cli.is_file():
+        raise SystemExit(f'no installed imps core at {cli}; set T3_PLUGINS_PREFIX to the install prefix')
     out = subprocess.run([sys.executable, str(cli), 'report', '--run-id', args.run_id], capture_output=True, text=True)
-    envelope = json.loads(out.stdout)
-    if not envelope['ok']:
-        raise SystemExit(f'report failed: {envelope["error"]}')
+    try:
+        envelope = json.loads(out.stdout)
+    except json.JSONDecodeError:
+        raise SystemExit(f'report failed ({out.returncode}): {out.stderr.strip() or out.stdout.strip()}') from None
+    if out.returncode != 0 or not envelope.get('ok'):
+        raise SystemExit(f'report failed ({out.returncode}): {envelope.get("error")}')
     report = envelope['data']['report']
     target = CONFORMANCE / 'results' / args.t3_version / args.provider / args.case / str(args.repeat)
     if target.exists():
