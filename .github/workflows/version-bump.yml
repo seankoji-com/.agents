@@ -33,8 +33,13 @@ jobs:
             manifest="${plugin_dir}plugin.json"
             [ -f "$manifest" ] || continue
             plugin_name=$(basename "$plugin_dir")
+            # New plugins already declare their initial version; there is no base
+            # manifest to read (git show would fail under the runner's pipefail).
+            git cat-file -e "$BASE:$manifest" 2>/dev/null || continue
 
-            if ! git diff --quiet "$BASE" "$HEAD" -- "$plugin_dir" "core/"; then
+            # Keep these paths aligned with scripts/install.py source_files():
+            # each snapshot contains its plugin plus core/ and shared/.
+            if ! git diff --quiet "$BASE" "$HEAD" -- "$plugin_dir" "core/" "shared/"; then
               base_version=$(git show "$BASE:$manifest" 2>/dev/null | jq -r '.version // "0.0.0"')
               current_version=$(jq -r '.version' "$manifest")
 
@@ -57,9 +62,11 @@ jobs:
 
       - name: Commit version bumps
         if: steps.bump.outputs.changed == '1'
+        env:
+          PR_HEAD_REF: ${{ github.head_ref }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -u -- plugins/
           git commit -m "chore: auto-bump plugin versions"
-          git push origin "HEAD:${{ github.head_ref }}"
+          git push origin "HEAD:${PR_HEAD_REF}"

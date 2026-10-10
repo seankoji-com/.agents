@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -47,15 +48,26 @@ def files_under(root: Path):
 
 def source_files(source: Path, plugin: str) -> dict:
     """Installed relative path -> source file."""
+    validate_name(plugin)
     plugin_dir = source / 'plugins' / plugin
     if not (plugin_dir / 'plugin.json').is_file():
         raise InstallError('unknown_plugin', f'no plugin named {plugin} under {source / "plugins"}')
     mapping = {path.relative_to(plugin_dir).as_posix(): path for path in files_under(plugin_dir)}
     for path in files_under(source / 'core'):
         mapping['core/' + path.relative_to(source / 'core').as_posix()] = path
+    for path in files_under(source / 'shared'):
+        mapping['shared/' + path.relative_to(source / 'shared').as_posix()] = path
+    for path in mapping.values():
+        if path.is_symlink() or not path.resolve().is_relative_to(source.resolve()):
+            raise InstallError('source_path_escape', 'source file escapes its package')
     if MANIFEST in mapping:
         raise InstallError('reserved_name', f'{MANIFEST} is reserved for the installer')
     return mapping
+
+
+def validate_name(plugin: str) -> None:
+    if not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', plugin):
+        raise InstallError('invalid_plugin', 'plugin must be a kebab-case name')
 
 
 def git_commit(source: Path, paths) -> tuple[str | None, bool]:
@@ -71,10 +83,15 @@ def git_commit(source: Path, paths) -> tuple[str | None, bool]:
 def plan_install(source: Path, plugin: str) -> dict:
     mapping = source_files(source, plugin)
     meta = json.loads((source / 'plugins' / plugin / 'plugin.json').read_text())
+    if not re.fullmatch(r'\d+\.\d+\.\d+', meta.get('version', '')):
+        raise InstallError('invalid_version', 'plugin version must be major.minor.patch')
+    entry = meta.get('entry', 'entry.md')
+    if entry not in mapping or Path(entry).is_absolute() or '..' in Path(entry).parts:
+        raise InstallError('invalid_entry', 'entry must name a bundled file')
     entries = [{'path': rel, 'sha256': sha256(path), 'mode': 0o755 if os.access(path, os.X_OK) else 0o644}
                for rel, path in sorted(mapping.items())]
     content = hashlib.sha256(json.dumps(entries, sort_keys=True).encode()).hexdigest()
-    commit, dirty = git_commit(source, ['plugins/' + plugin, 'core'])
+    commit, dirty = git_commit(source, ['plugins/' + plugin, 'core', 'shared'])
     if commit and not dirty:
         version = f'{meta["version"]}+g{commit[:12]}'
     else:
@@ -288,6 +305,7 @@ def main(argv=None) -> int:
     parser.add_argument('--version', help='with --uninstall: remove only this version')
     args = parser.parse_args(argv)
     try:
+        validate_name(args.plugin)
         if args.uninstall:
             data = uninstall(args)
         elif args.activate:

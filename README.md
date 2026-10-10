@@ -1,95 +1,81 @@
 # t3-plugins
 
-Plugins for [T3 Code](https://github.com/pingdotgg/t3code), built on a shared core that knows nothing about any one plugin.
+**Change the model. Keep the workflow.**
 
-| Path | What it is |
-| --- | --- |
-| `core/` | Workflow-state core: run records, ownership and generations, readiness, evidence, path safety, published JSON Schemas, CLI. Python 3.10+, stdlib only. Contains no plugin vocabulary; `tests/test_contract.py` enforces that. |
-| `plugins/imps/` | **imps**: bug fixes and bounded changes in a T3 thread, direct or delegated through T3's own task tools, with revision-bound evidence and independent review. Start at `plugins/imps/entry.md`. |
-| `scripts/install.py` | Installs any plugin under `plugins/` together with its own copy of `core/`. |
-| `conformance/` | Live provider compatibility results and the procedure that produces them. |
-| `tests/` | Deterministic tests; `tests/README.md` maps each source-spec case to its tests. |
-| `thinking/imps-t3/` | Design brief, rubric and decisions behind imps v1. |
+[![Tests](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml/badge.svg)](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml)
+[![Documentation](https://github.com/seankoji-com/t3-plugins/actions/workflows/docs.yml/badge.svg)](https://seankoji-com.github.io/t3-plugins/)
+[![MIT license](https://img.shields.io/badge/license-MIT-16786a)](LICENSE)
+
+Seven practical plugins for [T3 Code](https://github.com/pingdotgg/t3code): plan a
+change, research an approach, implement it, and check the result. Portable entries
+inherit your active provider. Local tools handle deterministic work. T3 owns tasks,
+browser previews, and PR watches.
+
+**[Read the docs](https://seankoji-com.github.io/t3-plugins/)** ·
+[Architecture](docs/architecture.md) · [Compatibility](docs/compatibility.md) ·
+[Contributing](CONTRIBUTING.md)
+
+[![Documentation homepage, captured from the built site](docs/assets/docs-preview.png)](https://seankoji-com.github.io/t3-plugins/)
 
 ## Install
 
-### Homebrew (Recommended)
-
-```bash
-brew tap seankoji-com/tap
-brew install t3-plugins
+```sh
+brew install seankoji-com/tap/t3-plugins
+t3-plugins install
+t3-plugins doctor
+t3-plugins prompt imps doctor
 ```
 
-Formula aliases allow installing directly via `brew install imps`. This installs `t3-plugins` and `imps` command-line tools into your `$PATH`.
+Paste the printed prompt into a T3 thread. No Claude marketplace or provider-specific
+slash command is required. Install on the machine where your provider executes tools.
+[Source installation, upgrades, and rollback](docs/getting-started.md) are documented too.
 
-On first invocation of `imps` (or by running `t3-plugins`), `~/.local/share/t3-plugins/imps/current` is automatically initialized/updated to point to the current formula installation, ensuring compatibility with T3 agent prompt instructions (`Read ~/.local/share/t3-plugins/imps/current/entry.md...`).
+## Pick a job
 
-### From Source
+| Plugin | What it does |
+| --- | --- |
+| [imps](docs/plugins/imps.md) | Implements bounded changes with revision-bound evidence, recovery, and independent review |
+| [elephant-goldfish](docs/plugins/elephant-goldfish.md) | Turns uncertain problems into testable briefs and checks durable design documents |
+| [prompt-builder](docs/plugins/prompt-builder.md) | Builds reusable prompts and compares them against frozen cases |
+| [ape](docs/plugins/ape.md) | Finds transferable ideas in open-source code, with source-pinned evidence |
+| [babysitter](docs/plugins/babysitter.md) | Maintains authorized PRs through review, CI, conflicts, and merge |
+| [agent-tuneup](docs/plugins/agent-tuneup.md) | Audits agent configuration with explicit provider-format support |
+| [offload-sidecar](docs/plugins/offload-sidecar.md) | Transforms files by path and returns small receipts with output hashes |
 
-```bash
-git clone https://github.com/seankoji-com/t3-plugins.git ~/repos/t3-plugins
-python3 ~/repos/t3-plugins/scripts/install.py --dry-run
-python3 ~/repos/t3-plugins/scripts/install.py
-```
+A direct prompt or short shell command is often enough. Use a plugin when its saved
+artifacts, checks, or recovery behavior help. [Try your first workflow](docs/first-workflow.md).
 
-The installer copies a versioned snapshot to a directory such as `~/.local/share/t3-plugins/imps/0.1.0+ga50f506cd178/`, writes `install-manifest.json` there, and points `~/.local/share/t3-plugins/imps/current` at it. It prints the fully expanded entry path. That path stays the same across upgrades:
+## How it fits together
 
-```text
-~/.local/share/t3-plugins/imps/current/entry.md
-```
+![T3 thread to plugin entry, then local helpers or T3 host tools; imps additionally uses a shared state core.](docs/assets/architecture.svg)
 
-Upgrade: `git -C ~/repos/t3-plugins pull`, then run the installer again. Roll back: `python3 ~/repos/t3-plugins/scripts/install.py --activate <version>`, where `<version>` is one the installer reported (`ls ~/.local/share/t3-plugins/imps` lists them). A locally edited installed file makes the installer refuse; `--force` overwrites it.
+The Python runtime uses only the standard library. Small entries load focused
+playbooks. The shared core owns imps state, claims, generations, and evidence, with
+no plugin-specific imports. Versioned installs preserve local edits and keep run
+state separate. [Read the design and tradeoffs](docs/architecture.md).
 
-## Use it from a T3 thread
+Provider-neutral is a design contract, not a claim that every model behaves the same.
+New ports are experimental. The existing imps [live conformance ledger](conformance/compatibility.md)
+records partial results, exact versions, failures, and artifacts.
 
-Paste into any T3 thread, on any provider:
+## Develop
 
-```text
-Read ~/.local/share/t3-plugins/imps/current/entry.md and run: doctor
-```
-
-```text
-Read ~/.local/share/t3-plugins/imps/current/entry.md and run: run fix the wordstat count bug: a file with "one two" on line 1 and "three" on line 2 prints 2 instead of 3
-```
-
-The run prints its run ID and ends with a report. To pick it up again later, or after an interruption, in the same thread:
-
-```text
-Read ~/.local/share/t3-plugins/imps/current/entry.md and run: resume 20261009-130019-c0244e
-```
-
-```text
-Read ~/.local/share/t3-plugins/imps/current/entry.md and run: status 20261009-130019-c0244e
-```
-
-```text
-Read ~/.local/share/t3-plugins/imps/current/entry.md and run: cancel 20261009-130019-c0244e
-```
-
-The same operations from a shell, without a model:
-
-```bash
-python3 ~/.local/share/t3-plugins/imps/current/cli.py status --run-id 20261009-130019-c0244e
-python3 ~/.local/share/t3-plugins/imps/current/cli.py report --run-id 20261009-130019-c0244e
-```
-
-Run state and evidence live under `~/.local/state/t3-plugins/imps/runs/`, one directory per run (for example `~/.local/state/t3-plugins/imps/runs/20261009-130019-c0244e/`). If a provider's sandbox cannot write there, entry.md tells it to pass `--state-root` to a writable directory and say so. Nothing there is removed by cleanup or uninstall. Run `20261009-130019-c0244e` is a real completed bug fix by Codex; its report is committed at `conformance/results/0.0.46-nightly.20261008.2849/codex/bugfix/1/report.md`. A blocked run's report prints its exact resume command, as in `conformance/results/0.0.46-nightly.20261008.2849/codex/missing-capability/1/report.md`.
-
-## Test
-
-```bash
-cd ~/repos/t3-plugins
+```sh
 python3 -m unittest discover -s tests -v
+python3 scripts/check_docs.py
 ```
 
-## Uninstall
+Python 3.10+; no runtime package installation. Some optional adapters require Python
+3.11+. Documentation uses a separate pinned [MkDocs build](docs/contributing.md#work-on-the-site).
+Tests cover stale evidence, ownership, path safety, interrupted tasks, installed
+artifacts, malformed outputs, and permission-audit receipts. See [testing](docs/testing.md).
 
-```bash
-python3 ~/repos/t3-plugins/scripts/install.py --uninstall
-```
+## Project
 
-This removes only the files listed in each version's manifest. Files you added, other plugins and `~/.local/state/t3-plugins/` are left alone.
+Built by [Sean Carey](https://github.com/seankoji). Ported from
+[claude-plugins](https://github.com/seankoji-com/claude-plugins), with the source
+revision and behavioral changes in the [migration guide](docs/migration.md).
 
-## Compatibility
-
-Live results per provider, with T3 version, model IDs, repeats and artifacts, are in [`conformance/compatibility.md`](conformance/compatibility.md). The promise is identical workflow rules, artifact formats and completion criteria. Model judgment, quality and latency still differ by provider.
+Issue forms and the PR template are inherited from
+[seankoji-com/.github](https://github.com/seankoji-com/.github).
+[Security reporting](SECURITY.md) · [MIT license](LICENSE)

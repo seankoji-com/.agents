@@ -1,0 +1,78 @@
+site_name: t3-plugins
+site_description: Portable agent workflows. Inspectable tools. Evidence before completion.
+site_url: https://seankoji-com.github.io/t3-plugins/
+repo_url: https://github.com/seankoji-com/t3-plugins
+repo_name: seankoji-com/t3-plugins
+edit_uri: edit/master/docs/
+copyright: Copyright &copy; 2026 Sean Carey. MIT licensed.
+theme:
+  name: material
+  font: false
+  logo: assets/mark.svg
+  favicon: assets/mark.svg
+  palette:
+    - scheme: default
+      primary: custom
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: custom
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+    - search.suggest
+    - search.highlight
+plugins:
+  - search
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+extra_css:
+  - stylesheets/extra.css
+nav:
+  - Overview: index.md
+  - Get started:
+      - Installation: getting-started.md
+      - Your first workflow: first-workflow.md
+      - Troubleshooting: troubleshooting.md
+  - Plugins:
+      - Choose a plugin: plugins/index.md
+      - imps: plugins/imps.md
+      - elephant-goldfish: plugins/elephant-goldfish.md
+      - prompt-builder: plugins/prompt-builder.md
+      - ape: plugins/ape.md
+      - babysitter: plugins/babysitter.md
+      - agent-tuneup: plugins/agent-tuneup.md
+      - offload-sidecar: plugins/offload-sidecar.md
+  - Engineering:
+      - Architecture: architecture.md
+      - Compatibility: compatibility.md
+      - Migration: migration.md
+      - Testing: testing.md
+      - Contributing: contributing.md
+      - Releasing: releasing.md
+validation:
+  nav:
+    omitted_files: info
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn

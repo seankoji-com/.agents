@@ -1,0 +1,19 @@
+{
+  "name": "offload-sidecar",
+  "version": "0.1.0",
+  "description": "File transforms by path with deterministic or optional model engines.",
+  "entry": "entry.md",
+  "operations": [
+    "doctor",
+    "process",
+    "serve",
+    "status"
+  ],
+  "kind": "workflow",
+  "compatibility": "experimental",
+  "origin": {
+    "repository": "seankoji-com/claude-plugins",
+    "plugin": "offload-sidecar",
+    "version": "0.3.7"
+  }
+}

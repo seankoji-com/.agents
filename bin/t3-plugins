@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+"""Source-checkout launcher; Homebrew supplies a wrapper to the same catalog."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
+from catalog import main
+
+raise SystemExit(main())

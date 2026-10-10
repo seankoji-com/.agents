@@ -1,0 +1,19 @@
+{
+  "name": "ape",
+  "version": "0.1.0",
+  "description": "Research transferable patterns in open-source repositories.",
+  "entry": "entry.md",
+  "operations": [
+    "doctor",
+    "forage",
+    "study",
+    "clean"
+  ],
+  "kind": "workflow",
+  "compatibility": "experimental",
+  "origin": {
+    "repository": "seankoji-com/claude-plugins",
+    "plugin": "ape",
+    "version": "0.2.18"
+  }
+}

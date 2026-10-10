@@ -1,6 +1,5 @@
 # Byte-compiles the stdlib-only Python and runs the unittest suite.
-# No secrets, no network, no third-party packages: the runner's own python3
-# (3.10 or later) is the whole toolchain.
+# No secrets or model calls. setup-python selects the supported runtime matrix.
 name: Test
 
 on:
@@ -17,17 +16,30 @@ concurrency:
 
 jobs:
   test:
-    runs-on: [self-hosted, Linux]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.10'
+          - os: ubuntu-latest
+            python: '3.14'
+          - os: macos-latest
+            python: '3.12'
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
-    # The runners are persistent and shared: never run code from a fork.
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+    # Disposable hosted runners also test fork contributions without secrets.
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
 
       - name: Python version
         run: python3 -c 'import sys; print(sys.version); raise SystemExit(sys.version_info < (3, 10))'
@@ -39,3 +51,6 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python3 -m unittest discover -s tests -v
+
+      - name: Documentation contracts
+        run: python3 scripts/check_docs.py

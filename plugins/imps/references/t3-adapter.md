@@ -15,7 +15,8 @@ Load this when a T3 tool is missing, errors, or behaves unexpectedly.
 | `task_status` | doc, confirmed live | `query_task` and `confirm_stop` |
 | `task_cancel` | doc, confirmed live | `cancel_task` |
 | `t3_thread_read` | doc | `collect_result` when the summary lacks the result block |
-| `t3_thread_update` | doc | action `link_pull_request` (repository, number, URL) for an authorised PR |
+| `link_pull_request` | confirmed live | Register an authorised PR with this thread |
+| `watch_pull_request` / `unwatch_pull_request` | confirmed live | Start monitoring and yield; stop monitoring before handing work back |
 | `create_threads`, `t3_thread_launch` | doc | prohibited for child work: they create top-level threads |
 | `t3_thread_send` | doc | never sent to a child thread; a new round is a new `delegate_task` |
 
@@ -40,4 +41,11 @@ The pinned doc says T3 registers a preview toolkit but does not list its tools. 
 
 ## Pull requests
 
-T3's documented surface has no PR-watcher tools, so the package never relies on one. When the operator asked for a PR, the publish step pushes and opens it with native tools, then links it with `t3_thread_update` (`link_pull_request`). `confirm_remote` observes it with `gh pr view <url> --json state,headRefOid,url,number` at the moment completion is claimed.
+The original conformance run predates T3's dedicated PR tools. As inspected on
+10 October 2026 (AEDT, UTC+11), the host exposes `link_pull_request`,
+`watch_pull_request`, and `unwatch_pull_request`. Discover them at runtime and use
+the live schema. Link each PR immediately, register requested monitoring, and yield
+to host wake-ups rather than polling. Unwatch when handing work back. On older
+hosts, discover their documented link operation; report monitoring unavailable if
+no watch tool exists. `confirm_remote` still observes
+`gh pr view <url> --json state,headRefOid,url,number` before claiming completion.
