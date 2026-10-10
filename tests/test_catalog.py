@@ -110,6 +110,23 @@ class CatalogTest(unittest.TestCase):
                         continue
                     self.assertTrue((directory / rel).exists() or (ROOT / rel).exists(), f'{path}: {rel}')
 
+    def test_templates_do_not_reintroduce_claude_dispatch(self):
+        for path in (ROOT / 'plugins/elephant-goldfish/templates').glob('*.md'):
+            text = path.read_text()
+            for forbidden in ('/imps:imps', 'haiku', 'CLAUDE_PLUGIN_ROOT'):
+                self.assertNotIn(forbidden, text, path)
+
+    def test_one_shot_rejects_malformed_request_types_without_tracebacks(self):
+        script = ROOT / 'plugins/offload-sidecar/scripts/process.py'
+        for changes in ({'params': ['bad']}, {'overwrite': 'false'}, {'operation': []},
+                        {'instruction': {}}, {'input_paths': 'file'}, {'allow_cloud': 'true'}):
+            path = Path(self.tmp.name) / 'request.json'
+            path.write_text(json.dumps({'operation': 'sort_lines', **changes}))
+            result = subprocess.run([sys.executable, str(script), str(path)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 2)
+            self.assertEqual(json.loads(result.stdout)['status'], 'error')
+            self.assertNotIn('Traceback', result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

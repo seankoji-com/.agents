@@ -66,6 +66,15 @@ def run(argv):
 
 
 class TestSlugValidation(unittest.TestCase):
+    def test_topic_symlink_cannot_redirect_metadata_writes(self):
+        from pathlib import Path
+        with sandbox():
+            Path('thinking').mkdir()
+            Path('external').mkdir()
+            Path('thinking/topic').symlink_to(Path('external').resolve())
+            with self.assertRaises(ts.StateError):
+                ts.topic_dir(Path('thinking'), 'topic')
+
     def test_accepts_kebab_case(self):
         for slug in ("a", "buy-family-car", "q3-vendor-report", "abc123"):
             self.assertEqual(ts.validate_slug(slug), slug)

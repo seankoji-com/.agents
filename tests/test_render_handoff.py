@@ -102,6 +102,16 @@ class TestRenderPure(unittest.TestCase):
 
 
 class TestRenderCLIWithBraceContent(unittest.TestCase):
+    def test_path_traversal_and_symlinked_outputs_are_rejected(self):
+        with topic():
+            code, _, _ = run(['../t'])
+            self.assertEqual(code, 1)
+            write('keep.txt', 'untouched')
+            os.symlink(os.path.abspath('keep.txt'), 'thinking/t/handoff.md')
+            code, _, _ = run(['t'])
+            self.assertEqual(code, 1)
+            self.assertEqual(read('keep.txt'), 'untouched')
+
     def test_end_to_end_render_survives_template_syntax_in_the_documents(self):
         with topic(
             discovery="Deploy uses `{{API_KEY}}` and a Mustache block `{{USER_ID}}`.",
@@ -133,8 +143,8 @@ class TestRenderCLI(unittest.TestCase):
         with topic(output_type="implementation"):
             run(["t"])
             implementation = read("thinking/t/handoff.md")
-        self.assertIn("/imps:imps", implementation)
-        self.assertNotIn("/imps:imps", research)
+        self.assertIn("t3-plugins path imps", implementation)
+        self.assertNotIn("t3-plugins path imps", research)
         self.assertIn("Research brief", research)
 
     def test_stdout_mode_writes_no_file(self):

@@ -5,18 +5,16 @@ answers, and skip anything already settled. Where the user names a file, path or
 it into the record verbatim — the fresh session downstream has no repo intuition and every
 unstated path becomes a guess.
 
-You may read the repo to ground your questions. Where the environment offers a cheap
-read-only subagent (a haiku `scout`, or `Explore`), prefer it for mechanical recon — where
-does X live, what's the test command — so the finding lands in the record without the file
-dumps landing in this conversation. If neither exists, read the files directly; this is an
-optimisation, not a requirement.
+Read the repo to ground your questions. For a substantial independent investigation,
+an authorized T3 child can return a short evidence summary. Discover its provider and
+model from the live catalog. Keep small searches local; delegation is optional.
 
 ---
 
 ## Phase 1 — Interrogation (article step 1)
 
 Target: a problem description precise enough that someone who has never seen this repo could
-plan the change. 15–20 minutes minimum. Stop when the user says stop.
+plan the change. Continue while questions resolve useful uncertainty. Stop when the user says stop.
 
 ### What exists now
 - Which files and components does this touch? Get real paths, not descriptions.

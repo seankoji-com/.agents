@@ -79,7 +79,10 @@ def validate_slug(slug: str) -> str:
 
 
 def topic_dir(root: Path, slug: str) -> Path:
-    return root / validate_slug(slug)
+    path = root / validate_slug(slug)
+    if path.is_symlink() or not path.resolve().is_relative_to(root.resolve()):
+        raise StateError('topic directory escapes the requested root')
+    return path
 
 
 def sha256_of(path: Path) -> str:
@@ -94,6 +97,8 @@ def meta_path(tdir: Path) -> Path:
 
 def read_meta(tdir: Path) -> dict:
     mp = meta_path(tdir)
+    if mp.is_symlink():
+        raise StateError('topic metadata may not be a symlink')
     if not mp.exists():
         return {}
     try:
@@ -103,6 +108,8 @@ def read_meta(tdir: Path) -> dict:
 
 
 def write_meta(tdir: Path, meta: dict) -> None:
+    if meta_path(tdir).is_symlink():
+        raise StateError('topic metadata may not be a symlink')
     meta["updated_at"] = utcnow()
     tdir.mkdir(parents=True, exist_ok=True)
     meta_path(tdir).write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8")

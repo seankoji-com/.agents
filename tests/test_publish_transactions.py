@@ -61,3 +61,20 @@ class PublishTransactions(unittest.TestCase):
             with self.assertRaisesRegex(gp.PublishError, "local-only"):
                 self.post()
             run.assert_not_called()
+
+    def test_external_artifact_is_rejected_before_any_github_call(self):
+        for artifact in ('../private.txt', '/tmp/private.txt', 'meta.json'):
+            self.args.artifact = artifact
+            with patch.object(gp, 'run') as remote:
+                with self.assertRaises(gp.PublishError):
+                    self.post()
+                remote.assert_not_called()
+
+    def test_symlinked_artifact_is_not_published(self):
+        artifact = self.topic / 'spec.md'
+        artifact.unlink()
+        artifact.symlink_to(self.meta)
+        with patch.object(gp, 'run') as remote:
+            with self.assertRaises(gp.PublishError):
+                self.post()
+            remote.assert_not_called()

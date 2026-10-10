@@ -6,7 +6,23 @@ import os
 import sys
 from pathlib import Path
 
-from offload_sidecar import handle_process_local_file
+from offload_sidecar import OPERATIONS, OPERATION_ALIASES, handle_process_local_file
+
+
+def validate_request(request):
+    if not isinstance(request, dict):
+        raise ValueError("request must be an object")
+    for key in ("operation", "input_path", "output_path", "instruction", "tier"):
+        if key in request and not isinstance(request[key], str):
+            raise ValueError(f"{key} must be a string")
+    for key in ("overwrite", "allow_cloud"):
+        if key in request and not isinstance(request[key], bool):
+            raise ValueError(f"{key} must be a boolean")
+    if "params" in request and not isinstance(request["params"], dict):
+        raise ValueError("params must be an object")
+    if "input_paths" in request and (not isinstance(request["input_paths"], list)
+                                    or not all(isinstance(p, str) for p in request["input_paths"])):
+        raise ValueError("input_paths must be an array of strings")
 
 
 def main(argv=None):
@@ -22,14 +38,13 @@ def main(argv=None):
         parser.error("request JSON path required")
     try:
         request = json.loads(args.request.read_text(encoding="utf-8"))
-        if not isinstance(request, dict):
-            raise ValueError("request must be an object")
+        validate_request(request)
         # Copy before removing adapter-only consent. The engine never sees this field.
         consent = request.pop("allow_cloud", False)
         tier = request.get("tier")
         # Model-backed operations that default to cloud must also be explicitly opted in.
-        from offload_sidecar import OPERATIONS
-        operation = OPERATIONS.get(request.get("operation"), {})
+        name = request.get("operation")
+        operation = OPERATIONS.get(OPERATION_ALIASES.get(name, name), {})
         selected_tier = tier or operation.get("default_tier", "deep")
         if selected_tier in ("flash", "pro") and consent is not True:
             raise ValueError("cloud tier requires allow_cloud=true after operator authorization")

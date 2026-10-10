@@ -2,7 +2,7 @@
 """render_handoff.py — assemble handoff.md, the input to step 3.
 
 `handoff.md` is the deliverable of /elephant-goldfish:thinking: a single self-contained
-document you paste as the first message of a fresh session (or hand to /imps:imps). It is
+document you paste as the first message of a fresh session (or hand to imps in T3). It is
 pure concatenation of documents that already exist on disk, so the model must never
 generate it — having a model re-emit discovery.md and spec.md into a third file costs
 output tokens at output-token prices to produce bytes that are already sitting there,
@@ -96,7 +96,14 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', args.slug):
+            raise RenderError('topic slug must be lowercase kebab-case, 1-63 characters')
         tdir = Path(args.root) / args.slug
+        if tdir.is_symlink() or not tdir.resolve().is_relative_to(Path(args.root).resolve()):
+            raise RenderError('topic directory escapes the requested root')
+        for name in ('meta.json', 'discovery.md', 'spec.md', 'handoff.md', 'handoff.manifest.json'):
+            if (tdir / name).is_symlink():
+                raise RenderError(f'topic file may not be a symlink: {name}')
         meta_file = tdir / "meta.json"
         if not meta_file.exists():
             raise RenderError(f"no topic {args.slug!r} under {args.root} — nothing to render")

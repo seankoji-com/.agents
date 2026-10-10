@@ -48,7 +48,7 @@
       "source": "plugins/elephant-goldfish/scripts/thinking_state.py",
       "destination": "plugins/elephant-goldfish/scripts/thinking_state.py",
       "source_sha256": "2fd5fcf36b14a6f207b440f0f637c1325171adac3622ea9c175ec23dbb6aa6b5",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/elephant-goldfish/scripts/render_handoff.py",
@@ -60,7 +60,7 @@
       "source": "plugins/elephant-goldfish/scripts/gh_publish.py",
       "destination": "plugins/elephant-goldfish/scripts/gh_publish.py",
       "source_sha256": "fe81aafecb9e3e172ff63a1f634d8f5b1cef7bf458558f95e57d2ed5201e3be9",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/elephant-goldfish/templates/probes.research.md",
@@ -84,7 +84,7 @@
       "source": "plugins/elephant-goldfish/templates/probes.implementation.md",
       "destination": "plugins/elephant-goldfish/templates/probes.implementation.md",
       "source_sha256": "3b5be07c61cf2f9efe3318ad0a0c20bdf1d86164f1d0f48e1a7637c5c50995e1",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/elephant-goldfish/templates/discovery.skeleton.md",
@@ -96,7 +96,7 @@
       "source": "plugins/elephant-goldfish/templates/handoff.implementation.md",
       "destination": "plugins/elephant-goldfish/templates/handoff.implementation.md",
       "source_sha256": "d6ccc8c54c3d98003963d0a8d3af96b8e9966a61064b9f00d20dc9ed5afce10d",
-      "adapted": false
+      "adapted": true
     },
     {
       "source": "plugins/prompt-builder/scripts/evaluate.py",

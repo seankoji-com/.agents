@@ -99,8 +99,12 @@ def detect_repo() -> str:
 
 
 def topic_paths(root: str, slug: str) -> tuple[Path, Path]:
+    if not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', slug):
+        raise PublishError('invalid topic slug')
     tdir = Path(root) / slug
     meta = tdir / "meta.json"
+    if tdir.is_symlink() or meta.is_symlink() or not tdir.resolve().is_relative_to(Path(root).resolve()):
+        raise PublishError('topic paths must stay inside the requested root without symlinks')
     if not meta.exists():
         raise PublishError(f"no topic {slug!r} under {root}")
     return tdir, meta
@@ -264,7 +268,11 @@ def cmd_post(args) -> int:
     if not gh_meta.get("number"):
         raise PublishError(f"no Issue/Discussion for {args.slug!r} yet — run `ensure` first")
 
+    if args.artifact not in ARTIFACT_HEADINGS:
+        raise PublishError('only discovery.md, spec.md, and handoff.md can be published')
     artifact = tdir / args.artifact
+    if artifact.is_symlink():
+        raise PublishError('artifact may not be a symlink')
     if not artifact.exists():
         raise PublishError(f"no such artifact: {artifact}")
 
