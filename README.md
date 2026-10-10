@@ -13,6 +13,17 @@ Plugins for [T3 Code](https://github.com/pingdotgg/t3code), built on a shared co
 
 ## Install
 
+### Homebrew (Recommended)
+
+```bash
+brew tap seankoji-com/tap
+brew install t3-plugins
+```
+
+Formula aliases allow installing directly via `brew install imps`. This installs `t3-plugins` and `imps` command-line tools into your `$PATH` and links `~/.local/share/t3-plugins/imps/current`.
+
+### From Source
+
 ```bash
 git clone https://github.com/seankoji-com/t3-plugins.git ~/repos/t3-plugins
 python3 ~/repos/t3-plugins/scripts/install.py --dry-run

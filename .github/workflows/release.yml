@@ -1,0 +1,156 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: "Release Version Bump"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Tag, Release & Update Homebrew Tap
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Run test suite
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python3 -m unittest discover -s tests -v
+
+      - name: Determine next version
+        id: semver
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+          echo "Current latest tag: $LATEST_TAG"
+          VER="${LATEST_TAG#v}"
+          IFS='.' read -r major minor patch <<< "$VER"
+          case "${{ github.event.inputs.bump_type }}" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+          esac
+          NEXT_TAG="v${major}.${minor}.${patch}"
+          echo "Next tag: $NEXT_TAG"
+          echo "tag=$NEXT_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
+
+      - name: Package release tarball
+        run: |
+          TAG="${{ steps.semver.outputs.tag }}"
+          TARBALL="t3-plugins-${TAG}.tar.gz"
+          # Archive tree prefixing with t3-plugins-<TAG>/
+          git archive --format=tar.gz --prefix="t3-plugins-${TAG}/" -o "$TARBALL" HEAD
+          SHA=$(sha256sum "$TARBALL" | awk '{print $1}')
+          echo "$SHA  $TARBALL" > "${TARBALL}.sha256"
+          echo "SHA256: $SHA"
+          echo "sha256=$SHA" >> "$GITHUB_ENV"
+          echo "tarball=$TARBALL" >> "$GITHUB_ENV"
+
+      - name: Tag commit
+        id: tag_commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.semver.outputs.tag }}" -m "Release ${{ steps.semver.outputs.tag }}"
+          git push origin "${{ steps.semver.outputs.tag }}"
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ steps.semver.outputs.tag }}
+          name: ${{ steps.semver.outputs.tag }}
+          files: |
+            ${{ env.tarball }}
+            ${{ env.tarball }}.sha256
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+      - name: Delete orphaned tag if release failed
+        if: always() && steps.tag_commit.outcome == 'success' && steps.create_release.outcome != 'success'
+        run: |
+          git push --delete origin "${{ steps.semver.outputs.tag }}"
+
+      - name: Generate seankoji-com-ci App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.SEANKOJI_CI_APP_ID }}
+          private-key: ${{ secrets.SEANKOJI_CI_PRIVATE_KEY }}
+          owner: seankoji-com
+          repositories: homebrew-tap
+
+      - name: Update Homebrew Tap Formula
+        env:
+          TAP_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          TAG="${{ steps.semver.outputs.tag }}"
+          VER="${{ steps.semver.outputs.version }}"
+          SHA="${{ env.sha256 }}"
+          URL="https://github.com/seankoji-com/t3-plugins/releases/download/${TAG}/${{ env.tarball }}"
+          BRANCH="release-${TAG}"
+
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/seankoji-com/homebrew-tap.git" /tmp/homebrew-tap
+          mkdir -p /tmp/homebrew-tap/Formula /tmp/homebrew-tap/Aliases
+
+          sed -e "s|__VERSION__|${VER}|" \
+              -e "s|__URL__|${URL}|" \
+              -e "s|__SHA256__|${SHA}|" \
+              packaging/t3-plugins.rb.tmpl \
+              > /tmp/homebrew-tap/Formula/t3-plugins.rb
+
+          # Maintain formula alias for imps
+          ln -sf ../Formula/t3-plugins.rb /tmp/homebrew-tap/Aliases/imps
+
+          cd /tmp/homebrew-tap
+          git config user.name "seankoji-com-ci[bot]"
+          git config user.email "288827119+seankoji-com-ci[bot]@users.noreply.github.com"
+          git checkout -b "${BRANCH}"
+          git add Formula/t3-plugins.rb Aliases/imps
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "feat(formula): update t3-plugins to ${TAG}"
+          git push origin "${BRANCH}"
+
+          PR_URL=$(gh pr create --repo seankoji-com/homebrew-tap \
+            --base main --head "${BRANCH}" \
+            --title "feat(formula): update t3-plugins to ${TAG}" \
+            --body "Automated formula update for ${TAG}.")
+          gh pr merge --repo seankoji-com/homebrew-tap "${PR_URL}" --squash --auto
