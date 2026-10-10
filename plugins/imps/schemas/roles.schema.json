@@ -2,15 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "roles.schema.json",
   "title": "imps role configuration (config.json roles, or a plan/repository policy roles override)",
-  "description": "Selections are provider instance IDs and model IDs from the live T3 catalog, never aliases such as opus.",
+  "description": "Matches the runtime: any role name is accepted (the shipped defaults are implementer, reviewer and researcher). Selections are provider instance IDs and model IDs from the live T3 catalog, never aliases such as opus.",
   "type": "object",
-  "required": ["implementer", "reviewer", "researcher"],
-  "properties": {
-    "implementer": {"$ref": "#/$defs/role"},
-    "reviewer": {"$ref": "#/$defs/role"},
-    "researcher": {"$ref": "#/$defs/role"}
-  },
-  "additionalProperties": false,
+  "additionalProperties": {"$ref": "#/$defs/role"},
   "$defs": {
     "role": {
       "type": "object",
@@ -19,8 +13,7 @@
         "description": {"type": "string"},
         "host_role": {"enum": ["implementation", "research", "review", "design", "test", "general"]},
         "chain": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/entry"}}
-      },
-      "additionalProperties": false
+      }
     },
     "entry": {
       "type": "object",
@@ -30,8 +23,8 @@
         "providerInstanceId": {"type": "string", "minLength": 1},
         "model": {"type": "string"},
         "options": {"type": "object"},
-        "exclude_roles": {"type": "array", "items": {"enum": ["implementer", "reviewer", "researcher"]}},
-        "of_role": {"enum": ["implementer", "reviewer", "researcher"]},
+        "exclude_roles": {"type": "array", "items": {"type": "string"}},
+        "of_role": {"type": "string", "minLength": 1},
         "why": {"type": "string"}
       },
       "additionalProperties": false

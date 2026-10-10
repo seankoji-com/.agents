@@ -17,7 +17,7 @@ Delegate a task only when it resolves a distinct unknown or produces an output y
 ]
 ```
 
-- `files` is the task's ownership, as globs. Changes outside it make the core reject the result.
+- `files` is the task's ownership, as globs matched per path segment: `*` stays within one directory (`src/*.py` does not own `src/util/x.py`) and `**` spans directories (`src/**/*.py`). Changes outside it make the core reject the result.
 - `kind: read` tasks may not write. They run in parallel with anything else.
 - `target` (`{"providerInstanceId", "model"}` from the live catalog) pins a provider. A pinned target that is unavailable blocks the task instead of being swapped. Without `target`, the implementer role chain picks one (default: your own provider and model).
 - `depends_on` orders tasks. Integration follows the same order.

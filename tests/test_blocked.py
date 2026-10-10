@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from support import CLI, ROOT, CoreTestCase, FakeT3, capabilities, cli, done, git, native, result_block
+from support import CLI, ROOT, TIMEOUT, CoreTestCase, FakeT3, capabilities, cli, done, git, native, result_block
 
 sys.path.insert(0, str(ROOT))
 from core.blockers import CODES  # noqa: E402
@@ -121,7 +121,7 @@ class BlockedPathsTest(CoreTestCase):
         repo, run = self.delegated([{'id': 'fix', 'purpose': 'fix', 'files': ['wordstat.py']}])
         tree = run.only('create_worktree')
         native(tree['args']['argv'])
-        run.record('resource', {'kind': 'worktree', 'name': tree['args']['name'], 'path': tree['args']['path'],
+        run.record('resource', {'action_id': tree['id'], 'kind': 'worktree', 'name': tree['args']['name'], 'path': tree['args']['path'],
                                 'branch': tree['args']['branch'], 'task_id': 'fix'})
         t3 = FakeT3()
         action = run.only('dispatch')
@@ -197,7 +197,8 @@ class BlockedPathsTest(CoreTestCase):
         run, blocker = self.repair_limit()
         run.record('block', {'blocker': blocker})
         run.release()
-        result = subprocess.run([sys.executable, *blocker['resume']['argv'][1:]], capture_output=True, text=True)
+        result = subprocess.run([sys.executable, *blocker['resume']['argv'][1:]], capture_output=True, text=True,
+                                timeout=TIMEOUT)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(run.status()['phase'], 'verifying')
         self.assertEqual(run.state['policy']['repair_limit'], 1)
@@ -214,7 +215,8 @@ class BlockedPathsTest(CoreTestCase):
                 run, blocker = getattr(self, code)()
                 if run.status()['owner']:
                     run.release()
-                result = subprocess.run([sys.executable, *blocker['resume']['argv'][1:]], capture_output=True, text=True)
+                result = subprocess.run([sys.executable, *blocker['resume']['argv'][1:]], capture_output=True, text=True,
+                                timeout=TIMEOUT)
                 self.assertEqual(result.returncode, 0, f'{code}: {result.stdout} {result.stderr}')
                 self.assertTrue(json.loads(result.stdout)['ok'])
                 run.claim()

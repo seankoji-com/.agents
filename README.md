@@ -56,8 +56,8 @@ Read ~/.local/share/t3-plugins/imps/current/entry.md and run: cancel 20261009-13
 The same operations from a shell, without a model:
 
 ```bash
-python3 ~/.local/share/t3-plugins/imps/current/core/cli.py status --run-id 20261009-130019-c0244e
-python3 ~/.local/share/t3-plugins/imps/current/core/cli.py report --run-id 20261009-130019-c0244e
+python3 ~/.local/share/t3-plugins/imps/current/cli.py status --run-id 20261009-130019-c0244e
+python3 ~/.local/share/t3-plugins/imps/current/cli.py report --run-id 20261009-130019-c0244e
 ```
 
 Run state and evidence live under `~/.local/state/t3-plugins/imps/runs/`, one directory per run (for example `~/.local/state/t3-plugins/imps/runs/20261009-130019-c0244e/`). If a provider's sandbox cannot write there, entry.md tells it to pass `--state-root` to a writable directory and say so. Nothing there is removed by cleanup or uninstall. Run `20261009-130019-c0244e` is a real completed bug fix by Codex; its report is committed at `conformance/results/0.0.46-nightly.20261008.2849/codex/bugfix/1/report.md`. A blocked run's report prints its exact resume command, as in `conformance/results/0.0.46-nightly.20261008.2849/codex/missing-capability/1/report.md`.

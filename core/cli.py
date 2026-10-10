@@ -386,7 +386,7 @@ def main(argv=None) -> int:
     except Exception as exc:  # the envelope contract holds even for bugs
         error = Environment('internal_error', f'{type(exc).__name__}: {exc}')
     print(json.dumps({'schema_version': ENVELOPE_VERSION, 'ok': False, 'op': op, 'run_id': run_id,
-                      'error': error.to_json()}))
+                      'error': error.to_json()}, ensure_ascii=False))
     print(f'{error.code}: {error.message}', file=sys.stderr)
     return error.exit_code
 

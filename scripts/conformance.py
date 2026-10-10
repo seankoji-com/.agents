@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -42,7 +43,9 @@ def git(cwd, *args):
 
 
 def sanitise(text: str) -> str:
-    return text.replace(HOME, '~')
+    if HOME in ('', '/'):
+        return text
+    return re.sub(r'(?<![\w.~/-])' + re.escape(HOME) + r'(?![\w.-])', '~', text)
 
 
 def setup(args):
@@ -117,8 +120,9 @@ def grade(case: str, state: dict, report: dict) -> dict:
         # A correction round (malformed first result) is a designed, distinct round; a
         # second *initial* dispatch, or a reused request ID, would be the duplicate.
         checks = [
-            ('exactly one initial dispatch', sum(1 for r in rounds if r['purpose'] == 'initial') == 1),
-            ('every round has its own clientRequestId', len({r['client_request_id'] for r in rounds}) == len(rounds)),
+            ('exactly one initial dispatch', sum(1 for r in rounds if r.get('purpose') == 'initial') == 1),
+            ('every round has its own clientRequestId', all(r.get('client_request_id') for r in rounds)
+             and len({r.get('client_request_id') for r in rounds}) == len(rounds)),
             ('result accepted after resume', survey.get('status') in ('accepted', 'integrated')),
             ('resume recorded', sum(1 for e in state['events'] if e['kind'] == 'record:capabilities') >= 2),
         ]
@@ -127,7 +131,7 @@ def grade(case: str, state: dict, report: dict) -> dict:
         checks = [
             ('provider_switch recorded', any(e['kind'] == 'provider_switch' for e in state['events'])),
             ('same parent thread kept', not state['host'].get('previous_parent_thread_ids')),
-            ('exactly one initial dispatch', sum(1 for r in survey.get('rounds') or [] if r['purpose'] == 'initial') == 1),
+            ('exactly one initial dispatch', sum(1 for r in survey.get('rounds') or [] if r.get('purpose') == 'initial') == 1),
             ('run completed under the new provider', report['outcome'] == 'completed'),
         ]
     return {'checks': [{'name': name, 'passed': bool(ok)} for name, ok in checks],

@@ -25,7 +25,7 @@ class CleanupTest(CoreTestCase):
         run.record('resource', {'kind': 'process', 'pid': server.pid, 'purpose': 'dev server'})
         tree = run.only('create_worktree')
         native(tree['args']['argv'])
-        run.record('resource', {'kind': 'worktree', 'name': tree['args']['name'], 'path': tree['args']['path'],
+        run.record('resource', {'action_id': tree['id'], 'kind': 'worktree', 'name': tree['args']['name'], 'path': tree['args']['path'],
                                 'branch': tree['args']['branch'], 'task_id': 'fix'})
         t3 = FakeT3()
         action = run.only('dispatch')

@@ -8,8 +8,9 @@ import json
 import re
 from pathlib import Path
 
-from . import schema, snapshot
+from . import contract, schema, snapshot
 from .errors import InvalidInput
+from .fsutil import contained
 
 FENCE = re.compile(r'```([^\n`]*)\n(.*?)\n?```', re.S)
 TAG = 't3-result'
@@ -53,12 +54,40 @@ def extract(text: str) -> dict:
     return value
 
 
+def glob_match(path: str, pattern: str) -> bool:
+    """Per-segment glob: `*`, `?` and `[...]` stay inside one path segment and
+    `**` spans any number of segments, so `src/*.py` does not own `src/util/x.py`."""
+    parts, pats = path.split('/'), pattern.strip('/').split('/')
+
+    def walk(i, j):
+        if j == len(pats):
+            return i == len(parts)
+        if pats[j] == '**':
+            return any(walk(k, j + 1) for k in range(i, len(parts) + 1))
+        return i < len(parts) and fnmatch.fnmatchcase(parts[i], pats[j]) and walk(i + 1, j + 1)
+    return walk(0, 0)
+
+
+def owns(patterns, path: str) -> bool:
+    """Whether ownership `patterns` cover `path`; empty ownership covers every path."""
+    return not patterns or any(glob_match(path, pattern) for pattern in patterns)
+
+
 def _owned(path: str, patterns) -> bool:
-    return not patterns or any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
+    return owns(patterns, path)
 
 
-def validate(state: dict, task: dict, result: dict, worktree: str | None) -> dict:
-    """Schema first (Malformed), then claims against reality (Rejected)."""
+def requirement_ids(task: dict, current: dict) -> tuple[set, list]:
+    """(IDs this task answers for in the current contract, task IDs the contract no longer has)."""
+    known = {item['id'] for item in current['requirements']}
+    if not task.get('requirement_ids'):
+        return known, []
+    return set(task['requirement_ids']) & known, sorted(set(task['requirement_ids']) - known)
+
+
+def validate(state: dict, task: dict, result: dict, worktree: str | None, roots=()) -> dict:
+    """Schema first (Malformed), then claims against reality (Rejected). Absolute
+    evidence must sit under the task worktree, the run's checkout or `roots`."""
     overreach = sorted(key for key in result if key in OVERREACH)
     if overreach:
         raise Rejected('result_overreach', 'child result tries to set operator-owned fields',
@@ -70,21 +99,26 @@ def validate(state: dict, task: dict, result: dict, worktree: str | None) -> dic
     if result['task_id'] != task['id']:
         raise Rejected('result_task_mismatch', 'result names a different task',
                        {'expected': task['id'], 'got': result['task_id']})
-    allowed_ids = set(task.get('requirement_ids') or []) or {item['id'] for item in state['brief']['requirements']}
+    current = contract.current_contract(state)
+    allowed_ids, _dropped = requirement_ids(task, current)
     unknown = sorted({item['id'] for item in result['requirements']} - allowed_ids)
     if unknown:
-        raise Rejected('result_requirement_unknown', 'result reports requirements outside this task',
-                       {'ids': unknown})
+        raise Rejected('result_requirement_unknown', 'result reports requirements outside this task '
+                                                     'or no longer in the contract', {'ids': unknown})
+    original = {req['id']: req['text'] for req in current['requirements']}
     for item in result['requirements']:
         if item.get('text') is not None:
-            original = {req['id']: req['text'] for req in state['brief']['requirements']}
             if item['text'] != original.get(item['id']):
                 raise Rejected('result_contract_rewrite', 'result rewrites a requirement', {'id': item['id']})
     if task.get('kind') == 'review' and result.get('verdict') not in ('approve', 'adverse'):
         raise Malformed('review results need verdict approve or adverse')
     if worktree and task.get('writes'):
         base = task.get('base_sha') or state['repo'].get('base_sha')
-        actual = snapshot.changed_files(worktree, base) if base else set()
+        if task.get('self_base'):
+            # Work done in the parent's checkout is judged against the tree as it stood when the task started.
+            actual = snapshot.changed_since(worktree, task['self_base'])
+        else:
+            actual = snapshot.changed_files(worktree, base) if base else set()
         claimed = set(result['changed_files'])
         missing = sorted(claimed - actual)
         if missing:
@@ -109,18 +143,26 @@ def validate(state: dict, task: dict, result: dict, worktree: str | None) -> dic
         # Usually the files it read (a review listing what it reviewed). One correction round fixes the report.
         raise Malformed('a read-only task must report "changed_files": [] (list files you read in findings or notes, '
                         f'not here); got {result["changed_files"][:10]}')
-    roots = [root for root in (worktree, state['repo'].get('worktree')) if root]
+    bases = [root for root in (worktree, state['repo'].get('worktree')) if root]
+    permitted = bases + [root for root in roots if root]
     for item in result['requirements']:
         for evidence in item.get('evidence', []):
             path = Path(evidence['path'])
             if item['status'] != 'passed':
                 continue
             if not path.is_absolute():
-                if not any((Path(root) / path).is_file() for root in roots):
+                if not any((Path(root) / path).is_file() for root in bases):
                     # Probably relative to the child's own working directory; ask once for absolute paths.
                     raise Malformed(f'evidence path {evidence["path"]!r} for {item["id"]} is relative and does not '
                                     'exist under the task directory; report absolute paths')
+                path = next(Path(root) / path for root in bases if (Path(root) / path).is_file())
             elif not path.is_file():
                 raise Rejected('result_evidence_absent', 'result claims evidence that does not exist',
                                {'id': item['id'], 'path': evidence['path']})
+            try:
+                contained(path, permitted)
+            except InvalidInput as exc:
+                raise Rejected('result_evidence_outside', 'result claims evidence outside the task worktree, '
+                                                          'the run directory and the policy evidence roots',
+                               {'id': item['id'], 'path': evidence['path'], 'problem': exc.code}) from exc
     return result

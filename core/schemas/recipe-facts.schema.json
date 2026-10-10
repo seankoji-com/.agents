@@ -208,7 +208,29 @@
         "capture": {
           "type": "string"
         }
-      }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "http"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "command"
+            }
+          },
+          "required": [
+            "argv"
+          ]
+        }
+      ]
     },
     "expect": {
       "type": "object",
@@ -235,7 +257,43 @@
         "text": {
           "type": "string"
         }
-      }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "enum": [
+                "status",
+                "exit_code"
+              ]
+            }
+          },
+          "required": [
+            "equals"
+          ]
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "json_equals"
+            }
+          },
+          "required": [
+            "path",
+            "equals"
+          ]
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "contains"
+            }
+          },
+          "required": [
+            "text"
+          ]
+        }
+      ]
     }
   }
 }

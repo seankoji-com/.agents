@@ -44,18 +44,22 @@ class OwnershipTest(CoreTestCase):
         self.assertEqual(self.state_file.read_bytes(), before)
 
     def test_concurrent_claims_have_exactly_one_winner(self):
-        outcomes = []
+        outcomes, errors = [], []
         args = [sys.executable, str(CLI), 'claim', *self.run.args()]
         args = [str(a) for a in args]
 
         def claim():
-            result = subprocess.run(args, capture_output=True, text=True)
-            outcomes.append((result.returncode, json.loads(result.stdout)))
+            try:
+                result = subprocess.run(args, capture_output=True, text=True, timeout=60)
+                outcomes.append((result.returncode, json.loads(result.stdout)))
+            except Exception as exc:  # a thread's exception is otherwise lost
+                errors.append(repr(exc))
         threads = [threading.Thread(target=claim) for _ in range(8)]
         for thread in threads:
             thread.start()
         for thread in threads:
             thread.join()
+        self.assertEqual(errors, [])
         winners = [env for code, env in outcomes if code == 0]
         losers = [env for code, env in outcomes if code == 3]
         self.assertEqual(len(winners), 1, outcomes)
@@ -67,13 +71,19 @@ class OwnershipTest(CoreTestCase):
         generation = self.run.generation
         results = []
 
+        errors = []
+
         def write(n):
-            results.append(self.run.record_raw('note', {'key': f'k{n}', 'text': str(n)}, generation=generation)[0])
+            try:
+                results.append(self.run.record_raw('note', {'key': f'k{n}', 'text': str(n)}, generation=generation)[0])
+            except Exception as exc:
+                errors.append(repr(exc))
         threads = [threading.Thread(target=write, args=(n,)) for n in range(6)]
         for thread in threads:
             thread.start()
         for thread in threads:
             thread.join()
+        self.assertEqual(errors, [])
         self.assertEqual(sorted(results), [0, 3, 3, 3, 3, 3])
         self.assertEqual(len(self.run.state['notes']), 1)
 

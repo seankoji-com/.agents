@@ -49,7 +49,7 @@
       },
       "prompt": "Read {entry} and run: run investigate which functions wordstat.py defines and what each one does. Use delegated mode with exactly one task: {\"id\": \"survey\", \"purpose\": \"list each function in wordstat.py with a one-line description and its line number\", \"kind\": \"read\"}. Endstate local. After dispatching, end your turn and wait for T3 to wake you.",
       "interrupt": "after the survey task has a recorded host task ID, interrupt the parent thread's active turn, then send: Read {entry} and run: resume {run_id}",
-      "pass": "the survey task has exactly one dispatched round (one clientRequestId, one host task ID), its result is accepted after resume, and no second dispatch happened"
+      "pass": "the survey task has exactly one initial dispatch and every round (including a designed correction round) has its own clientRequestId, its result is accepted after resume, and no duplicate dispatch happened after the interruption"
     }
   }
 }

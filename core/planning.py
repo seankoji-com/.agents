@@ -41,7 +41,7 @@ TASK_DEFAULTS = {'kind': 'code', 'depends_on': [], 'requirement_ids': [], 'accep
 def _tasks(plan_tasks, mode, req_ids, default_role):
     tasks = []
     for raw in plan_tasks:
-        task = dict(TASK_DEFAULTS, **raw)
+        task = dict(copy.deepcopy(TASK_DEFAULTS), **copy.deepcopy(raw))
         task.setdefault('executor', 'delegate' if mode == 'delegated' else 'self')
         task.setdefault('role', default_role)
         if task['kind'] in ('review', 'probe') or task['id'].startswith(('review-', 'probe-', 'repair-')):

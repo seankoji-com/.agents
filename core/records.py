@@ -32,6 +32,8 @@ def _task(state, task_id) -> dict:
 
 
 def _round_for_host_id(state, host_task_id):
+    if not host_task_id:
+        raise InvalidInput('host_task_id', 'record the host task ID (the response taskId)')
     for task in state.get('tasks', []):
         for item in task.get('rounds') or []:
             if item.get('task_id') == host_task_id:
@@ -119,6 +121,8 @@ def _head(state) -> str:
 def rec_transition(ctx, state, payload):
     _require(payload, 'to')
     target = payload['to']
+    if target == 'failed':
+        return _fail(ctx, state, payload.get('reason') or 'recorded transition')
     if target in ('ready', 'completed', 'publishing'):
         still = engine.live_host_tasks(state) + engine.uncertain_requests(state)
         if still:
@@ -149,6 +153,7 @@ def rec_transition(ctx, state, payload):
                          {'client_request_ids': uncertain})
     if target == 'executing':
         state['execution']['serial_base'] = _head(state)
+        state['execution']['self_base'] = snapshot.baseline(state['repo']['worktree'])
     if target == 'cancelled' and engine.live_host_tasks(state):
         raise Prohibited('cancel_unconfirmed', 'tasks are not confirmed stopped',
                          {'task_ids': engine.live_host_tasks(state)})
@@ -186,11 +191,17 @@ def _sent_dispatch(ctx, state, payload):
         echoed = payload.get('action')
         if not isinstance(echoed, dict) or echoed.get('action') != 'dispatch' or not echoed.get('host_call'):
             raise
-        rebuilt = engine.action('dispatch', 'dispatch', task_id=echoed.get('task_id'), args=echoed.get('args'),
-                                host_call=echoed['host_call'], note=echoed.get('note'))
+        call, args = echoed['host_call'], echoed.get('args') or {}
+        if (not isinstance(call, dict) or not isinstance(call.get('arguments'), dict) or not isinstance(args, dict)
+                or not echoed.get('task_id')):
+            raise Prohibited('action_tampered', 'echoed action is not a well-formed dispatch action')
+        rebuilt = engine.action('dispatch', 'dispatch', task_id=echoed['task_id'], args=args,
+                                host_call=call, note=echoed.get('note'))
         if rebuilt['id'] != echoed.get('id'):
             raise Prohibited('action_tampered', 'echoed action does not match its id')
-        task = engine.task_by_id(state, echoed['task_id']) or (echoed['args'] or {}).get('create_task')
+        task = engine.task_by_id(state, echoed['task_id']) or args.get('create_task')
+        if task is not None and not isinstance(task, dict):
+            raise Prohibited('action_tampered', 'echoed action names a malformed task')
         if not task:
             raise
         expected = engine.client_request_id(state, task, len(task.get('rounds') or []) + 1)
@@ -348,7 +359,7 @@ def _take_result(ctx, state, task, text):
     worktree = task.get('worktree') or state['repo']['worktree']
     try:
         result = results.extract(text)
-        results.validate(state, task, result, worktree)
+        results.validate(state, task, result, worktree, _roots(ctx, state))
     except results.Malformed as exc:
         task.setdefault('malformed', []).append({'round': round_no, 'problem': str(exc), 'raw': raw})
         if task.get('correction_used'):
@@ -369,9 +380,8 @@ def _take_result(ctx, state, task, text):
         reason = '; '.join(item['reason'] for item in result['blockers']) or f'child reported {result["status"]}'
         return _block_task(ctx, state, task, 'task_failed', reason)
     task['status'] = 'accepted'
-    if task.get('writes') and task.get('executor') == 'delegate' and state['execution'].get('isolation') == 'serial':
-        # The next serial writer is judged only on what it adds after this one.
-        state['execution']['serial_base'] = _head(state)
+    if not engine.still_running(task):
+        _advance_base(state, task)
     if task.get('kind') == 'review':
         bind = task.get('review_binding') or _bind(ctx, state)
         verdict = result['verdict']
@@ -390,6 +400,16 @@ def _take_result(ctx, state, task, text):
             'verdict': result.get('verdict')}
 
 
+def _advance_base(state, task):
+    """The next writer in the parent's checkout is judged only on what it adds
+    after this one, once this one (and any nested run it started) has stopped."""
+    if not task.get('writes') or task.get('kind') in ('review', 'probe'):
+        return
+    if task.get('executor') == 'self' or state['execution'].get('isolation') == 'serial':
+        state['execution']['serial_base'] = _head(state)
+        state['execution']['self_base'] = snapshot.baseline(state['repo']['worktree'])
+
+
 def rec_observation(ctx, state, payload):
     response = payload.get('response') or {}
     obs = t3.observation(response)
@@ -398,8 +418,11 @@ def rec_observation(ctx, state, payload):
         raise Prohibited('cross_parent', 'task status is parent-scoped; this thread cannot use the old task IDs')
     task, entry = _round_for_host_id(state, obs['task_id'])
     if entry.get('terminal') and entry.get('cancel') is None:
+        was_pending = engine.needs_stop(entry)
         entry['observations'].append({'at': ctx.at, 'status': obs['status'], 'work_state': obs['work_state'],
                                       'has_pending_child_runs': obs['has_pending_child_runs']})
+        if was_pending and not engine.needs_stop(entry):
+            _advance_base(state, task)
         return {'task': task['id'], 'outcome': 'already_terminal',
                 'has_pending_child_runs': obs['has_pending_child_runs']}
     return _observe(ctx, state, task, entry, obs)
@@ -419,6 +442,8 @@ def rec_result(ctx, state, payload):
         _phase(state, 'executing')
         if task['status'] not in ('pending', 'correction_needed'):
             raise Prohibited('task_state', f'task {task["id"]} is {task["status"]}')
+        if task.get('writes') and not task.get('self_base') and state['execution'].get('self_base'):
+            task['self_base'] = state['execution']['self_base']
         task.setdefault('rounds', []).append({'round': len(task['rounds']) + 1, 'purpose': 'self', 'task_id': None,
                                               'terminal': True, 'observations': [], 'dispatched_at': ctx.at})
         task['next_round'] = None
@@ -463,12 +488,14 @@ def rec_check(ctx, state, payload):
                            {'planned': str(planned_cwd), 'recorded': payload['cwd']})
     _require_current(ctx, state, payload)
     code = payload.get('exit_code')
+    if code is not None and (not isinstance(code, int) or isinstance(code, bool)):
+        raise InvalidInput('exit_code', 'exit_code is an integer or null', {'exit_code': code})
     reason = payload.get('unavailable_reason')
     if code is None and not reason:
         raise InvalidInput('record_fields', 'check needs exit_code or unavailable_reason')
     if code == 0 and reason:
         raise InvalidInput('check_contradiction', 'a zero exit cannot be recorded as unavailable')
-    artifact = copy_artifact(Path(payload['log']), ctx.run_dir, 'checks', _roots(ctx, state) + [payload.get('log_root')])
+    artifact = copy_artifact(Path(payload['log']), ctx.run_dir, 'checks', _roots(ctx, state))
     bind = _bind(ctx, state)
     status = 'passed' if code == 0 else 'unavailable' if reason or code in (124, 126, 127) else 'failed'
     entry = {'name': check['name'], 'argv': check['argv'], 'cwd': payload.get('cwd') or check.get('cwd'),
@@ -543,20 +570,79 @@ def rec_repair(ctx, state, payload):
     for collection in ('acceptance', 'checks', 'reviews'):
         for entry in state.get(collection, []):
             entry.setdefault('invalidated', label)
-    writers = [t for t in state['tasks'] if t.get('writes') and t.get('kind') not in ('review', 'probe')]
-    template = writers[-1] if writers else {'executor': 'self', 'role': next(iter(state.get('roles') or {'self': 0})),
-                                            'files': []}
+    findings = [f for f in payload.get('findings') or [] if isinstance(f, dict)]
+    named = {str(f['file']) for f in findings if f.get('file')}
+    work = [t for t in state['tasks'] if t.get('kind') not in ('review', 'probe')]
+    writers = [t for t in work if t.get('writes')]
+    # The repair owns the files its findings name, plus the scope of every writer
+    # that owns one of them; findings that name no file reach every writer's scope.
+    scope = [w for w in writers if any(results.owns(w.get('files'), path) for path in named)]
+    if not scope or len(named) < len(findings):
+        scope = writers
+    if scope:
+        template = scope[-1]
+        files = [] if any(not w.get('files') for w in scope) else sorted({p for w in scope for p in w['files']} | named)
+    else:
+        # No writer to copy: use the run's work role and the union of the planned tasks' files.
+        template = {'executor': 'self',
+                    'role': state['policy'].get('work_role') or next(iter(state.get('roles') or {}), None)}
+        files = [] if any(not t.get('files') for t in work) else sorted({f for t in work for f in t['files']} | named)
     number = sum(1 for t in state['tasks'] if t['id'].startswith('repair-')) + 1
     task = {'id': f'repair-{number}', 'kind': 'code', 'purpose': f'repair after {stage}: {payload.get("reason", "")}'.strip(),
             'role': template.get('role'), 'executor': template.get('executor', 'self'), 'writes': True,
             'depends_on': [], 'requirement_ids': [], 'acceptance': [], 'constraints': [],
-            'files': template.get('files') or [], 'status': 'pending', 'rounds': [],
+            'files': files, 'status': 'pending', 'rounds': [],
             'next_round': {'purpose': 'repair', 'context': {'findings': payload.get('findings') or []}},
-            'target': template.get('target') if template.get('pinned_target') else None}
+            'target': template.get('target') if template.get('pinned_target') else None,
+            'pinned_target': bool(template.get('pinned_target'))}
     state['tasks'].append(task)
     state['execution']['serial_base'] = _head(state)
+    state['execution']['self_base'] = snapshot.baseline(state['repo']['worktree'])
     transitions.apply(state, 'executing', label, ctx.at)
     return {'repair_task': task['id'], 'stage': stage, 'used': used + 1, 'limit': state['policy']['repair_limit']}
+
+
+def _common_dir(path) -> Path:
+    return (Path(path) / snapshot.git(path, 'rev-parse', '--git-common-dir').strip()).resolve()
+
+
+def _created_worktree(ctx, state, payload):
+    """A worktree is run-owned only when it is the fresh result of a create_worktree
+    action that `next` offered: same path, branch and name, a worktree of this
+    repository, and nothing in it beyond what `git worktree add` checks out."""
+    try:
+        permitted = _permitted(ctx, state, 'create_worktree', payload)
+    except InvalidInput as exc:
+        raise InvalidInput('action_id', 'record a worktree with the action_id of the create_worktree action '
+                                        'that made it') from exc
+    args = permitted['args']
+    for key in ('path', 'name', 'branch'):
+        if payload.get(key) not in (None, args.get(key)):
+            raise InvalidInput('resource_mismatch', f'recorded {key} differs from the create_worktree action',
+                               {'planned': args.get(key), 'recorded': payload.get(key)})
+    path = Path(args['path'])
+    try:
+        top = snapshot.toplevel(path)
+    except InvalidInput as exc:
+        raise InvalidInput('worktree_missing', f'{path} is not a git worktree; run the action argv first') from exc
+    path = path.resolve()
+    if top != path:
+        raise InvalidInput('worktree_missing', f'{path} is not the top of a git worktree')
+    repo = state['repo']['worktree']
+    if _common_dir(path) != _common_dir(repo) or path == Path(repo).resolve():
+        raise Prohibited('foreign_worktree', f'{path} is not a new worktree of {repo}')
+    if any(item.get('path') == str(path) for item in state.get('resources', []) if item['kind'] == 'worktree'):
+        raise Prohibited('resource_exists', f'{path} is already recorded')
+    if snapshot.git(path, 'status', '--porcelain', '--untracked-files=all').strip():
+        raise Prohibited('worktree_not_fresh', f'{path} already holds changes or files; a pre-existing worktree '
+                                               'is never adopted as run-owned')
+    if args.get('branch'):
+        reflog = snapshot.git(repo, 'reflog', 'show', '--format=%H', 'refs/heads/' + args['branch'], check=False)
+        if len([line for line in reflog.splitlines() if line]) > 1:
+            raise Prohibited('worktree_not_fresh', f'branch {args["branch"]} has history from before this action')
+    probe = permitted['task_id'] if str(permitted['task_id']).startswith('probe-') and not engine.task_by_id(
+        state, permitted['task_id']) else None
+    return path, args['name'], args.get('branch'), permitted['task_id'], probe, permitted['id']
 
 
 def rec_resource(ctx, state, payload):
@@ -566,23 +652,19 @@ def rec_resource(ctx, state, payload):
     repo = state['repo']['worktree']
     created = []
     if kind == 'worktree':
-        _require(payload, 'path', 'name')
-        path = Path(payload['path'])
-        top = snapshot.toplevel(path)
-        if top != path.resolve():
-            raise InvalidInput('worktree_missing', f'{path} is not the top of a git worktree')
-        entry = {'id': rid, 'kind': 'worktree', 'name': payload['name'], 'path': str(path.resolve()),
-                 'branch': payload.get('branch'), 'task_id': payload.get('task_id'), 'status': 'live',
-                 'created_at': ctx.at,
-                 'cleanup_argv': ['git', '-C', repo, 'worktree', 'remove', *(['--force'] if payload['name'].startswith('probe-') else []),
-                                  str(path.resolve())]}
+        path, name, branch, task_id, probe, action_id = _created_worktree(ctx, state, payload)
+        entry = {'id': rid, 'kind': 'worktree', 'name': name, 'path': str(path), 'branch': branch,
+                 'task_id': task_id, 'status': 'live', 'created_at': ctx.at, 'created_by': action_id,
+                 'identity': resources.worktree_identity(path),
+                 # Only a probe worktree, which holds nothing but the probe marker, is force-removed.
+                 'cleanup_argv': ['git', '-C', repo, 'worktree', 'remove', *(['--force'] if probe else []), str(path)]}
         created.append(entry)
-        if payload.get('branch'):
-            created.append({'id': f'R-{uuid.uuid4().hex[:8]}', 'kind': 'branch', 'name': payload['name'],
-                            'branch': payload['branch'], 'repo': repo, 'status': 'live', 'created_at': ctx.at,
-                            'cleanup_argv': ['git', '-C', repo, 'branch', '-d', payload['branch']]})
-        name = payload['name']
-        if name.startswith('probe-'):
+        if branch:
+            created.append({'id': f'R-{uuid.uuid4().hex[:8]}', 'kind': 'branch', 'name': name,
+                            'branch': branch, 'repo': repo, 'status': 'live', 'created_at': ctx.at,
+                            'identity': resources.branch_identity(repo, branch),
+                            'cleanup_argv': ['git', '-C', repo, 'branch', '-d', branch]})
+        if probe:
             provider = name[len('probe-'):]
             target = None
             for writer in engine.delegated_writers(state):
@@ -598,12 +680,12 @@ def rec_resource(ctx, state, payload):
                 'host_role': 'test', 'executor': 'delegate', 'writes': False, 'depends_on': [], 'requirement_ids': [],
                 'acceptance': [], 'constraints': [], 'files': [], 'status': 'pending', 'rounds': [],
                 'target': target, 'target_why': 'probe the writer target', 'pinned_target': True,
-                'worktree': str(path.resolve()),
-                'probe': {'provider': provider, 'nonce': nonce, 'marker': str(path.resolve() / '.t3-probe-marker')}})
+                'worktree': str(path),
+                'probe': {'provider': provider, 'nonce': nonce, 'marker': str(path / '.t3-probe-marker')}})
         else:
             for task in state['tasks']:
-                if task['id'] == payload.get('task_id'):
-                    task['worktree'], task['branch'] = str(path.resolve()), payload.get('branch')
+                if task['id'] == task_id:
+                    task['worktree'], task['branch'] = str(path), branch
                     task['base_sha'] = snapshot.git(path, 'rev-parse', 'HEAD').strip()
     elif kind == 'process':
         _require(payload, 'pid')
@@ -630,9 +712,10 @@ def rec_cleanup(ctx, state, payload):
     item = next((r for r in state.get('resources', []) if r['id'] == payload['resource_id']), None)
     if item is None:
         raise InvalidInput('unknown_resource', f'no resource {payload["resource_id"]}')
-    if item['kind'] == 'process' and resources.fingerprint(item['pid']) not in (None, item['fingerprint']):
+    if resources.identity(item) == 'replaced':
         item['status'] = 'gone'
-        item['note'] = 'pid now belongs to an unrelated process; nothing was signalled'
+        item['note'] = ('pid now belongs to an unrelated process; nothing was signalled' if item['kind'] == 'process'
+                        else f'{item["kind"]} was removed and replaced by an unrelated one; nothing was touched')
         return {'resource': item['id'], 'status': 'gone'}
     still = resource_live(item)
     item['status'] = 'live' if still else 'removed'
@@ -690,8 +773,15 @@ def rec_remote_observation(ctx, state, payload):
     _phase(state, 'publishing')
     _require(payload, 'kind', 'url', 'state', 'head_sha')
     remote = state.setdefault('remote', {'receipts': [], 'observations': []})
-    observation = {'kind': payload['kind'], 'url': payload['url'], 'state': str(payload['state']).lower(),
+    observation = {'kind': payload['kind'], 'url': payload['url'], 'number': payload.get('number'),
+                   'state': str(payload['state']).lower(),
                    'head_sha': payload['head_sha'], 'observed_at': ctx.at, 'source_argv': payload.get('argv')}
+    receipt = (remote.get('receipts') or [None])[-1]
+    if receipt is None:
+        raise Prohibited('receipt_missing', 'record the publish receipt before observing it')
+    if not acceptance.same_remote(observation, receipt):
+        raise InvalidInput('remote_mismatch', 'the observation names a different PR from the recorded receipt',
+                           {'receipt': receipt.get('url'), 'observed': payload['url']})
     remote.setdefault('observations', []).append(observation)
     return observation
 
@@ -721,21 +811,78 @@ def rec_note(ctx, state, payload):
     return {'note': payload['key']}
 
 
+POLICY_EDITABLE = ('checks', 'review', 'role_overrides', 'model_preferences', 'brief_notes', 'work_role')
+
+
+def _check_policy(state, changes):
+    """A policy record may add obligations or retarget selection; it may never
+    weaken an obligation the run already carries."""
+    for forbidden in ('repair_limit', 'budget_seconds'):
+        if forbidden in changes:
+            raise Prohibited('operator_only', f'{forbidden} changes through unblock decisions only')
+    fixed = sorted(set(changes) - set(POLICY_EDITABLE))
+    if fixed:
+        raise Prohibited('policy_fixed', f'{fixed} are fixed when the run is created', {'keys': fixed})
+    if 'checks' in changes:
+        checks = changes['checks']
+        if not isinstance(checks, list) or not all(isinstance(c, dict) and c.get('name') for c in checks):
+            raise InvalidInput('record_fields', 'checks is a list of named checks')
+        for check in checks:
+            if not isinstance(check.get('argv'), list) or not check['argv'] or not all(isinstance(a, str) and a for a in check['argv']):
+                raise InvalidInput('check_argv', f'check {check.get("name")} needs a literal argv array')
+        new = {c['name']: dict(c, required=c.get('required', True) is not False) for c in checks}
+        for old in state['policy'].get('checks', []):
+            kept = new.get(old['name'])
+            if old.get('required', True) and (
+                    kept is None or not kept['required']
+                    or any(kept.get(key) != old.get(key) for key in ('argv', 'cwd', 'repository_required'))):
+                raise Prohibited('policy_weakening', f'required check {old["name"]} cannot be removed, relaxed or changed')
+        for check in new.values():
+            if check.get('repository_required') and not any(
+                    old['name'] == check['name'] and old.get('repository_required') for old in state['policy'].get('checks', [])):
+                raise Prohibited('policy_fixed', 'repository-required checks come only from repository policy')
+        changes = dict(changes, checks=list(new.values()))
+    if 'review' in changes:
+        old = state['policy'].get('review') or {}
+        review = dict(old, **(changes['review'] or {}))
+        if old.get('required') and not review.get('required'):
+            raise Prohibited('policy_weakening', 'a required review cannot be made optional')
+        if not old.get('waivable', True) and review.get('waivable', True):
+            raise Prohibited('policy_weakening', 'an unwaivable review cannot be made waivable')
+        if review.get('required') and review.get('role') not in (state.get('roles') or {}):
+            raise InvalidInput('unknown_role', f'review role {review.get("role")!r} is not configured')
+        changes = dict(changes, review=review)
+    if changes.get('work_role') is not None and changes['work_role'] not in (state.get('roles') or {}):
+        raise InvalidInput('unknown_role', f'work_role {changes["work_role"]} is not a configured role')
+    return changes
+
+
 def rec_policy(ctx, state, payload):
     changes = payload.get('policy')
     if not isinstance(changes, dict):
         raise InvalidInput('record_fields', 'policy record carries a policy object')
-    for forbidden in ('repair_limit', 'budget_seconds'):
-        if forbidden in changes:
-            raise Prohibited('operator_only', f'{forbidden} changes through unblock decisions only')
-    state['policy'].update(changes)
+    state['policy'].update(_check_policy(state, changes))
     return {'policy_hash': acceptance.policy_hash(state)}
+
+
+def _fail(ctx, state, reason):
+    """Failure is terminal, so owned children are stopped first: with any still
+    live, the run goes through cancelling and fails once every stop is confirmed."""
+    still = engine.live_host_tasks(state) + engine.uncertain_requests(state)
+    if not still:
+        transitions.apply(state, 'failed', reason, ctx.at)
+        return {'phase': 'failed'}
+    if state['phase'] != 'cancelling':
+        transitions.apply(state, 'cancelling', f'stopping owned work before failing: {reason}', ctx.at)
+        state['cancellation'] = {'requested_at': ctx.at, 'reason': reason, 'outcomes': []}
+    state['cancellation'].update(then='failed', fail_reason=reason)
+    return {'phase': 'cancelling', 'then': 'failed', 'task_ids': still,
+            'note': 'delegated work may still be running; stop it (next offers the steps), then the run fails'}
 
 
 def rec_fail(ctx, state, payload):
     _require(payload, 'reason')
-    transitions.apply(state, 'failed', payload['reason'], ctx.at)
-    return {'phase': 'failed'}
+    return _fail(ctx, state, payload['reason'])
 
 
 HANDLERS = {

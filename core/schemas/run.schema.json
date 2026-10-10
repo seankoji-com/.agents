@@ -260,7 +260,40 @@
       ],
       "properties": {
         "checks": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "argv"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "argv": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "cwd": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "repository_required": {
+                "type": "boolean"
+              }
+            }
+          }
         },
         "repair_limit": {
           "type": "integer",
@@ -269,6 +302,26 @@
         "worktree_root": {
           "type": "string",
           "minLength": 1
+        },
+        "review": {
+          "type": "object",
+          "required": [
+            "required"
+          ],
+          "properties": {
+            "required": {
+              "type": "boolean"
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "waivable": {
+              "type": "boolean"
+            }
+          }
         }
       }
     },
@@ -296,6 +349,47 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/check_entry"
+      }
+    },
+    "reviews": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "round",
+          "verdict"
+        ],
+        "properties": {
+          "round": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "approve",
+              "adverse",
+              "unavailable"
+            ]
+          },
+          "reported_verdict": {
+            "enum": [
+              "approve",
+              "adverse"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "invalidated": {
+            "type": "string"
+          }
+        }
       }
     },
     "acceptance": {

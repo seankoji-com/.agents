@@ -4,7 +4,7 @@ You are running **imps**: a workflow for bounded engineering work inside a T3 Co
 
 ## Locate the package
 
-`PKG` is the directory containing this file. Run the core as `python3 PKG/core/cli.py <op> ...`. In a source checkout, where `PKG/core` is absent, use `PKG/../../core/cli.py` and add `--plugin-dir PKG`. Each call prints one JSON object. Check `ok` and the exit code:
+`PKG` is the directory containing this file. Run the core as `python3 PKG/cli.py <op> ...`; it finds the core in an installed package or a source checkout. Each call prints one JSON object. Check `ok` and the exit code:
 
 | Exit | Meaning | Do |
 | --- | --- | --- |
@@ -51,7 +51,7 @@ Each turn: `claim` (keep the token) → `next` → do each action → `record` �
 | `dispatch` | call `host_call.tool` with exactly `host_call.arguments` | `dispatch` (`{"action_id", "response"}` or `{"action_id", "error"}`) |
 | `query_task` | end your turn if nothing else is actionable; T3 wakes you when the child finishes. Call `task_status` only when you need the result now | `observation` (`{"response"}`) |
 | `collect_result` | `t3_thread_read` the child thread's final message | `result` (`{"task_id", "text"}`) |
-| `create_worktree` | run `args.argv` | `resource` (`kind: worktree`, `name`, `path`, `branch`, `task_id`) |
+| `create_worktree` | run `args.argv` | `resource` (`action_id`, `kind: worktree`, `name`, `path`, `branch`, `task_id`); only a fresh worktree from this action is accepted |
 | `integrate` | run `args.argv` and keep the log | `integration` (`{"action_id", "exit_code", "log"}`) |
 | `commit` | commit the change (PR endstates publish commits only) | none; call `next` |
 | `run_check` | run `args.argv` in `args.cwd` with your native foreground command tool and save the output to `args.log_path` | `check` (`name`, `argv`, `cwd`, `exit_code`, `log`, `snapshot`) |

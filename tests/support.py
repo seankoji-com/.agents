@@ -19,6 +19,7 @@ CLI = ROOT / 'core' / 'cli.py'
 PLUGIN = ROOT / 'plugins' / 'imps'
 FIXTURES = ROOT / 'tests' / 'fixtures'
 PARENT = 'thread-parent-0001'
+TIMEOUT = 120  # seconds; a hung child process fails the test instead of the suite
 
 GIT_ENV = {'GIT_AUTHOR_NAME': 'Fixture', 'GIT_AUTHOR_EMAIL': 'fixture@example.invalid',
            'GIT_COMMITTER_NAME': 'Fixture', 'GIT_COMMITTER_EMAIL': 'fixture@example.invalid',
@@ -27,12 +28,14 @@ GIT_ENV = {'GIT_AUTHOR_NAME': 'Fixture', 'GIT_AUTHOR_EMAIL': 'fixture@example.in
 
 def git(cwd, *args, check=True):
     env = dict(os.environ, **GIT_ENV)
-    return subprocess.run(['git', '-C', str(cwd), *args], capture_output=True, text=True, check=check, env=env)
+    return subprocess.run(['git', '-C', str(cwd), *args], capture_output=True, text=True, check=check, env=env,
+                          timeout=TIMEOUT)
 
 
 def native(argv, check=False):
     """Run an argv returned by next, as a native foreground tool would."""
-    return subprocess.run(argv, capture_output=True, text=True, check=check, env=dict(os.environ, **GIT_ENV))
+    return subprocess.run(argv, capture_output=True, text=True, check=check, env=dict(os.environ, **GIT_ENV),
+                          timeout=TIMEOUT)
 
 
 def cli(*args, stdin=None, env=None):
@@ -40,7 +43,7 @@ def cli(*args, stdin=None, env=None):
     merged = dict(os.environ, **(env or {}))
     merged.pop('T3_PARENT_THREAD_ID', None)
     result = subprocess.run([sys.executable, str(CLI), *map(str, args)], input=stdin, capture_output=True,
-                            text=True, env=merged)
+                            text=True, env=merged, timeout=TIMEOUT)
     lines = [line for line in result.stdout.splitlines() if line.strip()]
     assert len(lines) == 1, f'expected one JSON line on stdout, got {result.stdout!r} / {result.stderr!r}'
     return result.returncode, json.loads(lines[0]), result.stderr
@@ -233,7 +236,7 @@ class CoreTestCase(unittest.TestCase):
     def run_check(self, run, action):
         """Execute a planned check the way a native foreground tool would."""
         args = action['args']
-        result = subprocess.run(args['argv'], cwd=args['cwd'], capture_output=True, text=True)
+        result = subprocess.run(args['argv'], cwd=args['cwd'], capture_output=True, text=True, timeout=TIMEOUT)
         log = Path(args['log_path'])
         log.write_text(result.stdout + result.stderr)
         return run.record('check', {'name': args['name'], 'argv': args['argv'], 'cwd': args['cwd'],

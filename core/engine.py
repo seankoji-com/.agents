@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import acceptance, blockers, resources, selection, snapshot, t3
+from . import acceptance, blockers, contract, resources, selection, snapshot, t3
 from .fsutil import hash_value
 from .transitions import TERMINAL
 
@@ -99,9 +99,13 @@ RESULT_SHAPE = ('{"schema_version": 1, "task_id": "%s", "status": "done|blocked|
                 '"blockers": [{"reason": "..."}]%s}')
 
 
-def brief(state: dict, task: dict, purpose: str) -> str:
-    reqs = {item['id']: item for item in state['brief']['requirements']}
+def brief(state: dict, task: dict, purpose: str, current: dict | None = None) -> str:
+    """`current` is the contract version this action is bound to; the source file is
+    re-read when it is not given."""
+    current = current or contract.current_contract(state)
+    reqs = {item['id']: item for item in current['requirements']}
     ids = task.get('requirement_ids') or list(reqs)
+    dropped = [rid for rid in ids if rid not in reqs]
     where = task.get('worktree') or state['repo']['worktree']
     lines = [
         f'You are a delegated worker in T3 run {state["run_id"]}. You cannot see the parent conversation; '
@@ -126,9 +130,12 @@ def brief(state: dict, task: dict, purpose: str) -> str:
     if task.get('kind') != 'probe':
         lines += ['', '## Requirements (stable IDs; do not reword)']
         lines += [f'- [{rid}] {reqs[rid]["text"]} (verify: {reqs[rid]["kind"]})' for rid in ids if rid in reqs]
+        if dropped:
+            lines += [f'- Removed from the contract since this task was planned (do not report them): '
+                      f'{", ".join(dropped)}']
         if task.get('acceptance'):
             lines += ['', '## Acceptance conditions'] + [f'- {item}' for item in task['acceptance']]
-        constraints = list(state['brief']['constraints']) + list(task.get('constraints') or [])
+        constraints = list(current['constraints']) + list(task.get('constraints') or [])
         if constraints:
             lines += ['', '## Constraints (binding, verbatim)'] + [f'- {item}' for item in constraints]
         if task.get('expected_output'):
@@ -254,12 +261,15 @@ def _dispatch_action(ctx, state, task, purpose):
         # The baseline is fixed before the child can commit anything.
         base_sha = (task.get('base_sha') or state['execution'].get('serial_base')
                     or snapshot.git(task.get('worktree') or state['repo']['worktree'], 'rev-parse', 'HEAD').strip())
-    call = t3.delegate_call(brief=brief(state, task, purpose), title=f'{state["run_id"]} {task["id"]}: {task["purpose"]}',
+    # One contract version for the brief and the evidence binding of this action.
+    current = contract.current_contract(state)
+    call = t3.delegate_call(brief=brief(state, task, purpose, current),
+                            title=f'{state["run_id"]} {task["id"]}: {task["purpose"]}',
                             role=host_role, client_request_id=client_request_id(state, task, round_no),
                             target=target, mode='async')
     args_snapshot = binding = None
     if task.get('kind') == 'review':
-        bound = acceptance.binding(state, ctx.state_root)
+        bound = acceptance.binding(state, ctx.state_root, current)
         args_snapshot = snapshot.token(bound['snapshot'])
         binding = {'snapshot': bound['snapshot'], 'contract_hash': bound['contract_hash'],
                    'policy_hash': bound['policy_hash']}
@@ -307,15 +317,21 @@ def _task_actions(ctx, state, task):
     return [built]
 
 
+def still_running(task: dict) -> bool:
+    """Active, or finished with child runs that may still be working."""
+    return task['status'] == 'active' or any(needs_stop(item) for item in task.get('rounds') or [])
+
+
 def _deps_done(state, task, mode=None):
     """Read-only and self-executed prerequisites are done once accepted. A delegated
     writer in parallel mode is done only once its branch is integrated, so a
-    dependent task starts from a checkout that contains its prerequisite."""
+    dependent task starts from a checkout that contains its prerequisite. A
+    prerequisite with nested runs still pending is not done."""
     for dep in task.get('depends_on') or []:
         other = task_by_id(state, dep) or {}
         needed = ('integrated',) if (mode == 'parallel' and other.get('executor') == 'delegate'
                                      and other.get('writes')) else DONE_TASK
-        if other.get('status') not in needed:
+        if other.get('status') not in needed or still_running(other):
             return False
     return True
 
@@ -350,7 +366,9 @@ def executing(ctx, state):
     actions += _integration_actions(state, mode)
     live = [t for t in tasks if t['status'] == 'active']
     limit = state['execution'].get('concurrency', 4)
-    writer_live = any(t.get('writes') and t['status'] == 'active' and t.get('executor') == 'delegate' for t in tasks)
+    writer_live = any(t.get('writes') and t.get('executor') == 'delegate' and still_running(t) for t in tasks)
+    # A finished task whose nested runs are still pending is queried until they stop.
+    actions += [q for t in tasks if t['status'] != 'active' for q in _task_queries(t)]
     for task in tasks:
         if task.get('kind') in ('review', 'probe'):
             continue
@@ -540,14 +558,13 @@ def _review_actions(ctx, state):
     return {'actions': [built]}
 
 
+def _task_queries(task):
+    return [_query(task, item) for item in task.get('rounds') or [] if needs_stop(item)]
+
+
 def _live_queries(state):
     """Queries for children (or their later runs) that may still be working."""
-    out = []
-    for task in state.get('tasks', []):
-        for item in task.get('rounds') or []:
-            if needs_stop(item):
-                out.append(_query(task, item))
-    return out
+    return [q for task in state.get('tasks', []) for q in _task_queries(task)]
 
 
 def ready(ctx, state):
@@ -621,7 +638,8 @@ def cancelling(ctx, state):
     procs = [item for item in state.get('resources', []) if item['kind'] == 'process' and item.get('status') == 'live']
     if procs:
         return {'actions': [cleanup_action(item) for item in procs]}
-    return {'actions': [action('transition', 'transition', args={'to': 'cancelled'})]}
+    then = (state.get('cancellation') or {}).get('then') or 'cancelled'
+    return {'actions': [action('transition', 'transition', args={'to': then})]}
 
 
 def cleanup_action(item: dict) -> dict:

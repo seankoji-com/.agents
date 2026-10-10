@@ -7,7 +7,7 @@ Generated from `compatibility.json`. T3 server `0.0.46-nightly.20261008.2849`; p
 | codex | gpt-6.1-sol | `partial` | bugfix 3/3, missing-capability 3/3 | writes outside parent checkout | 0 | null |
 | claudeAgent | claude-sonnet-5-5 | `partial` | bugfix 3/3, missing-capability 3/3, adverse-review 0/1, pending-task 2/3, provider-switch 1/1 | writes outside parent checkout | 1 | null |
 | antigravity | gemini-3.8-flash-high | `partial` | bugfix 1/3, missing-capability 3/3, pending-task 0/1 | writes outside parent checkout | 0 | null |
-| opencode | opencode/big-pickle | `unavailable` | none | writes outside parent checkout | 0 | null |
+| opencode | opencode/big-pickle | `partial` | none | writes outside parent checkout | 0 | null |
 | grok | n/a | `unavailable` | none | not run | 0 | null |
 | cursor | n/a | `unavailable` | none | not run | 0 | null |
 | muse | n/a | `unavailable` | none | not run | 0 | null |
@@ -54,7 +54,7 @@ missing-capability 3/3. bugfix 1/3: repeats 2 and 3 blocked when the Codex revie
 
 ## opencode
 
-As a parent: three attempts, none started. T3 reported 'Failed to open opencode provider session provider-session:provider-instance:opencode:shared' after 25 minutes in 'starting'. As a child it works: the live child-write probe ran on opencode/big-pickle and passed. Catalog lists it as able to run child tasks.
+Partial (procedure.md section 5: a case could not run): the provider can run, but T3 never opened its parent session, an infrastructure gap rather than a catalog refusal. As a parent: three attempts, none started. T3 reported 'Failed to open opencode provider session provider-session:provider-instance:opencode:shared' after 25 minutes in 'starting'. As a child it works: the live child-write probe ran on opencode/big-pickle and passed. Catalog lists it as able to run child tasks.
 
 
 ## grok

@@ -1,5 +1,6 @@
 """REQ-PURITY, REQ-T3-SURFACE, REQ-NO-PATHS, REQ-ENTRY and REQ-CLI: static
 contracts over the tracked tree plus the CLI envelope and exit codes."""
+import ast
 import json
 import re
 import subprocess
@@ -40,9 +41,15 @@ class PurityTest(CoreTestCase):
         for path, text in text_files('core'):
             if path.suffix != '.py':
                 continue
-            for match in re.finditer(r'^(?:from\s+([A-Za-z_]\w*)[\w.]*\s+import\b|import\s+([A-Za-z_]\w*))', text, re.M):
-                module = match.group(1) or match.group(2)
-                self.assertIn(module, allowed | {'__future__'}, f'{path.name}: {match.group(0)}')
+            for node in ast.walk(ast.parse(text, str(path))):
+                if isinstance(node, ast.Import):
+                    modules = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and not node.level:
+                    modules = [node.module]
+                else:
+                    continue
+                for module in modules:
+                    self.assertIn(module.split('.')[0], allowed | {'__future__'}, f'{path.name}:{node.lineno}: {module}')
 
 
 class SurfaceTest(CoreTestCase):
@@ -106,7 +113,7 @@ class EntryTest(CoreTestCase):
             for path in (PLUGIN / folder).glob('*.md'):
                 self.assertIn(f'{folder}/{path.name}', named, f'entry.md never names {folder}/{path.name}')
         self.assertNotRegex(text, r'~/\.local/share|/' + 'Users/|/' + 'home/', 'core is located relative to PKG')
-        self.assertIn('PKG/core/cli.py', text)
+        self.assertIn('PKG/cli.py', text)
 
 
 class CliContractTest(CoreTestCase):

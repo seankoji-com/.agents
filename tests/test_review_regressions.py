@@ -470,7 +470,7 @@ class Round3FindingsTest(CoreTestCase):
                                       isolation='parallel')
         tree = run.only('create_worktree')
         native(tree['args']['argv'])
-        run.record('resource', {'kind': 'worktree', 'name': tree['args']['name'], 'path': tree['args']['path'],
+        run.record('resource', {'action_id': tree['id'], 'kind': 'worktree', 'name': tree['args']['name'], 'path': tree['args']['path'],
                                 'branch': tree['args']['branch'], 'task_id': 'fix'})
         dispatch = run.only('dispatch')
         response = t3.call(dispatch['host_call'])

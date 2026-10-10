@@ -78,8 +78,9 @@ def markdown(report: dict) -> str:
              f'Phase `{report["phase"]}` at generation {report["generation"]}. Readiness: '
              f'`{report["readiness"]["status"]}`. Repository `{report["repo"]["worktree"]}` '
              f'on `{report["repo"].get("branch")}` at `{(report["repo"].get("head") or "")[:12]}`.', '']
-    if report['brief']:
-        lines += ['**Brief:** ' + report['brief'].strip().splitlines()[0][:300], '']
+    first = (report['brief'] or '').strip().splitlines()
+    if first:
+        lines += ['**Brief:** ' + first[0][:300], '']
     blocker = report.get('blocker')
     if blocker:
         lines += ['## Blocked', '', f'- Reason: {blocker["reason"]}',

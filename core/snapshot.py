@@ -69,7 +69,9 @@ def take(worktree, exclude=()) -> dict:
     paths = []
     for status, rel in sorted(_porcelain(root), key=lambda pair: pair[1]):
         absolute = (root / rel)
-        if _excluded(absolute.resolve() if absolute.exists() else absolute, exclusions):
+        # The path itself, not its symlink target: a tracked file swapped for a link into
+        # an excluded location is still a change.
+        if _excluded(absolute, exclusions):
             continue
         paths.append(rel)
         digest.update(status.encode() + b'\0' + rel.encode(errors='surrogateescape') + b'\0')
@@ -85,9 +87,13 @@ def take(worktree, exclude=()) -> dict:
         elif absolute.is_symlink():
             digest.update(b'link:' + os.readlink(absolute).encode(errors='surrogateescape'))
         elif absolute.is_file():
-            with open(absolute, 'rb') as stream:
-                for block in iter(lambda: stream.read(1 << 16), b''):
-                    digest.update(block)
+            try:
+                with open(absolute, 'rb') as stream:
+                    for block in iter(lambda: stream.read(1 << 16), b''):
+                        digest.update(block)
+            except OSError as exc:
+                # Deleted or unreadable mid-scan: hash the condition so the token still moves.
+                digest.update(b'unreadable:' + type(exc).__name__.encode())
         else:
             digest.update(b'absent')
         digest.update(b'\0')
@@ -127,3 +133,44 @@ def commit_reachable(worktree, sha: str) -> bool:
         return False
     ancestor = subprocess.run(['git', '-C', str(root), 'merge-base', '--is-ancestor', sha, 'HEAD'], capture_output=True)
     return ancestor.returncode == 0
+
+
+def _blob(root: Path, path: str) -> str | None:
+    absolute = root / path
+    if absolute.is_symlink():
+        target = os.readlink(absolute).encode(errors='surrogateescape')
+        return hashlib.sha1(b'blob %d\0' % len(target) + target).hexdigest()
+    if absolute.is_dir() and (absolute / '.git').exists():
+        return 'submodule:' + token(take(absolute))
+    if not absolute.is_file():
+        return None
+    return git(root, 'hash-object', '--', path).strip()
+
+
+def baseline(worktree) -> dict:
+    """HEAD plus the content of every dirty path, so later changes can be told
+    apart from work that was already there."""
+    root = toplevel(worktree)
+    head = git(root, 'rev-parse', '--verify', '-q', 'HEAD', check=False).strip() or None
+    return {'head': head, 'dirty': {rel: _blob(root, rel) for _status, rel in _porcelain(root)}}
+
+
+def changed_since(worktree, base: dict) -> set:
+    """Paths whose content differs from a `baseline`: committed or not."""
+    root = toplevel(worktree)
+    candidates = set(base.get('dirty') or {})
+    if base.get('head'):
+        candidates |= {line for line in git(root, 'diff', '--name-only', base['head'], 'HEAD', check=False).split('\n')
+                       if line}
+    candidates |= {rel for _status, rel in _porcelain(root)}
+    changed = set()
+    for rel in candidates:
+        if rel in (base.get('dirty') or {}):
+            before = base['dirty'][rel]
+        elif base.get('head'):
+            before = git(root, 'rev-parse', '-q', '--verify', f'{base["head"]}:{rel}', check=False).strip() or None
+        else:
+            before = None
+        if _blob(root, rel) != before:
+            changed.add(rel)
+    return changed

@@ -32,8 +32,8 @@ def exclusions(state: dict, state_root) -> list:
     return items
 
 
-def binding(state: dict, state_root) -> dict:
-    current = contract.current_contract(state)
+def binding(state: dict, state_root, current: dict | None = None) -> dict:
+    current = current or contract.current_contract(state)
     return {
         'snapshot': snapshot.take(state['repo']['worktree'], exclusions(state, state_root)),
         'contract_hash': contract.contract_hash(current),
@@ -87,7 +87,8 @@ def evaluate(state: dict, state_root, run_dir: Path, bind: dict | None = None) -
             reason = staleness(entry, bind, run_dir)
             if reason:
                 row['stale_reason'] = reason
-                stale.append({'obligation': f'requirement:{req["id"]}', 'reason': reason})
+                if req['required']:
+                    stale.append({'obligation': f'requirement:{req["id"]}', 'reason': reason})
             else:
                 row.update(status=entry['status'], explanation=entry.get('explanation'),
                            evidence=entry.get('artifacts', []), evidence_kind=entry.get('kind'))
@@ -106,7 +107,8 @@ def evaluate(state: dict, state_root, run_dir: Path, bind: dict | None = None) -
             reason = staleness(entry, bind, run_dir)
             if reason:
                 row['stale_reason'] = reason
-                stale.append({'obligation': f'check:{check["name"]}', 'reason': reason})
+                if row['required']:
+                    stale.append({'obligation': f'check:{check["name"]}', 'reason': reason})
             else:
                 row.update(status=entry['status'], exit_code=entry.get('exit_code'), artifact=entry.get('artifact'))
         if (row['status'] != 'passed' and not check.get('repository_required')
@@ -149,14 +151,30 @@ def remote_confirmed(state: dict, bind: dict) -> tuple[bool, str]:
         return True, 'local endstate'
     if bind['snapshot'].get('dirty_paths'):
         return False, 'verified changes are not committed, so no pull request can contain them'
-    observations = (state.get('remote') or {}).get('observations', [])
+    remote = state.get('remote') or {}
+    receipt = (remote.get('receipts') or [None])[-1]
+    if not receipt:
+        return False, f'no receipt records the {endstate} outcome'
+    observations = remote.get('observations', [])
     wanted = {'pr': ('open', 'merged'), 'merge': ('merged',)}.get(endstate, ())
     for item in reversed(observations):
         if item.get('kind') != 'pr':
             continue
+        if not same_remote(item, receipt):
+            return False, f'observed {item.get("url")!r}, not the recorded receipt {receipt.get("url")!r}'
         if item.get('state') not in wanted:
             return False, f'observed {endstate} state {item.get("state")!r}'
         if item.get('head_sha') != bind['snapshot']['head']:
             return False, 'observed PR head differs from the verified head'
         return True, f'observed {item.get("url")} {item.get("state")} at {item.get("observed_at")}'
     return False, f'no observation confirms the {endstate} outcome'
+
+
+def same_remote(observation: dict, receipt: dict) -> bool:
+    """An observation confirms a receipt only when it names the same PR."""
+    def norm(url):
+        return str(url or '').strip().rstrip('/').lower()
+    if norm(observation.get('url')) != norm(receipt.get('url')):
+        return False
+    numbers = (observation.get('number'), receipt.get('number'))
+    return None in numbers or str(numbers[0]) == str(numbers[1])

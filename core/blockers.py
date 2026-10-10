@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from .fsutil import hash_value
 
+BUDGET_CEILING = 86400  # core/cli.py and core/planning.py refuse a larger budget
+
 # code -> (decision the resume command applies, what the operator is deciding)
 CODES = {
     'capability_unavailable': ('retry', 'T3 orchestration capability missing; re-run discovery once it is available'),
@@ -29,7 +31,7 @@ def resume_argv(ctx, state: dict, blocker_id: str, decision: str, task_ids) -> l
     if decision == 'raise-repair-limit':
         argv += ['--value', str(int(state['policy']['repair_limit']) + 1)]
     elif decision == 'raise-budget':
-        argv += ['--value', str(int(state['budget']['seconds']) + 3600)]
+        argv += ['--value', str(min(int(state['budget']['seconds']) + 3600, BUDGET_CEILING))]
     elif decision == 'set-endstate':
         argv += ['--value', 'local']
     elif decision == 'adopt-parent':
@@ -44,6 +46,10 @@ def make(ctx, state: dict, code: str, reason: str, task_ids=(), at: str = '') ->
         code = 'operator'
     task_ids = sorted({str(item) for item in task_ids if item})
     decision, meaning = CODES[code]
+    at_ceiling = code == 'budget_exhausted' and int(state['budget']['seconds']) >= BUDGET_CEILING
+    if at_ceiling:
+        # No larger budget is accepted, so offer the read-only report rather than an unblock that must fail.
+        decision, meaning = 'none', f'active-time budget is at the {BUDGET_CEILING}s ceiling; start a new run to continue'
     # Stable across claim/release (which bump the generation) so a printed resume
     # command stays valid; distinct from any earlier, already resolved occurrence.
     resolved = sum(1 for item in state.get('blockers', []) if item.get('status') == 'resolved')
@@ -52,13 +58,17 @@ def make(ctx, state: dict, code: str, reason: str, task_ids=(), at: str = '') ->
     entry = (state.get('plugin') or {}).get('entry')
     if entry:
         prompt = f'Read {entry} and run: resume {state["run_id"]}'
+    if at_ceiling:
+        prompt = None
     return {
         'id': blocker_id,
         'code': code,
         'reason': reason or meaning,
         'meaning': meaning,
         'task_ids': task_ids,
-        'resume': {'argv': resume_argv(ctx, state, blocker_id, decision, task_ids), 'decision': decision,
+        'resume': {'argv': (['python3', str(ctx.cli_path), 'report', '--state-root', str(ctx.state_root),
+                             '--run-id', state['run_id']] if at_ceiling
+                            else resume_argv(ctx, state, blocker_id, decision, task_ids)), 'decision': decision,
                    'then': prompt},
         'status': 'active',
         'at': at,

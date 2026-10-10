@@ -140,7 +140,9 @@ def safe_dir(run_dir: Path, *parts: str) -> Path:
 def write_artifact(run_dir: Path, category: str, name: str, data: bytes) -> dict:
     digest = sha256_bytes(data)
     target = safe_dir(run_dir, 'artifacts', category) / f'{digest[:12]}-{name}'
-    if not target.exists():
+    if target.is_symlink() or (target.exists() and not target.is_file()):
+        raise InvalidInput('path_escape', 'artifact target is a symlink or not a regular file', {'path': str(target)})
+    if not target.exists() or sha256_file(target) != digest:
         atomic_write_bytes(target, data)
     return {'path': target.relative_to(run_dir).as_posix(), 'sha256': digest}
 

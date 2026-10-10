@@ -29,7 +29,7 @@ class DelegatedFlow:
 
     def create_worktree(self, action):
         run_argv(action['args']['argv'])
-        self.run.record('resource', {'kind': 'worktree', 'name': action['args']['name'], 'path': action['args']['path'],
+        self.run.record('resource', {'action_id': action['id'], 'kind': 'worktree', 'name': action['args']['name'], 'path': action['args']['path'],
                                      'branch': action['args']['branch'], 'task_id': action['task_id']})
 
     def dispatch(self, action, script):

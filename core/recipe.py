@@ -52,9 +52,13 @@ def problems(recipe: dict, directory: Path) -> list:
         if not run or not run.get('evidence'):
             found.append('verified recipe has no recorded run evidence')
         else:
+            root = Path(directory).resolve()
             for item in run['evidence']:
-                path = directory / item['path']
-                if not path.is_file():
+                rel = Path(item['path'])
+                path = (directory / rel).resolve()
+                if rel.is_absolute() or '..' in rel.parts or not path.is_relative_to(root):
+                    found.append(f'evidence path escapes the recipe directory: {item["path"]}')
+                elif not path.is_file():
                     found.append(f'evidence missing: {item["path"]}')
                 elif sha256_file(path) != item['sha256']:
                     found.append(f'evidence changed: {item["path"]}')

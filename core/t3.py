@@ -70,9 +70,11 @@ def outcome(obs: dict) -> str:
 
     `waiting_for_children` is never a final result even when the child's own
     turn finished: its nested work is still live."""
-    if obs.get('work_state') != 'result_available':
-        return 'working'
     status = obs.get('status') or ''
+    if obs.get('work_state') != 'result_available' and not (
+            obs.get('work_state') is None and status in TERMINAL_STOPPED | TERMINAL_FAILED):
+        # A stopped or failed child that reports no workState has no nested work to wait for.
+        return 'working'
     if status in TERMINAL_OK:
         return 'result'
     if status in TERMINAL_STOPPED:

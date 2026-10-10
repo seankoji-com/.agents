@@ -70,8 +70,39 @@ def json_path(value, path):
 
 
 class VerificationInitTest(CoreTestCase):
+    def launch(self, spec, repo, attempts=5):
+        """Start the service on a free port; a port taken between probe and bind makes
+        the service exit, so retry on a fresh port instead of waiting out the deadline."""
+        for _ in range(attempts):
+            variables = {'PORT': free_port(), 'DATA': str(self.tmp / 'notes-data')}
+            launch = substitute(spec, variables)
+            process = subprocess.Popen([sys.executable if a == 'python3' else a for a in launch['argv']],
+                                       cwd=repo / launch['cwd'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.addCleanup(lambda p=process: p.poll() is None and p.kill())
+            deadline = time.time() + launch['ready']['timeout_seconds']
+            while process.poll() is None:
+                try:
+                    if http({'method': 'GET', 'url': launch['ready']['url']})[0] == 200:
+                        variables['PID'] = process.pid
+                        return variables, process
+                except OSError:
+                    pass
+                self.assertLess(time.time(), deadline, 'service never became ready')
+                time.sleep(0.1)
+        self.fail(f'service exited on launch {attempts} times')
+
     def test_generated_recipe_drives_fixture_and_evidence_survives_cleanup(self):
         repo = self.make_repo('verify-product')
+
+        plan = self.plan(repo, brief={'text': 'prove the F-CREATE recipe end to end', 'constraints': [],
+                                      'requirements': [{'id': 'REQ-VERIFY-CREATE', 'kind': 'runtime',
+                                                        'text': 'F-CREATE recipe creates a note and lists it'}]},
+                         policy={'review': {'required': False, 'role': 'reviewer'}, 'checks': [],
+                                 'worktree_root': str(self.tmp / 'wt')})
+        run = self.init(plan)
+        run.claim()
+        run.record('transition', {'to': 'executing'})
+        # Scaffolding is the task's own work, so it happens once the task is under way.
         code, env, _ = cli('recipe-scaffold', '--plugin-dir', PLUGIN, '--repo', repo, '--json', json.dumps(facts()))
         self.assertEqual(code, 0, env)
         recipe_dir = repo / '.agents' / 'skills' / 'verify-notes'
@@ -82,37 +113,14 @@ class VerificationInitTest(CoreTestCase):
         code, env, _ = cli('recipe-check', '--recipe', recipe_path)
         self.assertEqual((env['data']['valid'], env['data']['status']), (True, 'draft'))
         recipe = json.loads(recipe_path.read_text())
-
-        plan = self.plan(repo, brief={'text': 'prove the F-CREATE recipe end to end', 'constraints': [],
-                                      'requirements': [{'id': 'REQ-VERIFY-CREATE', 'kind': 'runtime',
-                                                        'text': 'F-CREATE recipe creates a note and lists it'}]},
-                         policy={'review': {'required': False, 'role': 'reviewer'}, 'checks': [],
-                                 'worktree_root': str(self.tmp / 'wt')})
-        run = self.init(plan)
-        run.claim()
-        run.record('transition', {'to': 'executing'})
         generated = sorted(str(p.relative_to(repo)) for p in recipe_dir.rglob('*') if p.is_file())
         run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=generated)})
         run.record('transition', {'to': 'verifying'})
 
         for doctor in recipe['doctor']:
             self.assertEqual(native(doctor['argv']).returncode, 0)
-        variables = {'PORT': free_port(), 'DATA': str(self.tmp / 'notes-data')}
-        launch = substitute(recipe['launch'], variables)
-        process = subprocess.Popen([sys.executable if a == 'python3' else a for a in launch['argv']],
-                                   cwd=repo / launch['cwd'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.addCleanup(lambda: process.poll() is None and process.kill())
-        variables['PID'] = process.pid
+        variables, process = self.launch(recipe['launch'], repo)
         run.record('resource', {'kind': 'process', 'pid': process.pid, 'purpose': 'notes service for F-CREATE'})
-        deadline = time.time() + launch['ready']['timeout_seconds']
-        while True:
-            try:
-                if http({'method': 'GET', 'url': launch['ready']['url']})[0] == 200:
-                    break
-            except OSError:
-                pass
-            self.assertLess(time.time(), deadline, 'service never became ready')
-            time.sleep(0.1)
 
         feature = substitute(next(f for f in recipe['features'] if f['id'] == 'F-CREATE'), variables)
         captured = []

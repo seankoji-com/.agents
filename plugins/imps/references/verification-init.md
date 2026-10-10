@@ -18,8 +18,10 @@ Pick up to five user-facing features. Write the facts to `scratch/facts.json` (s
 
 ## 2. Scaffold
 
+Invoke the core through the launcher, as `PKG/entry.md` says:
+
 ```text
-python3 PKG/core/cli.py recipe-scaffold --plugin-dir PKG --repo <repo root> --input scratch/facts.json
+python3 PKG/cli.py recipe-scaffold --repo <repo root> --input scratch/facts.json
 ```
 
 This writes `SKILL.md`, `recipe.json` (status `draft`), `features/index.md` and one document per feature. Run `recipe-check --recipe <dir>/recipe.json`. It rejects placeholder text and undeclared variables.

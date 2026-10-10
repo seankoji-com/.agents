@@ -145,8 +145,8 @@ def install(args) -> dict:
     entry = plugin_root / 'current' / planned['entry']
     existing = version_dir / MANIFEST
     action = 'install'
-    if existing.is_file():
-        old = json.loads(existing.read_text())
+    if existing.is_file() and not (args.force and load_manifest(existing, strict=False) is None):
+        old = load_manifest(existing)
         modified = local_modifications(version_dir, old)
         if modified and not args.force:
             raise InstallError('locally_modified', 'installed files were modified locally; rerun with --force to overwrite',
@@ -173,14 +173,29 @@ def install(args) -> dict:
 
 def activate(args) -> dict:
     plugin_root = Path(args.prefix).expanduser() / args.plugin
-    manifest = plugin_root / args.activate / MANIFEST
-    if not manifest.is_file():
+    if args.activate not in installed_versions(plugin_root):
         raise InstallError('unknown_version', f'no installed version {args.activate}',
                            {'installed': installed_versions(plugin_root)})
     if not args.dry_run:
         repoint(plugin_root, args.activate)
     return {'action': 'activate', 'version': args.activate, 'dry_run': bool(args.dry_run),
             'entry': str(plugin_root / 'current' / 'entry.md')}
+
+
+def load_manifest(path: Path, strict=True) -> dict | None:
+    """The parsed manifest; a corrupt one raises manifest_corrupt (or is None when not strict)."""
+    try:
+        manifest = json.loads(path.read_text())
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        manifest = None
+    if not isinstance(manifest, dict) or not isinstance(manifest.get('files'), list) or not all(
+            isinstance(e, dict) and isinstance(e.get('path'), str) and isinstance(e.get('sha256'), str)
+            for e in manifest['files']):
+        if not strict:
+            return None
+        raise InstallError('manifest_corrupt', f'{path} is not a valid install manifest; reinstall with --force to replace it',
+                           {'path': str(path)})
+    return manifest
 
 
 def installed_versions(plugin_root: Path) -> list:
@@ -212,8 +227,9 @@ def uninstall(args) -> dict:
         manifest_path = version_dir / MANIFEST
         if not manifest_path.is_file():
             raise InstallError('unknown_version', f'no installed version {version}')
-        manifest = json.loads(manifest_path.read_text())
+        manifest = load_manifest(manifest_path)
         paths = [(entry, owned_path(version_dir, entry['path'])) for entry in manifest['files']]
+        owned_modules = {(path.parent, path.stem) for entry, path in paths if entry['path'].endswith('.py')}
         kept_entries = []
         for entry, path in paths:
             if not path.is_file():
@@ -234,8 +250,6 @@ def uninstall(args) -> dict:
                 write_atomic(manifest_path, (json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode(), 0o644)
             else:
                 manifest_path.unlink()
-            owned_modules = {(owned_path(version_dir, e['path']).parent, Path(e['path']).stem)
-                             for e in manifest['files'] if e['path'].endswith('.py')}
             for cache in sorted(version_dir.rglob('__pycache__')):
                 if cache.is_symlink() or not cache.is_dir():
                     continue
