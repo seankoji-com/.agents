@@ -48,7 +48,7 @@ Drivers, in priority order: (1) T3 is the operator's daily driver, so imps must 
 
 **Scope: the source spec stays whole.** Every required item in its §5 and all 16 tests in its §14 remain in v1, including delegated implementation, verification-init and the 3x live conformance matrix. The changes below are corrections, relocations and added decisions, not cuts.
 
-**Location (overrides spec §6).** Build in a new repo at `/Users/seankoji/repos/t3-plugins` (currently an empty folder holding only `.claude/`, not yet a git repo), not at `claude-plugins/plugins/imps/t3/`. Layout:
+**Location (overrides spec §6).** Build in a fresh `t3-plugins` checkout (currently an empty folder holding only `.claude/`, not yet a git repo), not at `claude-plugins/plugins/imps/t3/`. Layout:
 
 ```text
 t3-plugins/

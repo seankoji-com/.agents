@@ -57,11 +57,11 @@
 # What this script will NOT do, on purpose:
 #   - Never merges past branch protection or a ruleset. Not passing `--admin` is
 #     NOT enough to guarantee that: when the caller's token belongs to someone on a
-#     ruleset's bypass list with bypass mode "always" (org admins on seankoji-com's
-#     "Universal rules" and "PR gatekeeper" rulesets), GitHub applies the bypass
-#     implicitly to a plain REST merge — no flag, no warning — and accepts it while
-#     required checks are still pending. seankoji-com/careynas.net#2635 merged that
-#     way at 08:49:42 UTC (18:49 AEST, Sun 27 Sep 2026) with its rollup PENDING. The
+#     ruleset's bypass list with bypass mode "always" (org admins typically are),
+#     GitHub applies the bypass implicitly to a plain REST merge — no flag, no
+#     warning — and accepts it while required checks are still pending. This has
+#     happened in practice: an org-admin token merged a PR whose check rollup was
+#     still PENDING, with nothing in the response saying a bypass was used. The
 #     guard is this script's own: merge only when mergeStateStatus is CLEAN and the
 #     rollup is SUCCESS (the rollup does not depend on who is asking), and hand
 #     everything else to auto-merge. The merge PUT pins the checked head SHA, so a new
@@ -95,26 +95,50 @@ die() {
   exit "${2:-2}"
 }
 
+# Temp files are registered here and removed on exit, so an abort between mktemp and
+# the helper's own rm -f (a signal, a `set -e` failure) does not leave response bodies
+# behind in TMPDIR. Set again inside each helper, which runs in a command-substitution
+# subshell where the parent's EXIT trap does not apply.
+GRAPHQL_TMP=""
+REST_TMP=""
+cleanup_tmp() {
+  if [ -n "$GRAPHQL_TMP" ]; then
+    rm -f "$GRAPHQL_TMP" "${GRAPHQL_TMP}.err"
+  fi
+  if [ -n "$REST_TMP" ]; then
+    rm -f "$REST_TMP"
+  fi
+  return 0
+}
+trap cleanup_tmp EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 while [ $# -gt 0 ]; do
   case "$1" in
   --repo)
-    REPO="${2:-}"
+    [ $# -ge 2 ] || die "--repo requires a value"
+    REPO="$2"
     shift 2
     ;;
   --pr)
-    PR_NUMBER="${2:-}"
+    [ $# -ge 2 ] || die "--pr requires a value"
+    PR_NUMBER="$2"
     shift 2
     ;;
   --method)
-    METHOD="${2:-}"
+    [ $# -ge 2 ] || die "--method requires a value"
+    METHOD="$2"
     shift 2
     ;;
   --resolve-thread)
-    RESOLVE_THREAD="${2:-}"
+    [ $# -ge 2 ] || die "--resolve-thread requires a value"
+    RESOLVE_THREAD="$2"
     shift 2
     ;;
   --verified-head)
-    VERIFIED_HEAD="${2:-}"
+    [ $# -ge 2 ] || die "--verified-head requires a value"
+    VERIFIED_HEAD="$2"
     shift 2
     ;;
   --no-auto)
@@ -136,6 +160,18 @@ command -v curl >/dev/null 2>&1 || die "curl not found on PATH"
 command -v jq >/dev/null 2>&1 || die "jq not found on PATH"
 
 [ -n "$REPO" ] || die "--repo is required"
+case "$REPO" in
+*/*) : ;;
+*) die "--repo must be owner/name, got: ${REPO}" ;;
+esac
+# REPO is interpolated into REST paths below (/repos/<owner>/<name>/pulls/...), so
+# anything beyond a plain owner/name would rewrite the request. Same allowlist as
+# pr-workspace.sh.
+for component in "${REPO%%/*}" "${REPO#*/}"; do
+  case "$component" in
+  '' | . | .. | *[!A-Za-z0-9._-]*) die "--repo must contain plain owner/name components, got: ${REPO}" ;;
+  esac
+done
 case "$PR_NUMBER" in '' | *[!0-9]*) die "--pr must be a number, got: ${PR_NUMBER}" ;; esac
 case "$METHOD" in
 '' | squash | merge | rebase) ;;
@@ -169,6 +205,10 @@ curl_graphql_retry() {
   token="$(gh_token)" || return 1
   tmp="$(mktemp "${TMPDIR:-/tmp}/babysitter-graphql.XXXXXX")" || return 1
   errfile="${tmp}.err"
+  GRAPHQL_TMP="$tmp"
+  trap cleanup_tmp EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   while :; do
     code="$(curl -sS -o "$tmp" -w '%{http_code}' \
       -H @- \
@@ -203,6 +243,10 @@ curl_rest() {
   local method="$1" path="$2" data="${3:-}" token code tmp curl_rc=0
   token="$(gh_token)" || return 1
   tmp="$(mktemp "${TMPDIR:-/tmp}/babysitter-rest.XXXXXX")" || return 1
+  REST_TMP="$tmp"
+  trap cleanup_tmp EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   if [ -n "$data" ]; then
     code="$(curl -sS -o "$tmp" -w '%{http_code}' \
       -H @- \

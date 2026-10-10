@@ -31,7 +31,7 @@ explicitly use host watches instead. Existing repository review requirements sti
 
 The cold-reader review is a T3 child instructed to read only the document. It is not
 a filesystem-isolated sandbox. The sidecar keeps its original local/cloud engine
-boundary; “any T3 provider” does not mean every provider is a sidecar backend.
+boundary; "any T3 provider" does not mean every provider is a sidecar backend.
 
 Automatic writes to personal learnings, dotfiles pushes, and permission broadening
 are removed from the default workflows. State and settings are not migrated silently.

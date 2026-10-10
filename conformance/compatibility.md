@@ -102,7 +102,7 @@ Interventions counted: one (an operator message 'try it again' in the Claude thr
 
 ## Observed but not adopted
 
-This T3 build injects agent instructions that mention an ACP fallback transport and exposes link_pull_request, watch_pull_request and preview tools as standalone MCP tools. The design rubric deliberately limits imps to the pinned orchestrator doc's surface (link_pull_request as a t3_thread_update action, no PR watcher, preview tools found by description), so imps does not use them; a later version can adopt them once the doc lists them.
+This T3 build injects agent instructions that mention an ACP fallback transport and exposes link_pull_request, watch_pull_request and preview tools as standalone MCP tools. At plugin 0.1.0, the version this ledger records, imps was limited to the pinned orchestrator doc's surface (link_pull_request as a t3_thread_update action, no PR watcher, preview tools found by description) and did not call them. imps 0.2.0 adopted link_pull_request, watch_pull_request and unwatch_pull_request; the ledger has not been re-run since.
 
 ## Usage and cost
 

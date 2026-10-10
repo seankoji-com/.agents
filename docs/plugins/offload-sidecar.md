@@ -24,7 +24,7 @@ Replace sample repositories, paths, and tasks with your own.
 
 ## Operations
 
-`doctor`, `process`, `serve`, `status`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/offload-sidecar/entry.md) routes each operation to its focused playbook.
+`doctor`, `process`, `serve`, `status`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/offload-sidecar/entry.md) names the file to load for each operation.
 
 ## What you get
 

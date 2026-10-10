@@ -89,13 +89,19 @@ def main(argv=None):
         return 0
     if not args.provider or args.settings is None:
         parser.error("--provider and --settings are required")
+    if args.provider == "codex":
+        # Checked before the parse so a too-old interpreter is reported as such, not
+        # folded into the redacted "unreadable or invalid settings" receipt.
+        try:
+            import tomllib
+        except ImportError:
+            print(json.dumps({"ok": False, "error": "python_3_11_required", "provider": args.provider,
+                              "message": "Codex TOML audit requires Python 3.11+ (tomllib); "
+                                         f"running {sys.version_info[0]}.{sys.version_info[1]}"}))
+            return 2
     try:
         text = args.settings.expanduser().read_text(encoding="utf-8")
         if args.provider == "codex":
-            try:
-                import tomllib
-            except ImportError:
-                raise ValueError("Codex TOML audit requires Python 3.11+") from None
             data = tomllib.loads(text)
         else:
             data = json.loads(jsonc(text) if args.provider == "opencode" else text)

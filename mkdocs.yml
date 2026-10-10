@@ -1,5 +1,5 @@
 site_name: t3-plugins
-site_description: Portable agent workflows. Inspectable tools. Evidence before completion.
+site_description: Seven agent workflows for T3 Code that keep working when you change the model. Python standard library, evidence before completion, live provider results recorded.
 site_url: https://seankoji-com.github.io/t3-plugins/
 repo_url: https://github.com/seankoji-com/t3-plugins
 repo_name: seankoji-com/t3-plugins
@@ -7,6 +7,7 @@ edit_uri: edit/master/docs/
 copyright: Copyright &copy; 2026 Sean Carey. MIT licensed.
 theme:
   name: material
+  custom_dir: overrides
   font: false
   logo: assets/mark.svg
   favicon: assets/mark.svg
@@ -34,6 +35,10 @@ theme:
     - search.highlight
 plugins:
   - search
+hooks:
+  - scripts/field_guide.py
+exclude_docs: |
+  field-guide.json
 markdown_extensions:
   - admonition
   - attr_list
@@ -49,6 +54,7 @@ extra_css:
   - stylesheets/extra.css
 nav:
   - Overview: index.md
+  - Why it is built this way: case-study.md
   - Get started:
       - Installation: getting-started.md
       - Your first workflow: first-workflow.md
@@ -65,6 +71,7 @@ nav:
   - Engineering:
       - Architecture: architecture.md
       - Compatibility: compatibility.md
+      - Sightings: sightings.md
       - Migration: migration.md
       - Testing: testing.md
       - Contributing: contributing.md

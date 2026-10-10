@@ -62,7 +62,7 @@ def _tasks(plan_tasks, mode, req_ids, default_role):
         missing = set(task['depends_on']) - known
         if missing:
             raise InvalidInput('task_dependency', f'{task["id"]} depends on unknown {sorted(missing)}')
-    order, seen, visiting = [], set(), set()
+    seen, visiting = set(), set()
 
     def visit(task_id):
         if task_id in seen:
@@ -74,7 +74,6 @@ def _tasks(plan_tasks, mode, req_ids, default_role):
             visit(dep)
         visiting.discard(task_id)
         seen.add(task_id)
-        order.append(task_id)
     for task_id in ids:
         visit(task_id)
     return tasks
@@ -121,6 +120,12 @@ def build(plan: dict, defaults: dict, *, state_root: Path, plugin: dict, clock_i
         plan_tasks = [{'id': 'main', 'purpose': (plan.get('brief') or {}).get('text', 'implement the brief')[:200],
                        'requirement_ids': sorted(req_ids)}]
     tasks = _tasks(plan_tasks, mode, req_ids, default_role)
+    resolvable = set(roles) | set(policy.get('role_overrides') or {})
+    for task in tasks:
+        if task['executor'] == 'delegate' and not task.get('target') and task['role'] not in resolvable:
+            raise InvalidInput('unknown_role', f'delegated task {task["id"]} names no configured role '
+                                               f'({task["role"]!r}); configure roles or set work_role',
+                               {'task': task['id'], 'role': task['role']})
     review = dict({'required': False, 'role': None, 'waivable': True}, **(policy.get('review') or {}))
     if review['required'] and review['role'] not in roles:
         raise InvalidInput('unknown_role', f'review role {review["role"]!r} is not configured')

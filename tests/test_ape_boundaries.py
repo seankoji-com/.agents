@@ -52,7 +52,7 @@ class ResearchBoundaryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             gh = root / 'gh'
-            gh.write_text('#!/bin/sh\nif [ "$1" = api ]; then cat "$HOME/readme.b64"; exit 0; fi\nif [ "$3" = bad/repo ]; then echo "not found" >&2; exit 1; fi\necho "{}"\n')
+            gh.write_text('#!/bin/sh\nif [ "$1" = api ]; then [ "$3" = "Accept: application/vnd.github.raw" ] || exit 9; cat "$HOME/readme.txt"; exit 0; fi\nif [ "$3" = bad/repo ]; then echo "not found" >&2; exit 1; fi\necho "{}"\n')
             gh.chmod(0o755)
             env = {**os.environ, 'HOME': tmp, 'PATH': f'{root}:{os.environ["PATH"]}'}
             def run(script, *args):
@@ -63,12 +63,11 @@ class ResearchBoundaryTest(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn('=== bad/repo === (FAILED)', result.stdout)
             self.assertIn('=== good/repo ===\n{}', result.stdout)
-            import base64
-            (root / 'readme.b64').write_bytes(base64.b64encode(b'line\n' * 100000))
+            (root / 'readme.txt').write_text('line\n' * 100000)
             result = run('readme-peek.sh', 'good/repo')
             self.assertEqual(result.returncode, 0)
             self.assertEqual(result.stdout.splitlines(), ['line'] * 40)
-            (root / 'readme.b64').write_text('!')
+            (root / 'readme.txt').unlink()
             self.assertEqual(run('readme-peek.sh', 'good/repo').returncode, 0)
 
     def test_cleanup_refuses_unmarked_or_copied_marker_inside_allowed_root(self):

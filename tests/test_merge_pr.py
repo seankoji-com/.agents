@@ -136,7 +136,7 @@ print(code, end="")
         self.assertEqual(len(calls), 1)
 
     def test_pending_rollup_arms_automerge_instead_of_merging(self):
-        # careynas.net#2635: an org-admin token merged over a PENDING rollup via the
+        # Seen in practice: an org-admin token merged over a PENDING rollup via the
         # ruleset's implicit "always" bypass. No merge PUT may be sent. A null rollup
         # (checks not registered yet) counts as pending even when GitHub says CLEAN.
         for mode in ("pending", "expected", "no-checks"):

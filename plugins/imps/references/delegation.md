@@ -39,7 +39,7 @@ Each child ends its final message with one fenced block tagged `json t3-result`.
 
 ## Integration and repair
 
-In parallel mode, each accepted writer is integrated as soon as it is ready (`git merge --no-ff` into your checkout, one at a time). A task that depends on a writer starts only after that writer is integrated, so its new worktree contains the prerequisite. Serial mode needs no integration: the writers already worked in your checkout. A failed merge blocks the run and keeps every worktree and branch. The report lists each one with its cleanup command. A review repair creates a `repair-N` task: in parallel mode it gets a new worktree from the integrated HEAD; in serial mode it works in your checkout.
+In parallel mode, each accepted writer is integrated as soon as it is ready (`git merge --no-ff` into your checkout, one at a time). A task that depends on a writer starts only after that writer is integrated, so its new worktree contains the prerequisite. Serial mode needs no integration: the writers already worked in your checkout. A failed merge blocks the run and keeps every worktree and branch. The report lists each one with its cleanup command. A review repair creates a `repair-N` task: in parallel mode it gets a new worktree from the integrated HEAD; in serial mode it works in your checkout. The repair limit applies per stage: checks, acceptance and review each allow `repair_limit` repair rounds. After an adverse review, any edit made outside `record --kind repair` still costs a review repair round; it never buys a fresh review.
 
 ## Waiting
 

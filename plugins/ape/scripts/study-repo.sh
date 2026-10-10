@@ -25,7 +25,9 @@ parse_target() {
   tree_spec=""
 
   if [ -n "$suffix" ]; then
-    if ! [[ "$suffix" =~ ^/tree/([A-Za-z0-9_.@%+,:=-]+(/[A-Za-z0-9_.@%+,:=-]+)*)$ ]]; then
+    # No ":" or "+": either would let a ref-looking segment smuggle a refspec
+    # (main:refs/heads/x) or a second ref into the clone step.
+    if ! [[ "$suffix" =~ ^/tree/([A-Za-z0-9_.@%,=-]+(/[A-Za-z0-9_.@%,=-]+)*)$ ]]; then
       echo "study-repo: tree URLs must use /tree/<ref>[/<safe-path>]" >&2
       return 1
     fi

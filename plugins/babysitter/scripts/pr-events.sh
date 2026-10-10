@@ -164,8 +164,11 @@ emit_diff() {
 }
 
 # Baseline: seed the previous snapshot without emitting. A failure here is fatal —
-# starting from an empty baseline would announce every existing PR as NEW.
+# starting from an empty baseline would announce every existing PR as NEW. Said on
+# stdout as well as stderr, like the mktemp failure above: a monitor that only reads
+# stdout must not mistake this for a watch that started quietly.
 if ! "$LIST_PRS" "${PASSTHROUGH[@]}" >"$PREV"; then
+  echo "ERROR initial snapshot failed — monitor not started"
   die "initial snapshot failed — check gh auth and the org/repo arguments"
 fi
 

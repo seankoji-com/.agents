@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" class="specimen-mark" role="img" aria-label="ape: an ape's face seen from the front">
+<defs><g id="sp-ape">
+<path d="M18 96 Q48 60 78 96 Z" fill="var(--sp-ink,#1f2a24)"/>
+<circle cx="24" cy="46" r="8.5" fill="var(--sp-ink,#1f2a24)"/>
+<circle cx="72" cy="46" r="8.5" fill="var(--sp-ink,#1f2a24)"/>
+<circle cx="48" cy="46" r="25" fill="var(--sp-ink,#1f2a24)"/>
+<path d="M33 43 Q48 29 63 43 Q68 61 48 70 Q28 61 33 43 Z" fill="var(--sp-paper,#eef0e8)"/>
+<path d="M37 41 Q48 36 59 41" fill="none" stroke="var(--sp-ink,#1f2a24)" stroke-width="2.6" stroke-linecap="round"/>
+<circle cx="42" cy="46" r="2.6" fill="var(--sp-ink,#1f2a24)"/>
+<circle cx="54" cy="46" r="2.6" fill="var(--sp-ink,#1f2a24)"/>
+<circle cx="45.5" cy="56" r="1.4" fill="var(--sp-ink,#1f2a24)"/>
+<circle cx="50.5" cy="56" r="1.4" fill="var(--sp-ink,#1f2a24)"/>
+<path d="M42 62 Q48 65.5 54 62" fill="none" stroke="var(--sp-ink,#1f2a24)" stroke-width="1.6" stroke-linecap="round"/>
+</g></defs>
+<use href="#sp-ape" transform="translate(2.5 2.5)" style="--sp-ink:var(--sp-fern,#2f6b4f);--sp-paper:transparent;--sp-ochre:var(--sp-fern,#2f6b4f)"/>
+<use href="#sp-ape"/>
+</svg>

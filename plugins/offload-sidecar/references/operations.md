@@ -27,6 +27,8 @@ Local model tiers `deep` and `fast` use `OLLAMA_HOST` and `OLLAMA_MODEL`; option
 `OLLAMA_FAST_HOST` / `OLLAMA_FAST_MODEL` select the second tier. Local failover stays
 local. Cloud tiers `flash` and `pro` use `AGY_BIN` and configured model IDs. They retain
 the upstream call-budget and lockout guards. A quota limit is not a monetary cap.
+A cap of 0 (`AGY_FLASH_PER_5H`, `AGY_FLASH_PER_WEEK`, `AGY_PRO_PER_5H`, `AGY_PRO_PER_WEEK`)
+switches that window's limit off. To stop cloud spend, leave `AGY_BIN` unset or use a local tier.
 Inspect `status` before model work; it contacts configured Ollama endpoints. Cloud
 tiers are reported from local quota state without contacting agy.
 

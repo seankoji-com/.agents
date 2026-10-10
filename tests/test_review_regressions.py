@@ -444,8 +444,7 @@ class Round3FindingsTest(CoreTestCase):
         review = run.only('dispatch')
         t3.script(review['host_call']['arguments']['clientRequestId'], done(result_block(review['task_id'], verdict='approve')))
         response = t3.call(review['host_call'])
-        run.record('policy', {'policy': {'role_overrides': {'reviewer': {'providerInstanceId': 'antigravity',
-                                                                          'model': 'gemini-3.8-flash-high'}}}})
+        run.record('policy', {'policy': {'model_preferences': {'reviewer': 'gemini-3.8-flash-high'}}})
         run.record('dispatch', {'action': review, 'response': response, 'snapshot': review['args']['snapshot'],
                                 'binding': review['args']['binding']})
         run.record('observation', {'response': t3.call(run.only('query_task')['host_call'])})

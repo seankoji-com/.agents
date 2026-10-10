@@ -64,17 +64,17 @@ Each turn: `claim` (keep the token) → `next` → do each action → `record` �
 | `block` | nothing | `block` (`{"blocker": args.blocker}`), then `release` and report |
 | `report` | run `report` | none |
 
-Several actions at once are independent and may run in parallel. Long processes you start (servers, watchers) are recorded as `resource` with `kind: process` and `pid`, so cleanup and cancellation reach them and nothing else.
+Actions returned together are independent and may run in parallel. Long processes you start (servers, watchers) are recorded as `resource` with `kind: process` and `pid`, so cleanup and cancellation reach them and nothing else.
 
 ## Rules
 
 - **Delegation goes through T3 only.** Use `delegate_task`, `task_status` and `task_cancel`, matched by base name whatever prefix your harness adds. Never use native subagents (`Agent`, `Task`, `Workflow`), `codex exec`, `claude -p`, `opencode run` or any shell-launched provider. Never use `create_threads` or `t3_thread_launch` for child work. Never `t3_thread_send` to a child: a new round is a new `dispatch` from `next`. If a T3 tool is missing or errors, load `PKG/references/t3-adapter.md`.
 - **Evidence over claims.** A child's summary, a `completed` status or your own confidence is not acceptance. Only `record` evidence counts, and `validate` decides readiness at the current revision. Any edit after evidence makes it stale. Re-verify; never re-label.
 - **Labels stay distinct.** `unverified`, `failed`, `unavailable` and `waived` mean different things. Record a waiver (`record --kind waiver`) only when the operator explicitly asks, and quote them. A waiver covers only the evidence recorded before it; newer evidence for the same obligation needs a new waiver.
-- **Adverse review is final for that revision.** Repair within the limit or stop. Never ask another reviewer for a second opinion.
-- **Blocked is a complete answer.** When `next` reports a block, record it, release, and show the report's Blocked section: the reason, the task IDs, the `resume` command and the paste line. Finish independent work first; `next` keeps offering it.
+- **Adverse review is final for that revision.** Repair within the limit (`repair_limit` rounds per stage: checks, acceptance, review) or stop. Never ask another reviewer for a second opinion.
+- **Blocked is a complete answer.** When `next` reports a block, record it, release, and show the report's Blocked section: the reason, task IDs, `resume` command and paste line. Finish independent work first; `next` keeps offering it.
 - **Endstates need proof.** Report `completed` only when the core says so. For a PR, completion needs an observed PR at the verified head. If the operator authorised a PR, link it with `link_pull_request` when exposed (discover the older host's documented alternative if absent). For requested monitoring use `watch_pull_request` and yield. At handoff use `unwatch_pull_request`. Observe the PR at its current head before claiming the outcome.
-- **Finish with the report.** End every run turn by running `report` and showing the Markdown it writes, or its path if it is long. Do not restate it in different words.
+- **Finish with the report.** End every run turn by running `report` and showing the Markdown it writes, or its path if it is long. Do not paraphrase it.
 
 ## Additional workflows
 

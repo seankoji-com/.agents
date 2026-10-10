@@ -41,7 +41,7 @@ The pinned doc says T3 registers a preview toolkit but does not list its tools. 
 
 ## Pull requests
 
-The original conformance run predates T3's dedicated PR tools. As inspected on
+The original conformance run used a plugin version that did not call T3's dedicated PR tools, although the tested build exposed them. As inspected on
 10 October 2026 (AEDT, UTC+11), the host exposes `link_pull_request`,
 `watch_pull_request`, and `unwatch_pull_request`. Discover them at runtime and use
 the live schema. Link each PR immediately, register requested monitoring, and yield
