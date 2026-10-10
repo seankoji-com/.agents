@@ -24,7 +24,7 @@ jobs:
   release:
     name: Tag, Release & Update Homebrew Tap
     if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux]
     timeout-minutes: 20
     permissions:
       contents: write

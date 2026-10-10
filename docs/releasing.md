@@ -1,6 +1,6 @@
 # Releasing
 
-Release from reviewed `master` only. Local tests, hosted checks, merge, release,
+Release from reviewed `master` only. Local tests, self-hosted CI checks, merge, release,
 Homebrew distribution, and Pages acceptance each need their own evidence.
 
 1. Run the deterministic suite, documentation checks, strict site build, and browser

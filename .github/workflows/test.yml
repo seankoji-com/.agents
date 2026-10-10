@@ -20,15 +20,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            python: '3.10'
-          - os: ubuntu-latest
-            python: '3.14'
-          - os: macos-latest
-            python: '3.12'
-    runs-on: ${{ matrix.os }}
+          - python: '3.10'
+          - python: '3.12'
+          - python: '3.14'
+    runs-on: [self-hosted, Linux]
     timeout-minutes: 15
-    # Disposable hosted runners also test fork contributions without secrets.
     defaults:
       run:
         shell: bash

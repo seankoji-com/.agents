@@ -61,6 +61,8 @@ GitHub's [inheritance rules](https://docs.github.com/en/communities/setting-up-y
 apply per file type; adding a local issue-template directory replaces the inherited
 set. Keep common template changes in the organization repository.
 
-Fork PR tests run on disposable GitHub-hosted runners, without repository secrets.
-The organization gatekeeper remains required. Maintainers review agent-generated
-changes under the same evidence standards as other contributions.
+PR tests run on the organization's self-hosted Linux runner pool. Fork PR jobs
+receive no repository secrets, and maintainers should review runner isolation before
+accepting fork contributions. The organization gatekeeper remains required.
+Maintainers review agent-generated changes under the same evidence standards as
+other contributions.
