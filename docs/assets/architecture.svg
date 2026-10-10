@@ -1,14 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 450" role="img" aria-labelledby="title desc">
-<title id="title">T3 plugin architecture</title><desc id="desc">The active T3 provider reads an entry and selected playbook. The playbook invokes local deterministic helpers or T3 host tools. imps additionally uses the shared state core and records revision-bound evidence.</desc>
-<defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="none" stroke="#42766a" stroke-width="1.5"/></marker></defs>
-<rect width="1040" height="450" rx="12" fill="#f1f6ef"/>
-<g font-family="system-ui,sans-serif" fill="#173d35"><text x="38" y="42" font-size="14" letter-spacing="2">ONE WORKFLOW · THREE RESPONSIBILITIES</text>
-<rect x="38" y="90" width="244" height="115" rx="8" fill="#164f48"/><text x="60" y="128" font-size="22" fill="white" font-weight="650">Your T3 thread</text><text x="60" y="157" font-size="15" fill="#d2eadd">Active provider and model</text><text x="60" y="182" font-size="15" fill="#d2eadd">Your authorization and tools</text>
-<rect x="364" y="90" width="272" height="115" rx="8" fill="white" stroke="#9cbbab"/><text x="386" y="128" font-size="22" font-weight="650">Plugin instructions</text><text x="386" y="157" font-size="15">Small entry → one playbook</text><text x="386" y="182" font-size="15">Shared T3 runtime contract</text>
-<rect x="722" y="75" width="278" height="100" rx="8" fill="white" stroke="#9cbbab"/><text x="744" y="110" font-size="21" font-weight="650">Local helpers</text><text x="744" y="140" font-size="15">Files, transforms, hashes, validation</text>
-<rect x="722" y="210" width="278" height="100" rx="8" fill="white" stroke="#9cbbab"/><text x="744" y="245" font-size="21" font-weight="650">T3 host tools</text><text x="744" y="275" font-size="15">Tasks, previews, PR watches</text>
-<rect x="364" y="285" width="272" height="105" rx="8" fill="#dcecdc" stroke="#9cbbab"/><text x="386" y="323" font-size="21" font-weight="650">Shared state core</text><text x="386" y="350" font-size="15">imps claims, generations, evidence</text><text x="386" y="373" font-size="14">Reports tied to checked revisions</text>
-<text x="40" y="351" font-size="16" font-weight="600">No provider SDK in the core.</text><text x="40" y="379" font-size="15">No second task scheduler.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 470" class="diagram" role="img" aria-labelledby="arch-title arch-desc" style="font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:15px">
+<title id="arch-title">How a t3-plugins workflow runs</title>
+<desc id="arch-desc">A T3 thread reads a plugin entry and one playbook. The playbook calls local helpers, which use only the Python standard library, or T3 host tools for child tasks, previews, and PR watches. imps also records revision-bound evidence in a shared core.</desc>
+<defs>
+<marker id="arch-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1 L8 5 L1 9" fill="none" stroke="var(--sp-ink,#1f2a24)" stroke-width="1.4"/></marker>
+</defs>
+<g fill="none" stroke="var(--sp-ink,#1f2a24)" stroke-width="1.3">
+<rect x="40" y="110" width="250" height="118"/>
+<rect x="395" y="110" width="250" height="118"/>
+<rect x="750" y="60" width="250" height="104"/>
+<rect x="750" y="190" width="250" height="104"/>
+<rect x="395" y="300" width="250" height="118" stroke-dasharray="4 4"/>
 </g>
-<g fill="none" stroke="#42766a" stroke-width="2" marker-end="url(#arrow)"><path d="M282 147H352"/><path d="M636 125H710"/><path d="M636 160H675V260H710"/><path d="M500 205V272"/></g>
+<g fill="none" stroke="var(--sp-ink,#1f2a24)" stroke-width="1.3" marker-end="url(#arch-arrow)">
+<path d="M290 169 H385"/>
+<path d="M645 150 Q700 150 700 112 Q700 112 740 112"/>
+<path d="M645 190 Q700 190 700 242 Q700 242 740 242"/>
+<path d="M520 228 V290"/>
+</g>
+<g fill="var(--sp-ink,#1f2a24)">
+<text x="40" y="36" style="font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:15px" fill="var(--sp-ochre,#b8862b)">Fig. 1</text>
+<text x="92" y="36" style="font-family:'Fraunces',Georgia,serif;font-size:19px">One workflow, three responsibilities</text>
+<text x="58" y="146" font-weight="600" font-size="17">Your T3 thread</text>
+<text x="58" y="174" fill="var(--sp-ink-soft,#55615a)">Active provider and model</text>
+<text x="58" y="198" fill="var(--sp-ink-soft,#55615a)">Your authorization, shell, and files</text>
+<text x="413" y="146" font-weight="600" font-size="17">Plugin instructions</text>
+<text x="413" y="174" fill="var(--sp-ink-soft,#55615a)">A short entry routes to one playbook</text>
+<text x="413" y="198" fill="var(--sp-ink-soft,#55615a)">Shared T3 runtime contract</text>
+<text x="768" y="92" font-weight="600" font-size="17">Local helpers</text>
+<text x="768" y="118" fill="var(--sp-ink-soft,#55615a)">Python standard library only</text>
+<text x="768" y="142" fill="var(--sp-ink-soft,#55615a)">Install, state, hashes, audits</text>
+<text x="768" y="222" font-weight="600" font-size="17">T3 host tools</text>
+<text x="768" y="248" fill="var(--sp-ink-soft,#55615a)">delegate_task, task_status, previews</text>
+<text x="768" y="272" fill="var(--sp-ink-soft,#55615a)">PR watches. Discovered, never assumed</text>
+<text x="413" y="336" font-weight="600" font-size="17">Shared core</text>
+<text x="413" y="362" fill="var(--sp-ink-soft,#55615a)">imps only: claims, generations,</text>
+<text x="413" y="386" fill="var(--sp-ink-soft,#55615a)">evidence tied to a revision</text>
+<text x="40" y="452" fill="var(--sp-ink-soft,#55615a)" font-size="13">Every box has local source and tests. No provider SDK, no fixed model ID, no second scheduler.</text>
+</g>
 </svg>

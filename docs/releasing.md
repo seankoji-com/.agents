@@ -28,10 +28,12 @@ Pages environment protection rules may require a maintainer's approval; do not b
 ## Recovery
 
 A failed release is not complete. Inspect the exact failed step before rerunning.
-If a release exists but the tap update failed, repair that formula update without
-inventing a second version. If Pages fails, retain the last successful deployment
+If a release exists but the tap update failed, rerun `Release` with `existing_tag` set
+to that tag: it skips tests, tagging, and the GitHub release, reads the published
+`.sha256` asset, and only re-proposes the formula, so no second version is invented.
+If Pages fails, retain the last successful deployment
 and fix its build. Users can reactivate an earlier installed snapshot with
 `t3-plugins activate PLUGIN VERSION`; run state is independent of the package version.
 
-The formula's `imps` alias installs the same catalog package. Its `imps` executable
+The formula's `imps` command is a second executable from the same catalog package. Its `imps` executable
 is a direct state CLI; only `t3-plugins install` updates user snapshots.

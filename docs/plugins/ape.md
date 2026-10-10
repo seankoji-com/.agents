@@ -24,7 +24,7 @@ Replace sample repositories, paths, and tasks with your own.
 
 ## Operations
 
-`doctor`, `forage`, `study`, `clean`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/ape/entry.md) routes each operation to its focused playbook.
+`doctor`, `forage`, `study`, `clean`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/ape/entry.md) names the file to load for each operation.
 
 ## What you get
 

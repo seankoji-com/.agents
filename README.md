@@ -4,59 +4,69 @@
 
 [![Tests](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml/badge.svg)](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml)
 [![Documentation](https://github.com/seankoji-com/t3-plugins/actions/workflows/docs.yml/badge.svg)](https://seankoji-com.github.io/t3-plugins/)
-[![MIT license](https://img.shields.io/badge/license-MIT-16786a)](LICENSE)
+[![MIT license](https://img.shields.io/badge/license-MIT-2f6b4f)](LICENSE)
 
-Seven practical plugins for [T3 Code](https://github.com/pingdotgg/t3code): plan a
-change, research an approach, implement it, and check the result. Portable entries
-inherit your active provider. Local tools handle deterministic work. T3 owns tasks,
-browser previews, and PR watches.
+Seven agent workflows for [T3 Code](https://github.com/pingdotgg/t3code) that run on
+whichever provider the thread has selected. Each one is a short entry the agent reads,
+plus local tools in the Python standard library for the parts that should be
+deterministic. T3 owns child tasks, previews, and PR watches. Nothing is called done
+without evidence.
 
-**[Read the docs](https://seankoji-com.github.io/t3-plugins/)** ·
-[Architecture](docs/architecture.md) · [Compatibility](docs/compatibility.md) ·
+**[Docs](https://seankoji-com.github.io/t3-plugins/)** ·
+[Why it is built this way](https://seankoji-com.github.io/t3-plugins/case-study/) ·
+[Sightings](https://seankoji-com.github.io/t3-plugins/sightings/) ·
 [Contributing](CONTRIBUTING.md)
 
-[![Documentation homepage, captured from the built site](docs/assets/docs-preview.png)](https://seankoji-com.github.io/t3-plugins/)
+[![The documentation homepage](docs/assets/docs-preview.png)](https://seankoji-com.github.io/t3-plugins/)
 
 ## Install
 
 ```sh
 brew install seankoji-com/tap/t3-plugins
 t3-plugins install
-t3-plugins doctor
 t3-plugins prompt imps doctor
 ```
 
-Paste the printed prompt into a T3 thread. No Claude marketplace or provider-specific
-slash command is required. Install on the machine where your provider executes tools.
-[Source installation, upgrades, and rollback](docs/getting-started.md) are documented too.
+Paste the printed line into a T3 thread. No marketplace, no slash-command
+registration, no second model client. Install on the machine where your provider
+executes tools. [Source installs, upgrades, and rollback](docs/getting-started.md).
 
-## Pick a job
+![Scripted recording: install imps, run doctor, paste the generated prompt into T3](docs/assets/demo.svg)
 
-| Plugin | What it does |
-| --- | --- |
-| [imps](docs/plugins/imps.md) | Implements bounded changes with revision-bound evidence, recovery, and independent review |
-| [elephant-goldfish](docs/plugins/elephant-goldfish.md) | Turns uncertain problems into testable briefs and checks durable design documents |
-| [prompt-builder](docs/plugins/prompt-builder.md) | Builds reusable prompts and compares them against frozen cases |
-| [ape](docs/plugins/ape.md) | Finds transferable ideas in open-source code, with source-pinned evidence |
-| [babysitter](docs/plugins/babysitter.md) | Maintains authorized PRs through review, CI, conflicts, and merge |
-| [agent-tuneup](docs/plugins/agent-tuneup.md) | Audits agent configuration with explicit provider-format support |
-| [offload-sidecar](docs/plugins/offload-sidecar.md) | Transforms files by path and returns small receipts with output hashes |
+## The catalog
 
-A direct prompt or short shell command is often enough. Use a plugin when its saved
-artifacts, checks, or recovery behavior help. [Try your first workflow](docs/first-workflow.md).
+| Plate | Plugin | Use it when |
+| --- | --- | --- |
+| I | [imps](docs/plugins/imps.md) | A bounded change needs a plan, checks at the current revision, and an independent review |
+| II | [elephant-goldfish](docs/plugins/elephant-goldfish.md) | You cannot yet state the problem as a task |
+| III | [ape](docs/plugins/ape.md) | Another codebase probably solved your gap, and you want cited evidence |
+| IV | [prompt-builder](docs/plugins/prompt-builder.md) | A task you keep asking an agent to do deserves a tested prompt |
+| V | [babysitter](docs/plugins/babysitter.md) | An authorized PR needs carrying through review, CI, and conflicts |
+| VI | [agent-tuneup](docs/plugins/agent-tuneup.md) | Your agent settings need an audit that never weakens a permission |
+| VII | [offload-sidecar](docs/plugins/offload-sidecar.md) | A file transform should return a receipt, not fill the context |
 
-## How it fits together
+A direct prompt is often enough. Reach for a plugin when its saved artifacts, checks,
+or recovery behavior earn their overhead. [Your first workflow](docs/first-workflow.md).
 
-![T3 thread to plugin entry, then local helpers or T3 host tools; imps additionally uses a shared state core.](docs/assets/architecture.svg)
+## How it is built
 
-The Python runtime uses only the standard library. Small entries load focused
-playbooks. The shared core owns imps state, claims, generations, and evidence, with
-no plugin-specific imports. Versioned installs preserve local edits and keep run
-state separate. [Read the design and tradeoffs](docs/architecture.md).
+![A T3 thread reads a plugin entry and one playbook, then uses local helpers or T3 host tools; imps records revision-bound evidence in a shared core](docs/assets/architecture.svg)
+
+- **Instructions** are Markdown entries under 1,500 words that route to one playbook. Any model with a filesystem can read them.
+- **Local tools** use only the Python standard library. Installers, run state, hashes, and audits are plain scripts with tests.
+- **Host orchestration** stays with T3. The plugins discover its tools at run time and never ship a scheduler of their own.
+
+imps adds a small state engine: a claim token names the owner, a generation counter
+refuses stale writes, and evidence is tied to the revision it checked. An edit after
+verification makes the verification stale. [Architecture](docs/architecture.md).
+
+## What has been observed
 
 Provider-neutral is a design contract, not a claim that every model behaves the same.
-New ports are experimental. The existing imps [live conformance ledger](conformance/compatibility.md)
-records partial results, exact versions, failures, and artifacts.
+The [sightings ledger](https://seankoji-com.github.io/t3-plugins/sightings/) is
+generated from `conformance/compatibility.json` and lists per-provider pass counts,
+the cases that could not run, and the two defects the live matrix found in the
+briefs. Failed attempts are recorded alongside passes.
 
 ## Develop
 
@@ -65,17 +75,14 @@ python3 -m unittest discover -s tests -v
 python3 scripts/check_docs.py
 ```
 
-Python 3.10+; no runtime package installation. Some optional adapters require Python
-3.11+. Documentation uses a separate pinned [MkDocs build](docs/contributing.md#work-on-the-site).
-Tests cover stale evidence, ownership, path safety, interrupted tasks, installed
-artifacts, malformed outputs, and permission-audit receipts. See [testing](docs/testing.md).
+Python 3.10+, no runtime package installation. Some optional adapters need 3.11+.
+The docs site uses a separate pinned [MkDocs build](docs/contributing.md#work-on-the-site)
+and is generated from the plugin manifests and the conformance ledger at build time.
+See [testing](docs/testing.md) and [contributing](CONTRIBUTING.md).
 
 ## Project
 
 Built by [Sean Carey](https://github.com/seankoji). Ported from
-[claude-plugins](https://github.com/seankoji-com/claude-plugins), with the source
-revision and behavioral changes in the [migration guide](docs/migration.md).
-
-Issue forms and the PR template are inherited from
-[seankoji-com/.github](https://github.com/seankoji-com/.github).
+[claude-plugins](https://github.com/seankoji-com/claude-plugins); the source revision
+and behavioral changes are in the [migration guide](docs/migration.md).
 [Security reporting](SECURITY.md) · [MIT license](LICENSE)

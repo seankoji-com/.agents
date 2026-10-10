@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" class="specimen-mark" role="img" aria-label="elephant-goldfish: an elephant's head in profile beside a small goldfish">
+<defs><g id="sp-elephant-goldfish">
+<ellipse cx="60" cy="42" rx="14" ry="19" fill="var(--sp-ink,#1f2a24)"/>
+<circle cx="42" cy="40" r="22" fill="var(--sp-ink,#1f2a24)"/>
+<path d="M26 48 Q12 58 16 78 Q18 88 28 84" fill="none" stroke="var(--sp-ink,#1f2a24)" stroke-width="9" stroke-linecap="round"/>
+<path d="M30 58 L18 64 L31 62 Z" fill="var(--sp-paper,#eef0e8)"/>
+<circle cx="35" cy="36" r="3.2" fill="var(--sp-paper,#eef0e8)"/>
+<circle cx="35.6" cy="36.4" r="1.4" fill="var(--sp-ink,#1f2a24)"/>
+<ellipse cx="68" cy="78" rx="12" ry="7.5" fill="var(--sp-ochre,#b8862b)"/>
+<path d="M79 78 L91 70 L91 86 Z" fill="var(--sp-ochre,#b8862b)"/>
+<path d="M64 71 L68 64 L72 71 Z" fill="var(--sp-ochre,#b8862b)"/>
+<circle cx="61" cy="76.5" r="1.6" fill="var(--sp-paper,#eef0e8)"/>
+</g></defs>
+<use href="#sp-elephant-goldfish" transform="translate(2.5 2.5)" style="--sp-ink:var(--sp-fern,#2f6b4f);--sp-paper:transparent;--sp-ochre:var(--sp-fern,#2f6b4f)"/>
+<use href="#sp-elephant-goldfish"/>
+</svg>

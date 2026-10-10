@@ -24,7 +24,7 @@ Replace sample repositories, paths, and tasks with your own.
 
 ## Operations
 
-`doctor`, `build`, `brief-only`, `evaluate`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/prompt-builder/entry.md) routes each operation to its focused playbook.
+`doctor`, `build`, `brief-only`, `evaluate`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/prompt-builder/entry.md) names the file to load for each operation.
 
 ## What you get
 

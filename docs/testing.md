@@ -20,6 +20,8 @@ The suite tests behavior across boundaries, not just successful return values:
 | A prompt comparison uses changed inputs or models | Frozen-suite evaluator tests |
 | Handoff silently changes its source brief | Literal rendering and provenance/hash tests |
 | File transform accepts malformed output | Imported sidecar validator and engine failure tests |
+| The site drifts from the catalog or the ledger | Field-guide hook tests: every plugin has a plate, numbers come from `compatibility.json`, HTML is escaped |
+| The homepage recording goes stale or unsafe | Recording generator tests: committed SVG matches the generator, no scripts or external references |
 
 External model calls are mocked. Shell helpers use synthetic fixtures and stubbed
 GitHub/Git responses. The suite needs a local loopback socket for its HTTP product
