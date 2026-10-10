@@ -23,13 +23,6 @@ class T3Plugins < Formula
     EOS
   end
 
-  test do
-    system bin/"t3-plugins", "--prefix", testpath/"plugins", "install"
-    system bin/"t3-plugins", "--prefix", testpath/"plugins", "doctor"
-    assert_match "prompt-builder", shell_output("#{bin}/t3-plugins list")
-    system bin/"imps", "--help"
-  end
-
   def caveats
     <<~EOS
       Install or update your user's plugin snapshots:
@@ -39,5 +32,12 @@ class T3Plugins < Formula
       Check installed file integrity:
         t3-plugins doctor
     EOS
+  end
+
+  test do
+    system bin/"t3-plugins", "--prefix", testpath/"plugins", "install"
+    system bin/"t3-plugins", "--prefix", testpath/"plugins", "doctor"
+    assert_match "prompt-builder", shell_output("#{bin}/t3-plugins list")
+    system bin/"imps", "--help"
   end
 end
