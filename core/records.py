@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import acceptance, blockers, contract, engine, resources, results, selection, snapshot, t3, transitions
 from .errors import InvalidInput, Prohibited
-from .fsutil import copy_artifact, write_artifact
+from .fsutil import contained, copy_artifact, write_artifact
 from .store import now_iso
 
 KINDS = ('capabilities', 'transition', 'dispatch', 'observation', 'result', 'cancel', 'check', 'acceptance',
@@ -442,7 +442,7 @@ def rec_result(ctx, state, payload):
     task = _task(state, payload['task_id'])
     text = payload.get('text')
     if text is None and payload.get('text_file'):
-        text = Path(payload['text_file']).read_text()
+        text = contained(Path(payload['text_file']), _roots(ctx, state)).read_text()  # same containment as other evidence
     if text is None and isinstance(payload.get('result'), dict):
         text = '```json t3-result\n' + schema_json(payload['result']).decode() + '```'
     if text is None:

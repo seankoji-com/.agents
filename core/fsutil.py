@@ -105,7 +105,7 @@ def copy_artifact(source: Path, run_dir: Path, category: str, roots) -> dict:
     if not category.replace('-', '').isalnum():
         raise InvalidInput('bad_category', 'artifact category must be alphanumeric', {'category': category})
     target_dir = safe_dir(run_dir, 'artifacts', category)
-    stem = ''.join(ch if ch.isalnum() or ch in '._-' else '_' for ch in source.name)[:80] or 'artifact'
+    stem = artifact_stem(source.name)
     fd, tmp = tempfile.mkstemp(prefix='.artifact.', dir=target_dir)  # O_EXCL: never follows a planted link
     try:
         with os.fdopen(fd, 'wb') as out, open(source, 'rb') as src:
@@ -139,9 +139,17 @@ def safe_dir(run_dir: Path, *parts: str) -> Path:
     return current
 
 
+def artifact_stem(name: str) -> str:
+    """A single safe path component: no separators, no leading dot, bounded length."""
+    stem = ''.join(ch if ch.isalnum() or ch in '._-' else '_' for ch in str(name))[:80].lstrip('.')
+    return stem or 'artifact'
+
+
 def write_artifact(run_dir: Path, category: str, name: str, data: bytes) -> dict:
+    """Write bytes under run_dir/artifacts/<category>/. `name` may come from agent
+    input (task ids in echoed dispatches), so it is reduced to one path component."""
     digest = sha256_bytes(data)
-    target = safe_dir(run_dir, 'artifacts', category) / f'{digest[:12]}-{name}'
+    target = safe_dir(run_dir, 'artifacts', category) / f'{digest[:12]}-{artifact_stem(name)}'
     if target.is_symlink() or (target.exists() and not target.is_file()):
         raise InvalidInput('path_escape', 'artifact target is a symlink or not a regular file', {'path': str(target)})
     if not target.exists() or sha256_file(target) != digest:

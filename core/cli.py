@@ -206,6 +206,8 @@ def _decision(state, blocker, args):
             raise InvalidInput('value', 'v1 can only fall back to the local endstate')
         state['authorization']['endstate'] = args.value
     elif decision == 'adopt-parent':
+        if not args.value:
+            raise InvalidInput('value', 'adopt-parent needs --value with the new parent thread id')
         for task in state['tasks']:
             for item in task.get('rounds') or []:
                 if item.get('task_id') and not item.get('terminal'):
