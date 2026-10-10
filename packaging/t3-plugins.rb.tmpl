@@ -11,7 +11,7 @@ class T3Plugins < Formula
   def install
     libexec.install "core", "plugins", "scripts", "shared"
 
-    python3 = formula_opt_bin("python@3.12")/"python3"
+    python3 = formula_opt_libexec("python@3.12")/"bin/python3"
     (bin/"t3-plugins").write <<~EOS
       #!/bin/bash
       exec "#{python3}" "#{libexec}/scripts/catalog.py" "$@"
