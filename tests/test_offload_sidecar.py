@@ -1049,6 +1049,19 @@ class DeterministicOperationsTest(unittest.TestCase):
         with self.assertRaises(sidecar.SidecarError):
             sidecar._det_xml_to_json(b"<!DOCTYPE foo><root/>", {}, "", "out.json")
 
+    def test_xml_to_json_refuses_doctype_in_utf16(self):
+        # A byte-level scan for "<!DOCTYPE" misses UTF-16, where every ASCII
+        # character is followed by a NUL; expat decodes before looking.
+        doc = ('<?xml version="1.0" encoding="UTF-16"?>'
+               '<!DOCTYPE a [<!ENTITY x "boom">]><a>&x;</a>').encode("utf-16")
+        with self.assertRaises(sidecar.SidecarError):
+            sidecar._det_xml_to_json(doc, {}, "", "out.json")
+        with self.assertRaises(sidecar.SidecarError):
+            sidecar._xlsx_parse_part(doc, "xl/sharedStrings.xml")
+        self.assertEqual(
+            sidecar._xlsx_parse_part('<a>ok</a>'.encode("utf-16"), "x").text, "ok"
+        )
+
     def test_html_to_text(self):
         out = sidecar._det_html_to_text(
             b"<html><body><p>hello</p><p>world</p><script>evil()</script></body></html>",

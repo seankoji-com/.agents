@@ -30,8 +30,8 @@ discovered through its live tool schemas rather than compiled in.
 
 The boundary matters more than any single piece. Instructions can be read by any
 model with a filesystem. Tools can be tested without a model at all. Host features
-can change under us without a release, because nothing in the repository hard-codes
-a tool signature or a model ID. The cost is that the repository will never feel like
+can change under us without a release, because the workflows hard-code neither a
+tool signature nor the model that does the work. The cost is that the repository will never feel like
 a single integrated product; it feels like a catalog, because it is one.
 
 ### 2. Tie evidence to the revision that produced it
@@ -53,9 +53,11 @@ the report can say `completed` and mean it.
 Nothing in the catalog knows what a "reviewer" model is. Roles are resolved against
 T3's live capability list at run time, and a provider that is disabled, uninstalled,
 or unauthenticated shows up as exactly that in the `doctor` report. No model ID is
-compiled into the catalog or the core: imps roles resolve as `inherit`, `catalog`, or
-`same_provider`, and model names appear only as recorded observations in test
-fixtures and the conformance ledger.
+compiled into imps or the core: roles resolve as `inherit`, `catalog`, or
+`same_provider`. The one exception is deliberate and outside T3's selection: the
+offload sidecar, which sends bulk file work to a local Ollama model or the Antigravity
+CLI, ships default model names for those tiers, and each is a setting the user can
+change.
 
 This is the decision that makes the "provider-neutral" claim honest. It also means the
 catalog cannot promise that every model behaves the same. It can only record what

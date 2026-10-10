@@ -26,7 +26,7 @@ FRAMES = [
     ('cmd', 't3-plugins doctor imps'),
     ('out', '{"plugin": "imps", "ok": true, "errors": [], "scope": "installed file integrity; provider behavior not tested"}'),
     ('cmd', 't3-plugins prompt imps doctor'),
-    ('out', 'Read ~/.local/share/t3-plugins/imps/current/entry.md and run: doctor'),
+    ('out', 'Read /home/you/.local/share/t3-plugins/imps/current/entry.md and run: doctor'),
     ('gap', ''),
     ('note', 'pasted into a T3 thread, on whichever provider is selected'),
     ('out', 'imps doctor'),
@@ -36,7 +36,8 @@ FRAMES = [
     ('out', '  operations here: doctor run resume status cancel verification-init'),
 ]
 
-WIDTH = 960
+MIN_WIDTH = 960
+CHAR_WIDTH = 0.6          # IBM Plex Mono advance, in em
 LINE_HEIGHT = 24
 PAD_X = 28
 PAD_TOP = 34
@@ -48,6 +49,10 @@ CMD_PAUSE = 0.6           # pause after a command finishes typing
 
 def build(frames=FRAMES) -> str:
     height = PAD_TOP + LINE_HEIGHT * len(frames) + 22
+    # Wide enough for the longest line (commands carry a two-character prompt), so
+    # nothing is clipped at the right edge; the page scales the SVG to fit.
+    longest = max(len(text) + (2 if kind == 'cmd' else 0) for kind, text in frames)
+    width = max(MIN_WIDTH, round(2 * PAD_X + longest * FONT_SIZE * CHAR_WIDTH))
     t = 0.4
     body = []
     styles = []
@@ -59,34 +64,36 @@ def build(frames=FRAMES) -> str:
         if kind == 'cmd':
             chars = len(text)
             typing = round(chars * CHAR_SECONDS, 2)
-            styles.append(f'#l{i}{{animation:reveal {typing}s steps({chars},end) {t:.2f}s both}}')
+            styles.append(f'#demo-l{i}{{animation:demo-reveal {typing}s steps({chars},end) {t:.2f}s both}}')
             body.append(
-                f'<text id="l{i}" x="{PAD_X}" y="{y}" class="cmd">'
+                f'<text id="demo-l{i}" x="{PAD_X}" y="{y}" class="cmd">'
                 f'<tspan class="prompt">$ </tspan>{escaped}</text>')
             t += typing + CMD_PAUSE
         else:
-            styles.append(f'#l{i}{{animation:appear 0.01s linear {t:.2f}s both}}')
+            styles.append(f'#demo-l{i}{{animation:demo-appear 0.01s linear {t:.2f}s both}}')
             cls = 'note' if kind == 'note' else 'out'
-            body.append(f'<text id="l{i}" x="{PAD_X}" y="{y}" class="{cls}">{escaped}</text>')
+            body.append(f'<text id="demo-l{i}" x="{PAD_X}" y="{y}" class="{cls}">{escaped}</text>')
             t += LINE_SECONDS
     total = round(t, 1)
+    # Every selector is scoped to the recording's root: the SVG is inlined into the
+    # homepage, where a bare `text` rule would restyle every other diagram.
     css = (
-        "text{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;"
+        ".demo-rec text{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;"
         f"font-size:{FONT_SIZE}px;fill:var(--sp-ink,#1f2a24);white-space:pre}}"
-        ".prompt{fill:var(--sp-ink-soft,#55615a)}"
-        ".out{fill:var(--sp-ink-soft,#55615a)}"
-        ".note{fill:var(--sp-ochre-text,#80601a);font-style:italic}"
-        ".cmd{clip-path:inset(0 100% 0 0)}"
-        "@keyframes reveal{to{clip-path:inset(0 -2% 0 0)}}"
-        "@keyframes appear{from{opacity:0}to{opacity:1}}"
-        "@media(prefers-reduced-motion:reduce){text{animation:none!important;clip-path:none!important;opacity:1!important}}"
+        ".demo-rec .prompt{fill:var(--sp-ink-soft,#55615a)}"
+        ".demo-rec .out{fill:var(--sp-ink-soft,#55615a)}"
+        ".demo-rec .note{fill:var(--sp-ochre-text,#80601a);font-style:italic}"
+        ".demo-rec .cmd{clip-path:inset(0 100% 0 0)}"
+        "@keyframes demo-reveal{to{clip-path:inset(0 -2% 0 0)}}"
+        "@keyframes demo-appear{from{opacity:0}to{opacity:1}}"
+        "@media(prefers-reduced-motion:reduce){.demo-rec text{animation:none!important;clip-path:none!important;opacity:1!important}}"
         + ''.join(styles)
     )
     return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {height}" role="img" '
+        f'<svg xmlns="http://www.w3.org/2000/svg" class="demo-rec" viewBox="0 0 {width} {height}" role="img" '
         f'aria-label="Terminal recording: installing imps, running doctor, and pasting the generated prompt into a T3 thread. Total length {total} seconds.">\n'
         f'<style>{css}</style>\n'
-        f'<rect width="{WIDTH}" height="{height}" fill="var(--sp-paper,#eef0e8)"/>\n'
+        f'<rect width="{width}" height="{height}" fill="var(--sp-paper,#eef0e8)"/>\n'
         f'<text x="{PAD_X}" y="18" style="font-size:11px;letter-spacing:.04em;fill:var(--sp-ink-soft,#55615a)">'
         f'scripted recording · {total}s · no live model call</text>\n'
         + '\n'.join(body) + '\n</svg>\n'

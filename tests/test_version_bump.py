@@ -54,13 +54,14 @@ class VersionBumpTest(unittest.TestCase):
             script = textwrap.dedent(workflow.split('run: |\n', 1)[1].split('\n      - name:', 1)[0])
             self.assertIn('git merge-base', script)
             self.assertNotIn('pull_request.base.sha', workflow)
-            script = script.replace('${{ github.event.pull_request.base.ref }}', 'main')
-            script = script.replace('${{ github.event.pull_request.head.sha }}', head)
+            # Event values reach the script through env, never spliced into its source.
+            self.assertNotIn('${{', script)
             output = root / 'output'
             for expected in ('changed=1', 'changed=0'):
                 output.write_text('')
                 result = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', script], cwd=root,
-                                        env={**os.environ, 'GITHUB_OUTPUT': str(output)},
+                                        env={**os.environ, 'GITHUB_OUTPUT': str(output),
+                                             'BASE_REF': 'main', 'HEAD': head},
                                         capture_output=True, text=True, timeout=10)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(output.read_text().strip(), expected)

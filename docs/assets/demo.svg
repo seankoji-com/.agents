@@ -1,17 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 368" role="img" aria-label="Terminal recording: installing imps, running doctor, and pasting the generated prompt into a T3 thread. Total length 8.7 seconds.">
-<style>text{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;fill:var(--sp-ink,#1f2a24);white-space:pre}.prompt{fill:var(--sp-ink-soft,#55615a)}.out{fill:var(--sp-ink-soft,#55615a)}.note{fill:var(--sp-ochre-text,#80601a);font-style:italic}.cmd{clip-path:inset(0 100% 0 0)}@keyframes reveal{to{clip-path:inset(0 -2% 0 0)}}@keyframes appear{from{opacity:0}to{opacity:1}}@media(prefers-reduced-motion:reduce){text{animation:none!important;clip-path:none!important;opacity:1!important}}#l0{animation:reveal 1.03s steps(23,end) 0.40s both}#l1{animation:appear 0.01s linear 2.03s both}#l2{animation:reveal 0.99s steps(22,end) 2.38s both}#l3{animation:appear 0.01s linear 3.97s both}#l4{animation:reveal 1.3s steps(29,end) 4.32s both}#l5{animation:appear 0.01s linear 6.22s both}#l7{animation:appear 0.01s linear 6.57s both}#l8{animation:appear 0.01s linear 6.92s both}#l9{animation:appear 0.01s linear 7.27s both}#l10{animation:appear 0.01s linear 7.62s both}#l11{animation:appear 0.01s linear 7.97s both}#l12{animation:appear 0.01s linear 8.32s both}</style>
-<rect width="960" height="368" fill="var(--sp-paper,#eef0e8)"/>
+<svg xmlns="http://www.w3.org/2000/svg" class="demo-rec" viewBox="0 0 1055 368" role="img" aria-label="Terminal recording: installing imps, running doctor, and pasting the generated prompt into a T3 thread. Total length 8.7 seconds.">
+<style>.demo-rec text{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;fill:var(--sp-ink,#1f2a24);white-space:pre}.demo-rec .prompt{fill:var(--sp-ink-soft,#55615a)}.demo-rec .out{fill:var(--sp-ink-soft,#55615a)}.demo-rec .note{fill:var(--sp-ochre-text,#80601a);font-style:italic}.demo-rec .cmd{clip-path:inset(0 100% 0 0)}@keyframes demo-reveal{to{clip-path:inset(0 -2% 0 0)}}@keyframes demo-appear{from{opacity:0}to{opacity:1}}@media(prefers-reduced-motion:reduce){.demo-rec text{animation:none!important;clip-path:none!important;opacity:1!important}}#demo-l0{animation:demo-reveal 1.03s steps(23,end) 0.40s both}#demo-l1{animation:demo-appear 0.01s linear 2.03s both}#demo-l2{animation:demo-reveal 0.99s steps(22,end) 2.38s both}#demo-l3{animation:demo-appear 0.01s linear 3.97s both}#demo-l4{animation:demo-reveal 1.3s steps(29,end) 4.32s both}#demo-l5{animation:demo-appear 0.01s linear 6.22s both}#demo-l7{animation:demo-appear 0.01s linear 6.57s both}#demo-l8{animation:demo-appear 0.01s linear 6.92s both}#demo-l9{animation:demo-appear 0.01s linear 7.27s both}#demo-l10{animation:demo-appear 0.01s linear 7.62s both}#demo-l11{animation:demo-appear 0.01s linear 7.97s both}#demo-l12{animation:demo-appear 0.01s linear 8.32s both}</style>
+<rect width="1055" height="368" fill="var(--sp-paper,#eef0e8)"/>
 <text x="28" y="18" style="font-size:11px;letter-spacing:.04em;fill:var(--sp-ink-soft,#55615a)">scripted recording · 8.7s · no live model call</text>
-<text id="l0" x="28" y="34" class="cmd"><tspan class="prompt">$ </tspan>t3-plugins install imps</text>
-<text id="l1" x="28" y="58" class="out">{"ok": true, "data": {"action": "install", "plugin": "imps", "version": "0.2.0+gdf8e8c7", "files": 48}}</text>
-<text id="l2" x="28" y="82" class="cmd"><tspan class="prompt">$ </tspan>t3-plugins doctor imps</text>
-<text id="l3" x="28" y="106" class="out">{"plugin": "imps", "ok": true, "errors": [], "scope": "installed file integrity; provider behavior not tested"}</text>
-<text id="l4" x="28" y="130" class="cmd"><tspan class="prompt">$ </tspan>t3-plugins prompt imps doctor</text>
-<text id="l5" x="28" y="154" class="out">Read ~/.local/share/t3-plugins/imps/current/entry.md and run: doctor</text>
-<text id="l7" x="28" y="202" class="note">pasted into a T3 thread, on whichever provider is selected</text>
-<text id="l8" x="28" y="226" class="out">imps doctor</text>
-<text id="l9" x="28" y="250" class="out">  python3 3.12.6 · git 2.46.0 · state root writable</text>
-<text id="l10" x="28" y="274" class="out">  T3 tools: orchestrator_capabilities responded</text>
-<text id="l11" x="28" y="298" class="out">  child-capable providers: codex, claudeAgent, antigravity</text>
-<text id="l12" x="28" y="322" class="out">  operations here: doctor run resume status cancel verification-init</text>
+<text id="demo-l0" x="28" y="34" class="cmd"><tspan class="prompt">$ </tspan>t3-plugins install imps</text>
+<text id="demo-l1" x="28" y="58" class="out">{"ok": true, "data": {"action": "install", "plugin": "imps", "version": "0.2.0+gdf8e8c7", "files": 48}}</text>
+<text id="demo-l2" x="28" y="82" class="cmd"><tspan class="prompt">$ </tspan>t3-plugins doctor imps</text>
+<text id="demo-l3" x="28" y="106" class="out">{"plugin": "imps", "ok": true, "errors": [], "scope": "installed file integrity; provider behavior not tested"}</text>
+<text id="demo-l4" x="28" y="130" class="cmd"><tspan class="prompt">$ </tspan>t3-plugins prompt imps doctor</text>
+<text id="demo-l5" x="28" y="154" class="out">Read /home/you/.local/share/t3-plugins/imps/current/entry.md and run: doctor</text>
+<text id="demo-l7" x="28" y="202" class="note">pasted into a T3 thread, on whichever provider is selected</text>
+<text id="demo-l8" x="28" y="226" class="out">imps doctor</text>
+<text id="demo-l9" x="28" y="250" class="out">  python3 3.12.6 · git 2.46.0 · state root writable</text>
+<text id="demo-l10" x="28" y="274" class="out">  T3 tools: orchestrator_capabilities responded</text>
+<text id="demo-l11" x="28" y="298" class="out">  child-capable providers: codex, claudeAgent, antigravity</text>
+<text id="demo-l12" x="28" y="322" class="out">  operations here: doctor run resume status cancel verification-init</text>
 </svg>

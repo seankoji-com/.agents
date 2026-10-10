@@ -32,11 +32,13 @@ jobs:
 
       - name: Detect changed plugins and bump versions
         id: bump
+        env:
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          HEAD="${{ github.event.pull_request.head.sha }}"
           # Compare against the fork point, not base.sha: commits that landed on the
           # base branch after this PR branched are not this PR's changes.
-          BASE=$(git merge-base "origin/${{ github.event.pull_request.base.ref }}" "$HEAD")
+          BASE=$(git merge-base "origin/${BASE_REF}" "$HEAD")
 
           changed=0
 

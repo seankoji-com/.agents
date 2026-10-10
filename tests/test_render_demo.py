@@ -23,6 +23,24 @@ class RenderDemoTest(unittest.TestCase):
         self.assertIn('t3-plugins prompt imps doctor', a)
         self.assertIn('no live model call', a)
 
+    def test_styles_cannot_leak_into_the_page(self):
+        # Inlined into the homepage: an unscoped rule would restyle the other diagrams.
+        import re
+        css = render_demo.build().split('<style>', 1)[1].split('</style>', 1)[0]
+        css = re.sub(r'@keyframes demo-[a-z]+\{(?:[^{}]*\{[^{}]*\})*\}', '', css)
+        css = re.sub(r'@media\([^)]*\)\{(.*)\}', r'\1', css)
+        selectors = [sel.strip() for rule in re.findall(r'([^{}]+)\{[^{}]*\}', css) for sel in rule.split(',')]
+        self.assertTrue(selectors)
+        for sel in selectors:
+            self.assertTrue(sel.startswith(('.demo-rec ', '#demo-l')), sel)
+
+    def test_canvas_fits_the_longest_line(self):
+        import re
+        long = 'x' * 200
+        svg = render_demo.build([('out', long)])
+        width = int(re.search(r'viewBox="0 0 (\d+) ', svg).group(1))
+        self.assertGreaterEqual(width, 2 * render_demo.PAD_X + 200 * render_demo.FONT_SIZE * render_demo.CHAR_WIDTH)
+
     def test_frames_are_escaped(self):
         svg = render_demo.build([('out', 'a < b & "c"'), ('cmd', '<x>')])
         self.assertIn('a &lt; b &amp; "c"', svg)

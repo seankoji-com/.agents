@@ -78,7 +78,8 @@ The idea is simple. A development workflow is mostly instructions and checks,
 and both get rebuilt every time a team switches providers. So I split each
 workflow into three parts that can be inspected separately: instructions the
 agent reads, small local tools in the Python standard library, and host
-orchestration that T3 owns. No provider SDK, no fixed model IDs.
+orchestration that T3 owns. No provider SDK, and the workflows never pick
+the model; T3 does.
 
 The part I'm proudest of is the evidence rule in the implementation workflow:
 every check is tied to the revision it ran on, so an edit after verification

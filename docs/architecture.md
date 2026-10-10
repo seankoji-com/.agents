@@ -4,7 +4,7 @@ t3-plugins has three execution paths. Instructions guide the current agent. Loca
 helpers do deterministic work. T3 owns delegated tasks and browser/PR interactions.
 The repository does not implement another model client or task scheduler.
 
-![A T3 thread reads a plugin entry, loads one playbook, then uses local helpers or T3 host tools. imps records revision-bound evidence in the shared core.](assets/architecture.svg){ .diagram }
+<!-- inline-svg: assets/architecture.svg -->
 
 ## Package boundaries
 

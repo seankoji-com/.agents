@@ -87,6 +87,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree
 import zipfile
+import xml.parsers.expat
 from xml.parsers.expat import ExpatError
 
 try:
@@ -2116,11 +2117,35 @@ def _xml_to_obj(el):
     return obj if obj else None
 
 
+class _DtdFound(Exception):
+    pass
+
+
+def _has_dtd(data):
+    """True when the XML declares a DOCTYPE or ENTITY. Expat decodes the
+    document first, so a UTF-16 (or otherwise encoded) prolog cannot slip
+    past the way it would past a byte-level regex. Malformed XML is left
+    for the real parse to report."""
+    def found(*_args):
+        raise _DtdFound()
+
+    parser = xml.parsers.expat.ParserCreate()
+    parser.StartDoctypeDeclHandler = found
+    parser.EntityDeclHandler = found
+    try:
+        parser.Parse(data, True)
+    except _DtdFound:
+        return True
+    except ExpatError:
+        return bool(re.search(rb"<!(DOCTYPE|ENTITY)\b", data, re.IGNORECASE))
+    return False
+
+
 def _det_xml_to_json(input_bytes, params, instruction, output_path):
     # ElementTree expands internal entities without limit (billion-laughs),
     # and this server exists to chew on files nobody has vetted — refuse
     # DOCTYPE/ENTITY up front rather than risk OOMing the whole server.
-    if re.search(rb"<!(DOCTYPE|ENTITY)\b", input_bytes, re.IGNORECASE):
+    if _has_dtd(input_bytes):
         raise SidecarError(
             "xml_to_json refuses XML containing a DOCTYPE or ENTITY declaration "
             "(entity-expansion safety) — strip the prolog first if the file is trusted"
@@ -2486,7 +2511,7 @@ def _xlsx_cell_column(ref):
 def _xlsx_parse_part(data, member):
     """ElementTree.fromstring with the same entity-expansion refusal as
     xml_to_json: every XML part inside an .xlsx is attacker-controlled."""
-    if re.search(rb"<!(DOCTYPE|ENTITY)\b", data, re.IGNORECASE):
+    if _has_dtd(data):
         raise SidecarError(
             f"xlsx_extract refuses '{member}': it contains a DOCTYPE or ENTITY "
             "declaration (entity-expansion safety)"

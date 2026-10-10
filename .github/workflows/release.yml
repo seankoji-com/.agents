@@ -50,12 +50,14 @@ jobs:
       - name: Determine next version
         id: semver
         if: env.EXISTING_TAG == ''
+        env:
+          BUMP_TYPE: ${{ github.event.inputs.bump_type }}
         run: |
           LATEST_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo "v0.1.0")
           echo "Current latest tag: $LATEST_TAG"
           VER="${LATEST_TAG#v}"
           IFS='.' read -r major minor patch <<< "$VER"
-          case "${{ github.event.inputs.bump_type }}" in
+          case "$BUMP_TYPE" in
             major)
               major=$((major + 1))
               minor=0
@@ -68,6 +70,10 @@ jobs:
             patch)
               patch=$((patch + 1))
               ;;
+            *)
+              echo "bump_type must be major, minor, or patch, got '$BUMP_TYPE'" >&2
+              exit 1
+              ;;
           esac
           NEXT_TAG="v${major}.${minor}.${patch}"
           echo "Next tag: $NEXT_TAG"
@@ -76,8 +82,9 @@ jobs:
 
       - name: Package release tarball
         if: env.EXISTING_TAG == ''
+        env:
+          TAG: ${{ steps.semver.outputs.tag }}
         run: |
-          TAG="${{ steps.semver.outputs.tag }}"
           TARBALL="t3-plugins-${TAG}.tar.gz"
           # Archive tree prefixing with t3-plugins-<TAG>/; .gitattributes export-ignore
           # keeps it to what the formula installs.
@@ -91,11 +98,13 @@ jobs:
       - name: Tag commit
         id: tag_commit
         if: env.EXISTING_TAG == ''
+        env:
+          TAG: ${{ steps.semver.outputs.tag }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.semver.outputs.tag }}" -m "Release ${{ steps.semver.outputs.tag }}"
-          git push origin "${{ steps.semver.outputs.tag }}"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
 
       - name: Create GitHub Release
         id: create_release
@@ -115,8 +124,8 @@ jobs:
         if: always() && steps.tag_commit.outcome == 'success' && steps.create_release.outcome != 'success'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.semver.outputs.tag }}
         run: |
-          TAG="${{ steps.semver.outputs.tag }}"
           # A partially created release (no assets) would otherwise block the retry.
           # Delete it first and stop if that fails, so a release never outlives its tag.
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -161,8 +170,12 @@ jobs:
           TAG: ${{ steps.semver.outputs.tag || steps.reuse.outputs.tag }}
           VER: ${{ steps.semver.outputs.version || steps.reuse.outputs.version }}
         run: |
-          SHA="${{ env.sha256 }}"
-          URL="https://github.com/seankoji-com/t3-plugins/releases/download/${TAG}/${{ env.tarball }}"
+          # Values arrive through the environment, never spliced into the script.
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && "$VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$sha256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "refusing to write a formula from an unexpected tag, version, or checksum" >&2; exit 1
+          fi
+          SHA="$sha256"
+          URL="https://github.com/seankoji-com/t3-plugins/releases/download/${TAG}/${tarball}"
           BRANCH="release-${TAG}"
 
           # The token stays in gh's credential helper, never in a remote URL.
