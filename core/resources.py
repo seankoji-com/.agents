@@ -59,10 +59,11 @@ def _same(item: dict) -> bool:
     recorded = item.get('identity')
     if item['kind'] == 'process':
         return fingerprint(item['pid']) == item['fingerprint']
+    if item['kind'] == 'worktree':
+        # Failed capture and legacy records without identity cannot prove ownership.
+        return bool(recorded) and worktree_identity(item['path']) == recorded
     if not recorded:
         return True  # recorded before identities were kept
-    if item['kind'] == 'worktree':
-        return worktree_identity(item['path']) == recorded
     if item['kind'] == 'branch':
         current = branch_identity(item['repo'], item['branch'])
         if current is None:

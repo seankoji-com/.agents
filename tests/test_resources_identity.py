@@ -3,10 +3,28 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from core import resources
+from core import engine, resources
 
 
 class WorktreeIdentityTest(unittest.TestCase):
+    def test_failed_identity_capture_never_authorizes_cleanup(self):
+        for error in (FileNotFoundError, PermissionError):
+            with self.subTest(error=error), \
+                    patch.object(resources, '_git', return_value='/fixture/admin'), \
+                    patch.object(resources.os, 'lstat', side_effect=error):
+                recorded = resources.worktree_identity('/fixture/tree')
+                self.assertIsNone(recorded)
+            item = {'id': 'R-fixture', 'kind': 'worktree', 'path': '/fixture/tree',
+                    'identity': recorded, 'cleanup_argv': ['git', 'worktree', 'remove', '/fixture/tree']}
+            # The path is present again, but capture never established ownership.
+            with patch.object(resources, '_exists', return_value=True):
+                action = engine.cleanup_action(item)
+                self.assertEqual(action['args']['identity'], 'replaced')
+                self.assertIsNone(action['args']['argv'])
+                self.assertFalse(resources.live(item))
+                del item['identity']
+                self.assertIsNone(engine.cleanup_action(item)['args']['argv'])
+
     def test_reused_inodes_do_not_authorize_cleanup(self):
         with patch.object(resources, '_git', return_value='/fixture/admin'), \
                 patch.object(resources.os, 'stat', return_value=SimpleNamespace(st_ino=10)), \
