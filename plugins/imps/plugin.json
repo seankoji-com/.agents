@@ -1,6 +1,6 @@
 {
   "name": "imps",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Bounded engineering work on any T3 provider: implement, investigate, audit, and review with revision-bound evidence.",
   "entry": "entry.md",
   "defaults": "config.json",
