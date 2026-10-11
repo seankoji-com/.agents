@@ -13,7 +13,7 @@ Homebrew distribution, and Pages acceptance each need their own evidence.
    and proposes the updated formula in `seankoji-com/homebrew-tap`.
 5. Observe the tap PR's own requirements and merge. A published GitHub release does
    not mean Homebrew can install it yet. Verify its URL and checksum against the asset.
-6. Run `brew update`, install/upgrade the formula, then `t3-plugins install` and
+6. Run `brew update`, install/upgrade the formula, then `t3-plugins setup --root PATH` and
    `t3-plugins doctor` in an isolated test prefix. Verify the documented prompt path.
 7. Observe the `Documentation` workflow's Pages deployment. Open the live site and
    check navigation, search, images, and installation text at desktop/mobile widths.
@@ -36,4 +36,4 @@ and fix its build. Users can reactivate an earlier installed snapshot with
 `t3-plugins activate PLUGIN VERSION`; run state is independent of the package version.
 
 The formula's `imps` command is a second executable from the same catalog package and a
-direct state CLI; only `t3-plugins install` updates user snapshots.
+direct state CLI; `t3-plugins install` and `t3-plugins setup` update user snapshots.

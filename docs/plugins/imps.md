@@ -24,7 +24,21 @@ Replace sample repositories, paths, and tasks with your own.
 
 ## Operations
 
-`doctor`, `run`, `resume`, `status`, `cancel`, `verification-init`, `blast-radius`, `audit`, `issues`, `prs`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/imps/entry.md) names the file to load for each operation.
+`doctor`, `run`, `resume`, `status`, `cancel`, `verification-init`, `blast-radius`, `audit`, `issues`, `prs`, `checklist`, `discussion`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/imps/entry.md) names the file to load for each operation.
+
+Free-text starts `run`. Issue numbers select `issues`; a GitHub Discussion URL
+selects `discussion`; an existing Markdown path selects `checklist`. The checklist
+helper parses claims and criteria without executing commands. Checks and subsequent
+remediation run only within the operator's authorization.
+
+`--personas` adds architecture, edge-case, operations, acceptance, and UX reviews.
+The core tracks each perspective as a required, revision-bound review. It supplements
+the core's independent review. Discussion input retains its source and seeds the
+normal run; posting a summary is a separately authorized action.
+
+Install the `t3-imps` adapter using the [slash commands guide](../slash-commands.md)
+to discover this same entry through supported provider skill integrations. Follow
+the guide's per-provider discovery and live-verification steps.
 
 ## What you get
 

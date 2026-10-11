@@ -158,5 +158,48 @@
     "test_offload_sidecar_cli.py",
     "test_merge_pr.py",
     "test_pr_workspace_push_policy.py"
-  ]
+  ],
+  "imps_port": {
+    "source_commit": "edddf829de3c87515b44e8b816eaf03878e3f9de",
+    "source_files": [
+      {
+        "path": "plugins/imps/commands/imps.md",
+        "sha256": "57a5e4c36c88bca7c18b0135dd39a6faa0b740331e8c4febcd4f5f8f631ee128"
+      },
+      {
+        "path": "plugins/imps/commands/imp-agency.md",
+        "sha256": "a5304db92440d44d2d6c0a61c6ca74346bd3a9fcff431b9872961baec740bb9b"
+      },
+      {
+        "path": "plugins/imps/commands/issue-mode.md",
+        "sha256": "763b83abe79aa631af8973458d4285bff4264e97adce8a9a5b609f01309c24bc"
+      },
+      {
+        "path": "plugins/imps/commands/prs.md",
+        "sha256": "a462ba95e451e2681ea61db97ce58edf03b7319cac069ca9cc658e503c95d651"
+      },
+      {
+        "path": "plugins/imps/commands/blast-radius.md",
+        "sha256": "08eea64945a51e0091b597296b61a53048548c25048f4a73e7181ee75480fb4e"
+      },
+      {
+        "path": "plugins/imps/references/checklist-mode.md",
+        "sha256": "a24fc0970d27176fbb8867bb065b1db7a339e39bd549ee7a7487cd63ea5ed603"
+      },
+      {
+        "path": "plugins/imps/references/discussion-mode.md",
+        "sha256": "3249dbc12f0cd4aedb59fe07082e6d69ca9bb0dd70836785aeca7d4d12abc6c7"
+      },
+      {
+        "path": "plugins/imps/references/brief-probes.md",
+        "sha256": "3e2031ac9894c100133508b073c27a71549f57e71bc7c609be81dec3f8746d08"
+      }
+    ],
+    "coverage": "docs/migration.md#imps-workflow-coverage",
+    "tests": [
+      "test_imps_input.py",
+      "test_skill_adapters.py"
+    ],
+    "live_new_modes": "not tested"
+  }
 }

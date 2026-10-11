@@ -25,8 +25,9 @@ class T3Plugins < Formula
 
   def caveats
     <<~EOS
-      Install or update your user's plugin snapshots:
-        t3-plugins install
+      Install or update your user's plugin snapshots and slash-menu skills:
+        t3-plugins setup
+      Enable T3's Show skills in slash menu and restart the agent session.
       Print a prompt to paste into a T3 thread:
         t3-plugins prompt imps doctor
       Check installed file integrity:
@@ -37,6 +38,8 @@ class T3Plugins < Formula
   test do
     system bin/"t3-plugins", "--prefix", testpath/"plugins", "install"
     system bin/"t3-plugins", "--prefix", testpath/"plugins", "doctor"
+    system bin/"t3-plugins", "--prefix", testpath/"plugins", "setup", "imps", "--root", testpath/"skills"
+    assert_path_exists testpath/"skills/t3-imps/SKILL.md"
     assert_match "prompt-builder", shell_output("#{bin}/t3-plugins list")
     system bin/"imps", "--help"
   end

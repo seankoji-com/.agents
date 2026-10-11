@@ -1,6 +1,6 @@
 {
   "name": "agent-tuneup",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Read-only configuration audits with explicit provider adapters.",
   "entry": "entry.md",
   "operations": [

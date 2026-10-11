@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import contract, snapshot
+from . import contract, review as review_rules, snapshot
 from .fsutil import hash_value, verify_artifact
 
 LABELS = ('passed', 'failed', 'unverified', 'unavailable', 'waived')
@@ -120,17 +120,32 @@ def evaluate(state: dict, state_root, run_dir: Path, bind: dict | None = None) -
         checks.append(row)
     review_policy = state['policy'].get('review') or {}
     review = {'required': bool(review_policy.get('required')), 'status': 'unverified'}
-    entry = _latest(state.get('reviews', []), lambda item: not item.get('invalidated'))
-    if entry:
-        review.update(round=entry['round'], selection=entry.get('selection'), why=entry.get('why'))
-        reason = staleness(entry, bind, run_dir)
-        if reason:
-            review['stale_reason'] = reason
-            if review['required']:
-                stale.append({'obligation': 'review', 'reason': reason})
-        else:
-            review['status'] = {'approve': 'passed', 'adverse': 'failed'}.get(entry['verdict'], 'unavailable')
-            review['verdict'] = entry['verdict']
+    rows = []
+    for perspective in review_rules.perspectives(review_policy):
+        row = {'id': perspective['id'], 'status': 'unverified'}
+        entry = _latest(state.get('reviews', []), lambda item: not item.get('invalidated')
+                        and item.get('perspective_id', 'default') == perspective['id'])
+        if entry:
+            row.update(round=entry['round'], selection=entry.get('selection'), why=entry.get('why'))
+            reason = staleness(entry, bind, run_dir)
+            if reason:
+                row['stale_reason'] = reason
+                if review['required']:
+                    stale.append({'obligation': 'review', 'reason': reason})
+            else:
+                row['status'] = {'approve': 'passed', 'adverse': 'failed'}.get(entry['verdict'], 'unavailable')
+                row['verdict'] = entry['verdict']
+        rows.append(row)
+    review.update({key: value for key, value in rows[0].items() if key != 'id'})
+    if len(rows) > 1:
+        review['perspectives'] = rows
+        review['status'] = ('failed' if any(row['status'] == 'failed' for row in rows)
+                            else 'passed' if all(row['status'] == 'passed' for row in rows)
+                            else 'unavailable' if any(row['status'] == 'unavailable' for row in rows)
+                            else 'unverified')
+        review.pop('verdict', None)
+        if review['status'] in ('passed', 'failed'):
+            review['verdict'] = 'approve' if review['status'] == 'passed' else 'adverse'
     if (review['status'] != 'passed' and review_policy.get('waivable', True)
             and _waived(state, 'review', bind, run_dir)):
         review['status'] = 'waived'

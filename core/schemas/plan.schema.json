@@ -293,6 +293,13 @@
         },
         "waivable": {
           "type": "boolean"
+        },
+        "perspectives": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },

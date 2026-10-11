@@ -8,7 +8,7 @@ desktop install does not populate a remote provider's filesystem.
 
 ## `doctor` reports an outdated snapshot
 
-Homebrew upgrades the package; `t3-plugins install` updates user snapshots. Run that
+Homebrew upgrades the package; `t3-plugins setup` updates user snapshots and skills. Run that
 command after an upgrade. `doctor` compares snapshot contents with the bundled
 package and reports `snapshot_outdated` when they differ, including intentional
 rollbacks. The packaged `imps` command warns too, without changing installed files.
@@ -20,10 +20,12 @@ reinstalling. Preserve your edits elsewhere, or deliberately use `install PLUGIN
 --force` to overwrite the affected snapshot. The agent's `doctor` operation separately
 checks workflow prerequisites and T3 capabilities.
 
-## The operation is not a slash command
+## The skill is missing from the slash menu
 
-That is expected. Run `t3-plugins prompt PLUGIN OPERATION`, then paste the output into
-T3. Entries are portable files; they do not depend on harness-specific command discovery.
+Install the adapter into the selected provider's skill root, enable **Show skills in
+slash menu**, and restart the agent session. Check custom provider homes and skill
+permissions. See [slash commands](slash-commands.md). The old Claude colon commands
+remain separate. Use `t3-plugins prompt PLUGIN OPERATION` as the direct-entry fallback.
 
 ## A T3 task or watch tool is missing
 
@@ -47,7 +49,7 @@ consent in the one-shot request and a configured engine. A quota block is not su
 
 ## Homebrew has an older catalog
 
-Run `brew update`, `brew upgrade t3-plugins`, then `t3-plugins install`. A GitHub release
+Run `brew update`, `brew upgrade t3-plugins`, then `t3-plugins setup`. A GitHub release
 and its tap formula update are separate steps. Check the release notes and tap PR if
 the expected version has not reached the formula yet.
 

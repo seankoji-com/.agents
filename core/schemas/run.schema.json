@@ -320,6 +320,13 @@
             },
             "waivable": {
               "type": "boolean"
+            },
+            "perspectives": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           }
         }
@@ -388,6 +395,10 @@
           },
           "invalidated": {
             "type": "string"
+          },
+          "perspective_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,40}$"
           }
         }
       }
@@ -628,6 +639,10 @@
         },
         "correction_used": {
           "type": "boolean"
+        },
+        "perspective_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,40}$"
         }
       }
     },
