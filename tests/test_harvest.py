@@ -60,13 +60,13 @@ class HarvestTest(unittest.TestCase):
 
     def test_blocked_drafts_are_not_returned_for_display(self):
         self.drafts[0]['body'] = 'Stored at /private/location'
-        result = prepare(self.loaded, self.drafts)
+        result = prepare(self.loaded, self.drafts, project_slug='public/example')
         self.assertEqual(result['status'], 'blocked')
         self.assertNotIn('draft', result)
         self.assertNotIn('/private/location', json.dumps(result))
 
     def test_no_publication_without_exact_explicit_owner_approval(self):
-        prepared = prepare(self.loaded, self.drafts)
+        prepared = prepare(self.loaded, self.drafts, project_slug='public/example')
         issue, pr = mock.Mock(), mock.Mock()
         for reply in ('yes', '', 'approve wrong', json.dumps({'approved': True})):
             with self.assertRaises(Unavailable):
@@ -79,7 +79,7 @@ class HarvestTest(unittest.TestCase):
             check_approval(amended, prepared['shown_digest'], 'approve ' + prepared['shown_digest'])
 
     def test_fakes_publish_exact_drafts_and_remove_only_after_all_destinations_have_urls(self):
-        prepared = prepare(self.loaded, self.drafts)
+        prepared = prepare(self.loaded, self.drafts, project_slug='public/example')
         issue = mock.Mock(return_value='https://github.com/seankoji-com/t3-plugins/issues/42')
         pr = mock.Mock(side_effect=OSError('publication unavailable'))
         approved = verify_for_publication(self.loaded, prepared['draft'], prepared['shown_digest'],
@@ -97,7 +97,7 @@ class HarvestTest(unittest.TestCase):
         entry = partial['data']['entries'][0]
         self.assertEqual(entry['destinations'], {'upstream': issue.return_value, 'agents': None})
         # The successful issue is never posted again. Fresh approval covers the remaining PR.
-        prepared = prepare(partial, [self.drafts[1]])
+        prepared = prepare(partial, [self.drafts[1]], project_slug='public/example')
         pr = mock.Mock(return_value='https://github.com/public/example/pull/7')
         verify_for_publication(partial, prepared['draft'], prepared['shown_digest'], 'approve ' + prepared['shown_digest'])
         url = pr(self.drafts[1]['title'], self.drafts[1]['body'])
@@ -108,7 +108,7 @@ class HarvestTest(unittest.TestCase):
         issue.assert_called_once()
 
     def test_changed_source_and_unapproved_destinations_cannot_delete_entries(self):
-        prepared = prepare(self.loaded, self.drafts)
+        prepared = prepare(self.loaded, self.drafts, project_slug='public/example')
         proposal = self.proposal(prepared, [dict(entry_id='lesson', destination='upstream',
                                                url='https://github.com/elsewhere/repo/issues/1')])
         self.assertEqual(self.store.operate('harvest', proposal)['status'], 'unavailable')
@@ -121,6 +121,18 @@ class HarvestTest(unittest.TestCase):
         proposal['receipts'] = []
         self.assertEqual(self.store.operate('harvest', proposal)['status'], 'unavailable')
         self.assertEqual(len(self.store.operate()['data']['entries']), 1)
+
+    def test_project_pr_slug_is_part_of_exact_approval(self):
+        prepared = prepare(self.loaded, self.drafts, project_slug='public/example')
+        changed = json.loads(json.dumps(prepared['draft']))
+        changed['project_slug'] = 'elsewhere/repo'
+        with self.assertRaises(Unavailable):
+            verify_for_publication(self.loaded, changed, prepared['shown_digest'],
+                                   'approve ' + prepared['shown_digest'])
+        proposal = self.proposal(prepared, [dict(entry_id='lesson', destination='agents',
+                                               url='https://github.com/elsewhere/repo/pull/7')])
+        proposal['project_slug'] = 'elsewhere/repo'
+        self.assertEqual(self.store.operate('harvest', proposal)['status'], 'unavailable')
 
 
 if __name__ == '__main__':

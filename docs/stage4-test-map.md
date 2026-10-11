@@ -24,3 +24,13 @@ write. This stage makes no new live provider compatibility claim.
 The strict build supports `T3_DOCS_SITE_DIR` to put generated output in a private
 results directory while keeping the literal verification command. Its default
 remains `site`; no generated output is committed or edited.
+
+The first review found that global setup wrongly treated HOME as a project. A new
+setup-from-home test exercises the default state/config paths and opt-in application.
+The storage tests now refuse writes before pending maintenance, and Git lookup
+errors refuse an identity change. Harvest approval also binds the project PR slug.
+The identifier screen remains conservative about dotted filenames, versions and
+relative paths: these false positives are a deferred usability limitation, not a
+reason to relax identifier blocking. Git subfolders share their containing repo's
+identity by design. Claimed approval strings cannot authenticate a human; the agent
+must verify owner provenance in the active conversation before publishing.

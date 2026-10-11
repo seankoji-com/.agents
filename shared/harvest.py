@@ -73,9 +73,12 @@ def validate_drafts(drafts):
     return seen
 
 
-def prepare(loaded, drafts, docs_domain=None):
+def prepare(loaded, drafts, docs_domain=None, project_slug=None):
     """Return only screened text. A rejected draft must never be shown as ready for approval."""
     pairs = validate_drafts(drafts)
+    if any(dest == 'agents' for _, dest in pairs):
+        if not isinstance(project_slug, str) or not re.fullmatch(r'[\w.-]+/[\w.-]+', project_slug):
+            raise Unavailable('AGENTS drafts need the intended public project repository slug')
     entries = {entry['id']: entry for entry in loaded['data']['entries']}
     if any(entry_id not in entries for entry_id, _ in pairs):
         raise Unavailable('draft names an unknown learning')
@@ -86,7 +89,7 @@ def prepare(loaded, drafts, docs_domain=None):
             failures.append({'entry_id': draft['entry_id'], 'destination': draft['destination'], 'reasons': reasons})
     if failures:
         return {'status': 'blocked', 'screen': failures}
-    payload = {'format_version': 1, 'drafts': drafts, 'docs_domain': docs_domain,
+    payload = {'format_version': 1, 'drafts': drafts, 'docs_domain': docs_domain, 'project_slug': project_slug,
                'entries': {entry_id: digest(entries[entry_id]) for entry_id, _ in pairs}}
     return {'status': 'draft', 'draft': payload, 'shown_digest': digest(payload)}
 
@@ -100,7 +103,7 @@ def check_approval(draft, shown_digest, owner_reply):
 
 def verify_for_publication(loaded, draft, shown_digest, owner_reply):
     check_approval(draft, shown_digest, owner_reply)
-    prepared = prepare(loaded, draft['drafts'], draft.get('docs_domain'))
+    prepared = prepare(loaded, draft['drafts'], draft.get('docs_domain'), draft.get('project_slug'))
     if prepared['status'] != 'draft' or prepared['shown_digest'] != shown_digest:
         raise Unavailable('draft or source changed since approval; prepare and ask again')
     return draft['drafts']
@@ -124,7 +127,7 @@ def apply_receipts(entries, proposal):
         receipt_pairs.add(pair)
         url = urlsplit(receipt['url'])
         expected = ('seankoji-com/t3-plugins/issues' if pair[1] == 'upstream'
-                    else proposal.get('project_slug', '') + '/pull')
+                    else draft.get('project_slug', '') + '/pull')
         if (url.scheme != 'https' or url.netloc != 'github.com' or url.query or url.fragment
                 or not re.fullmatch('/' + re.escape(expected) + r'/[1-9]\d*', url.path)):
             raise Unavailable('receipt URL does not match its approved destination')
@@ -153,7 +156,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         data = json.loads(args.input.read_text())
-        result = prepare(data['loaded'], data['drafts'], data.get('docs_domain'))
+        result = prepare(data['loaded'], data['drafts'], data.get('docs_domain'), data.get('project_slug'))
         # Drafts contain no identity labels or paths. Results stay in a private local file.
         from learning_store import directory, atomic_file
         with directory(args.output.absolute().parent, True) as fd:

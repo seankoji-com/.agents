@@ -102,10 +102,20 @@ class LearningsTest(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(Path(loaded['path']).stat().st_mode), 0o600)
         self.assertEqual(decode(Path(loaded['path']).read_bytes())[1]['format_version'], 1)
         self.store = Store(self.project, 'imps', NEW, self.env)
+        pending = self.store.operate('write', {'entry': {'id': 'lesson', 'summary': 'Changed', 'failure': 'Observed'}})
+        self.assertEqual(pending['status'], 'unavailable')
+        maintained = self.store.operate('maintain', {'expected': loaded['revision']})
+        self.assertEqual(maintained['status'], 'available')
         updated = self.write()['data']['entries'][0]
         self.assertEqual(updated['authored_version'], OLD)
         self.assertEqual(updated['last_validated_version'], NEW)
         self.assertEqual(Store(self.project, 'ape', NEW, self.env).operate()['data']['entries'], [])
+
+    def test_git_failure_does_not_silently_select_another_identity(self):
+        probe = subprocess.CompletedProcess([], 128, stdout='', stderr='unsafe ownership')
+        with mock.patch('learning_store.subprocess.run', return_value=probe):
+            with self.assertRaises(Unavailable):
+                project_identity(self.project)
 
     def test_concurrent_writers_do_not_lose_entries(self):
         with concurrent.futures.ProcessPoolExecutor(max_workers=4) as pool:

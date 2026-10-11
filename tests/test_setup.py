@@ -70,6 +70,22 @@ class SetupTest(unittest.TestCase):
                   if 'learnings_grant' in json.loads(line)]
         self.assertEqual(next(g for g in grants if g['provider'] == 'claudeAgent')['status'], 'unchanged')
 
+    def test_setup_from_home_prints_and_applies_default_grants(self):
+        self.project = self.home
+        self.env.pop('XDG_STATE_HOME')
+        self.env.pop('XDG_CONFIG_HOME')
+        first = self.call('setup', 'imps')
+        grants = [json.loads(line)['learnings_grant'] for line in first.stdout.splitlines()
+                  if 'learnings_grant' in json.loads(line)]
+        claude = next(g for g in grants if g['provider'] == 'claudeAgent')
+        self.assertEqual(claude['status'], 'proposed')
+        self.assertEqual(claude['grant'], {'sandbox': {'filesystem': {'allowWrite': [
+            str(self.home / '.local/state/t3-plugins/learnings')]}}})
+        applied = self.call('setup', 'imps', '--grant-learnings')
+        grants = [json.loads(line)['learnings_grant'] for line in applied.stdout.splitlines()
+                  if 'learnings_grant' in json.loads(line)]
+        self.assertEqual(next(g for g in grants if g['provider'] == 'claudeAgent')['status'], 'applied')
+
     def test_custom_roots_replace_defaults_and_preserve_unowned_skill(self):
         custom = self.home / 'custom skills'
         second = self.home / 'second skills'

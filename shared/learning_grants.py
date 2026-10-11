@@ -111,7 +111,7 @@ def grant(driver, project, apply=False, env=None):
                    'source': SOURCES[driver], 'scope': 'configuration only; live access must be checked'}
         if not apply:
             return receipt
-        if path.absolute().is_relative_to(Path(project).resolve()):
+        if project is not None and path.absolute().is_relative_to(Path(project).resolve()):
             raise Unavailable('provider config is inside the project')
         with directory(path.parent, True) as fd, locked(fd, path.name + '.learnings.lock', True):
             try:

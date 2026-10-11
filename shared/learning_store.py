@@ -43,8 +43,14 @@ def canonical_remote(remote):
 def project_identity(project):
     project = Path(project).resolve()
     try:
+        probe = subprocess.run(['git', '-C', str(project), 'rev-parse', '--show-toplevel'],
+                               capture_output=True, text=True, timeout=10)
+        if probe.returncode and 'not a git repository' not in probe.stderr.lower():
+            raise Unavailable('Git project lookup failed; refusing to change learning identity')
         result = subprocess.run(['git', '-C', str(project), 'remote'], capture_output=True,
                                 text=True, timeout=10)
+        if probe.returncode == 0 and result.returncode:
+            raise Unavailable('Git remote lookup failed; refusing to change learning identity')
         remotes = sorted(result.stdout.split()) if result.returncode == 0 else []
         if remotes:
             name = 'origin' if 'origin' in remotes else remotes[0]
@@ -67,7 +73,7 @@ def state_root(project, env=None):
     root = Path(env.get('XDG_STATE_HOME') or str(Path(env.get('HOME', str(Path.home()))) / '.local/state'))
     if not root.is_absolute() or '..' in root.parts:
         raise Unavailable('state root must be absolute')
-    if root.resolve().is_relative_to(Path(project).resolve()):
+    if project is not None and root.resolve().is_relative_to(Path(project).resolve()):
         raise Unavailable('state root is inside the project')
     # Validate existing ancestors without creating anything, including for grant proposals.
     try:
@@ -258,6 +264,8 @@ class Store:
                 if operation in ('maintain', 'harvest') and proposal.get('expected') != original:
                     raise Unavailable('learnings changed; reload before applying judgement')
                 if operation == 'write':
+                    if data['maintained_version'] != self.version:
+                        raise Unavailable('maintenance pending; load and maintain before writing')
                     entry = dict(proposal['entry'])
                     old = next((e for e in data['entries'] if e['id'] == entry.get('id')), None)
                     entry['authored_version'] = old['authored_version'] if old else self.version

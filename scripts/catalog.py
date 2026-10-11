@@ -135,7 +135,9 @@ def main(argv=None):
                     if receipt:
                         print(json.dumps(receipt))
             caps = routing.load_capabilities(args.capabilities) if args.capabilities else None
-            for receipt in learning_grants.setup_grants(Path.cwd(), caps, args.grant_learnings):
+            # Setup is global, not a project run. Storage enforces project containment
+            # when a plugin loads lessons; cwd=$HOME must not reject the default root.
+            for receipt in learning_grants.setup_grants(None, caps, args.grant_learnings):
                 print(json.dumps({'learnings_grant': receipt}))
             if args.capabilities:
                 receipt = routing.write_default(args.capabilities)
