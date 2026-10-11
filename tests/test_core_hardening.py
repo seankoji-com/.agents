@@ -1,19 +1,21 @@
-"""Core findings from the portfolio review that have a one-function reproduction.
-
-The artifact name escape (an echoed dispatch could carry a task id such as
-``../../escaped`` and write outside the run directory), the task-id schema pattern
-that refuses it earlier, and the porcelain rename parse.
-"""
+"""Surviving artifact, recipe, snapshot and installer regressions."""
+import importlib.util
 import json
+import os
+import py_compile
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent.parent
+from types import SimpleNamespace
+from support import ROOT, CoreTestCase, cli, git, native
+import test_install
 sys.path.insert(0, str(ROOT))
-from core import fsutil, schema, snapshot  # noqa: E402
-from core.errors import InvalidInput  # noqa: E402
+from core import fsutil, recipe, schema, snapshot
+from core.errors import InvalidInput
+from core.fsutil import sha256_bytes, sha256_file, write_artifact
 
 
 class ArtifactNameTest(unittest.TestCase):
@@ -35,28 +37,6 @@ class ArtifactNameTest(unittest.TestCase):
         self.assertFalse(fsutil.artifact_stem('..').startswith('.'))
         self.assertEqual(fsutil.artifact_stem(''), 'artifact')
         self.assertLessEqual(len(fsutil.artifact_stem('a' * 500)), 80)
-
-
-class TaskIdSchemaTest(unittest.TestCase):
-    def test_run_schema_refuses_path_like_task_ids(self):
-        run = json.loads((ROOT / 'tests/fixtures/schemas/valid/run--verifying.json').read_text())
-        schema.validate(run, 'run')
-        for bad in ('../../escaped', 'a/b', '.hidden', '', 'a\\b', 'a\x01b', 'x' * 121):
-            broken = json.loads(json.dumps(run))
-            broken['tasks'][0]['id'] = bad
-            with self.assertRaises(InvalidInput, msg=bad):
-                schema.validate(broken, 'run')
-        for good in ('probe-claudeAgent.v2', 'review code', 'x' * 120):
-            ok = json.loads(json.dumps(run))
-            ok['tasks'][0]['id'] = good  # ids persisted before the pattern existed stay writable
-            schema.validate(ok, 'run')
-
-    def test_run_and_task_schemas_share_the_task_id_rule(self):
-        run_id = schema.load_schema('run')
-        task_id = schema.load_schema('task')['properties']['id']
-        found = [node for node in json.loads(json.dumps(run_id['$defs'])).values()
-                 if isinstance(node, dict) and 'id' in (node.get('properties') or {})]
-        self.assertTrue(any(node['properties']['id'] == task_id for node in found))
 
 
 class PorcelainRenameTest(unittest.TestCase):
@@ -90,7 +70,3 @@ class PorcelainRenameTest(unittest.TestCase):
             (root / 'other.txt').write_text('untracked\n')
             paths = sorted(path for _, path in snapshot._porcelain(root))
         self.assertEqual(paths, ['new.txt', 'other.txt'])
-
-
-if __name__ == '__main__':
-    unittest.main()

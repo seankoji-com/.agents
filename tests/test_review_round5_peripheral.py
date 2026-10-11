@@ -1,21 +1,21 @@
-"""Round-5 PR review findings outside the run engine: artifact writes, recipe
-evidence containment, the installer, the conformance grader and the schemas."""
+"""Surviving artifact, recipe, snapshot and installer regressions."""
 import importlib.util
 import json
 import os
 import py_compile
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
 from pathlib import Path
 from types import SimpleNamespace
-
-from support import ROOT, CoreTestCase
+from support import ROOT, CoreTestCase, cli, git, native
 import test_install
-
-import sys
 sys.path.insert(0, str(ROOT))
-from core import blockers, recipe, schema  # noqa: E402
-from core.errors import InvalidInput  # noqa: E402
-from core.fsutil import sha256_bytes, sha256_file, write_artifact  # noqa: E402
-
+from core import fsutil, recipe, schema, snapshot
+from core.errors import InvalidInput
+from core.fsutil import sha256_bytes, sha256_file, write_artifact
 _spec = importlib.util.spec_from_file_location('conformance_script', ROOT / 'scripts' / 'conformance.py')
 conformance = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(conformance)
@@ -81,47 +81,6 @@ class RecipeSchemaCouplingTest(CoreTestCase):
                     {'kind': 'contains', 'step': 1}, {'kind': 'exit_code'}):
             with self.subTest(expect=bad):
                 self.assertTrue(schema.errors(bad, expect, root))
-
-
-class StateSchemaShapeTest(CoreTestCase):
-    def test_run_and_report_declare_review_and_check_shapes(self):
-        run = json.loads((ROOT / 'tests' / 'fixtures' / 'schemas' / 'valid' / 'run--verifying.json').read_text())
-        self.assertEqual(schema.errors(run, schema.load_schema('run')), [])
-        bad = dict(run, reviews=[{'round': 1, 'verdict': 'maybe'}])
-        self.assertTrue(schema.errors(bad, schema.load_schema('run')))
-        bad = dict(run, policy=dict(run['policy'], review={'required': 'yes'}))
-        self.assertTrue(schema.errors(bad, schema.load_schema('run')))
-        report = schema.load_schema('report')
-        self.assertTrue(any('review' in e for e in schema.errors({'review': {'required': True}}, report)))
-        self.assertTrue(any('checks[0]' in e for e in schema.errors({'checks': [{'name': 'x'}]}, report)))
-
-    def test_roles_schema_accepts_what_the_runtime_accepts(self):
-        roles = schema.load_schema_file(ROOT / 'plugins' / 'imps' / 'schemas' / 'roles.schema.json')
-        custom = {'tester': {'chain': [{'select': 'same_provider', 'of_role': 'tester', 'exclude_roles': ['docs']}]}}
-        self.assertEqual(schema.errors(custom, roles), [])
-        self.assertEqual(schema.errors({'schema_version': 1, 'roles': custom}, schema.load_schema('defaults')), [])
-
-
-class BudgetBlockerTest(CoreTestCase):
-    def blocker(self, seconds):
-        ctx = SimpleNamespace(cli_path=Path('/pkg/core/cli.py'), state_root=Path('/state'), parent_thread_id=None)
-        state = {'run_id': 'r1', 'budget': {'seconds': seconds, 'spent_seconds': seconds}, 'policy': {'repair_limit': 2},
-                 'host': {}, 'blockers': [], 'plugin': {'entry': '/pkg/entry.md'}}
-        return blockers.make(ctx, state, 'budget_exhausted', 'spent', (), 'now')
-
-    def test_raise_budget_suggestion_stays_within_the_ceiling(self):
-        argv = self.blocker(14400)['resume']['argv']
-        self.assertEqual(argv[argv.index('--value') + 1], '18000')
-        argv = self.blocker(84000)['resume']['argv']
-        self.assertEqual(argv[argv.index('--value') + 1], '86400')
-
-    def test_no_impossible_raise_at_the_ceiling(self):
-        item = self.blocker(86400)
-        self.assertEqual(item['resume']['decision'], 'none')
-        self.assertIn('report', item['resume']['argv'])
-        self.assertNotIn('unblock', item['resume']['argv'])
-        self.assertIsNone(item['resume']['then'])
-        self.assertIn('86400', item['meaning'])
 
 
 class ConformanceGraderTest(CoreTestCase):

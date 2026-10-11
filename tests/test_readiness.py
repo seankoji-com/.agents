@@ -3,7 +3,7 @@ import json
 import subprocess
 import sys
 
-from support import CoreTestCase, cli, git, result_block
+from support import CoreTestCase, cli, git
 
 
 class Base(CoreTestCase):
@@ -12,19 +12,15 @@ class Base(CoreTestCase):
         if state_root:
             self.state_root = state_root
         run = self.init(self.plan(repo, **(plan_overrides or {})))
-        run.claim()
-        run.record('transition', {'to': 'executing'})
         if edit:
             (repo / 'wordstat.py').write_text((repo / 'wordstat.py').read_text().replace("split(' ')", 'split()'))
-        run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['wordstat.py'])})
-        run.record('transition', {'to': 'verifying'})
         return repo, run
 
     def satisfy(self, run, repo):
-        self.run_check(run, run.only('run_check'))
+        self.run_check(run)
         log = run.scratch('accept.log', 'count prints 3')
-        run.record('acceptance', {'requirement_id': 'REQ-MULTILINE', 'status': 'passed', 'kind': 'command',
-                                  'explanation': 'reproduction prints 3', 'artifacts': [str(log)]})
+        run.submit('evidence', {'requirement_id': 'REQ-MULTILINE', 'status': 'passed', 'kind': 'command',
+                                  'explanation': 'reproduction prints 3', 'artifacts': [str(log)], 'binding': run.binding()})
         return log
 
     def validate(self, run):
@@ -38,19 +34,18 @@ class CompletionGateTest(Base):
         repo, run = self.verifying_run(plan_overrides={'policy': {
             'review': {'required': True, 'role': 'reviewer'},
             'checks': [{'name': 'unit', 'argv': [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'], 'cwd': '.'}],
-            'worktree_root': str(self.tmp / 'wt')}})
-        code, env, _ = run.record_raw('transition', {'to': 'ready'})
-        self.assertEqual((code, env['error']['code']), (4, 'not_ready'))
-        missing = {item['obligation'] for item in env['error']['details']['missing']}
-        self.assertEqual(missing, {'requirement:REQ-MULTILINE', 'check:unit', 'review'})
-        code, env, _ = run.record_raw('transition', {'to': 'completed'})
-        self.assertEqual(code, 4, 'verifying cannot jump to completed')
+}})
+        data = self.validate(run)
+        self.assertFalse(data['ready'])
+        self.assertEqual({item['obligation'] for item in data['missing']},
+                         {'requirement:REQ-MULTILINE', 'check:unit', 'review'})
+        self.assertNotEqual(data['outcome'], 'completed')
 
     def test_failed_requirement_is_failed_not_unverified(self):
         repo, run = self.verifying_run()
         log = run.scratch('red.log', 'prints 2')
-        run.record('acceptance', {'requirement_id': 'REQ-MULTILINE', 'status': 'failed', 'kind': 'command',
-                                  'explanation': 'still prints 2', 'artifacts': [str(log)]})
+        run.submit('evidence', {'requirement_id': 'REQ-MULTILINE', 'status': 'failed', 'kind': 'command',
+                                  'explanation': 'still prints 2', 'artifacts': [str(log)], 'binding': run.binding()})
         data = self.validate(run)
         self.assertEqual(data['requirements'][0]['status'], 'failed')
         self.assertEqual(data['status'], 'failed')
@@ -58,11 +53,11 @@ class CompletionGateTest(Base):
     def test_wrong_evidence_kind_and_missing_artifacts_rejected(self):
         repo, run = self.verifying_run()
         log = run.scratch('x.log', 'x')
-        code, env, _ = run.record_raw('acceptance', {'requirement_id': 'REQ-MULTILINE', 'status': 'passed',
-                                                     'kind': 'inspection', 'explanation': 'looked at it', 'artifacts': [str(log)]})
+        code, env, _ = run.submit_raw('evidence', {'requirement_id': 'REQ-MULTILINE', 'status': 'passed',
+                                                     'kind': 'inspection', 'explanation': 'looked at it', 'artifacts': [str(log)], 'binding': run.binding()})
         self.assertEqual((code, env['error']['code']), (4, 'evidence_kind'))
-        code, env, _ = run.record_raw('acceptance', {'requirement_id': 'REQ-MULTILINE', 'status': 'passed',
-                                                     'kind': 'command', 'explanation': 'trust me', 'artifacts': []})
+        code, env, _ = run.submit_raw('evidence', {'requirement_id': 'REQ-MULTILINE', 'status': 'passed',
+                                                     'kind': 'command', 'explanation': 'trust me', 'artifacts': [], 'binding': run.binding()})
         self.assertEqual((code, env['error']['code']), (4, 'evidence_missing'))
 
 
@@ -109,11 +104,7 @@ class InvalidationTest(Base):
         plan['brief'].pop('constraints', None)
         self.state_root = repo / '.imps-state'
         run = self.init(plan)
-        run.claim()
-        run.record('transition', {'to': 'executing'})
         (repo / 'wordstat.py').write_text((repo / 'wordstat.py').read_text().replace("split(' ')", 'split()'))
-        run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['wordstat.py'])})
-        run.record('transition', {'to': 'verifying'})
         self.satisfy(run, repo)
         self.assertTrue(self.validate(run)['ready'])
         (self.state_root / 'runs' / run.run_id / 'scratch' / 'more.log').write_text('state-dir edits are excluded')
@@ -126,9 +117,9 @@ class InvalidationTest(Base):
 
     def test_policy_change_invalidates(self):
         repo, run = self.ready_run()
-        run.record('policy', {'policy': {'brief_notes': 'briefs only'}})
+        run.submit('policy', {'policy': {'brief_notes': 'briefs only'}})
         self.assertTrue(self.validate(run)['ready'], 'non-evidence policy keeps readiness')
-        run.record('policy', {'policy': {'review': {'required': False, 'role': 'reviewer', 'waivable': False}}})
+        run.submit('policy', {'policy': {'review': {'required': False, 'role': 'reviewer', 'waivable': False}}})
         self.assertIn('policy changed', json.dumps(self.validate(run)['stale']))
 
     def test_artifact_change_invalidates(self):
@@ -150,14 +141,14 @@ class LabelTest(Base):
             {'id': 'REQ-WAIVED', 'text': 'operator waived', 'kind': 'manual'}]
         repo, run = self.verifying_run(repo=repo, plan_overrides={'brief': plan['brief']})
         log = run.scratch('a.log', 'ok')
-        self.run_check(run, run.only('run_check'))
-        run.record('acceptance', {'requirement_id': 'REQ-PASS', 'status': 'passed', 'kind': 'command',
-                                  'explanation': 'ok', 'artifacts': [str(log)]})
-        run.record('acceptance', {'requirement_id': 'REQ-FAIL', 'status': 'failed', 'kind': 'command',
-                                  'explanation': 'no', 'artifacts': [str(log)]})
-        run.record('acceptance', {'requirement_id': 'REQ-TOOLS', 'status': 'unavailable', 'kind': 'runtime',
-                                  'explanation': 'no browser tool was found'})
-        run.record('waiver', {'target': 'requirement:REQ-WAIVED', 'reason': 'out of scope today',
+        self.run_check(run)
+        run.submit('evidence', {'requirement_id': 'REQ-PASS', 'status': 'passed', 'kind': 'command',
+                                  'explanation': 'ok', 'artifacts': [str(log)], 'binding': run.binding()})
+        run.submit('evidence', {'requirement_id': 'REQ-FAIL', 'status': 'failed', 'kind': 'command',
+                                  'explanation': 'no', 'artifacts': [str(log)], 'binding': run.binding()})
+        run.submit('evidence', {'requirement_id': 'REQ-TOOLS', 'status': 'unavailable', 'kind': 'runtime',
+                                  'explanation': 'no browser tool was found', 'binding': run.binding()})
+        run.submit('waive', {'target': 'requirement:REQ-WAIVED', 'reason': 'out of scope today',
                               'decided_by': 'operator', 'operator_quote': 'skip REQ-WAIVED: out of scope'})
         data = self.validate(run)
         labels = {row['id']: row['status'] for row in data['requirements']}
@@ -176,6 +167,6 @@ class LabelTest(Base):
         git(repo, 'add', '-A')
         git(repo, 'commit', '-qm', 'policy')
         repo, run = self.verifying_run(repo=repo)
-        code, env, _ = run.record_raw('waiver', {'target': 'check:unit', 'reason': 'slow', 'decided_by': 'operator',
+        code, env, _ = run.submit_raw('waive', {'target': 'check:unit', 'reason': 'slow', 'decided_by': 'operator',
                                                  'operator_quote': 'skip unit'})
         self.assertEqual((code, env['error']['code']), (4, 'waiver_forbidden'))

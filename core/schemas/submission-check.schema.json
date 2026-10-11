@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "submission-check.schema.json",
+  "type": "object",
+  "required": [
+    "binding",
+    "name",
+    "argv",
+    "cwd",
+    "exit_code",
+    "log"
+  ],
+  "properties": {
+    "binding": {
+      "type": "object",
+      "required": [
+        "snapshot",
+        "contract_hash",
+        "policy_hash"
+      ],
+      "properties": {
+        "snapshot": {
+          "type": "object",
+          "required": [
+            "worktree",
+            "head",
+            "content_hash"
+          ],
+          "properties": {
+            "worktree": {
+              "type": "string",
+              "minLength": 1
+            },
+            "head": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "branch": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "dirty_paths": {
+              "type": "integer"
+            },
+            "content_hash": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "contract_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_hash": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "argv": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "cwd": {
+      "type": "string",
+      "minLength": 1
+    },
+    "exit_code": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "log": {
+      "type": "string",
+      "minLength": 1
+    },
+    "unavailable_reason": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}

@@ -36,9 +36,14 @@ pretend a missing T3 task API exists.
 
 ## imps is blocked after interruption
 
-Resume in the same thread with the recorded run ID and state root. The core prevents
-two owners from changing a run at once. Only recover a claim when its previous owner
-is confirmed dead; never take over a live thread's work. Keep the exact blocker report.
+Resume in the same thread with the recorded run ID and state root. Reconcile child
+handles, verify uncertain stops and collect missing evidence. The process lock keeps
+submissions atomic; it does not decide which agent should perform the work.
+Do not run two agents against the same working tree.
+
+For state major version 1, activate the previous installed imps package and use its
+entry to inspect, resume or cancel the run. See [previous runs](plugins/imps.md#previous-runs).
+Do not change the state version or try to convert it by editing JSON.
 
 ## Homebrew has an older catalog
 

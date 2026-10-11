@@ -15,7 +15,6 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'scripts'))
-from core import engine  # noqa: E402
 import skills  # noqa: E402
 
 BANNED = ('think step by step', 'think carefully', 'think hard', 'explain your reasoning',
@@ -48,23 +47,6 @@ def run_state(tmp):
 def generated_briefs():
     """Representative output of every Python brief generator."""
     briefs = {}
-    with tempfile.TemporaryDirectory() as tmp:
-        state = run_state(tmp)
-        base = {'id': 'task', 'purpose': 'fix the counter', 'requirement_ids': ['REQ-ONE'],
-                'acceptance': ['tests pass'], 'expected_output': 'a commit', 'verification': 'python3 -m unittest'}
-        tasks = {
-            'writer': dict(base, writes=True, files=['src/*.py']),
-            'reader': dict(base, kind='read', writes=False),
-            'review': dict(base, id='review-1', kind='review', writes=False),
-            'probe': dict(base, id='probe-x', kind='probe', writes=True,
-                          probe={'nonce': 'nonce-1', 'marker': os.path.join(tmp, 'marker')}),
-        }
-        for name, task in tasks.items():
-            briefs[f'engine:{name}'] = engine.brief(state, task, 'initial')
-        correction = dict(tasks['writer'], next_round={'context': {'problem': 'no result block', 'raw': 'partial output'}})
-        briefs['engine:correction'] = engine.brief(state, correction, 'correction')
-        repair = dict(tasks['writer'], next_round={'context': {'findings': [{'severity': 'major', 'summary': 'off by one'}]}})
-        briefs['engine:repair'] = engine.brief(state, repair, 'repair')
     for meta_path in sorted((ROOT / 'plugins').glob('*/plugin.json')):
         meta = json.loads(meta_path.read_text())
         briefs['adapter:' + meta['name']] = skills.render(meta, Path('/opt/t3-plugins') / meta['name'] / 'entry.md')
@@ -116,7 +98,7 @@ class InstructionHygiene(unittest.TestCase):
 
     def test_generated_briefs_contain_no_banned_phrases(self):
         briefs = generated_briefs()
-        self.assertGreaterEqual(len([k for k in briefs if k.startswith('engine:')]), 6)
+        self.assertEqual(len([k for k in briefs if k.startswith('adapter:')]), len(list((ROOT/'plugins').glob('*/plugin.json'))))
         self.assertIn('handoff:implementation', briefs)
         for name, text in briefs.items():
             self.assertTrue(text.strip(), name)
@@ -133,11 +115,11 @@ class InstructionHygiene(unittest.TestCase):
         self.assertEqual(banned_in(prompt), [])
 
     def test_review_brief_asks_for_every_finding_then_filters_separately(self):
-        review = generated_briefs()['engine:review']
-        every = review.index('Report every finding you observe, each with its severity')
-        verdict = review.index('as a separate step, set the verdict')
+        review = (ROOT/'plugins/imps/entry.md').read_text()
+        every = review.index('Report every finding with severity')
+        verdict = review.index('as a separate step, set the', every)
         self.assertLess(every, verdict)
-        self.assertNotIn('reasoning', review.casefold())
+        self.assertEqual(banned_in(review), [])
 
 
 if __name__ == '__main__':

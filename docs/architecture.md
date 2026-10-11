@@ -12,7 +12,7 @@ The repository does not implement another model client or task scheduler.
 | --- | --- | --- |
 | `plugins/<name>/` | Entry, selected playbooks, helper scripts, templates | May use the shared runtime contract and core |
 | `shared/` | Provider-neutral agent instructions for using T3 | No provider SDK or executable orchestration |
-| `core/` | imps run state, ownership, transitions, evidence, readiness | Python standard library; no plugin imports or vocabulary |
+| `core/` | imps run state, atomic storage, evidence, readiness | Python standard library; no plugin imports or vocabulary |
 | `bin/` | Source-checkout launcher for the catalog CLI | Thin wrapper over `scripts/catalog.py` |
 | `scripts/` | Catalog, installation, conformance, release, and site-build tooling | Finds plugins through their manifests |
 | `packaging/` | Homebrew formula template | Calls the same installer used from source |
@@ -33,24 +33,26 @@ loaded only when needed for inspection or debugging. Entry budgets are tested.
 This reduces routine context use without hiding the behavior. All instructions ship
 as readable files, and all deterministic decisions have local source and tests.
 
-## The imps state machine
+## The imps evidence gate
 
-The core persists runs, plans, observations, and evidence. A claim token identifies
-the owner; a generation check refuses stale writes. Readiness is recomputed from
-the recorded evidence at the current repository snapshot. An edit invalidates prior
-verification instead of silently inheriting its green status.
+The agent plans and performs the work. The core stores major-version-2 run contracts,
+checks, artifacts, review evidence and child observations with atomic writes and
+process locks. It does not schedule tasks or issue permitted actions.
+
+Capture a binding before verification. It covers HEAD, dirty and staged bytes,
+untracked files, file modes, symlinks, submodules, requirements, constraints and
+verification policy. Submissions retain that binding and hashes of their copied
+artifacts. `validate` recomputes readiness against the current tree. Pending child
+runs prevent readiness, including descendants of a terminal child.
 
 ```text
-plan → claim → next action → execute → record → next action
-                    ↑                            │
-                    └────────────────────────────┘
-                                  ↓
-                     verified report or explicit blocker
+plan → implement → capture binding → verify → submit evidence → validate
+                      ↑                                        │
+                      └──────── repair and reverify ────────────┘
 ```
 
-The other plugins do not pretend to use this state machine. Research produces a
-report; planning produces a handoff; file tools produce a receipt. Their completion
-criteria are specific to those outputs.
+The other plugins use their own completion criteria: research produces a report
+and planning produces a handoff. T3 owns their child tasks too.
 
 ## Installation and ownership
 

@@ -51,10 +51,9 @@ Three parts, kept apart so each can be inspected on its own:
 - **Local tools.** Python standard library only. Installers, state, hashes, and audits are plain scripts with tests.
 - **Host orchestration.** T3 owns child tasks, browser previews, and PR watches. The plugins discover its tools; they never ship a second scheduler.
 
-imps adds a small state engine: a claim token names the owner, a generation counter
-refuses stale writes, and evidence is tied to the exact revision it checked. An edit
-after verification makes the verification stale instead of inheriting its green tick.
-[Architecture](architecture.md) has the full picture.
+imps adds a small evidence gate. It stores checks, requirement artifacts and child
+observations, then validates them against the current tree and contract. File edits
+invalidate earlier evidence; a local pass never proves a remote outcome.
 
 ## Why it is built this way
 

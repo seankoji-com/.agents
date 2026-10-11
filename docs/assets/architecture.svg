@@ -33,7 +33,7 @@
 <text x="848" y="248" fill="var(--sp-ink-soft,#55615a)">delegate_task, task_status, previews</text>
 <text x="848" y="272" fill="var(--sp-ink-soft,#55615a)">PR watches. Discovered, never assumed</text>
 <text x="438" y="336" font-weight="600" font-size="17">Shared core</text>
-<text x="438" y="362" fill="var(--sp-ink-soft,#55615a)">imps only: claims, generations,</text>
+<text x="438" y="362" fill="var(--sp-ink-soft,#55615a)">imps only: bindings, artifacts,</text>
 <text x="438" y="386" fill="var(--sp-ink-soft,#55615a)">evidence tied to a revision</text>
 <text x="40" y="452" fill="var(--sp-ink-soft,#55615a)" font-size="13">Every box has local source and tests. No provider SDK and no second scheduler.</text>
 </g>

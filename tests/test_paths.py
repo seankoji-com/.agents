@@ -3,23 +3,19 @@ rejected, and stored artifacts cannot point outside the run directory."""
 import json
 import os
 
-from support import CoreTestCase, result_block
+from support import CoreTestCase
 
 
 class PathSafetyTest(CoreTestCase):
     def verifying(self):
         repo = self.make_repo()
         run = self.init(self.plan(repo))
-        run.claim()
-        run.record('transition', {'to': 'executing'})
         (repo / 'wordstat.py').write_text('changed\n')
-        run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=['wordstat.py'])})
-        run.record('transition', {'to': 'verifying'})
         return repo, run
 
     def accept(self, run, path):
-        return run.record_raw('acceptance', {'requirement_id': 'REQ-MULTILINE', 'status': 'passed', 'kind': 'command',
-                                             'explanation': 'x', 'artifacts': [str(path)]})
+        return run.submit_raw('evidence', {'requirement_id': 'REQ-MULTILINE', 'status': 'passed', 'kind': 'command',
+                                             'explanation': 'x', 'artifacts': [str(path)], 'binding': run.binding()})
 
     def test_traversal_is_rejected(self):
         repo, run = self.verifying()

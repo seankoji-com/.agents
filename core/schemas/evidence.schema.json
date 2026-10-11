@@ -1,22 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "evidence.schema.json",
-  "title": "Requirement evidence as stored in run.json (same as run.schema.json $defs/evidence)",
   "type": "object",
   "required": [
     "requirement_id",
     "status",
     "kind",
     "explanation",
-    "artifacts",
     "snapshot",
     "contract_hash",
-    "policy_hash"
+    "policy_hash",
+    "recorded_at"
   ],
   "properties": {
     "requirement_id": {
       "type": "string",
-      "pattern": "^[A-Z][A-Z0-9_-]+$"
+      "minLength": 1
     },
     "status": {
       "enum": [
@@ -35,12 +34,27 @@
       ]
     },
     "explanation": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "artifacts": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/artifact"
+        "type": "object",
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       }
     },
     "verifier": {
@@ -48,39 +62,6 @@
         "string",
         "null"
       ]
-    },
-    "snapshot": {
-      "$ref": "#/$defs/snapshot"
-    },
-    "contract_hash": {
-      "type": "string",
-      "minLength": 1
-    },
-    "policy_hash": {
-      "type": "string",
-      "minLength": 1
-    },
-    "invalidated": {
-      "type": "string"
-    }
-  },
-  "$defs": {
-    "artifact": {
-      "type": "object",
-      "required": [
-        "path",
-        "sha256"
-      ],
-      "properties": {
-        "path": {
-          "type": "string",
-          "minLength": 1
-        },
-        "sha256": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
     },
     "snapshot": {
       "type": "object",
@@ -114,6 +95,23 @@
           "minLength": 1
         }
       }
+    },
+    "contract_hash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy_hash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recorded_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "invalidated": {
+      "type": "string",
+      "minLength": 1
     }
-  }
+  },
+  "additionalProperties": false
 }

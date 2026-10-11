@@ -151,6 +151,12 @@ def evaluate(state: dict, state_root, run_dir: Path, bind: dict | None = None) -
         review['status'] = 'waived'
     if review['required'] and review['status'] not in ('passed', 'waived'):
         (failed if review['status'] == 'failed' else missing).append({'obligation': 'review', 'status': review['status']})
+    from .records import pending
+    for child in state.get('children', []):
+        if pending(child):
+            missing.append({'obligation': 'child:' + child['task_id'], 'status': child['status']})
+    if state.get('phase') == 'cancelled':
+        missing.append({'obligation': 'run', 'status': 'cancelled'})
     ready = not stale and not missing and not failed
     status = 'ready' if ready else 'failed' if failed else 'stale' if stale else 'incomplete'
     counts = {label: sum(1 for row in requirements if row['status'] == label) for label in LABELS}

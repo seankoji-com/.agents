@@ -14,7 +14,7 @@ import urllib.request
 from unittest import mock
 from pathlib import Path
 
-from support import FIXTURES, PLUGIN, CoreTestCase, cli, native, result_block
+from support import FIXTURES, PLUGIN, CoreTestCase, cli, native
 
 
 def free_port():
@@ -144,10 +144,8 @@ class VerificationInitTest(CoreTestCase):
                                       'requirements': [{'id': 'REQ-VERIFY-CREATE', 'kind': 'runtime',
                                                         'text': 'F-CREATE recipe creates a note and lists it'}]},
                          policy={'review': {'required': False, 'role': 'reviewer'}, 'checks': [],
-                                 'worktree_root': str(self.tmp / 'wt')})
+})
         run = self.init(plan)
-        run.claim()
-        run.record('transition', {'to': 'executing'})
         # Scaffolding is the task's own work, so it happens once the task is under way.
         code, env, _ = cli('recipe-scaffold', '--plugin-dir', PLUGIN, '--repo', repo, '--json', json.dumps(facts()))
         self.assertEqual(code, 0, env)
@@ -160,13 +158,11 @@ class VerificationInitTest(CoreTestCase):
         self.assertEqual((env['data']['valid'], env['data']['status']), (True, 'draft'))
         recipe = json.loads(recipe_path.read_text())
         generated = sorted(str(p.relative_to(repo)) for p in recipe_dir.rglob('*') if p.is_file())
-        run.record('result', {'task_id': 'main', 'text': result_block('main', changed_files=generated)})
-        run.record('transition', {'to': 'verifying'})
 
+        binding = run.binding()
         for doctor in recipe['doctor']:
             self.assertEqual(native(doctor['argv']).returncode, 0)
         variables, process = self.launch(recipe['launch'], repo)
-        run.record('resource', {'kind': 'process', 'pid': process.pid, 'purpose': 'notes service for F-CREATE'})
 
         feature = substitute(next(f for f in recipe['features'] if f['id'] == 'F-CREATE'), variables)
         captured = []
@@ -178,25 +174,17 @@ class VerificationInitTest(CoreTestCase):
             actual = observed['status'] if expect['kind'] == 'status' else json_path(observed['body'], expect['path'])
             self.assertEqual(actual, expect['equals'])
         evidence = run.scratch('f-create-trace.json', json.dumps(captured, indent=2))
-        run.record('acceptance', {'requirement_id': 'REQ-VERIFY-CREATE', 'status': 'passed', 'kind': 'runtime',
+        run.submit('evidence', {'requirement_id': 'REQ-VERIFY-CREATE', 'status': 'passed', 'kind': 'runtime',
                                   'explanation': 'POST /notes returned 201 and GET /notes listed the note',
-                                  'artifacts': [str(evidence)]})
+                                  'artifacts': [str(evidence)], 'binding': binding})
 
-        resource = run.state['resources'][0]
         cleanup = substitute(recipe['cleanup'][0]['argv'], variables)
-        self.assertEqual(cleanup, resource['cleanup_argv'], 'recipe cleanup targets exactly the recorded process')
+        self.assertEqual(cleanup, ['kill', str(process.pid)], 'cleanup targets exactly the launched process')
         native(cleanup)
         process.wait(timeout=10)
-        out = run.record('cleanup', {'resource_id': resource['id'], 'exit_code': 0})
-        self.assertEqual(out['result']['status'], 'removed')
         self.assertIsNotNone(process.poll(), 'the launched service is stopped')
+        self.assertEqual(run.validate()['outcome'], 'completed')
 
-        code, env, _ = cli('recipe-stamp', *run.args('--recipe', recipe_path, '--feature', 'F-CREATE',
-                                                     '--requirement', 'REQ-VERIFY-CREATE'))
-        self.assertEqual((code, env['error']['code']), (4, 'run_not_completed'))
-        run.record('transition', {'to': 'ready'})
-        run.record('transition', {'to': 'completed'})
-        self.assertEqual(run.next()['actions'][0]['action'], 'report', 'no live resources remain')
         code, env, _ = cli('recipe-stamp', *run.args('--recipe', recipe_path, '--feature', 'F-CREATE',
                                                      '--requirement', 'REQ-VERIFY-CREATE'))
         self.assertEqual(code, 0, env)
@@ -221,7 +209,7 @@ class VerificationInitTest(CoreTestCase):
             {'id': 'REQ-VERIFY-CREATE', 'kind': 'runtime', 'text': 'F-CREATE works'}]}))
         state_file = run.run_dir / 'run.json'
         state = json.loads(state_file.read_text())
-        state['phase'] = 'completed'
+        state['phase'] = 'active'
         state_file.write_text(json.dumps(state))
         code, env, _ = cli('recipe-stamp', *run.args('--recipe', recipe_path, '--feature', 'F-CREATE',
                                                      '--requirement', 'REQ-VERIFY-CREATE'))

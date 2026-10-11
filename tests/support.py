@@ -56,131 +56,60 @@ def capabilities(**overrides):
     return data
 
 
-class FakeT3:
-    """Scripted T3 orchestration. Dispatch is idempotent on clientRequestId, like T3."""
-
-    def __init__(self):
-        self.tasks = {}
-        self.calls = []
-        self.scripts = {}
-
-    def script(self, client_request_id, *responses):
-        self.scripts[client_request_id] = list(responses)
-
-    def call(self, host_call):
-        tool, arguments = host_call['tool'], host_call['arguments']
-        self.calls.append((tool, copy.deepcopy(arguments)))
-        if tool == 'delegate_task':
-            request = arguments['clientRequestId']
-            task_id = 'task:' + request
-            if task_id not in self.tasks:
-                self.tasks[task_id] = {'request': request, 'arguments': arguments, 'queue': list(self.scripts.get(request, [])),
-                                       'state': {'status': 'running', 'workState': 'working', 'summary': None}}
-            return self._response(task_id)
-        if tool == 'task_status':
-            task = self.tasks[arguments['taskId']]
-            if task['queue']:
-                task['state'] = task['queue'].pop(0)
-            return self._response(arguments['taskId'])
-        if tool == 'task_cancel':
-            task = self.tasks[arguments['taskId']]
-            return {'taskId': arguments['taskId'], 'status': task.get('cancel_reply', 'cancel_requested')}
-        raise AssertionError(f'unexpected tool {tool}')
-
-    def _response(self, task_id):
-        state = self.tasks[task_id]['state']
-        return {'taskId': task_id, 'childThreadId': 'child:' + task_id, 'status': state['status'],
-                'workState': state['workState'], 'hasPendingChildRuns': state.get('hasPendingChildRuns', False),
-                'summary': state.get('summary'), 'waitTimedOut': state.get('waitTimedOut', False)}
-
-    def dispatches(self):
-        return [args for tool, args in self.calls if tool == 'delegate_task']
-
-
-def done(summary):
-    return {'status': 'completed', 'workState': 'result_available', 'summary': summary}
-
-
-def result_block(task_id, **fields):
-    body = {'schema_version': 1, 'task_id': task_id, 'status': 'done', 'changed_files': [], 'commit': None,
-            'requirements': [], 'verification': [], 'findings': [], 'blockers': []}
-    body.update(fields)
-    return 'Work finished.\n\n```json t3-result\n' + json.dumps(body, indent=2) + '\n```'
-
-
 class Run:
-    """Drives one run through the CLI the way an agent following entry.md would."""
+    """Exercise the public evidence API without simulating a dispatcher."""
 
     def __init__(self, test, state_root, run_id, parent=PARENT):
         self.test, self.state_root, self.run_id, self.parent = test, Path(state_root), run_id, parent
-        self.token = None
 
     def args(self, *extra):
         return ['--state-root', self.state_root, '--run-id', self.run_id, '--plugin-dir', PLUGIN, *extra]
+
+    @property
+    def run_dir(self):
+        return self.state_root / 'runs' / self.run_id
+
+    @property
+    def state(self):
+        return json.loads((self.run_dir / 'run.json').read_text())
 
     def status(self):
         code, env, _ = cli('status', *self.args())
         self.test.assertEqual(code, 0, env)
         return env['data']
 
-    @property
-    def generation(self):
-        return self.status()['generation']
-
-    @property
-    def state(self):
-        return json.loads((self.state_root / 'runs' / self.run_id / 'run.json').read_text())
-
-    @property
-    def run_dir(self):
-        return self.state_root / 'runs' / self.run_id
-
-    def claim(self):
-        code, env, _ = cli('claim', *self.args('--parent-thread-id', self.parent))
-        self.test.assertEqual(code, 0, env)
-        self.token = env['data']['token']
-        return env
-
-    def release(self):
-        code, env, _ = cli('release', *self.args('--token', self.token))
-        self.test.assertEqual(code, 0, env)
-        self.token = None
-
-    def next(self, parent=None):
-        code, env, _ = cli('next', *self.args('--parent-thread-id', parent or self.parent))
+    def binding(self):
+        code, env, _ = cli('snapshot', *self.args())
         self.test.assertEqual(code, 0, env)
         return env['data']
 
-    def snapshot_token(self):
-        code, env, _ = cli('validate', *self.args())
-        self.test.assertEqual(code, 0, env)
-        snap = env['data']['binding']['snapshot']
-        return f'{snap["head"]}:{snap["content_hash"]}'
+    def submit_raw(self, kind, payload):
+        return cli(kind, *self.args('--json', json.dumps(payload)))
 
-    def record_raw(self, kind, payload, parent=None, token=None, generation=None):
-        if kind in ('check', 'acceptance') and 'snapshot' not in payload:
-            # An agent echoes the snapshot token from the next action that asked for the evidence.
-            payload = dict(payload, snapshot=self.snapshot_token())
-        return cli('record', *self.args('--kind', kind, '--token', token or self.token or '',
-                                        '--expect-generation', generation if generation is not None else self.generation,
-                                        '--parent-thread-id', parent or self.parent, '--json', json.dumps(payload)))
-
-    def record(self, kind, payload, expect=0, **kwargs):
-        code, env, _ = self.record_raw(kind, payload, **kwargs)
+    def submit(self, kind, payload, expect=0):
+        code, env, _ = self.submit_raw(kind, payload)
         self.test.assertEqual(code, expect, env)
         return env.get('data', env.get('error'))
+
+    def evidence(self, requirement_id, path, kind='command', status='passed', **extra):
+        return self.submit('evidence', dict(requirement_id=requirement_id, status=status, kind=kind,
+                                         explanation='observed result', artifacts=[str(path)],
+                                         binding=self.binding(), **extra))
+
+    def child(self, task_id='task-1', status='completed', pending=False, **extra):
+        return self.submit('child', dict(task_id=task_id, client_request_id='request-' + task_id,
+                                       parent_thread_id=self.parent, status=status,
+                                       has_pending_child_runs=pending, **extra))
 
     def scratch(self, name, text):
         path = self.run_dir / 'scratch' / name
         path.write_text(text)
         return path
 
-    def only(self, wanted):
-        data = self.next()
-        actions = [a for a in data['actions'] if a['action'] == wanted]
-        self.test.assertTrue(actions, f'expected {wanted}, got {[a["action"] for a in data["actions"]]} '
-                                      f'blocked={data.get("blocked")}')
-        return actions[0]
+    def validate(self):
+        code, env, _ = cli('validate', *self.args())
+        self.test.assertEqual(code, 0, env)
+        return env['data']
 
 
 class CoreTestCase(unittest.TestCase):
@@ -207,7 +136,7 @@ class CoreTestCase(unittest.TestCase):
 
     def plan(self, repo, **overrides):
         plan = {
-            'schema_version': 1,
+            'schema_version': 2,
             'brief': {'text': 'wordstat count is wrong for multi-line files',
                       'requirements': [{'id': 'REQ-MULTILINE', 'text': 'count splits on any whitespace', 'kind': 'command'}],
                       'constraints': ['Do not change the CLI usage text.']},
@@ -217,7 +146,7 @@ class CoreTestCase(unittest.TestCase):
             'policy': {'checks': [{'name': 'unit', 'argv': [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'],
                                    'cwd': str(repo)}],
                        'review': {'required': False, 'role': 'reviewer'},
-                       'worktree_root': str(self.tmp / 'worktrees')},
+},
         }
         for key, value in overrides.items():
             if isinstance(value, dict) and isinstance(plan.get(key), dict):
@@ -239,11 +168,13 @@ class CoreTestCase(unittest.TestCase):
         path.write_text(text)
         return path
 
-    def run_check(self, run, action):
-        """Execute a planned check the way a native foreground tool would."""
-        args = action['args']
-        result = subprocess.run(args['argv'], cwd=args['cwd'], capture_output=True, text=True, timeout=TIMEOUT)
-        log = Path(args['log_path'])
-        log.write_text(result.stdout + result.stderr)
-        return run.record('check', {'name': args['name'], 'argv': args['argv'], 'cwd': args['cwd'],
-                                    'exit_code': result.returncode, 'log': str(log), 'snapshot': args['snapshot']})
+    def run_check(self, run, check=None):
+        check = check or run.state['policy']['checks'][0]
+        binding = run.binding()
+        cwd = Path(check.get('cwd') or run.state['repo']['worktree'])
+        if not cwd.is_absolute():
+            cwd = Path(run.state['repo']['worktree']) / cwd
+        result = subprocess.run(check['argv'], cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT)
+        log = run.scratch(check['name'] + '.log', result.stdout + result.stderr)
+        return run.submit('check', {'name': check['name'], 'argv': check['argv'], 'cwd': str(cwd),
+                                    'exit_code': result.returncode, 'log': str(log), 'binding': binding})

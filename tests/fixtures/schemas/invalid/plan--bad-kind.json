@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "brief": {
     "text": "Fix the multi-line word count",
     "constraints": [
@@ -23,8 +23,5 @@
       "edit"
     ],
     "evidence": "operator asked for a local fix"
-  },
-  "execution": {
-    "mode": "direct"
   }
 }

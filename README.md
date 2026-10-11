@@ -56,9 +56,9 @@ or recovery behavior earn their overhead. [Your first workflow](docs/first-workf
 - **Local tools** use only the Python standard library. Installers, run state, hashes, and audits are plain scripts with tests.
 - **Host orchestration** stays with T3. The plugins discover its tools at run time and never ship a scheduler of their own.
 
-imps adds a small state engine: a claim token names the owner, a generation counter
-refuses stale writes, and evidence is tied to the revision it checked. An edit after
-verification makes the verification stale. [Architecture](docs/architecture.md).
+imps adds a small evidence gate. It stores checks, requirement artifacts and child
+observations, then validates them against the current tree and contract. File edits
+invalidate earlier evidence; a local pass never proves a remote outcome.
 
 ## What has been observed
 

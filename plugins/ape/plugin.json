@@ -1,6 +1,6 @@
 {
   "name": "ape",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Research transferable patterns in open-source repositories.",
   "entry": "entry.md",
   "operations": [
