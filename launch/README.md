@@ -1,101 +1,107 @@
-# Launch kit
+# Public launch kit
 
-Drafts for announcing t3-plugins. Nothing here posts itself. Edit freely, post
-from your own accounts, and delete this directory once the posts are out if you
-would rather not keep marketing copy in the tree.
+Drafts for the owner to edit and publish. Nothing here sends a message or changes
+repository settings. Before announcing, confirm the release and site gates below.
 
-## Repository settings
+## Ready to announce?
 
-Run once from a machine with `gh` authenticated as a repository admin:
+- The documentation change has independent review and current-head CI, then merges.
+- The release archive and Homebrew formula contain the intended catalog revision.
+- A clean install runs `setup`, passes the integrity `doctor`, and prints a usable prompt.
+- The deployed Pages site shows the new copy, with working navigation, search and images.
+- A real T3 thread invokes the installed current workflow. Report its provider, build,
+  operation and result; historical imps results do not certify the new evidence gate.
 
-```sh
-gh repo edit seankoji-com/t3-plugins \
-  --description "Five agent workflows for T3 Code that keep working when you change the model. Python stdlib, evidence before completion, live provider results recorded." \
-  --homepage "https://seankoji-com.github.io/t3-plugins/" \
-  --add-topic t3-code --add-topic ai-agents --add-topic developer-tools \
-  --add-topic agent-workflows --add-topic python --add-topic mkdocs-material \
-  --add-topic claude --add-topic codex --add-topic homebrew
+See [the release procedure](../docs/releasing.md). Plugin manifest versions, GitHub
+release tags, the tap formula and installed snapshots are separate version surfaces.
+Do not advertise a release that has not reached the install path.
+
+## Repository description
+
+Suggested description:
+
+```text
+Five workflows for T3 Code: fix bugs with evidence, plan changes, research code, finish PRs and audit agent settings.
 ```
 
-Then upload `docs/assets/social-card.png` as the social preview under
-Settings → General → Social preview. GitHub has no API for that field.
+Homepage: `https://seankoji-com.github.io/t3-plugins/`.
+Suggested topics: `t3-code`, `ai-agents`, `developer-tools`, `agent-workflows`,
+`python`, `homebrew`. Upload `docs/assets/social-card.png` in GitHub's repository
+social-preview settings after checking it matches the current site.
 
 ## Show HN
 
-Title (80 characters max):
+Title:
 
-```
-Show HN: t3-plugins – agent workflows for T3 Code that survive a model change
+```text
+Show HN: Five workflows to fix bugs, plan changes and finish PRs in T3 Code
 ```
 
 Body:
 
-```
-I maintain a set of coding-agent workflows (plan a change, research an approach,
-implement with evidence, babysit the PR) that I originally wrote for Claude Code.
-When T3 Code added cross-provider orchestration I ported them so the same
-instructions run on Codex, Claude, Gemini, or whatever provider the thread has
-selected.
+```text
+t3-plugins gives your T3 agent a repeatable way to handle five jobs: implement a
+bounded change, turn an idea into a testable brief, study another codebase, carry
+a PR through review and CI, or audit agent permissions without changing them.
 
-The part I'd like feedback on is the evidence model. imps, the implementation
-workflow, ties every test log and review verdict to the repository revision it
-was gathered on. An edit after verification makes the verification stale; the
-agent has to re-run, it can't re-label. That one rule removed a whole class of
-"tests pass" claims that were true a commit ago.
+The implementation workflow keeps checks and reviews tied to the files they
+verified. If the code changes, the evidence is stale. Interrupted work has a run
+ID to resume; blocked work tells you what is missing.
 
-Everything deterministic is Python standard library with tests. The provider side
-is a live conformance ledger rather than a logo wall: per-provider pass counts,
-the two defects the matrix found, and the transcripts.
+Follow the installation guide, run setup, then select a workflow from T3's
+skill picker or paste a generated prompt. The instructions stay the same when
+you switch providers. Local helpers use Python's standard library; T3 owns
+children, previews and watches.
+
+Current helper tests and historical live-provider observations are documented
+separately. The new imps evidence gate has not completed a live provider matrix.
+I'd like feedback on the install experience and whether the reports give you
+enough evidence to trust the result.
 
 Docs: https://seankoji-com.github.io/t3-plugins/
-Why it's built this way: https://seankoji-com.github.io/t3-plugins/case-study/
 Source: https://github.com/seankoji-com/t3-plugins
 ```
 
-## T3 Code community (Discord)
+## T3 Code community
 
-```
-Built a plugin catalog for T3's cross-provider orchestration and would love
-people to kick the tyres: https://seankoji-com.github.io/t3-plugins/
+```text
+Five installable workflows for T3 Code: fix bugs with current evidence, plan work
+a fresh thread can use, research another codebase, finish authorized PRs, and
+inspect agent permissions.
 
-Five workflows (imps for implementing with evidence, babysitter for PRs,
-elephant-goldfish for planning, ape for researching other codebases, and
-agent-tuneup for settings audits). They're plain Markdown entries plus stdlib Python, so they inherit
-whatever provider the thread is on and delegate children through delegate_task.
+git clone https://github.com/seankoji-com/t3-plugins.git
+cd t3-plugins
+python3 bin/t3-plugins setup
+python3 bin/t3-plugins doctor
+python3 bin/t3-plugins prompt imps doctor
 
-Honest status: imps has live results for Codex, Claude and Antigravity on the
-0.0.46 nightly; the ledger lists what failed too. Install is
-`brew install seankoji-com/tap/t3-plugins`. Bug reports very welcome.
-```
+Paste the last line's output into T3, or enable the skill menu and select t3-imps
+from /. The docs show how to give it a bounded task and inspect the result.
 
-## LinkedIn
+https://seankoji-com.github.io/t3-plugins/
 
-```
-I shipped t3-plugins: five agent workflows for T3 Code that keep working when
-you change the model.
-
-The idea is simple. A development workflow is mostly instructions and checks,
-and both get rebuilt every time a team switches providers. So I split each
-workflow into three parts that can be inspected separately: instructions the
-agent reads, small local tools in the Python standard library, and host
-orchestration that T3 owns. No provider SDK, and the workflows never pick
-the model; T3 does.
-
-The part I'm proudest of is the evidence rule in the implementation workflow:
-every check is tied to the revision it ran on, so an edit after verification
-makes the verification stale. The agent re-runs; it can't re-label.
-
-I also ran a live conformance matrix across providers and published the ledger,
-including the two defects it found in my own briefs and the infrastructure
-failures it hit. If you're evaluating agent tooling, I'd rather you read that
-page than the feature list.
-
-Docs and case study: https://seankoji-com.github.io/t3-plugins/
+Provider skill discovery varies. Current helper tests are separate from the
+historical provider ledger; the new imps gate's live matrix is still pending.
 ```
 
-## seankoji.com post
+## Short post
 
-Suggested title: "What survives a model change". Reuse the case study page as the
-body (`docs/case-study.md`), adding a short intro paragraph in your own voice and
-an embedded copy of `docs/assets/demo.svg`. The page is already written in first
-person and licensed MIT, so it can be republished as is.
+```text
+I built five workflows for T3 Code to save the follow-up work after an agent says
+it has finished: current checks and review for a code change, acceptance criteria
+for an idea, citations for research, PR blockers, and permission findings.
+
+Install once and use the same entry with your selected provider. imps keeps its
+verification evidence tied to the files you receive, and gives interrupted work
+a run ID to resume.
+
+Installation, examples and compatibility limits:
+https://seankoji-com.github.io/t3-plugins/
+```
+
+## Optional media
+
+[Scripted walkthrough](../docs/assets/demo.svg) illustrates installation and a
+readiness check; it is not a live model recording. Its content-based snapshot
+identifier comes from an archive install, while a Git checkout uses its revision.
+[Site preview](../docs/assets/docs-preview.png) shows the field-guide layout.

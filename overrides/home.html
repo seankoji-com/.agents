@@ -12,12 +12,11 @@
   <section class="fg-hero">
     <div class="fg-wrap fg-hero__grid">
       <div class="fg-hero__text">
-        <h1>Change the model.<br>Keep the workflow.</h1>
-        <p class="fg-lead">Five agent workflows for T3 Code that run on whichever provider you have selected. Instructions the agent reads, small local tools for the parts that should be deterministic, and evidence before anything is called done.</p>
-        <p class="fg-install"><code>brew install seankoji-com/tap/t3-plugins</code></p>
+        <h1>Fix the bug.<br>Finish the PR.</h1>
+        <p class="fg-lead">Give your T3 agent a repeatable way to implement changes, plan work, research code and finish pull requests. Get evidence you can inspect. Keep the workflow when you switch models.</p>
         <p class="fg-actions">
-          <a class="fg-primary" href="{{ 'getting-started/' | url }}">Install</a>
-          <a href="{{ 'case-study/' | url }}">Why it is built this way</a>
+          <a class="fg-primary" href="{{ 'getting-started/' | url }}">Get started</a>
+          <a href="{{ 'first-workflow/' | url }}">Try your first workflow</a>
         </p>
       </div>
       <figure class="fg-plate" aria-labelledby="plate-caption">
@@ -33,7 +32,7 @@
   <section class="fg-key" aria-labelledby="fg-key-title">
     <div class="fg-wrap">
       <h2 id="fg-key-title">{{ guide.specimens | length }} workflows</h2>
-      <p class="fg-key__intro">Each one is a short entry the agent reads, plus the local tools it needs. Pick by the job, not the name.</p>
+      <p class="fg-key__intro">Choose the job you want to finish. Each guide has a prompt you can copy into T3.</p>
       <ol class="fg-key__list">
         {% for s in guide.specimens %}
         <li class="fg-row">
@@ -44,7 +43,6 @@
             <i>{{ s.binomial }}</i>
           </div>
           <p class="fg-row__summary">{{ s.summary }}</p>
-          <p class="fg-row__ops"><b>operations</b> {{ s.operations | join(' ') }}</p>
         </li>
         {% endfor %}
       </ol>

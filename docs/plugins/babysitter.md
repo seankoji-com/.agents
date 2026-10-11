@@ -4,23 +4,27 @@ Carry pull requests through review and CI.
 
 ## When to use it
 
-A named PR, repository, or organization needs authorized maintenance and continued monitoring.
+A PR needs fixes and follow-up through review, CI or conflicts. Start with one
+named PR; repository and organization scopes can involve many branches and costs.
 
 ## Try it
 
+After [installation](../getting-started.md), run in your terminal:
+
 ```sh
-t3-plugins install babysitter
 t3-plugins prompt babysitter doctor
 ```
 
-Paste the generated prompt into T3, then use an operation such as:
+Paste the printed line into a T3 thread attached to your project. Once readiness is
+clear, generate a task prompt:
 
-```text
-Read ~/.local/share/t3-plugins/babysitter/current/entry.md and run:
-pr https://github.com/OWNER/REPO/pull/NUMBER
+```sh
+t3-plugins prompt babysitter pr https://github.com/OWNER/REPO/pull/NUMBER 'Inspect reviews and CI only. Report blockers; do not edit, post, push or merge.'
 ```
 
-Replace sample repositories, paths, and tasks with your own.
+Paste that output into T3. Replace the sample task or path with your own.
+If you installed [skill adapters](../slash-commands.md), select **t3-babysitter**
+from `/` and append the same request instead.
 
 ## Operations
 
@@ -28,7 +32,21 @@ Replace sample repositories, paths, and tasks with your own.
 
 ## What you get
 
-Current-head findings, verified fixes, observed merge state, or exact remaining blockers.
+Findings against the current PR head, check status and exact remaining blockers.
+When you authorize maintenance, the agent fixes eligible problems and observes the
+result. A green local test, armed auto-merge and an actual merge are different
+outcomes. T3 owns the watch and wakes the thread for later events.
+
+## Authorize the finish line
+
+The example above requests inspection. To let it land the PR, state that scope:
+
+```sh
+t3-plugins prompt babysitter pr https://github.com/OWNER/REPO/pull/NUMBER 'Babysit through merge: fix review findings and CI, push to this PR branch, and merge once current-head requirements pass.'
+```
+
+Use `repo OWNER/REPO` or `org OWNER` only when you intend that wider scope. Protected
+branch rules remain required. Unknown or unsafe changes stay blocked.
 
 ## Limits
 

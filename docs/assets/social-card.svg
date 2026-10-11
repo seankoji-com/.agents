@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="t3-plugins: change the model, keep the workflow">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="t3-plugins: fix the bug, finish the PR">
 <style>
 @font-face{font-family:"Fraunces";src:url("fonts/fraunces-variable.woff2") format("woff2");font-weight:300 900}
 @font-face{font-family:"IBM Plex Sans";src:url("fonts/ibm-plex-sans-variable.woff2") format("woff2");font-weight:100 700}
@@ -9,12 +9,12 @@
 <rect x="36" y="36" width="1128" height="558" fill="none" stroke="#1f2a24" stroke-width="2"/>
 <rect x="44" y="44" width="1112" height="542" fill="none" stroke="#c6cdbf" stroke-width="1"/>
 <text x="84" y="112" class="d" font-style="italic" font-size="26" fill="#80601a">Plate I</text>
-<text x="84" y="228" class="d" font-size="84" font-weight="600" letter-spacing="-2.2" fill="#1f2a24">Change the model.</text>
-<text x="84" y="318" class="d" font-size="84" font-weight="600" letter-spacing="-2.2" fill="#1f2a24">Keep the workflow.</text>
-<text x="84" y="384" class="s" font-size="27" fill="#55615a">Five agent workflows for T3 Code. Any provider.</text>
-<text x="84" y="424" class="s" font-size="27" fill="#55615a">Python standard library. Evidence before completion.</text>
-<rect x="84" y="474" width="534" height="54" fill="#e2e6da" stroke="#c6cdbf"/>
-<text x="104" y="509" class="m" font-size="23" fill="#1f2a24"><tspan fill="#55615a">$ </tspan>brew install seankoji-com/tap/t3-plugins</text>
+<text x="84" y="228" class="d" font-size="84" font-weight="600" letter-spacing="-2.2" fill="#1f2a24">Fix the bug.</text>
+<text x="84" y="318" class="d" font-size="84" font-weight="600" letter-spacing="-2.2" fill="#1f2a24">Finish the PR.</text>
+<text x="84" y="384" class="s" font-size="27" fill="#55615a">Five workflows for your T3 Code agent.</text>
+<text x="84" y="424" class="s" font-size="27" fill="#55615a">Verified changes. Usable briefs. PR follow-through.</text>
+<rect x="84" y="474" width="680" height="54" fill="#e2e6da" stroke="#c6cdbf"/>
+<text x="104" y="509" class="m" font-size="23" fill="#1f2a24">Start with one useful result in T3.</text>
 <text x="84" y="566" class="s" font-size="20" fill="#55615a">seankoji-com.github.io/t3-plugins</text>
 <g transform="translate(809 127) scale(3.6)" opacity="1">
 <path d="M37 24 L29 6 L43 20 Z" fill="#2f6b4f"/><path d="M59 24 L67 6 L53 20 Z" fill="#2f6b4f"/>

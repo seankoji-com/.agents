@@ -33,6 +33,9 @@ Do not add a test that merely repeats a constant from the implementation.
 
 ## Work on the site
 
+Read [the design system](https://github.com/seankoji-com/t3-plugins/blob/master/DESIGN.md)
+before changing layout or styling. Use its existing colour, type and spacing tokens.
+
 ```sh
 python3 -m venv .venv-docs
 .venv-docs/bin/pip install -r requirements-docs.txt
@@ -46,7 +49,9 @@ python3 scripts/check_docs.py
 .venv-docs/bin/python -m mkdocs build --strict
 ```
 
-Check navigation, search, code copying, diagrams, and mobile layout. Screenshots
+Check navigation, search, code copying and diagrams at 390px, 768px and 1280px,
+in light and dark mode, with keyboard focus, reduced motion and 200% zoom.
+Tables and diagrams may scroll inside their frames; the page itself must not overflow. Screenshots
 should show the actual rendered artifact, use synthetic data, and state what they
 demonstrate. Never substitute an illustration for live acceptance evidence.
 
@@ -54,7 +59,7 @@ The homepage, the plugin pages, and the sightings table are generated at build t
 by the `scripts/field_guide.py` hook from `plugins/*/plugin.json`, `docs/field-guide.json`,
 and `conformance/compatibility.json`. Adding a plugin means adding its entry to
 `docs/field-guide.json` and a mark under `docs/assets/specimens/`; the build fails
-if either is missing. The terminal recording is `docs/assets/demo.svg`, written by
+if either is missing. The optional scripted terminal recording is `docs/assets/demo.svg`, written by
 `python3 scripts/render_demo.py`; a test fails when the committed file is stale.
 Fonts are bundled under `docs/assets/fonts/` (SIL OFL 1.1) so pages make no
 third-party requests. Theme overrides live in `overrides/`.

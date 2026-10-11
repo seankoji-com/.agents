@@ -1,53 +1,54 @@
 # Installation
 
-Setup prints optional learning-directory grants. `--grant-learnings` applies only
-the printed subtree after backing up provider configs. See
-[learnings and harvest](learnings.md) before opting in.
+Install once, then invoke a workflow from a T3 thread attached to your project.
+The terminal commands below install local files; they do not call a model.
 
 You need T3 Code with a working provider and local file/shell access. Python 3.10+
 runs the core and most helpers. Homebrew installs Python 3.12. The Codex settings
 audit and TOML conversion need Python 3.11+. GitHub workflows also use Git, `gh`,
 and `jq`; install those only if you use the relevant plugins.
 
-## Homebrew
+## From source
 
-On macOS or Linux with Homebrew:
+Use source installation for the current five-workflow catalog. The Homebrew tap
+still packages v0.4.0, whose commands differ from these guides.
 
 ```sh
-brew install seankoji-com/tap/t3-plugins
-t3-plugins setup
-t3-plugins doctor
-t3-plugins prompt imps doctor
+git clone https://github.com/seankoji-com/t3-plugins.git
+cd t3-plugins
+python3 bin/t3-plugins setup
+python3 bin/t3-plugins doctor
+python3 bin/t3-plugins prompt imps doctor
 ```
 
-`brew install` adds the catalog and imps command-line tools. `t3-plugins setup`
+Use `python3 bin/t3-plugins` wherever the guides say `t3-plugins`.
+`setup`
 creates your user-owned snapshots and managed [skill adapters](slash-commands.md)
 in `~/.agents/skills`, `~/.claude/skills`, and `~/.gemini/config/skills`.
 Enable **Show skills in slash menu** in T3's General settings and restart the agent
-session. You can combine the first two commands with `&&`.
-Homebrew's post-install step uses an isolated temporary home, so setup runs in your
-own shell instead. See [Homebrew's implementation](https://docs.brew.sh/rubydoc/Formula#run_post_install-instance_method).
+session.
 Paste the final prompt command's output when a provider lacks skill discovery.
-Setup does not edit provider settings or overwrite unowned or edited skills.
+By default, setup does not edit provider settings or overwrite unowned or edited
+skills. It also prints optional learning-directory grants. Apply them only with
+`--grant-learnings`; see [learnings and harvest](learnings.md#sandbox-grants).
+
+`doctor` should print `"ok": true` for each installed plugin and exit 0. It checks
+files, not T3 or your model. The final command prints a line beginning `Read`;
+paste that whole line into T3 for the workflow readiness check. Then follow
+[your first workflow](first-workflow.md).
 
 To install just one plugin's snapshot, use `t3-plugins install ape`.
 Use `t3-plugins setup imps` for one plugin plus its adapters, or repeat
 `--root PATH` to choose custom skill roots instead of the three defaults.
 `t3-plugins list` shows the bundled catalog.
 
-## From source
+## Homebrew release channel
 
-```sh
-git clone https://github.com/seankoji-com/t3-plugins.git
-cd t3-plugins
-python3 bin/t3-plugins install --dry-run
-python3 bin/t3-plugins setup
-python3 bin/t3-plugins doctor
-python3 bin/t3-plugins prompt imps doctor
-```
-
-Use `python3 bin/t3-plugins` wherever the guides say `t3-plugins`. The legacy
-`python3 scripts/install.py --plugin imps` interface still works for single plugins.
+Homebrew is a release channel, but its current v0.4.0 package does not match this
+catalog. Use the source steps above until the release and tap are aligned. After
+alignment, installation is `brew install seankoji-com/tap/t3-plugins`, followed by
+`t3-plugins setup` and `t3-plugins doctor` in your own shell. Homebrew post-install
+uses an isolated temporary home, so it cannot set up your user skill adapters.
 
 ## Paths and remote environments
 
@@ -70,12 +71,13 @@ for long-term installations; `/tmp` is only a demonstration.
 ## Upgrade and rollback
 
 ```sh
-brew upgrade t3-plugins
-t3-plugins setup
-t3-plugins doctor
+git pull --ff-only
+python3 bin/t3-plugins setup
+python3 bin/t3-plugins doctor
 ```
 
-For source installs, pull the desired revision and rerun the installer. Installation
+Run these commands in your source checkout. For an aligned Homebrew release, use
+`brew upgrade t3-plugins`, then `t3-plugins setup` and `t3-plugins doctor`. Installation
 is idempotent for identical files. A changed package gets a new snapshot. Local edits
 to that same snapshot cause refusal; `--force` is an explicit overwrite. Older
 snapshots remain available, including any edits you made there.
@@ -159,12 +161,23 @@ roles, providers or tiers in `.t3-plugins/routing.json`; repository policy wins.
 
 ## Uninstall
 
+Remove skill adapters from every root first, then remove snapshots. Omitting the
+plugin name attempts removal for all bundled plugins in that root. It stops at the
+first modified or unowned adapter with exit 2; preserve those files and resolve the
+conflict before retrying. Retired adapters need their explicit name, or the owned
+adapter cleanup performed by `setup`:
+
 ```sh
+t3-plugins skills uninstall --root ~/.agents/skills
+t3-plugins skills uninstall --root ~/.claude/skills
+t3-plugins skills uninstall --root ~/.gemini/config/skills
 t3-plugins uninstall ape
+
+# For a Homebrew installation only:
 brew uninstall t3-plugins
 ```
 
-The first command removes only manifest-owned, unmodified files for that plugin.
+Snapshot removal deletes only manifest-owned, unmodified files for that plugin.
 Added files and local edits remain. Repeat for other snapshots you want removed
 before uninstalling the Homebrew command. Run state is never removed by uninstall.
 

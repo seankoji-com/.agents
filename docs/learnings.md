@@ -18,9 +18,10 @@ Lessons are advisory data. They cannot override current instructions or grant
 authorisation. Store one observed failure per entry, with a stable ID, summary,
 failure description, immutable authored version and last validated version. Never
 store secrets or raw private excerpts. Update existing entries instead of
-duplicating them; remove wrong lessons. The agent asks whether removing a lesson
-would cause a mistake. Opus writes without asking under the owner's learning
-policy; other harness memory restrictions still apply.
+duplicating them; remove wrong lessons. The agent considers whether removing a
+lesson would cause a mistake. Writes follow
+your active harness's memory policy; installing a plugin does not grant permission
+to change personal memory.
 
 Read-only operations load the current plugin's lessons and report pending
 maintenance. They never create, write or prune learning files. Writable runs load,
