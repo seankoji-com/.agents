@@ -33,18 +33,26 @@ by this amendment. The upstream tests and full suite remain informational. The f
 No worker prompt, execution setting, attempt rule, token parser, Task A check or rubric changes.
 
 The first grader passed two inode-only mutants. Its correction came after the four
-new workers launched. Those attempts are retained as informational; they cannot
-satisfy REQ-B-GRADER's freeze-before-launch condition. Stage 5 remains blocked on
-that condition, even if their output checks pass. A valid comparison requires a
-new authorised benchmark cycle with this corrected grader frozen before launch.
+new workers launched. Those initial attempts are retained as informational and
+cannot establish benchmark acceptance. Their confinement audits voided all four
+slots. The issue permits one retry per voided slot and requires stale runs to be
+repeated. The retries must use the repaired grader frozen before launch and a
+scratch install from the final implementation commit. No attempt, audit finding or
+process deviation is omitted from the report.
 
 Review round 4 rejected the previous candidate: `InodeStat` exposed the real
 inode through stat-result slices and negative indexes (M3), with filesystem-dependent
 false passes. After the three planned repair rounds, the owner explicitly authorised
 one additional repair round. The current candidate replaces the inode before any
-sequence indexing or slicing, with regression cases for both. Its fresh review is
-pending. All validation and new grades remain diagnostic; no stage acceptance or
-fair comparison is claimed. The subprocess/native-code gap remains unverified.
+sequence indexing or slicing, with regression cases for both. Review round 5 found
+no blockers or majors and approved freezing this SHA within the documented scope.
+It verified 22 inode-only mutants twice on Python 3.10, 3.12 and 3.13 (132 failures
+as required), plus the red/green matrix. Minor m6 is deferred: the proxy is not a
+real stat_result and copy/pickle/type-sensitive designs may fail; contrived count
+or index calls can access real tuple values. These designs need separate evidence.
+Minor m7 is fixed by recording this review in the amendment before retry launch.
+Initial attempts remain diagnostic; stage acceptance awaits valid retries. The
+subprocess/native-code gap remains unverified.
 
 The benchmark compares two imps versions on two tasks: the **old** package (built from
 `6e4cf82`, tag `bench/old-imps`) and the **new** package (built in stage 5 from the final

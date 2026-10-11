@@ -72,5 +72,5 @@
       "working_diff_sha256": "167a7971a5bfa7019447a24a5483db75c8b5c27931b20d66815be4fe074e167f"
     }
   },
-  "acceptance_status": "diagnostic only; additional M3 repair awaits fresh review; benchmark freeze-before-launch remains unmet"
+  "acceptance_status": "grader approved by review round 5 within documented scope; benchmark acceptance awaits valid frozen retries"
 }
