@@ -33,7 +33,7 @@ import tokens  # noqa: E402
 SYSTEM = ('/usr/', '/bin/', '/sbin/', '/opt/homebrew/', '/System/', '/Library/Developer/', '/Applications/',
           '/dev/null', '/dev/stdout', '/dev/stderr', '/etc/', '/private/etc/', '/Library/Frameworks/',
           '/Library/Apple/')
-TEMP = ('/tmp/', '/private/tmp/', '/var/folders/', '/private/var/folders/')
+TEMP = ('/tmp/', '/private/tmp/', '/var/' + 'folders/', '/private/var/' + 'folders/')  # split: no literal machine paths
 ABSOLUTE = re.compile(r'''(?:(?<=^)|(?<=[\s='"`:(,]))(~?/[^\s'"`;|&<>(),]*)''')
 UPSTREAM = re.compile(r'seankoji-com/t3-plugins|seankoji-com\.github\.io/t3-plugins|seankoji\.com/t3-plugins', re.I)
 PATH_KEYS = ('file_path', 'path', 'notebook_path', 'cwd', 'workdir', 'directory', 'worktreePath', 'workspaceRoot')

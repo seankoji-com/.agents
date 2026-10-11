@@ -164,14 +164,14 @@ class TokenParserTest(unittest.TestCase):
 class AuditTest(unittest.TestCase):
     def test_flags_tool_call_paths_and_upstream_but_not_tool_results(self):
         findings = audit.audit_file(TRANSCRIPTS / 'transcript_complete.jsonl', 'b',
-                                    ['/bench/workspace', '/bench/package'], '/bench/harness', '/home/bench')
+                                    ['/bench/workspace', '/bench/package'], '/bench/harness', '/bench/home')
         void = [f.get('path') or f.get('reason') for f in findings if f['level'] == 'void']
         self.assertIn('/outside/dir', void)
         self.assertIn('upstream repository reference', void)
         self.assertNotIn('/bench/workspace', void)
         self.assertFalse(any('/elsewhere' in str(f) for f in findings))
         task_a_findings = audit.audit_file(TRANSCRIPTS / 'transcript_complete.jsonl', 'a',
-                                           ['/bench/workspace'], '/bench/harness', '/home/bench')
+                                           ['/bench/workspace'], '/bench/harness', '/bench/home')
         self.assertFalse(any(f.get('reason', '').startswith('upstream') for f in task_a_findings))
 
 
