@@ -126,6 +126,55 @@ class SkillAdapters(unittest.TestCase):
         prompt = self.call('prompt', 'imps', '--personas', '42', '43').stdout
         self.assertIn('run: --personas 42 43', prompt)
 
+    def test_adapter_frontmatter_carries_provenance_metadata(self):
+        meta = json.loads((ROOT / 'plugins/babysitter/plugin.json').read_text())
+        self.call('install', 'babysitter')
+        self.call('skills', 'install', 'babysitter', '--root', str(self.skills))
+        front = (self.skills / 't3-babysitter/SKILL.md').read_text().split('---\n', 2)[1]
+        self.assertIn('metadata:', front)
+        self.assertIn('  t3-plugins-version: ' + json.dumps(meta['version']), front)
+        self.assertIn('  t3-plugins-kind: ' + json.dumps(meta['kind']), front)
+        self.assertIn('  t3-plugins-compatibility: ' + json.dumps(meta['compatibility']), front)
+        origin = meta['origin']
+        self.assertIn('  t3-plugins-origin-repository: ' + json.dumps(origin['repository']), front)
+        self.assertIn('  t3-plugins-origin-plugin: ' + json.dumps(origin['plugin']), front)
+        self.assertIn('  t3-plugins-origin-version: ' + json.dumps(origin['version']), front)
+
+    def test_adapter_without_origin_omits_origin_keys(self):
+        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        self.assertNotIn('origin', meta)
+        self.install()
+        front = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
+        self.assertIn('  t3-plugins-version: ' + json.dumps(meta['version']), front)
+        self.assertNotIn('t3-plugins-origin', front)
+
+    def test_frontmatter_top_level_stays_within_the_spec(self):
+        spec_fields = {'name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'}
+        self.install()
+        front = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
+        keys = {line.split(':', 1)[0] for line in front.splitlines() if line and not line[0].isspace()}
+        self.assertLessEqual(keys, spec_fields)
+        self.assertNotIn('disable-model-invocation', front)
+        self.assertNotIn('user-invocable', front)
+        self.assertNotIn('argument-hint', front)
+
+    def test_model_invocation_policy_lives_in_metadata(self):
+        imps = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        self.assertNotIn('model_invocable', imps)
+        self.install()
+        front = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
+        self.assertIn('  opencode/slash: "true"', front)
+        self.assertIn('  opencode/autoinvoke: "false"', front)
+
+    def test_babysitter_stays_model_invocable(self):
+        meta = json.loads((ROOT / 'plugins/babysitter/plugin.json').read_text())
+        self.assertTrue(meta['model_invocable'])
+        self.call('install', 'babysitter')
+        self.call('skills', 'install', 'babysitter', '--root', str(self.skills))
+        front = (self.skills / 't3-babysitter/SKILL.md').read_text().split('---\n', 2)[1]
+        self.assertIn('  opencode/slash: "true"', front)
+        self.assertNotIn('opencode/autoinvoke', front)
+
 
 if __name__ == '__main__':
     unittest.main()
