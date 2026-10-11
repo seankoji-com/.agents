@@ -56,8 +56,9 @@ Keep the run ID and state root to [resume later](../first-workflow.md#resume-ins
 
 State major version 1 is refused by this gate without conversion or writes.
 Keep the previous installed version until its runs are finished. Find its version
-in the installation receipt or the version folders beside `current/`, one level
-above the entry printed by `t3-plugins path imps`, then use
+in the installation receipt. If `t3-plugins path imps` prints
+`<prefix>/imps/current/entry.md`, the version folders are in `<prefix>/imps/`,
+alongside `current/`. Then use
 `t3-plugins activate imps <previous-version>`. Read that version's entry through
 `t3-plugins path imps`; use its `status`, `resume` or `cancel` operation with the
 original run ID and state root. Activate the new version again when done.

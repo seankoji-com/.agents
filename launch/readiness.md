@@ -1,4 +1,4 @@
-# Launch readiness: 12 October 2026
+# Launch readiness: 12 October 2026 (Australia/Sydney, AEDT)
 
 The documentation refresh is prepared locally. Public promotion still depends on
 delivery of the current catalog and an installed live workflow.
@@ -11,8 +11,8 @@ This is a dated handoff, not an automatically updated release status.
 | Regression suite | 515 tests across 58 modules passed after rebasing on Python 3.12; loopback fixtures ran with socket access |
 | Documentation checks | Local Markdown links, catalog coverage and entry budgets passed |
 | Site | Strict MkDocs Material 9.7.7 build passed |
-| Rendered targets | 26 HTML pages and 1,481 local link, asset and anchor targets checked |
-| Shell examples | 34 documented shell blocks passed `bash -n` |
+| Rendered targets | 26 HTML pages and 1,477 local link, asset and anchor targets checked |
+| Shell examples | 33 documented shell blocks passed `bash -n` |
 | Installed artifact | Isolated release-tree setup installed all five snapshots and adapters; integrity, prompts and relocated settings audit passed |
 | Browser | Homepage and installation inspected in light/dark schemes; five plugin pages and CLI checked at 390px; homepage, first workflow, architecture and historical results checked at 768px; desktop checked at 1280px |
 | Interaction | Search returned relevant results; code-copy controls present and exercised; keyboard focus visible |
@@ -62,3 +62,7 @@ metadata remain maintainer data; the visitor journey does not lead with them.
 The final review’s two bookkeeping findings are corrected: review rounds and test
 counts are bound to their trees, and the removed install line no longer appears in
 the design token table. Both optional wording nits are also addressed.
+
+The hosted review follow-up removed duplicate overview install commands, named
+the gate test modules, corrected a source link and clarified rollback paths.
+Docs checks, the strict build and 27 focused tests passed after those edits.

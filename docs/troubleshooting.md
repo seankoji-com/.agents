@@ -46,7 +46,7 @@ Do not change the state version or try to convert it by editing JSON.
 
 ## Homebrew has an older catalog
 
-The tap currently packages v0.4.0; use the [source installation path](getting-started.md#homebrew-release-channel)
+The tap currently packages v0.4.0; use the [source installation path](getting-started.md#from-source)
 for the catalog these guides describe until the release channel is aligned.
 
 Run `brew update`, `brew upgrade t3-plugins`, then `t3-plugins setup`. A GitHub release

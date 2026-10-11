@@ -3,7 +3,7 @@
 ## Plugin version 1.0.0
 
 Version 1.0 keeps revision-bound evidence, locking and atomic storage while
-changing the imps state API and removing two workflows. Upgrade snapshots and
+changing the imps state API and removing two workflow plugins. Upgrade snapshots and
 adapters together; keep the previous package for unfinished old runs.
 
 | Removal | Reason | Upgrade step |
@@ -22,3 +22,7 @@ The historical compatibility ledger covers imps `0.1.0+ga50f506cd178` on T3
 `0.0.46-nightly.20261008.2849`. It does not certify plugin version 1.0.0. See
 [compatibility and evidence](compatibility.md) for the distinction between helper
 tests and observed model workflows.
+
+Maintainer reference: [source provenance and file hashes](https://github.com/seankoji-com/t3-plugins/blob/master/migration/source.json).
+The [MIT license](https://github.com/seankoji-com/t3-plugins/blob/master/LICENSE)
+remains in the repository and distribution.

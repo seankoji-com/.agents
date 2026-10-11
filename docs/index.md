@@ -9,18 +9,11 @@ hide:
 
 ## Start with one useful result
 
-Install on the machine where your T3 provider executes tools:
-
-```sh
-git clone https://github.com/seankoji-com/t3-plugins.git
-cd t3-plugins
-python3 bin/t3-plugins setup
-python3 bin/t3-plugins doctor
-python3 bin/t3-plugins prompt imps doctor
-```
-
-Paste the last command's output into T3. The agent checks whether it can run the
-workflow before changing anything. For the picker, enable **Show skills in slash
+[Install the current catalog from source](getting-started.md#from-source) on the
+machine where your T3 provider executes tools, then paste the generated readiness
+prompt into T3. The Homebrew tap still packages v0.4.0, whose commands differ from
+these guides. The agent checks whether it can run the workflow before changing
+anything. For the picker, enable **Show skills in slash
 menu**, restart the agent session, then select **t3-imps** from `/` and append a task.
 
 [Installation and source setup](getting-started.md) ·
