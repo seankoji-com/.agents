@@ -75,8 +75,11 @@ def candidates(state: dict, role: str, depth: int = 0) -> list:
             if target:
                 result.append((target, why))
         elif kind == 'fixed':
-            result.append(({'providerInstanceId': entry['providerInstanceId'], 'model': entry.get('model'),
-                            'options': entry.get('options') or {}}, why))
+            target = {'providerInstanceId': entry['providerInstanceId'], 'model': entry.get('model'),
+                      'options': entry.get('options') or {}}
+            if entry.get('runtimeMode'):
+                target['runtimeMode'] = entry['runtimeMode']  # from the routing config; T3 refuses a broader child
+            result.append((target, why))
         elif kind == 'same_provider':
             for target, _ in candidates(state, entry['of_role'], depth + 1)[:1]:
                 result.append((dict(target), why + f'; fresh isolated child on the {entry["of_role"]} target'))

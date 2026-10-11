@@ -63,6 +63,14 @@
         },
         "options": {
           "type": "object"
+        },
+        "runtimeMode": {
+          "enum": [
+            "approval-required",
+            "auto-accept-edits",
+            "auto",
+            "full-access"
+          ]
         }
       }
     },
@@ -89,6 +97,14 @@
         },
         "options": {
           "type": "object"
+        },
+        "runtimeMode": {
+          "enum": [
+            "approval-required",
+            "auto-accept-edits",
+            "auto",
+            "full-access"
+          ]
         },
         "exclude_roles": {
           "type": "array",

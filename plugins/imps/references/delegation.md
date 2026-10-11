@@ -8,11 +8,15 @@ core runs at most `execution.concurrency` children at once (plan default 4).
 ## Targets from the routing config
 
 When `t3-plugins resolve <role> --capabilities FILE` returns candidates, put the chosen
-one in a task's `target` (`providerInstanceId`, `model`). For review, run
+one in a task's `target` with its `providerInstanceId`, `model` and `runtimeMode`; the
+core passes `runtimeMode` to `delegate_task`. If the candidate carries `owner_action`,
+repeat it in the report. For review, run
 `t3-plugins resolve reviewer --capabilities FILE --implementer-lineage <lineage>` and
-set `roles.reviewer.chain` to one `fixed` entry per candidate, in the order printed:
-every independent candidate first, then the same-lineage ones. The core advances the
-chain only when a target is unavailable. Repository policy in `.t3-plugins/imps.json`
+set `roles.reviewer.chain` to one `fixed` entry per candidate, with the same fields, in
+the order printed: independent candidates first, then unverified ones (`independent:
+null`), then the same lineage. The core advances the chain only when a target is
+unavailable. A reviewer that is not `independent: true` leaves independence unverified
+in the report. Repository policy in `.t3-plugins/imps.json`
 still wins.
 
 Without a routing config there is no lineage data. The default reviewer chain then

@@ -202,8 +202,10 @@ def effective_config(user_path=None, repo=None) -> tuple[dict, list]:
 
 
 def resolve(role: str, capabilities: dict, config: dict, implementer_lineage: str | None = None) -> dict:
-    """With `implementer_lineage`, candidates of another lineage come first (each in
-    tier order) and every candidate says whether it is independent of the implementer."""
+    """With `implementer_lineage`, every candidate says whether it is independent of the
+    implementer: true for another known lineage, false for the same one, null when either
+    lineage is `unknown`. Independent candidates come first, then unverified, then the
+    same lineage, each group in tier order."""
     if role not in config['roles'] or not config['roles'][role]:
         raise RoutingError('role_missing', f'role {role!r} is not configured')
     catalog = {p.get('providerInstanceId'): p for p in capabilities['providers'] if isinstance(p, dict)}
@@ -231,7 +233,11 @@ def resolve(role: str, capabilities: dict, config: dict, implementer_lineage: st
             candidate['owner_action'] = f'switch this child to {mode} in T3; it was launched in {parent_mode}'
         candidates.append(candidate)
     if implementer_lineage:
+        rank = {True: 0, None: 1, False: 2}
         for candidate in candidates:
-            candidate['independent'] = candidate['lineage'] != implementer_lineage
-        candidates.sort(key=lambda c: not c['independent'])  # stable: tier order within each group
+            if 'unknown' in (candidate['lineage'], implementer_lineage):
+                candidate['independent'] = None  # no lineage data: independence unverified
+            else:
+                candidate['independent'] = candidate['lineage'] != implementer_lineage
+        candidates.sort(key=lambda c: rank[c['independent']])  # stable: tier order within each group
     return {'role': role, 'candidates': candidates, 'unavailable': unavailable}

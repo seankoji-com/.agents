@@ -119,6 +119,23 @@ class RoutingCli(unittest.TestCase):
                                      '--implementer-lineage', 'anthropic').stdout)
         self.assertEqual([(c['model'], c['independent']) for c in result['candidates']],
                          [('model-x1', True), ('model-a2', True), ('model-c1', False), ('shared-model', False)])
+        # Unknown lineage on either side is unverified, never independent.
+        self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                    'roles': {'reviewer': [entry('claudeAgent', 'model-c1', 'low', 'anthropic'),
+                                           entry('opencode', 'gateway/kimi-9', 'low', 'unknown'),
+                                           entry('codex', 'model-x1', 'low', 'openai')]}})
+        result = json.loads(self.cli('resolve', 'reviewer', '--capabilities', str(self.caps),
+                                     '--implementer-lineage', 'anthropic').stdout)
+        self.assertEqual([(c['model'], c['independent']) for c in result['candidates']],
+                         [('model-x1', True), ('gateway/kimi-9', None), ('model-c1', False)])
+        result = json.loads(self.cli('resolve', 'reviewer', '--capabilities', str(self.caps),
+                                     '--implementer-lineage', 'unknown').stdout)
+        self.assertEqual({c['independent'] for c in result['candidates']}, {None})
+        self.write({'schema_version': 1, 'tiers': ['low', 'high'], 'providers': {},
+                    'roles': {'reviewer': [entry('claudeAgent', 'model-c1', 'low', 'anthropic'),
+                                           entry('opencode', 'shared-model', 'low', 'anthropic'),
+                                           entry('codex', 'model-x1', 'high', 'openai'),
+                                           entry('gemini-box', 'model-a2', 'high', 'google')]}})
         # Without an implementer lineage the order is plain tier order.
         self.assertEqual([c['model'] for c in self.resolve('reviewer')['candidates']],
                          ['model-c1', 'shared-model', 'model-x1', 'model-a2'])
