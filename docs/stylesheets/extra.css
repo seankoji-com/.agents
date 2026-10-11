@@ -150,6 +150,7 @@
 :focus-visible { outline: 2px solid var(--ochre-text); outline-offset: 2px; }
 .md-typeset .caption { font-size: .66rem; color: var(--ink-soft); }
 .md-typeset .diagram { width: 100%; height: auto; display: block; margin: 1rem 0 .3rem; }
+.diagram-frame { overflow-x: auto; }
 
 /* ---------- homepage ---------- */
 .fg-wrap { max-width: 61rem; margin: 0 auto; padding: 0 .8rem; }
@@ -197,9 +198,9 @@
 .md-typeset .sightings__table caption { caption-side: bottom; text-align: left; font-size: .66rem; color: var(--ink-soft); padding: .6rem 0 0; }
 .md-typeset .sightings__table th { text-align: left; font-weight: 600; border-bottom: 1.5px solid var(--ink); padding: .4rem .5rem .4rem 0; background: transparent; line-height: 1.25; vertical-align: bottom; }
 .md-typeset .sightings__table td { border-top: 1px solid var(--rule); padding: .45rem .6rem .45rem 0; vertical-align: top; }
-.md-typeset .sightings__table tbody th { border-bottom: 0; border-top: 1px solid var(--rule); font-weight: 500; padding: .45rem .6rem .45rem 0; white-space: nowrap; }
+.md-typeset .sightings__table tbody th { border-bottom: 0; border-top: 1px solid var(--rule); font-weight: 500; padding: .45rem .6rem .45rem 0; white-space: nowrap; vertical-align: top; }
 .md-typeset .sightings__table tbody th code { font-size: .62rem; }
-.sightings__model { font-family: var(--mono); font-size: .62rem; color: var(--ink-soft); word-break: break-word; }
+.sightings__model { font-family: var(--mono); font-size: .62rem; color: var(--ink-soft); min-width: 7.5em; overflow-wrap: normal; word-break: normal; }
 .sighting { font-family: var(--mono); font-size: .66rem; white-space: nowrap; }
 .sighting [aria-hidden] { letter-spacing: .08em; margin-right: .25em; }
 .sighting--clean { color: var(--fern); }
@@ -239,6 +240,7 @@
 }
 @media (max-width: 44.9375em) {
   .md-typeset .sightings__table { min-width: 40rem; }
+  .md-typeset .diagram-frame .diagram { min-width: 40rem; }
   .fg-hero h1 { font-size: clamp(1.9rem, 10.5vw, 2.3rem); }
   .fg-row { grid-template-columns: 1.6rem 2.6rem minmax(0, 1fr); }
   .md-typeset .specimen--page { grid-template-columns: 4.4rem minmax(0, 1fr); gap: .9rem; }

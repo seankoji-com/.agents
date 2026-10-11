@@ -8,4 +8,4 @@ Turn 1 (13:18:10Z to 13:18:53Z)
 > The fix is committed locally, but run `20261009-131816-d56576` isn't completed yet. It's waiting on the independent review. [...] T3 will wake this thread when it finishes.
 
 Turn 2 (woken by the review child; 13:19:39Z to 13:19:58Z)
-> Run `20261009-131816-d56576` is completed, and the core reports it ready with 2 requirements passed and none failed, unverified, unavailable or waived. [...] **Review:** Codex (`gpt-6.1-sol`) returned an approve verdict with no findings. The default state root is read-only in this sandbox, so the run state is under `/tmp/claude-1000/b3/state`.
+> Run `20261009-131816-d56576` is completed, and the core reports it ready with 2 requirements passed and none failed, unverified, unavailable or waived. [...] **Review:** Codex (`gpt-6.1-sol`) returned an approve verdict with no findings. The default state root is read-only in this sandbox, so the run state is under `$TMPDIR/b3/state`.

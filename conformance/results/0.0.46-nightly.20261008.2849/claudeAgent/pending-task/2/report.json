@@ -107,7 +107,7 @@
         "~/.local/share/t3-plugins/imps/current/core/cli.py",
         "unblock",
         "--state-root",
-        "/tmp/claude-1000/p2/state",
+        "$TMPDIR/p2/state",
         "--run-id",
         "20261009-135644-b2c5b2",
         "--blocker-id",
@@ -142,5 +142,5 @@
   "next_actions": [
     "block"
   ],
-  "evidence_dir": "/tmp/claude-1000/p2/state/runs/20261009-135644-b2c5b2/artifacts"
+  "evidence_dir": "$TMPDIR/p2/state/runs/20261009-135644-b2c5b2/artifacts"
 }

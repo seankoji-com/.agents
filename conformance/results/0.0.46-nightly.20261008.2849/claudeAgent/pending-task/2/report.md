@@ -8,7 +8,7 @@ Phase `executing` at generation 12. Readiness: `incomplete`. Repository `~/.t3/s
 
 - Reason: result claims evidence that does not exist: {'id': 'REQ-FUNCTIONS', 'path': 'pending-task-2/wordstat.py'}
 - Code: `result_rejected`; tasks: survey
-- Resume: `python3 ~/.local/share/t3-plugins/imps/current/core/cli.py unblock --state-root /tmp/claude-1000/p2/state --run-id 20261009-135644-b2c5b2 --blocker-id B-115a5050f1 --decision retry-task --task-id survey`
+- Resume: `python3 ~/.local/share/t3-plugins/imps/current/core/cli.py unblock --state-root $TMPDIR/p2/state --run-id 20261009-135644-b2c5b2 --blocker-id B-115a5050f1 --decision retry-task --task-id survey`
 - Then paste into the same T3 thread: `Read ~/.local/share/t3-plugins/imps/current/entry.md and run: resume 20261009-135644-b2c5b2`
 
 ## Requirements
@@ -29,4 +29,4 @@ Counts: passed 0, failed 0, unverified 1, unavailable 0, waived 0. Waived is nev
 
 ## Evidence
 
-Artifacts: `/tmp/claude-1000/p2/state/runs/20261009-135644-b2c5b2/artifacts` (never removed by cleanup).
+Artifacts: `$TMPDIR/p2/state/runs/20261009-135644-b2c5b2/artifacts` (never removed by cleanup).

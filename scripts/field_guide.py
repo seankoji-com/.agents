@@ -173,14 +173,17 @@ def render_specimen_header(specimen: dict) -> str:
 
 
 def inline_svgs(markdown: str, root: Path) -> str:
-    """Replace ``<!-- inline-svg: assets/x.svg -->`` with the file so page fonts and colours apply."""
+    """Replace ``<!-- inline-svg: assets/x.svg -->`` with the file so page fonts and colours apply.
+
+    The frame scrolls sideways on narrow screens, where the diagram keeps a readable
+    minimum width instead of shrinking its labels to a few pixels."""
     assets = (root / 'docs' / 'assets').resolve()
 
     def replace(match: re.Match) -> str:
         path = (root / 'docs' / match.group(1)).resolve()
         if assets not in path.parents or not path.is_file():
             raise FieldGuideError(f'inline-svg refers outside docs/assets or to a missing file: {match.group(1)}')
-        return path.read_text().strip()
+        return f'<div class="diagram-frame" markdown="0">{path.read_text().strip()}</div>'
 
     return INLINE_SVG.sub(replace, markdown)
 

@@ -145,7 +145,8 @@ class SyntheticRootTest(unittest.TestCase):
         with self.assertRaises(field_guide.FieldGuideError):
             field_guide.inline_svgs('<!-- inline-svg: assets/missing.svg -->', self.tmp)
         out = field_guide.inline_svgs('x <!-- inline-svg: assets/specimens/alpha.svg --> y', self.tmp)
-        self.assertEqual(out, 'x <svg xmlns="http://www.w3.org/2000/svg"></svg> y')
+        self.assertEqual(out, 'x <div class="diagram-frame" markdown="0">'
+                              '<svg xmlns="http://www.w3.org/2000/svg"></svg></div> y')
 
     def test_dots_render_every_state(self):
         self.assertIn('sighting--none', field_guide.dots(0, 0))

@@ -54,12 +54,12 @@
         {
           "path": "artifacts/evidence/4025ad741432-red.log",
           "sha256": "4025ad74143210299ffffd3896b2ae332841bfe5f359a4ce5417703d17af9625",
-          "source": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/scratch/red.log"
+          "source": "$TMPDIR/a1/state/runs/20261009-134537-5ede92/scratch/red.log"
         },
         {
           "path": "artifacts/evidence/6d34951a2a6b-green.log",
           "sha256": "6d34951a2a6b111c321e6849d443845a131b859feec73c0b7a17772d4cb58512",
-          "source": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/scratch/green.log"
+          "source": "$TMPDIR/a1/state/runs/20261009-134537-5ede92/scratch/green.log"
         }
       ],
       "evidence_kind": "command"
@@ -75,12 +75,12 @@
         {
           "path": "artifacts/evidence/4fd53a86a4d4-red-test.log",
           "sha256": "4fd53a86a4d4372c1928c53eaf2e7e11217fc512f2b1dec6e3dacfd0cb2b5153",
-          "source": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/scratch/red-test.log"
+          "source": "$TMPDIR/a1/state/runs/20261009-134537-5ede92/scratch/red-test.log"
         },
         {
           "path": "artifacts/evidence/beea0a065531-unit-g5.log",
           "sha256": "beea0a065531a47eb23b13aebb2e8c9a9c32867fcfbc6a100d7f7bb6b56a08ee",
-          "source": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/scratch/unit-g5.log"
+          "source": "$TMPDIR/a1/state/runs/20261009-134537-5ede92/scratch/unit-g5.log"
         }
       ],
       "evidence_kind": "command"
@@ -103,7 +103,7 @@
       "artifact": {
         "path": "artifacts/checks/beea0a065531-unit-g5.log",
         "sha256": "beea0a065531a47eb23b13aebb2e8c9a9c32867fcfbc6a100d7f7bb6b56a08ee",
-        "source": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/scratch/unit-g5.log"
+        "source": "$TMPDIR/a1/state/runs/20261009-134537-5ede92/scratch/unit-g5.log"
       }
     }
   ],
@@ -194,7 +194,7 @@
         "~/.local/share/t3-plugins/imps/current/core/cli.py",
         "unblock",
         "--state-root",
-        "/tmp/claude-1000/a1/state",
+        "$TMPDIR/a1/state",
         "--run-id",
         "20261009-134537-5ede92",
         "--blocker-id",
@@ -227,5 +227,5 @@
   "notes": {},
   "completed_binding": null,
   "next_actions": [],
-  "evidence_dir": "/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/artifacts"
+  "evidence_dir": "$TMPDIR/a1/state/runs/20261009-134537-5ede92/artifacts"
 }

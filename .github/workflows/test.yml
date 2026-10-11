@@ -1,4 +1,4 @@
-# Byte-compiles the stdlib-only Python and runs the unittest suite.
+# Byte-compiles the stdlib-only Python and runs the unittest suite, one module per process.
 # No secrets or model calls. setup-python selects the supported runtime matrix.
 name: Test
 
@@ -50,7 +50,7 @@ jobs:
       - name: Unit tests
         env:
           PYTHONDONTWRITEBYTECODE: '1'
-        run: python3 -m unittest discover -s tests -v
+        run: python3 scripts/run_tests.py
 
       - name: Documentation contracts
         run: python3 scripts/check_docs.py
