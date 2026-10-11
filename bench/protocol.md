@@ -24,8 +24,9 @@ index inspection or ctypes) remain a known gap. A passing result does not establ
 safety for those designs; such a candidate requires separate evidence and cannot
 be accepted solely from this grader.
 
-Validation is recorded in `checks/task_b_validation.json`: the unfixed tree fails,
-`d6bed53` and both old fixes pass. Old summaries retain the upstream test output as
+Validation is recorded in `checks/task_b_validation.json`: the unfixed tree (`unfixed`)
+and a refuse-all control (`refuse_all`) fail; the upstream fix (`upstream`, the fixture
+with `d6bed53` applied, head `c98e890`) and both old fixes (`old_b1`, `old_b2`) pass. Old summaries retain the upstream test output as
 `matches_upstream_design`, an informational field, and add `behaviour_grader`.
 References below and in the frozen rubric to Task B's hidden-test gate are superseded
 by this amendment. The upstream tests and full suite remain informational. The frozen summariser remains unchanged: after it runs, the executor renames
@@ -47,7 +48,8 @@ one additional repair round. The current candidate replaces the inode before any
 sequence indexing or slicing, with regression cases for both. Review round 5 found
 no blockers or majors and approved freezing this SHA within the documented scope.
 It verified 22 inode-only mutants twice on Python 3.10, 3.12 and 3.13 (132 failures
-as required), plus the red/green matrix. Minor m6 is deferred: the proxy is not a
+as required), plus the red/green matrix. That mutant matrix is the reviewer's own run,
+kept in its private report (sha256 in `runs/new/review.json`), not in the validation file. Minor m6 is deferred: the proxy is not a
 real stat_result and copy/pickle/type-sensitive designs may fail; contrived count
 or index calls can access real tuple values. These designs need separate evidence.
 Minor m7 is fixed by recording this review in the amendment before retry launch.

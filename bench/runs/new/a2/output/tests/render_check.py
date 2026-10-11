@@ -54,7 +54,7 @@ def main():
         'station + centre markers drawn as vector paths': dom.count('leaflet-interactive') >= len(ids) + 1,
         'attribution control shows © OpenStreetMap contributors':
             re.search(r'leaflet-control-attribution.*?(©|&copy;) OpenStreetMap contributors', dom, re.S) is not None,
-        'tile layer requests tile.openstreetmap.org': 'tile.openstreetmap.org' in dom,
+        'tile layer requests tile.openstreetmap.org': re.search(r'https://tile\.openstreetmap\.org/', dom) is not None,
         'exactly one recommended-station marker': dom.count('data-recommended-station=') == 1,
         'recommended station is ' + data['recommendation']['station_id']:
             f'data-recommended-station="{data["recommendation"]["station_id"]}"' in dom,

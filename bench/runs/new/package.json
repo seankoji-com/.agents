@@ -11,7 +11,9 @@
     "problems": []
   },
   "retry_package": {
-    "source_tree_commit": "0181c2b249dcdd7e026cf6034fc91370da4e8f23",
+    "checkout_commit": "0181c2b249dcdd7e026cf6034fc91370da4e8f23",
+    "installed_version": "1.0.0+g12b51fca6b77",
+    "installer_source_commit": "12b51fca6b77384890587eae1c299fb96eb31722",
     "protocol_freeze_commit": "cc014ab",
     "entry": "<home>/t3-plugins-bench/install/imps-0181c2b/imps/1.0.0+g12b51fca6b77/entry.md",
     "verify_before_runs": {

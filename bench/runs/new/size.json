@@ -125,5 +125,6 @@
       "after": 0,
       "delta": -57
     }
-  }
+  },
+  "note": "modules lists the core files after this stage. module_changes also lists the seven files the stage deleted, with after 0. Its before values sum to baseline_core_python_lines (4313) and its after values to core_python_lines (1563)."
 }

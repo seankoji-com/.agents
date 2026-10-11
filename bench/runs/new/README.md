@@ -61,8 +61,9 @@ Attempt-1 grades are in [grades/](grades/). No attempt is counted.
 
 ## Confinement adjudication
 
-Each retry's [audit-decisions.json](b2/attempt-2/audit-decisions.json) classifies every
-non-ok finding against the private audit, whose sha256 it records. Regexes, sed ranges,
+Each retry's audit decisions ([A1](a1/attempt-2/audit-decisions.json),
+[A2](a2/attempt-2/audit-decisions.json), [B1](b1/attempt-2/audit-decisions.json),
+[B2](b2/attempt-2/audit-decisions.json)) classify every non-ok finding against the private audit, whose sha256 it records. Regexes, sed ranges,
 shell-variable suffixes and in-script strings were checked in context; any finding
 no rule covered would fail the adjudication.
 
@@ -119,6 +120,11 @@ logs and preview. `<home>/t3-plugins-bench/` holds the scratch installs, eight
 workspaces, and private transcripts, audits, blinding keys and grading bundles. The
 owner's configuration, default installs, provider settings and dotfiles were not
 changed. Patch author lines are redacted as in `bench/runs/old/`.
+
+Recorded worker output is kept verbatim with one exception: line 57 of
+`a2/output/tests/render_check.py` now matches the tile URL with a regex instead of a
+substring test, to clear CodeQL alert 3 (`py/incomplete-url-substring-sanitization`),
+which blocked the merge. The check's result is unchanged for the recorded page.
 
 The stage merges by owner instruction with the benchmark gates waived. Release, tap
 update and Pages deployment are not part of this stage.
