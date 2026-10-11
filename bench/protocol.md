@@ -10,10 +10,11 @@ by issue #15 §7.
 The upstream tests distinguish one identity design, rather than the reported bug.
 Both old fixes use an admin-directory owner token and fail those design assertions.
 The corrected Task B gate is `checks/task_b.py`, at SHA-256
-`07c71b25decd88f4e12405bd1b99009fa9e71a5b48c49c594817c3b268abccc0`.
+`4fe03056cd5ab62e0f99276630cfc89e6410788275fd5d36776f36b2c8666da3`.
 The grader records a real worktree through the target core CLI and snapshots every
-path in the worktree and admin directory. It removes and recreates it, then simulates inode
-reuse through stat, descriptor, pathlib and directory-entry APIs. Real nanosecond timestamps,
+path in the worktree root and repository Git metadata, including the containing
+`.git/worktrees` directory. It removes and recreates it, then simulates inode
+reuse through os/native-os stat, descriptor, pathlib and directory-entry APIs. Real nanosecond timestamps,
 device fields, files and Git operations remain intact. It requires both refusal of
 replacement cleanup and an offered command for an untouched owned worktree.
 Patches are installed before importing the target, including aliases and default

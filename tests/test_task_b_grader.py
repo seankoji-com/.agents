@@ -113,6 +113,9 @@ print(json.dumps({'ok':True,'run_id':'fixture','data':data}))
             ('extra_inode', 'os.stat(gitdir).st_ino', '"third_inode": os.stat(Path(gitdir)/"index").st_ino', 'current == recorded'),
             ('scandir', 'next(e for e in os.scandir(gitdir) if e.name == "index").inode()', '', 'current == recorded'),
             ('pathlib', 'Path(gitdir).stat().st_ino', '', 'current == recorded'),
+            ('admin_parent', 'os.stat(Path(gitdir).parent).st_ino', '', 'current == recorded'),
+            ('admin_and_parent', 'os.stat(gitdir).st_ino', '"parent_inode": os.stat(Path(gitdir).parent).st_ino', 'current == recorded'),
+            ('native_os', '__import__(os.name).stat(gitdir).st_ino', '', 'current == recorded'),
             ('refuse_all', 'os.stat(gitdir).st_ino', '', 'False'),
         ]
         for name, read, extra, guard in designs:

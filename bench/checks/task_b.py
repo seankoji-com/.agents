@@ -126,6 +126,9 @@ class ReusedInodes:
                 stack.enter_context(patch.object(accessor, 'scandir', self.wrap_scandir(accessor.scandir)))
         stack.enter_context(patch.multiple(os, stat=self.wrap(os.stat), lstat=self.wrap(os.lstat),
                                           fstat=self.wrap(os.fstat), scandir=self.wrap_scandir(os.scandir)))
+        native = sys.modules[os.name]
+        stack.enter_context(patch.multiple(native, stat=self.wrap(native.stat), lstat=self.wrap(native.lstat),
+                                          fstat=self.wrap(native.fstat), scandir=self.wrap_scandir(native.scandir)))
         return stack
 
 
@@ -204,7 +207,9 @@ def patched_probe(tree: Path, simulation: ReusedInodes) -> dict:
         state = json.loads((root / 'state/runs' / run_id / 'run.json').read_text())
         item = next(r for r in state['resources'] if r['kind'] == 'worktree')
         gitdir = Path(command(['git', '-C', item['path'], 'rev-parse', '--absolute-git-dir'], repo, env))
-        numbers = inode_snapshot([Path(item['path']), gitdir])
+        # Git removes the containing .git/worktrees directory with its last
+        # worktree. Include all repository metadata and the worktree root too.
+        numbers = inode_snapshot([Path(item['path']).parent, repo / '.git'])
         untouched = engine.cleanup_action(item)['args']
         positive = untouched['argv'] is not None
         git('worktree', 'remove', item['path'])

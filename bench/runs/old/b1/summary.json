@@ -87,11 +87,11 @@
       "untouched_offered": true,
       "replacement_refused": true,
       "replacement_identity": "replaced",
-      "simulated_path_count": 12,
+      "simulated_path_count": 61,
       "cleanup_inode_reads": 3,
       "other_stat_fields_real": true,
       "resource_recorded_via_cli": true,
-      "grader_sha256": "07c71b25decd88f4e12405bd1b99009fa9e71a5b48c49c594817c3b268abccc0",
+      "grader_sha256": "4fe03056cd5ab62e0f99276630cfc89e6410788275fd5d36776f36b2c8666da3",
       "head": "0995b69479e91703adccf76fffc4aeab8dd9b754",
       "base_tree": "4e309566ad9c1f4f9b85bac1844f8acea1066646",
       "working_diff_sha256": "052fb75bc2a366df0a8f7857d30291436324228f382ac47c39db60e523edb7c0"
