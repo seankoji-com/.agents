@@ -1,6 +1,6 @@
 {
   "name": "agent-tuneup",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Read-only configuration audits with explicit provider adapters.",
   "argument_hint": "doctor | audit --provider <name> --settings <path> | scan --provider claude",
   "entry": "entry.md",

@@ -57,6 +57,8 @@ t3-plugins doctor
 
 If already installed, use `brew upgrade seankoji-com/tap/t3-plugins` instead of
 `brew install`. Check `brew list --versions t3-plugins` for v0.5.0 or later.
+If the tap has not reached v0.5.0 yet, use the source installation above until its
+formula update is merged.
 Homebrew's formula test uses an isolated temporary home; run setup in your own shell
 to populate your skill adapters.
 

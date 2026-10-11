@@ -131,8 +131,9 @@ class SkillAdapters(unittest.TestCase):
                 operations = {hint.strip().split()[0] for hint in meta['argument_hint'].split('|')}
                 self.assertEqual(operations, set(meta['operations']))
         imps = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
-        for hint in ('run <task> [--personas]', 'resume <run-id>', 'checklist <path.md>',
-                     'issues <number> [<number> ...]', 'discussion <number or URL>'):
+        for hint in ('run <task>', 'resume <run-id>', 'checklist <path>',
+                     'issues <number> [<number> ...]', 'discussion <number or URL>',
+                     'add --personas before or after any request'):
             self.assertIn(hint, imps)
 
     def test_modified_snapshot_is_not_registered(self):
