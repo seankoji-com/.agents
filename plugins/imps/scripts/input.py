@@ -115,6 +115,8 @@ def route(text):
                 raise ValueError('discussion requires a GitHub Discussion URL or a positive number')
         return result
     task = args if explicit else text
+    if not task:
+        return {'operation': 'doctor', 'arguments': '', 'personas': panel}
     result = {'operation': 'run', 'arguments': task, 'personas': panel}
     if re.fullmatch(r'#?[1-9][0-9]*(?:\s+#?[1-9][0-9]*)*', task) or task.startswith('{"issues"'):
         result.update(operation='issues', **issue_set(task))

@@ -27,6 +27,11 @@ class ImpsInput(unittest.TestCase):
         panel = inputs.route('run --personas 42 43')
         self.assertTrue(panel['personas'])
         self.assertEqual(panel['issues'], [42, 43])
+        for request in ('run', '$t3-imps run', '/imps:imps', 'run --personas'):
+            value = inputs.route(request)
+            self.assertEqual(value['operation'], 'doctor')
+            self.assertEqual(value['arguments'], '')
+        self.assertTrue(inputs.route('run --personas')['personas'])
 
     def test_discussion_url_normalization_and_wrong_hosts(self):
         url = 'https://github.com/example/project/discussions/284?x=y#discussioncomment-1'

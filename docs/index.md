@@ -11,15 +11,15 @@ hide:
 
 ```sh
 brew install seankoji-com/tap/t3-plugins
-t3-plugins install
+t3-plugins setup
 t3-plugins doctor
 t3-plugins prompt imps doctor
 ```
 
-Paste the printed line into a T3 thread. The agent reads the installed entry with
-whatever provider you have selected. Optional [skill adapters](slash-commands.md)
-expose entries in the slash menu. [Source installs](getting-started.md#from-source) work the
-same way.
+Setup installs snapshots and [skill adapters](slash-commands.md). Enable **Show
+skills in slash menu** in T3 and restart the agent session. The agent reads the same
+installed entry with the selected provider. Paste the printed prompt when a provider
+lacks skill discovery. [Source installs](getting-started.md#from-source) work the same way.
 
 <div class="demo" markdown="0">
 <!-- inline-svg: assets/demo.svg -->

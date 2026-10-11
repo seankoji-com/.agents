@@ -62,6 +62,22 @@ class SchemaParityTest(CoreTestCase):
         roles = schema.load_schema_file(ROOT / 'plugins' / 'imps' / 'schemas' / 'roles.schema.json')
         self.assertEqual(schema.errors(config['roles'], roles), [])
 
+    def test_persisted_perspective_fields_reject_malformed_values(self):
+        run = json.loads((FIXTURE_DIR / 'valid/run--verifying.json').read_text())
+        review = run['policy']['review']
+        review['perspectives'] = {'architecture': 'Trace contracts.'}
+        run['tasks'][0]['perspective_id'] = 'architecture'
+        run['reviews'] = [{'round': 1, 'verdict': 'approve', 'perspective_id': 'architecture'}]
+        stored = schema.load_schema('run')
+        self.assertEqual(schema.errors(run, stored), [])
+        for owner, key, bad in ((review, 'perspectives', {'architecture': 42}),
+                                (run['tasks'][0], 'perspective_id', 42),
+                                (run['reviews'][0], 'perspective_id', 'invalid name')):
+            original = owner[key]
+            owner[key] = bad
+            self.assertTrue(schema.errors(run, stored))
+            owner[key] = original
+
     def test_no_third_party_imports_or_runtime_dependency_manifests(self):
         pattern = re.compile(r'^(import|from) (jsonschema|pydantic|yaml|attrs)\b', re.M)
         for directory in ('core', 'plugins', 'scripts'):

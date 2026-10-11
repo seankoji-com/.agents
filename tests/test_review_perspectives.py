@@ -53,6 +53,19 @@ class Perspectives(Base):
         self.assertTrue(cli('validate', *run.args())[1]['data']['ready'])
         self.assertEqual(run.only('transition')['args']['to'], 'ready')
         self.assertEqual(len([t for t in run.state['tasks'] if t['kind'] == 'review']), 3)
+        self.assert_report(run, {'default': 'passed', 'architecture': 'passed', 'operations': 'passed'})
+
+    def assert_report(self, run, statuses):
+        code, env, _ = cli('report', *run.args())
+        self.assertEqual(code, 0, env)
+        report = env['data']['report']
+        self.assertEqual({r['id']: r['status'] for r in report['review']['perspectives']}, statuses)
+        self.assertEqual([r['perspective_id'] for r in report['reviews']],
+                         [r['perspective_id'] for r in run.state['reviews']])
+        markdown = (run.run_dir / 'reports/report.md').read_text()
+        for name, status in statuses.items():
+            self.assertIn(f'Perspective {name}: {status}', markdown)
+        return report
 
     def test_adverse_panel_requires_repair_and_invalidates_all(self):
         repo, run = self.panel_run()
@@ -60,6 +73,8 @@ class Perspectives(Base):
         self.review(run, findings=[{'severity': 'major', 'summary': 'missing retry check'}])
         self.assertEqual(run.state['reviews'][-1]['verdict'], 'adverse')
         self.assertEqual(cli('validate', *run.args())[1]['data']['review']['status'], 'failed')
+        report = self.assert_report(run, {'default': 'passed', 'architecture': 'failed', 'operations': 'unverified'})
+        self.assertFalse(report['readiness']['ready'])
         repair = run.only('repair')
         self.assertEqual(repair['args']['stage'], 'review')
         run.record('repair', {'stage': 'review', 'findings': repair['args']['findings']})
@@ -74,6 +89,9 @@ class Perspectives(Base):
         value = cli('validate', *run.args())[1]['data']
         self.assertFalse(value['ready'])
         self.assertTrue(value['stale'])
+        report = self.assert_report(run, {'default': 'unverified', 'architecture': 'unverified',
+                                         'operations': 'unverified'})
+        self.assertEqual(report['readiness']['status'], 'stale')
         self.accept(run)
         action = run.only('dispatch')
         self.assertNotIn('perspective operations', action['host_call']['arguments']['task'])
