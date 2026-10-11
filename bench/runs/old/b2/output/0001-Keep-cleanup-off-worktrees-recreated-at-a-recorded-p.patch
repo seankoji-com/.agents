@@ -1,0 +1,197 @@
+From 8f8c7c988eb6b5f0a18d3d8f36c639a1542b0181 Mon Sep 17 00:00:00 2001
+From: <worker git identity, redacted>
+Date: Sun, 11 Oct 2026 17:07:59 +1100
+Subject: [PATCH] Keep cleanup off worktrees recreated at a recorded path
+
+A run-owned worktree was identified by its admin directory path and the
+inode numbers of that directory and its .git file. ext4 and XFS give a
+freed inode number to the next file created, so a worktree removed and
+recreated at the same path could match and be offered for removal.
+
+Recording a worktree now writes a random owner token into its admin
+directory and keeps it in the identity. Git deletes that directory when
+it removes or prunes the worktree, so a recreated one never carries the
+token. Identities recorded before the token still compare by inode.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ core/records.py       |  2 +-
+ core/resources.py     | 27 +++++++++++++++---
+ tests/test_cleanup.py | 65 +++++++++++++++++++++++++++++++++++++++----
+ 3 files changed, 83 insertions(+), 11 deletions(-)
+
+diff --git a/core/records.py b/core/records.py
+index fd97b8e..d8078ef 100644
+--- a/core/records.py
++++ b/core/records.py
+@@ -670,7 +670,7 @@ def rec_resource(ctx, state, payload):
+         path, name, branch, task_id, probe, action_id = _created_worktree(ctx, state, payload)
+         entry = {'id': rid, 'kind': 'worktree', 'name': name, 'path': str(path), 'branch': branch,
+                  'task_id': task_id, 'status': 'live', 'created_at': ctx.at, 'created_by': action_id,
+-                 'identity': resources.worktree_identity(path),
++                 'identity': resources.own_worktree(path),
+                  # Only a probe worktree, which holds nothing but the probe marker, is force-removed.
+                  'cleanup_argv': ['git', '-C', repo, 'worktree', 'remove', *(['--force'] if probe else []), str(path)]}
+         created.append(entry)
+diff --git a/core/resources.py b/core/resources.py
+index fff16f2..571e7ae 100644
+--- a/core/resources.py
++++ b/core/resources.py
+@@ -4,8 +4,11 @@ from __future__ import annotations
+ 
+ import os
+ import subprocess
++import uuid
+ from pathlib import Path
+ 
++OWNER_FILE = 't3-plugins-owner'
++
+ 
+ def fingerprint(pid: int) -> str | None:
+     out = subprocess.run(['ps', '-o', 'lstart=', '-o', 'command=', '-p', str(int(pid))], capture_output=True)
+@@ -18,15 +21,29 @@ def _git(cwd, *args) -> str | None:
+     return out.stdout.decode(errors='replace').strip() if out.returncode == 0 else None
+ 
+ 
++def own_worktree(path) -> dict | None:
++    """Write a fresh owner token into a new run-owned worktree's admin directory and
++    return the identity that carries it."""
++    gitdir = _git(path, 'rev-parse', '--absolute-git-dir')
++    if not gitdir:
++        return None
++    (Path(gitdir) / OWNER_FILE).write_text(uuid.uuid4().hex + '\n')
++    return worktree_identity(path)
++
++
+ def worktree_identity(path) -> dict | None:
+-    """The worktree's own `.git` file and admin directory: recreating a worktree at
+-    the same path makes new ones."""
++    """The worktree's own `.git` file and admin directory, and the owner token the run
++    wrote there. Inode numbers alone are not enough: ext4 and XFS give a freed number
++    to the next file, so a worktree recreated at the same path can match them. Git
++    deletes the admin directory, token included, when it removes or prunes a worktree."""
+     gitdir = _git(path, 'rev-parse', '--absolute-git-dir')
+     if not gitdir:
+         return None
++    owner = Path(gitdir) / OWNER_FILE
+     try:
+         return {'gitdir': gitdir, 'gitdir_inode': os.stat(gitdir).st_ino,
+-                'dotgit_inode': os.lstat(Path(path) / '.git').st_ino}
++                'dotgit_inode': os.lstat(Path(path) / '.git').st_ino,
++                'owner': owner.read_text().strip() if owner.is_file() else None}
+     except OSError:
+         return None
+ 
+@@ -58,7 +75,9 @@ def _same(item: dict) -> bool:
+     if not recorded:
+         return True  # recorded before identities were kept
+     if item['kind'] == 'worktree':
+-        return worktree_identity(item['path']) == recorded
++        # Only the recorded keys: identities kept before the owner token have none.
++        current = worktree_identity(item['path'])
++        return current is not None and all(current.get(key) == value for key, value in recorded.items())
+     if item['kind'] == 'branch':
+         current = branch_identity(item['repo'], item['branch'])
+         if current is None:
+diff --git a/tests/test_cleanup.py b/tests/test_cleanup.py
+index 0e3a773..3622f6e 100644
+--- a/tests/test_cleanup.py
++++ b/tests/test_cleanup.py
+@@ -1,16 +1,41 @@
+ """REQ-CLEANUP: success removes every run-owned worktree, branch and process;
+ failure preserves them and the report lists one exact cleanup command each.
+ Evidence survives both."""
++import os
+ import shlex
+ import subprocess
+ import sys
+ from pathlib import Path
++from unittest import mock
+ 
+-from support import CoreTestCase, FakeT3, capabilities, cli, done, git, native, result_block
++from support import ROOT, CoreTestCase, FakeT3, capabilities, cli, done, git, native, result_block
++
++sys.path.insert(0, str(ROOT))
++from core import engine, resources  # noqa: E402
++
++
++def reused_inodes(item):
++    """Model ext4 or XFS, which give a freed inode number to the next file created: a
++    worktree recreated at the recorded path gets its `.git` file and admin directory
++    numbers back."""
++    recorded = item['identity']
++    pinned = {recorded['gitdir']: recorded['gitdir_inode'],
++              str(Path(item['path']) / '.git'): recorded['dotgit_inode']}
++
++    def pin(real):
++        def stat(path, *args, **kwargs):
++            result = real(path, *args, **kwargs)
++            if str(path) not in pinned:
++                return result
++            fields = list(result)
++            fields[1] = pinned[str(path)]
++            return os.stat_result(fields)
++        return stat
++    return mock.patch.multiple(os, stat=pin(os.stat), lstat=pin(os.lstat))
+ 
+ 
+ class CleanupTest(CoreTestCase):
+-    def delegated_run(self):
++    def executing_run(self):
+         repo = self.make_repo()
+         run = self.init(self.plan(repo, execution={'mode': 'delegated', 'isolation': 'parallel'},
+                                   tasks=[{'id': 'fix', 'purpose': 'fix counting', 'files': ['wordstat.py']}],
+@@ -19,14 +44,22 @@ class CleanupTest(CoreTestCase):
+         run.claim()
+         run.record('capabilities', {'response': capabilities()})
+         run.record('transition', {'to': 'executing'})
+-        server = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+-        self.addCleanup(lambda: server.wait(timeout=10))
+-        self.addCleanup(lambda: server.poll() is None and server.kill())
+-        run.record('resource', {'kind': 'process', 'pid': server.pid, 'purpose': 'dev server'})
++        return repo, run
++
++    def record_worktree(self, run):
+         tree = run.only('create_worktree')
+         native(tree['args']['argv'])
+         run.record('resource', {'action_id': tree['id'], 'kind': 'worktree', 'name': tree['args']['name'], 'path': tree['args']['path'],
+                                 'branch': tree['args']['branch'], 'task_id': 'fix'})
++        return tree
++
++    def delegated_run(self):
++        repo, run = self.executing_run()
++        server = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
++        self.addCleanup(lambda: server.wait(timeout=10))
++        self.addCleanup(lambda: server.poll() is None and server.kill())
++        run.record('resource', {'kind': 'process', 'pid': server.pid, 'purpose': 'dev server'})
++        self.record_worktree(run)
+         t3 = FakeT3()
+         action = run.only('dispatch')
+         run.record('dispatch', {'action_id': action['id'], 'response': t3.call(action['host_call'])})
+@@ -104,3 +137,23 @@ class CleanupTest(CoreTestCase):
+             self.assertEqual(native(shlex.split(row['cleanup_command'])).returncode, 0, row)
+         server.wait(timeout=10)
+         self.assertEqual(git(repo, 'branch', '--list', 't3p/*').stdout.strip(), '')
++
++    def test_cleanup_skips_a_worktree_recreated_with_reused_inode_numbers(self):
++        repo, run = self.executing_run()
++        tree = self.record_worktree(run)
++        item = next(r for r in run.state['resources'] if r['kind'] == 'worktree')
++        legacy = dict(item, identity={k: v for k, v in item['identity'].items() if k != 'owner'})
++        with reused_inodes(item):
++            self.assertEqual(resources.identity(legacy), 'live', 'identities recorded without an owner still match')
++            own = engine.cleanup_action(item)
++        self.assertEqual(own['args']['identity'], 'live', 'the untouched worktree is still the run\'s')
++        self.assertEqual(native(own['args']['argv']).returncode, 0)
++        self.assertFalse(Path(tree['args']['path']).exists())
++        git(repo, 'worktree', 'add', '-q', tree['args']['path'], tree['args']['branch'])
++        with reused_inodes(item):
++            self.assertEqual(resources.identity(item), 'replaced')
++            self.assertFalse(resources.live(item))
++            action = engine.cleanup_action(item)
++        self.assertEqual(action['args']['identity'], 'replaced')
++        self.assertIsNone(action['args']['argv'])
++        self.assertTrue(Path(tree['args']['path'], 'wordstat.py').is_file())
+-- 
+2.56.0
+

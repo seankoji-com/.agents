@@ -1,0 +1,20 @@
+{
+  "version_label": "old",
+  "tag": "bench/old-imps",
+  "source_tree_commit": "6e4cf824b45f496fb75900303b98d857235b59a0",
+  "installed_version": "0.2.3+g35d31354223b",
+  "manifest_source_commit": "35d31354223b78367369c859a0ad23002f07bedf",
+  "note": "The installer stamps the last commit that touched plugins/imps, core or shared (35d3135); the tree is 6e4cf82.",
+  "install_manifest_sha256": "99a4aa4512053d141c6aab36149036960cb29d22a1b4c6c9a5fc89e18f936012",
+  "files": 55,
+  "entry": "<home>/t3-plugins-bench/install/imps-6e4cf82/imps/0.2.3+g35d31354223b/entry.md",
+  "verify_before_runs": {
+    "ok": true,
+    "problems": []
+  },
+  "verify_after_runs": {
+    "ok": true,
+    "problems": [],
+    "manifest_sha256": "99a4aa4512053d141c6aab36149036960cb29d22a1b4c6c9a5fc89e18f936012"
+  }
+}

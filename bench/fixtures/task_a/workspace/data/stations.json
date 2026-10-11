@@ -1,0 +1,208 @@
+{
+  "centre": {
+    "lat": -33.833,
+    "lon": 151.183
+  },
+  "stations": [
+    {
+      "id": "STN-0001",
+      "name": "Greenwich Point Fuel",
+      "brand": "Harbour",
+      "address": "178 Greenwich Street",
+      "lat": -33.837133,
+      "lon": 151.187176
+    },
+    {
+      "id": "STN-0002",
+      "name": "River Road Service Centre",
+      "brand": "Harbour",
+      "address": "174 River Street",
+      "lat": -33.826704,
+      "lon": 151.169874
+    },
+    {
+      "id": "STN-0003",
+      "name": "Longueville Express",
+      "brand": "Coastal",
+      "address": "29 Longueville Street",
+      "lat": -33.834644,
+      "lon": 151.20565
+    },
+    {
+      "id": "STN-0004",
+      "name": "Pacific Highway Fuels",
+      "brand": "Independent",
+      "address": "184 Pacific Street",
+      "lat": -33.810182,
+      "lon": 151.192995
+    },
+    {
+      "id": "STN-0005",
+      "name": "Northbridge Corner Store",
+      "brand": "Harbour",
+      "address": "20 Northbridge Street",
+      "lat": -33.823153,
+      "lon": 151.215552
+    },
+    {
+      "id": "STN-0006",
+      "name": "Lane Cove West Fuel Stop",
+      "brand": "Independent",
+      "address": "362 Lane Street",
+      "lat": -33.827372,
+      "lon": 151.144619
+    },
+    {
+      "id": "STN-0007",
+      "name": "Artarmon Junction Fuels",
+      "brand": "Coastal",
+      "address": "112 Artarmon Street",
+      "lat": -33.776317,
+      "lon": 151.195024
+    },
+    {
+      "id": "STN-0008",
+      "name": "Cammeray Bridge Service",
+      "brand": "Metro",
+      "address": "242 Cammeray Street",
+      "lat": -33.845604,
+      "lon": 151.224718
+    },
+    {
+      "id": "STN-0009",
+      "name": "Hunters Hill Motor Fuel",
+      "brand": "Independent",
+      "address": "2 Hunters Street",
+      "lat": -33.852778,
+      "lon": 151.141736
+    },
+    {
+      "id": "STN-0010",
+      "name": "Gladesville Roundabout Fuel",
+      "brand": "Metro",
+      "address": "124 Gladesville Street",
+      "lat": -33.836907,
+      "lon": 151.129071
+    },
+    {
+      "id": "STN-0011",
+      "name": "Neutral Bay Fuel Co",
+      "brand": "Metro",
+      "address": "100 Neutral Street",
+      "lat": -33.870381,
+      "lon": 151.208995
+    },
+    {
+      "id": "STN-0012",
+      "name": "Chatswood Chase Service",
+      "brand": "Coastal",
+      "address": "365 Chatswood Street",
+      "lat": -33.784353,
+      "lon": 151.198683
+    },
+    {
+      "id": "STN-0013",
+      "name": "Balmain Wharf Fuel",
+      "brand": "Harbour",
+      "address": "313 Balmain Street",
+      "lat": -33.884251,
+      "lon": 151.166458
+    },
+    {
+      "id": "STN-0014",
+      "name": "Drummoyne Bay Petroleum",
+      "brand": "Coastal",
+      "address": "9 Drummoyne Street",
+      "lat": -33.876231,
+      "lon": 151.130916
+    },
+    {
+      "id": "STN-0015",
+      "name": "Pyrmont Bridge Road Fuel",
+      "brand": "Metro",
+      "address": "132 Pyrmont Street",
+      "lat": -33.896767,
+      "lon": 151.196546
+    },
+    {
+      "id": "STN-0016",
+      "name": "North Ryde Link Fuel",
+      "brand": "Harbour",
+      "address": "355 North Street",
+      "lat": -33.793262,
+      "lon": 151.114744
+    },
+    {
+      "id": "STN-0017",
+      "name": "Willoughby Heights Fuel",
+      "brand": "Coastal",
+      "address": "396 Willoughby Street",
+      "lat": -33.7942,
+      "lon": 151.229677
+    },
+    {
+      "id": "STN-0018",
+      "name": "Mosman Spit Junction Fuel",
+      "brand": "Metro",
+      "address": "156 Mosman Street",
+      "lat": -33.84593,
+      "lon": 151.271509
+    },
+    {
+      "id": "STN-0019",
+      "name": "Putney Ferry Service",
+      "brand": "Metro",
+      "address": "183 Putney Street",
+      "lat": -33.853449,
+      "lon": 151.090951
+    },
+    {
+      "id": "STN-0020",
+      "name": "Roseville Ridge Fuel",
+      "brand": "Independent",
+      "address": "353 Roseville Street",
+      "lat": -33.756377,
+      "lon": 151.225971
+    },
+    {
+      "id": "STN-0021",
+      "name": "Boundary Road Fuel",
+      "brand": "Metro",
+      "address": "353 Boundary Street",
+      "lat": -33.755377,
+      "lon": 151.129106
+    },
+    {
+      "id": "STN-0901",
+      "name": "Marsfield Outer Fuel",
+      "brand": "Harbour",
+      "address": "36 Marsfield Street",
+      "lat": -33.785296,
+      "lon": 151.083669
+    },
+    {
+      "id": "STN-0902",
+      "name": "Strathfield Plaza Fuel",
+      "brand": "Harbour",
+      "address": "176 Strathfield Street",
+      "lat": -33.902906,
+      "lon": 151.082565
+    },
+    {
+      "id": "STN-0903",
+      "name": "Manly Corso Fuel",
+      "brand": "Coastal",
+      "address": "187 Manly Street",
+      "lat": -33.798455,
+      "lon": 151.337711
+    },
+    {
+      "id": "STN-0904",
+      "name": "Hornsby Gateway Fuel",
+      "brand": "Coastal",
+      "address": "164 Hornsby Street",
+      "lat": -33.64038,
+      "lon": 151.162758
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "slot": "audit-test",
+  "workspace_id": "261ebb6f",
+  "thread_id": "mcp:dce0a478-2219-4779-8fdc-103c45b4f113",
+  "outcome": "completed",
+  "model_selection": {
+    "instanceId": "claudeAgent",
+    "model": "claude-opus-5-5",
+    "options": [
+      {
+        "id": "effort",
+        "value": "xhigh"
+      }
+    ]
+  },
+  "runtime_mode": "auto",
+  "result": {
+    "project_dir_found": true,
+    "parent_attributed": true,
+    "parent_file_sha256": "2a152c3d95ca0a444917b19c7fe51cb5765b9e8e9dcf7acfa962ab84331da40b",
+    "parent_opus_tokens": {
+      "counted": 44520,
+      "cache_read": 108280,
+      "other_models_in_parent": []
+    },
+    "descendants": [
+      {
+        "kind": "claude-session",
+        "file_sha256": "ee2e845a0e00af9156c9327c3e5b0fa6b8eac5293b3a7ec644f618d74f586a0a",
+        "first_prompt": "Reply with the single word: ok",
+        "by_model": {
+          "claude-opus-5-5": {
+            "messages": 1,
+            "input_tokens": 2,
+            "output_tokens": 4,
+            "cache_creation_input_tokens": 24476,
+            "cache_read_input_tokens": 16911,
+            "counted": 24482,
+            "cache_read": 16911
+          }
+        }
+      }
+    ],
+    "audit": {
+      "transcripts": 2,
+      "void": 0,
+      "review": 0
+    }
+  },
+  "verdict": "pass: both transcripts found, parsed and attributed by path",
+  "raw_sha256": {
+    "2ca25075-92e0-41b2-a9e3-f0dcad0613de.jsonl": "2a152c3d95ca0a444917b19c7fe51cb5765b9e8e9dcf7acfa962ab84331da40b",
+    "ad6e86fc-771f-4dc2-9844-8c5094094b03.jsonl": "ee2e845a0e00af9156c9327c3e5b0fa6b8eac5293b3a7ec644f618d74f586a0a"
+  }
+}
