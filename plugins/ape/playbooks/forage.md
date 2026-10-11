@@ -11,7 +11,7 @@
    Clone through `scripts/clone-candidates.sh <workspace> <url> <name> <sparse:0|1>`;
    repeat triples for multiple candidates. Never reinterpret rejected URLs as shell code.
 5. Apply the comparison and reporting rules in `PKG/playbooks/study.md` to each clone.
-   Parallel T3 analysts are optional when the independent comparisons justify them.
-   Give each the fingerprint, exact scope, source revision, and report path.
+   Independent comparisons are delegation candidates under `PKG/shared/delegation.md`.
+   Give each child the fingerprint, exact scope, source revision, and report path.
 6. Synthesize overlap and conflicting recommendations. Recommend the smallest useful
    experiment, with evidence against it. Save reports; do not modify the target project.

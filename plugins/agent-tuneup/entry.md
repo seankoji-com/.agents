@@ -1,7 +1,8 @@
 # agent-tuneup
 
 Audit agent configuration without weakening permissions. Read
-`PKG/shared/t3-runtime.md`, then `PKG/playbooks/audit.md`.
+`PKG/shared/t3-runtime.md`, then `PKG/playbooks/audit.md`. Delegation follows
+`PKG/shared/delegation.md`.
 
 - `audit --provider <name> --settings <path>`: inspect explicitly supplied settings.
   Exit codes: `0` clean, `1` findings present, `2` unreadable or invalid settings.

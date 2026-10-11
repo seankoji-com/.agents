@@ -11,10 +11,10 @@ For `elephant`:
    mark superseded decisions explicitly. Record checked revision and dirty-tree status.
 2. Verify each concrete claim against code and command definitions. Mark uncertain
    claims as inferred. File existence alone does not prove the claim.
-3. Discover available T3 reviewers. If authorized, choose a model from a different
-   model family than the author. Provider names alone do not establish model lineage.
-   Give it only the document and a brief asking for `VERDICT: READY` or
-   `VERDICT: NOT READY` with numbered bootstrap gaps. Request no repository inspection.
+3. If authorized, delegate a cold review under `PKG/shared/delegation.md`. Give the
+   reviewer only the document and a brief asking for every bootstrap gap, numbered and
+   marked blocking or minor, then `VERDICT: READY` when no gap blocks or
+   `VERDICT: NOT READY`. Request no repository inspection.
    T3 workspace access is not a security sandbox: record that the document-only rule
    is an instruction boundary. If independent review is unavailable, report unreviewed.
 4. On NOT READY, repair the named gaps, repeat factual checks, and request a new T3

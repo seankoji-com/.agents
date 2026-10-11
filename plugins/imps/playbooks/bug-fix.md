@@ -54,9 +54,9 @@ Requirements describe observable behaviour, not the diff. A typical bug-fix plan
 }
 ```
 
-Replace every value with real ones from this repository; the core rejects unknown fields. Use `base_ref` to name the branch the fix will merge into. Review is required by default. The first available catalog provider other than you reviews the change; if none is available, a fresh child on your own provider does. Repository policy in `.t3-plugins/imps.json` can name a specific reviewer, mark checks repository-required, or forbid waivers.
+Replace every value with real ones from this repository; the core rejects unknown fields. Use `base_ref` to name the branch the fix will merge into. Review is required by default. Unless the plan pins a reviewer from the routing config (`PKG/references/delegation.md`), the first available catalog provider other than you reviews the change; if none is available, a fresh child on your own provider does. Repository policy in `.t3-plugins/imps.json` can name a specific reviewer, mark checks repository-required, or forbid waivers.
 
-Use direct mode for almost every bug fix. Delegate only independent pieces, such as a read-only survey of other callers alongside your own fix.
+Choose the mode under `PKG/shared/delegation.md`. A read-only survey of other callers is the usual independent piece.
 
 ## 5. Implement
 
@@ -75,7 +75,7 @@ Machine checks come before review. For a PR endstate, `next` first asks you to c
 
 ## 7. Review and repair
 
-`next` dispatches the review through `delegate_task`. End your turn; T3 wakes you when it finishes. Then record the observation.
+`next` dispatches the review through `delegate_task`. Then record the observation.
 
 - `approve` at the current revision satisfies review.
 - `adverse` is kept. `next` offers `repair` (default limit: two rounds per stage, counted across resumes). Record it, fix the findings you can support, and go round again. Every repair invalidates earlier checks, acceptance and review, so all of them rerun.
