@@ -10,12 +10,18 @@ by issue #15 §7.
 The upstream tests distinguish one identity design, rather than the reported bug.
 Both old fixes use an admin-directory owner token and fail those design assertions.
 The corrected Task B gate is `checks/task_b.py`, at SHA-256
-`6c5b428ec4b822f1681a22204a2cdec6ceacb4dd322027ec270bf242bdc46fb2`.
+`07c71b25decd88f4e12405bd1b99009fa9e71a5b48c49c594817c3b268abccc0`.
 The grader records a real worktree through the target core CLI and snapshots every
 path in the worktree and admin directory. It removes and recreates it, then simulates inode
 reuse through stat, descriptor, pathlib and directory-entry APIs. Real nanosecond timestamps,
 device fields, files and Git operations remain intact. It requires both refusal of
 replacement cleanup and an offered command for an untouched owned worktree.
+Patches are installed before importing the target, including aliases and default
+arguments captured at import time. The simulation covers these Python APIs only.
+Inode reads made in subprocesses or native code (for example `stat`, `ls -i`, Git
+index inspection or ctypes) remain a known gap. A passing result does not establish
+safety for those designs; such a candidate requires separate evidence and cannot
+be accepted solely from this grader.
 
 Validation is recorded in `checks/task_b_validation.json`: the unfixed tree fails,
 `d6bed53` and both old fixes pass. Old summaries retain the upstream test output as

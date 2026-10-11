@@ -63,14 +63,15 @@ class InodeSimulationTest(unittest.TestCase):
 class BehaviourProbeTest(unittest.TestCase):
     """Minimal old CLI seam, real Git resources, several independent fix designs."""
 
-    def tree(self, root, read, extra='', guard='current == recorded'):
+    def tree(self, root, read, extra='', guard='current == recorded', imports='', defaults=''):
         (root / 'core').mkdir()
         (root / 'core/__init__.py').write_text('')
         (root / 'tests/fixtures/t3').mkdir(parents=True)
         (root / 'tests/fixtures/t3/capabilities.json').write_text('{}')
         (root / 'core/resources.py').write_text(
             'import os, subprocess\nfrom pathlib import Path\n'
-            'def capture(path):\n'
+            f'{imports}\n'
+            f'def capture(path{defaults}):\n'
             '    gitdir = subprocess.check_output(["git", "-C", str(path), "rev-parse", "--absolute-git-dir"], text=True).strip()\n'
             f'    return {{"renamed_inode": {read}, {extra}}}\n')
         (root / 'core/engine.py').write_text(
@@ -122,6 +123,18 @@ print(json.dumps({'ok':True,'run_id':'fixture','data':data}))
                 if name != 'refuse_all':
                     self.assertTrue(report['untouched_offered'])
                     self.assertFalse(report['replacement_refused'])
+
+    def test_import_alias_and_default_argument_inode_only_mutants_fail(self):
+        for imports, defaults, read in (
+            ('from os import stat as _stat', '', '_stat(gitdir).st_ino'),
+            ('', ', _stat=os.stat', '_stat(gitdir).st_ino'),
+        ):
+            with self.subTest(imports=imports, defaults=defaults), tempfile.TemporaryDirectory() as tmp:
+                report = grader.grade(self.tree(Path(tmp), read, imports=imports, defaults=defaults))
+                self.assertNotIn('error', report, report)
+                self.assertTrue(report['untouched_offered'], report)
+                self.assertFalse(report['replacement_refused'], report)
+                self.assertFalse(report['ok'], report)
 
     def test_real_timestamp_fix_passes_with_renamed_identity_and_label(self):
         with tempfile.TemporaryDirectory() as tmp:

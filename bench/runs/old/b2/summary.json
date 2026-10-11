@@ -91,7 +91,7 @@
       "cleanup_inode_reads": 3,
       "other_stat_fields_real": true,
       "resource_recorded_via_cli": true,
-      "grader_sha256": "6c5b428ec4b822f1681a22204a2cdec6ceacb4dd322027ec270bf242bdc46fb2",
+      "grader_sha256": "07c71b25decd88f4e12405bd1b99009fa9e71a5b48c49c594817c3b268abccc0",
       "head": "0995b69479e91703adccf76fffc4aeab8dd9b754",
       "base_tree": "4e309566ad9c1f4f9b85bac1844f8acea1066646",
       "working_diff_sha256": "4d94022291522343352e7c4457e6354d2d3ba28c2081cc624707a8c60fa7ebc4"

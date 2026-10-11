@@ -60,20 +60,27 @@ def inode_snapshot(roots):
 class ReusedInodes:
     """Override by real device/inode, so descriptors and extra paths are covered."""
 
-    def __init__(self, before):
+    def __init__(self, before=None):
         self.mapping = {}
         self.hits = 0
         self.paths = 0
+        self.real_lstat = os.lstat
+        if before is not None:
+            self.populate(before)
+
+    def populate(self, before):
+        mapping = {}
         for path, inode in before.items():
             try:
-                current = os.lstat(path)
+                current = self.real_lstat(path)
             except FileNotFoundError:
                 continue  # Missing owner files stay missing.
             key = (current.st_dev, current.st_ino)
-            if key in self.mapping and self.mapping[key] != inode:
+            if key in mapping and mapping[key] != inode:
                 raise RuntimeError('ambiguous hardlink inode mapping')
-            self.mapping[key] = inode
+            mapping[key] = inode
             self.paths += 1
+        self.mapping = mapping
 
     def convert(self, stat):
         key = (stat.st_dev, stat.st_ino)
@@ -128,6 +135,13 @@ def command(argv, cwd, env):
 
 
 def probe(tree: Path) -> dict:
+    simulation = ReusedInodes()
+    # Imported aliases and default arguments must bind the same mutable wrapper.
+    with simulation.patches():
+        return patched_probe(tree, simulation)
+
+
+def patched_probe(tree: Path, simulation: ReusedInodes) -> dict:
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(tree))
     from core import engine
@@ -195,22 +209,21 @@ def probe(tree: Path) -> dict:
         positive = untouched['argv'] is not None
         git('worktree', 'remove', item['path'])
         git('worktree', 'add', '-q', item['path'], item['branch'])
-        simulation = ReusedInodes(numbers)
-        before = {p: os.lstat(p) for p in numbers if Path(p).exists() or Path(p).is_symlink()}
+        before = {p: simulation.real_lstat(p) for p in numbers if Path(p).exists() or Path(p).is_symlink()}
+        simulation.populate(numbers)
         fields_real = True
-        with simulation.patches():
-            # Explicitly prove that all original path inode numbers match, while the
-            # timestamp and device fields remain those of the replacement.
-            for p, real in before.items():
-                found = os.lstat(p)
-                if found.st_ino != numbers[p]:
-                    raise RuntimeError('inode simulation did not apply')
-                for field in ('st_dev', 'st_mode', 'st_size', 'st_mtime_ns', 'st_ctime_ns'):
-                    fields_real = fields_real and getattr(found, field) == getattr(real, field)
-            if not fields_real:
-                raise RuntimeError('simulation changed non-inode stat fields')
-            simulation.hits = 0
-            replaced = engine.cleanup_action(item)['args']
+        # Explicitly prove that all original path inode numbers match, while the
+        # timestamp and device fields remain those of the replacement.
+        for p, real in before.items():
+            found = os.lstat(p)
+            if found.st_ino != numbers[p]:
+                raise RuntimeError('inode simulation did not apply')
+            for field in ('st_dev', 'st_mode', 'st_size', 'st_mtime_ns', 'st_ctime_ns'):
+                fields_real = fields_real and getattr(found, field) == getattr(real, field)
+        if not fields_real:
+            raise RuntimeError('simulation changed non-inode stat fields')
+        simulation.hits = 0
+        replaced = engine.cleanup_action(item)['args']
         negative = replaced['argv'] is None
         if (Path(item['path']) / 'file.txt').read_text() != 'real worktree content\n':
             raise RuntimeError('replacement file bytes changed')
