@@ -200,8 +200,9 @@ jobs:
             git checkout -b "${BRANCH}"
           fi
           mkdir -p Formula Aliases
-          sed -e "s|__VERSION__|${VER}|" \
-              -e "s|__URL__|${URL}|" \
+          # No version stanza: Homebrew reads it from the URL, and brew audit --strict
+          # rejects a redundant one.
+          sed -e "s|__URL__|${URL}|" \
               -e "s|__SHA256__|${SHA}|" \
               "$GITHUB_WORKSPACE/packaging/t3-plugins.rb.tmpl" \
               > Formula/t3-plugins.rb
