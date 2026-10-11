@@ -44,3 +44,11 @@ now resolves its entire isolated root, matching the storage/grant fixtures.
 Running the same five tests through a symlinked temporary-directory alias reproduces
 the original two failures and passes after this fix. All assertions and runtime
 symlink refusals remain intact.
+
+Hosted review caught caller-supplied publication receipts on ordinary lesson writes.
+Those writes now refuse `destinations`; only harvest creates receipts. Regression
+tests cover both new and existing entries, unchanged storage on refusal, preservation
+of legitimate partial receipts, and an approved harvest with no receipts retaining
+its entry. Publication mocks are now called through the approval guard, including a
+successful control; installed helper subprocesses have bounded waits. The cited
+colon-space prose labels are permitted fixtures; ambiguous SSH shorthand stays blocked.

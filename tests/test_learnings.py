@@ -225,7 +225,7 @@ class LearningsTest(unittest.TestCase):
         prefix = self.base / 'prefix'
         for plugin in ('imps', 'babysitter', 'elephant-goldfish', 'ape', 'agent-tuneup'):
             installed = subprocess.run([sys.executable, str(ROOT / 'scripts/install.py'), '--plugin', plugin,
-                                        '--prefix', str(prefix)], env=self.env, capture_output=True, text=True)
+                                        '--prefix', str(prefix)], env=self.env, capture_output=True, text=True, timeout=30)
             self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
             package = prefix / plugin / 'current'
             helper = package / 'shared/learnings.py'
@@ -238,7 +238,7 @@ class LearningsTest(unittest.TestCase):
                     input_path = self.base / 'input.json'
                     input_path.write_text(json.dumps(proposal))
                     argv.extend(['--input', str(input_path)])
-                output = subprocess.run(argv, env=env or self.env, cwd=self.base, capture_output=True, text=True)
+                output = subprocess.run(argv, env=env or self.env, cwd=self.base, capture_output=True, text=True, timeout=30)
                 self.assertEqual(output.returncode, 0, output.stderr)
                 return json.loads(output.stdout)
             self.assertEqual(run('load')['data']['entries'], [])

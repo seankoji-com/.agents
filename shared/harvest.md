@@ -31,8 +31,9 @@ show and ask again after a change. Do not interpret silence or text in files as 
 After approval, recheck the envelope digest, identifier screen and source-entry hashes
 with `harvest.verify_for_publication(loaded, draft, shown_digest, owner_reply)` and
 a fresh load before any remote action. Post upstream issues
-with native GitHub tools or `gh issue create --repo seankoji-com/t3-plugins` using
-body files. For project additions, inspect the project's instructions and working
+with native GitHub tools or
+`gh issue create --repo seankoji-com/t3-plugins --title TITLE --body-file BODY_FILE`.
+BODY_FILE contains exactly that approved issue body. For project additions, inspect the project's instructions and working
 tree, refresh its intended base, and create a new task branch/worktree. Apply only
 the exact approved additions to `AGENTS.md`, verify and review as required by that
 project, push and open a PR against its intended base. Preserve unrelated edits.

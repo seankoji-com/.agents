@@ -268,6 +268,8 @@ class Store:
                     if data['maintained_version'] != self.version:
                         raise Unavailable('maintenance pending; load and maintain before writing')
                     entry = dict(proposal['entry'])
+                    if 'destinations' in entry:
+                        raise Unavailable('publication metadata belongs to harvest, not lesson writes')
                     old = next((e for e in data['entries'] if e['id'] == entry.get('id')), None)
                     entry['authored_version'] = old['authored_version'] if old else self.version
                     entry['last_validated_version'] = self.version

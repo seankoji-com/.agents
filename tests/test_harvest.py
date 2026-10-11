@@ -10,7 +10,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'shared'))
 from harvest import check_approval, prepare, screen, verify_for_publication
-from learning_store import Store, Unavailable, digest
+from learning_store import Store, Unavailable
 
 VERSION = '0.1.0+content.' + 'a' * 12
 
@@ -52,7 +52,8 @@ class HarvestTest(unittest.TestCase):
             self.assertTrue(screen(value, 'the-project-key', 'private-project'), value)
         permitted = ['Keep task handles.', 'Use seankoji-com/t3-plugins',
                      'See https://github.com/seankoji-com/t3-plugins',
-                     'See docs.example.invalid for public instructions.', 'Keep one lesson per stable ID.']
+                     'See docs.example.invalid for public instructions.', 'Keep one lesson per stable ID.',
+                     'Note: keep handles', 'Impact: retries stalled']
         for value in permitted:
             self.assertEqual(screen(value, 'the-project-key', 'private-project', 'docs.example.invalid'), [], value)
         self.assertTrue(screen('docs.example.invalid', 'key', 'label'))
@@ -68,11 +69,18 @@ class HarvestTest(unittest.TestCase):
     def test_no_publication_without_exact_explicit_owner_approval(self):
         prepared = prepare(self.loaded, self.drafts, project_slug='public/example')
         issue, pr = mock.Mock(), mock.Mock()
+        def publish(reply):
+            approved = verify_for_publication(self.loaded, prepared['draft'], prepared['shown_digest'], reply)
+            for draft in approved:
+                (issue if draft['destination'] == 'upstream' else pr)(draft['title'], draft['body'])
         for reply in ('yes', '', 'approve wrong', json.dumps({'approved': True})):
             with self.assertRaises(Unavailable):
-                verify_for_publication(self.loaded, prepared['draft'], prepared['shown_digest'], reply)
+                publish(reply)
         issue.assert_not_called()
         pr.assert_not_called()
+        publish('approve ' + prepared['shown_digest'])
+        issue.assert_called_once_with(self.drafts[0]['title'], self.drafts[0]['body'])
+        pr.assert_called_once_with(self.drafts[1]['title'], self.drafts[1]['body'])
         amended = json.loads(json.dumps(prepared['draft']))
         amended['drafts'][0]['body'] += ' More text.'
         with self.assertRaises(Unavailable):
@@ -96,6 +104,9 @@ class HarvestTest(unittest.TestCase):
         self.assertEqual(partial['status'], 'available', partial)
         entry = partial['data']['entries'][0]
         self.assertEqual(entry['destinations'], {'upstream': issue.return_value, 'agents': None})
+        partial = self.store.operate('write', {'entry': {
+            'id': 'lesson', 'summary': entry['summary'], 'failure': entry['failure']}})
+        self.assertEqual(partial['data']['entries'][0]['destinations'], entry['destinations'])
         # The successful issue is never posted again. Fresh approval covers the remaining PR.
         prepared = prepare(partial, [self.drafts[1]], project_slug='public/example')
         pr = mock.Mock(return_value='https://github.com/public/example/pull/7')
@@ -133,6 +144,21 @@ class HarvestTest(unittest.TestCase):
                                                url='https://github.com/elsewhere/repo/pull/7')])
         proposal['project_slug'] = 'elsewhere/repo'
         self.assertEqual(self.store.operate('harvest', proposal)['status'], 'unavailable')
+
+    def test_normal_writes_cannot_forge_publication_receipts(self):
+        before = self.store.operate()
+        for entry_id in ('lesson', 'new'):
+            for destinations in ({}, {'upstream': 'https://github.com/seankoji-com/t3-plugins/issues/42',
+                                     'agents': 'https://github.com/public/example/pull/7'}):
+                result = self.store.operate('write', {'entry': {
+                    'id': entry_id, 'summary': 'Retain handles', 'failure': 'Observed failure',
+                    'destinations': destinations}})
+                self.assertEqual(result['status'], 'unavailable')
+                self.assertEqual(self.store.operate()['revision'], before['revision'])
+        prepared = prepare(before, self.drafts, project_slug='public/example')
+        result = self.store.operate('harvest', self.proposal(prepared, []))
+        self.assertEqual(len(result['data']['entries']), 1)
+        self.assertEqual(result['data']['entries'][0]['destinations'], {'upstream': None, 'agents': None})
 
 
 if __name__ == '__main__':
