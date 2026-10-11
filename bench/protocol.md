@@ -9,8 +9,8 @@ by issue #15 §7.
 
 The upstream tests distinguish one identity design, rather than the reported bug.
 Both old fixes use an admin-directory owner token and fail those design assertions.
-The corrected Task B gate is `checks/task_b.py`, at SHA-256
-`4fe03056cd5ab62e0f99276630cfc89e6410788275fd5d36776f36b2c8666da3`.
+The candidate Task B gate is `checks/task_b.py`, at SHA-256
+`f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508`.
 The grader records a real worktree through the target core CLI and snapshots every
 path in the worktree root and repository Git metadata, including the containing
 `.git/worktrees` directory. It removes and recreates it, then simulates inode
@@ -37,6 +37,14 @@ new workers launched. Those attempts are retained as informational; they cannot
 satisfy REQ-B-GRADER's freeze-before-launch condition. Stage 5 remains blocked on
 that condition, even if their output checks pass. A valid comparison requires a
 new authorised benchmark cycle with this corrected grader frozen before launch.
+
+Review round 4 rejected the previous candidate: `InodeStat` exposed the real
+inode through stat-result slices and negative indexes (M3), with filesystem-dependent
+false passes. After the three planned repair rounds, the owner explicitly authorised
+one additional repair round. The current candidate replaces the inode before any
+sequence indexing or slicing, with regression cases for both. Its fresh review is
+pending. All validation and new grades remain diagnostic; no stage acceptance or
+fair comparison is claimed. The subprocess/native-code gap remains unverified.
 
 The benchmark compares two imps versions on two tasks: the **old** package (built from
 `6e4cf82`, tag `bench/old-imps`) and the **new** package (built in stage 5 from the final

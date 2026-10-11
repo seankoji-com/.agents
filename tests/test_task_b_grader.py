@@ -20,6 +20,9 @@ class InodeSimulationTest(unittest.TestCase):
             wrapped = grader.inode_wrapper(os.stat, {str(path): real.st_ino + 1})(path)
             self.assertEqual(wrapped.st_ino, real.st_ino + 1)
             self.assertEqual(wrapped[1], real.st_ino + 1)
+            self.assertEqual(wrapped[1:3], (real.st_ino + 1, real.st_dev))
+            self.assertEqual(wrapped[1 - len(real)], real.st_ino + 1)
+            self.assertEqual(wrapped[:], tuple(wrapped))
             for name in dir(real):
                 if name.startswith('st_') and name != 'st_ino':
                     self.assertEqual(getattr(wrapped, name), getattr(real, name), name)
@@ -116,6 +119,9 @@ print(json.dumps({'ok':True,'run_id':'fixture','data':data}))
             ('admin_parent', 'os.stat(Path(gitdir).parent).st_ino', '', 'current == recorded'),
             ('admin_and_parent', 'os.stat(gitdir).st_ino', '"parent_inode": os.stat(Path(gitdir).parent).st_ino', 'current == recorded'),
             ('native_os', '__import__(os.name).stat(gitdir).st_ino', '', 'current == recorded'),
+            ('stat_slice', 'os.stat(gitdir)[1:3][0]', '', 'current == recorded'),
+            ('stat_slice_pair', 'list(os.stat(gitdir)[1:3])', '', 'current == recorded'),
+            ('stat_negative_index', 'os.stat(gitdir)[-9]', '', 'current == recorded'),
             ('refuse_all', 'os.stat(gitdir).st_ino', '', 'False'),
         ]
         for name, read, extra, guard in designs:

@@ -1,5 +1,5 @@
 {
-  "grader_sha256": "4fe03056cd5ab62e0f99276630cfc89e6410788275fd5d36776f36b2c8666da3",
+  "grader_sha256": "f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508",
   "targets": {
     "unfixed": {
       "ok": false,
@@ -10,7 +10,7 @@
       "cleanup_inode_reads": 3,
       "other_stat_fields_real": true,
       "resource_recorded_via_cli": true,
-      "grader_sha256": "4fe03056cd5ab62e0f99276630cfc89e6410788275fd5d36776f36b2c8666da3",
+      "grader_sha256": "f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508",
       "head": "0995b69479e91703adccf76fffc4aeab8dd9b754",
       "base_tree": "4e309566ad9c1f4f9b85bac1844f8acea1066646",
       "working_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -24,7 +24,7 @@
       "cleanup_inode_reads": 3,
       "other_stat_fields_real": true,
       "resource_recorded_via_cli": true,
-      "grader_sha256": "4fe03056cd5ab62e0f99276630cfc89e6410788275fd5d36776f36b2c8666da3",
+      "grader_sha256": "f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508",
       "head": "c98e890f42c93613b8ba30b508c1b9123a7f177f",
       "base_tree": "38d19b380f179e7f82ff21fcad684321f61b8682",
       "working_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -38,7 +38,7 @@
       "cleanup_inode_reads": 3,
       "other_stat_fields_real": true,
       "resource_recorded_via_cli": true,
-      "grader_sha256": "4fe03056cd5ab62e0f99276630cfc89e6410788275fd5d36776f36b2c8666da3",
+      "grader_sha256": "f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508",
       "head": "0995b69479e91703adccf76fffc4aeab8dd9b754",
       "base_tree": "4e309566ad9c1f4f9b85bac1844f8acea1066646",
       "working_diff_sha256": "052fb75bc2a366df0a8f7857d30291436324228f382ac47c39db60e523edb7c0"
@@ -52,7 +52,7 @@
       "cleanup_inode_reads": 3,
       "other_stat_fields_real": true,
       "resource_recorded_via_cli": true,
-      "grader_sha256": "4fe03056cd5ab62e0f99276630cfc89e6410788275fd5d36776f36b2c8666da3",
+      "grader_sha256": "f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508",
       "head": "0995b69479e91703adccf76fffc4aeab8dd9b754",
       "base_tree": "4e309566ad9c1f4f9b85bac1844f8acea1066646",
       "working_diff_sha256": "4d94022291522343352e7c4457e6354d2d3ba28c2081cc624707a8c60fa7ebc4"
@@ -66,10 +66,11 @@
       "cleanup_inode_reads": 3,
       "other_stat_fields_real": true,
       "resource_recorded_via_cli": true,
-      "grader_sha256": "4fe03056cd5ab62e0f99276630cfc89e6410788275fd5d36776f36b2c8666da3",
+      "grader_sha256": "f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508",
       "head": "0995b69479e91703adccf76fffc4aeab8dd9b754",
       "base_tree": "4e309566ad9c1f4f9b85bac1844f8acea1066646",
       "working_diff_sha256": "167a7971a5bfa7019447a24a5483db75c8b5c27931b20d66815be4fe074e167f"
     }
-  }
+  },
+  "acceptance_status": "diagnostic only; additional M3 repair awaits fresh review; benchmark freeze-before-launch remains unmet"
 }

@@ -29,10 +29,12 @@ class InodeStat:
         return getattr(self.real, name)
 
     def __getitem__(self, index):
-        return self.st_ino if index == 1 else self.real[index]
+        return tuple(self)[index]
 
     def __iter__(self):
-        return iter(tuple(self[index] for index in range(len(self.real))))
+        values = list(self.real)
+        values[1] = self.st_ino
+        return iter(values)
 
     def __len__(self):
         return len(self.real)
