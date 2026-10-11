@@ -1,87 +1,120 @@
 # Stage 5 benchmark evidence
 
-Status: **in progress**. Attempt 1 artifacts in this directory are not an
-accepted new baseline or a fair comparison. The issue body was saved in the executor run's scratch notes before
-implementation; all work used that saved copy of issue #15.
+Outcome: **blocked** on REQ-B-NEW and the benchmark gates that depend on it
+(REQ-B-GATE-A, REQ-B-GATE-B, REQ-B-TOKENS). All eight attempts are void under the
+confinement audit, and each slot has used its one permitted retry. There is no valid
+new run to compare with `bench/runs/old/`. The implementation, grader, version and
+migration work are reviewed and kept; whether the new version meets the quality
+and parent-token targets is still unproven.
 
-This is an interim handoff snapshot, not the terminal stage report. Both retry
-Task A blind grades have been collected and their arithmetic verified:
-pair 1 prefers old (0.96 versus 0.89); pair 2 prefers new (0.93 versus 0.85).
-Both are informational because preliminary confinement audits void the retries.
-Retry A1, A2 and B1 summaries are retained; B2 still needs final collection.
-Final confinement adjudications, private-file hashes, the final requirement
-matrix, final-head checks and the executor's terminal closeout remain outstanding.
-No further benchmark retry or protocol waiver is authorised.
+The issue body was saved in the executor run's scratch notes before implementation,
+and all work used that copy of issue #15.
 
-The initial REQ-B-GRADER preparation was invalid. The executor launched all four workers
-before the grader's valid freeze; subsequent reviews found false passes and
-required three repairs. Review round 4 found M3: stat-result slicing and
-negative indexing exposed the real inode. After three repairs, the owner explicitly
-authorised one additional repair round. M3 is now fixed with regression cases; the
-fresh review found no blockers or majors and approved the grader within its documented scope. A local negative-index mutant reproduced
-the false pass; the slice mutant failed in that invocation, consistent with the
-reviewer's observed filesystem dependence. See [grader-rejection.json](grader-rejection.json).
+## Requirements
 
-REQ-B-NEW and the benchmark acceptance gates remain unmet until valid retries
-finish and are graded. The package
-used by the four attempts was built from `12b51fc`, not the final code head. It is
-kept immutable and its manifest and verification results are retained. Later
-grader edits make the attempts stale independently of their audit decisions.
-All four protocol-authorised retries launched after the approved grader was frozen
-in `cc014ab`, using the scratch package built from implementation commit `0181c2b`. The initial process deviation remains in the record.
-No owner waiver is assumed.
+| REQ | Status | Evidence |
+| --- | --- | --- |
+| REQ-B-GRADER | Met | `bench/checks/task_b.py`, sha256 `f00c365c…`, frozen in `cc014ab` after five review rounds; validation in `bench/checks/task_b_validation.json`; old B runs regraded |
+| REQ-B-NEW | **Blocked** | 8 attempts run and recorded; 0 valid. Retries exhausted ([attempts.json](attempts.json)) |
+| REQ-B-GATE-B | **Unproven** | All four B attempts pass the behaviour grader, but every attempt is void |
+| REQ-B-GATE-A | **Unproven** | All four A attempts pass the required checks; blind grades are informational only |
+| REQ-B-TOKENS | **Unproven** | No accepted new median exists; none is calculated from void attempts |
+| REQ-B-REPORT | Met | Every attempt below, with summaries, hashes, delegations and audit decisions |
+| REQ-SIZE | Met | 1,563 core Python lines against the 2,156 limit (baseline 4,313), [size.json](size.json) |
+| REQ-MAJOR | Met | All five `plugins/*/plugin.json` at `1.0.0`; no release cut |
+| REQ-MIGRATION | Met | `docs/migration.md` "Plugin version 1.0.0"; ledger labelled "Historical port: pre-1.0.0" |
 
-## Retained implementation
+## Attempts
 
-- A real CLI-recorded worktree probe, with an untouched positive control and an
-  inode-reuse replacement check. The candidate matrix is red on the unfixed base,
-  green on upstream and both old fixes, and red on refusal of all cleanup.
-- All five plugin manifests at `1.0.0`.
-- Migration reasons and upgrade steps for both retired plugins, dispatcher/claim/
-  generation removal, and consolidated delegation rules. The compatibility ledger
-  is labelled with its historical version; no new provider certification is claimed.
-- Core size: 1,563 Python lines versus 4,313 baseline lines and the 2,156 limit.
+All runs used Claude Opus 5.5 at `xhigh` as the parent and the same 62-file package
+([package.json](package.json)). Attempt 1 launched before the grader's valid freeze.
+Retries launched after `cc014ab`. Child tokens are the Codex rollouts' reported
+cumulative totals, which include cached input, so they are not comparable to the
+parent figure.
 
-## Review disposition
+| Slot | Attempt | Run outcome | Audit | Wallclock (min) | Parent-Opus tokens | Children: tokens | Delegations |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A1 | 1 | completed | void | 40.1 | 427,872 | 7: 2,330,369 | 4 review, Sol 6.1 high |
+| A1 | 2 | completed | void | 30.1 | 356,409 | 2: 1,631,753 | 2 review, Sol 6.1 high |
+| A2 | 1 | completed | void | 19.8 | 304,361 | 2: 777,816 | 2 review, Sol 6.1 high |
+| A2 | 2 | completed | void | 31.9 | 441,505 | 3: 961,426 | 3 review, Sol 6.1 medium |
+| B1 | 1 | blocked | void | 50.0 | 394,072 | 4: 5,057,274 | 3 review, Sol 6.1 high |
+| B1 | 2 | cancelled | void | 24.6 | 277,278 | 1: 327,578 | 1 review, Sol 6.1 medium |
+| B2 | 1 | completed | void | 35.9 | 280,689 | 3: 2,761,625 | 2 review, Sol 6.1 high |
+| B2 | 2 | completed | void | 48.6 | 426,595 | 6: 4,686,372 | 3 review, Sol 6.1 high |
+
+Each delegation's stated reason is in its attempt's `summary.json`. Every new run sends its
+review to Codex children, whereas the old B runs had none. A lower parent count for a new B
+run would therefore not show lower total cost. B1's retry was cancelled
+while its own checks were pending; the cause is unknown, and its summary keeps that
+state as observed.
+
+Task results (informational): all four A attempts pass every required check. All
+four B heads pass the behaviour grader on an isolated clone and fail the upstream
+design tests (`matches_upstream_design: false`), as both old fixes do. Retry blind
+grades: pair 1 prefers old (0.96 against 0.89); pair 2 prefers new (0.93 against 0.85).
+Attempt-1 grades are in [grades/](grades/). No attempt is counted.
+
+## Confinement adjudication
+
+Each retry's [audit-decisions.json](b2/attempt-2/audit-decisions.json) classifies every
+non-ok finding against the private audit, whose sha256 it records. Regexes, sed ranges,
+shell-variable suffixes and in-script strings were checked in context; any finding
+no rule covered would fail the adjudication.
+
+| Slot | Void basis |
+| --- | --- |
+| A1 | Parent read a harness-bundled skill reference; reviewer read a global agent skill |
+| A2 | Reviewer read a global agent skill |
+| B1 | Parent listed the owner's t3-plugins configuration; reviewer read a global agent skill |
+| B2 | Reviewers read a global agent skill, the provider memory file and dotfile runtime guidance |
+
+Attempt-1 decisions use the earlier generic fragment classification. Their void
+outcomes rest on the same kinds of read: global skills, provider memory, the learnings
+store, dotfile guidance and owner configuration.
+
+The pattern is consistent. Reviewer children start in a provider home that loads
+global instructions and memory, and a worker prompt cannot prevent that. Another
+benchmark needs a confinement setup that isolates child providers. The owner has not
+yet authorised that protocol change.
+
+## Grader preparation
+
+The first REQ-B-GRADER freeze was invalid: the workers launched before it, and reviews
+found false passes. Three repairs followed, then one more round that the owner
+authorised for M3 (stat-result slices and negative indexes exposed the real inode).
+Round 5 found no blocker or major issue. See [grader-rejection.json](grader-rejection.json) and [review.json](review.json).
 
 | Round | Findings | Disposition |
 | --- | --- | --- |
-| 1 | Incomplete inode coverage; summariser naming; provenance; checks under `-O`; migration wording | Fixed, with regression cases and diagnostic matrix |
-| 2 | Import-bound stat aliases/defaults; subprocess/native-code reads | Aliases/defaults fixed; external/native reads documented as an unverified gap |
+| 1 | Incomplete inode coverage; summariser naming; provenance; checks under `-O`; migration wording | Fixed, with regression cases and a diagnostic matrix |
+| 2 | Import-bound stat aliases and defaults; subprocess and native-code reads | Aliases and defaults fixed; external and native reads documented as an unverified gap |
 | 3 | Recreated `.git/worktrees` parent; direct native-OS stat | Fixed, with regression cases |
-| 4 | Stat-result slices/negative indexes expose real inode (M3) | Fixed in one additional owner-authorised repair round; round 5 approved |
-| 5 | Optional proxy type/copy/pickle limitations; pending amendment wording | Limitations documented and deferred; wording fixed before retry launch |
-
-The owner authorised committing and pushing this interim snapshot for handoff.
-No PR has been opened; the benchmark acceptance gates remain unmet.
-Hosted CI, merge, release, tap update and Pages deployment have not occurred.
+| 4 | Stat-result slices and negative indexes expose the real inode (M3) | Fixed in the owner-authorised extra round |
+| 5 | Optional proxy type/copy/pickle limits; amendment wording | Limits documented; wording fixed before retry launch |
 
 ## Checks and changed tests
 
-Local test, docs and strict MkDocs checks pass. The grader's six test methods also
-pass on isolated Python 3.10.22. The additional repair includes M3 regression cases. Documentation pages
-were inspected at 1280×800 and 390×844, with no horizontal overflow.
-Log hashes and the size breakdown are in [local-evidence.json](local-evidence.json)
-and [size.json](size.json). Raw logs remain private.
+[local-evidence.json](local-evidence.json) hashes the test, docs and strict MkDocs logs
+at implementation head `0181c2b`. The same checks are rerun at the commit that adds
+this file and recorded in the executor's imps run, not here, so that recording them
+cannot make the checked head stale. Raw logs stay private. The grader's tests also
+pass on Python 3.10.22. Documentation was inspected at 1280×800 and 390×844.
 
 | Test file | Change | Reason |
 | --- | --- | --- |
-| `tests/test_task_b_grader.py` | Added | Preserve all real non-inode stat fields; exercise real Git resources, positive control, several inode-only designs, descriptors/scandir/pathlib, import aliases/defaults, containing-directory inodes and native-OS calls |
+| `tests/test_task_b_grader.py` | Added | Real Git resources, positive control, several inode-only designs, descriptor/scandir/pathlib, import aliases and defaults, containing-directory inodes and native-OS calls; non-inode stat fields stay real |
 
-No existing tests or assertions were changed or deleted. No workflow files changed.
+No existing test or assertion was changed or deleted. No workflow file changed.
 
 ## Scope and private storage
 
-Source changes are confined to this repository. The disposable executor root is
-`<executor>`; the saved issue, imps run state, virtual environment, isolated Python
-3.10 interpreter, validation trees, check logs and documentation preview live there.
-`<home>/t3-plugins-bench/` holds scratch installs, eight fixture workspaces and private
-transcripts/audits/grading bundles. The executor did not alter the owner's real
-configuration, default installations, provider settings or dotfiles. Audit findings
-about worker/child reads outside confinement are retained and adjudicated separately.
+Source changes are confined to this repository. `<executor>` holds the saved issue,
+imps run state, docs virtual environment, Python 3.10 interpreter, validation trees,
+logs and preview. `<home>/t3-plugins-bench/` holds the scratch installs, eight
+workspaces, and private transcripts, audits, blinding keys and grading bundles. The
+owner's configuration, default installs, provider settings and dotfiles were not
+changed. Patch author lines are redacted as in `bench/runs/old/`.
 
-Each attempt has a summary, final worker report, committed output, raw-file hashes
-and an audit-decision record. Initial-attempt results and blind grades are informational only. Retry eligibility
-is determined by each final confinement audit.
-Parent-Opus tokens are a parent-context metric, not proof of total cost. Children are
-reported separately with measured tokens or unknown; no unknown amount is treated as 0.
+Pushes to `t3/implement-stage-5` were owner-requested handoffs. No PR is open; hosted
+CI, merge, release, tap update and Pages deployment have not happened.

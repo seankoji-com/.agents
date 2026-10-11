@@ -1,0 +1,134 @@
+{
+  "attempt": 2,
+  "outcome": "void",
+  "proposed_void": 6,
+  "proposed_review": 5,
+  "private_audit_sha256": "25b6f224bcc8f65d424025e57b7b33f0642ceb95de9ab8b54f6d74db882ee9a4",
+  "void_basis": [
+    "Parent read a harness-bundled skill reference (instruction data) outside the workspace and package.",
+    "Reviewer child read a global agent skill (instruction data) outside the workspace and package."
+  ],
+  "decisions": [
+    {
+      "transcript": "5c81e2e2-d3e0-4bbb-b997-5935038ee4b5.jsonl",
+      "finding_index": 0,
+      "finding": {
+        "level": "void",
+        "tool": "Bash",
+        "path": "~/.cache/ms-playwright"
+      },
+      "decision": "ok",
+      "reason": "Browser toolchain discovery; no instruction, history or upstream content. Same treatment as old a1/a2."
+    },
+    {
+      "transcript": "5c81e2e2-d3e0-4bbb-b997-5935038ee4b5.jsonl",
+      "finding_index": 1,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/claude-cmd-RpvWht"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "5c81e2e2-d3e0-4bbb-b997-5935038ee4b5.jsonl",
+      "finding_index": 2,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/bundled-skills/2.1.296/cf5d95bee23d2350994ec569246e83cf/dataviz/references"
+      },
+      "decision": "void",
+      "reason": "Parent read a harness-bundled skill reference (instruction data) outside the workspace and package."
+    },
+    {
+      "transcript": "5c81e2e2-d3e0-4bbb-b997-5935038ee4b5.jsonl",
+      "finding_index": 3,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/bundled-skills/2.1.296/cf5d95bee23d2350994ec569246e83cf/dataviz/references"
+      },
+      "decision": "void",
+      "reason": "Parent read a harness-bundled skill reference (instruction data) outside the workspace and package."
+    },
+    {
+      "transcript": "5c81e2e2-d3e0-4bbb-b997-5935038ee4b5.jsonl",
+      "finding_index": 4,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/bundled-skills/2.1.296/cf5d95bee23d2350994ec569246e83cf/dataviz/references"
+      },
+      "decision": "void",
+      "reason": "Parent read a harness-bundled skill reference (instruction data) outside the workspace and package."
+    },
+    {
+      "transcript": "5c81e2e2-d3e0-4bbb-b997-5935038ee4b5.jsonl",
+      "finding_index": 5,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/bundled-skills/2.1.296/cf5d95bee23d2350994ec569246e83cf/dataviz"
+      },
+      "decision": "void",
+      "reason": "Parent read a harness-bundled skill reference (instruction data) outside the workspace and package."
+    },
+    {
+      "transcript": "5c81e2e2-d3e0-4bbb-b997-5935038ee4b5.jsonl",
+      "finding_index": 6,
+      "finding": {
+        "level": "void",
+        "tool": "Bash",
+        "path": "/[\\\\d.]+/g"
+      },
+      "decision": "ok",
+      "reason": "Regex, sed range, shell-variable suffix or string inside a script; verified in context, not an access outside confinement."
+    },
+    {
+      "transcript": "5c81e2e2-d3e0-4bbb-b997-5935038ee4b5.jsonl",
+      "finding_index": 7,
+      "finding": {
+        "level": "void",
+        "tool": "Bash",
+        "path": "/="
+      },
+      "decision": "ok",
+      "reason": "Regex, sed range, shell-variable suffix or string inside a script; verified in context, not an access outside confinement."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-48-55-01a12a94-7827-74c3-8ed1-749fc28dfae5.jsonl",
+      "finding_index": 0,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.agents/skills/unslop/SKILL.md"
+      },
+      "decision": "void",
+      "reason": "Reviewer child read a global agent skill (instruction data) outside the workspace and package."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-57-33-01a12a9c-5fcf-7990-8f3f-e1a0a0bd308e.jsonl",
+      "finding_index": 0,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.agents/skills/unslop/SKILL.md"
+      },
+      "decision": "void",
+      "reason": "Reviewer child read a global agent skill (instruction data) outside the workspace and package."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-57-33-01a12a9c-5fcf-7990-8f3f-e1a0a0bd308e.jsonl",
+      "finding_index": 1,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "/L\\\\.divIcon\\\\"
+      },
+      "decision": "ok",
+      "reason": "Regex, sed range, shell-variable suffix or string inside a script; verified in context, not an access outside confinement."
+    }
+  ]
+}

@@ -1,0 +1,244 @@
+{
+  "attempt": 2,
+  "outcome": "void",
+  "proposed_void": 8,
+  "proposed_review": 13,
+  "private_audit_sha256": "81d0622dcf2c98d17a60f87423007467a89f314f93d726021ef3c06bb3a67283",
+  "void_basis": [
+    "Parent listed the owner t3-plugins configuration directory (routing config lookup) outside the workspace and package.",
+    "Reviewer child read a global agent skill (instruction data) outside the workspace and package."
+  ],
+  "decisions": [
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 0,
+      "finding": {
+        "level": "void",
+        "tool": "Bash",
+        "path": "/dev/shm"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 1,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/claude-cmd-46t0pX"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 2,
+      "finding": {
+        "level": "void",
+        "tool": "Bash",
+        "path": "~/.config/t3-plugins"
+      },
+      "decision": "void",
+      "reason": "Parent listed the owner t3-plugins configuration directory (routing config lookup) outside the workspace and package."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 3,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/claude-cmd-Yt40Xy"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 4,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-nn3j6e"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 5,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-nn3j6e"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 6,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-mBRMTw"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 7,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-mBRMTw"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 8,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/claude-cmd-GJ24q7"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 9,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/-<home>-t3-plugins-bench-ws-25084a81/0d607ea1-d246-4939-8e50-791f4c9b091f/tasks/bti81pmy1.output"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 10,
+      "finding": {
+        "level": "review",
+        "tool": "Write",
+        "path": "/tmp/"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 11,
+      "finding": {
+        "level": "void",
+        "tool": "Bash",
+        "path": "/review-r1-result.md"
+      },
+      "decision": "ok",
+      "reason": "Regex, sed range, shell-variable suffix or string inside a script; verified in context, not an access outside confinement."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 12,
+      "finding": {
+        "level": "void",
+        "tool": "Bash",
+        "path": "/review-r1-result.md"
+      },
+      "decision": "ok",
+      "reason": "Regex, sed range, shell-variable suffix or string inside a script; verified in context, not an access outside confinement."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 13,
+      "finding": {
+        "level": "void",
+        "tool": "Bash",
+        "path": "/review-r1-submission.json"
+      },
+      "decision": "ok",
+      "reason": "Regex, sed range, shell-variable suffix or string inside a script; verified in context, not an access outside confinement."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 14,
+      "finding": {
+        "level": "void",
+        "tool": "Bash",
+        "path": "/^"
+      },
+      "decision": "ok",
+      "reason": "Regex, sed range, shell-variable suffix or string inside a script; verified in context, not an access outside confinement."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 15,
+      "finding": {
+        "level": "void",
+        "tool": "Bash",
+        "path": "/^class"
+      },
+      "decision": "ok",
+      "reason": "Regex, sed range, shell-variable suffix or string inside a script; verified in context, not an access outside confinement."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 16,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-2a1hMV"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 17,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-2a1hMV"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 18,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-F197hJ"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "0d607ea1-d246-4939-8e50-791f4c9b091f.jsonl",
+      "finding_index": 19,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-F197hJ"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch, review clone, or harness-generated output file; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-48-01-01a12a93-a439-73e3-a64e-9c3d2bcb11e6.jsonl",
+      "finding_index": 0,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.agents/skills/unslop/SKILL.md"
+      },
+      "decision": "void",
+      "reason": "Reviewer child read a global agent skill (instruction data) outside the workspace and package."
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 From 1c098e867df310138d1203befb4ae3c442e6551e Mon Sep 17 00:00:00 2001
-From: Sean Carey <seankojicarey@gmail.com>
+From: <worker git identity, redacted>
 Date: Sun, 11 Oct 2026 21:57:34 +1100
 Subject: [PATCH 2/2] Create the worktree owner marker exclusively and verify
  it

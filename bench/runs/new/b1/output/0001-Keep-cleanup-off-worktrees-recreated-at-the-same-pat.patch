@@ -1,5 +1,5 @@
 From 516eba740a6524c9f5b4fc349855a610e0e9219f Mon Sep 17 00:00:00 2001
-From: Sean Carey <seankojicarey@gmail.com>
+From: <worker git identity, redacted>
 Date: Sun, 11 Oct 2026 21:16:09 +1100
 Subject: [PATCH 1/2] Keep cleanup off worktrees recreated at the same path
 

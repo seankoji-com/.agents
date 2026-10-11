@@ -1,5 +1,5 @@
 From 9cd4831433e190459a4780a41e37052198da5c1b Mon Sep 17 00:00:00 2001
-From: Sean Carey <seankojicarey@gmail.com>
+From: <worker git identity, redacted>
 Date: Sun, 11 Oct 2026 21:18:24 +1100
 Subject: [PATCH 2/2] Fail loudly when a worktree identity token cannot be read
 

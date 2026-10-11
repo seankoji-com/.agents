@@ -127,7 +127,7 @@
   "audit": {
     "void": 49,
     "review": 1,
-    "decision": "pending"
+    "decision": "void: reviewer child read a global agent skill outside confinement. Single allowed retry exhausted."
   },
   "result": {
     "task_a_checks": [

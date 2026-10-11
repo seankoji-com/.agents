@@ -87,7 +87,7 @@
       "finding": {
         "level": "review",
         "tool": "Read",
-        "path": "<tmp>/-home-seankoji-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/be9c167us.output"
+        "path": "<tmp>/-<home>-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/be9c167us.output"
       },
       "decision": "ok",
       "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
@@ -98,7 +98,7 @@
       "finding": {
         "level": "review",
         "tool": "Read",
-        "path": "<tmp>/-home-seankoji-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/be9c167us.output"
+        "path": "<tmp>/-<home>-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/be9c167us.output"
       },
       "decision": "ok",
       "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
@@ -175,7 +175,7 @@
       "finding": {
         "level": "review",
         "tool": "Read",
-        "path": "<tmp>/-home-seankoji-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/b6r8lykop.output"
+        "path": "<tmp>/-<home>-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/b6r8lykop.output"
       },
       "decision": "ok",
       "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
@@ -186,7 +186,7 @@
       "finding": {
         "level": "review",
         "tool": "Read",
-        "path": "<tmp>/-home-seankoji-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/b6r8lykop.output"
+        "path": "<tmp>/-<home>-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/b6r8lykop.output"
       },
       "decision": "ok",
       "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
@@ -285,7 +285,7 @@
       "finding": {
         "level": "review",
         "tool": "Read",
-        "path": "<tmp>/-home-seankoji-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/bgbtscszl.output"
+        "path": "<tmp>/-<home>-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/bgbtscszl.output"
       },
       "decision": "ok",
       "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
@@ -296,7 +296,7 @@
       "finding": {
         "level": "review",
         "tool": "Read",
-        "path": "<tmp>/-home-seankoji-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/bgbtscszl.output"
+        "path": "<tmp>/-<home>-t3-plugins-bench-ws-13f85024/e5160591-dd86-45c6-b9db-105adc82be7b/tasks/bgbtscszl.output"
       },
       "decision": "ok",
       "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."

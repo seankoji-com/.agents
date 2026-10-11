@@ -31,5 +31,15 @@
     "manifest_sha256": "f14407d0a6b3962213400a8f8bb1ead3bbfad19e5aac8909dec7acd789228df2",
     "files": 62,
     "problems": []
+  },
+  "final_head_check": {
+    "source_tree_commit": "dbf9a85fb2129da059e0c5bbeb595c723a9cc0cd",
+    "method": "git archive of the commit installed with scripts/install.py --plugin imps into a scratch prefix under an isolated HOME/XDG, then diff -r against the benchmarked retry package.",
+    "files": 62,
+    "payload_identical": true,
+    "differences": [
+      "install-manifest.json version and source_commit only: the export has no git history, so the installer stamps a content version (1.0.0+content.664ed9e9b003) and no source commit."
+    ],
+    "later_commits": "The closeout commit changes only bench/runs/new/, which the installer does not package."
   }
 }

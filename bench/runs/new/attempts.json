@@ -1,6 +1,8 @@
 {
-  "status": "in progress",
-  "metric": "Parent-context tokens; not proof of total cost. Descendant tokens and unknowns remain separate in each summary.",
+  "status": "final: no attempt counted",
+  "metric": "Parent-Opus tokens are a parent-context metric, not proof of total cost. Child totals are provider-reported or unknown; unknown is never 0.",
+  "medians": null,
+  "medians_note": "Not calculated: every attempt is void, so there is no accepted new median to compare.",
   "attempts": [
     {
       "slot": "a1",
@@ -8,39 +10,191 @@
       "outcome": "completed",
       "audit_outcome": "void",
       "counted": false,
+      "effort": [
+        {
+          "id": "effort",
+          "value": "xhigh"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "wallclock_seconds": {
+        "thread": 2408.1,
+        "transcript": 2403.7
+      },
       "parent_opus_tokens": {
         "counted": 427872,
         "cache_read": 21233798,
         "other_models_in_parent": []
       },
-      "wallclock_seconds": {
-        "thread": 2408.1,
-        "transcript": 2403.7
-      },
+      "children": [
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 518549,
+          "cached_input_tokens": 443776,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 16418,
+          "cached_input_tokens": 5888,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 447945,
+          "cached_input_tokens": 370176,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 782172,
+          "cached_input_tokens": 677120,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 18350,
+          "cached_input_tokens": 5888,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 490211,
+          "cached_input_tokens": 413952,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 56724,
+          "cached_input_tokens": 38144,
+          "note": "provider cumulative total; includes cached input"
+        }
+      ],
       "delegation_count": 4,
-      "descendant_count": 7,
+      "delegations": [
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "Review E10 page commit 738f69a"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "Review round 2: E10 page 4cd799c"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "Review round 3: E10 page f9144e0"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "Review round 4: E10 page 4898ba8"
+        }
+      ],
+      "result": {
+        "task_a_required_checks_pass": true
+      },
       "summary": "a1/summary.json",
-      "summary_sha256": "e658f72f49b55919adca807cd84dfdcf8cb2b6b0a6bd63daa5d27c538c1c22c6"
+      "summary_sha256": "e658f72f49b55919adca807cd84dfdcf8cb2b6b0a6bd63daa5d27c538c1c22c6",
+      "audit_decisions": "a1/audit-decisions.json",
+      "audit_decisions_sha256": "173ca53d3ac8293b193f5206bccb3e405f1204664240c2eeb46978f3bc7db287",
+      "blind_grade": {
+        "file": "grades/pair1.json",
+        "old": 0.98,
+        "new": 0.96,
+        "preferred": "old",
+        "informational": true
+      }
     },
     {
       "slot": "a1",
       "attempt": 2,
       "outcome": "completed",
-      "audit_outcome": "pending",
+      "audit_outcome": "void",
       "counted": false,
+      "effort": [
+        {
+          "id": "effort",
+          "value": "xhigh"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "wallclock_seconds": {
+        "thread": 1808.2,
+        "transcript": 1805.4
+      },
       "parent_opus_tokens": {
         "counted": 356409,
         "cache_read": 14607815,
         "other_models_in_parent": []
       },
-      "wallclock_seconds": {
-        "thread": 1808.2,
-        "transcript": 1805.4
-      },
+      "children": [
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 599671,
+          "cached_input_tokens": 516608,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 1032082,
+          "cached_input_tokens": 918528,
+          "note": "provider cumulative total; includes cached input"
+        }
+      ],
       "delegation_count": 2,
-      "descendant_count": 2,
+      "delegations": [
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "Review E10 page (round 1)"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "Review E10 page (round 2)"
+        }
+      ],
+      "result": {
+        "task_a_required_checks_pass": true
+      },
       "summary": "a1/attempt-2/summary.json",
-      "summary_sha256": "47c54cc8f18337d2cad17b455fdd186a19bf27da3c84361a0138d9774524ccbe"
+      "summary_sha256": "47c54cc8f18337d2cad17b455fdd186a19bf27da3c84361a0138d9774524ccbe",
+      "audit_decisions": "a1/attempt-2/audit-decisions.json",
+      "audit_decisions_sha256": "782526deca2e609d25bf8a67b343c982cca8952a96e3b716d10b45c770c0822a",
+      "blind_grade": {
+        "file": "grades/pair1-attempt2.json",
+        "old": 0.96,
+        "new": 0.89,
+        "preferred": "old",
+        "informational": true
+      }
     },
     {
       "slot": "a2",
@@ -48,39 +202,158 @@
       "outcome": "completed",
       "audit_outcome": "void",
       "counted": false,
+      "effort": [
+        {
+          "id": "effort",
+          "value": "xhigh"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "wallclock_seconds": {
+        "thread": 1190.9,
+        "transcript": 1186.6
+      },
       "parent_opus_tokens": {
         "counted": 304361,
         "cache_read": 11878859,
         "other_models_in_parent": []
       },
-      "wallclock_seconds": {
-        "thread": 1190.9,
-        "transcript": 1186.6
-      },
+      "children": [
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 364901,
+          "cached_input_tokens": 298624,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 412915,
+          "cached_input_tokens": 342656,
+          "note": "provider cumulative total; includes cached input"
+        }
+      ],
       "delegation_count": 2,
-      "descendant_count": 2,
+      "delegations": [
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "Review E10 page at 7ec7860"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "Review E10 page round 2 at b204571"
+        }
+      ],
+      "result": {
+        "task_a_required_checks_pass": true
+      },
       "summary": "a2/summary.json",
-      "summary_sha256": "d523c3d9e3340419c19b51fe81b47bf450d2dd19a4ebedff512d940eca44acac"
+      "summary_sha256": "d523c3d9e3340419c19b51fe81b47bf450d2dd19a4ebedff512d940eca44acac",
+      "audit_decisions": "a2/audit-decisions.json",
+      "audit_decisions_sha256": "a8d80cf5f5017bc51692bf42ab3009a7a8d0319c80f4bdc6342ae780c94299c4",
+      "blind_grade": {
+        "file": "grades/pair2.json",
+        "old": 0.89,
+        "new": 1.0,
+        "preferred": "new",
+        "informational": true
+      }
     },
     {
       "slot": "a2",
       "attempt": 2,
       "outcome": "completed",
-      "audit_outcome": "pending",
+      "audit_outcome": "void",
       "counted": false,
+      "effort": [
+        {
+          "id": "effort",
+          "value": "xhigh"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "wallclock_seconds": {
+        "thread": 1911.9,
+        "transcript": 1909.4
+      },
       "parent_opus_tokens": {
         "counted": 441505,
         "cache_read": 19334825,
         "other_models_in_parent": []
       },
-      "wallclock_seconds": {
-        "thread": 1911.9,
-        "transcript": 1909.4
-      },
+      "children": [
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 342124,
+          "cached_input_tokens": 278784,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 351003,
+          "cached_input_tokens": 272896,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 268299,
+          "cached_input_tokens": 205440,
+          "note": "provider cumulative total; includes cached input"
+        }
+      ],
       "delegation_count": 3,
-      "descendant_count": 3,
+      "delegations": [
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "medium"
+          },
+          "title": "Review E10 page commit 94f9720"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "medium"
+          },
+          "title": "Review round 2: E10 page 81ab291"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "medium"
+          },
+          "title": "Review round 3: E10 page d355703"
+        }
+      ],
+      "result": {
+        "task_a_required_checks_pass": true
+      },
       "summary": "a2/attempt-2/summary.json",
-      "summary_sha256": "ee42658fdbb77cce9e852b0dd143bc2e6e7ea434d67368b92fafa7753e2449a3"
+      "summary_sha256": "ddcbf9a27ce33cc226a0ace5d2b36dbe3444d8dea3ad6ea0f65e27c3f1c59a20",
+      "audit_decisions": "a2/attempt-2/audit-decisions.json",
+      "audit_decisions_sha256": "943b8d4d4950e6d10f4f78aa3785bcec0fa527d8a5a7b2ff053a8ef8e071494a",
+      "blind_grade": {
+        "file": "grades/pair2-attempt2.json",
+        "old": 0.85,
+        "new": 0.93,
+        "preferred": "new",
+        "informational": true
+      }
     },
     {
       "slot": "b1",
@@ -88,39 +361,137 @@
       "outcome": "blocked",
       "audit_outcome": "void",
       "counted": false,
+      "effort": [
+        {
+          "id": "effort",
+          "value": "xhigh"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "wallclock_seconds": {
+        "thread": 2997.4,
+        "transcript": 2993.7
+      },
       "parent_opus_tokens": {
         "counted": 394072,
         "cache_read": 23889444,
         "other_models_in_parent": []
       },
-      "wallclock_seconds": {
-        "thread": 2997.4,
-        "transcript": 2993.7
-      },
+      "children": [
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 1286271,
+          "cached_input_tokens": 1156736,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 1349854,
+          "cached_input_tokens": 1234944,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 2398304,
+          "cached_input_tokens": 2256000,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 22845,
+          "cached_input_tokens": 5888,
+          "note": "provider cumulative total; includes cached input"
+        }
+      ],
       "delegation_count": 3,
-      "descendant_count": 4,
+      "delegations": [
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "imps review: worktree recreated at same path"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "imps review round 2: worktree recreated at same path"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "imps review round 3: worktree recreated at same path"
+        }
+      ],
+      "result": {
+        "behaviour_grader_pass": true,
+        "matches_upstream_design": false
+      },
       "summary": "b1/summary.json",
-      "summary_sha256": "663888011a43c749d3461b45c95f39086920698c2b50dcd1272f8b7193a02790"
+      "summary_sha256": "663888011a43c749d3461b45c95f39086920698c2b50dcd1272f8b7193a02790",
+      "audit_decisions": "b1/audit-decisions.json",
+      "audit_decisions_sha256": "dc6101d266af02ca3d7e4e3d9d71cba539eccb12a3842978eec2fc2493b13c13"
     },
     {
       "slot": "b1",
       "attempt": 2,
       "outcome": "cancelled",
-      "audit_outcome": "pending",
+      "audit_outcome": "void",
       "counted": false,
+      "effort": [
+        {
+          "id": "effort",
+          "value": "xhigh"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "wallclock_seconds": {
+        "thread": 1478.6,
+        "transcript": 1550.7
+      },
       "parent_opus_tokens": {
         "counted": 277278,
         "cache_read": 12066739,
         "other_models_in_parent": []
       },
-      "wallclock_seconds": {
-        "thread": 1478.6,
-        "transcript": 1550.7
-      },
+      "children": [
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 327578,
+          "cached_input_tokens": 270336,
+          "note": "provider cumulative total; includes cached input"
+        }
+      ],
       "delegation_count": 1,
-      "descendant_count": 1,
+      "delegations": [
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "medium"
+          },
+          "title": "Review: worktree recreated at same path (1754dfc)"
+        }
+      ],
+      "result": {
+        "behaviour_grader_pass": true,
+        "matches_upstream_design": false
+      },
       "summary": "b1/attempt-2/summary.json",
-      "summary_sha256": "18656c0dd7125587c8dc03b63b5e0c70fd7fa3f464e69a410bafd00eaf3c52e6"
+      "summary_sha256": "18656c0dd7125587c8dc03b63b5e0c70fd7fa3f464e69a410bafd00eaf3c52e6",
+      "audit_decisions": "b1/attempt-2/audit-decisions.json",
+      "audit_decisions_sha256": "12611e28556c94cbbe1878195d7190b2918b9b485584d0461280f6159b1920d7"
     },
     {
       "slot": "b2",
@@ -128,19 +499,170 @@
       "outcome": "completed",
       "audit_outcome": "void",
       "counted": false,
+      "effort": [
+        {
+          "id": "effort",
+          "value": "xhigh"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "wallclock_seconds": {
+        "thread": 2154.0,
+        "transcript": 2150.2
+      },
       "parent_opus_tokens": {
         "counted": 280689,
         "cache_read": 14155152,
         "other_models_in_parent": []
       },
-      "wallclock_seconds": {
-        "thread": 2154.0,
-        "transcript": 2150.2
-      },
+      "children": [
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 1463081,
+          "cached_input_tokens": 1347712,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 22017,
+          "cached_input_tokens": 5888,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 1276527,
+          "cached_input_tokens": 1146496,
+          "note": "provider cumulative total; includes cached input"
+        }
+      ],
       "delegation_count": 2,
-      "descendant_count": 3,
+      "delegations": [
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "imps review: recreated-worktree cleanup fix (8b71b50)"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "imps review r2: recreated-worktree cleanup fix (9cd4831)"
+        }
+      ],
+      "result": {
+        "behaviour_grader_pass": true,
+        "matches_upstream_design": false
+      },
       "summary": "b2/summary.json",
-      "summary_sha256": "b6764370d0ce97b4d6e57c594f54813afc8818a58d23a96371eda10a9f5f87cb"
+      "summary_sha256": "b6764370d0ce97b4d6e57c594f54813afc8818a58d23a96371eda10a9f5f87cb",
+      "audit_decisions": "b2/audit-decisions.json",
+      "audit_decisions_sha256": "8fac250796299ee0b279cb03485857e192ec3ddcda1074c5f444aa5866e3dd6d"
+    },
+    {
+      "slot": "b2",
+      "attempt": 2,
+      "outcome": "completed",
+      "audit_outcome": "void",
+      "counted": false,
+      "effort": [
+        {
+          "id": "effort",
+          "value": "xhigh"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "wallclock_seconds": {
+        "thread": 2917.5,
+        "transcript": 2915.7
+      },
+      "parent_opus_tokens": {
+        "counted": 426595,
+        "cache_read": 25390579,
+        "other_models_in_parent": []
+      },
+      "children": [
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 1713260,
+          "cached_input_tokens": 1605888,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 21888,
+          "cached_input_tokens": 5888,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 1141278,
+          "cached_input_tokens": 1040896,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 22411,
+          "cached_input_tokens": 5888,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 1764518,
+          "cached_input_tokens": 1663872,
+          "note": "provider cumulative total; includes cached input"
+        },
+        {
+          "kind": "codex-rollout",
+          "total_tokens": 23017,
+          "cached_input_tokens": 5888,
+          "note": "provider cumulative total; includes cached input"
+        }
+      ],
+      "delegation_count": 3,
+      "delegations": [
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "Review ca7775d: recreated worktree cleanup fix"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "Review round 2: 0995b69..27ac032 worktree cleanup fix"
+        },
+        {
+          "role": "review",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "options": {
+            "reasoningEffort": "high"
+          },
+          "title": "Review round 3: 0995b69..d85ab02 worktree cleanup fix"
+        }
+      ],
+      "result": {
+        "behaviour_grader_pass": true,
+        "matches_upstream_design": false
+      },
+      "summary": "b2/attempt-2/summary.json",
+      "summary_sha256": "389032cbf302a144825a0bce5ffa7a29fe52e311d47073abcfc9b5250c26bff4",
+      "audit_decisions": "b2/attempt-2/audit-decisions.json",
+      "audit_decisions_sha256": "d0bd40bd9fb5df1d55a790e9857287c58bcfe762cba893dc7d0f3561dd1d10b2"
     }
   ]
 }
