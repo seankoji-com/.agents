@@ -200,7 +200,7 @@
 .md-typeset .sightings__table td { border-top: 1px solid var(--rule); padding: .45rem .6rem .45rem 0; vertical-align: top; }
 .md-typeset .sightings__table tbody th { border-bottom: 0; border-top: 1px solid var(--rule); font-weight: 500; padding: .45rem .6rem .45rem 0; white-space: nowrap; vertical-align: top; }
 .md-typeset .sightings__table tbody th code { font-size: .62rem; }
-.sightings__model { font-family: var(--mono); font-size: .62rem; color: var(--ink-soft); min-width: 7.5em; overflow-wrap: break-word; }
+.sightings__model { font-family: var(--mono); font-size: .62rem; color: var(--ink-soft); min-width: 7.5em; overflow-wrap: normal; word-break: normal; }
 .sighting { font-family: var(--mono); font-size: .66rem; white-space: nowrap; }
 .sighting [aria-hidden] { letter-spacing: .08em; margin-right: .25em; }
 .sighting--clean { color: var(--fern); }
