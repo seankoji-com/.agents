@@ -120,6 +120,37 @@ class TaskACheckTest(unittest.TestCase):
         self.assertFalse(result['leaflet_vendored']['ok'])
         self.assertEqual(result['leaflet_vendored']['detail'], ['index.html loads remote https://example.invalid/app.js'])
 
+    def test_remote_stylesheet_and_unquoted_attributes_fail(self):
+        page = self.out / 'index.html'
+        original = page.read_text()
+        for tag in ('<link rel="stylesheet" href="https://example.invalid/app.css">',
+                    '<script src=https://example.invalid/app.js></script>',
+                    '<link rel=stylesheet href=//cdn.example/app.css>'):
+            with self.subTest(tag=tag):
+                page.write_text(original + tag)
+                result = {r['check']: r for r in task_a.check(self.out, DATA)}
+                self.assertFalse(result['leaflet_vendored']['ok'])
+                self.assertEqual(len(result['leaflet_vendored']['detail']), 1)
+
+    def test_unquoted_local_attributes_still_count(self):
+        page = self.out / 'index.html'
+        page.write_text(page.read_text().replace('src="data.js"', 'src=data.js')
+                        .replace('href="vendor/leaflet/leaflet.css"', 'href=vendor/leaflet/leaflet.css')
+                        .replace('data-recommended-station="STN-0007"', 'data-recommended-station=STN-0007'))
+        self.assertEqual(self.failing(), set())
+
+    def test_non_string_station_ids_fail_without_raising(self):
+        for bad in ([], {'x': 1}, 7):
+            with self.subTest(bad=bad):
+                data = json.loads(json.dumps(self.data))
+                data['stations'].append(dict(data['stations'][0], id=bad))
+                data['overall_history'][0]['date'] = ['not', 'a', 'date']
+                (self.out / 'data.json').write_text(json.dumps(data))
+                result = {r['check']: r for r in task_a.check(self.out, DATA)}
+                self.assertFalse(result['station_ids']['ok'])
+                self.assertEqual(result['station_ids']['detail']['invalid_ids_in_data_json'], [repr(bad)])
+                self.assertFalse(result['price_series']['ok'])
+
     def test_duplicate_station_fails(self):
         self.data['stations'].append(self.data['stations'][0])
         (self.out / 'data.json').write_text(json.dumps(self.data))
@@ -265,6 +296,13 @@ class PackageVerificationTest(unittest.TestCase):
             (root / '__pycache__').mkdir()
             (root / '__pycache__' / 'x.pyc').write_bytes(b'')
             self.assertEqual(verify_package.verify(root)['problems'], ['unlisted __pycache__/x.pyc'])
+            shutil.rmtree(root / '__pycache__')
+            (root / 'entry.md').write_text('changed')
+            self.assertEqual(verify_package.verify(root)['problems'], ['changed entry.md'])
+            (root / 'entry.md').unlink()
+            self.assertEqual(verify_package.verify(root)['problems'], ['missing entry.md'])
+            (root / 'install-manifest.json').write_text('{not json')
+            self.assertEqual(verify_package.verify(root)['problems'], ['install-manifest.json unreadable: JSONDecodeError'])
             self.assertFalse(verify_package.verify(root / 'missing')['ok'])
 
 

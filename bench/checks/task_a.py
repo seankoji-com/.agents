@@ -21,6 +21,7 @@ import posixpath
 import re
 import sys
 from datetime import datetime
+from html.parser import HTMLParser
 from pathlib import Path
 
 FIXTURE = Path(__file__).resolve().parent.parent / 'fixtures' / 'task_a' / 'workspace'
@@ -30,13 +31,37 @@ STATION_ID = re.compile(r'\bSTN-\d{4}\b')
 CDN_HOSTS = ('unpkg.com', 'cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'ajax.googleapis.com', 'cdn.skypack.dev',
              'esm.sh', 'leafletjs.com/dist')
 TEXT_SUFFIXES = {'.html', '.htm', '.js', '.mjs', '.json', '.css', '.svg', '.txt', '.md', '.csv'}
-# A <script src> or <link href> (stylesheet, module preload, ...) that points off the machine.
-REMOTE_ASSET = re.compile(r'''<(?:script|link)\b[^>]*?\s(?:src|href)\s*=\s*["']((?:https?:)?//[^"']+)["']''', re.I)
-LOCAL_SCRIPT = re.compile(r'''<script[^>]*\ssrc\s*=\s*["'](?!(?:https?:)?//)([^"'?#]+)["']''', re.I)
+# In JavaScript, a quoted remote URL to a script or stylesheet. HTML is parsed instead (Markup below).
+REMOTE_ASSET_IN_JS = re.compile(r'''["'`]((?:https?:)?//[^"'`\s]+\.(?:m?js|css)(?:\?[^"'`\s]*)?)["'`]''', re.I)
 # The exact tile template the prompt names, and its attribution text (informational only).
 OSM_TILES = re.compile(r'''["'`]https://tile\.openstreetmap\.org/\{z\}/\{x\}/\{y\}\.png["'`]''')
 OSM_ATTRIBUTION = re.compile(r'(?:©|&copy;|&#169;)\s*OpenStreetMap contributors')
-RECOMMENDED = re.compile(r'''data-recommended-station\s*=\s*["']([^"']*)["']''')
+MARKUP_SUFFIXES = {'.html', '.htm', '.svg'}
+
+
+class Markup(HTMLParser):
+    """Script sources, link targets and recommendation markers, quoted or not."""
+
+    def __init__(self, text: str):
+        super().__init__(convert_charrefs=True)
+        self.scripts, self.links, self.marked = [], [], []
+        self.feed(text)
+        self.close()
+
+    def handle_starttag(self, tag, attrs):
+        values = {name.lower(): (value or '').strip() for name, value in attrs}
+        if tag == 'script' and values.get('src'):
+            self.scripts.append(values['src'])
+        if tag == 'link' and values.get('href'):
+            self.links.append(values['href'])
+        if 'data-recommended-station' in values:
+            self.marked.append(values['data-recommended-station'])
+
+    handle_startendtag = handle_starttag
+
+
+def remote(url: str) -> bool:
+    return url.lower().startswith(('http:', 'https:', '//'))
 
 
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
@@ -139,29 +164,39 @@ def check(out: Path, data_dir: Path) -> list:
         problems += [f'unexpected out/vendor/leaflet/{p.relative_to(emitted).as_posix()}'
                      for p in sorted(emitted.rglob('*')) if p.is_file()
                      and p.relative_to(emitted).as_posix() not in provided_files]
+    markup = Markup(page)
+    loaded = {local_path(u.split('?')[0].split('#')[0]) for u in markup.scripts + markup.links if not remote(u)}
     for name in ('leaflet.js', 'leaflet.css'):
-        if not re.search(r'''(?:src|href)\s*=\s*["'](?:\./)?vendor/leaflet/''' + re.escape(name) + r'''["']''', page):
+        if f'vendor/leaflet/{name}' not in loaded:
             problems.append(f'index.html does not load vendor/leaflet/{name} by relative path')
     for rel, text in files.items():
         lowered = text.lower()
         problems += [f'{rel} references CDN host {host}' for host in CDN_HOSTS if host in lowered]
-        problems += [f'{rel} loads remote {url}' for url in REMOTE_ASSET.findall(text)]
+        if Path(rel).suffix.lower() in MARKUP_SUFFIXES:
+            parsed = markup if rel == 'index.html' else Markup(text)
+            urls = [u for u in parsed.scripts + parsed.links if remote(u)]
+        else:
+            urls = REMOTE_ASSET_IN_JS.findall(text) if Path(rel).suffix.lower() in ('.js', '.mjs') else []
+        problems += [f'{rel} loads remote {url}' for url in urls]
     add('leaflet_vendored', not problems, problems or 'vendored, loaded relatively, no CDN')
 
     # 2. Station IDs: every in-radius ID is listed in data.json and reaches the page (index.html or a
     # local script it loads, since the page must work from disk); no out-of-radius ID appears anywhere.
-    listed_ids = [s.get('id') for s in stations]
+    invalid = [repr(s.get('id')) for s in stations if not isinstance(s.get('id'), str)]
+    listed_ids = [s['id'] for s in stations if isinstance(s.get('id'), str)]
     missing = sorted(set(want['in_radius']) - set(listed_ids))
     extra = sorted(set(listed_ids) - set(want['in_radius']))
-    duplicated = sorted({sid for sid in listed_ids if listed_ids.count(sid) > 1}, key=str)
-    page_text = page + ''.join(files.get(local_path(src), '') for src in LOCAL_SCRIPT.findall(page))
+    duplicated = sorted({sid for sid in listed_ids if listed_ids.count(sid) > 1})
+    page_text = page + ''.join(files.get(local_path(src.split('?')[0].split('#')[0]), '')
+                               for src in markup.scripts if not remote(src))
     not_on_page = sorted(set(want['in_radius']) - set(STATION_ID.findall(page_text)))
     # Every emitted file counts here, whatever its suffix, except the vendored Leaflet itself.
     everything_raw = [p.read_bytes().decode('utf-8', 'replace') for p in sorted(out.rglob('*'))
                       if p.is_file() and not p.relative_to(out).as_posix().startswith('vendor/leaflet/')]
     leaked = sorted({sid for text in everything_raw for sid in STATION_ID.findall(text)} & set(want['out_of_radius']))
-    add('station_ids', not (missing or extra or duplicated or leaked or not_on_page) and bool(page),
-        {'missing_in_radius': missing, 'unexpected_in_data_json': extra, 'duplicated_in_data_json': duplicated, 'not_reaching_page': not_on_page,
+    add('station_ids', not (missing or extra or duplicated or invalid or leaked or not_on_page) and bool(page),
+        {'missing_in_radius': missing, 'unexpected_in_data_json': extra, 'duplicated_in_data_json': duplicated,
+         'invalid_ids_in_data_json': invalid, 'not_reaching_page': not_on_page,
          'out_of_radius_present': leaked, 'index_html_present': bool(page)})
 
     # 3. A price series per station and for the overall history.
@@ -173,18 +208,19 @@ def check(out: Path, data_dir: Path) -> list:
             empty.append(station.get('id'))
     overall = data.get('overall_history')
     overall_ok = isinstance(overall, list) and bool(overall) and all(
-        isinstance(p, dict) and number(p.get('mean_price_cpl')) and p.get('date') for p in overall)
+        isinstance(p, dict) and number(p.get('mean_price_cpl')) and isinstance(p.get('date'), str) and p['date']
+        for p in overall)
     add('price_series', not empty and overall_ok and not missing,
         {'stations_without_series': sorted(map(str, empty)), 'overall_history_present': overall_ok})
 
     # 4. The recommendation names the cheapest in-radius station, in data.json and on the page.
     chosen = (data.get('recommendation') or {}).get('station_id') if isinstance(data.get('recommendation'), dict) else None
-    marked = RECOMMENDED.findall(page)
+    marked = markup.marked
     add('recommendation', chosen == want['cheapest'] and marked == [want['cheapest']],
         {'expected': want['cheapest'], 'data_json': chosen, 'page_markers': marked})
 
     # Informational: values and map details the grader may want to see.
-    by_id = {s.get('id'): s for s in stations}
+    by_id = {s['id']: s for s in stations if isinstance(s.get('id'), str)}
     wrong_listed = sorted(sid for sid, price in want['listed_price_cpl'].items()
                           if sid in by_id and by_id[sid].get('listed_price_cpl') != price)
     add('listed_prices_match', not wrong_listed, {'mismatched': wrong_listed}, required=False)

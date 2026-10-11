@@ -36,6 +36,12 @@ Means per task (the protocol's "median" with two runs):
 | A | 370,010 | 26.1 |
 | B | 257,879 | 25.8 |
 
+After the baseline, `task_a.py` was hardened in review: it now parses HTML instead of
+matching quoted attributes, and it rejects non-string station IDs. Re-running the
+updated checker on both Task A outputs gives the same result, 4/4 required and 3/3
+informational passing. The Task A results in `summary.json` were recorded with the
+earlier checker.
+
 ## Notes for stage 5
 
 - **Task B hidden tests are design-specific.** Both workers fixed the bug by writing an
