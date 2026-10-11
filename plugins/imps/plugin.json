@@ -2,6 +2,7 @@
   "name": "imps",
   "version": "1.0.0",
   "description": "Bounded engineering work on any T3 provider: implement, investigate, audit, and review with revision-bound evidence.",
+  "argument_hint": "doctor | run <task> [--personas] | resume <run-id> | status <run-id> | cancel <run-id> | verification-init | blast-radius [PR/range/paths] | audit [--focus <dimensions>] [--out <path>] | issues <number> [<number> ...] [--personas] | prs pr <URL> | prs repo <owner/name> | prs org <owner> | checklist <path.md> | discussion <number or URL>",
   "entry": "entry.md",
   "defaults": "config.json",
   "tested_t3_version": "0.0.46-nightly.20261008.2849",

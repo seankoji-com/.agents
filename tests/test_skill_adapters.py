@@ -115,6 +115,26 @@ class SkillAdapters(unittest.TestCase):
         marker.write_text('[]')
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
 
+    def test_installed_descriptions_show_argument_hints_for_every_operation(self):
+        self.call('install')
+        self.call('skills', 'install', '--root', str(self.skills))
+        for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
+            meta = json.loads(manifest.read_text())
+            with self.subTest(plugin=meta['name']):
+                adapter = self.skills / ('t3-' + meta['name']) / 'SKILL.md'
+                front = adapter.read_text().split('---\n', 2)[1]
+                line = next(line for line in front.splitlines() if line.startswith('description: '))
+                description = json.loads(line.removeprefix('description: '))
+                self.assertTrue(description.startswith(meta['description'] + ' Args: '))
+                self.assertIn(meta['argument_hint'], description)
+                self.assertLessEqual(len(description), 1024)
+                operations = {hint.strip().split()[0] for hint in meta['argument_hint'].split('|')}
+                self.assertEqual(operations, set(meta['operations']))
+        imps = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
+        for hint in ('run <task> [--personas]', 'resume <run-id>', 'checklist <path.md>',
+                     'issues <number> [<number> ...]', 'discussion <number or URL>'):
+            self.assertIn(hint, imps)
+
     def test_modified_snapshot_is_not_registered(self):
         self.call('install', 'imps')
         (self.prefix / 'imps/current/entry.md').write_text('changed')

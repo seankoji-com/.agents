@@ -9,10 +9,10 @@ hide:
 
 ## Start with one useful result
 
-[Install the current catalog from source](getting-started.md#from-source) on the
+[Install the catalog](getting-started.md) on the
 machine where your T3 provider executes tools, then paste the generated readiness
-prompt into T3. The Homebrew tap still packages v0.4.0, whose commands differ from
-these guides. The agent checks whether it can run the workflow before changing
+prompt into T3. Use Homebrew catalog v0.5.0 or later, or install from source.
+The agent checks whether it can run the workflow before changing
 anything. For the picker, enable **Show skills in slash
 menu**, restart the agent session, then select **t3-imps** from `/` and append a task.
 

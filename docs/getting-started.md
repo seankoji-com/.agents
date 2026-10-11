@@ -10,8 +10,8 @@ and `jq`; install those only if you use the relevant plugins.
 
 ## From source
 
-Use source installation for the current five-workflow catalog. The Homebrew tap
-still packages v0.4.0, whose commands differ from these guides.
+Source installation uses the current five-workflow catalog. For a packaged release,
+use Homebrew catalog v0.5.0 or later as described below.
 
 ```sh
 git clone https://github.com/seankoji-com/t3-plugins.git
@@ -44,11 +44,21 @@ Use `t3-plugins setup imps` for one plugin plus its adapters, or repeat
 
 ## Homebrew release channel
 
-Homebrew is a release channel, but its current v0.4.0 package does not match this
-catalog. Use the source steps above until the release and tap are aligned. After
-alignment, installation is `brew install seankoji-com/tap/t3-plugins`, followed by
-`t3-plugins setup` and `t3-plugins doctor` in your own shell. Homebrew post-install
-uses an isolated temporary home, so it cannot set up your user skill adapters.
+Catalog v0.5.0 and later packages the five workflows in these guides. Earlier releases
+have different commands. Install the latest formula, then set up your user snapshots
+and skill adapters:
+
+```sh
+brew update
+brew install seankoji-com/tap/t3-plugins
+t3-plugins setup
+t3-plugins doctor
+```
+
+If already installed, use `brew upgrade seankoji-com/tap/t3-plugins` instead of
+`brew install`. Check `brew list --versions t3-plugins` for v0.5.0 or later.
+Homebrew's formula test uses an isolated temporary home; run setup in your own shell
+to populate your skill adapters.
 
 ## Paths and remote environments
 
@@ -76,7 +86,7 @@ python3 bin/t3-plugins setup
 python3 bin/t3-plugins doctor
 ```
 
-Run these commands in your source checkout. For an aligned Homebrew release, use
+Run these commands in your source checkout. For a Homebrew installation, use
 `brew upgrade t3-plugins`, then `t3-plugins setup` and `t3-plugins doctor`. Installation
 is idempotent for identical files. A changed package gets a new snapshot. Local edits
 to that same snapshot cause refusal; `--force` is an explicit overwrite. Older
