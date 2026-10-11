@@ -1,0 +1,283 @@
+{
+  "files": [
+    {
+      "mode": 420,
+      "path": "cli.py",
+      "sha256": "0feda8ec39cfc09ec9cec7dfc88568ca24f4e763a949838672669aeb110b1897"
+    },
+    {
+      "mode": 420,
+      "path": "config.json",
+      "sha256": "e8933508ba25b1bf6504509475480b7dde0f1189bece0d4acc87ade82febdd5c"
+    },
+    {
+      "mode": 420,
+      "path": "core/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "mode": 420,
+      "path": "core/acceptance.py",
+      "sha256": "8c0ae71745240d3e51b4c48478844db732b6ccca79a7f11f8058d5a791082f8c"
+    },
+    {
+      "mode": 420,
+      "path": "core/blockers.py",
+      "sha256": "8bb8e5221a93a02c35edefe8c7663462e6157aa0fa233a87762cfdb70099f349"
+    },
+    {
+      "mode": 420,
+      "path": "core/cli.py",
+      "sha256": "7b23f68e053de8e7a6d30cf371df6b3d71853a777232232b26f30b2dce37a4a6"
+    },
+    {
+      "mode": 420,
+      "path": "core/contract.py",
+      "sha256": "7abb2095b3081f388d8e218025ecc68eb69f8e710348968d40cf4b86dfd8a6e7"
+    },
+    {
+      "mode": 420,
+      "path": "core/engine.py",
+      "sha256": "550db946a0c39e34533ee9249bbdcb58d4819af4d2f74d1cbd042a2387319d74"
+    },
+    {
+      "mode": 420,
+      "path": "core/errors.py",
+      "sha256": "8bd98f06f3f5562b91ce0dc5dacb304963a40acf6d573402331d77cfd08bdd63"
+    },
+    {
+      "mode": 420,
+      "path": "core/fsutil.py",
+      "sha256": "8eef538b91c922dd7c2c86f893ff217a08781e4508ef0e202971d4443a4e7388"
+    },
+    {
+      "mode": 420,
+      "path": "core/planning.py",
+      "sha256": "92fdc7ded10c264a79b63c2cde7f3270ff08fb52d581534563cce31d8cf49cf1"
+    },
+    {
+      "mode": 420,
+      "path": "core/recipe.py",
+      "sha256": "45ee58c4db382875938b5350aa70527db582c4f83b3757ab1b6262095783a58e"
+    },
+    {
+      "mode": 420,
+      "path": "core/records.py",
+      "sha256": "3228cd8d1926688d7be85cfb2adfd30f19f3329b2920be0e25787f6ece3c0fda"
+    },
+    {
+      "mode": 420,
+      "path": "core/report.py",
+      "sha256": "9a895fa12e20d7528dac70d1feff362684dce8f345e56a762b7ed53737bf7ade"
+    },
+    {
+      "mode": 420,
+      "path": "core/resources.py",
+      "sha256": "1d8761994f8de3106623068bde6a7ab069b684bd913e032a41a8e486ca2beee6"
+    },
+    {
+      "mode": 420,
+      "path": "core/results.py",
+      "sha256": "1ca1e3d18446d202ba10d3052b3989a96c4e0d966b0ae220c6f8ad4747092582"
+    },
+    {
+      "mode": 420,
+      "path": "core/review.py",
+      "sha256": "99b6bb24e0b2729a28b67d7cab2841ef9e18ec2bad01f58393171a8663e51586"
+    },
+    {
+      "mode": 420,
+      "path": "core/schema.py",
+      "sha256": "2614c05aaf72fd53594d19fb6e29e0ad282b84ef797a2f205b653f569b6ef8c6"
+    },
+    {
+      "mode": 420,
+      "path": "core/schemas/defaults.schema.json",
+      "sha256": "98cfe327feca3060c91a637a0918cae2fcc16f1907a3e0311ebd34ee24a62021"
+    },
+    {
+      "mode": 420,
+      "path": "core/schemas/evidence.schema.json",
+      "sha256": "4037d584242802789830d197ceb728c75e510194e3382f43934ad844c49b0236"
+    },
+    {
+      "mode": 420,
+      "path": "core/schemas/install-manifest.schema.json",
+      "sha256": "370e387818e7516de2a8402b6ff65a68fde3020bafce02f887cc461ae879737d"
+    },
+    {
+      "mode": 420,
+      "path": "core/schemas/plan.schema.json",
+      "sha256": "96b1f48b8204e17b525fda3c3f9b25240653458b47d89d2a4fc15a68b3da6234"
+    },
+    {
+      "mode": 420,
+      "path": "core/schemas/recipe-facts.schema.json",
+      "sha256": "9be631af5306c4ba6f12f2e138fceb15f1ddb8f14ba2a48dc39b21c79b741d0d"
+    },
+    {
+      "mode": 420,
+      "path": "core/schemas/recipe.schema.json",
+      "sha256": "d2c647267399784ca8d0408c6e739e34f718833f41bd42f61c88fab4244b141e"
+    },
+    {
+      "mode": 420,
+      "path": "core/schemas/report.schema.json",
+      "sha256": "7d2e107f74c4eade883e634378ae69ca45a52a1df3db6b80c49bb45f7505a6e4"
+    },
+    {
+      "mode": 420,
+      "path": "core/schemas/repository-policy.schema.json",
+      "sha256": "867c072cd4a4f289acb530075edbb210be74c68b968d7fefc54cdd8bf1d61660"
+    },
+    {
+      "mode": 420,
+      "path": "core/schemas/result.schema.json",
+      "sha256": "0aa7ba2819ab9107ff970a903337bd8eb420c121b1a7cef11697603e0ff3ca64"
+    },
+    {
+      "mode": 420,
+      "path": "core/schemas/run.schema.json",
+      "sha256": "58c5cd5d124138c6db35979012d29e29d482a23e8c13f16709215b6e952fcfa8"
+    },
+    {
+      "mode": 420,
+      "path": "core/schemas/task.schema.json",
+      "sha256": "6d77b7e88beb2b6c09c3e0d90ca873ef5c27ad1d49bd99ae9681ce3bb9f40e03"
+    },
+    {
+      "mode": 420,
+      "path": "core/selection.py",
+      "sha256": "bd219071d58a4628612b8a48d7bf0b0f107009cd780d4c658767a32e5e9b396b"
+    },
+    {
+      "mode": 420,
+      "path": "core/snapshot.py",
+      "sha256": "5856295e97c84961e92e7e56ea948ed2dea20d72149656272af41607c46d6fd7"
+    },
+    {
+      "mode": 420,
+      "path": "core/store.py",
+      "sha256": "6ad867fe90a3c85ab9cb1f41a70071962afe3776e3fab4eeac6e1d52b71e4914"
+    },
+    {
+      "mode": 420,
+      "path": "core/t3.py",
+      "sha256": "72a512d27b4aa3dfd5fd734df4824f9e627b0d6f740156eeaa035383258a3aae"
+    },
+    {
+      "mode": 420,
+      "path": "core/transitions.py",
+      "sha256": "ca10e93ea3aa24920367709b8b12c8d5522bfd8b2e7ff7c4b5b0902d77b1142d"
+    },
+    {
+      "mode": 420,
+      "path": "entry.md",
+      "sha256": "0934d1e384b50a58ecb58b32548b50d1df6294996f5143ea756bfb3a1491d730"
+    },
+    {
+      "mode": 420,
+      "path": "playbooks/audit.md",
+      "sha256": "17799fad13fc7ed758fcad6a4dc90adae48eeb453c3b9e7eec12fe3d1843fc06"
+    },
+    {
+      "mode": 420,
+      "path": "playbooks/blast-radius.md",
+      "sha256": "64f34b6b8af516d207ff04b2aaf714613cff57059427e4fc468f4b9bee133fa9"
+    },
+    {
+      "mode": 420,
+      "path": "playbooks/bug-fix.md",
+      "sha256": "512c02ea99525a93a398b98a01ba896a63ac59dc31fddfb477753bde1d316d9d"
+    },
+    {
+      "mode": 420,
+      "path": "playbooks/checklist.md",
+      "sha256": "efa8457d103c7a17e539ee38be23dd1c79af9e99a97c480c1a3d613ed667b5e4"
+    },
+    {
+      "mode": 420,
+      "path": "playbooks/discussion.md",
+      "sha256": "3a91fe7316882456f909d0b7c36977c7846e03a87de7f92750c6db9a0a1fcc1a"
+    },
+    {
+      "mode": 420,
+      "path": "playbooks/investigation.md",
+      "sha256": "c663347a1ab36640f2f5a7cd25892fd1f34300bdab66cd24aff20d9a4ff092e2"
+    },
+    {
+      "mode": 420,
+      "path": "playbooks/issues.md",
+      "sha256": "d8061086fbba8d8d4e419b8f37c38f0c8cd8edd70321a42d046295959efb2fbc"
+    },
+    {
+      "mode": 420,
+      "path": "plugin.json",
+      "sha256": "74b524cc8415460f440a369c24738354d3984a6a01b213439d4056d37a114715"
+    },
+    {
+      "mode": 420,
+      "path": "references/brief-probes.md",
+      "sha256": "51333223ed2787408907806d80840237256e86c49d5379f7b27dac873173be2e"
+    },
+    {
+      "mode": 420,
+      "path": "references/compatibility.md",
+      "sha256": "933153d7bb7a5968d93202a33cf0fd9286e4156f18959dd898c3b15375746ca0"
+    },
+    {
+      "mode": 420,
+      "path": "references/delegation.md",
+      "sha256": "00726965a93dfda12ba0877c163ebb8e24eee9e9e908b97531c3d15311f15030"
+    },
+    {
+      "mode": 420,
+      "path": "references/personas.md",
+      "sha256": "a5409d64f9a44a060d4700ce40fdf80611f40505fb04ab92d11a7471bd3495e4"
+    },
+    {
+      "mode": 420,
+      "path": "references/request.md",
+      "sha256": "6c042b2c3a0c096f1f9af5cf1514ba33f3b6793652188b83cd3288b48a7cff4a"
+    },
+    {
+      "mode": 420,
+      "path": "references/t3-adapter.md",
+      "sha256": "66023cb19a7eca620fb6e6f281a018d5dbcaefc0dd0c0ad358d062b811116337"
+    },
+    {
+      "mode": 420,
+      "path": "references/verification-init.md",
+      "sha256": "1ed510cef9be05d77edd58452b5d28dadada1b11c37a04448b95446e8e71357c"
+    },
+    {
+      "mode": 420,
+      "path": "schemas/roles.schema.json",
+      "sha256": "995cba08ffa43856c39864de61f02bbab0bb825a2a06d707934aa41cfe565581"
+    },
+    {
+      "mode": 420,
+      "path": "scripts/input.py",
+      "sha256": "33d3cdce8e263d65332e4e38dd2bb96b9c77bc2288f84113116f8da7ad0cfc07"
+    },
+    {
+      "mode": 420,
+      "path": "shared/t3-runtime.md",
+      "sha256": "8869919385bad6ae2e9d4dcb2aff7390149e0fa97796d19dd74c22f0f5afbfc1"
+    },
+    {
+      "mode": 420,
+      "path": "templates/feature.md",
+      "sha256": "18b173c58347f11a65f0971470ab1aa703bad8a8ec8d8153d2aa5e69f35a929e"
+    },
+    {
+      "mode": 420,
+      "path": "templates/verify-project.md",
+      "sha256": "4581e5ab4eb8bdb25ca23e4d1433ab944aaa36466a550f30c94d645c5b2064ee"
+    }
+  ],
+  "plugin": "imps",
+  "schema_version": 1,
+  "source_commit": "35d31354223b78367369c859a0ad23002f07bedf",
+  "version": "0.2.3+g35d31354223b"
+}
