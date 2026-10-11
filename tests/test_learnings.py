@@ -113,9 +113,14 @@ class LearningsTest(unittest.TestCase):
 
     def test_git_failure_does_not_silently_select_another_identity(self):
         probe = subprocess.CompletedProcess([], 128, stdout='', stderr='unsafe ownership')
-        with mock.patch('learning_store.subprocess.run', return_value=probe):
+        with mock.patch('learning_store.subprocess.run', return_value=probe) as run:
             with self.assertRaises(Unavailable):
                 project_identity(self.project)
+            self.assertEqual(run.call_args.kwargs['env']['LC_ALL'], 'C')
+        not_git = subprocess.CompletedProcess([], 128, stdout='', stderr='fatal: not a git repository')
+        with mock.patch('learning_store.subprocess.run', return_value=not_git) as run:
+            self.assertEqual(project_identity(self.project)[1], self.project.name)
+            self.assertTrue(all(call.kwargs['env']['LC_ALL'] == 'C' for call in run.call_args_list))
 
     def test_concurrent_writers_do_not_lose_entries(self):
         with concurrent.futures.ProcessPoolExecutor(max_workers=4) as pool:

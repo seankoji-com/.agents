@@ -42,20 +42,21 @@ def canonical_remote(remote):
 
 def project_identity(project):
     project = Path(project).resolve()
+    git_env = dict(os.environ, LC_ALL='C')
     try:
         probe = subprocess.run(['git', '-C', str(project), 'rev-parse', '--show-toplevel'],
-                               capture_output=True, text=True, timeout=10)
+                               capture_output=True, text=True, timeout=10, env=git_env)
         if probe.returncode and 'not a git repository' not in probe.stderr.lower():
             raise Unavailable('Git project lookup failed; refusing to change learning identity')
         result = subprocess.run(['git', '-C', str(project), 'remote'], capture_output=True,
-                                text=True, timeout=10)
+                                text=True, timeout=10, env=git_env)
         if probe.returncode == 0 and result.returncode:
             raise Unavailable('Git remote lookup failed; refusing to change learning identity')
         remotes = sorted(result.stdout.split()) if result.returncode == 0 else []
         if remotes:
             name = 'origin' if 'origin' in remotes else remotes[0]
             result = subprocess.run(['git', '-C', str(project), 'remote', 'get-url', name],
-                                    capture_output=True, text=True, timeout=10)
+                                    capture_output=True, text=True, timeout=10, env=git_env)
             if result.returncode:
                 raise Unavailable('cannot read selected remote')
             identity = canonical_remote(result.stdout.strip())

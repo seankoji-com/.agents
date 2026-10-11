@@ -34,3 +34,7 @@ relative paths: these false positives are a deferred usability limitation, not a
 reason to relax identifier blocking. Git subfolders share their containing repo's
 identity by design. Claimed approval strings cannot authenticate a human; the agent
 must verify owner provenance in the active conversation before publishing.
+
+The second review found locale-dependent Git diagnostics. Identity probes now use
+the C locale, and the failure/fallback fixture verifies that inherited translations
+cannot change non-Git detection.
