@@ -265,6 +265,13 @@ class RoutingCli(unittest.TestCase):
                     'roles': {'reviewer': [entry('gemini-box', 'model-a2', 'high', 'google')]}}, policy)
         self.assertEqual(self.resolve('reviewer')['sources'], [str(policy)])
 
+    def test_provider_missing_from_config_gets_the_owner_default(self):
+        self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                    'roles': {'workhorse': [entry('opencode', 'gateway/glm-9', 'low', 'glm'),
+                                            entry('codex', 'model-x1', 'low', 'openai')]}})
+        modes = [c['runtimeMode'] for c in self.resolve('workhorse')['candidates']]
+        self.assertEqual(modes, ['full-access', 'auto'])
+
     def test_child_mode_broader_than_parent_is_lowered_visibly(self):
         self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {'opencode': {'runtimeMode': 'full-access'},
                                                                          'codex': {'runtimeMode': 'auto'}},

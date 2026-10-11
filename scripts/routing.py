@@ -224,7 +224,9 @@ def resolve(role: str, capabilities: dict, config: dict, implementer_lineage: st
         if reason:
             unavailable.append(dict(item, reason=reason))
             continue
-        mode = (config.get('providers', {}).get(item['providerInstanceId']) or {}).get('runtimeMode', DEFAULT_RUNTIME_MODE)
+        configured = (config.get('providers', {}).get(item['providerInstanceId']) or {}).get('runtimeMode')
+        # A provider the config does not list gets the same owner default setup would write.
+        mode = configured or DEFAULT_RUNTIME_MODES.get(provider.get('driverKind', ''), DEFAULT_RUNTIME_MODE)
         candidate = dict(item, runtimeMode=mode)
         if parent_mode in RUNTIME_MODES and RUNTIME_MODES.index(mode) > RUNTIME_MODES.index(parent_mode):
             # T3 refuses a child broader than its parent. Launch at the parent's mode

@@ -37,7 +37,8 @@ def retired_meta(args, prefix):
     if args.command != 'uninstall':
         return None
     for _, manifest in installer.snapshot_manifests(prefix / args.plugin):
-        if (manifest or {}).get('plugin') == args.plugin:
+        # A retired plugin's corrupt manifest still reaches the installer, which names the file.
+        if (manifest or {}).get('plugin') == args.plugin or (manifest is None and args.plugin in RETIRED):
             return {'name': args.plugin}
     return None
 
@@ -103,8 +104,10 @@ def main(argv=None):
             if args.plugin not in {p['name'] for p in plugins}:
                 retired = retired_meta(args, prefix)
                 if retired is None:
-                    hint = f' (retired; t3-plugins uninstall {args.plugin} removes an old installation)' \
-                        if args.plugin in RETIRED else ''
+                    hint = ''
+                    if args.plugin in RETIRED:
+                        hint = (f' (retired; nothing of it is installed under {prefix})' if args.command == 'uninstall'
+                                else f' (retired; t3-plugins uninstall {args.plugin} removes an old installation)')
                     raise ValueError(f'unknown plugin: {args.plugin}{hint}')
                 plugins = [retired]
             plugins = [p for p in plugins if p['name'] == args.plugin]

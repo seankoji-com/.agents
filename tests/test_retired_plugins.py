@@ -250,6 +250,16 @@ class RetiredUninstall(unittest.TestCase):
         self.assertTrue((version_dir / 'entry.md').exists())
         self.call('uninstall', 'never-existed', code=2)
 
+    def test_corrupt_retired_manifest_reaches_the_installer(self):
+        version_dir = self.old_snapshot('offload-sidecar')
+        (version_dir / 'install-manifest.json').write_text('not json')
+        result = self.call('uninstall', 'offload-sidecar', code=2)
+        self.assertIn('manifest_corrupt', result.stdout + result.stderr)
+        self.assertTrue((version_dir / 'entry.md').exists())
+        missing = self.call('uninstall', 'prompt-builder', code=2)
+        self.assertIn('nothing of it is installed', missing.stderr)
+        self.assertNotIn('t3-plugins uninstall prompt-builder', missing.stderr)
+
     def test_other_commands_reject_retired_names(self):
         self.old_snapshot('offload-sidecar')
         for command in (['install', 'offload-sidecar'], ['doctor', 'offload-sidecar'], ['path', 'offload-sidecar']):

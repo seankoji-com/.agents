@@ -13,7 +13,7 @@ its time waiting on child processes. `run_tests.py` gives each module its own pr
 and prints that module's full output only if it fails. It is stricter than unittest in
 two ways: a module that collects no tests fails, and a module still running after
 `--timeout` seconds (default 600) is stopped and fails. On 2026-10-11, on a 16-core
-Linux machine, the 700 or so tests took about a minute in parallel and four minutes serially.
+Linux machine, the 545 tests took about a minute in parallel.
 
 Line coverage of `core/`, `scripts/`, and the plugin helpers was 87% on the same date,
 measured with coverage.py across the child processes the tests start. coverage.py is
