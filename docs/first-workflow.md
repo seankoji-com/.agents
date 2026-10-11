@@ -22,7 +22,8 @@ currently returns 2; it should return 3. Verify locally, without publishing a PR
 
 Replace that example with a real bug in your repository. The agent records a plan,
 implements the change, runs checks, and collects evidence. It inherits your provider
-selection. Delegation is optional and uses T3's task APIs when the work warrants it.
+selection. It delegates through T3's task APIs when that pays off, under the
+[shared delegation rules](https://github.com/seankoji-com/t3-plugins/blob/master/shared/delegation.md).
 
 The final report distinguishes completed, blocked, and unverified work. Retain its
 run ID. A blocked run includes its reason and resume instructions.
@@ -41,16 +42,12 @@ the agent must report that path and use it consistently on subsequent commands.
 
 ## A model-free first result
 
-To try the file tools without a model engine, create `input.txt` and this `request.json`
-in a scratch project directory:
-
-```json
-{"operation":"sort_lines","input_path":"input.txt","output_path":"sorted.txt"}
-```
+To try a local helper without a model, audit a copy of a Claude settings file:
 
 ```sh
-python3 ~/.local/share/t3-plugins/offload-sidecar/current/scripts/process.py request.json
+python3 ~/.local/share/t3-plugins/agent-tuneup/current/scripts/audit.py \
+  --provider claude --settings settings.json
 ```
 
-Inspect `sorted.txt` and the output hash in the receipt. This deterministic path needs
-neither Ollama nor cloud authentication.
+It prints JSON findings with codes and locations, never setting values. Exit `0` means
+clean and `1` means findings. The audit reads the file and changes nothing.

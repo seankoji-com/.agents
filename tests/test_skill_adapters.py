@@ -110,7 +110,7 @@ class SkillAdapters(unittest.TestCase):
     def test_all_catalog_adapters_and_invalid_receipt(self):
         self.call('install')
         result = self.call('skills', 'install', '--root', str(self.skills))
-        self.assertEqual(len(result.stdout.splitlines()), 7)
+        self.assertEqual(len(result.stdout.splitlines()), 5)
         marker = self.skills / 't3-imps/.t3-plugins-skill.json'
         marker.write_text('[]')
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)

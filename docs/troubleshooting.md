@@ -40,13 +40,6 @@ Resume in the same thread with the recorded run ID and state root. The core prev
 two owners from changing a run at once. Only recover a claim when its previous owner
 is confirmed dead; never take over a live thread's work. Keep the exact blocker report.
 
-## Sidecar processing fails
-
-Try `process.py --doctor`, then a deterministic operation in a scratch directory.
-Confirm paths are under `SIDECAR_ROOT` and output directories exist. For model work,
-inspect engine configuration and `offload_sidecar.py status`. Cloud calls need explicit
-consent in the one-shot request and a configured engine. A quota block is not success.
-
 ## Homebrew has an older catalog
 
 Run `brew update`, `brew upgrade t3-plugins`, then `t3-plugins setup`. A GitHub release

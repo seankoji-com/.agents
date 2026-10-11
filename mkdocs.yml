@@ -1,5 +1,5 @@
 site_name: t3-plugins
-site_description: Seven agent workflows for T3 Code that keep working when you change the model. Python standard library, evidence before completion, live provider results recorded.
+site_description: Five agent workflows for T3 Code that keep working when you change the model. Python standard library, evidence before completion, live provider results recorded.
 site_url: https://seankoji-com.github.io/t3-plugins/
 repo_url: https://github.com/seankoji-com/t3-plugins
 repo_name: seankoji-com/t3-plugins
@@ -64,11 +64,9 @@ nav:
       - Choose a plugin: plugins/index.md
       - imps: plugins/imps.md
       - elephant-goldfish: plugins/elephant-goldfish.md
-      - prompt-builder: plugins/prompt-builder.md
       - ape: plugins/ape.md
       - babysitter: plugins/babysitter.md
       - agent-tuneup: plugins/agent-tuneup.md
-      - offload-sidecar: plugins/offload-sidecar.md
   - Engineering:
       - Architecture: architecture.md
       - Compatibility: compatibility.md

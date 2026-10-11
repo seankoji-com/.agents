@@ -35,7 +35,7 @@ class SetupTest(unittest.TestCase):
     def test_default_setup_installs_catalog_and_three_roots_idempotently(self):
         first = self.call('setup')
         receipts = [json.loads(line) for line in first.stdout.splitlines()]
-        self.assertEqual(len(receipts), 28)
+        self.assertEqual(len(receipts), 20)
         for root in ('.agents/skills', '.claude/skills', '.gemini/config/skills'):
             skill = self.home / root / 't3-imps/SKILL.md'
             self.assertIn(str(self.prefix / 'imps/current/entry.md'), skill.read_text())

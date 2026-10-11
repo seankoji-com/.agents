@@ -5,7 +5,7 @@ description: "Why t3-plugins is built the way it is: the three decisions behind 
 # Why it is built this way
 
 I wrote these plugins for Claude Code first. When T3 Code added cross-provider
-orchestration, I had a choice: port seven workflows by hand to each provider's
+orchestration, I had a choice: port each workflow by hand to each provider's
 extension format, or find the shape that survives a model change. This page is the
 reasoning behind the second option, written for anyone deciding whether the same
 constraints apply to their own agent tooling.
@@ -54,10 +54,9 @@ Nothing in the catalog knows what a "reviewer" model is. Roles are resolved agai
 T3's live capability list at run time, and a provider that is disabled, uninstalled,
 or unauthenticated shows up as exactly that in the `doctor` report. No model ID is
 compiled into imps or the core: roles resolve as `inherit`, `catalog`, or
-`same_provider`. The one exception is deliberate and outside T3's selection: the
-offload sidecar, which sends bulk file work to a local Ollama model or the Antigravity
-CLI, ships default model names for those tiers, and each is a setting the user can
-change.
+`same_provider`. Role-to-model routing is user-local configuration that `t3-plugins
+setup` writes from a saved capabilities response, so the package itself never names a
+model.
 
 This is the decision that makes the "provider-neutral" claim honest. It also means the
 catalog cannot promise that every model behaves the same. It can only record what

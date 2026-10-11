@@ -8,11 +8,9 @@ Only a live workflow run answers the third.
 
 | Surface | Status | Evidence |
 | --- | --- | --- |
-| Seven-plugin catalog | Deterministic install and invocation tests | `tests/test_catalog.py` |
+| Five-plugin catalog | Deterministic install and invocation tests | `tests/test_catalog.py` |
 | Portable workflow entries | Experimental ports | Entry/path contracts and manual review; no full provider matrix yet |
 | imps | Partial live conformance | [Recorded matrix](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/compatibility.md) |
-| Sidecar deterministic operations | Local regression coverage | Imported operation tests and installed-artifact CLI tests |
-| Sidecar model operations | Optional external engines | Mocked regression tests; live engine availability is environment-specific |
 | agent-tuneup | Known-pattern audit adapters | Claude JSON, OpenCode JSON/JSONC, Codex TOML tests |
 
 The imps ledger records T3 `0.0.46-nightly.20261008.2849`, exact model IDs, repeat
