@@ -130,9 +130,15 @@ guesses: edit them. Providers default to `auto`, except OpenCode, which defaults
 {
   "schema_version": 1,
   "tiers": ["low", "medium", "high"],
-  "providers": {"codex": {"runtimeMode": "auto"}, "opencode": {"runtimeMode": "full-access"}},
+  "providers": {
+    "codex": {"runtimeMode": "auto"},
+    "opencode": {"runtimeMode": "full-access"}
+  },
   "roles": {
-    "reviewer": [{"providerInstanceId": "codex", "model": "MODEL_ID", "tier": "medium", "lineage": "openai"}]
+    "reviewer": [
+      {"providerInstanceId": "codex", "model": "MODEL_ID",
+       "tier": "medium", "lineage": "openai"}
+    ]
   }
 }
 ```
