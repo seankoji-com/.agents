@@ -37,8 +37,16 @@ that cites a file or screenshot.
 
 `weighted = sum(score × weight) / sum(weight × 5)`, reported to two decimals.
 
-A required check that fails in `task_a.py` caps C1 or C2 (whichever the check belongs to)
-at 2. Rendering quality is judged only from screenshots or, failing those, from the code.
+A required check that fails in `task_a.py` caps its criterion at 2:
+
+| Required check | Criterion capped |
+| --- | --- |
+| `leaflet_vendored` | C2 |
+| `station_ids` | C1 |
+| `price_series` | C4 |
+| `recommendation` | C1 |
+
+Rendering quality is judged only from screenshots or, failing those, from the code.
 
 ## Preference
 
@@ -48,13 +56,14 @@ agree with the weighted scores unless the grader explains a disagreement in one 
 
 ## Output
 
-Reply with exactly one fenced `json` block:
+Reply with exactly one fenced `json` block. Every score is an integer from 1 to 5; the
+template's `1`s are placeholders.
 
 ```json
 {
   "slot": 1,
-  "scores": {"X": {"C1": 0, "C2": 0, "C3": 0, "C4": 0, "C5": 0, "C6": 0},
-             "Y": {"C1": 0, "C2": 0, "C3": 0, "C4": 0, "C5": 0, "C6": 0}},
+  "scores": {"X": {"C1": 1, "C2": 1, "C3": 1, "C4": 1, "C5": 1, "C6": 1},
+             "Y": {"C1": 1, "C2": 1, "C3": 1, "C4": 1, "C5": 1, "C6": 1}},
   "reasons": {"X": {"C1": "..."}, "Y": {"C1": "..."}},
   "weighted": {"X": 0.0, "Y": 0.0},
   "preference": "X|Y|tie",

@@ -111,6 +111,19 @@ class TaskACheckTest(unittest.TestCase):
         (self.out / 'data.js').unlink()
         self.assertEqual(self.failing(), {'station_ids'})
 
+    def test_extra_file_in_vendored_leaflet_fails(self):
+        (self.out / 'vendor/leaflet/leaflet.js.bak').write_text('// sidecar')
+        self.assertEqual(self.failing(), {'leaflet_vendored'})
+
+    def test_script_paths_resolve_relative_to_out(self):
+        page = self.out / 'index.html'
+        (self.out / 'js').mkdir()
+        (self.out / 'data.js').rename(self.out / 'js' / '.data.js')
+        page.write_text(page.read_text().replace('src="data.js"', 'src="./js/../js/.data.js"'))
+        self.assertEqual(self.failing(), set())
+        page.write_text(page.read_text().replace('./js/../js/.data.js', '../js/.data.js'))
+        self.assertEqual(self.failing(), {'station_ids'})
+
     def test_missing_leaflet_assets_fail(self):
         (self.out / 'vendor/leaflet/LICENSE').unlink()
         shutil.rmtree(self.out / 'vendor/leaflet/images')
@@ -153,6 +166,25 @@ class TokenParserTest(unittest.TestCase):
         self.assertNotIn('<synthetic>', result['by_model'])
         self.assertTrue(result['first_prompt_prefix'].startswith(tokens.PARENT_PROMPT_PREFIX))
         self.assertEqual(tokens.wallclock_seconds(result['started_at'], result['ended_at']), 60.0)
+
+    def test_lines_without_ids_are_counted_separately(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 's.jsonl'
+            usage = {'input_tokens': 1, 'output_tokens': 2, 'cache_creation_input_tokens': 3,
+                     'cache_read_input_tokens': 4}
+            line = {'type': 'assistant', 'message': {'model': 'claude-opus-5-5', 'usage': usage}}
+            path.write_text((json.dumps(line) + '\n') * 2)
+            opus = tokens.parse_session(path)['by_model']['claude-opus-5-5']
+            self.assertEqual((opus['messages'], opus['counted']), (2, 12))
+            self.assertIsNone(tokens.parse_session(path)['started_at'])
+            workspace = Path(tmp) / 'ws'
+            project = Path(tmp) / 'projects' / tokens.encode_project(workspace)
+            project.mkdir(parents=True)
+            prompt = {'type': 'user', 'message': {'content': tokens.PARENT_PROMPT_PREFIX + 'x'}}
+            (project / 'p.jsonl').write_text(json.dumps(prompt) + '\n' + path.read_text())
+            (Path(tmp) / 'codex').mkdir()
+            result = tokens.parse_run(workspace, Path(tmp) / 'projects', Path(tmp) / 'codex')
+            self.assertEqual(result['parent_opus']['counted'], 12)
 
     def test_missing_usage_is_unknown_not_zero(self):
         opus = tokens.parse_session(TRANSCRIPTS / 'transcript_missing_usage.jsonl')['by_model']['claude-opus-5-5']

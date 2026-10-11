@@ -17,6 +17,7 @@ import argparse
 import hashlib
 import json
 import math
+import posixpath
 import re
 import sys
 from datetime import datetime
@@ -90,6 +91,12 @@ def texts(out: Path) -> dict:
     return found
 
 
+def local_path(src: str) -> str:
+    """A script src relative to out/ as a key of texts(); '' when it leaves out/."""
+    rel = posixpath.normpath(src)
+    return '' if rel.startswith(('../', '/')) or rel == '..' else rel
+
+
 def number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
@@ -125,6 +132,12 @@ def check(out: Path, data_dir: Path) -> list:
             problems.append(f'missing out/vendor/leaflet/{rel}')
         elif sha256(copy) != sha256(source):
             problems.append(f'out/vendor/leaflet/{rel} differs from the provided Leaflet')
+    emitted = out / 'vendor' / 'leaflet'
+    if emitted.is_dir():
+        provided_files = {p.relative_to(provided).as_posix() for p in provided.rglob('*') if p.is_file()}
+        problems += [f'unexpected out/vendor/leaflet/{p.relative_to(emitted).as_posix()}'
+                     for p in sorted(emitted.rglob('*')) if p.is_file()
+                     and p.relative_to(emitted).as_posix() not in provided_files]
     for name in ('leaflet.js', 'leaflet.css'):
         if not re.search(r'''(?:src|href)\s*=\s*["'](?:\./)?vendor/leaflet/''' + re.escape(name) + r'''["']''', page):
             problems.append(f'index.html does not load vendor/leaflet/{name} by relative path')
@@ -139,7 +152,7 @@ def check(out: Path, data_dir: Path) -> list:
     listed_ids = [s.get('id') for s in stations]
     missing = sorted(set(want['in_radius']) - set(listed_ids))
     extra = sorted(set(listed_ids) - set(want['in_radius']))
-    page_text = page + ''.join(files.get(src.lstrip('./'), '') for src in LOCAL_SCRIPT.findall(page))
+    page_text = page + ''.join(files.get(local_path(src), '') for src in LOCAL_SCRIPT.findall(page))
     not_on_page = sorted(set(want['in_radius']) - set(STATION_ID.findall(page_text)))
     leaked = sorted({sid for text in files.values() for sid in STATION_ID.findall(text)} & set(want['out_of_radius']))
     add('station_ids', not (missing or extra or leaked or not_on_page) and bool(page),

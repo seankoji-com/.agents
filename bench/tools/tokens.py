@@ -64,7 +64,7 @@ def parse_session(path: Path) -> dict:
     """Usage totals for one Claude Code session file, by model."""
     messages, stamps = {}, []
     first_prompt = None
-    for item in _lines(path):
+    for number, item in enumerate(_lines(path)):
         stamp = item.get('timestamp')
         if isinstance(stamp, str):
             stamps.append(stamp)
@@ -75,7 +75,8 @@ def parse_session(path: Path) -> dict:
                 first_prompt = text
         if item.get('type') != 'assistant' or message.get('model') == '<synthetic>':
             continue
-        key = message.get('id') or item.get('requestId') or item.get('uuid')
+        # A line with no ID cannot be matched to its siblings; count it on its own.
+        key = message.get('id') or item.get('requestId') or item.get('uuid') or f'line-{number}'
         usage = message.get('usage') if isinstance(message.get('usage'), dict) else {}
         entry = messages.setdefault(key, {'model': message.get('model') or 'unknown', 'usage': {}})
         for field in FIELDS:
@@ -141,7 +142,7 @@ def parse_run(workspace: Path, projects_dir: Path, codex_dir: Path | None = None
     descendants = [dict(s, kind='claude-session') for s in parsed if s is not parent]
     for sub in sorted(project.glob('*/subagents/*.jsonl')):
         descendants.append(dict(parse_session(sub), kind='claude-subagent'))
-    if codex_dir and codex_dir.is_dir() and parent:
+    if codex_dir and codex_dir.is_dir() and parent and parent['started_at'] and parent['ended_at']:
         # Codex files rollouts under YYYY/MM/DD in local time; scan the run's days and a day either side.
         first = datetime.fromisoformat((parent['started_at'] or '').replace('Z', '+00:00')).date()
         last = datetime.fromisoformat((parent['ended_at'] or '').replace('Z', '+00:00')).date()

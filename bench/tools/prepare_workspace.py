@@ -39,7 +39,10 @@ def git(*args, cwd, env=None) -> str:
 
 
 def export_commit(repo: Path, rev: str, dest: Path) -> str:
-    tree = git('rev-parse', f'{rev}^{{tree}}', cwd=repo)
+    try:
+        tree = git('rev-parse', '--verify', '--quiet', f'{rev}^{{tree}}', cwd=repo)
+    except subprocess.CalledProcessError:
+        raise SystemExit(f'{repo} does not contain {rev}; Task B needs a full (unshallow) clone') from None
     with tempfile.TemporaryDirectory() as tmp:
         env = {'GIT_INDEX_FILE': str(Path(tmp) / 'index')}
         git('read-tree', tree, cwd=repo, env=env)
