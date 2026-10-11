@@ -87,6 +87,31 @@ def install(root, prefix, meta):
     return {'name': name, 'path': str(directory / 'SKILL.md'), 'entry': str(entry)}
 
 
+def remove_retired(root, plugin):
+    """Remove a retired plugin's adapter only when its own marker proves it is ours
+    and unmodified. Anything else is preserved untouched and reported."""
+    name = 't3-' + plugin
+    try:
+        directory = safe_path(root) / name
+    except ValueError as exc:
+        return {'name': name, 'root': str(root), 'removed': False, 'preserved': str(exc)}
+    if not directory.exists() and not directory.is_symlink():
+        return None
+    receipt = {'name': name, 'root': str(directory.parent), 'removed': False}
+    try:
+        if directory.is_symlink():
+            raise ValueError(f'skill directory is a symlink: {directory}')
+        managed(directory, name)
+    except (ValueError, OSError) as exc:
+        return dict(receipt, preserved=str(exc))
+    (directory / 'SKILL.md').unlink()
+    (directory / MARKER).unlink()
+    kept = sorted(path.name for path in directory.iterdir())
+    if not kept:
+        directory.rmdir()
+    return dict(receipt, removed=True, kept=kept)
+
+
 def uninstall(root, meta):
     name = 't3-' + meta['name']
     directory = safe_path(safe_path(root) / name)

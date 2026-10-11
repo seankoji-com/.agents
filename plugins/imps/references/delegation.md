@@ -1,10 +1,27 @@
-# Delegated mode
+# Delegated mode in imps
 
-Load this when the plan uses `"execution": {"mode": "delegated"}`.
+Load this when the plan uses `"execution": {"mode": "delegated"}`. The rules for when
+to delegate, which model to use and what a child brief holds are in
+`PKG/shared/delegation.md`; this file covers only how imps carries them out. The
+core runs at most `execution.concurrency` children at once (plan default 4).
 
-## When to delegate
+## Targets from the routing config
 
-Delegate a task only when it resolves a distinct unknown or produces an output you can check independently: a read-only survey, a fix in a separate module, a second implementation to compare. Do not split a change to fill a roster. Default concurrency is 4. Lower it in the plan when the work is tightly coupled.
+When `t3-plugins resolve <role> --capabilities FILE` returns candidates, put the chosen
+one in a task's `target` with only its `providerInstanceId`, `model` and `runtimeMode`; the
+core passes `runtimeMode` to `delegate_task`. If the candidate carries `owner_action`,
+repeat it in the report. For review, run
+`t3-plugins resolve reviewer --capabilities FILE --implementer-lineage <lineage>` and
+set `roles.reviewer.chain` to one `fixed` entry per candidate, copying only
+`providerInstanceId`, `model` and `runtimeMode`, in the order printed: independent candidates first, then unverified ones (`independent:
+null`), then the same lineage. The core advances the chain only when a target is
+unavailable. A reviewer that is not `independent: true` leaves independence unverified
+in the report. Repository policy in `.t3-plugins/imps.json`
+still wins.
+
+Without a routing config there is no lineage data. The default reviewer chain then
+picks another catalog provider, which does not establish a different lineage. Say in
+the report that reviewer independence is unverified.
 
 ## Plan tasks
 
@@ -40,7 +57,3 @@ Each child ends its final message with one fenced block tagged `json t3-result`.
 ## Integration and repair
 
 In parallel mode, each accepted writer is integrated as soon as it is ready (`git merge --no-ff` into your checkout, one at a time). A task that depends on a writer starts only after that writer is integrated, so its new worktree contains the prerequisite. Serial mode needs no integration: the writers already worked in your checkout. A failed merge blocks the run and keeps every worktree and branch. The report lists each one with its cleanup command. A review repair creates a `repair-N` task: in parallel mode it gets a new worktree from the integrated HEAD; in serial mode it works in your checkout. The repair limit applies per stage: checks, acceptance and review each allow `repair_limit` repair rounds. After an adverse review, any edit made outside `record --kind repair` still costs a review repair round; it never buys a fresh review.
-
-## Waiting
-
-After a dispatch, end your turn unless other actions are ready. T3 wakes this thread when a child finishes. Do not poll in a loop or start watcher processes.

@@ -2,15 +2,9 @@
 
 Read once per run. The plugin entry defines the task; this file defines how it uses T3.
 
-- Inherit the active provider and model. Discover `orchestrator_capabilities` before
-  selecting children; use exact provider instance and model IDs from its live catalog.
-  A name such as "fast" is a role, never a model ID. Respect the operator's choices.
-- Do direct work by default. When delegation is justified and authorized, use T3
-  `delegate_task`, retain `taskId`, and collect or cancel through `task_status` and
-  `task_cancel`. Use a unique `clientRequestId` per task/round, stable across retries.
-  Each review round is a new task containing the original brief and previous findings.
-  Never use `create_threads` or `t3_thread_launch` for child work, nor send follow-ups
-  to child threads. Never launch a provider CLI to simulate a T3 child.
+- Inherit the active provider and model, and respect the operator's choices.
+- Delegation follows `PKG/shared/delegation.md`: when to hand off, which model, which
+  tools, and what a child brief contains.
 - Tool prefixes vary by harness. Match exposed tools by name and description. If an
   expected tool is absent, attempt bounded discovery. Report the missing capability
   rather than inventing a substitute. Do not change provider configuration to unblock it.

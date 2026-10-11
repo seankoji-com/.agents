@@ -69,10 +69,6 @@ capability discovery, children, task status/cancellation, previews, and PR watch
 Provider/model IDs come from the live catalog. A plugin never assumes that a role
 like "reviewer" means a particular model.
 
-The sidecar's optional Ollama/agy backends are a separate processing service. A T3
-provider can invoke its deterministic path without either backend. Choosing a cloud
-sidecar tier crosses a data boundary and requires explicit authorization.
-
 ## Tradeoffs
 
 Instructions are portable but model adherence varies. Unit tests prove helper and

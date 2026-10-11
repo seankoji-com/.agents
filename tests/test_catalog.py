@@ -26,9 +26,9 @@ class CatalogTest(unittest.TestCase):
 
     def test_catalog_install_doctor_and_uninstall_preserve_neighbors(self):
         receipts = [json.loads(line)['data'] for line in self.call('install').stdout.splitlines()]
-        self.assertEqual(len(receipts), 7)
+        self.assertEqual(len(receipts), 5)
         self.assertEqual({r['plugin'] for r in receipts},
-                         {'imps', 'ape', 'babysitter', 'elephant-goldfish', 'prompt-builder', 'agent-tuneup', 'offload-sidecar'})
+                         {'imps', 'ape', 'babysitter', 'elephant-goldfish', 'agent-tuneup'})
         for receipt in receipts:
             entry = Path(receipt['entry'])
             self.assertTrue(entry.is_file())
@@ -115,30 +115,26 @@ class CatalogTest(unittest.TestCase):
         for name in ('path', 'prompt', 'doctor'):
             self.assertRegex(text, rf'(?m)^\s+{name}\s{{2,}}\S', f'{name} needs help text')
 
-    def test_installed_sidecar_transform_works_outside_checkout(self):
-        self.call('install', 'offload-sidecar')
+    def test_installed_helper_works_outside_checkout(self):
+        self.call('install', 'agent-tuneup')
         project = Path(self.tmp.name) / 'project'
         project.mkdir()
-        (project / 'input.txt').write_text('zebra\napple\n')
-        request = {'operation': 'sort_lines', 'input_path': 'input.txt', 'output_path': 'sorted.txt'}
-        (project / 'request.json').write_text(json.dumps(request))
-        script = self.prefix / 'offload-sidecar/current/scripts/process.py'
-        result = subprocess.run([sys.executable, str(script), 'request.json'], cwd=project,
-                                env={**os.environ, 'SIDECAR_ROOT': str(project)}, capture_output=True, text=True, timeout=10)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual((project / 'sorted.txt').read_text(), 'apple\nzebra\n')
+        (project / 'settings.json').write_text(json.dumps({'permissions': {'allow': ['Bash(*)']}}))
+        script = self.prefix / 'agent-tuneup/current/scripts/audit.py'
+        result = subprocess.run([sys.executable, '-I', str(script), '--provider', 'claude', '--settings', 'settings.json'],
+                                cwd=project, capture_output=True, text=True, timeout=10)
+        self.assertIn(result.returncode, (0, 1), result.stdout + result.stderr)
         receipt = json.loads(result.stdout)
-        self.assertEqual(receipt['status'], 'success')
-        self.assertIn('output_sha256', receipt)
+        self.assertTrue(receipt['ok'])
+        self.assertNotIn('Bash(*)', result.stdout)
 
-    def test_cloud_default_and_explicit_tiers_require_consent(self):
-        script = ROOT / 'plugins/offload-sidecar/scripts/process.py'
-        for request in ({'operation': 'describe_image'}, {'operation': 'summarize', 'tier': 'pro'}):
-            path = Path(self.tmp.name) / 'request.json'
-            path.write_text(json.dumps(request))
-            result = subprocess.run([sys.executable, str(script), str(path)], capture_output=True, text=True, timeout=10)
-            self.assertEqual(result.returncode, 2)
-            self.assertIn('allow_cloud=true', result.stdout)
+    def test_retired_plugins_are_not_in_the_catalog(self):
+        listed = self.call('list').stdout
+        for name in ('offload-sidecar', 'prompt-builder'):
+            self.assertNotIn(name, listed)
+            self.assertFalse((ROOT / 'plugins' / name).exists())
+            self.assertIn('unknown plugin', self.call('install', name, expected=2).stderr)
+        self.assertFalse(self.prefix.exists())
 
     def test_entries_are_small_and_load_existing_files(self):
         import re
@@ -161,17 +157,6 @@ class CatalogTest(unittest.TestCase):
             text = path.read_text()
             for forbidden in ('/imps:imps', 'haiku', 'CLAUDE_PLUGIN_ROOT'):
                 self.assertNotIn(forbidden, text, path)
-
-    def test_one_shot_rejects_malformed_request_types_without_tracebacks(self):
-        script = ROOT / 'plugins/offload-sidecar/scripts/process.py'
-        for changes in ({'params': ['bad']}, {'overwrite': 'false'}, {'operation': []},
-                        {'instruction': {}}, {'input_paths': 'file'}, {'allow_cloud': 'true'}):
-            path = Path(self.tmp.name) / 'request.json'
-            path.write_text(json.dumps({'operation': 'sort_lines', **changes}))
-            result = subprocess.run([sys.executable, str(script), str(path)], capture_output=True, text=True, timeout=10)
-            self.assertEqual(result.returncode, 2)
-            self.assertEqual(json.loads(result.stdout)['status'], 'error')
-            self.assertNotIn('Traceback', result.stderr)
 
 
 if __name__ == '__main__':

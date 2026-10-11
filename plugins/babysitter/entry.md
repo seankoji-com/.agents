@@ -1,7 +1,7 @@
 # babysitter
 
 Keep pull requests moving through review and CI. Read `PKG/shared/t3-runtime.md`,
-then `PKG/playbooks/maintain.md`.
+then `PKG/playbooks/maintain.md`. Delegation follows `PKG/shared/delegation.md`.
 
 - `pr <URL>`: one pull request.
 - `repo <owner/name>`: eligible open PRs in one repository.

@@ -1,5 +1,5 @@
 class T3Plugins < Formula
-  desc "Provider-neutral workflows and file tools for T3 Code"
+  desc "Provider-neutral agent workflows for T3 Code"
   homepage "https://github.com/seankoji-com/t3-plugins"
   url "__URL__"
   sha256 "__SHA256__"
@@ -40,7 +40,7 @@ class T3Plugins < Formula
     system bin/"t3-plugins", "--prefix", testpath/"plugins", "doctor"
     system bin/"t3-plugins", "--prefix", testpath/"plugins", "setup", "imps", "--root", testpath/"skills"
     assert_path_exists testpath/"skills/t3-imps/SKILL.md"
-    assert_match "prompt-builder", shell_output("#{bin}/t3-plugins list")
+    assert_match "agent-tuneup", shell_output("#{bin}/t3-plugins list")
     system bin/"imps", "--help"
   end
 end

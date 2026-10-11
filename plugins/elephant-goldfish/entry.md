@@ -1,7 +1,8 @@
 # elephant-goldfish
 
 Turn an uncertain problem into a testable brief, or check a durable design document.
-Read `PKG/shared/t3-runtime.md` first. Inherit the session model.
+Read `PKG/shared/t3-runtime.md` first. Inherit the session model. Delegation follows
+`PKG/shared/delegation.md`.
 
 | Request | Load |
 | --- | --- |

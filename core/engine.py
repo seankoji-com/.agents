@@ -117,7 +117,9 @@ def brief(state: dict, task: dict, purpose: str, current: dict | None = None) ->
     if task.get('kind') == 'review':
         lines += [f'Review the change between base {state["repo"].get("base_sha")} and the current working tree '
                   'of that directory, including uncommitted files. Do not modify any file.',
-                  'Return verdict "adverse" if any blocker or major finding remains, else "approve".']
+                  'Report every finding you observe, each with its severity, including minor ones and notes.',
+                  'Then, as a separate step, set the verdict from those severities: "adverse" if any blocker or '
+                  'major finding remains, else "approve".']
     elif task.get('kind') == 'probe':
         lines += [f'Write exactly the text {task["probe"]["nonce"]} to the file {task["probe"]["marker"]} '
                   '(create it; no trailing newline needed). Do nothing else. If you cannot write there, '

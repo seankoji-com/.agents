@@ -8,8 +8,8 @@ maintainability, accessibility, and user experience; skip dimensions with no sur
 Each finding needs file/line evidence, a concrete failure scenario, impact, existing
 mitigations, and a bounded verification. Separate confirmed defects from hypotheses
 and preferences. Record coverage gaps instead of inflating them into bugs.
-Use T3 preview for actual UI observations when available. Independent T3 analysts
-are optional; do not spawn one per heading merely to fill a panel.
+Use T3 preview for actual UI observations when available. Fan out independent
+dimensions under `PKG/shared/delegation.md`.
 
 Save the audit at an operator-approved path. Group fixes by dependency and ownership,
 with acceptance criteria suitable for `run` or `issues`. Auditing does not authorize
@@ -28,8 +28,7 @@ checks only when covered by the audit's read-only authorization.
 
 Challenge each blocker or major finding with counter-evidence from the actual code
 and mitigations. Revisit suspiciously empty dimensions and interactions between them.
-Use tracked T3 reviewers for substantial independent questions when available; a
-missing reviewer is a coverage gap, not fabricated approval. Keep refuted findings
+A missing reviewer is a coverage gap, not fabricated approval. Keep refuted findings
 and their evidence in the report.
 
 If the operator requests an imps-ready plan, write it outside the repo at the

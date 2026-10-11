@@ -64,7 +64,7 @@ class SurfaceTest(CoreTestCase):
         self.assertIn('when exposed', text)
 
     def test_top_level_thread_tools_appear_only_as_prohibitions(self):
-        for path, text in text_files('plugins'):
+        for path, text in [*text_files('plugins'), *text_files('shared')]:
             for line in text.splitlines():
                 if 'create_threads' in line or 't3_thread_launch' in line:
                     self.assertRegex(line.lower(), r'never|prohibited', f'{path}: {line}')

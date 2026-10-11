@@ -12,5 +12,4 @@ file access, provider delegation, settings writes, and local-to-cloud data trans
 
 Only the latest release receives fixes. This early project has no response-time SLA.
 Workflow instructions are not a security sandbox. Provider permissions and host
-isolation remain responsible for enforcing access. Sidecar format validation does
-not guarantee secret removal or semantic correctness.
+isolation remain responsible for enforcing access.

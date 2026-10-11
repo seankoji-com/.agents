@@ -9,7 +9,7 @@
    merge requirements, and branch drift. A check from an older SHA cannot clear a blocker.
 3. Work in an isolated checkout for each PR. The bundled `pr-workspace.sh` supports
    explicit `--repo`, `--pr`, `--branch`, and `--root`. Preserve dirty user changes.
-   T3 children may work on independent PRs when authorized; retain every task ID.
+   Independent PRs are delegation candidates under `PKG/shared/delegation.md`.
 4. Triage evidence before editing. Separate code failures from unavailable external
    review services. Fix valid findings, test the changed behavior, inspect the diff,
    and push only the named branch. Reply to and resolve handled threads only when

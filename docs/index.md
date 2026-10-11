@@ -1,7 +1,7 @@
 ---
 template: home.html
 title: Overview
-description: "Seven agent workflows for T3 Code that keep working when you change the model. Python standard library, evidence before completion, live provider results recorded."
+description: "Five agent workflows for T3 Code that keep working when you change the model. Python standard library, evidence before completion, live provider results recorded."
 hide:
   - toc
   - navigation

@@ -13,13 +13,12 @@ its time waiting on child processes. `run_tests.py` gives each module its own pr
 and prints that module's full output only if it fails. It is stricter than unittest in
 two ways: a module that collects no tests fails, and a module still running after
 `--timeout` seconds (default 600) is stopped and fails. On 2026-10-11, on a 16-core
-Linux machine, the 700 or so tests took about a minute in parallel and four minutes serially.
+Linux machine, the 545 tests took about a minute in parallel.
 
 Line coverage of `core/`, `scripts/`, and the plugin helpers was 87% on the same date,
 measured with coverage.py across the child processes the tests start. coverage.py is
-not a dependency; install it in a scratch environment to measure again. The largest
-uncovered code is in the offload sidecar (76%): parts of its MCP request handler, file
-split and merge, and several format validators. `run_imps.py` reads as 0% because it replaces its process with `os.execv`
+not a dependency; install it in a scratch environment to measure again. That figure
+predates the October 2026 retirement of two plugins. `run_imps.py` reads as 0% because it replaces its process with `os.execv`
 before coverage can save; its behavior is tested in `test_catalog.py`.
 
 The suite tests behavior across boundaries, not just successful return values:
@@ -30,12 +29,9 @@ The suite tests behavior across boundaries, not just successful return values:
 | Two owners mutate one run | Claim/generation and ownership tests |
 | A child is dispatched twice after interruption | Task reconciliation and delegated-run tests |
 | Installer damages local files or neighbors | Install, uninstall, rollback, path, and catalog tests |
-| A copied helper only works in the source tree | Installed sidecar execution from a separate directory |
-| Cloud-default operation transmits without opt-in | One-shot adapter consent tests |
+| A copied helper only works in the source tree | Installed settings audit run from a separate directory under `python3 -I` |
 | Settings audit prints sensitive values | Valid and malformed settings receipt tests |
-| A prompt comparison uses changed inputs or models | Frozen-suite evaluator tests |
 | Handoff silently changes its source brief | Literal rendering and provenance/hash tests |
-| File transform accepts malformed output | Imported sidecar validator and engine failure tests |
 | The site drifts from the catalog or the ledger | Field-guide hook tests: every plugin has a plate, numbers come from `compatibility.json`, HTML is escaped |
 | Conformance evidence names the machine it ran on | `collect` replaces the home and per-user temporary directories; a contract test scans every tracked file |
 | The compatibility page drifts from its ledger | `conformance.py compile` output is compared with the committed page |

@@ -134,6 +134,14 @@
         },
         "options": {
           "type": "object"
+        },
+        "runtimeMode": {
+          "enum": [
+            "approval-required",
+            "auto-accept-edits",
+            "auto",
+            "full-access"
+          ]
         }
       }
     },

@@ -17,8 +17,7 @@ Load this when a T3 tool is missing, errors, or behaves unexpectedly.
 | `t3_thread_read` | doc | `collect_result` when the summary lacks the result block |
 | `link_pull_request` | confirmed live | Register an authorised PR with this thread |
 | `watch_pull_request` / `unwatch_pull_request` | confirmed live | Start monitoring and yield; stop monitoring before handing work back |
-| `create_threads`, `t3_thread_launch` | doc | prohibited for child work: they create top-level threads |
-| `t3_thread_send` | doc | never sent to a child thread; a new round is a new `delegate_task` |
+| `create_threads`, `t3_thread_launch`, `t3_thread_send` | doc | never used for child work (`PKG/shared/delegation.md`) |
 
 ## Observed behaviour at the tested version
 

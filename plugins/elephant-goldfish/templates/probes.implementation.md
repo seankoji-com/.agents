@@ -5,9 +5,8 @@ answers, and skip anything already settled. Where the user names a file, path or
 it into the record verbatim — the fresh session downstream has no repo intuition and every
 unstated path becomes a guess.
 
-Read the repo to ground your questions. For a substantial independent investigation,
-an authorized T3 child can return a short evidence summary. Discover its provider and
-model from the live catalog. Keep small searches local; delegation is optional.
+Read the repo to ground your questions. An independent investigation can go to a T3
+child under `PKG/shared/delegation.md` and come back as a short evidence summary.
 
 ---
 

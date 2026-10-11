@@ -6,7 +6,7 @@
 [![Documentation](https://github.com/seankoji-com/t3-plugins/actions/workflows/docs.yml/badge.svg)](https://seankoji-com.github.io/t3-plugins/)
 [![MIT license](https://img.shields.io/badge/license-MIT-2f6b4f)](LICENSE)
 
-Seven agent workflows for [T3 Code](https://github.com/pingdotgg/t3code) that run on
+Five agent workflows for [T3 Code](https://github.com/pingdotgg/t3code) that run on
 whichever provider the thread has selected. Each one is a short entry the agent reads,
 plus local tools in the Python standard library for the parts that should be
 deterministic. T3 owns child tasks, previews, and PR watches. Nothing is called done
@@ -42,10 +42,8 @@ executes tools. [Source installs, upgrades, and rollback](docs/getting-started.m
 | I | [imps](docs/plugins/imps.md) | A bounded change needs a plan, checks at the current revision, and an independent review |
 | II | [elephant-goldfish](docs/plugins/elephant-goldfish.md) | You cannot yet state the problem as a task |
 | III | [ape](docs/plugins/ape.md) | Another codebase probably solved your gap, and you want cited evidence |
-| IV | [prompt-builder](docs/plugins/prompt-builder.md) | A task you keep asking an agent to do deserves a tested prompt |
-| V | [babysitter](docs/plugins/babysitter.md) | An authorized PR needs carrying through review, CI, and conflicts |
-| VI | [agent-tuneup](docs/plugins/agent-tuneup.md) | Your agent settings need an audit that never weakens a permission |
-| VII | [offload-sidecar](docs/plugins/offload-sidecar.md) | A file transform should return a receipt, not fill the context |
+| IV | [babysitter](docs/plugins/babysitter.md) | An authorized PR needs carrying through review, CI, and conflicts |
+| V | [agent-tuneup](docs/plugins/agent-tuneup.md) | Your agent settings need an audit that never weakens a permission |
 
 A direct prompt is often enough. Reach for a plugin when its saved artifacts, checks,
 or recovery behavior earn their overhead. [Your first workflow](docs/first-workflow.md).

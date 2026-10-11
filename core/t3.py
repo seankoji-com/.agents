@@ -28,6 +28,8 @@ def delegate_call(*, brief: str, title: str, role: str, client_request_id: str, 
     if target:
         arguments['target'] = {key: target[key] for key in ('providerInstanceId', 'model', 'options')
                                if target.get(key) not in (None, {}, [])}
+        if target.get('runtimeMode'):
+            arguments['runtimeMode'] = target['runtimeMode']
     return {'tool': 'delegate_task', 'arguments': arguments}
 
 

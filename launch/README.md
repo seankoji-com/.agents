@@ -10,7 +10,7 @@ Run once from a machine with `gh` authenticated as a repository admin:
 
 ```sh
 gh repo edit seankoji-com/t3-plugins \
-  --description "Seven agent workflows for T3 Code that keep working when you change the model. Python stdlib, evidence before completion, live provider results recorded." \
+  --description "Five agent workflows for T3 Code that keep working when you change the model. Python stdlib, evidence before completion, live provider results recorded." \
   --homepage "https://seankoji-com.github.io/t3-plugins/" \
   --add-topic t3-code --add-topic ai-agents --add-topic developer-tools \
   --add-topic agent-workflows --add-topic python --add-topic mkdocs-material \
@@ -58,9 +58,9 @@ Source: https://github.com/seankoji-com/t3-plugins
 Built a plugin catalog for T3's cross-provider orchestration and would love
 people to kick the tyres: https://seankoji-com.github.io/t3-plugins/
 
-Seven workflows (imps for implementing with evidence, babysitter for PRs,
-elephant-goldfish for planning, ape for researching other codebases, and a few
-helpers). They're plain Markdown entries plus stdlib Python, so they inherit
+Five workflows (imps for implementing with evidence, babysitter for PRs,
+elephant-goldfish for planning, ape for researching other codebases, and
+agent-tuneup for settings audits). They're plain Markdown entries plus stdlib Python, so they inherit
 whatever provider the thread is on and delegate children through delegate_task.
 
 Honest status: imps has live results for Codex, Claude and Antigravity on the
@@ -71,7 +71,7 @@ Honest status: imps has live results for Codex, Claude and Antigravity on the
 ## LinkedIn
 
 ```
-I shipped t3-plugins: seven agent workflows for T3 Code that keep working when
+I shipped t3-plugins: five agent workflows for T3 Code that keep working when
 you change the model.
 
 The idea is simple. A development workflow is mostly instructions and checks,

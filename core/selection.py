@@ -68,6 +68,7 @@ def candidates(state: dict, role: str, depth: int = 0) -> list:
     host = state.get('host') or {}
     result = []
     for index, entry in enumerate(chain):
+        start = len(result)
         kind = entry.get('select')
         why = entry.get('why') or f'{role} chain entry {index + 1} ({kind})'
         if kind == 'inherit':
@@ -96,6 +97,11 @@ def candidates(state: dict, role: str, depth: int = 0) -> list:
                                why + f'; first catalog provider other than {sorted(excluded)}'))
         else:
             raise InvalidInput('chain_entry', f'unknown chain entry {kind!r} for {role}')
+        if entry.get('runtimeMode'):
+            # An explicit mode (from the routing config) wins for every selector,
+            # including a same_provider target copied from another role.
+            for target, _ in result[start:]:
+                target['runtimeMode'] = entry['runtimeMode']
     return result
 
 

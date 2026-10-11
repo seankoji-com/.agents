@@ -6,8 +6,7 @@ is confined to tempdirs; the real ~/.claude/projects is never touched (the
 module's PROJECTS_DIR is monkeypatched to a tempdir for every scan test).
 
 The module under test is loaded by file path (its directory, "claude-
-tuneup", has a hyphen and isn't an importable package name) — same pattern
-as test_offload_sidecar.py.
+tuneup", has a hyphen and isn't an importable package name).
 """
 
 import contextlib
