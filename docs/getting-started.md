@@ -92,6 +92,58 @@ Installing the full catalog
 activates each plugin separately; a failure can leave a partial catalog upgrade.
 Read the per-plugin receipts and retry after resolving the error.
 
+### Retired plugins
+
+offload-sidecar and prompt-builder left the catalog. `t3-plugins setup` removes their
+slash-menu adapters when the adapter's own `.t3-plugins-skill.json` marker shows that
+setup wrote it and the adapter is unchanged. It keeps edited adapters, symlinks,
+adapters with corrupt markers, and any files you added, and prints a receipt for each.
+Old snapshots stay until you remove them:
+
+```sh
+t3-plugins uninstall offload-sidecar
+t3-plugins uninstall prompt-builder
+```
+
+`uninstall` accepts a retired name only when an installed manifest records it.
+
+## Model routing
+
+Delegating workflows choose child models from a routing config in your user
+configuration directory: `$XDG_CONFIG_HOME/t3-plugins/routing.json`, or
+`~/.config/t3-plugins/routing.json` when `XDG_CONFIG_HOME` is unset. Setup writes a
+starting config from a capabilities response the agent saved to a file. It never
+calls T3 or reads credentials, and it never replaces an existing config.
+
+```sh
+t3-plugins setup --capabilities caps.json
+t3-plugins resolve reviewer --capabilities caps.json
+```
+
+The config lists tiers from cheapest to most capable, a T3 `runtimeMode` per provider,
+and the `workhorse`, `reviewer` and `judgement` roles. Each role entry names a provider
+instance, a model, its tier and its `lineage`. Setup's tiers and lineage labels are
+guesses: edit them. Providers default to `auto`, except OpenCode, which defaults to
+`full-access` because its children otherwise stall on permission prompts.
+
+```json
+{
+  "schema_version": 1,
+  "tiers": ["low", "medium", "high"],
+  "providers": {"codex": {"runtimeMode": "auto"}, "opencode": {"runtimeMode": "full-access"}},
+  "roles": {
+    "reviewer": [{"providerInstanceId": "codex", "model": "MODEL_ID", "tier": "medium", "lineage": "openai"}]
+  }
+}
+```
+
+`resolve` prints the role's candidates that the capabilities file can run, in tier
+order, and lists each configured entry it could not use with the reason. It never
+substitutes a different model. When a child's mode is broader than the parent
+thread's, T3 refuses it, so `resolve` lowers the mode to the parent's and adds an
+`owner_action` saying which mode to switch the child to. A repository can override
+roles, providers or tiers in `.t3-plugins/routing.json`; repository policy wins.
+
 ## Uninstall
 
 ```sh

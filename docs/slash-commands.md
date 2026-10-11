@@ -79,7 +79,8 @@ use the selected snapshot. Reinstall adapters if the prefix moves. They do not
 change provider settings or permissions. Existing skill folders, edited adapters,
 and symlinked skill paths are refused. For a symlinked root, pass its real directory.
 For `setup`, custom roots replace all defaults: repeat `--root` for each real
-provider directory you want to populate.
+provider directory you want to populate. Setup also removes unchanged adapters for
+[retired plugins](getting-started.md#retired-plugins) from the same roots.
 
 If installation is interrupted between writing the skill and its ownership receipt,
 the next attempt may report an unowned or modified adapter. Inspect and back up that

@@ -9,9 +9,13 @@ import sys
 from pathlib import Path
 
 import install as installer
+import routing
 import skills
 
 ROOT = Path(__file__).resolve().parent.parent
+# Removed from the catalog. Setup deletes their owned, unmodified skill adapters;
+# `uninstall` still accepts them so old snapshots can be removed.
+RETIRED = ('offload-sidecar', 'prompt-builder')
 
 
 def catalog():
@@ -23,6 +27,19 @@ def catalog():
             raise ValueError(f'catalog name does not match folder: {path.parent.name}')
         plugins.append(meta)
     return plugins
+
+
+def retired_meta(args, prefix):
+    """A plugin that left the catalog can still be removed: `uninstall` accepts it when
+    an installed manifest records it, and `skills uninstall` when it is a known retirement."""
+    if args.command == 'skills' and args.action == 'uninstall' and args.plugin in RETIRED:
+        return {'name': args.plugin}
+    if args.command != 'uninstall':
+        return None
+    for _, manifest in installer.snapshot_manifests(prefix / args.plugin):
+        if (manifest or {}).get('plugin') == args.plugin:
+            return {'name': args.plugin}
+    return None
 
 
 def snapshot_matches_bundle(manifest, plugin):
@@ -38,6 +55,13 @@ def main(argv=None):
     setup = sub.add_parser('setup', help='install snapshots and provider skill adapters together')
     setup.add_argument('plugin', nargs='?')
     setup.add_argument('--root', action='append', help='skill directory; repeat for multiple providers')
+    setup.add_argument('--capabilities', metavar='FILE',
+                       help='saved orchestrator_capabilities response; writes the routing config if none exists')
+    resolve = sub.add_parser('resolve', help='list available routing candidates for a role, in tier order')
+    resolve.add_argument('role')
+    resolve.add_argument('--capabilities', metavar='FILE', required=True,
+                         help='saved orchestrator_capabilities response')
+    resolve.add_argument('--repo', default='.', help='repository whose .t3-plugins/routing.json takes precedence')
     adapters = sub.add_parser('skills', help='install or remove T3 slash-menu skill adapters')
     adapters.add_argument('action', choices=('install', 'uninstall'))
     adapters.add_argument('plugin', nargs='?')
@@ -64,17 +88,27 @@ def main(argv=None):
     activate.add_argument('version')
     args = parser.parse_args(argv)
     try:
+        if args.command == 'resolve':
+            config, sources = routing.effective_config(repo=Path(args.repo).absolute())
+            result = routing.resolve(args.role, routing.load_capabilities(args.capabilities), config)
+            print(json.dumps(dict(result, sources=sources)))
+            return 0 if result['candidates'] else 1
+        prefix = Path(args.prefix).expanduser().absolute()
         plugins = catalog()
         if getattr(args, 'plugin', None) is not None:
             installer.validate_name(args.plugin)
             if args.plugin not in {p['name'] for p in plugins}:
-                raise ValueError(f'unknown plugin: {args.plugin}')
+                retired = retired_meta(args, prefix)
+                if retired is None:
+                    hint = f' (retired; t3-plugins uninstall {args.plugin} removes an old installation)' \
+                        if args.plugin in RETIRED else ''
+                    raise ValueError(f'unknown plugin: {args.plugin}{hint}')
+                plugins = [retired]
             plugins = [p for p in plugins if p['name'] == args.plugin]
         if args.command == 'list':
             for meta in plugins:
                 print(f"{meta['name']:20} {meta['description']}")
             return 0
-        prefix = Path(args.prefix).expanduser().absolute()
         if args.command == 'setup':
             roots = args.root or [str(Path.home() / path) for path in
                                   ('.agents/skills', '.claude/skills', '.gemini/config/skills')]
@@ -84,6 +118,18 @@ def main(argv=None):
                     return code
                 for root in roots:
                     print(json.dumps(skills.install(root, prefix, meta)))
+            for root in roots:
+                for name in RETIRED:
+                    receipt = skills.remove_retired(root, name)
+                    if receipt:
+                        print(json.dumps(receipt))
+            if args.capabilities:
+                receipt = routing.write_default(args.capabilities)
+                print(json.dumps(receipt))
+                if not receipt['valid']:
+                    print(f"t3-plugins: kept the existing routing config, which is invalid: {receipt['error']}",
+                          file=sys.stderr)
+                    return 1
             return 0
         if args.command == 'skills':
             for meta in plugins:
@@ -145,7 +191,7 @@ def main(argv=None):
                 else:
                     print(f"Read {entry} and run: {' '.join(args.request) or 'doctor'}")
         return 1 if failed else 0
-    except (ValueError, OSError, KeyError, installer.InstallError) as exc:
+    except (ValueError, OSError, KeyError, installer.InstallError, routing.RoutingError) as exc:
         print(f't3-plugins: {exc}', file=sys.stderr)
         return 2
 
