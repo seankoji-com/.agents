@@ -31,6 +31,9 @@ CDN_HOSTS = ('unpkg.com', 'cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'ajax.goog
 TEXT_SUFFIXES = {'.html', '.htm', '.js', '.mjs', '.json', '.css', '.svg', '.txt', '.md', '.csv'}
 REMOTE_ATTR = re.compile(r'''(?:src|href)\s*=\s*["']((?:https?:)?//[^"']+)["']''', re.I)
 LOCAL_SCRIPT = re.compile(r'''<script[^>]*\ssrc\s*=\s*["'](?!(?:https?:)?//)([^"'?#]+)["']''', re.I)
+# The exact tile template the prompt names, and its attribution text (informational only).
+OSM_TILES = re.compile(r'''["'`]https://tile\.openstreetmap\.org/\{z\}/\{x\}/\{y\}\.png["'`]''')
+OSM_ATTRIBUTION = re.compile(r'(?:©|&copy;|&#169;)\s*OpenStreetMap contributors')
 RECOMMENDED = re.compile(r'''data-recommended-station\s*=\s*["']([^"']*)["']''')
 
 
@@ -174,9 +177,10 @@ def check(out: Path, data_dir: Path) -> list:
         {'dates_missing_or_off_by_more_than_0.05': off, 'expected_days': len(want['overall_history'])},
         required=False)
     everything = '\n'.join(files.values())
-    add('osm_tiles_and_attribution', 'tile.openstreetmap.org' in everything and 'OpenStreetMap' in everything,
-        'tile URL and attribution text found' if 'tile.openstreetmap.org' in everything else 'not found',
-        required=False)
+    tiles = bool(OSM_TILES.search(everything))
+    attribution = bool(OSM_ATTRIBUTION.search(everything))
+    add('osm_tiles_and_attribution', tiles and attribution,
+        {'tile_url_template': tiles, 'attribution': attribution}, required=False)
     return results
 
 
