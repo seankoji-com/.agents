@@ -8,7 +8,7 @@ Phase `blocked` at generation 10. Readiness: `incomplete`. Repository `~/.t3/scr
 
 - Reason: no available review target (no available candidate)
 - Code: `provider_unavailable`; tasks: none
-- Resume: `python3 ~/.local/share/t3-plugins/imps/current/core/cli.py unblock --state-root /tmp/claude-1000/m1/state --run-id 20261009-132641-1bda1a --blocker-id B-acd683c106 --decision retry`
+- Resume: `python3 ~/.local/share/t3-plugins/imps/current/core/cli.py unblock --state-root $TMPDIR/m1/state --run-id 20261009-132641-1bda1a --blocker-id B-acd683c106 --decision retry`
 - Then paste into the same T3 thread: `Read ~/.local/share/t3-plugins/imps/current/entry.md and run: resume 20261009-132641-1bda1a`
 
 ## Requirements
@@ -30,4 +30,4 @@ Counts: passed 2, failed 0, unverified 0, unavailable 0, waived 0. Waived is nev
 
 ## Evidence
 
-Artifacts: `/tmp/claude-1000/m1/state/runs/20261009-132641-1bda1a/artifacts` (never removed by cleanup).
+Artifacts: `$TMPDIR/m1/state/runs/20261009-132641-1bda1a/artifacts` (never removed by cleanup).

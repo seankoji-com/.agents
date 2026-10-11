@@ -30,6 +30,6 @@
   },
   "interventions": 0,
   "elapsed_seconds": 108.0,
-  "note": "state root fallback /tmp/claude-1000/b3/state",
+  "note": "state root fallback $TMPDIR/b3/state",
   "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/bugfix/3"
 }

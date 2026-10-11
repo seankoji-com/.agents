@@ -28,6 +28,10 @@ FIXTURE = ROOT / 'tests' / 'fixtures' / 'bugfix-cli'
 GIT_ENV = {'GIT_AUTHOR_NAME': 'imps conformance', 'GIT_AUTHOR_EMAIL': 'conformance@example.invalid',
            'GIT_COMMITTER_NAME': 'imps conformance', 'GIT_COMMITTER_EMAIL': 'conformance@example.invalid'}
 HOME = str(Path.home())
+# A per-user temporary directory names the machine as surely as HOME does (a uid, a
+# sandbox prefix, a macOS /var/folders hash). The shared /tmp says nothing, so it stays.
+TEMP = os.environ.get('TMPDIR', '').rstrip('/')
+SHARED_TEMP = ('', '/tmp', '/var/tmp', '/private/tmp')
 # Operator arguments that become path components: one segment, no separators, no `..`.
 PATH_SEGMENT = re.compile(r'[A-Za-z0-9][A-Za-z0-9._+-]*')
 
@@ -45,9 +49,10 @@ def git(cwd, *args):
 
 
 def sanitise(text: str) -> str:
-    if HOME in ('', '/'):
-        return text
-    return re.sub(r'(?<![\w.~/-])' + re.escape(HOME) + r'(?![\w.-])', '~', text)
+    for prefix, replacement in ((TEMP, '$TMPDIR'), (HOME, '~')):
+        if prefix not in SHARED_TEMP + ('/',):
+            text = re.sub(r'(?<![\w.~/$-])' + re.escape(prefix) + r'(?![\w.-])', lambda _: replacement, text)
+    return text
 
 
 def setup(args):

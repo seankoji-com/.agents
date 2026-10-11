@@ -30,6 +30,6 @@
   },
   "interventions": 0,
   "elapsed_seconds": 104.0,
-  "note": "state root /tmp/claude-1000/p1/state; child skipped sleep 90 (its harness blocks foreground sleep); one correction round r2 for a malformed first result",
+  "note": "state root $TMPDIR/p1/state; child skipped sleep 90 (its harness blocks foreground sleep); one correction round r2 for a malformed first result",
   "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/pending-task/1"
 }

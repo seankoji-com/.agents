@@ -30,6 +30,6 @@
   },
   "interventions": 0,
   "elapsed_seconds": 161.0,
-  "note": "parent sandbox made ~/.local/state read-only; agent used the documented --state-root fallback /tmp/claude-1000/b1/state",
+  "note": "parent sandbox made ~/.local/state read-only; agent used the documented --state-root fallback $TMPDIR/b1/state",
   "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/bugfix/1"
 }
