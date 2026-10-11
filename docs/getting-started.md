@@ -147,7 +147,8 @@ guesses: edit them. Providers default to `auto`, except OpenCode, which defaults
 order, and lists each configured entry it could not use with the reason. It never
 substitutes a different model. When a child's mode is broader than the parent
 thread's, T3 refuses it, so `resolve` lowers the mode to the parent's and adds an
-`owner_action` saying which mode to switch the child to. A repository can override
+`owner_action` saying which mode to switch the child to. With `--implementer-lineage
+LINEAGE`, candidates of other lineages come first and each is marked `independent`. A repository can override
 roles, providers or tiers in `.t3-plugins/routing.json`; repository policy wins.
 
 ## Uninstall

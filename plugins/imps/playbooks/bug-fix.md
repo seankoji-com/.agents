@@ -54,7 +54,7 @@ Requirements describe observable behaviour, not the diff. A typical bug-fix plan
 }
 ```
 
-Replace every value with real ones from this repository; the core rejects unknown fields. Use `base_ref` to name the branch the fix will merge into. Review is required by default. Unless the plan pins a reviewer from the routing config (`PKG/references/delegation.md`), the first available catalog provider other than you reviews the change; if none is available, a fresh child on your own provider does. Repository policy in `.t3-plugins/imps.json` can name a specific reviewer, mark checks repository-required, or forbid waivers.
+Replace every value with real ones from this repository; the core rejects unknown fields. Use `base_ref` to name the branch the fix will merge into. Review is required by default. Pin the reviewer chain from the routing config as `PKG/references/delegation.md` describes. Without one, the default chain picks another catalog provider, then a fresh child on your own provider, and the report must call reviewer independence unverified. Repository policy in `.t3-plugins/imps.json` can name a specific reviewer, mark checks repository-required, or forbid waivers.
 
 Choose the mode under `PKG/shared/delegation.md`. A read-only survey of other callers is the usual independent piece.
 

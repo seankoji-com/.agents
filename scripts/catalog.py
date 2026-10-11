@@ -62,6 +62,8 @@ def main(argv=None):
     resolve.add_argument('--capabilities', metavar='FILE', required=True,
                          help='saved orchestrator_capabilities response')
     resolve.add_argument('--repo', default='.', help='repository whose .t3-plugins/routing.json takes precedence')
+    resolve.add_argument('--implementer-lineage', metavar='LINEAGE',
+                         help='list candidates of other lineages first and mark each as independent or not')
     adapters = sub.add_parser('skills', help='install or remove T3 slash-menu skill adapters')
     adapters.add_argument('action', choices=('install', 'uninstall'))
     adapters.add_argument('plugin', nargs='?')
@@ -90,7 +92,8 @@ def main(argv=None):
     try:
         if args.command == 'resolve':
             config, sources = routing.effective_config(repo=Path(args.repo).absolute())
-            result = routing.resolve(args.role, routing.load_capabilities(args.capabilities), config)
+            result = routing.resolve(args.role, routing.load_capabilities(args.capabilities), config,
+                                     args.implementer_lineage)
             print(json.dumps(dict(result, sources=sources)))
             return 0 if result['candidates'] else 1
         prefix = Path(args.prefix).expanduser().absolute()

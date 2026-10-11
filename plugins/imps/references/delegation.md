@@ -2,17 +2,22 @@
 
 Load this when the plan uses `"execution": {"mode": "delegated"}`. The rules for when
 to delegate, which model to use and what a child brief holds are in
-`PKG/shared/delegation.md`; this file covers only how imps carries them out. Default
-concurrency is 4. Lower it in the plan when the work is tightly coupled.
+`PKG/shared/delegation.md`; this file covers only how imps carries them out. The
+core runs at most `execution.concurrency` children at once (plan default 4).
 
 ## Targets from the routing config
 
 When `t3-plugins resolve <role> --capabilities FILE` returns candidates, put the chosen
-one in a task's `target` (`providerInstanceId`, `model`). For review, set
-`roles.reviewer.chain` in the plan to one `fixed` entry for the first `reviewer`
-candidate whose `lineage` differs from the implementer's, followed by the default
-`same_provider` entry as the availability fallback. Repository policy in
-`.t3-plugins/imps.json` still wins.
+one in a task's `target` (`providerInstanceId`, `model`). For review, run
+`t3-plugins resolve reviewer --capabilities FILE --implementer-lineage <lineage>` and
+set `roles.reviewer.chain` to one `fixed` entry per candidate, in the order printed:
+every independent candidate first, then the same-lineage ones. The core advances the
+chain only when a target is unavailable. Repository policy in `.t3-plugins/imps.json`
+still wins.
+
+Without a routing config there is no lineage data. The default reviewer chain then
+picks another catalog provider, which does not establish a different lineage. Say in
+the report that reviewer independence is unverified.
 
 ## Plan tasks
 

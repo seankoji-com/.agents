@@ -63,6 +63,9 @@ Readers may still run in parallel.
 The reviewer comes from a different model lineage than the implementer when one is
 available. Lineage is the `lineage` field on each model in the routing config, never
 the provider name, because one provider such as OpenCode serves several lineages.
+`resolve reviewer --implementer-lineage <lineage>` lists independent candidates first;
+try each of them before any same-lineage one. Without lineage data, report reviewer
+independence as unverified.
 Fall back to the same lineage only when no other is available, never because a review
 was adverse. An adverse review is final for that revision. Explicit repository review
 policy wins over all of this.

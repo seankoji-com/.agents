@@ -99,6 +99,30 @@ class RoutingCli(unittest.TestCase):
         # No model IDs in the package: everything above came from the capabilities file.
         self.assertFalse((self.home / '.config').exists())
 
+    def test_setup_offers_every_other_lineage_as_a_reviewer(self):
+        # Two gateways list the session's lineage first; other lineages come later.
+        caps = {'inheritedProviderInstanceId': 'gw-one', 'inheritedModel': 'gateway/gpt-9', 'runtimeMode': 'auto',
+                'providers': [provider('gw-one', 'opencode', ['gateway/gpt-9', 'gateway/claude-9']),
+                              provider('gw-two', 'opencode', ['gateway/gpt-9', 'gateway/gemini-9'])]}
+        config = routing.default_config(caps)
+        reviewers = [(r['providerInstanceId'], r['model'], r['lineage']) for r in config['roles']['reviewer']]
+        self.assertEqual(reviewers, [('gw-one', 'gateway/claude-9', 'anthropic'), ('gw-two', 'gateway/gemini-9', 'google'),
+                                     ('gw-one', 'gateway/gpt-9', 'openai')])
+
+    def test_resolve_puts_other_lineages_first_for_an_implementer(self):
+        self.write({'schema_version': 1, 'tiers': ['low', 'high'], 'providers': {},
+                    'roles': {'reviewer': [entry('claudeAgent', 'model-c1', 'low', 'anthropic'),
+                                           entry('opencode', 'shared-model', 'low', 'anthropic'),
+                                           entry('codex', 'model-x1', 'high', 'openai'),
+                                           entry('gemini-box', 'model-a2', 'high', 'google')]}})
+        result = json.loads(self.cli('resolve', 'reviewer', '--capabilities', str(self.caps),
+                                     '--implementer-lineage', 'anthropic').stdout)
+        self.assertEqual([(c['model'], c['independent']) for c in result['candidates']],
+                         [('model-x1', True), ('model-a2', True), ('model-c1', False), ('shared-model', False)])
+        # Without an implementer lineage the order is plain tier order.
+        self.assertEqual([c['model'] for c in self.resolve('reviewer')['candidates']],
+                         ['model-c1', 'shared-model', 'model-x1', 'model-a2'])
+
     def test_setup_preserves_an_existing_config(self):
         mine = {'schema_version': 1, 'tiers': ['cheap', 'dear'], 'providers': {},
                 'roles': {'workhorse': [entry('codex', 'model-x2', 'cheap', 'openai')]}}

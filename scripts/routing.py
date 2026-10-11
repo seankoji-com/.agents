@@ -76,9 +76,10 @@ def _models(provider: dict) -> list:
 
 
 def default_config(capabilities: dict) -> dict:
-    """A starting config: the session model judges and works, and each other
-    runnable provider's first listed model reviews ahead of it. Tiers and lineage
-    labels are guesses the owner is expected to edit."""
+    """A starting config: the session model judges and works. Reviewers are the
+    first advertised model of every other lineage, across all runnable providers
+    in catalog order, ahead of the session model as the same-lineage fallback.
+    Tiers and lineage labels are guesses the owner is expected to edit."""
     providers = [p for p in capabilities['providers'] if isinstance(p, dict) and _runnable(p) and _models(p)]
     if not providers:
         raise RoutingError('no_runnable_providers', 'the capabilities list no provider that can run child tasks')
@@ -95,8 +96,14 @@ def default_config(capabilities: dict) -> dict:
                 'lineage': lineage(provider.get('driverKind', ''), model)}
 
     session = entry(home, home_model, 'high')
-    reviewers = [entry(p, _models(p)[0], 'medium') for p in providers if p is not home]
-    reviewers = [r for r in reviewers if r['lineage'] != session['lineage']] + [session]
+    reviewers, seen = [], {session['lineage']}
+    for provider in providers:
+        for model in _models(provider):
+            candidate = entry(provider, model, 'medium')
+            if candidate['lineage'] not in seen and candidate['lineage'] != 'unknown':
+                seen.add(candidate['lineage'])
+                reviewers.append(candidate)
+    reviewers.append(session)
     return {
         'schema_version': SCHEMA_VERSION,
         'tiers': list(TIERS),
@@ -194,7 +201,9 @@ def effective_config(user_path=None, repo=None) -> tuple[dict, list]:
     return config, sources
 
 
-def resolve(role: str, capabilities: dict, config: dict) -> dict:
+def resolve(role: str, capabilities: dict, config: dict, implementer_lineage: str | None = None) -> dict:
+    """With `implementer_lineage`, candidates of another lineage come first (each in
+    tier order) and every candidate says whether it is independent of the implementer."""
     if role not in config['roles'] or not config['roles'][role]:
         raise RoutingError('role_missing', f'role {role!r} is not configured')
     catalog = {p.get('providerInstanceId'): p for p in capabilities['providers'] if isinstance(p, dict)}
@@ -221,4 +230,8 @@ def resolve(role: str, capabilities: dict, config: dict) -> dict:
             candidate['runtimeMode'] = parent_mode
             candidate['owner_action'] = f'switch this child to {mode} in T3; it was launched in {parent_mode}'
         candidates.append(candidate)
+    if implementer_lineage:
+        for candidate in candidates:
+            candidate['independent'] = candidate['lineage'] != implementer_lineage
+        candidates.sort(key=lambda c: not c['independent'])  # stable: tier order within each group
     return {'role': role, 'candidates': candidates, 'unavailable': unavailable}
