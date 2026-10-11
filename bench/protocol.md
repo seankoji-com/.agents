@@ -118,9 +118,15 @@ Each workspace path has its own Claude Code project directory under
 `Follow the installed imps entry at`; every other session or subagent file there is a
 descendant. Codex children are found by the `cwd` in their rollout files.
 
-Before the first baseline run, one test worker is launched with a prompt asking it to
-delegate one trivial child task through `delegate_task`. Both transcripts must be found,
-parsed and attributed by `tools/tokens.py run`; otherwise the stage ends `blocked`.
+Before the first baseline run, one test worker is launched in its own Task A workspace,
+with the Runner settings and this prompt:
+
+```text
+Follow the installed imps entry at {ENTRY} only to find the package directory; do not run imps. This is a transcript audit test. Call the T3 `delegate_task` tool once with the task "Reply with the single word: ok" and mode "wait", then report the child's taskId and its reply. Work only inside {WORKSPACE}. Do not change any files.
+```
+
+Both transcripts must be found, parsed and attributed by `tools/tokens.py run`;
+otherwise the stage ends `blocked`.
 
 After each attempt:
 
@@ -176,7 +182,7 @@ under the system temporary directory) are not the worker reading elsewhere.
 
 ## Records
 
-For each attempt, `bench/runs/<version>/<slot>/` holds:
+`tools/summarise.py` writes these records. For each attempt, `bench/runs/<version>/<slot>/` holds:
 
 - `summary.json`: slot, attempt number, workspace ID, thread ID, outcome, wallclock
   (thread start to terminal state, and first to last transcript timestamp), parent-Opus

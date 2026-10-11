@@ -13,6 +13,7 @@ for sub in ('checks', 'tools'):
     sys.path.insert(0, str(BENCH / sub))
 
 import audit  # noqa: E402
+import prepare_workspace  # noqa: E402
 import task_a  # noqa: E402
 import tokens  # noqa: E402
 
@@ -172,6 +173,47 @@ class AuditTest(unittest.TestCase):
         task_a_findings = audit.audit_file(TRANSCRIPTS / 'transcript_complete.jsonl', 'a',
                                            ['/bench/workspace'], '/bench/harness', '/home/bench')
         self.assertFalse(any(f.get('reason', '').startswith('upstream') for f in task_a_findings))
+
+
+class RecordingTest(unittest.TestCase):
+    def test_prepared_task_a_workspace_is_reproducible_and_summarised(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            first = prepare_workspace.prepare('a', tmp / 'ws1', ROOT)
+            second = prepare_workspace.prepare('a', tmp / 'ws2', ROOT)
+            self.assertEqual(first['head'], second['head'])
+            workspace = tmp / 'ws1'
+            (workspace / '.bench-state').mkdir()
+            (workspace / '.bench-state' / 'run.json').write_text('{}')
+            reference_output(workspace / 'out')
+            subprocess.run(['git', 'add', 'out'], cwd=workspace, check=True)
+            subprocess.run(['git', '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'out'],
+                           cwd=workspace, check=True)
+            self.assertEqual(subprocess.run(['git', 'status', '--porcelain'], cwd=workspace, capture_output=True,
+                                            text=True).stdout, '')
+            project = tmp / 'projects' / tokens.encode_project(workspace)
+            project.mkdir(parents=True)
+            shutil.copy(TRANSCRIPTS / 'transcript_complete.jsonl', project / 'parent.jsonl')
+            thread = tmp / 'thread.json'
+            thread.write_text(json.dumps({'outcome': 'completed', 'started_at': '2026-10-11T00:00:00Z',
+                                          'ended_at': '2026-10-11T00:10:00Z',
+                                          'final_message': f'Done in {workspace}/out'}))
+            result = subprocess.run([sys.executable, str(BENCH / 'tools/summarise.py'), '--version', 'old',
+                                     '--slot', 'a1', '--attempt', '1', '--workspace', str(workspace),
+                                     '--package', str(tmp / 'pkg'), '--thread-id', 'T', '--thread-json', str(thread),
+                                     '--private', str(tmp / 'private'), '--runs-dir', str(tmp / 'runs'),
+                                     '--projects-dir', str(tmp / 'projects'), '--codex-dir', str(tmp / 'codex')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            summary = json.loads((tmp / 'runs/old/a1/summary.json').read_text())
+            self.assertEqual(summary['parent_opus_tokens']['counted'], 1317)
+            self.assertEqual(summary['wallclock_seconds']['thread'], 600.0)
+            self.assertTrue(all(r['ok'] for r in summary['result']['task_a_checks']))
+            self.assertIn('parent.jsonl', summary['raw_sha256'])
+            self.assertTrue((tmp / 'runs/old/a1/output/out/index.html').is_file())
+            self.assertEqual((tmp / 'runs/old/a1/report.md').read_text(), 'Done in <workspace>/out\n')
+            self.assertTrue((tmp / 'private/runs/old/a1/attempt-1/transcripts/parent.jsonl').is_file())
+            self.assertNotIn(str(tmp), (tmp / 'runs/old/a1/summary.json').read_text())
 
 
 if __name__ == '__main__':

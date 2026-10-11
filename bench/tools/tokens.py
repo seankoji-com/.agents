@@ -123,8 +123,15 @@ def _sum(values):
     return None if not values or any(v is None for v in values) else sum(values)
 
 
+def project_dir(workspace: Path, projects_dir: Path) -> Path:
+    """The harness's directory for this workspace, whether it recorded the path as given
+    or with symlinks resolved (on macOS /var is /private/var)."""
+    candidates = [projects_dir / encode_project(p) for p in (Path(workspace), Path(workspace).resolve())]
+    return next((c for c in candidates if c.is_dir()), candidates[0])
+
+
 def parse_run(workspace: Path, projects_dir: Path, codex_dir: Path | None = None) -> dict:
-    project = projects_dir / encode_project(workspace)
+    project = project_dir(workspace, projects_dir)
     if not project.is_dir():
         return {'project_dir_found': False, 'parent': None, 'descendants': []}
     sessions = sorted(project.glob('*.jsonl'))

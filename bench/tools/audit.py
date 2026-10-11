@@ -110,10 +110,10 @@ def audit_file(path: Path, task: str, allowed: list, harness: str, home: str) ->
 def audit(workspace: Path, package: Path, task: str, projects_dir: Path, codex_dir: Path | None) -> dict:
     run = tokens.parse_run(workspace, projects_dir, codex_dir)
     home = str(Path.home())
-    harness = str(projects_dir / tokens.encode_project(workspace))
+    harness = str(tokens.project_dir(workspace, projects_dir))
     allowed = sorted({str(workspace), os.path.realpath(workspace), str(package), os.path.realpath(package)})
     files = []
-    project = projects_dir / tokens.encode_project(workspace)
+    project = tokens.project_dir(workspace, projects_dir)
     if run['project_dir_found']:
         files += sorted(project.glob('*.jsonl')) + sorted(project.glob('*/subagents/*.jsonl'))
     for item in run['descendants']:
