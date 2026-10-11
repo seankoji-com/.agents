@@ -8,7 +8,7 @@ desktop install does not populate a remote provider's filesystem.
 
 ## `doctor` reports an outdated snapshot
 
-Homebrew upgrades the package; `t3-plugins install` updates user snapshots. Run that
+Homebrew upgrades the package; `t3-plugins setup` updates user snapshots and skills. Run that
 command after an upgrade. `doctor` compares snapshot contents with the bundled
 package and reports `snapshot_outdated` when they differ, including intentional
 rollbacks. The packaged `imps` command warns too, without changing installed files.
@@ -49,7 +49,7 @@ consent in the one-shot request and a configured engine. A quota block is not su
 
 ## Homebrew has an older catalog
 
-Run `brew update`, `brew upgrade t3-plugins`, then `t3-plugins install`. A GitHub release
+Run `brew update`, `brew upgrade t3-plugins`, then `t3-plugins setup`. A GitHub release
 and its tap formula update are separate steps. Check the release notes and tap PR if
 the expected version has not reached the formula yet.
 

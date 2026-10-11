@@ -11,17 +11,24 @@ On macOS or Linux with Homebrew:
 
 ```sh
 brew install seankoji-com/tap/t3-plugins
-t3-plugins install
+t3-plugins setup
 t3-plugins doctor
 t3-plugins prompt imps doctor
 ```
 
-`brew install` adds the catalog and imps command-line tools. `t3-plugins install`
-creates your user-owned snapshots. Paste the final command's output into T3.
-Installation does not edit provider settings. Optional [skill adapters](slash-commands.md)
-make the entries discoverable in T3's slash menu.
+`brew install` adds the catalog and imps command-line tools. `t3-plugins setup`
+creates your user-owned snapshots and managed [skill adapters](slash-commands.md)
+in `~/.agents/skills`, `~/.claude/skills`, and `~/.gemini/config/skills`.
+Enable **Show skills in slash menu** in T3's General settings and restart the agent
+session. You can combine the first two commands with `&&`.
+Homebrew's post-install step uses an isolated temporary home, so setup runs in your
+own shell instead. See [Homebrew's implementation](https://docs.brew.sh/rubydoc/Formula#run_post_install-instance_method).
+Paste the final prompt command's output when a provider lacks skill discovery.
+Setup does not edit provider settings or overwrite unowned or edited skills.
 
 To install just one plugin's snapshot, use `t3-plugins install ape`.
+Use `t3-plugins setup imps` for one plugin plus its adapters, or repeat
+`--root PATH` to choose custom skill roots instead of the three defaults.
 `t3-plugins list` shows the bundled catalog.
 
 ## From source
@@ -30,7 +37,7 @@ To install just one plugin's snapshot, use `t3-plugins install ape`.
 git clone https://github.com/seankoji-com/t3-plugins.git
 cd t3-plugins
 python3 bin/t3-plugins install --dry-run
-python3 bin/t3-plugins install
+python3 bin/t3-plugins setup
 python3 bin/t3-plugins doctor
 python3 bin/t3-plugins prompt imps doctor
 ```
@@ -60,7 +67,7 @@ for long-term installations; `/tmp` is only a demonstration.
 
 ```sh
 brew upgrade t3-plugins
-t3-plugins install
+t3-plugins setup
 t3-plugins doctor
 ```
 

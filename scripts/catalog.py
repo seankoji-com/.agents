@@ -35,6 +35,9 @@ def main(argv=None):
     parser.add_argument('--prefix', default=os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins'))
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('list', help='list bundled plugins')
+    setup = sub.add_parser('setup', help='install snapshots and provider skill adapters together')
+    setup.add_argument('plugin', nargs='?')
+    setup.add_argument('--root', action='append', help='skill directory; repeat for multiple providers')
     adapters = sub.add_parser('skills', help='install or remove T3 slash-menu skill adapters')
     adapters.add_argument('action', choices=('install', 'uninstall'))
     adapters.add_argument('plugin', nargs='?')
@@ -72,6 +75,16 @@ def main(argv=None):
                 print(f"{meta['name']:20} {meta['description']}")
             return 0
         prefix = Path(args.prefix).expanduser().absolute()
+        if args.command == 'setup':
+            roots = args.root or [str(Path.home() / path) for path in
+                                  ('.agents/skills', '.claude/skills', '.gemini/config/skills')]
+            for meta in plugins:
+                code = installer.main(['--plugin', meta['name'], '--prefix', str(prefix)])
+                if code:
+                    return code
+                for root in roots:
+                    print(json.dumps(skills.install(root, prefix, meta)))
+            return 0
         if args.command == 'skills':
             for meta in plugins:
                 receipt = (skills.install(args.root, prefix, meta) if args.action == 'install'

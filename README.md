@@ -23,13 +23,14 @@ without evidence.
 
 ```sh
 brew install seankoji-com/tap/t3-plugins
-t3-plugins install
+t3-plugins setup
 t3-plugins doctor
 t3-plugins prompt imps doctor
 ```
 
-Paste the printed line into a T3 thread, or install the optional
-[slash-menu skill adapters](docs/slash-commands.md). Install on the machine where your provider
+Setup installs [slash-menu skill adapters](docs/slash-commands.md); enable the skill
+menu in T3 and restart the agent session. Paste the printed prompt when a provider
+lacks skill discovery. Install on the machine where your provider
 executes tools. [Source installs, upgrades, and rollback](docs/getting-started.md).
 
 ![Scripted recording: install imps, run doctor, paste the generated prompt into T3](docs/assets/demo.svg)

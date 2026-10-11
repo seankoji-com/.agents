@@ -4,6 +4,13 @@ Install a portable skill adapter for each plugin you want in T3's composer. The
 adapter reads the same installed entry file regardless of the selected provider.
 It is named `t3-imps` so it can coexist with your Claude imps package.
 
+For one-step user setup after Homebrew installation, use `t3-plugins setup`.
+It installs the full catalog and adapters into the three default roots below.
+Use `t3-plugins setup imps` for just imps, or repeat `--root PATH` for custom roots.
+Setup preserves unowned or edited adapters and stops on a conflict. Earlier receipts
+remain valid; resolve the conflict and retry. Run setup again after `brew upgrade`.
+For snapshots only or individual adapter roots, use these separate commands:
+
 ```sh
 t3-plugins install imps
 t3-plugins skills install imps --root ~/.agents/skills
