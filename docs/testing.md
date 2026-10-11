@@ -18,7 +18,7 @@ Linux machine, the 700 or so tests took about a minute in parallel and four minu
 Line coverage of `core/`, `scripts/`, and the plugin helpers was 87% on the same date,
 measured with coverage.py across the child processes the tests start. coverage.py is
 not a dependency; install it in a scratch environment to measure again. That figure
-predates the Stage 2 retirement of two plugins. `run_imps.py` reads as 0% because it replaces its process with `os.execv`
+predates the October 2026 retirement of two plugins. `run_imps.py` reads as 0% because it replaces its process with `os.execv`
 before coverage can save; its behavior is tested in `test_catalog.py`.
 
 The suite tests behavior across boundaries, not just successful return values:
