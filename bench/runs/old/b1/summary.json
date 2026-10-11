@@ -53,7 +53,7 @@
     "decision": "valid: 12 void findings are $R/$S shell-variable paths inside the workspace .bench-state (false positives); 10 review findings are harness-owned output files (quiet-bash command logs, background task output)"
   },
   "result": {
-    "hidden_tests": {
+    "matches_upstream_design": {
       "ok": false,
       "head": "8fb6f45ca397c2f77b1e8ebed07c02e7532413b2",
       "bundle_sha256": "19f12fe6d38ff0991c2f7000d3cb819d51f8ae58cb4f7122ba81610333d2465c",
@@ -81,6 +81,16 @@
         "exit_code": 1,
         "tail": "[deep tier]\nreport\n\n[flash tier]\ncloud fixture\n\n[pro tier]\ncloud fixture\n[deep tier]\nreport\n\n[flash tier]\ncloud fixture\n\n[pro tier]\ncloud fixture\n..............................................................................................................................................................................................................................................................................................................................................................................................FFF............................................................................................................................................................................................\n======================================================================\nFAIL: test_failed_identity_capture_never_authorizes_cleanup (test_resources_identity.WorktreeIdentityTest.test_failed_identity_capture_never_authorizes_cleanup)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>/tmpvki3jz0x/tree/tests/test_resources_identity.py\", line 22, in test_failed_identity_capture_never_authorizes_cleanup\n    self.assertEqual(action['args']['identity'], 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n======================================================================\nFAIL: test_legacy_inode_only_identity_is_not_cleanup_authority (test_resources_identity.WorktreeIdentityTest.test_legacy_inode_only_identity_is_not_cleanup_authority)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>/tmpvki3jz0x/tree/tests/test_resources_identity.py\", line 49, in test_legacy_inode_only_identity_is_not_cleanup_authority\n    self.assertEqual(resources.identity(item), 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n======================================================================\nFAIL: test_reused_inodes_do_not_authorize_cleanup (test_resources_identity.WorktreeIdentityTest.test_reused_inodes_do_not_authorize_cleanup)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>/tmpvki3jz0x/tree/tests/test_resources_identity.py\", line 39, in test_reused_inodes_do_not_authorize_cleanup\n    self.assertEqual(resources.identity(item), 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n----------------------------------------------------------------------\nRan 573 tests in 217.031s\n\nFAILED (failures=3)\n"
       }
+    },
+    "behaviour_grader": {
+      "ok": true,
+      "untouched_offered": true,
+      "replacement_refused": true,
+      "replacement_identity": "replaced",
+      "recorded_inode_count": 2,
+      "other_stat_fields_real": true,
+      "resource_recorded_via_cli": true,
+      "grader_sha256": "58f371bb073bd5c061363c1e0ad61d23077f1c3a4aa12086862006562be4b8ca"
     }
   },
   "raw_sha256": {

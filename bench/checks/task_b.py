@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""Grade cleanup behaviour on real, CLI-recorded worktrees, independent of fix design.
+
+Only st_ino is overridden after replacement. Every other stat attribute, owner
+file, git pointer and git command remains real. Each target runs in a separate
+Python process so its core imports cannot contaminate another target's grade.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+from unittest.mock import patch
+
+
+class InodeStat:
+    """Forward the real stat result, including nanoseconds, changing only its inode."""
+
+    def __init__(self, real, inode):
+        self.real, self.st_ino = real, inode
+
+    def __getattr__(self, name):
+        return getattr(self.real, name)
+
+    def __getitem__(self, index):
+        return self.st_ino if index == 1 else self.real[index]
+
+    def __iter__(self):
+        return iter(tuple(self[index] for index in range(len(self.real))))
+
+    def __len__(self):
+        return len(self.real)
+
+
+def inode_wrapper(real, numbers):
+    def wrapped(path, *args, **kwargs):
+        found = real(path, *args, **kwargs)
+        key = os.path.abspath(os.fsdecode(path)) if isinstance(path, (str, bytes, os.PathLike)) else None
+        return InodeStat(found, numbers[key]) if key in numbers else found
+    return wrapped
+
+
+def command(argv, cwd, env):
+    return subprocess.run(argv, cwd=cwd, env=env, capture_output=True, text=True,
+                          check=True, timeout=120).stdout.strip()
+
+
+def probe(tree: Path) -> dict:
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(tree))
+    from core import engine
+
+    with tempfile.TemporaryDirectory(prefix='task-b-behaviour-') as tmp:
+        root = Path(tmp).resolve()
+        home = root / 'home'
+        home.mkdir()
+        env = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(home / 'config'),
+                   XDG_STATE_HOME=str(home / 'state'), PYTHONDONTWRITEBYTECODE='1',
+                   GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
+                   GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
+                   GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid')
+        for key in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'T3_PARENT_THREAD_ID'):
+            env.pop(key, None)
+        repo = root / 'repo'
+        repo.mkdir()
+        def git(*args):
+            return command(['git', *args], repo, env)
+        git('init', '-q', '-b', 'main')
+        (repo / 'file.txt').write_text('real worktree content\n')
+        git('add', 'file.txt')
+        git('-c', 'commit.gpgsign=false', 'commit', '-qm', 'fixture')
+        plan = {'schema_version': 1,
+                'brief': {'text': 'Check worktree cleanup ownership',
+                          'requirements': [{'id': 'REQ-CLEANUP', 'text': 'Preserve unrelated worktrees', 'kind': 'command'}]},
+                'repo': {'worktree': str(repo), 'base_ref': 'HEAD'},
+                'authorization': {'endstate': 'local', 'evidence': 'behaviour grader'},
+                'execution': {'mode': 'delegated', 'isolation': 'parallel'},
+                'host': {'parent_thread_id': 'grader-parent'},
+                'tasks': [{'id': 'fix', 'purpose': 'Check cleanup', 'files': ['file.txt']}],
+                'policy': {'checks': [], 'review': {'required': False}, 'worktree_root': str(root / 'worktrees')}}
+        run_id, token, generation = None, None, None
+        def cli(op, payload=None, kind=None):
+            nonlocal run_id, token, generation
+            argv = [sys.executable, str(tree / 'core/cli.py'), op, '--state-root', str(root / 'state'),
+                    '--plugin-dir', str(tree / 'plugins/imps'), '--parent-thread-id', 'grader-parent']
+            if run_id: argv += ['--run-id', run_id]
+            if payload is not None:
+                file = root / 'input.json'
+                file.write_text(json.dumps(payload))
+                argv += ['--input', str(file)]
+            if kind:
+                argv += ['--kind', kind, '--token', token, '--expect-generation', str(generation)]
+            data = json.loads(command(argv, tree, env))
+            if not data['ok']: raise RuntimeError(data)
+            run_id = data.get('run_id') or run_id
+            generation = data['data'].get('generation', generation)
+            return data['data']
+        cli('init', plan)
+        token = cli('claim')['token']
+        caps = json.loads((tree / 'tests/fixtures/t3/capabilities.json').read_text())
+        cli('record', {'response': caps}, 'capabilities')
+        cli('record', {'to': 'executing'}, 'transition')
+        action = next(a for a in cli('next')['actions'] if a['action'] == 'create_worktree')
+        args = action['args']
+        command(args['argv'], repo, env)
+        cli('record', {'action_id': action['id'], 'kind': 'worktree', 'name': args['name'],
+                       'path': args['path'], 'branch': args['branch'], 'task_id': 'fix'}, 'resource')
+        state = json.loads((root / 'state/runs' / run_id / 'run.json').read_text())
+        item = next(r for r in state['resources'] if r['kind'] == 'worktree')
+        identity = item['identity']
+        numbers = {str(Path(identity['gitdir']).resolve()): identity['gitdir_inode'],
+                   str(Path(item['path']) / '.git'): identity['dotgit_inode']}
+        untouched = engine.cleanup_action(item)['args']
+        positive = untouched['argv'] is not None and untouched['identity'] == 'live'
+        git('worktree', 'remove', item['path'])
+        git('worktree', 'add', '-q', item['path'], item['branch'])
+        before = {p: os.lstat(p) for p in numbers}
+        with patch.multiple(os, stat=inode_wrapper(os.stat, numbers), lstat=inode_wrapper(os.lstat, numbers)):
+            # Explicitly prove that all recorded inode numbers match, while the
+            # timestamp and device fields remain those of the replacement.
+            for p, inode in numbers.items():
+                found = os.lstat(p)
+                assert found.st_ino == inode
+                for field in ('st_dev', 'st_mode', 'st_size', 'st_mtime_ns', 'st_ctime_ns'):
+                    assert getattr(found, field) == getattr(before[p], field)
+            replaced = engine.cleanup_action(item)['args']
+        negative = replaced['argv'] is None
+        assert (Path(item['path']) / 'file.txt').read_text() == 'real worktree content\n'
+        return {'ok': positive and negative, 'untouched_offered': positive,
+                'replacement_refused': negative, 'replacement_identity': replaced['identity'],
+                'recorded_inode_count': len(numbers), 'other_stat_fields_real': True,
+                'resource_recorded_via_cli': True}
+
+
+def grade(tree: Path) -> dict:
+    result = subprocess.run([sys.executable, str(Path(__file__).resolve()), str(tree), '--probe'],
+                            capture_output=True, text=True, timeout=300)
+    if result.returncode and not result.stdout.strip():
+        return {'ok': False, 'error': result.stderr[-4000:], 'exit_code': result.returncode}
+    return json.loads(result.stdout)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('tree', type=Path)
+    parser.add_argument('--probe', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--json', action='store_true')
+    args = parser.parse_args()
+    report = probe(args.tree.resolve()) if args.probe else grade(args.tree.resolve())
+    report['grader_sha256'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    print(json.dumps(report, indent=2))
+    return 0 if report['ok'] else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

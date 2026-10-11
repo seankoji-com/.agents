@@ -2,7 +2,26 @@
 
 Frozen on 2026-10-11, before any baseline run, for stage 1 of issue #15. Stage 5 runs
 this protocol unchanged against the new imps. Any change after the first baseline run
-makes the baseline stale.
+makes the baseline stale, except for the single Task B amendment below authorised
+by issue #15 §7.
+
+## Stage 5 amendment: Task B behaviour gate (2026-10-11)
+
+The upstream tests distinguish one identity design, rather than the reported bug.
+Both old fixes use an admin-directory owner token and fail those design assertions.
+Task B is therefore gated by `checks/task_b.py`, frozen before new runs at SHA-256
+`58f371bb073bd5c061363c1e0ad61d23077f1c3a4aa12086862006562be4b8ca`.
+The grader records a real worktree through the target core CLI, removes and recreates
+it, then overrides only the two recorded inode numbers. Real nanosecond timestamps,
+device fields, files and Git operations remain intact. It requires both refusal of
+replacement cleanup and an offered command for an untouched owned worktree.
+
+Validation is recorded in `checks/task_b_validation.json`: the unfixed tree fails,
+`d6bed53` and both old fixes pass. Old summaries retain the upstream test output as
+`matches_upstream_design`, an informational field, and add `behaviour_grader`.
+References below and in the frozen rubric to Task B's hidden-test gate are superseded
+by this amendment. The upstream tests and full suite remain informational. No worker
+prompt, execution setting, attempt rule, token parser, Task A check or rubric changes.
 
 The benchmark compares two imps versions on two tasks: the **old** package (built from
 `6e4cf82`, tag `bench/old-imps`) and the **new** package (built in stage 5 from the final
@@ -47,7 +66,7 @@ outputs are kept in the summary. Old: see [runs/old/package.json](runs/old/packa
 | Task | Prompt | Workspace | Gate (stage 5) |
 | --- | --- | --- | --- |
 | A | [fixtures/task_a/prompt.md](fixtures/task_a/prompt.md) | `prepare_workspace.py a` | `checks/task_a.py` passes and the grader does not prefer old in both pairs |
-| B | [fixtures/task_b/prompt.md](fixtures/task_b/prompt.md) | `prepare_workspace.py b` | hidden tests pass |
+| B | [fixtures/task_b/prompt.md](fixtures/task_b/prompt.md) | `prepare_workspace.py b` | `checks/task_b.py` passes |
 
 Each version runs four slots: `a1`, `a2`, `b1`, `b2`. Old and new runs with the same slot
 form a grading pair. Slots of one version may run at the same time; each has its own
@@ -160,7 +179,10 @@ under the system temporary directory) are not the worker reading elsewhere.
 
 ## Grading
 
-- **Task B**: `python3 bench/tools/grade_task_b.py <workspace> <bundle> --full --json`.
+- **Task B gate**: `python3 bench/checks/task_b.py <workspace> --json`. Both new runs
+  must pass; apply it to committed output in an isolated clone. The regraded old
+  results are in `runs/old/b1/summary.json` and `runs/old/b2/summary.json`.
+- **Task B upstream design (informational)**: `python3 bench/tools/grade_task_b.py <workspace> <bundle> --full --json`.
   The script refuses a bundle whose sha256 is not
   `19f12fe6d38ff0991c2f7000d3cb819d51f8ae58cb4f7122ba81610333d2465c`. It clones the
   workspace's `HEAD`, adds the hidden test and runs it; the full suite is informational.

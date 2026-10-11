@@ -1,0 +1,45 @@
+{
+  "grader_sha256": "58f371bb073bd5c061363c1e0ad61d23077f1c3a4aa12086862006562be4b8ca",
+  "targets": {
+    "unfixed": {
+      "ok": false,
+      "untouched_offered": true,
+      "replacement_refused": false,
+      "replacement_identity": "live",
+      "recorded_inode_count": 2,
+      "other_stat_fields_real": true,
+      "resource_recorded_via_cli": true,
+      "grader_sha256": "58f371bb073bd5c061363c1e0ad61d23077f1c3a4aa12086862006562be4b8ca"
+    },
+    "upstream": {
+      "ok": true,
+      "untouched_offered": true,
+      "replacement_refused": true,
+      "replacement_identity": "replaced",
+      "recorded_inode_count": 2,
+      "other_stat_fields_real": true,
+      "resource_recorded_via_cli": true,
+      "grader_sha256": "58f371bb073bd5c061363c1e0ad61d23077f1c3a4aa12086862006562be4b8ca"
+    },
+    "old_b1": {
+      "ok": true,
+      "untouched_offered": true,
+      "replacement_refused": true,
+      "replacement_identity": "replaced",
+      "recorded_inode_count": 2,
+      "other_stat_fields_real": true,
+      "resource_recorded_via_cli": true,
+      "grader_sha256": "58f371bb073bd5c061363c1e0ad61d23077f1c3a4aa12086862006562be4b8ca"
+    },
+    "old_b2": {
+      "ok": true,
+      "untouched_offered": true,
+      "replacement_refused": true,
+      "replacement_identity": "replaced",
+      "recorded_inode_count": 2,
+      "other_stat_fields_real": true,
+      "resource_recorded_via_cli": true,
+      "grader_sha256": "58f371bb073bd5c061363c1e0ad61d23077f1c3a4aa12086862006562be4b8ca"
+    }
+  }
+}

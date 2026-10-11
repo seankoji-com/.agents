@@ -1,5 +1,33 @@
 # Migration from claude-plugins
 
+## Plugin version 1.0.0
+
+This major version removes workflow machinery while retaining authorisation,
+revision-bound evidence, locking and atomic storage. These are design hypotheses
+about capable orchestrators, not claims that every model completes every workflow.
+The stage 5 benchmark compares the old and new imps on fixed tasks; live acceptance
+is limited to its recorded runs.
+
+| Removal | Reason | Upgrade step |
+| --- | --- | --- |
+| offload-sidecar, including deterministic transforms and receipts | Retired on purpose. The separate transform protocol assumed the orchestrator needed a broker for local operations. | Use local tools for deterministic transforms and T3 delegation for judgement. Run `t3-plugins setup` to remove owned, unmodified retired adapters; modified or unrelated files are preserved. Use `t3-plugins uninstall offload-sidecar` for its installed package. |
+| prompt-builder | Retired by the owner. Frozen prompt evaluation is no longer an active catalog workflow. | Use the active agent for drafting. Run `t3-plugins setup` for owned adapter removal and `t3-plugins uninstall prompt-builder` for the retired installed package. |
+| imps dispatcher, claims and generation counters | The orchestrator now chooses its next step. The removed action loop encoded the hypothesis that the model needed a second scheduler to direct each action. | Use `snapshot`, named evidence submissions and `validate`; see the [API migration](imps-gate-migration.md). Process locking and atomic storage remain. Old major-version-1 runs require the previous installed package; activate it to inspect, resume or cancel them. No state conversion occurs. |
+| Repeated delegation rules | Multiple copies could drift without improving model decisions. | Follow the installed `shared/delegation.md` as the single contract, and discover the live catalog before selecting children. |
+
+Install the new release into your chosen prefix, then run `t3-plugins setup` to refresh
+skill adapters. Existing routing configuration is preserved. Review retained modified
+adapters yourself before replacing them. The `1.0.0` plugin manifests do not create a
+GitHub release: release tags use a separate series, set by the owner through the
+Release workflow's `major` dispatch.
+
+The historical compatibility ledger covers imps `0.1.0+ga50f506cd178` on T3
+`0.0.46-nightly.20261008.2849`. It does not certify plugin version 1.0.0. See
+[compatibility and evidence](compatibility.md) for the distinction between helper
+tests and observed model workflows.
+
+## Historical port: pre-1.0.0
+
 This is a T3-native port of the seven-plugin catalog at
 [`edddf829de3c87515b44e8b816eaf03878e3f9de`](https://github.com/seankoji-com/claude-plugins/tree/edddf829de3c87515b44e8b816eaf03878e3f9de).
 The source revision and copied-file hashes are recorded in

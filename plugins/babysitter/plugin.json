@@ -1,6 +1,6 @@
 {
   "name": "babysitter",
-  "version": "0.1.6",
+  "version": "1.0.0",
   "description": "Maintain pull requests through review, CI, and authorized merge.",
   "entry": "entry.md",
   "operations": [
