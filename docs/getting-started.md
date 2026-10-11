@@ -1,5 +1,9 @@
 # Installation
 
+Setup prints optional learning-directory grants. `--grant-learnings` applies only
+the printed subtree after backing up provider configs. See
+[learnings and harvest](learnings.md) before opting in.
+
 You need T3 Code with a working provider and local file/shell access. Python 3.10+
 runs the core and most helpers. Homebrew installs Python 3.12. The Codex settings
 audit and TOML conversion need Python 3.11+. GitHub workflows also use Git, `gh`,

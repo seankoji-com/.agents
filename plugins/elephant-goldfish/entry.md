@@ -1,4 +1,5 @@
 # elephant-goldfish
+Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
 Turn an uncertain problem into a testable brief, or check a durable design document.
 Read `PKG/shared/t3-runtime.md` first. Inherit the session model. Delegation follows

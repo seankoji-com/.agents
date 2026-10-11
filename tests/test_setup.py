@@ -22,11 +22,18 @@ class SetupTest(unittest.TestCase):
             shutil.copytree(ROOT / name, self.package / name,
                             ignore=shutil.ignore_patterns('__pycache__'))
         self.prefix = self.home / 'snapshots'
+        self.project = Path(self.temp.name) / 'project'
+        self.project.mkdir()
+        self.env = {**os.environ, 'HOME': str(self.home),
+                    'XDG_CONFIG_HOME': str(self.home / 'config'),
+                    'XDG_STATE_HOME': str(Path(self.temp.name) / 'state')}
+        for key in ('CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'OPENCODE_CONFIG', 'OPENCODE_CONFIG_CONTENT'):
+            self.env.pop(key, None)
 
     def call(self, *args, code=0):
         result = subprocess.run([sys.executable, str(self.package / 'scripts/catalog.py'),
-                                 '--prefix', str(self.prefix), *args], cwd=self.home,
-                                env={**os.environ, 'HOME': str(self.home)},
+                                 '--prefix', str(self.prefix), *args], cwd=self.project,
+                                env=self.env,
                                 capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, code, result.stdout + result.stderr)
         self.assertNotIn('Traceback', result.stderr)
@@ -35,12 +42,33 @@ class SetupTest(unittest.TestCase):
     def test_default_setup_installs_catalog_and_three_roots_idempotently(self):
         first = self.call('setup')
         receipts = [json.loads(line) for line in first.stdout.splitlines()]
-        self.assertEqual(len(receipts), 20)
+        install_receipts = [r for r in receipts if 'learnings_grant' not in r]
+        self.assertEqual(len(install_receipts), 20)
+        grants = [r['learnings_grant'] for r in receipts if 'learnings_grant' in r]
+        self.assertEqual(len(grants), 6)
+        self.assertEqual({r['status'] for r in grants}, {'proposed', 'unavailable'})
+        self.assertFalse((self.home / '.claude/settings.json').exists())
+        self.assertFalse((self.home / '.codex/config.toml').exists())
         for root in ('.agents/skills', '.claude/skills', '.gemini/config/skills'):
             skill = self.home / root / 't3-imps/SKILL.md'
             self.assertIn(str(self.prefix / 'imps/current/entry.md'), skill.read_text())
         self.call('setup')
         self.call('doctor')
+
+    def test_setup_grants_require_explicit_flag_in_an_isolated_home(self):
+        self.call('setup', 'imps')
+        self.assertFalse((self.home / '.claude/settings.json').exists())
+        result = self.call('setup', 'imps', '--grant-learnings')
+        grants = [json.loads(line)['learnings_grant'] for line in result.stdout.splitlines()
+                  if 'learnings_grant' in json.loads(line)]
+        self.assertEqual(next(g for g in grants if g['provider'] == 'claudeAgent')['status'], 'applied')
+        config = json.loads((self.home / '.claude/settings.json').read_text())
+        self.assertEqual(config, {'sandbox': {'filesystem': {'allowWrite': [
+            str(Path(self.temp.name) / 'state/t3-plugins/learnings')]}}})
+        repeated = self.call('setup', 'imps', '--grant-learnings')
+        grants = [json.loads(line)['learnings_grant'] for line in repeated.stdout.splitlines()
+                  if 'learnings_grant' in json.loads(line)]
+        self.assertEqual(next(g for g in grants if g['provider'] == 'claudeAgent')['status'], 'unchanged')
 
     def test_custom_roots_replace_defaults_and_preserve_unowned_skill(self):
         custom = self.home / 'custom skills'

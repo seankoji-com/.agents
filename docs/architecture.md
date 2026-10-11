@@ -11,7 +11,7 @@ The repository does not implement another model client or task scheduler.
 | Directory | Responsibility | Dependency rule |
 | --- | --- | --- |
 | `plugins/<name>/` | Entry, selected playbooks, helper scripts, templates | May use the shared runtime contract and core |
-| `shared/` | Provider-neutral agent instructions for using T3 | No provider SDK or executable orchestration |
+| `shared/` | T3 contract, optional learning storage and harvest helpers | Standard library; no provider SDK or executable orchestration |
 | `core/` | imps run state, atomic storage, evidence, readiness | Python standard library; no plugin imports or vocabulary |
 | `bin/` | Source-checkout launcher for the catalog CLI | Thin wrapper over `scripts/catalog.py` |
 | `scripts/` | Catalog, installation, conformance, release, and site-build tooling | Finds plugins through their manifests |
@@ -53,6 +53,14 @@ plan → implement → capture binding → verify → submit evidence → valida
 
 The other plugins use their own completion criteria: research produces a report
 and planning produces a handoff. T3 owns their child tasks too.
+
+## Optional learnings
+
+Every installed package includes the shared learning helpers. They load only the
+current plugin's project lessons from the XDG state root, maintain versioned entries
+transactionally and report storage failures without blocking the task. Harvest
+screens local drafts and requires owner approval before external publication.
+See [learnings and harvest](learnings.md) for storage and sandbox boundaries.
 
 ## Installation and ownership
 

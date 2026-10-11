@@ -12,6 +12,9 @@ import install as installer
 import routing
 import skills
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'shared'))
+import learning_grants
+
 ROOT = Path(__file__).resolve().parent.parent
 # Removed from the catalog. Setup deletes their owned, unmodified skill adapters;
 # `uninstall` still accepts them so old snapshots can be removed.
@@ -58,6 +61,8 @@ def main(argv=None):
     setup.add_argument('--root', action='append', help='skill directory; repeat for multiple providers')
     setup.add_argument('--capabilities', metavar='FILE',
                        help='saved orchestrator_capabilities response; writes the routing config if none exists')
+    setup.add_argument('--grant-learnings', action='store_true',
+                       help='apply the printed subtree grants after backing up provider configs')
     resolve = sub.add_parser('resolve', help='list available routing candidates for a role, in tier order')
     resolve.add_argument('role')
     resolve.add_argument('--capabilities', metavar='FILE', required=True,
@@ -129,6 +134,9 @@ def main(argv=None):
                     receipt = skills.remove_retired(root, name)
                     if receipt:
                         print(json.dumps(receipt))
+            caps = routing.load_capabilities(args.capabilities) if args.capabilities else None
+            for receipt in learning_grants.setup_grants(Path.cwd(), caps, args.grant_learnings):
+                print(json.dumps({'learnings_grant': receipt}))
             if args.capabilities:
                 receipt = routing.write_default(args.capabilities)
                 print(json.dumps(receipt))

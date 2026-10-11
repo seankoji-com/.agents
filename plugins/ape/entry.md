@@ -1,4 +1,5 @@
 # ape
+Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
 Find transferable ideas in open-source code. Read `PKG/shared/t3-runtime.md` first.
 Delegation follows `PKG/shared/delegation.md`.
