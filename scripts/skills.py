@@ -20,10 +20,38 @@ def safe_path(path):
     return path
 
 
+def metadata_fields(meta):
+    """Frontmatter metadata for the generated adapter. Agent Skills defines
+    metadata as a flat string-to-string map, so everything beyond name and
+    description lives inside it and the top level stays within the portable
+    six-field spec. A structured origin is flattened onto namespaced keys.
+    OpenCode's documented metadata keys carry the invocation policy: every
+    adapter is user-invocable as a /name command, and each plugin that is not
+    model-invocable stays out of model auto-selection."""
+    values = {}
+    for key in ('version', 'kind', 'compatibility'):
+        if meta.get(key) is not None:
+            values['t3-plugins-' + key] = str(meta[key])
+    origin = meta.get('origin')
+    if origin:
+        for key in ('repository', 'plugin', 'version'):
+            if origin.get(key) is not None:
+                values['t3-plugins-origin-' + key] = str(origin[key])
+    values['opencode/slash'] = 'true'
+    if not meta.get('model_invocable', False):
+        values['opencode/autoinvoke'] = 'false'
+    return values
+
+
 def render(meta, entry):
     # JSON strings are valid quoted YAML scalars. Descriptions may contain colons.
-    return ('---\nname: t3-' + meta['name'] + '\ndescription: ' + json.dumps(meta['description']) +
-            '\n---\n\n# ' + meta['name'] + ' in T3 Code\n\n'
+    header = ['---', 'name: t3-' + meta['name'], 'description: ' + json.dumps(meta['description'])]
+    metadata = metadata_fields(meta)
+    if metadata:
+        header.append('metadata:')
+        header.extend('  ' + key + ': ' + json.dumps(value) for key, value in metadata.items())
+    header.append('---')
+    return ('\n'.join(header) + '\n\n# ' + meta['name'] + ' in T3 Code\n\n'
             'Read the installed entry file at ' + json.dumps(str(entry)) + ' and follow it.\n'
             'The package directory is the directory containing that entry file.\n'
             'Use the text after the skill mention as the operation and arguments. Operations: ' +

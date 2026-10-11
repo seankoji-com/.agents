@@ -1,8 +1,9 @@
 {
   "name": "babysitter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Maintain pull requests through review, CI, and authorized merge.",
   "entry": "entry.md",
+  "model_invocable": true,
   "operations": [
     "doctor",
     "pr",
