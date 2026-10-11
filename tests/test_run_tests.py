@@ -15,6 +15,7 @@ _spec.loader.exec_module(runner)
 PASSING = 'import unittest\nclass T(unittest.TestCase):\n    def test_a(self): pass\n    def test_b(self): pass\n'
 FAILING = 'import unittest\nclass T(unittest.TestCase):\n    def test_a(self): self.fail("planted")\n'
 EMPTY = 'import unittest\n'
+HANGING = 'import time, unittest\nclass T(unittest.TestCase):\n    def test_a(self): time.sleep(30)\n'
 
 
 class RunTestsTest(unittest.TestCase):
@@ -51,6 +52,14 @@ class RunTestsTest(unittest.TestCase):
         self.suite(test_empty=EMPTY)
         code, out, _ = self.run_main()
         self.assertEqual(code, 1, out)
+
+    def test_a_module_past_the_timeout_is_stopped_and_fails(self):
+        self.suite(test_one=PASSING, test_hang=HANGING)
+        code, out, err = self.run_main('--timeout', '2')
+        self.assertEqual(code, 1, out)
+        self.assertIn('FAIL test_hang', out)
+        self.assertIn('stopped after 2s', err)
+        self.assertIn('2 tests in 2 modules', out)
 
     def test_patterns_select_modules(self):
         self.suite(test_one=PASSING, test_bad=FAILING)

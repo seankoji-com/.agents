@@ -5,12 +5,14 @@
 ```sh
 python3 scripts/run_tests.py              # every module, in parallel
 python3 scripts/run_tests.py test_review  # modules whose names start with test_review
-python3 -m unittest discover -s tests -v  # the same suite, one module after another
+python3 -m unittest discover -s tests -v  # the same tests, one module after another
 ```
 
 Most tests drive the core CLI and Git in temporary repositories, so the suite spends
 its time waiting on child processes. `run_tests.py` gives each module its own process
-and prints that module's full output only if it fails. On 2026-10-11, on a 16-core
+and prints that module's full output only if it fails. It is stricter than unittest in
+two ways: a module that collects no tests fails, and a module still running after
+`--timeout` seconds (default 600) is stopped and fails. On 2026-10-11, on a 16-core
 Linux machine, the 700 or so tests took about a minute in parallel and four minutes serially.
 
 Line coverage of `core/`, `scripts/`, and the plugin helpers was 87% on the same date,
