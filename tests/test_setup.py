@@ -14,7 +14,7 @@ class SetupTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.home = Path(self.temp.name) / 'home with spaces'
+        self.home = Path(self.temp.name).resolve() / 'home with spaces'
         self.home.mkdir()
         # Match the formula's installed tree, with no Git checkout or bin directory.
         self.package = Path(self.temp.name) / 'libexec'
