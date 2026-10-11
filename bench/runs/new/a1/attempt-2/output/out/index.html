@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheapest E10 near Greenwich, NSW</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #6f6d68;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --series: #2a78d6; --accent: #2a78d6; --accent-ink: #ffffff; --accent-wash: rgba(42,120,214,0.10);
+  --link: #1c5cab; --accent-strong: #1c5cab;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #a3a29b;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --series: #3987e5; --accent: #3987e5; --accent-ink: #0b0b0b; --accent-wash: rgba(57,135,229,0.16);
+    --link: #6da7ec; --accent-strong: #3987e5;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 4px; }
+h2 { font-size: 1.2rem; margin: 0 0 4px; }
+p { margin: 0 0 8px; }
+a { color: var(--link); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.lede, .muted, .sub { color: var(--ink-2); }
+.sub { font-size: 0.9rem; margin-bottom: 12px; }
+section.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; margin-top: 16px; }
+.recommendation { border: 2px solid var(--accent) !important; }
+.rec-grid { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; }
+.eyebrow { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); margin: 0; }
+.hero { font-size: 3.25rem; font-weight: 650; line-height: 1; margin: 4px 0; }
+.hero small { font-size: 1rem; font-weight: 500; color: var(--ink-2); margin-left: 4px; }
+.rec-name { font-size: 1.35rem; font-weight: 600; margin: 0; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 16px; }
+@media (min-width: 900px) { .layout { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); } }
+#map { height: 440px; border-radius: 8px; border: 1px solid var(--ring); background: var(--grid); }
+.map-note { font-size: 0.85rem; color: var(--ink-2); margin-top: 8px; }
+.chart { width: 100%; height: auto; display: block; overflow: visible; }
+.chart .grid { stroke: var(--grid); stroke-width: 1; }
+.chart .baseline { stroke: var(--axis); stroke-width: 1; }
+.chart .tick { fill: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.chart .end-label { fill: var(--ink); font-size: 14px; font-weight: 600; }
+.series { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.point { fill: var(--series); stroke: var(--surface); stroke-width: 2; }
+.chart .crosshair { stroke: var(--ink-2); stroke-width: 1; }
+.chart .crosshair[hidden] { display: none; }
+.chart .hit { fill: transparent; cursor: crosshair; }
+.chart-wrap { position: relative; }
+.chart-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.tooltip { position: absolute; pointer-events: none; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--ring); border-radius: 8px; padding: 6px 10px; font-size: 0.85rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12); white-space: nowrap; transform: translate(-50%, -110%); }
+.tooltip strong { display: block; font-size: 1rem; }
+details { margin-top: 8px; }
+summary { cursor: pointer; color: var(--ink-2); font-size: 0.9rem; }
+table { border-collapse: collapse; font-size: 0.9rem; margin-top: 6px; }
+th, td { text-align: left; padding: 3px 12px 3px 0; border-bottom: 1px solid var(--grid); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0 4px; font-size: 0.9rem; color: var(--ink-2); }
+button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--axis);
+  border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+button.link { border: 0; background: none; color: var(--link); padding: 0; border-radius: 0; text-decoration: underline; }
+ol.stations { list-style: none; padding: 0; margin: 8px 0 0; }
+ol.stations > li { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr) auto; gap: 4px 12px;
+  padding: 12px 8px; border-top: 1px solid var(--grid); border-radius: 8px; }
+ol.stations > li.is-best { background: var(--accent-wash); }
+ol.stations > li.is-active { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rank { font-weight: 650; color: var(--ink-2); font-variant-numeric: tabular-nums; padding-top: 2px; }
+.st-name { font-weight: 600; margin: 0; }
+.st-meta { font-size: 0.85rem; color: var(--ink-2); margin: 0; }
+.st-figs { text-align: right; }
+.st-price { font-size: 1.35rem; font-weight: 650; line-height: 1.1; }
+.st-price small, .st-dist small { font-size: 0.8rem; font-weight: 400; color: var(--ink-2); }
+.st-dist { font-size: 0.9rem; color: var(--ink-2); }
+.st-history { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+.spark { width: 168px; height: 44px; display: block; }
+.badge { display: inline-block; font-size: 0.75rem; font-weight: 600; background: var(--accent-strong); color: var(--accent-ink);
+  border-radius: 999px; padding: 1px 8px; margin-left: 6px; vertical-align: 2px; }
+.price-pin { background: none; border: 0; border-radius: 6px; }
+.price-pin span { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;
+  box-sizing: border-box; background: #ffffff; color: #0b0b0b; border: 1px solid rgba(11,11,11,0.35); border-radius: 6px;
+  font: 600 12px/1 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,0.25); }
+.price-pin.is-best span { background: #1c5cab; color: #ffffff; border-color: #104281; font-size: 13px; }
+.price-pin:focus-visible { outline: 3px solid #0b0b0b; outline-offset: 2px; }
+.leaflet-popup-content p { margin: 0 0 2px; }
+footer { margin-top: 24px; font-size: 0.85rem; color: var(--ink-2); }
+footer p { margin: 0 0 4px; }
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>Where to buy E10 near Greenwich, NSW</h1>
+<p class="lede">Stations within 10 km of Greenwich (-33.833, 151.183), ranked by their latest listed E10 price. Prices are in cents per litre, recorded 1 Sep to 14 Sep 2026; times are as recorded (UTC+10:00).</p>
+</header>
+<section class="card recommendation" id="recommendation" aria-labelledby="rec-title" data-recommended-station="STN-0007">
+<p class="eyebrow" id="rec-title">Recommendation: cheapest E10 in range</p>
+<div class="rec-grid">
+<p class="hero">179.9<small>c/L</small></p>
+<div><p class="rec-name">Artarmon Junction Fuels</p>
+<p class="muted">Coastal · 112 Artarmon Street · 6.40 km from Greenwich · listed 14 Sep 14:15 · station STN-0007</p></div>
+</div>
+<p class="muted">4.0 c/L cheaper than the next cheapest, Boundary Road Fuel (183.9 c/L, 9.97 km away).</p>
+<p><button type="button" class="link" data-show="STN-0007">Show on map</button></p>
+</section>
+<div class="layout">
+<section class="card" aria-labelledby="map-title">
+<h2 id="map-title">Map</h2>
+<p class="sub">All 21 in-range stations with their listed E10 price. The circle marks the 10 km search radius.</p>
+<div id="map" role="region" aria-label="Map of in-range fuel stations" data-tile-url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" data-attribution="© OpenStreetMap contributors"></div>
+<p class="map-note">Map tiles © OpenStreetMap contributors. Tiles load from the internet; the list and charts work offline.</p>
+</section>
+<section class="card" aria-labelledby="overall-title">
+<h2 id="overall-title">Overall E10 price history</h2>
+<p class="sub" id="overall-desc">Daily mean of each in-range station’s latest E10 price on or before that day (stations with no price yet are left out), c/L.</p>
+<div class="chart-wrap" id="overall-chart" tabindex="0" aria-describedby="overall-desc"><svg class="chart" viewBox="0 0 380 230" role="img" aria-labelledby="overall-title overall-desc" preserveAspectRatio="xMidYMid meet"><line class="grid" x1="34" x2="334" y1="204.0" y2="204.0"/><text class="tick" x="26" y="208.0" text-anchor="end">199</text><line class="grid" x1="34" x2="334" y1="156.0" y2="156.0"/><text class="tick" x="26" y="160.0" text-anchor="end">200</text><line class="grid" x1="34" x2="334" y1="108.0" y2="108.0"/><text class="tick" x="26" y="112.0" text-anchor="end">201</text><line class="grid" x1="34" x2="334" y1="60.0" y2="60.0"/><text class="tick" x="26" y="64.0" text-anchor="end">202</text><line class="grid" x1="34" x2="334" y1="12.0" y2="12.0"/><text class="tick" x="26" y="16.0" text-anchor="end">203</text><line class="baseline" x1="34" x2="334" y1="204" y2="204"/><text class="tick" x="34.0" y="224" text-anchor="middle">1 Sep</text><text class="tick" x="103.2" y="224" text-anchor="middle">4 Sep</text><text class="tick" x="172.5" y="224" text-anchor="middle">7 Sep</text><text class="tick" x="241.7" y="224" text-anchor="middle">10 Sep</text><text class="tick" x="334.0" y="224" text-anchor="middle">14 Sep</text><path class="series" d="M34.0,158.5 L57.1,158.5 L80.2,149.4 L103.2,156.2 L126.3,121.9 L149.4,112.8 L172.5,62.5 L195.5,78.5 L218.6,103.7 L241.7,103.7 L264.8,94.5 L287.8,69.4 L310.9,53.4 L334.0,121.9"/><circle class="point" cx="34.0" cy="158.5" r="4"/><circle class="point" cx="57.1" cy="158.5" r="4"/><circle class="point" cx="80.2" cy="149.4" r="4"/><circle class="point" cx="103.2" cy="156.2" r="4"/><circle class="point" cx="126.3" cy="121.9" r="4"/><circle class="point" cx="149.4" cy="112.8" r="4"/><circle class="point" cx="172.5" cy="62.5" r="4"/><circle class="point" cx="195.5" cy="78.5" r="4"/><circle class="point" cx="218.6" cy="103.7" r="4"/><circle class="point" cx="241.7" cy="103.7" r="4"/><circle class="point" cx="264.8" cy="94.5" r="4"/><circle class="point" cx="287.8" cy="69.4" r="4"/><circle class="point" cx="310.9" cy="53.4" r="4"/><circle class="point" cx="334.0" cy="121.9" r="4"/><text class="end-label" x="344.0" y="125.9">200.7</text><line class="crosshair" x1="0" x2="0" y1="12" y2="204" hidden/><rect class="hit" x="34" y="12" width="300" height="192" data-left="34" data-width="300"/></svg><div class="tooltip" hidden></div></div>
+<p class="sr-only" id="overall-readout" aria-live="polite"></p>
+<details><summary>Show as a table</summary>
+<table>
+<thead><tr><th>Day</th><th class="num">Mean price (c/L)</th><th class="num">Stations</th></tr></thead>
+<tbody>
+<tr><td>2026-09-01</td><td class="num">199.95</td><td class="num">21</td></tr>
+<tr><td>2026-09-02</td><td class="num">199.95</td><td class="num">21</td></tr>
+<tr><td>2026-09-03</td><td class="num">200.14</td><td class="num">21</td></tr>
+<tr><td>2026-09-04</td><td class="num">200.00</td><td class="num">21</td></tr>
+<tr><td>2026-09-05</td><td class="num">200.71</td><td class="num">21</td></tr>
+<tr><td>2026-09-06</td><td class="num">200.90</td><td class="num">21</td></tr>
+<tr><td>2026-09-07</td><td class="num">201.95</td><td class="num">21</td></tr>
+<tr><td>2026-09-08</td><td class="num">201.61</td><td class="num">21</td></tr>
+<tr><td>2026-09-09</td><td class="num">201.09</td><td class="num">21</td></tr>
+<tr><td>2026-09-10</td><td class="num">201.09</td><td class="num">21</td></tr>
+<tr><td>2026-09-11</td><td class="num">201.28</td><td class="num">21</td></tr>
+<tr><td>2026-09-12</td><td class="num">201.80</td><td class="num">21</td></tr>
+<tr><td>2026-09-13</td><td class="num">202.14</td><td class="num">21</td></tr>
+<tr><td>2026-09-14</td><td class="num">200.71</td><td class="num">21</td></tr>
+</tbody>
+</table>
+</details>
+</section>
+</div>
+<section class="card" aria-labelledby="list-title">
+<h2 id="list-title">All 21 stations in range</h2>
+<p class="sub">Listed price is each station’s most recent E10 record. History lines share one time axis (1 Sep–14 Sep) and one price scale (175–211 c/L); the dot is the listed price.</p>
+<div class="toolbar" role="group" aria-label="Sort stations">Sort: <button type="button" data-sort="price" aria-pressed="true">Cheapest first</button><button type="button" data-sort="distance" aria-pressed="false">Nearest first</button></div>
+<ol class="stations" id="station-list">
+<li id="station-STN-0007" data-station-id="STN-0007" data-price="179.9" data-distance="6.400026" class="is-best">
+<span class="rank">1</span>
+<div><p class="st-name">Artarmon Junction Fuels<span class="badge">Cheapest</span></p>
+<p class="st-meta">Coastal · 112 Artarmon Street · STN-0007</p>
+<p class="st-meta">Listed 14 Sep 14:15 · <button type="button" class="link" data-show="STN-0007">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">179.9 <small>c/L</small></div>
+<div class="st-dist">6.40 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Artarmon Junction Fuels: 9 prices from 1 Sep 06:00 to 14 Sep 14:15, low 179.9, high 189.9, latest 179.9 c/L"><title>E10 price history for Artarmon Junction Fuels: 9 prices from 1 Sep 06:00 to 14 Sep 14:15, low 179.9, high 189.9, latest 179.9 c/L</title><path class="series" d="M8.8,27.4 H37.1 V25.6 H55.8 V27.4 H99.2 V29.2 H99.7 V29.2 H114.5 V26.5 H115.0 V27.4 H137.0 V24.8 H157.5 V33.6 H162.0"/><circle class="point" cx="157.5" cy="33.6" r="4"/></svg>
+<details><summary>E10 price history (9 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">186.9</td></tr>
+<tr><td><time datetime="2026-09-03T19:00:00+10:00">3 Sep 19:00</time></td><td class="num">188.9</td></tr>
+<tr><td><time datetime="2026-09-05T11:20:00+10:00">5 Sep 11:20</time></td><td class="num">186.9</td></tr>
+<tr><td><time datetime="2026-09-09T08:40:00+10:00">9 Sep 08:40</time></td><td class="num">184.9</td></tr>
+<tr><td><time datetime="2026-09-09T09:50:00+10:00">9 Sep 09:50</time></td><td class="num">184.9</td></tr>
+<tr><td><time datetime="2026-09-10T17:40:00+10:00">10 Sep 17:40</time></td><td class="num">187.9</td></tr>
+<tr><td><time datetime="2026-09-10T18:40:00+10:00">10 Sep 18:40</time></td><td class="num">186.9</td></tr>
+<tr><td><time datetime="2026-09-12T18:10:00+10:00">12 Sep 18:10</time></td><td class="num">189.9</td></tr>
+<tr><td><time datetime="2026-09-14T14:15:00+10:00">14 Sep 14:15</time></td><td class="num">179.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0021" data-station-id="STN-0021" data-price="183.9" data-distance="9.965017">
+<span class="rank">2</span>
+<div><p class="st-name">Boundary Road Fuel</p>
+<p class="st-meta">Metro · 353 Boundary Street · STN-0021</p>
+<p class="st-meta">Listed 14 Sep 20:15 · <button type="button" class="link" data-show="STN-0021">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">183.9 <small>c/L</small></div>
+<div class="st-dist">9.97 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Boundary Road Fuel: 14 prices from 1 Sep 06:00 to 14 Sep 20:15, low 183.9, high 209.9, latest 183.9 c/L"><title>E10 price history for Boundary Road Fuel: 14 prices from 1 Sep 06:00 to 14 Sep 20:15, low 183.9, high 209.9, latest 183.9 c/L</title><path class="series" d="M8.8,11.4 H33.4 V10.5 H43.4 V12.3 H46.5 V8.8 H53.7 V7.0 H65.8 V8.8 H82.8 V7.0 H113.7 V8.8 H115.2 V7.9 H136.1 V7.9 H136.2 V9.6 H146.5 V11.4 H148.2 V8.8 H160.3 V30.1 H162.0"/><circle class="point" cx="160.3" cy="30.1" r="4"/></svg>
+<details><summary>E10 price history (14 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-03T11:00:00+10:00">3 Sep 11:00</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-04T08:30:00+10:00">4 Sep 08:30</time></td><td class="num">203.9</td></tr>
+<tr><td><time datetime="2026-09-04T15:10:00+10:00">4 Sep 15:10</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-05T06:50:00+10:00">5 Sep 06:50</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-06T08:50:00+10:00">6 Sep 08:50</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-07T21:20:00+10:00">7 Sep 21:20</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-10T16:00:00+10:00">10 Sep 16:00</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-10T19:10:00+10:00">10 Sep 19:10</time></td><td class="num">208.9</td></tr>
+<tr><td><time datetime="2026-09-12T16:10:00+10:00">12 Sep 16:10</time></td><td class="num">208.9</td></tr>
+<tr><td><time datetime="2026-09-12T16:20:00+10:00">12 Sep 16:20</time></td><td class="num">206.9</td></tr>
+<tr><td><time datetime="2026-09-13T14:40:00+10:00">13 Sep 14:40</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-13T18:20:00+10:00">13 Sep 18:20</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-14T20:15:00+10:00">14 Sep 20:15</time></td><td class="num">183.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0011" data-station-id="STN-0011" data-price="185.9" data-distance="4.799961">
+<span class="rank">3</span>
+<div><p class="st-name">Neutral Bay Fuel Co</p>
+<p class="st-meta">Metro · 100 Neutral Street · STN-0011</p>
+<p class="st-meta">Listed 14 Sep 16:15 · <button type="button" class="link" data-show="STN-0011">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">185.9 <small>c/L</small></div>
+<div class="st-dist">4.80 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Neutral Bay Fuel Co: 13 prices from 1 Sep 06:00 to 14 Sep 16:15, low 184.9, high 190.9, latest 185.9 c/L"><title>E10 price history for Neutral Bay Fuel Co: 13 prices from 1 Sep 06:00 to 14 Sep 16:15, low 184.9, high 190.9, latest 185.9 c/L</title><path class="series" d="M8.8,27.4 H27.3 V23.9 H43.0 V26.5 H47.6 V24.8 H67.6 V26.5 H68.1 V27.4 H90.7 V29.2 H104.0 V29.2 H111.4 V28.3 H114.6 V29.2 H121.9 V29.2 H133.2 V28.3 H158.4 V28.3 H162.0"/><circle class="point" cx="158.4" cy="28.3" r="4"/></svg>
+<details><summary>E10 price history (13 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">186.9</td></tr>
+<tr><td><time datetime="2026-09-02T21:50:00+10:00">2 Sep 21:50</time></td><td class="num">190.9</td></tr>
+<tr><td><time datetime="2026-09-04T07:40:00+10:00">4 Sep 07:40</time></td><td class="num">187.9</td></tr>
+<tr><td><time datetime="2026-09-04T17:40:00+10:00">4 Sep 17:40</time></td><td class="num">189.9</td></tr>
+<tr><td><time datetime="2026-09-06T12:40:00+10:00">6 Sep 12:40</time></td><td class="num">187.9</td></tr>
+<tr><td><time datetime="2026-09-06T13:40:00+10:00">6 Sep 13:40</time></td><td class="num">186.9</td></tr>
+<tr><td><time datetime="2026-09-08T14:20:00+10:00">8 Sep 14:20</time></td><td class="num">184.9</td></tr>
+<tr><td><time datetime="2026-09-09T19:00:00+10:00">9 Sep 19:00</time></td><td class="num">184.9</td></tr>
+<tr><td><time datetime="2026-09-10T11:00:00+10:00">10 Sep 11:00</time></td><td class="num">185.9</td></tr>
+<tr><td><time datetime="2026-09-10T17:50:00+10:00">10 Sep 17:50</time></td><td class="num">184.9</td></tr>
+<tr><td><time datetime="2026-09-11T09:40:00+10:00">11 Sep 09:40</time></td><td class="num">184.9</td></tr>
+<tr><td><time datetime="2026-09-12T10:00:00+10:00">12 Sep 10:00</time></td><td class="num">185.9</td></tr>
+<tr><td><time datetime="2026-09-14T16:15:00+10:00">14 Sep 16:15</time></td><td class="num">185.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0008" data-station-id="STN-0008" data-price="192.9" data-distance="4.100000">
+<span class="rank">4</span>
+<div><p class="st-name">Cammeray Bridge Service</p>
+<p class="st-meta">Metro · 242 Cammeray Street · STN-0008</p>
+<p class="st-meta">Listed 14 Sep 15:15 · <button type="button" class="link" data-show="STN-0008">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">192.9 <small>c/L</small></div>
+<div class="st-dist">4.10 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Cammeray Bridge Service: 12 prices from 1 Sep 06:00 to 14 Sep 15:15, low 188.9, high 192.9, latest 192.9 c/L"><title>E10 price history for Cammeray Bridge Service: 12 prices from 1 Sep 06:00 to 14 Sep 15:15, low 188.9, high 192.9, latest 192.9 c/L</title><path class="series" d="M8.8,24.8 H20.8 V23.0 H47.6 V23.9 H54.8 V25.6 H58.3 V23.0 H66.9 V23.9 H81.2 V24.8 H122.4 V23.0 H138.7 V23.9 H146.3 V23.0 H146.5 V22.1 H157.9 V22.1 H162.0"/><circle class="point" cx="157.9" cy="22.1" r="4"/></svg>
+<details><summary>E10 price history (12 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">189.9</td></tr>
+<tr><td><time datetime="2026-09-02T07:50:00+10:00">2 Sep 07:50</time></td><td class="num">191.9</td></tr>
+<tr><td><time datetime="2026-09-04T17:30:00+10:00">4 Sep 17:30</time></td><td class="num">190.9</td></tr>
+<tr><td><time datetime="2026-09-05T09:00:00+10:00">5 Sep 09:00</time></td><td class="num">188.9</td></tr>
+<tr><td><time datetime="2026-09-05T16:40:00+10:00">5 Sep 16:40</time></td><td class="num">191.9</td></tr>
+<tr><td><time datetime="2026-09-06T11:10:00+10:00">6 Sep 11:10</time></td><td class="num">190.9</td></tr>
+<tr><td><time datetime="2026-09-07T18:00:00+10:00">7 Sep 18:00</time></td><td class="num">189.9</td></tr>
+<tr><td><time datetime="2026-09-11T10:40:00+10:00">11 Sep 10:40</time></td><td class="num">191.9</td></tr>
+<tr><td><time datetime="2026-09-12T21:50:00+10:00">12 Sep 21:50</time></td><td class="num">190.9</td></tr>
+<tr><td><time datetime="2026-09-13T14:10:00+10:00">13 Sep 14:10</time></td><td class="num">191.9</td></tr>
+<tr><td><time datetime="2026-09-13T14:40:00+10:00">13 Sep 14:40</time></td><td class="num">192.9</td></tr>
+<tr><td><time datetime="2026-09-14T15:15:00+10:00">14 Sep 15:15</time></td><td class="num">192.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0006" data-station-id="STN-0006" data-price="195.9" data-distance="3.600012">
+<span class="rank">5</span>
+<div><p class="st-name">Lane Cove West Fuel Stop</p>
+<p class="st-meta">Independent · 362 Lane Street · STN-0006</p>
+<p class="st-meta">Listed 14 Sep 15:15 · <button type="button" class="link" data-show="STN-0006">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">195.9 <small>c/L</small></div>
+<div class="st-dist">3.60 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Lane Cove West Fuel Stop: 12 prices from 1 Sep 06:00 to 14 Sep 15:15, low 186.9, high 195.9, latest 195.9 c/L"><title>E10 price history for Lane Cove West Fuel Stop: 12 prices from 1 Sep 06:00 to 14 Sep 15:15, low 186.9, high 195.9, latest 195.9 c/L</title><path class="series" d="M8.8,27.4 H31.4 V26.5 H43.0 V23.9 H43.2 V27.4 H76.2 V23.0 H89.0 V25.6 H113.6 V23.9 H127.6 V25.6 H132.1 V21.2 H137.5 V22.1 H148.0 V19.4 H157.9 V19.4 H162.0"/><circle class="point" cx="157.9" cy="19.4" r="4"/></svg>
+<details><summary>E10 price history (12 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">186.9</td></tr>
+<tr><td><time datetime="2026-09-03T06:40:00+10:00">3 Sep 06:40</time></td><td class="num">187.9</td></tr>
+<tr><td><time datetime="2026-09-04T07:40:00+10:00">4 Sep 07:40</time></td><td class="num">190.9</td></tr>
+<tr><td><time datetime="2026-09-04T08:10:00+10:00">4 Sep 08:10</time></td><td class="num">186.9</td></tr>
+<tr><td><time datetime="2026-09-07T07:10:00+10:00">7 Sep 07:10</time></td><td class="num">191.9</td></tr>
+<tr><td><time datetime="2026-09-08T10:50:00+10:00">8 Sep 10:50</time></td><td class="num">188.9</td></tr>
+<tr><td><time datetime="2026-09-10T15:40:00+10:00">10 Sep 15:40</time></td><td class="num">190.9</td></tr>
+<tr><td><time datetime="2026-09-11T21:50:00+10:00">11 Sep 21:50</time></td><td class="num">188.9</td></tr>
+<tr><td><time datetime="2026-09-12T07:40:00+10:00">12 Sep 07:40</time></td><td class="num">193.9</td></tr>
+<tr><td><time datetime="2026-09-12T19:20:00+10:00">12 Sep 19:20</time></td><td class="num">192.9</td></tr>
+<tr><td><time datetime="2026-09-13T17:50:00+10:00">13 Sep 17:50</time></td><td class="num">195.9</td></tr>
+<tr><td><time datetime="2026-09-14T15:15:00+10:00">14 Sep 15:15</time></td><td class="num">195.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0010" data-station-id="STN-0010" data-price="195.9" data-distance="4.999981">
+<span class="rank">6</span>
+<div><p class="st-name">Gladesville Roundabout Fuel</p>
+<p class="st-meta">Metro · 124 Gladesville Street · STN-0010</p>
+<p class="st-meta">Listed 14 Sep 11:15 · <button type="button" class="link" data-show="STN-0010">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">195.9 <small>c/L</small></div>
+<div class="st-dist">5.00 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Gladesville Roundabout Fuel: 14 prices from 1 Sep 06:00 to 14 Sep 11:15, low 188.9, high 196.9, latest 195.9 c/L"><title>E10 price history for Gladesville Roundabout Fuel: 14 prices from 1 Sep 06:00 to 14 Sep 11:15, low 188.9, high 196.9, latest 195.9 c/L</title><path class="series" d="M8.8,18.5 H23.5 V21.2 H49.0 V23.9 H56.3 V25.6 H57.5 V22.1 H67.0 V21.2 H71.4 V18.5 H91.9 V22.1 H99.3 V21.2 H121.5 V23.9 H132.1 V20.3 H144.9 V18.5 H147.5 V19.4 H156.1 V19.4 H162.0"/><circle class="point" cx="156.1" cy="19.4" r="4"/></svg>
+<details><summary>E10 price history (14 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">196.9</td></tr>
+<tr><td><time datetime="2026-09-02T13:40:00+10:00">2 Sep 13:40</time></td><td class="num">193.9</td></tr>
+<tr><td><time datetime="2026-09-04T20:40:00+10:00">4 Sep 20:40</time></td><td class="num">190.9</td></tr>
+<tr><td><time datetime="2026-09-05T12:20:00+10:00">5 Sep 12:20</time></td><td class="num">188.9</td></tr>
+<tr><td><time datetime="2026-09-05T15:00:00+10:00">5 Sep 15:00</time></td><td class="num">192.9</td></tr>
+<tr><td><time datetime="2026-09-06T11:20:00+10:00">6 Sep 11:20</time></td><td class="num">193.9</td></tr>
+<tr><td><time datetime="2026-09-06T20:50:00+10:00">6 Sep 20:50</time></td><td class="num">196.9</td></tr>
+<tr><td><time datetime="2026-09-08T17:00:00+10:00">8 Sep 17:00</time></td><td class="num">192.9</td></tr>
+<tr><td><time datetime="2026-09-09T09:00:00+10:00">9 Sep 09:00</time></td><td class="num">193.9</td></tr>
+<tr><td><time datetime="2026-09-11T08:50:00+10:00">11 Sep 08:50</time></td><td class="num">190.9</td></tr>
+<tr><td><time datetime="2026-09-12T07:30:00+10:00">12 Sep 07:30</time></td><td class="num">194.9</td></tr>
+<tr><td><time datetime="2026-09-13T11:10:00+10:00">13 Sep 11:10</time></td><td class="num">196.9</td></tr>
+<tr><td><time datetime="2026-09-13T16:50:00+10:00">13 Sep 16:50</time></td><td class="num">195.9</td></tr>
+<tr><td><time datetime="2026-09-14T11:15:00+10:00">14 Sep 11:15</time></td><td class="num">195.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0001" data-station-id="STN-0001" data-price="197.9" data-distance="0.599979">
+<span class="rank">7</span>
+<div><p class="st-name">Greenwich Point Fuel</p>
+<p class="st-meta">Harbour · 178 Greenwich Street · STN-0001</p>
+<p class="st-meta">Listed 14 Sep 18:15 · <button type="button" class="link" data-show="STN-0001">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">197.9 <small>c/L</small></div>
+<div class="st-dist">0.60 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Greenwich Point Fuel: 11 prices from 1 Sep 06:00 to 14 Sep 18:15, low 197.9, high 203.9, latest 197.9 c/L"><title>E10 price history for Greenwich Point Fuel: 11 prices from 1 Sep 06:00 to 14 Sep 18:15, low 197.9, high 203.9, latest 197.9 c/L</title><path class="series" d="M8.8,15.0 H64.8 V16.8 H68.0 V15.0 H91.1 V15.9 H101.1 V16.8 H103.3 V15.9 H112.8 V12.3 H114.4 V15.0 H146.6 V15.9 H149.0 V17.6 H159.3 V17.6 H162.0"/><circle class="point" cx="159.3" cy="17.6" r="4"/></svg>
+<details><summary>E10 price history (11 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-06T06:40:00+10:00">6 Sep 06:40</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-06T13:30:00+10:00">6 Sep 13:30</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-08T15:20:00+10:00">8 Sep 15:20</time></td><td class="num">199.9</td></tr>
+<tr><td><time datetime="2026-09-09T12:50:00+10:00">9 Sep 12:50</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-09T17:30:00+10:00">9 Sep 17:30</time></td><td class="num">199.9</td></tr>
+<tr><td><time datetime="2026-09-10T14:00:00+10:00">10 Sep 14:00</time></td><td class="num">203.9</td></tr>
+<tr><td><time datetime="2026-09-10T17:30:00+10:00">10 Sep 17:30</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-13T14:50:00+10:00">13 Sep 14:50</time></td><td class="num">199.9</td></tr>
+<tr><td><time datetime="2026-09-13T20:00:00+10:00">13 Sep 20:00</time></td><td class="num">197.9</td></tr>
+<tr><td><time datetime="2026-09-14T18:15:00+10:00">14 Sep 18:15</time></td><td class="num">197.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0013" data-station-id="STN-0013" data-price="198.9" data-distance="5.900002">
+<span class="rank">8</span>
+<div><p class="st-name">Balmain Wharf Fuel</p>
+<p class="st-meta">Harbour · 313 Balmain Street · STN-0013</p>
+<p class="st-meta">Listed 14 Sep 11:15 · <button type="button" class="link" data-show="STN-0013">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">198.9 <small>c/L</small></div>
+<div class="st-dist">5.90 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Balmain Wharf Fuel: 11 prices from 1 Sep 06:00 to 14 Sep 11:15, low 198.9, high 205.9, latest 198.9 c/L"><title>E10 price history for Balmain Wharf Fuel: 11 prices from 1 Sep 06:00 to 14 Sep 11:15, low 198.9, high 205.9, latest 198.9 c/L</title><path class="series" d="M8.8,12.3 H21.6 V11.4 H26.4 V10.5 H35.8 V13.2 H48.9 V12.3 H57.8 V14.1 H77.0 V12.3 H98.4 V13.2 H101.6 V15.0 H112.9 V16.8 H156.1 V16.8 H162.0"/><circle class="point" cx="156.1" cy="16.8" r="4"/></svg>
+<details><summary>E10 price history (11 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">203.9</td></tr>
+<tr><td><time datetime="2026-09-02T09:30:00+10:00">2 Sep 09:30</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-02T20:00:00+10:00">2 Sep 20:00</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-03T16:10:00+10:00">3 Sep 16:10</time></td><td class="num">202.9</td></tr>
+<tr><td><time datetime="2026-09-04T20:30:00+10:00">4 Sep 20:30</time></td><td class="num">203.9</td></tr>
+<tr><td><time datetime="2026-09-05T15:30:00+10:00">5 Sep 15:30</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-07T09:00:00+10:00">7 Sep 09:00</time></td><td class="num">203.9</td></tr>
+<tr><td><time datetime="2026-09-09T07:00:00+10:00">9 Sep 07:00</time></td><td class="num">202.9</td></tr>
+<tr><td><time datetime="2026-09-09T13:50:00+10:00">9 Sep 13:50</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-10T14:10:00+10:00">10 Sep 14:10</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-14T11:15:00+10:00">14 Sep 11:15</time></td><td class="num">198.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0017" data-station-id="STN-0017" data-price="198.9" data-distance="6.099992">
+<span class="rank">9</span>
+<div><p class="st-name">Willoughby Heights Fuel</p>
+<p class="st-meta">Coastal · 396 Willoughby Street · STN-0017</p>
+<p class="st-meta">Listed 14 Sep 07:15 · <button type="button" class="link" data-show="STN-0017">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">198.9 <small>c/L</small></div>
+<div class="st-dist">6.10 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Willoughby Heights Fuel: 16 prices from 1 Sep 06:00 to 14 Sep 07:15, low 193.9, high 201.9, latest 198.9 c/L"><title>E10 price history for Willoughby Heights Fuel: 16 prices from 1 Sep 06:00 to 14 Sep 07:15, low 193.9, high 201.9, latest 198.9 c/L</title><path class="series" d="M8.8,17.6 H24.1 V16.8 H48.2 V19.4 H56.9 V14.1 H60.1 V17.6 H70.5 V15.0 H70.7 V16.8 H77.0 V15.9 H88.0 V21.2 H93.1 V18.5 H110.8 V20.3 H123.8 V16.8 H132.6 V18.5 H142.8 V15.0 H145.7 V16.8 H154.2 V16.8 H162.0"/><circle class="point" cx="154.2" cy="16.8" r="4"/></svg>
+<details><summary>E10 price history (16 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">197.9</td></tr>
+<tr><td><time datetime="2026-09-02T15:00:00+10:00">2 Sep 15:00</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-04T18:50:00+10:00">4 Sep 18:50</time></td><td class="num">195.9</td></tr>
+<tr><td><time datetime="2026-09-05T13:40:00+10:00">5 Sep 13:40</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-05T20:30:00+10:00">5 Sep 20:30</time></td><td class="num">197.9</td></tr>
+<tr><td><time datetime="2026-09-06T18:50:00+10:00">6 Sep 18:50</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-06T19:20:00+10:00">6 Sep 19:20</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-07T08:50:00+10:00">7 Sep 08:50</time></td><td class="num">199.9</td></tr>
+<tr><td><time datetime="2026-09-08T08:40:00+10:00">8 Sep 08:40</time></td><td class="num">193.9</td></tr>
+<tr><td><time datetime="2026-09-08T19:40:00+10:00">8 Sep 19:40</time></td><td class="num">196.9</td></tr>
+<tr><td><time datetime="2026-09-10T09:40:00+10:00">10 Sep 09:40</time></td><td class="num">194.9</td></tr>
+<tr><td><time datetime="2026-09-11T13:40:00+10:00">11 Sep 13:40</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-12T08:40:00+10:00">12 Sep 08:40</time></td><td class="num">196.9</td></tr>
+<tr><td><time datetime="2026-09-13T06:40:00+10:00">13 Sep 06:40</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-13T12:50:00+10:00">13 Sep 12:50</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-14T07:15:00+10:00">14 Sep 07:15</time></td><td class="num">198.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0012" data-station-id="STN-0012" data-price="201.9" data-distance="5.600006">
+<span class="rank">10</span>
+<div><p class="st-name">Chatswood Chase Service</p>
+<p class="st-meta">Coastal · 365 Chatswood Street · STN-0012</p>
+<p class="st-meta">Listed 14 Sep 20:15 · <button type="button" class="link" data-show="STN-0012">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">201.9 <small>c/L</small></div>
+<div class="st-dist">5.60 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Chatswood Chase Service: 10 prices from 1 Sep 06:00 to 14 Sep 20:15, low 200.9, high 209.9, latest 201.9 c/L"><title>E10 price history for Chatswood Chase Service: 10 prices from 1 Sep 06:00 to 14 Sep 20:15, low 200.9, high 209.9, latest 201.9 c/L</title><path class="series" d="M8.8,7.9 H58.2 V9.6 H58.5 V7.9 H64.8 V7.0 H82.1 V9.6 H101.2 V11.4 H124.2 V14.1 H136.2 V15.0 H142.9 V14.1 H160.3 V14.1 H162.0"/><circle class="point" cx="160.3" cy="14.1" r="4"/></svg>
+<details><summary>E10 price history (10 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">208.9</td></tr>
+<tr><td><time datetime="2026-09-05T16:20:00+10:00">5 Sep 16:20</time></td><td class="num">206.9</td></tr>
+<tr><td><time datetime="2026-09-05T17:10:00+10:00">5 Sep 17:10</time></td><td class="num">208.9</td></tr>
+<tr><td><time datetime="2026-09-06T06:40:00+10:00">6 Sep 06:40</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-07T19:50:00+10:00">7 Sep 19:50</time></td><td class="num">206.9</td></tr>
+<tr><td><time datetime="2026-09-09T13:00:00+10:00">9 Sep 13:00</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-11T14:40:00+10:00">11 Sep 14:40</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-12T16:30:00+10:00">12 Sep 16:30</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-13T06:50:00+10:00">13 Sep 06:50</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-14T20:15:00+10:00">14 Sep 20:15</time></td><td class="num">201.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0004" data-station-id="STN-0004" data-price="203.9" data-distance="2.700024">
+<span class="rank">11</span>
+<div><p class="st-name">Pacific Highway Fuels</p>
+<p class="st-meta">Independent · 184 Pacific Street · STN-0004</p>
+<p class="st-meta">Listed 14 Sep 17:15 · <button type="button" class="link" data-show="STN-0004">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">203.9 <small>c/L</small></div>
+<div class="st-dist">2.70 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Pacific Highway Fuels: 12 prices from 1 Sep 06:00 to 14 Sep 17:15, low 203.9, high 209.9, latest 203.9 c/L"><title>E10 price history for Pacific Highway Fuels: 12 prices from 1 Sep 06:00 to 14 Sep 17:15, low 203.9, high 209.9, latest 203.9 c/L</title><path class="series" d="M8.8,10.5 H32.2 V8.8 H53.7 V10.5 H66.2 V8.8 H69.2 V7.0 H100.9 V8.8 H109.5 V10.5 H127.1 V11.4 H136.9 V12.3 H147.9 V10.5 H148.8 V12.3 H158.9 V12.3 H162.0"/><circle class="point" cx="158.9" cy="12.3" r="4"/></svg>
+<details><summary>E10 price history (12 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-03T08:20:00+10:00">3 Sep 08:20</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-05T06:40:00+10:00">5 Sep 06:40</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-06T09:40:00+10:00">6 Sep 09:40</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-06T16:10:00+10:00">6 Sep 16:10</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-09T12:20:00+10:00">9 Sep 12:20</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-10T06:50:00+10:00">10 Sep 06:50</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-11T20:50:00+10:00">11 Sep 20:50</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-12T18:00:00+10:00">12 Sep 18:00</time></td><td class="num">203.9</td></tr>
+<tr><td><time datetime="2026-09-13T17:40:00+10:00">13 Sep 17:40</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-13T19:30:00+10:00">13 Sep 19:30</time></td><td class="num">203.9</td></tr>
+<tr><td><time datetime="2026-09-14T17:15:00+10:00">14 Sep 17:15</time></td><td class="num">203.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0009" data-station-id="STN-0009" data-price="203.9" data-distance="4.399972">
+<span class="rank">12</span>
+<div><p class="st-name">Hunters Hill Motor Fuel</p>
+<p class="st-meta">Independent · 2 Hunters Street · STN-0009</p>
+<p class="st-meta">Listed 14 Sep 08:15 · <button type="button" class="link" data-show="STN-0009">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">203.9 <small>c/L</small></div>
+<div class="st-dist">4.40 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Hunters Hill Motor Fuel: 14 prices from 1 Sep 06:00 to 14 Sep 08:15, low 198.9, high 207.9, latest 203.9 c/L"><title>E10 price history for Hunters Hill Motor Fuel: 14 prices from 1 Sep 06:00 to 14 Sep 08:15, low 198.9, high 207.9, latest 203.9 c/L</title><path class="series" d="M8.8,16.8 H44.3 V15.9 H45.0 V14.1 H68.1 V13.2 H69.8 V15.0 H78.4 V13.2 H82.8 V14.1 H102.6 V14.1 H109.1 V9.6 H110.2 V10.5 H124.1 V11.4 H124.2 V8.8 H133.9 V12.3 H154.7 V12.3 H162.0"/><circle class="point" cx="154.7" cy="12.3" r="4"/></svg>
+<details><summary>E10 price history (14 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-04T10:30:00+10:00">4 Sep 10:30</time></td><td class="num">199.9</td></tr>
+<tr><td><time datetime="2026-09-04T12:00:00+10:00">4 Sep 12:00</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-06T13:50:00+10:00">6 Sep 13:50</time></td><td class="num">202.9</td></tr>
+<tr><td><time datetime="2026-09-06T17:30:00+10:00">6 Sep 17:30</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-07T12:00:00+10:00">7 Sep 12:00</time></td><td class="num">202.9</td></tr>
+<tr><td><time datetime="2026-09-07T21:20:00+10:00">7 Sep 21:20</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-09T16:10:00+10:00">9 Sep 16:10</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-10T06:00:00+10:00">10 Sep 06:00</time></td><td class="num">206.9</td></tr>
+<tr><td><time datetime="2026-09-10T08:30:00+10:00">10 Sep 08:30</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-11T14:20:00+10:00">11 Sep 14:20</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-11T14:40:00+10:00">11 Sep 14:40</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-12T11:30:00+10:00">12 Sep 11:30</time></td><td class="num">203.9</td></tr>
+<tr><td><time datetime="2026-09-14T08:15:00+10:00">14 Sep 08:15</time></td><td class="num">203.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0019" data-station-id="STN-0019" data-price="203.9" data-distance="8.799986">
+<span class="rank">13</span>
+<div><p class="st-name">Putney Ferry Service</p>
+<p class="st-meta">Metro · 183 Putney Street · STN-0019</p>
+<p class="st-meta">Listed 14 Sep 07:15 · <button type="button" class="link" data-show="STN-0019">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">203.9 <small>c/L</small></div>
+<div class="st-dist">8.80 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Putney Ferry Service: 12 prices from 1 Sep 06:00 to 14 Sep 07:15, low 196.9, high 209.9, latest 203.9 c/L"><title>E10 price history for Putney Ferry Service: 12 prices from 1 Sep 06:00 to 14 Sep 07:15, low 196.9, high 209.9, latest 203.9 c/L</title><path class="series" d="M8.8,7.0 H23.2 V9.6 H23.3 V12.3 H47.1 V15.9 H47.9 V13.2 H65.2 V18.5 H76.6 V15.0 H81.6 V17.6 H120.8 V10.5 H124.7 V14.1 H147.1 V12.3 H154.2 V12.3 H162.0"/><circle class="point" cx="154.2" cy="12.3" r="4"/></svg>
+<details><summary>E10 price history (12 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-02T13:00:00+10:00">2 Sep 13:00</time></td><td class="num">206.9</td></tr>
+<tr><td><time datetime="2026-09-02T13:10:00+10:00">2 Sep 13:10</time></td><td class="num">203.9</td></tr>
+<tr><td><time datetime="2026-09-04T16:30:00+10:00">4 Sep 16:30</time></td><td class="num">199.9</td></tr>
+<tr><td><time datetime="2026-09-04T18:20:00+10:00">4 Sep 18:20</time></td><td class="num">202.9</td></tr>
+<tr><td><time datetime="2026-09-06T07:30:00+10:00">6 Sep 07:30</time></td><td class="num">196.9</td></tr>
+<tr><td><time datetime="2026-09-07T08:10:00+10:00">7 Sep 08:10</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-07T18:50:00+10:00">7 Sep 18:50</time></td><td class="num">197.9</td></tr>
+<tr><td><time datetime="2026-09-11T07:20:00+10:00">11 Sep 07:20</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-11T15:40:00+10:00">11 Sep 15:40</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-13T16:00:00+10:00">13 Sep 16:00</time></td><td class="num">203.9</td></tr>
+<tr><td><time datetime="2026-09-14T07:15:00+10:00">14 Sep 07:15</time></td><td class="num">203.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0002" data-station-id="STN-0002" data-price="206.9" data-distance="1.400042">
+<span class="rank">14</span>
+<div><p class="st-name">River Road Service Centre</p>
+<p class="st-meta">Harbour · 174 River Street · STN-0002</p>
+<p class="st-meta">Listed 14 Sep 07:15 · <button type="button" class="link" data-show="STN-0002">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">206.9 <small>c/L</small></div>
+<div class="st-dist">1.40 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for River Road Service Centre: 16 prices from 1 Sep 06:00 to 14 Sep 07:15, low 204.9, high 209.9, latest 206.9 c/L"><title>E10 price history for River Road Service Centre: 16 prices from 1 Sep 06:00 to 14 Sep 07:15, low 204.9, high 209.9, latest 206.9 c/L</title><path class="series" d="M8.8,10.5 H24.9 V8.8 H42.4 V7.0 H43.8 V7.0 H69.6 V7.0 H78.7 V7.0 H87.1 V7.9 H104.7 V10.5 H105.2 V9.6 H110.8 V11.4 H121.1 V11.4 H125.2 V10.5 H134.3 V9.6 H135.9 V7.0 H145.7 V9.6 H154.2 V9.6 H162.0"/><circle class="point" cx="154.2" cy="9.6" r="4"/></svg>
+<details><summary>E10 price history (16 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-02T16:40:00+10:00">2 Sep 16:40</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-04T06:30:00+10:00">4 Sep 06:30</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-04T09:20:00+10:00">4 Sep 09:20</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-06T17:00:00+10:00">6 Sep 17:00</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-07T12:30:00+10:00">7 Sep 12:30</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-08T06:40:00+10:00">8 Sep 06:40</time></td><td class="num">208.9</td></tr>
+<tr><td><time datetime="2026-09-09T20:30:00+10:00">9 Sep 20:30</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-09T21:40:00+10:00">9 Sep 21:40</time></td><td class="num">206.9</td></tr>
+<tr><td><time datetime="2026-09-10T09:40:00+10:00">10 Sep 09:40</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-11T07:50:00+10:00">11 Sep 07:50</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-11T16:40:00+10:00">11 Sep 16:40</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-12T12:20:00+10:00">12 Sep 12:20</time></td><td class="num">206.9</td></tr>
+<tr><td><time datetime="2026-09-12T15:50:00+10:00">12 Sep 15:50</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-13T12:50:00+10:00">13 Sep 12:50</time></td><td class="num">206.9</td></tr>
+<tr><td><time datetime="2026-09-14T07:15:00+10:00">14 Sep 07:15</time></td><td class="num">206.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0020" data-station-id="STN-0020" data-price="206.9" data-distance="9.399964">
+<span class="rank">15</span>
+<div><p class="st-name">Roseville Ridge Fuel</p>
+<p class="st-meta">Independent · 353 Roseville Street · STN-0020</p>
+<p class="st-meta">Listed 14 Sep 11:15 · <button type="button" class="link" data-show="STN-0020">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">206.9 <small>c/L</small></div>
+<div class="st-dist">9.40 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Roseville Ridge Fuel: 13 prices from 1 Sep 06:00 to 14 Sep 11:15, low 198.9, high 206.9, latest 206.9 c/L"><title>E10 price history for Roseville Ridge Fuel: 13 prices from 1 Sep 06:00 to 14 Sep 11:15, low 198.9, high 206.9, latest 206.9 c/L</title><path class="series" d="M8.8,16.8 H26.0 V13.2 H27.0 V15.0 H33.6 V14.1 H43.8 V16.8 H44.4 V15.9 H54.4 V15.0 H103.6 V16.8 H104.6 V13.2 H131.8 V15.0 H136.8 V11.4 H147.0 V9.6 H156.1 V9.6 H162.0"/><circle class="point" cx="156.1" cy="9.6" r="4"/></svg>
+<details><summary>E10 price history (13 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-02T19:00:00+10:00">2 Sep 19:00</time></td><td class="num">202.9</td></tr>
+<tr><td><time datetime="2026-09-02T21:20:00+10:00">2 Sep 21:20</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-03T11:30:00+10:00">3 Sep 11:30</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-04T09:30:00+10:00">4 Sep 09:30</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-04T10:40:00+10:00">4 Sep 10:40</time></td><td class="num">199.9</td></tr>
+<tr><td><time datetime="2026-09-05T08:10:00+10:00">5 Sep 08:10</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-09T18:10:00+10:00">9 Sep 18:10</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-09T20:20:00+10:00">9 Sep 20:20</time></td><td class="num">202.9</td></tr>
+<tr><td><time datetime="2026-09-12T07:00:00+10:00">12 Sep 07:00</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-12T17:40:00+10:00">12 Sep 17:40</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-13T15:40:00+10:00">13 Sep 15:40</time></td><td class="num">206.9</td></tr>
+<tr><td><time datetime="2026-09-14T11:15:00+10:00">14 Sep 11:15</time></td><td class="num">206.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0016" data-station-id="STN-0016" data-price="207.9" data-distance="7.699992">
+<span class="rank">16</span>
+<div><p class="st-name">North Ryde Link Fuel</p>
+<p class="st-meta">Harbour · 355 North Street · STN-0016</p>
+<p class="st-meta">Listed 14 Sep 18:15 · <button type="button" class="link" data-show="STN-0016">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">207.9 <small>c/L</small></div>
+<div class="st-dist">7.70 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for North Ryde Link Fuel: 10 prices from 1 Sep 06:00 to 14 Sep 18:15, low 207.9, high 209.9, latest 207.9 c/L"><title>E10 price history for North Ryde Link Fuel: 10 prices from 1 Sep 06:00 to 14 Sep 18:15, low 207.9, high 209.9, latest 207.9 c/L</title><path class="series" d="M8.8,7.9 H33.2 V7.0 H47.6 V7.0 H70.0 V7.0 H89.4 V7.0 H114.0 V7.0 H127.6 V7.9 H143.6 V7.0 H146.4 V8.8 H159.3 V8.8 H162.0"/><circle class="point" cx="159.3" cy="8.8" r="4"/></svg>
+<details><summary>E10 price history (10 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">208.9</td></tr>
+<tr><td><time datetime="2026-09-03T10:40:00+10:00">3 Sep 10:40</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-04T17:30:00+10:00">4 Sep 17:30</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-06T17:50:00+10:00">6 Sep 17:50</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-08T11:40:00+10:00">8 Sep 11:40</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-10T16:40:00+10:00">10 Sep 16:40</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-11T21:50:00+10:00">11 Sep 21:50</time></td><td class="num">208.9</td></tr>
+<tr><td><time datetime="2026-09-13T08:20:00+10:00">13 Sep 08:20</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-13T14:20:00+10:00">13 Sep 14:20</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-14T18:15:00+10:00">14 Sep 18:15</time></td><td class="num">207.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0003" data-station-id="STN-0003" data-price="209.9" data-distance="2.100033">
+<span class="rank">17</span>
+<div><p class="st-name">Longueville Express</p>
+<p class="st-meta">Coastal · 29 Longueville Street · STN-0003</p>
+<p class="st-meta">Listed 14 Sep 16:15 · <button type="button" class="link" data-show="STN-0003">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">209.9 <small>c/L</small></div>
+<div class="st-dist">2.10 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Longueville Express: 16 prices from 1 Sep 06:00 to 14 Sep 16:15, low 176.9, high 209.9, latest 209.9 c/L"><title>E10 price history for Longueville Express: 16 prices from 1 Sep 06:00 to 14 Sep 16:15, low 176.9, high 209.9, latest 209.9 c/L</title><path class="series" d="M8.8,14.1 H24.3 V16.8 H36.5 V19.4 H44.4 V15.0 H48.6 V18.5 H54.4 V36.3 H58.5 V13.2 H66.7 V11.4 H76.8 V7.9 H92.5 V7.0 H94.0 V7.0 H100.3 V7.9 H111.3 V7.0 H123.9 V7.0 H127.2 V7.0 H158.4 V7.0 H162.0"/><circle class="point" cx="158.4" cy="7.0" r="4"/></svg>
+<details><summary>E10 price history (16 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-02T15:20:00+10:00">2 Sep 15:20</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-03T17:40:00+10:00">3 Sep 17:40</time></td><td class="num">195.9</td></tr>
+<tr><td><time datetime="2026-09-04T10:40:00+10:00">4 Sep 10:40</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-04T19:50:00+10:00">4 Sep 19:50</time></td><td class="num">196.9</td></tr>
+<tr><td><time datetime="2026-09-05T08:10:00+10:00">5 Sep 08:10</time></td><td class="num">176.9</td></tr>
+<tr><td><time datetime="2026-09-05T17:10:00+10:00">5 Sep 17:10</time></td><td class="num">202.9</td></tr>
+<tr><td><time datetime="2026-09-06T10:40:00+10:00">6 Sep 10:40</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-07T08:30:00+10:00">7 Sep 08:30</time></td><td class="num">208.9</td></tr>
+<tr><td><time datetime="2026-09-08T18:20:00+10:00">8 Sep 18:20</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-08T21:30:00+10:00">8 Sep 21:30</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-09T11:00:00+10:00">9 Sep 11:00</time></td><td class="num">208.9</td></tr>
+<tr><td><time datetime="2026-09-10T10:50:00+10:00">10 Sep 10:50</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-11T13:50:00+10:00">11 Sep 13:50</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-11T21:00:00+10:00">11 Sep 21:00</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-14T16:15:00+10:00">14 Sep 16:15</time></td><td class="num">209.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0005" data-station-id="STN-0005" data-price="209.9" data-distance="3.200013">
+<span class="rank">18</span>
+<div><p class="st-name">Northbridge Corner Store</p>
+<p class="st-meta">Harbour · 20 Northbridge Street · STN-0005</p>
+<p class="st-meta">Listed 14 Sep 14:15 · <button type="button" class="link" data-show="STN-0005">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">209.9 <small>c/L</small></div>
+<div class="st-dist">3.20 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Northbridge Corner Store: 14 prices from 1 Sep 06:00 to 14 Sep 14:15, low 205.9, high 209.9, latest 209.9 c/L"><title>E10 price history for Northbridge Corner Store: 14 prices from 1 Sep 06:00 to 14 Sep 14:15, low 205.9, high 209.9, latest 209.9 c/L</title><path class="series" d="M8.8,9.6 H25.0 V8.8 H26.4 V10.5 H34.0 V7.0 H45.3 V9.6 H55.3 V8.8 H65.1 V7.0 H68.4 V7.0 H80.0 V7.0 H87.5 V7.0 H101.2 V7.0 H116.0 V7.0 H143.0 V7.0 H157.5 V7.0 H162.0"/><circle class="point" cx="157.5" cy="7.0" r="4"/></svg>
+<details><summary>E10 price history (14 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">206.9</td></tr>
+<tr><td><time datetime="2026-09-02T16:50:00+10:00">2 Sep 16:50</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-02T19:50:00+10:00">2 Sep 19:50</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-03T12:20:00+10:00">3 Sep 12:20</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-04T12:40:00+10:00">4 Sep 12:40</time></td><td class="num">206.9</td></tr>
+<tr><td><time datetime="2026-09-05T10:10:00+10:00">5 Sep 10:10</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-06T07:20:00+10:00">6 Sep 07:20</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-06T14:30:00+10:00">6 Sep 14:30</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-07T15:20:00+10:00">7 Sep 15:20</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-08T07:30:00+10:00">8 Sep 07:30</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-09T13:00:00+10:00">9 Sep 13:00</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-10T20:50:00+10:00">10 Sep 20:50</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-13T07:10:00+10:00">13 Sep 07:10</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-14T14:15:00+10:00">14 Sep 14:15</time></td><td class="num">209.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0014" data-station-id="STN-0014" data-price="209.9" data-distance="6.799978">
+<span class="rank">19</span>
+<div><p class="st-name">Drummoyne Bay Petroleum</p>
+<p class="st-meta">Coastal · 9 Drummoyne Street · STN-0014</p>
+<p class="st-meta">Listed 14 Sep 20:15 · <button type="button" class="link" data-show="STN-0014">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">209.9 <small>c/L</small></div>
+<div class="st-dist">6.80 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Drummoyne Bay Petroleum: 8 prices from 1 Sep 06:00 to 14 Sep 20:15, low 203.9, high 209.9, latest 209.9 c/L"><title>E10 price history for Drummoyne Bay Petroleum: 8 prices from 1 Sep 06:00 to 14 Sep 20:15, low 203.9, high 209.9, latest 209.9 c/L</title><path class="series" d="M8.8,8.8 H38.0 V10.5 H43.6 V12.3 H45.5 V10.5 H60.6 V8.8 H77.6 V7.0 H100.6 V7.0 H160.3 V7.0 H162.0"/><circle class="point" cx="160.3" cy="7.0" r="4"/></svg>
+<details><summary>E10 price history (8 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-03T21:00:00+10:00">3 Sep 21:00</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-04T09:00:00+10:00">4 Sep 09:00</time></td><td class="num">203.9</td></tr>
+<tr><td><time datetime="2026-09-04T13:10:00+10:00">4 Sep 13:10</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-05T21:30:00+10:00">5 Sep 21:30</time></td><td class="num">207.9</td></tr>
+<tr><td><time datetime="2026-09-07T10:10:00+10:00">7 Sep 10:10</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-09T11:40:00+10:00">9 Sep 11:40</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-14T20:15:00+10:00">14 Sep 20:15</time></td><td class="num">209.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0015" data-station-id="STN-0015" data-price="209.9" data-distance="7.200030">
+<span class="rank">20</span>
+<div><p class="st-name">Pyrmont Bridge Road Fuel</p>
+<p class="st-meta">Metro · 132 Pyrmont Street · STN-0015</p>
+<p class="st-meta">Listed 14 Sep 09:15 · <button type="button" class="link" data-show="STN-0015">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">209.9 <small>c/L</small></div>
+<div class="st-dist">7.20 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Pyrmont Bridge Road Fuel: 15 prices from 1 Sep 06:00 to 14 Sep 09:15, low 194.9, high 209.9, latest 209.9 c/L"><title>E10 price history for Pyrmont Bridge Road Fuel: 15 prices from 1 Sep 06:00 to 14 Sep 09:15, low 194.9, high 209.9, latest 209.9 c/L</title><path class="series" d="M8.8,17.6 H20.2 V16.8 H22.7 V19.4 H42.2 V18.5 H46.9 V20.3 H66.0 V16.8 H76.7 V11.4 H78.5 V13.2 H88.0 V7.9 H102.1 V7.0 H111.7 V7.0 H116.3 V7.9 H121.9 V7.0 H143.1 V7.0 H155.2 V7.0 H162.0"/><circle class="point" cx="155.2" cy="7.0" r="4"/></svg>
+<details><summary>E10 price history (15 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">197.9</td></tr>
+<tr><td><time datetime="2026-09-02T06:40:00+10:00">2 Sep 06:40</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-02T12:00:00+10:00">2 Sep 12:00</time></td><td class="num">195.9</td></tr>
+<tr><td><time datetime="2026-09-04T06:00:00+10:00">4 Sep 06:00</time></td><td class="num">196.9</td></tr>
+<tr><td><time datetime="2026-09-04T16:10:00+10:00">4 Sep 16:10</time></td><td class="num">194.9</td></tr>
+<tr><td><time datetime="2026-09-06T09:20:00+10:00">6 Sep 09:20</time></td><td class="num">198.9</td></tr>
+<tr><td><time datetime="2026-09-07T08:20:00+10:00">7 Sep 08:20</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-07T12:10:00+10:00">7 Sep 12:10</time></td><td class="num">202.9</td></tr>
+<tr><td><time datetime="2026-09-08T08:40:00+10:00">8 Sep 08:40</time></td><td class="num">208.9</td></tr>
+<tr><td><time datetime="2026-09-09T15:00:00+10:00">9 Sep 15:00</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-10T11:40:00+10:00">10 Sep 11:40</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-10T21:40:00+10:00">10 Sep 21:40</time></td><td class="num">208.9</td></tr>
+<tr><td><time datetime="2026-09-11T09:40:00+10:00">11 Sep 09:40</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-13T07:20:00+10:00">13 Sep 07:20</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-14T09:15:00+10:00">14 Sep 09:15</time></td><td class="num">209.9</td></tr>
+</tbody></table></details></div>
+</li>
+<li id="station-STN-0018" data-station-id="STN-0018" data-price="209.9" data-distance="8.300043">
+<span class="rank">21</span>
+<div><p class="st-name">Mosman Spit Junction Fuel</p>
+<p class="st-meta">Metro · 156 Mosman Street · STN-0018</p>
+<p class="st-meta">Listed 14 Sep 17:15 · <button type="button" class="link" data-show="STN-0018">Show on map</button></p></div>
+<div class="st-figs"><div class="st-price">209.9 <small>c/L</small></div>
+<div class="st-dist">8.30 <small>km</small></div></div>
+<div class="st-history"><svg class="spark" viewBox="0 0 168 44" role="img" aria-label="E10 price history for Mosman Spit Junction Fuel: 11 prices from 1 Sep 06:00 to 14 Sep 17:15, low 189.9, high 209.9, latest 209.9 c/L"><title>E10 price history for Mosman Spit Junction Fuel: 11 prices from 1 Sep 06:00 to 14 Sep 17:15, low 189.9, high 209.9, latest 209.9 c/L</title><path class="series" d="M8.8,23.0 H22.7 V24.8 H27.0 V21.2 H45.7 V17.6 H57.0 V14.1 H66.3 V15.0 H77.1 V11.4 H102.3 V14.1 H132.0 V7.0 H136.1 V10.5 H158.9 V7.0 H162.0"/><circle class="point" cx="158.9" cy="7.0" r="4"/></svg>
+<details><summary>E10 price history (11 prices)</summary>
+<table><thead><tr><th>Recorded</th><th class="num">Price (c/L)</th></tr></thead><tbody>
+<tr><td><time datetime="2026-09-01T06:00:00+10:00">1 Sep 06:00</time></td><td class="num">191.9</td></tr>
+<tr><td><time datetime="2026-09-02T12:00:00+10:00">2 Sep 12:00</time></td><td class="num">189.9</td></tr>
+<tr><td><time datetime="2026-09-02T21:10:00+10:00">2 Sep 21:10</time></td><td class="num">193.9</td></tr>
+<tr><td><time datetime="2026-09-04T13:30:00+10:00">4 Sep 13:30</time></td><td class="num">197.9</td></tr>
+<tr><td><time datetime="2026-09-05T13:50:00+10:00">5 Sep 13:50</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-06T09:50:00+10:00">6 Sep 09:50</time></td><td class="num">200.9</td></tr>
+<tr><td><time datetime="2026-09-07T09:10:00+10:00">7 Sep 09:10</time></td><td class="num">204.9</td></tr>
+<tr><td><time datetime="2026-09-09T15:30:00+10:00">9 Sep 15:30</time></td><td class="num">201.9</td></tr>
+<tr><td><time datetime="2026-09-12T07:20:00+10:00">12 Sep 07:20</time></td><td class="num">209.9</td></tr>
+<tr><td><time datetime="2026-09-12T16:10:00+10:00">12 Sep 16:10</time></td><td class="num">205.9</td></tr>
+<tr><td><time datetime="2026-09-14T17:15:00+10:00">14 Sep 17:15</time></td><td class="num">209.9</td></tr>
+</tbody></table></details></div>
+</li>
+</ol>
+</section>
+<footer>
+<p>Distances are great-circle (haversine, Earth radius 6371.0 km) from the search centre; stations at most 10 km away are included. Only E10 prices are used.</p>
+<p>Machine-readable copy: <a href="data.json">data.json</a>. Map: Leaflet 1.9.4, tiles © OpenStreetMap contributors.</p>
+</footer>
+</main>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

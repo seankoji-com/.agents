@@ -1,0 +1,1 @@
+The check run (regression test, `check_docs.py`, full suite) is executing at `1c098e8`. It got moved to the background automatically after 120 seconds. I won't run anything else until it finishes, so the snapshot binding stays valid. Round-2 review dispatch comes after the checks are recorded.

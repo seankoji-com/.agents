@@ -1,0 +1,125 @@
+From 9cd4831433e190459a4780a41e37052198da5c1b Mon Sep 17 00:00:00 2001
+From: Sean Carey <seankojicarey@gmail.com>
+Date: Sun, 11 Oct 2026 21:18:24 +1100
+Subject: [PATCH 2/2] Fail loudly when a worktree identity token cannot be read
+
+Review of the previous commit found that any error reading the token,
+such as a transient EACCES, counted as "no token": the still-owned
+worktree was judged replaced and cleanup recorded it as gone for good.
+A token that was not valid UTF-8 crashed `next` and `report` instead.
+
+Only a missing token now means the worktree was replaced. Other read
+errors raise an environment error, so nothing is recorded and cleanup
+can resume once the error is fixed. Token bytes are decoded with
+replacement, so a garbled token is a mismatch, not a crash.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ core/resources.py     | 11 +++++++---
+ tests/test_cleanup.py | 48 +++++++++++++++++++++++++++++++++++--------
+ 2 files changed, 48 insertions(+), 11 deletions(-)
+
+diff --git a/core/resources.py b/core/resources.py
+index 5e69d95..82cf561 100644
+--- a/core/resources.py
++++ b/core/resources.py
+@@ -40,9 +40,14 @@ def worktree_identity(path) -> dict | None:
+     except OSError:
+         return None
+     try:
+-        found['token'] = (Path(gitdir) / TOKEN_FILE).read_text().strip() or None
+-    except OSError:
+-        found['token'] = None
++        raw = (Path(gitdir) / TOKEN_FILE).read_bytes()
++    except FileNotFoundError:
++        raw = b''
++    except OSError as exc:
++        # Unreadable is not absent: a transient error must not mark an owned worktree replaced.
++        raise Environment('worktree_identity', f'cannot read the identity token of {path}: '
++                                               f'{exc.strerror or exc}') from exc
++    found['token'] = raw.decode(errors='replace').strip() or None
+     return found
+ 
+ 
+diff --git a/tests/test_cleanup.py b/tests/test_cleanup.py
+index 42dd520..3ccb7d0 100644
+--- a/tests/test_cleanup.py
++++ b/tests/test_cleanup.py
+@@ -75,7 +75,7 @@ class CleanupTest(CoreTestCase):
+         self.assertIn('All run-owned worktrees, branches and processes were removed',
+                       (run.run_dir / 'reports' / 'report.md').read_text())
+ 
+-    def test_worktree_recreated_at_the_same_path_is_not_removed(self):
++    def recorded_worktree(self):
+         repo = self.make_repo()
+         run = self.init(self.plan(repo, execution={'mode': 'delegated', 'isolation': 'parallel'},
+                                   tasks=[{'id': 'fix', 'purpose': 'fix counting', 'files': ['wordstat.py']}],
+@@ -88,19 +88,25 @@ class CleanupTest(CoreTestCase):
+         native(tree['args']['argv'])
+         run.record('resource', {'action_id': tree['id'], 'kind': 'worktree', 'name': tree['args']['name'],
+                                 'path': tree['args']['path'], 'branch': tree['args']['branch'], 'task_id': 'fix'})
+-        path = Path(tree['args']['path'])
++        return repo, run, Path(tree['args']['path'])
++
++    def complete(self, run, **identity):
++        """Mark the run completed, overwriting any given fields of the recorded worktree identity."""
++        state_file = run.run_dir / 'run.json'
++        data = json.loads(state_file.read_text())
++        next(item for item in data['resources'] if item['kind'] == 'worktree')['identity'].update(identity)
++        data['phase'] = 'completed'
++        state_file.write_text(json.dumps(data))
++
++    def test_worktree_recreated_at_the_same_path_is_not_removed(self):
++        repo, run, path = self.recorded_worktree()
+         git(repo, 'worktree', 'remove', '--force', str(path))
+         git(repo, 'worktree', 'add', '-q', '--detach', str(path), 'HEAD')
+         # ext4 and similar filesystems give freed inode numbers to the next new file, so the
+         # recreated admin directory and .git file can carry the recorded inodes. Pin them so
+         # the outcome does not depend on the allocator.
+-        state_file = run.run_dir / 'run.json'
+-        data = json.loads(state_file.read_text())
+         gitdir = Path(git(path, 'rev-parse', '--absolute-git-dir').stdout.strip())
+-        recorded = next(item for item in data['resources'] if item['kind'] == 'worktree')
+-        recorded['identity'].update(gitdir_inode=gitdir.stat().st_ino, dotgit_inode=(path / '.git').lstat().st_ino)
+-        data['phase'] = 'completed'
+-        state_file.write_text(json.dumps(data))
++        self.complete(run, gitdir_inode=gitdir.stat().st_ino, dotgit_inode=(path / '.git').lstat().st_ino)
+         cleanup = run.only('cleanup')
+         self.assertEqual((cleanup['args']['kind'], cleanup['args']['identity']), ('worktree', 'replaced'))
+         self.assertIsNone(cleanup['args']['argv'], 'no remove command for a worktree recreated at the recorded path')
+@@ -110,6 +116,32 @@ class CleanupTest(CoreTestCase):
+         row = next(row for row in env['data']['report']['resources'] if row['kind'] == 'worktree')
+         self.assertEqual((row['status'], row['cleanup_command']), ('gone', None))
+ 
++    def test_unreadable_worktree_token_is_an_error_not_a_replacement(self):
++        repo, run, path = self.recorded_worktree()
++        self.complete(run)
++        token = Path(git(path, 'rev-parse', '--absolute-git-dir').stdout.strip()) / 't3-resource-token'
++        saved = token.read_bytes()
++        token.unlink()
++        token.mkdir()  # reading it fails with an error other than "missing"
++        code, env, _ = cli('next', *run.args('--parent-thread-id', run.parent))
++        self.assertEqual((code, env['error']['code']), (5, 'worktree_identity'))
++        token.rmdir()
++        token.write_bytes(saved)
++        cleanup = run.only('cleanup')
++        self.assertEqual((cleanup['args']['kind'], cleanup['args']['identity']), ('worktree', 'live'))
++        self.assertEqual(cleanup['args']['argv'][-1], str(path), 'the owned worktree is still cleaned up')
++
++    def test_garbled_worktree_token_is_a_replacement(self):
++        repo, run, path = self.recorded_worktree()
++        self.complete(run)
++        token = Path(git(path, 'rev-parse', '--absolute-git-dir').stdout.strip()) / 't3-resource-token'
++        token.write_bytes(b'\xff')
++        cleanup = run.only('cleanup')
++        self.assertEqual((cleanup['args']['kind'], cleanup['args']['identity'], cleanup['args']['argv']),
++                         ('worktree', 'replaced', None))
++        code, env, _ = cli('report', *run.args())
++        self.assertEqual(code, 0, env)
++
+     def test_failed_integration_preserves_and_lists_resources(self):
+         repo, run, t3, action, server = self.delegated_run()
+         (repo / 'wordstat.py').write_text('parent edit that conflicts\n')
+-- 
+2.56.0
+

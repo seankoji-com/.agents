@@ -1,0 +1,58 @@
+{
+  "slot": "a2",
+  "labels": {
+    "old": "Y",
+    "new": "X"
+  },
+  "model_selection": {
+    "instanceId": "codex",
+    "model": "gpt-6.1-sol",
+    "options": [
+      {
+        "id": "reasoningEffort",
+        "value": "xhigh"
+      }
+    ]
+  },
+  "runtime_mode": "auto",
+  "task_id": "node:delegated-task:command%3Amcp%3A28c2c6ea-9859-41ba-a781-e30e6fce7be6%3Adelegate-task%3Astage5-blind-grade-pair2",
+  "bundle_sha256": {
+    "X/checks.json": "013b2a2b00abaf5adc21a6eccdc2a3ece3d0ac4e3df3896c97a7eff0c1c2dce6",
+    "X/out/data.js": "565eb94714b3a268f8fca7fcb507b2719edb68085fef965e6c243c223c5fbcca",
+    "X/out/data.json": "866fa9b7d50aed1b8d8ebf27178bb96bd5fe5a568c70039969bba318d95146f9",
+    "X/out/index.html": "2a9d69f753bbebefaea9ba387e7439d4f256bd84238b32c40bcdb9364ef8beaa",
+    "X/out/vendor/leaflet/LICENSE": "53e8dc25862014e4324741ca18fbe3611e11d42ef69f59f86ea8c5389647d4cb",
+    "X/out/vendor/leaflet/images/layers-2x.png": "066daca850d8ffbef007af00b06eac0015728dee279c51f3cb6c716df7c42edf",
+    "X/out/vendor/leaflet/images/layers.png": "1dbbe9d028e292f36fcba8f8b3a28d5e8932754fc2215b9ac69e4cdecf5107c6",
+    "X/out/vendor/leaflet/images/marker-icon-2x.png": "00179c4c1ee830d3a108412ae0d294f55776cfeb085c60129a39aa6fc4ae2528",
+    "X/out/vendor/leaflet/images/marker-icon.png": "574c3a5cca85f4114085b6841596d62f00d7c892c7b03f28cbfa301deb1dc437",
+    "X/out/vendor/leaflet/images/marker-shadow.png": "264f5c640339f042dd729062cfc04c17f8ea0f29882b538e3848ed8f10edb4da",
+    "X/out/vendor/leaflet/leaflet.css": "a7837102824184820dfa198d1ebcd109ff6d0ff9a2672a074b9a1b4d147d04c6",
+    "X/out/vendor/leaflet/leaflet.js": "db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a",
+    "X/screenshot-desktop.png": "c6bf457e99fbea14df4ce96b440eb6b1b6f7d4b92cf56258881f7ab752d97947",
+    "X/screenshot-mobile.png": "3540e7276a0c51272d1e02b411ce43a6abb439019118cd9432643bb1cae02105",
+    "X/scripts/build.py": "3312ec19a966bb76d8a9cb46cbe4c18e29aa009fd159b6eeebdf53fdaca9e956",
+    "X/tests/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "X/tests/render_check.py": "90816543a55c74a0dcd746d69133f31162552182648c5fd906ebede9bffc8044",
+    "X/tests/test_output.py": "9f60f6792248977f7d5ee0817b79d7a65eb9b3c219f47d6e362d58c51c64dd27",
+    "Y/checks.json": "91f85668ba8b1c1a3c0524c1124b370b1fcd71d6fd893e7baafe424bbcf18963",
+    "Y/out/data.js": "c4e00113cb3cd5ee73225cb125e95b0d6f43c7058f3b56d044bf3d79680d9cad",
+    "Y/out/data.json": "fcf5ca5a7db4910a1889db2e688daddfeaab31f32f6d940966a871578cc605fe",
+    "Y/out/index.html": "aa499984415680fa2d941397360cce0204310821781687d6bd543d7cbe021e3e",
+    "Y/out/vendor/leaflet/LICENSE": "53e8dc25862014e4324741ca18fbe3611e11d42ef69f59f86ea8c5389647d4cb",
+    "Y/out/vendor/leaflet/images/layers-2x.png": "066daca850d8ffbef007af00b06eac0015728dee279c51f3cb6c716df7c42edf",
+    "Y/out/vendor/leaflet/images/layers.png": "1dbbe9d028e292f36fcba8f8b3a28d5e8932754fc2215b9ac69e4cdecf5107c6",
+    "Y/out/vendor/leaflet/images/marker-icon-2x.png": "00179c4c1ee830d3a108412ae0d294f55776cfeb085c60129a39aa6fc4ae2528",
+    "Y/out/vendor/leaflet/images/marker-icon.png": "574c3a5cca85f4114085b6841596d62f00d7c892c7b03f28cbfa301deb1dc437",
+    "Y/out/vendor/leaflet/images/marker-shadow.png": "264f5c640339f042dd729062cfc04c17f8ea0f29882b538e3848ed8f10edb4da",
+    "Y/out/vendor/leaflet/leaflet.css": "a7837102824184820dfa198d1ebcd109ff6d0ff9a2672a074b9a1b4d147d04c6",
+    "Y/out/vendor/leaflet/leaflet.js": "db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a",
+    "Y/screenshot-desktop.png": "cf6d9dc444b2f411fe01c3861294856e6817ff0b50680ee568c4134de829dff3",
+    "Y/screenshot-mobile.png": "2d2a247ad8ccc5e764b73b1ebe9cc038fe9072847f159b7615dfa2e045821f84",
+    "data/prices.json": "24387605c2c3e60c503191efef3084ede3c0ef30a86075c4da2f7aefb15ac5d8",
+    "data/stations.json": "791ccd3b3b5266139954611f70a98e436a942f532c7476d367015392037cae7a",
+    "rubric.md": "06afc2d8ba7ac1397a9d6a8eaf03020c17025357cafc40bb785d6965f7b4ac61",
+    "task.md": "7fe415e32906390966fa5115ed84153639ca4b8aee20c132c3815623e5b7660e"
+  },
+  "eligibility": "informational only; invalid benchmark cycle"
+}

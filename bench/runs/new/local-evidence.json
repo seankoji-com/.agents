@@ -1,0 +1,46 @@
+{
+  "code_head": "0181c2b249dcdd7e026cf6034fc91370da4e8f23",
+  "logs": {
+    "tests": {
+      "exit_code": 0,
+      "sha256": "0ba0f4179fe4e82d3ed1a10a5d71389b00da70786a2bf44f11692f6c52fe208c",
+      "private_log": "<executor>/extra-repair-tests.log"
+    },
+    "docs": {
+      "exit_code": 0,
+      "sha256": "df25d29d8683afe36932b7675828a296c0874473d9101d1f8e4b145e3044a287",
+      "private_log": "<executor>/final-docs.log"
+    },
+    "mkdocs": {
+      "exit_code": 0,
+      "sha256": "ff38ccfc2e173da3eb32b85d52d3dff852c51214daa59d11231313e98870ab3e",
+      "private_log": "<executor>/final-mkdocs.log"
+    },
+    "python310_grader": {
+      "exit_code": 0,
+      "sha256": "adfc81c6868d7e61ff1a6cc803433f7cdc31b7dffe83861d829c5d52ec587799",
+      "private_log": "<executor>/extra-repair-python310.log"
+    }
+  },
+  "tests": 509,
+  "docs_rendering": {
+    "desktop": "1280x800",
+    "mobile": "390x844",
+    "pages": [
+      "migration",
+      "compatibility"
+    ],
+    "horizontal_overflow": false
+  },
+  "minimum_python_probe": "3.10.22; six grader tests passed",
+  "core_size": 1563,
+  "core_size_limit": 2156,
+  "hosted_ci": "not run; no PR opened while benchmark acceptance is blocked",
+  "changed_tests": [
+    {
+      "path": "tests/test_task_b_grader.py",
+      "change": "added",
+      "reason": "Checks real worktree inode reuse independently of identity schema; preserves all other stat fields, catches refusal of everything and inode-only API/import variants. Existing tests unchanged."
+    }
+  ]
+}

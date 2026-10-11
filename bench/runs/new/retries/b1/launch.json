@@ -1,0 +1,21 @@
+{
+  "attempt": 2,
+  "workspace_id": "25084a81",
+  "thread_id": "mcp:ab2c207f-1c9d-4a6f-beb2-59eb393edf31",
+  "project_id": "mcp:047227a6-b578-477b-b9a4-a5c163c49471",
+  "model_selection": {
+    "instanceId": "claudeAgent",
+    "model": "claude-opus-5-5",
+    "options": [
+      {
+        "id": "effort",
+        "value": "xhigh"
+      }
+    ]
+  },
+  "runtime_mode": "auto",
+  "interaction_mode": "default",
+  "retry_reason": "Attempt 1 voided by confinement audit; grader repairs also made it stale. Single protocol-authorised retry.",
+  "protocol_freeze_commit": "cc014ab",
+  "grader_sha256": "f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508"
+}

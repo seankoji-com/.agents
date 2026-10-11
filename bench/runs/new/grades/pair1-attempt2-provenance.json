@@ -1,0 +1,20 @@
+{
+  "task_id": "node:delegated-task:command%3Amcp%3A28c2c6ea-9859-41ba-a781-e30e6fce7be6%3Adelegate-task%3Astage5-blind-grade-pair1-attempt2",
+  "model": "gpt-6.1-sol",
+  "provider": "codex",
+  "options": [
+    {
+      "id": "reasoningEffort",
+      "value": "xhigh"
+    }
+  ],
+  "status": "completed",
+  "has_pending_child_runs": false,
+  "labels": {
+    "old": "X",
+    "new": "Y"
+  },
+  "eligible_for_comparison": false,
+  "reason": "Retry attempt void for confinement violations; grade retained as informational evidence.",
+  "arithmetic_verified": true
+}

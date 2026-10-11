@@ -1,0 +1,146 @@
+{
+  "status": "in progress",
+  "metric": "Parent-context tokens; not proof of total cost. Descendant tokens and unknowns remain separate in each summary.",
+  "attempts": [
+    {
+      "slot": "a1",
+      "attempt": 1,
+      "outcome": "completed",
+      "audit_outcome": "void",
+      "counted": false,
+      "parent_opus_tokens": {
+        "counted": 427872,
+        "cache_read": 21233798,
+        "other_models_in_parent": []
+      },
+      "wallclock_seconds": {
+        "thread": 2408.1,
+        "transcript": 2403.7
+      },
+      "delegation_count": 4,
+      "descendant_count": 7,
+      "summary": "a1/summary.json",
+      "summary_sha256": "e658f72f49b55919adca807cd84dfdcf8cb2b6b0a6bd63daa5d27c538c1c22c6"
+    },
+    {
+      "slot": "a1",
+      "attempt": 2,
+      "outcome": "completed",
+      "audit_outcome": "pending",
+      "counted": false,
+      "parent_opus_tokens": {
+        "counted": 356409,
+        "cache_read": 14607815,
+        "other_models_in_parent": []
+      },
+      "wallclock_seconds": {
+        "thread": 1808.2,
+        "transcript": 1805.4
+      },
+      "delegation_count": 2,
+      "descendant_count": 2,
+      "summary": "a1/attempt-2/summary.json",
+      "summary_sha256": "47c54cc8f18337d2cad17b455fdd186a19bf27da3c84361a0138d9774524ccbe"
+    },
+    {
+      "slot": "a2",
+      "attempt": 1,
+      "outcome": "completed",
+      "audit_outcome": "void",
+      "counted": false,
+      "parent_opus_tokens": {
+        "counted": 304361,
+        "cache_read": 11878859,
+        "other_models_in_parent": []
+      },
+      "wallclock_seconds": {
+        "thread": 1190.9,
+        "transcript": 1186.6
+      },
+      "delegation_count": 2,
+      "descendant_count": 2,
+      "summary": "a2/summary.json",
+      "summary_sha256": "d523c3d9e3340419c19b51fe81b47bf450d2dd19a4ebedff512d940eca44acac"
+    },
+    {
+      "slot": "a2",
+      "attempt": 2,
+      "outcome": "completed",
+      "audit_outcome": "pending",
+      "counted": false,
+      "parent_opus_tokens": {
+        "counted": 441505,
+        "cache_read": 19334825,
+        "other_models_in_parent": []
+      },
+      "wallclock_seconds": {
+        "thread": 1911.9,
+        "transcript": 1909.4
+      },
+      "delegation_count": 3,
+      "descendant_count": 3,
+      "summary": "a2/attempt-2/summary.json",
+      "summary_sha256": "ee42658fdbb77cce9e852b0dd143bc2e6e7ea434d67368b92fafa7753e2449a3"
+    },
+    {
+      "slot": "b1",
+      "attempt": 1,
+      "outcome": "blocked",
+      "audit_outcome": "void",
+      "counted": false,
+      "parent_opus_tokens": {
+        "counted": 394072,
+        "cache_read": 23889444,
+        "other_models_in_parent": []
+      },
+      "wallclock_seconds": {
+        "thread": 2997.4,
+        "transcript": 2993.7
+      },
+      "delegation_count": 3,
+      "descendant_count": 4,
+      "summary": "b1/summary.json",
+      "summary_sha256": "663888011a43c749d3461b45c95f39086920698c2b50dcd1272f8b7193a02790"
+    },
+    {
+      "slot": "b1",
+      "attempt": 2,
+      "outcome": "cancelled",
+      "audit_outcome": "pending",
+      "counted": false,
+      "parent_opus_tokens": {
+        "counted": 277278,
+        "cache_read": 12066739,
+        "other_models_in_parent": []
+      },
+      "wallclock_seconds": {
+        "thread": 1478.6,
+        "transcript": 1550.7
+      },
+      "delegation_count": 1,
+      "descendant_count": 1,
+      "summary": "b1/attempt-2/summary.json",
+      "summary_sha256": "18656c0dd7125587c8dc03b63b5e0c70fd7fa3f464e69a410bafd00eaf3c52e6"
+    },
+    {
+      "slot": "b2",
+      "attempt": 1,
+      "outcome": "completed",
+      "audit_outcome": "void",
+      "counted": false,
+      "parent_opus_tokens": {
+        "counted": 280689,
+        "cache_read": 14155152,
+        "other_models_in_parent": []
+      },
+      "wallclock_seconds": {
+        "thread": 2154.0,
+        "transcript": 2150.2
+      },
+      "delegation_count": 2,
+      "descendant_count": 3,
+      "summary": "b2/summary.json",
+      "summary_sha256": "b6764370d0ce97b4d6e57c594f54813afc8818a58d23a96371eda10a9f5f87cb"
+    }
+  ]
+}
