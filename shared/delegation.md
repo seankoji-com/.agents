@@ -32,8 +32,9 @@ context it lacked), add a line to the run report's delegation notes.
 ## Allowed tools
 
 Child work goes only through T3 `delegate_task`, `task_status` and `task_cancel`.
-`t3_thread_read` may fetch a result those tools omit. Never use it, `t3_thread_send`,
-`create_threads` or `t3_thread_launch` to continue, relaunch or create child work.
+`t3_thread_read` may fetch a result those tools omit.
+Never use it or `t3_thread_send` to continue or relaunch a child.
+Never use `create_threads` or `t3_thread_launch` for child work; they create top-level threads.
 Native `Agent`, `Task` and `Workflow` tools are banned for child work, and so are
 provider CLIs such as `codex exec`, `claude -p` and `opencode run`. Match tools by base
 name. If one is missing, report delegation `unavailable` rather than substituting.
