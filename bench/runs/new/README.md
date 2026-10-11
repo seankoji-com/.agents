@@ -7,6 +7,10 @@ new run to compare with `bench/runs/old/`. The implementation, grader, version a
 migration work are reviewed and kept; whether the new version meets the quality
 and parent-token targets is still unproven.
 
+On 2026-10-11 the owner deferred the benchmark to
+[#21](https://github.com/seankoji-com/t3-plugins/issues/21) and folded stage 5 into
+`master` without it. The benchmark requirements are waived for this stage, not passed.
+
 The issue body was saved in the executor run's scratch notes before implementation,
 and all work used that copy of issue #15.
 
@@ -116,5 +120,5 @@ workspaces, and private transcripts, audits, blinding keys and grading bundles. 
 owner's configuration, default installs, provider settings and dotfiles were not
 changed. Patch author lines are redacted as in `bench/runs/old/`.
 
-Pushes to `t3/implement-stage-5` were owner-requested handoffs. No PR is open; hosted
-CI, merge, release, tap update and Pages deployment have not happened.
+The stage merges by owner instruction with the benchmark gates waived. Release, tap
+update and Pages deployment are not part of this stage.
