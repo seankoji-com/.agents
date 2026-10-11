@@ -3,8 +3,22 @@
 ## Deterministic regression suite
 
 ```sh
-python3 -m unittest discover -s tests -v
+python3 scripts/run_tests.py              # every module, in parallel
+python3 scripts/run_tests.py test_review  # modules whose names start with test_review
+python3 -m unittest discover -s tests -v  # the same suite, one module after another
 ```
+
+Most tests drive the core CLI and Git in temporary repositories, so the suite spends
+its time waiting on child processes. `run_tests.py` gives each module its own process
+and prints that module's full output only if it fails. On 2026-10-11, on a 16-core
+Linux machine, the 700 or so tests took about a minute in parallel and four minutes serially.
+
+Line coverage of `core/`, `scripts/`, and the plugin helpers was 87% on the same date,
+measured with coverage.py across the child processes the tests start. coverage.py is
+not a dependency; install it in a scratch environment to measure again. The largest
+uncovered code is in the offload sidecar (76%): parts of its MCP request handler, file
+split and merge, and several format validators. `run_imps.py` reads as 0% because it replaces its process with `os.execv`
+before coverage can save; its behavior is tested in `test_catalog.py`.
 
 The suite tests behavior across boundaries, not just successful return values:
 
@@ -21,6 +35,9 @@ The suite tests behavior across boundaries, not just successful return values:
 | Handoff silently changes its source brief | Literal rendering and provenance/hash tests |
 | File transform accepts malformed output | Imported sidecar validator and engine failure tests |
 | The site drifts from the catalog or the ledger | Field-guide hook tests: every plugin has a plate, numbers come from `compatibility.json`, HTML is escaped |
+| Conformance evidence names the machine it ran on | `collect` replaces the home and per-user temporary directories; a contract test scans every tracked file |
+| The compatibility page drifts from its ledger | `conformance.py compile` output is compared with the committed page |
+| A publish to GitHub half-succeeds | Scripted `gh` tests: URL parsing, category choice, GraphQL errors behind a zero exit, no metadata on failure |
 | The homepage recording goes stale or unsafe | Recording generator tests: committed SVG matches the generator, no scripts or external references |
 
 External model calls are mocked. Shell helpers use synthetic fixtures and stubbed

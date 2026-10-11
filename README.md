@@ -72,7 +72,7 @@ briefs. Failed attempts are recorded alongside passes.
 ## Develop
 
 ```sh
-python3 -m unittest discover -s tests -v
+python3 scripts/run_tests.py          # the unittest suite, modules in parallel
 python3 scripts/check_docs.py
 ```
 

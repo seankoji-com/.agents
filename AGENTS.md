@@ -34,13 +34,14 @@ behavioral tests. Keep installed helpers relocatable; test the installed artifac
 ## Verify
 
 ```sh
-python3 -m unittest discover -s tests -v
+python3 scripts/run_tests.py
 python3 scripts/check_docs.py
 python3 -m mkdocs build --strict
 ```
 
 Install `requirements-docs.txt` in a virtual environment for the last command.
-The suite uses temporary repositories and loopback HTTP fixtures. It must not call
+`run_tests.py` runs test modules in parallel; `python3 -m unittest discover -s tests -v`
+runs the same suite serially. The suite uses temporary repositories and loopback HTTP fixtures. It must not call
 live models or mutate GitHub. For changed shell helpers, also run `bash -n` and their
 focused fixture tests. For user-visible docs, inspect desktop and mobile rendering.
 

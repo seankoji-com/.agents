@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Run the unittest suite one module per process, several at a time.
+
+The suite is mostly integration tests: each one drives the core CLI and git in
+temporary repositories, so it spends its time waiting on child processes. Every test
+owns its temporary directories, which makes modules safe to run side by side.
+``python3 -m unittest discover -s tests`` still works and gives the same result,
+one module after another.
+
+Usage: python3 scripts/run_tests.py [-j N] [pattern ...]
+Patterns filter module file names (``test_review*``). Exit status is 1 if any
+module fails, with that module's full output printed.
+"""
+from __future__ import annotations
+
+import argparse
+import fnmatch
+import os
+import re
+import subprocess
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+TESTS = ROOT / 'tests'
+RAN = re.compile(r'^Ran (\d+) tests? in ', re.MULTILINE)
+
+
+def modules(patterns: list[str]) -> list[Path]:
+    # Largest first: file size tracks run time well enough to start the long modules early.
+    found = sorted(TESTS.glob('test_*.py'), key=lambda p: (-p.stat().st_size, p.name))
+    if patterns:
+        found = [p for p in found if any(fnmatch.fnmatch(p.name, pat if pat.endswith('.py') else pat + '*.py')
+                                         for pat in patterns)]
+    return found
+
+
+def run(module: Path) -> tuple[Path, int, str, float, int]:
+    started = time.monotonic()
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
+    result = subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', str(TESTS), '-t', str(TESTS),
+                             '-p', module.name], cwd=ROOT, capture_output=True, text=True, env=env)
+    output = result.stdout + result.stderr
+    ran = RAN.search(output)
+    return module, result.returncode, output, time.monotonic() - started, int(ran.group(1)) if ran else 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
+    parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count() or 2,
+                        help='modules to run at once (default: CPU count)')
+    parser.add_argument('patterns', nargs='*', help='module file name patterns, e.g. test_review*')
+    args = parser.parse_args(argv)
+    if args.jobs < 1:
+        parser.error('--jobs must be at least 1')
+    selected = modules(args.patterns)
+    if not selected:
+        parser.error(f'no test modules match {args.patterns}')
+
+    started = time.monotonic()
+    failed, total = [], 0
+    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        for future in as_completed([pool.submit(run, m) for m in selected]):
+            module, code, output, elapsed, ran = future.result()
+            total += ran
+            mark = 'ok' if code == 0 and ran else 'FAIL'
+            print(f'{mark:4} {module.stem:45} {ran:4} tests {elapsed:6.1f}s', flush=True)
+            if mark == 'FAIL':
+                failed.append((module, output))
+
+    for module, output in failed:
+        print(f'\n===== {module.stem} =====\n{output}', file=sys.stderr)
+    print(f'\n{total} tests in {len(selected)} modules, {time.monotonic() - started:.1f}s wall; '
+          f'{len(failed)} module(s) failed')
+    return 1 if failed else 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

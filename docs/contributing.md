@@ -9,7 +9,7 @@ unavailable are different bugs. Include the evidence that distinguishes them.
 Clone the repository, create a branch, and run:
 
 ```sh
-python3 -m unittest discover -s tests -v
+python3 scripts/run_tests.py
 ```
 
 The runtime has no package dependencies. Tests use temporary repositories and mock
