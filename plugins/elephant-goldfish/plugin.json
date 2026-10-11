@@ -1,6 +1,6 @@
 {
   "name": "elephant-goldfish",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Discover problems, write testable briefs, and verify design documents.",
   "entry": "entry.md",
   "operations": [

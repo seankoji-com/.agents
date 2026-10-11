@@ -1,4 +1,5 @@
 # imps for T3 Code
+Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
 Deliver bounded engineering work with evidence at the revision you hand back.
 You own the work plan and decisions. The Python gate stores evidence and validates

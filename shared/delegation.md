@@ -27,7 +27,8 @@ mode to the parent's, launch at that mode and tell the owner to switch the child
 retry at a lower mode silently.
 
 When a delegation call turns out wrong (wrong tier, wrong split, a child that needed
-context it lacked), add a line to the run report's delegation notes.
+context it lacked), write the observed failure as a learning through
+`PKG/shared/learnings.md` on writable runs. Read-only runs report the proposed lesson.
 
 ## Allowed tools
 

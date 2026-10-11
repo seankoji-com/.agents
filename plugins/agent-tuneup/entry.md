@@ -1,4 +1,5 @@
 # agent-tuneup
+Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
 Audit agent configuration without weakening permissions. Read
 `PKG/shared/t3-runtime.md`, then `PKG/playbooks/audit.md`. Delegation follows

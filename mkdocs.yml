@@ -1,6 +1,7 @@
 site_name: t3-plugins
 site_description: Five agent workflows for T3 Code that keep working when you change the model. Python standard library, evidence before completion, live provider results recorded.
 site_url: https://seankoji-com.github.io/t3-plugins/
+site_dir: !ENV [T3_DOCS_SITE_DIR, site]
 repo_url: https://github.com/seankoji-com/t3-plugins
 repo_name: seankoji-com/t3-plugins
 edit_uri: edit/master/docs/
@@ -59,6 +60,7 @@ nav:
       - Installation: getting-started.md
       - Slash commands: slash-commands.md
       - Your first workflow: first-workflow.md
+      - Learnings and harvest: learnings.md
       - Troubleshooting: troubleshooting.md
   - Plugins:
       - Choose a plugin: plugins/index.md

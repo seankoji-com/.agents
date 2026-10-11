@@ -1,4 +1,5 @@
 # babysitter
+Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
 Keep pull requests moving through review and CI. Read `PKG/shared/t3-runtime.md`,
 then `PKG/playbooks/maintain.md`. Delegation follows `PKG/shared/delegation.md`.
