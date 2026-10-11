@@ -73,10 +73,6 @@ def owns(patterns, path: str) -> bool:
     return not patterns or any(glob_match(path, pattern) for pattern in patterns)
 
 
-def _owned(path: str, patterns) -> bool:
-    return owns(patterns, path)
-
-
 def requirement_ids(task: dict, current: dict) -> tuple[set, list]:
     """(IDs this task answers for in the current contract, task IDs the contract no longer has)."""
     known = {item['id'] for item in current['requirements']}
@@ -124,7 +120,7 @@ def validate(state: dict, task: dict, result: dict, worktree: str | None, roots=
         if missing:
             raise Rejected('result_files_absent', 'result claims changes that do not exist in the worktree',
                            {'files': missing})
-        outside = sorted(path for path in actual if not _owned(path, task.get('files')))
+        outside = sorted(path for path in actual if not owns(task.get('files'), path))
         if outside:
             raise Rejected('result_files_unowned', 'worktree changes fall outside the task file ownership',
                            {'files': outside})

@@ -9,7 +9,7 @@ unavailable are different bugs. Include the evidence that distinguishes them.
 Clone the repository, create a branch, and run:
 
 ```sh
-python3 -m unittest discover -s tests -v
+python3 scripts/run_tests.py
 ```
 
 The runtime has no package dependencies. Tests use temporary repositories and mock
@@ -49,6 +49,15 @@ python3 scripts/check_docs.py
 Check navigation, search, code copying, diagrams, and mobile layout. Screenshots
 should show the actual rendered artifact, use synthetic data, and state what they
 demonstrate. Never substitute an illustration for live acceptance evidence.
+
+The homepage, the plugin pages, and the sightings table are generated at build time
+by the `scripts/field_guide.py` hook from `plugins/*/plugin.json`, `docs/field-guide.json`,
+and `conformance/compatibility.json`. Adding a plugin means adding its entry to
+`docs/field-guide.json` and a mark under `docs/assets/specimens/`; the build fails
+if either is missing. The terminal recording is `docs/assets/demo.svg`, written by
+`python3 scripts/render_demo.py`; a test fails when the committed file is stale.
+Fonts are bundled under `docs/assets/fonts/` (SIL OFL 1.1) so pages make no
+third-party requests. Theme overrides live in `overrides/`.
 
 ## Open a PR
 

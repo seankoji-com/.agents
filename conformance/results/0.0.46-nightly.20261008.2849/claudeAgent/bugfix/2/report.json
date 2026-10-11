@@ -49,12 +49,12 @@
         {
           "path": "artifacts/evidence/5a1ae5ddf36e-red.log",
           "sha256": "5a1ae5ddf36e1ca65e2202feb43c451bdc9d5c0b4bab0ff54d2e6b5c74740f74",
-          "source": "/tmp/claude-1000/b2/state/runs/20261009-130913-c67a32/scratch/red.log"
+          "source": "$TMPDIR/b2/state/runs/20261009-130913-c67a32/scratch/red.log"
         },
         {
           "path": "artifacts/evidence/527a17f2dc1d-green.log",
           "sha256": "527a17f2dc1d9d7836536e1104e7eaa391489b4663225d81d054d709c56caf35",
-          "source": "/tmp/claude-1000/b2/state/runs/20261009-130913-c67a32/scratch/green.log"
+          "source": "$TMPDIR/b2/state/runs/20261009-130913-c67a32/scratch/green.log"
         }
       ],
       "evidence_kind": "command"
@@ -70,12 +70,12 @@
         {
           "path": "artifacts/evidence/34a783cabc47-red-test.log",
           "sha256": "34a783cabc473bdaee85d285d3781d46a0bdef5ec87df696542db070f24f268a",
-          "source": "/tmp/claude-1000/b2/state/runs/20261009-130913-c67a32/scratch/red-test.log"
+          "source": "$TMPDIR/b2/state/runs/20261009-130913-c67a32/scratch/red-test.log"
         },
         {
           "path": "artifacts/evidence/edaea244b13b-unit-g5.log",
           "sha256": "edaea244b13bb4717b5b983ad9b89832b6e95a6eedf4961aefae3124c6d3892e",
-          "source": "/tmp/claude-1000/b2/state/runs/20261009-130913-c67a32/scratch/unit-g5.log"
+          "source": "$TMPDIR/b2/state/runs/20261009-130913-c67a32/scratch/unit-g5.log"
         }
       ],
       "evidence_kind": "command"
@@ -98,7 +98,7 @@
       "artifact": {
         "path": "artifacts/checks/edaea244b13b-unit-g5.log",
         "sha256": "edaea244b13bb4717b5b983ad9b89832b6e95a6eedf4961aefae3124c6d3892e",
-        "source": "/tmp/claude-1000/b2/state/runs/20261009-130913-c67a32/scratch/unit-g5.log"
+        "source": "$TMPDIR/b2/state/runs/20261009-130913-c67a32/scratch/unit-g5.log"
       }
     }
   ],
@@ -230,5 +230,5 @@
   "next_actions": [
     "report"
   ],
-  "evidence_dir": "/tmp/claude-1000/b2/state/runs/20261009-130913-c67a32/artifacts"
+  "evidence_dir": "$TMPDIR/b2/state/runs/20261009-130913-c67a32/artifacts"
 }

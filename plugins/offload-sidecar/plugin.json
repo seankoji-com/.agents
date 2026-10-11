@@ -1,6 +1,6 @@
 {
   "name": "offload-sidecar",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "File transforms by path with deterministic or optional model engines.",
   "entry": "entry.md",
   "operations": [

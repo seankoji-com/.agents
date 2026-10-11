@@ -6,7 +6,12 @@ import os
 import sys
 from pathlib import Path
 
-from offload_sidecar import OPERATIONS, OPERATION_ALIASES, handle_process_local_file
+# Under `python3 -I` the script directory is not on sys.path, so the sibling engine
+# module must be located explicitly. Inserted at the front so no other `offload_sidecar`
+# on the path can shadow the one shipped beside this adapter.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from offload_sidecar import OPERATIONS, OPERATION_ALIASES, handle_process_local_file  # noqa: E402
 
 
 def validate_request(request):

@@ -26,6 +26,6 @@
   },
   "interventions": 0,
   "elapsed_seconds": 51.0,
-  "note": "state root fallback /tmp/claude-1000/m1/state",
+  "note": "state root fallback $TMPDIR/m1/state",
   "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/missing-capability/1"
 }

@@ -1,0 +1,14 @@
+# The release tarball (git archive) carries only what the Homebrew formula installs.
+# Tests, documentation, conformance evidence, and design notes stay in the repository.
+tests/ export-ignore
+conformance/ export-ignore
+docs/ export-ignore
+overrides/ export-ignore
+thinking/ export-ignore
+migration/ export-ignore
+launch/ export-ignore
+.github/ export-ignore
+mkdocs.yml export-ignore
+requirements-docs.txt export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore

@@ -146,6 +146,18 @@ class ConformanceGraderTest(CoreTestCase):
         finally:
             conformance.HOME = original
 
+    def test_sanitise_replaces_a_per_user_temp_dir_but_not_shared_tmp(self):
+        original = conformance.HOME, conformance.TEMP
+        conformance.HOME, conformance.TEMP = '/srv/u', '/srv/u/scratch/s1'
+        try:
+            self.assertEqual(conformance.sanitise('--state-root /srv/u/scratch/s1/b1/state /srv/u/x'),
+                             '--state-root $TMPDIR/b1/state ~/x')
+            self.assertEqual(conformance.sanitise('/srv/u/scratch/s10/x'), '~/scratch/s10/x')
+            conformance.TEMP = '/tmp'
+            self.assertEqual(conformance.sanitise('/tmp/fixture'), '/tmp/fixture')
+        finally:
+            conformance.HOME, conformance.TEMP = original
+
 
 class Round5InstallerTest(test_install.InstallTest):
     def test_install_lifecycle(self):
@@ -173,6 +185,8 @@ class Round5InstallerTest(test_install.InstallTest):
             with self.subTest(args=args):
                 out = self.installer(*args, expect=2)
                 self.assertEqual(out['error']['code'], 'manifest_corrupt')
+        out = self.installer('--activate', version_dir.name, expect=2)
+        self.assertEqual(out['error']['code'], 'unknown_version', 'a corrupt snapshot is not activatable')
         self.installer('--force')
         self.assertIsInstance(json.loads((version_dir / 'install-manifest.json').read_text())['files'], list)
         self.installer('--uninstall')

@@ -5,8 +5,8 @@ Opt-in. It runs real providers through T3 and spends their quota. Run it from a 
 ## 1. Prepare
 
 ```bash
-python3 ~/repos/t3-plugins/scripts/install.py
-python3 ~/repos/t3-plugins/scripts/conformance.py setup --dest "$TMPDIR/imps-conformance-fixture"
+python3 scripts/install.py
+python3 scripts/conformance.py setup --dest "$TMPDIR/imps-conformance-fixture"
 ```
 
 `setup` builds the wordstat fixture repository with one branch per critical case (`conformance/cases.json`). Each branch carries the case's repository policy in `.t3-plugins/imps.json`.

@@ -1,0 +1,170 @@
+"""The documentation site must be generated from the catalog, not hand-copied."""
+import json
+import shutil
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import field_guide  # noqa: E402
+
+
+class RepositoryGuideTest(unittest.TestCase):
+    def test_every_plugin_has_a_plate_and_every_plate_has_a_plugin(self):
+        specimens = field_guide.load_guide(ROOT)
+        names = {s['name'] for s in specimens}
+        manifests = {p.parent.name for p in (ROOT / 'plugins').glob('*/plugin.json')}
+        self.assertEqual(names, manifests)
+        self.assertEqual([s['order'] for s in specimens], list(range(1, len(specimens) + 1)))
+
+    def test_specimen_marks_are_self_contained_svg(self):
+        for s in field_guide.load_guide(ROOT):
+            svg = s['mark_svg']
+            self.assertTrue(svg.startswith('<svg'), s['name'])
+            self.assertIn('role="img"', svg, s['name'])
+            self.assertIn('aria-label=', svg, s['name'])
+            self.assertNotIn('<script', svg, s['name'])
+            self.assertNotIn('http', svg.split('xmlns="http://www.w3.org/2000/svg"', 1)[1], s['name'])
+
+    def test_operations_come_from_the_manifest(self):
+        by_name = {s['name']: s for s in field_guide.load_guide(ROOT)}
+        imps = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        self.assertEqual(by_name['imps']['operations'], imps['operations'])
+
+    def test_sightings_match_the_ledger(self):
+        ledger = json.loads((ROOT / 'conformance/compatibility.json').read_text())
+        sightings = field_guide.load_sightings(ROOT)
+        self.assertEqual(sightings['t3_version'], ledger['t3_version'])
+        codex = next(p for p in sightings['providers'] if p['provider'] == 'codex')
+        self.assertEqual(codex['tallies']['bugfix'], {'passed': 3, 'repeats': 3, 'notes': []})
+        self.assertEqual(codex['tallies']['adverse-review']['repeats'], 0)
+        html = field_guide.render_sightings(sightings)
+        for row in ledger['providers']:
+            self.assertIn(f'<code>{row["provider_instance_id"]}</code>', html)
+        self.assertIn('3/3', html)
+        self.assertIn('not run', html)
+        self.assertIn(ledger['t3_version'], html)
+
+    def test_homepage_and_sightings_pages_expand(self):
+        guide = field_guide.load_guide(ROOT)
+        sightings = field_guide.load_sightings(ROOT)
+        for page in ('index.md', 'sightings.md'):
+            source = (ROOT / 'docs' / page).read_text()
+            self.assertIn(field_guide.SIGHTINGS_MARKER, source)
+            out = field_guide.expand_page(source, page, ROOT, guide, sightings)
+            self.assertNotIn(field_guide.SIGHTINGS_MARKER, out)
+            self.assertNotIn('<!-- inline-svg', out)
+            self.assertIn('sightings__table', out)
+
+    def test_plugin_pages_get_a_specimen_header_after_the_title(self):
+        guide = field_guide.load_guide(ROOT)
+        for s in guide:
+            source = (ROOT / 'docs' / s['page']).read_text()
+            out = field_guide.expand_page(source, s['page'], ROOT, guide, {})
+            title_at = ('\n' + out).index('\n# ')
+            header_at = out.index('specimen--page')
+            self.assertLess(title_at, header_at, s['name'])
+            self.assertIn(s['binomial'], out)
+            self.assertIn('<dt>Habitat</dt>', out)
+
+    def test_other_pages_are_untouched(self):
+        guide = field_guide.load_guide(ROOT)
+        text = '# Plain\n\nNo markers here.\n'
+        self.assertEqual(field_guide.expand_page(text, 'testing.md', ROOT, guide, {}), text)
+
+
+class SyntheticRootTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        (self.tmp / 'plugins/alpha').mkdir(parents=True)
+        (self.tmp / 'docs/assets/specimens').mkdir(parents=True)
+        (self.tmp / 'plugins/alpha/plugin.json').write_text(json.dumps({
+            'name': 'alpha', 'version': '1.0.0', 'description': 'd', 'entry': 'entry.md',
+            'operations': ['doctor'], 'kind': 'workflow', 'compatibility': 'experimental'}))
+        (self.tmp / 'docs/assets/specimens/alpha.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+        self.guide = {'alpha': {'plate': 'I', 'binomial': 'A b', 'summary': 's', 'habitat': 'h',
+                                'diet': 'd', 'field_marks': 'f'}}
+        self.write_guide()
+
+    def write_guide(self):
+        (self.tmp / 'docs/field-guide.json').write_text(json.dumps(self.guide))
+
+    def test_missing_entry_fails_the_build(self):
+        (self.tmp / 'plugins/beta').mkdir()
+        (self.tmp / 'plugins/beta/plugin.json').write_text(json.dumps({
+            'name': 'beta', 'version': '1', 'description': 'd', 'entry': 'entry.md',
+            'operations': [], 'kind': 'workflow', 'compatibility': 'experimental'}))
+        with self.assertRaisesRegex(field_guide.FieldGuideError, "missing=\\['beta'\\]"):
+            field_guide.load_guide(self.tmp)
+
+    def test_extra_entry_fails_the_build(self):
+        self.guide['ghost'] = dict(self.guide['alpha'], plate='II')
+        self.write_guide()
+        with self.assertRaisesRegex(field_guide.FieldGuideError, "extra=\\['ghost'\\]"):
+            field_guide.load_guide(self.tmp)
+
+    def test_missing_mark_fails_the_build(self):
+        (self.tmp / 'docs/assets/specimens/alpha.svg').unlink()
+        with self.assertRaisesRegex(field_guide.FieldGuideError, 'missing specimen mark'):
+            field_guide.load_guide(self.tmp)
+
+    def test_unsafe_mark_fails_the_build(self):
+        for svg in ('<svg><script>alert(1)</script></svg>', '<svg onload="alert(1)"></svg>',
+                    '<svg><image href="https://example.invalid/x.png"/></svg>',
+                    '<svg><a xlink:href="javascript:alert(1)"/></svg>', '<p>not svg</p>',
+                    '<svg><style>@import url("https://example.invalid/a.css");</style></svg>',
+                    '<svg><rect fill="url(https://example.invalid/a.svg#x)"/></svg>',
+                    '<svg><rect style="fill:url( \'//example.invalid/p.svg#x\')"/></svg>'):
+            (self.tmp / 'docs/assets/specimens/alpha.svg').write_text(svg)
+            with self.assertRaisesRegex(field_guide.FieldGuideError, 'self-contained SVG', msg=svg):
+                field_guide.load_guide(self.tmp)
+        (self.tmp / 'docs/assets/specimens/alpha.svg').write_text(
+            '<svg><defs><g id="a"/></defs><use href="#a"/><rect fill="url(#a)"/></svg>')
+        self.assertEqual(len(field_guide.load_guide(self.tmp)), 1)
+
+    def test_empty_catalog_fails_the_build(self):
+        shutil.rmtree(self.tmp / 'plugins/alpha')
+        self.guide = {}
+        self.write_guide()
+        with self.assertRaisesRegex(field_guide.FieldGuideError, 'empty'):
+            field_guide.load_guide(self.tmp)
+
+    def test_plate_gaps_fail_the_build(self):
+        self.guide['alpha']['plate'] = 'III'
+        self.write_guide()
+        with self.assertRaisesRegex(field_guide.FieldGuideError, 'without gaps'):
+            field_guide.load_guide(self.tmp)
+
+    def test_inline_svg_refuses_paths_outside_assets(self):
+        (self.tmp / 'docs/secret.svg').write_text('<svg/>')
+        with self.assertRaises(field_guide.FieldGuideError):
+            field_guide.inline_svgs('<!-- inline-svg: assets/../secret.svg -->', self.tmp)
+        with self.assertRaises(field_guide.FieldGuideError):
+            field_guide.inline_svgs('<!-- inline-svg: assets/missing.svg -->', self.tmp)
+        out = field_guide.inline_svgs('x <!-- inline-svg: assets/specimens/alpha.svg --> y', self.tmp)
+        self.assertEqual(out, 'x <div class="diagram-frame" markdown="0">'
+                              '<svg xmlns="http://www.w3.org/2000/svg"></svg></div> y')
+
+    def test_dots_render_every_state(self):
+        self.assertIn('sighting--none', field_guide.dots(0, 0))
+        self.assertIn('●●●', field_guide.dots(3, 3))
+        self.assertIn('sighting--clean', field_guide.dots(3, 3))
+        self.assertIn('●○○', field_guide.dots(1, 3))
+        self.assertIn('sighting--mixed', field_guide.dots(1, 3))
+        self.assertIn('○', field_guide.dots(0, 1))
+        self.assertIn('sighting--failed', field_guide.dots(0, 1))
+        self.assertIn('aria-label="1 of 3 passed"', field_guide.dots(1, 3))
+
+    def test_html_in_data_is_escaped(self):
+        self.guide['alpha']['binomial'] = '<b>x</b>'
+        self.write_guide()
+        header = field_guide.render_specimen_header(field_guide.load_guide(self.tmp)[0])
+        self.assertIn('&lt;b&gt;x&lt;/b&gt;', header)
+        self.assertNotIn('<b>x</b>', header)
+
+
+if __name__ == '__main__':
+    unittest.main()

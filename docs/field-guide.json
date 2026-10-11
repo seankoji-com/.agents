@@ -1,0 +1,59 @@
+{
+  "$comment": "Field-guide metadata for the documentation site. Keyed by plugin name; every plugins/<name>/plugin.json must have an entry here and vice versa (tests/test_field_guide.py). Habitat, diet, and field marks are reviewed by hand against the plugin's entry.md.",
+  "imps": {
+    "plate": "I",
+    "binomial": "Daemon diligens",
+    "summary": "Implements one bounded change and refuses to call it done without evidence at the current revision.",
+    "habitat": "A T3 thread attached to a repository, with a small Python core holding run state.",
+    "diet": "One task with an observable success condition and a stated endstate: local or PR.",
+    "field_marks": "Any edit after verification makes the evidence stale. Blocked is a complete answer. Delegation goes through T3 only."
+  },
+  "elephant-goldfish": {
+    "plate": "II",
+    "binomial": "Memoria duplex",
+    "summary": "Turns an uncertain problem into a testable brief, then checks the design document that comes out of it.",
+    "habitat": "A thinking directory inside your repository.",
+    "diet": "A problem you cannot yet state as a task.",
+    "field_marks": "Thinking ends at the handoff and never starts implementation. Cold review and factual verification are kept as separate verdicts."
+  },
+  "ape": {
+    "plate": "III",
+    "binomial": "Simia studiosa",
+    "summary": "Studies open-source repositories for ideas that transfer to a specific gap in yours.",
+    "habitat": "A research workspace of cloned repositories, outside your project.",
+    "diet": "A named gap and a GitHub search, or one repository URL.",
+    "field_marks": "Read-only in the current project. Every recommendation cites source lines and proposes a small experiment. Never runs third-party code."
+  },
+  "prompt-builder": {
+    "plate": "IV",
+    "binomial": "Avis architecta",
+    "summary": "Builds a reusable prompt and compares it against frozen cases before calling it better.",
+    "habitat": "Wherever you ask it to save the prompt, its brief, and the frozen cases.",
+    "diet": "A task you keep asking an agent to do.",
+    "field_marks": "Never executes the prompt's underlying task. Chooses syntax for your target model instead of assuming one provider."
+  },
+  "babysitter": {
+    "plate": "V",
+    "binomial": "Gallina patiens",
+    "summary": "Sits on an authorized pull request through review comments, failing checks, and conflicts until it lands.",
+    "habitat": "One pull request, a repository, or an organization, within the scope you state.",
+    "diet": "Review findings, red checks, and base-branch drift.",
+    "field_marks": "\"Review\" alone authorizes inspection only. Pushes to the PR branch only. Never bypasses protected-branch rules. T3 owns the watch."
+  },
+  "agent-tuneup": {
+    "plate": "VI",
+    "binomial": "Gryllus auditor",
+    "summary": "Audits agent configuration files and reports findings without weakening a single permission.",
+    "habitat": "Your settings files: Claude JSON, OpenCode JSON or JSONC, Codex TOML.",
+    "diet": "An explicitly supplied settings path and the provider format it belongs to.",
+    "field_marks": "Read-only by default. The settings format is independent of the provider running the audit. Codex TOML needs Python 3.11 and says so."
+  },
+  "offload-sidecar": {
+    "plate": "VII",
+    "binomial": "Naucrates lateralis",
+    "summary": "Transforms files by path and returns a small receipt with output hashes instead of the contents.",
+    "habitat": "Alongside the main thread, as a shell command or an optional MCP stdio server.",
+    "diet": "A JSON request naming an operation, an input path, and an output path.",
+    "field_marks": "Deterministic operations need only Python. Model operations use Ollama or agy engines you configure. Cloud calls need explicit authorization."
+  }
+}

@@ -8,7 +8,7 @@ Phase `verifying` at generation 20. Readiness: `incomplete`. Repository `~/.t3/s
 
 - Reason: child ended failed; raw output artifacts/results/12b64cf25e05-review-1-r2-raw.txt
 - Code: `task_failed`; tasks: review-1
-- Resume: `python3 ~/.local/share/t3-plugins/imps/current/core/cli.py unblock --state-root /tmp/claude-1000/a1/state --run-id 20261009-134537-5ede92 --blocker-id B-bc5080fe68 --decision retry-task --task-id review-1`
+- Resume: `python3 ~/.local/share/t3-plugins/imps/current/core/cli.py unblock --state-root $TMPDIR/a1/state --run-id 20261009-134537-5ede92 --blocker-id B-bc5080fe68 --decision retry-task --task-id review-1`
 - Then paste into the same T3 thread: `Read ~/.local/share/t3-plugins/imps/current/entry.md and run: resume 20261009-134537-5ede92`
 
 ## Requirements
@@ -35,4 +35,4 @@ Counts: passed 2, failed 0, unverified 0, unavailable 0, waived 0. Waived is nev
 
 ## Evidence
 
-Artifacts: `/tmp/claude-1000/a1/state/runs/20261009-134537-5ede92/artifacts` (never removed by cleanup).
+Artifacts: `$TMPDIR/a1/state/runs/20261009-134537-5ede92/artifacts` (never removed by cleanup).

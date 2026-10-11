@@ -30,6 +30,6 @@
   },
   "interventions": 0,
   "elapsed_seconds": 150.0,
-  "note": "FAIL: reconciliation correct, but child cited a relative evidence path (result_rejected). state root /tmp/claude-1000/p2/state",
+  "note": "FAIL: reconciliation correct, but child cited a relative evidence path (result_rejected). state root $TMPDIR/p2/state",
   "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/pending-task/2"
 }

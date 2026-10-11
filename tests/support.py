@@ -23,7 +23,7 @@ TIMEOUT = 120  # seconds; a hung child process fails the test instead of the sui
 
 GIT_ENV = {'GIT_AUTHOR_NAME': 'Fixture', 'GIT_AUTHOR_EMAIL': 'fixture@example.invalid',
            'GIT_COMMITTER_NAME': 'Fixture', 'GIT_COMMITTER_EMAIL': 'fixture@example.invalid',
-           'GIT_CONFIG_NOSYSTEM': '1'}
+           'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull}  # a global hooksPath or gpgsign must not break fixtures
 
 
 def git(cwd, *args, check=True):
@@ -197,6 +197,10 @@ class CoreTestCase(unittest.TestCase):
             repo = self.tmp / f'{name}{counter}'
         shutil.copytree(FIXTURES / fixture, repo, ignore=shutil.ignore_patterns('__pycache__', '.claude', '.mcp.json'))
         git(repo, 'init', '-q', '-b', 'main')
+        # Checks run Python inside the fixture. GIT_CONFIG_GLOBAL hides the developer's
+        # global excludes, so ignore bytecode here rather than rely on them (CI also
+        # sets PYTHONDONTWRITEBYTECODE).
+        (repo / '.git' / 'info' / 'exclude').write_text('__pycache__/\n')
         git(repo, 'add', '-A')
         git(repo, 'commit', '-q', '-m', 'fixture')
         return repo

@@ -35,4 +35,4 @@ Counts: passed 2, failed 0, unverified 0, unavailable 0, waived 0. Waived is nev
 
 ## Evidence
 
-Artifacts: `/tmp/claude-1000/b3/state/runs/20261009-131816-d56576/artifacts` (never removed by cleanup).
+Artifacts: `$TMPDIR/b3/state/runs/20261009-131816-d56576/artifacts` (never removed by cleanup).

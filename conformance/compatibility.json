@@ -146,7 +146,7 @@
             "elapsed_seconds": 161.0,
             "failed_checks": [],
             "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/bugfix/1",
-            "note": "parent sandbox made ~/.local/state read-only; agent used the documented --state-root fallback /tmp/claude-1000/b1/state"
+            "note": "parent sandbox made ~/.local/state read-only; agent used the documented --state-root fallback $TMPDIR/b1/state"
           },
           {
             "repeat": 2,
@@ -158,7 +158,7 @@
             "elapsed_seconds": 106.0,
             "failed_checks": [],
             "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/bugfix/2",
-            "note": "state root fallback /tmp/claude-1000/b2/state"
+            "note": "state root fallback $TMPDIR/b2/state"
           },
           {
             "repeat": 3,
@@ -170,7 +170,7 @@
             "elapsed_seconds": 108.0,
             "failed_checks": [],
             "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/bugfix/3",
-            "note": "state root fallback /tmp/claude-1000/b3/state"
+            "note": "state root fallback $TMPDIR/b3/state"
           }
         ],
         "missing-capability": [
@@ -184,7 +184,7 @@
             "elapsed_seconds": 51.0,
             "failed_checks": [],
             "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/missing-capability/1",
-            "note": "state root fallback /tmp/claude-1000/m1/state"
+            "note": "state root fallback $TMPDIR/m1/state"
           },
           {
             "repeat": 2,
@@ -196,7 +196,7 @@
             "elapsed_seconds": 34.0,
             "failed_checks": [],
             "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/missing-capability/2",
-            "note": "state root fallback /tmp/claude-1000/m2/state"
+            "note": "state root fallback $TMPDIR/m2/state"
           },
           {
             "repeat": 3,
@@ -208,7 +208,7 @@
             "elapsed_seconds": 32.0,
             "failed_checks": [],
             "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/missing-capability/3",
-            "note": "state root fallback /tmp/claude-1000/m3/state"
+            "note": "state root fallback $TMPDIR/m3/state"
           }
         ],
         "adverse-review": [
@@ -240,7 +240,7 @@
             "elapsed_seconds": 104.0,
             "failed_checks": [],
             "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/pending-task/1",
-            "note": "state root /tmp/claude-1000/p1/state; child skipped sleep 90 (its harness blocks foreground sleep); one correction round r2 for a malformed first result"
+            "note": "state root $TMPDIR/p1/state; child skipped sleep 90 (its harness blocks foreground sleep); one correction round r2 for a malformed first result"
           },
           {
             "repeat": 2,
@@ -254,7 +254,7 @@
               "result accepted after resume"
             ],
             "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/pending-task/2",
-            "note": "FAIL: reconciliation correct, but child cited a relative evidence path (result_rejected). state root /tmp/claude-1000/p2/state"
+            "note": "FAIL: reconciliation correct, but child cited a relative evidence path (result_rejected). state root $TMPDIR/p2/state"
           },
           {
             "repeat": 3,
@@ -266,7 +266,7 @@
             "elapsed_seconds": 188.0,
             "failed_checks": [],
             "artifacts": "conformance/results/0.0.46-nightly.20261008.2849/claudeAgent/pending-task/3",
-            "note": "state root /tmp/claude-1000/p3/state; waiting_for_children observed live and handled; collect_result via t3_thread_read"
+            "note": "state root $TMPDIR/p3/state; waiting_for_children observed live and handled; collect_result via t3_thread_read"
           }
         ],
         "provider-switch": [
@@ -563,7 +563,7 @@
     },
     {
       "title": "Observed but not adopted",
-      "text": "This T3 build injects agent instructions that mention an ACP fallback transport and exposes link_pull_request, watch_pull_request and preview tools as standalone MCP tools. The design rubric deliberately limits imps to the pinned orchestrator doc's surface (link_pull_request as a t3_thread_update action, no PR watcher, preview tools found by description), so imps does not use them; a later version can adopt them once the doc lists them."
+      "text": "This T3 build injects agent instructions that mention an ACP fallback transport and exposes link_pull_request, watch_pull_request and preview tools as standalone MCP tools. At plugin 0.1.0, the version this ledger records, imps was limited to the pinned orchestrator doc's surface (link_pull_request as a t3_thread_update action, no PR watcher, preview tools found by description) and did not call them. imps 0.2.0 adopted link_pull_request, watch_pull_request and unwatch_pull_request; the ledger has not been re-run since."
     },
     {
       "title": "Usage and cost",

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="t3-plugins: change the model, keep the workflow">
+<style>
+@font-face{font-family:"Fraunces";src:url("fonts/fraunces-variable.woff2") format("woff2");font-weight:300 900}
+@font-face{font-family:"IBM Plex Sans";src:url("fonts/ibm-plex-sans-variable.woff2") format("woff2");font-weight:100 700}
+@font-face{font-family:"IBM Plex Mono";src:url("fonts/ibm-plex-mono-400.woff2") format("woff2");font-weight:400}
+.d{font-family:"Fraunces",Georgia,serif}.s{font-family:"IBM Plex Sans",system-ui,sans-serif}.m{font-family:"IBM Plex Mono",ui-monospace,monospace}
+</style>
+<rect width="1200" height="630" fill="#eef0e8"/>
+<rect x="36" y="36" width="1128" height="558" fill="none" stroke="#1f2a24" stroke-width="2"/>
+<rect x="44" y="44" width="1112" height="542" fill="none" stroke="#c6cdbf" stroke-width="1"/>
+<text x="84" y="112" class="d" font-style="italic" font-size="26" fill="#80601a">Plate I</text>
+<text x="84" y="228" class="d" font-size="84" font-weight="600" letter-spacing="-2.2" fill="#1f2a24">Change the model.</text>
+<text x="84" y="318" class="d" font-size="84" font-weight="600" letter-spacing="-2.2" fill="#1f2a24">Keep the workflow.</text>
+<text x="84" y="384" class="s" font-size="27" fill="#55615a">Seven agent workflows for T3 Code. Any provider.</text>
+<text x="84" y="424" class="s" font-size="27" fill="#55615a">Python standard library. Evidence before completion.</text>
+<rect x="84" y="474" width="534" height="54" fill="#e2e6da" stroke="#c6cdbf"/>
+<text x="104" y="509" class="m" font-size="23" fill="#1f2a24"><tspan fill="#55615a">$ </tspan>brew install seankoji-com/tap/t3-plugins</text>
+<text x="84" y="566" class="s" font-size="20" fill="#55615a">seankoji-com.github.io/t3-plugins</text>
+<g transform="translate(809 127) scale(3.6)" opacity="1">
+<path d="M37 24 L29 6 L43 20 Z" fill="#2f6b4f"/><path d="M59 24 L67 6 L53 20 Z" fill="#2f6b4f"/>
+<circle cx="48" cy="38" r="19" fill="#2f6b4f"/>
+<path d="M62 74 Q86 82 82 60" fill="none" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
+<path d="M77 62 L82 50 L87 62 Z" fill="#2f6b4f"/>
+<circle cx="48" cy="68" r="17" fill="#2f6b4f"/><circle cx="29" cy="66" r="4.5" fill="#2f6b4f"/><circle cx="67" cy="66" r="4.5" fill="#2f6b4f"/>
+<ellipse cx="39" cy="86" rx="8" ry="4" fill="#2f6b4f"/><ellipse cx="57" cy="86" rx="8" ry="4" fill="#2f6b4f"/>
+</g>
+<g transform="translate(800 118) scale(3.6)">
+<path d="M37 24 L29 6 L43 20 Z" fill="#1f2a24"/><path d="M59 24 L67 6 L53 20 Z" fill="#1f2a24"/>
+<circle cx="48" cy="38" r="19" fill="#1f2a24"/>
+<path d="M62 74 Q86 82 82 60" fill="none" stroke="#1f2a24" stroke-width="3.5" stroke-linecap="round"/>
+<path d="M77 62 L82 50 L87 62 Z" fill="#1f2a24"/>
+<circle cx="48" cy="68" r="17" fill="#1f2a24"/><circle cx="29" cy="66" r="4.5" fill="#1f2a24"/><circle cx="67" cy="66" r="4.5" fill="#1f2a24"/>
+<ellipse cx="39" cy="86" rx="8" ry="4" fill="#1f2a24"/><ellipse cx="57" cy="86" rx="8" ry="4" fill="#1f2a24"/>
+<circle cx="41" cy="37" r="4.5" fill="#eef0e8"/><circle cx="55" cy="37" r="4.5" fill="#eef0e8"/>
+<circle cx="42" cy="37.5" r="1.9" fill="#1f2a24"/><circle cx="56" cy="37.5" r="1.9" fill="#1f2a24"/>
+<path d="M40 47 Q48 53 56 47" fill="none" stroke="#eef0e8" stroke-width="2" stroke-linecap="round"/>
+</g>
+<text x="972" y="520" class="m" font-size="22" font-weight="500" fill="#1f2a24" text-anchor="middle">imps</text>
+<text x="972" y="552" class="d" font-style="italic" font-size="24" fill="#55615a" text-anchor="middle">Daemon diligens</text>
+</svg>

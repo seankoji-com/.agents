@@ -49,7 +49,7 @@
         {
           "path": "artifacts/evidence/0cf31df2f13d-answer.md",
           "sha256": "0cf31df2f13d301b9a800c0ceb9e77674a78575b67de66ed4963459ecb70b4cc",
-          "source": "/tmp/claude-1000/p1/state/runs/20261009-135214-4e7d77/scratch/answer.md"
+          "source": "$TMPDIR/p1/state/runs/20261009-135214-4e7d77/scratch/answer.md"
         }
       ],
       "evidence_kind": "inspection"
@@ -138,5 +138,5 @@
   "next_actions": [
     "report"
   ],
-  "evidence_dir": "/tmp/claude-1000/p1/state/runs/20261009-135214-4e7d77/artifacts"
+  "evidence_dir": "$TMPDIR/p1/state/runs/20261009-135214-4e7d77/artifacts"
 }

@@ -91,7 +91,29 @@ class CatalogTest(unittest.TestCase):
         current = self.prefix / 'ape/current'
         current.unlink()
         current.symlink_to(ROOT / 'plugins/ape')
-        self.call('doctor', 'ape', expected=1)
+        receipt = json.loads(self.call('doctor', 'ape', expected=1).stdout)
+        self.assertEqual(receipt['errors'], ['installation_invalid: missing or external current symlink'])
+
+    def test_doctor_names_a_missing_installation(self):
+        receipt = json.loads(self.call('doctor', 'ape', expected=1).stdout)
+        self.assertEqual(receipt['errors'], ['not_installed: run t3-plugins install ape'])
+
+    def test_uninstall_forwards_force_and_version(self):
+        first = json.loads(self.call('install', 'ape').stdout)['data']
+        entry = self.prefix / 'ape/current/entry.md'
+        entry.write_text('operator edit')
+        receipt = json.loads(self.call('uninstall', 'ape', '--version', 'no-such', expected=2).stdout)
+        self.assertEqual(receipt['error']['code'], 'unknown_version')
+        self.assertEqual(entry.read_text(), 'operator edit')
+        receipt = json.loads(self.call('uninstall', 'ape', '--version', first['version'], '--force').stdout)['data']
+        self.assertEqual(receipt['versions'], [first['version']])
+        self.assertEqual(receipt['kept_modified'], [])
+        self.assertFalse(Path(first['version_dir']).exists())
+
+    def test_every_subcommand_has_help(self):
+        text = self.call('--help').stdout
+        for name in ('path', 'prompt', 'doctor'):
+            self.assertRegex(text, rf'(?m)^\s+{name}\s{{2,}}\S', f'{name} needs help text')
 
     def test_installed_sidecar_transform_works_outside_checkout(self):
         self.call('install', 'offload-sidecar')

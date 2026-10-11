@@ -4,7 +4,7 @@ t3-plugins has three execution paths. Instructions guide the current agent. Loca
 helpers do deterministic work. T3 owns delegated tasks and browser/PR interactions.
 The repository does not implement another model client or task scheduler.
 
-![A T3 thread reads a plugin entry, loads one playbook, then uses local helpers or T3 host tools. imps records revision-bound evidence in the shared core.](assets/architecture.svg){ .diagram }
+<!-- inline-svg: assets/architecture.svg -->
 
 ## Package boundaries
 
@@ -13,11 +13,15 @@ The repository does not implement another model client or task scheduler.
 | `plugins/<name>/` | Entry, selected playbooks, helper scripts, templates | May use the shared runtime contract and core |
 | `shared/` | Provider-neutral agent instructions for using T3 | No provider SDK or executable orchestration |
 | `core/` | imps run state, ownership, transitions, evidence, readiness | Python standard library; no plugin imports or vocabulary |
-| `scripts/` | Catalog, installation, conformance, release tooling | Finds plugins through their manifests |
+| `bin/` | Source-checkout launcher for the catalog CLI | Thin wrapper over `scripts/catalog.py` |
+| `scripts/` | Catalog, installation, conformance, release, and site-build tooling | Finds plugins through their manifests |
 | `packaging/` | Homebrew formula template | Calls the same installer used from source |
 | `tests/` | Deterministic regression tests and fixtures | No paid models or live GitHub mutations |
-| `conformance/` | Dated live-provider observations | Separate from unit-test success |
-| `docs/` | Human guides and GitHub Pages source | Documentation dependencies are build-time only |
+| `conformance/` | Dated live-provider observations and the pre-merge review rounds under `review/` | Separate from unit-test success |
+| `thinking/` | The discovery notes and handoff the port was built from | Historical record, not instructions |
+| `docs/` | Human guides and GitHub Pages source; the field guide data and bundled fonts | Documentation dependencies are build-time only |
+| `overrides/` | MkDocs Material templates for the homepage and page metadata | Reads only `config.extra` filled by the site hook |
+| `launch/` | Announcement drafts and repository-settings commands | Not installed, not published |
 | `migration/` | Original source revision and copied-file hashes | Audit trail, not a second source tree |
 
 ## Progressive instruction loading
