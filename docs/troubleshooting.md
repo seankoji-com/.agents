@@ -20,10 +20,12 @@ reinstalling. Preserve your edits elsewhere, or deliberately use `install PLUGIN
 --force` to overwrite the affected snapshot. The agent's `doctor` operation separately
 checks workflow prerequisites and T3 capabilities.
 
-## The operation is not a slash command
+## The skill is missing from the slash menu
 
-That is expected. Run `t3-plugins prompt PLUGIN OPERATION`, then paste the output into
-T3. Entries are portable files; they do not depend on harness-specific command discovery.
+Install the adapter into the selected provider's skill root, enable **Show skills in
+slash menu**, and restart the agent session. Check custom provider homes and skill
+permissions. See [slash commands](slash-commands.md). The old Claude colon commands
+remain separate. Use `t3-plugins prompt PLUGIN OPERATION` as the direct-entry fallback.
 
 ## A T3 task or watch tool is missing
 

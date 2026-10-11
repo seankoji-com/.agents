@@ -9,7 +9,7 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
-from . import contract, schema, snapshot
+from . import contract, review as review_rules, schema, snapshot
 from .errors import InvalidInput
 from .fsutil import read_json
 from .store import now_iso
@@ -127,6 +127,7 @@ def build(plan: dict, defaults: dict, *, state_root: Path, plugin: dict, clock_i
                                                f'({task["role"]!r}); configure roles or set work_role',
                                {'task': task['id'], 'role': task['role']})
     review = dict({'required': False, 'role': None, 'waivable': True}, **(policy.get('review') or {}))
+    review_rules.perspectives(review)
     if review['required'] and review['role'] not in roles:
         raise InvalidInput('unknown_role', f'review role {review["role"]!r} is not configured')
     budget = int(policy.get('budget_seconds', 14400))

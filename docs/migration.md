@@ -21,7 +21,8 @@ The original MIT license is retained.
 ## Deliberate changes
 
 Claude slash commands become entry operations. Use `t3-plugins prompt PLUGIN OPERATION`
-and paste the result into T3. Old command names are not installed as hidden aliases.
+and paste the result into T3, or install the [slash-menu skill adapters](slash-commands.md).
+Old colon commands are not registered as hidden aliases.
 `imps:imp-agency` becomes `imps audit`, and `imps:issue-mode` becomes `imps issues`.
 
 Provider CLI brokers, fixed Haiku/Sonnet/Opus routes, and Claude Workflow scripts are
@@ -45,3 +46,25 @@ behavioral port, not byte-for-byte command compatibility. The original 1,700-lin
 command is replaced by the existing T3 core and focused playbooks. Legacy provider
 brokers and persona-specific execution are intentionally replaced, not claimed as
 portable implementations. Live parity across every provider remains experimental.
+
+## imps workflow coverage
+
+| Source behavior | T3 destination |
+| --- | --- |
+| Free-text brief, constraints, task graph and bounded diagnosis | `run`, brief probes, bug-fix playbook and core task engine |
+| Numeric issue set and explicit issue-mode | `issues` and request classification |
+| Discussion seed | `discussion`, retained source artifact and normal run |
+| Checklist-file audit | `checklist`, non-executing parser and current-revision evidence |
+| Whole-repo audit and remediation plan | `audit`, dimension coverage and checklist output |
+| Blast-radius proof | `blast-radius` read-only consumer tracing |
+| Optional five-persona panel | `--personas`, required core review perspectives |
+| PR follow-up | `prs` handoff to the installed babysitter and T3 watches |
+| Resume, cancellation, worktree isolation and review repairs | Core claims, task reconciliation and revision-bound evidence |
+| Claude/Codex/OpenCode execution brokers | Replaced by T3 delegation; no provider CLI brokers |
+| Automatic Discussion replies and persona account posts | Explicit authorization and actual remote receipts |
+| Banners and automatic personal learning writes | Banners omitted; personal state is not written automatically |
+
+The input playbooks use agent judgment; the core owns panel dispatch and readiness.
+Deterministic tests cover classification, installed helper behavior, ownership, and review gates;
+they do not prove live model execution of every new mode. See
+[slash commands](slash-commands.md) for discovery and verification by provider.

@@ -554,12 +554,18 @@ def _review_actions(ctx, state):
                         [task['id']] if task else [])
     reuse = task if task and task['status'] == 'unavailable' else None
     new_round = round_no if reuse else round_no + 1
+    pending = next((row for row in acceptance.evaluate(state, ctx.state_root, ctx.run_dir)['review'].get(
+        'perspectives', [{'id': 'default', 'status': 'unverified'}]) if row['status'] != 'passed'), None)
+    perspective_id = (reuse or {}).get('perspective_id') or (pending or {}).get('id', 'default')
+    perspective_brief = (state['policy']['review'].get('perspectives') or {}).get(perspective_id, '')
     spec = {
-        'id': f'review-{new_round}', 'kind': 'review', 'purpose': 'independent review of the current revision',
+        'id': f'review-{new_round}', 'kind': 'review', 'purpose': 'independent review of the current revision' +
+        (f' from perspective {perspective_id}: {perspective_brief}' if perspective_brief else ''),
         'role': role, 'executor': 'delegate', 'writes': False, 'depends_on': [], 'requirement_ids': [],
         'acceptance': [], 'constraints': [], 'files': [], 'status': 'pending', 'rounds': list((reuse or {}).get('rounds') or []),
         'target': picked['target'], 'target_why': picked['why'], 'ephemeral': True,
         'unavailable_targets': sorted(skipped), 'review_round': new_round,
+        'perspective_id': perspective_id,
     }
     built, _ = _dispatch_action(ctx, state, spec, 'initial')
     return {'actions': [built]}

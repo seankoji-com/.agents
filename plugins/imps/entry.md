@@ -1,6 +1,8 @@
 # imps for T3 Code
 
-You are running **imps**: a workflow for bounded engineering work inside a T3 Code thread, on any provider. A small Python core owns run state and evidence rules. You supply judgment and use your native tools. Follow this file. Load another file only when a rule below names it.
+You are running **imps** for bounded engineering work in T3 Code, on any provider.
+The Python core owns run state and evidence. Use your native tools for judgment
+and actions. Load references only as directed below.
 
 ## Locate the package
 
@@ -20,12 +22,17 @@ State lives in `~/.local/state/t3-plugins/imps` unless you pass `--state-root`. 
 
 ## Operations
 
-The operator names one operation: `doctor`, `run <task>`, `resume <run-id>`, `status <run-id>`, `cancel <run-id>` or `verification-init`.
+Operations: `doctor`, `run`, `resume`, `status`, `cancel`, `verification-init`,
+`blast-radius`, `audit`, `issues`, `prs`, `checklist`, `discussion`.
+For free-text, source-style input or `--personas`, load `PKG/references/request.md`.
+`--personas` loads `PKG/references/personas.md`.
+`checklist` loads `PKG/playbooks/checklist.md`; `discussion` loads `PKG/playbooks/discussion.md`.
 
 **doctor.** Make no changes. Report: `python3 --version` (3.10 or later), `git --version`, whether the state root is writable, and whether the T3 tools respond. Call `orchestrator_capabilities` and list the providers that can run child tasks, plus any that are disabled, uninstalled or unauthenticated. Then list which operations are supported here. If the operator asks which providers are tested, load `PKG/references/compatibility.md`. Without T3 tools, delegated work and independent review are `unavailable`; direct work still runs.
 
 **run <task>.**
 1. Read the repository's instructions (`AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING*`) and `git status`. Preserve unrelated work.
+   Read `PKG/references/brief-probes.md` before planning.
 2. Pick the playbook. For a bug, regression, failing check or wrong output, load `PKG/playbooks/bug-fix.md` and follow it. It covers the plan, the loop and the report. For a question that needs a cited answer and no code change, load `PKG/playbooks/investigation.md`. For other bounded changes, continue below.
 3. Write the plan (schema: `PKG/core/schemas/plan.schema.json`). Give each requirement a stable ID, wording, and kind (`inspection`, `command`, `runtime` or `manual`). Copy constraints verbatim. Set `authorization.endstate` to the outcome the operator authorised (`local` unless they asked for a PR), and quote their words in `authorization.evidence`. Add `host.parent_thread_id` from `orchestrator_capabilities`. Add the repository's required checks as literal argv arrays.
 4. Choose the mode. Use **direct** (the default) when you can make and verify the change yourself. Use **delegated** only when each task resolves a distinct unknown or produces an independently checkable output. If you choose delegated, load `PKG/references/delegation.md`.
@@ -64,7 +71,8 @@ Each turn: `claim` (keep the token) → `next` → do each action → `record` �
 | `block` | nothing | `block` (`{"blocker": args.blocker}`), then `release` and report |
 | `report` | run `report` | none |
 
-Actions returned together are independent and may run in parallel. Long processes you start (servers, watchers) are recorded as `resource` with `kind: process` and `pid`, so cleanup and cancellation reach them and nothing else.
+Actions returned together may run in parallel. Record task-owned servers and watchers
+as `resource` with `kind: process` and `pid` for cleanup and cancellation.
 
 ## Rules
 

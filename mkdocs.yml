@@ -57,6 +57,7 @@ nav:
   - Why it is built this way: case-study.md
   - Get started:
       - Installation: getting-started.md
+      - Slash commands: slash-commands.md
       - Your first workflow: first-workflow.md
       - Troubleshooting: troubleshooting.md
   - Plugins:

@@ -291,6 +291,7 @@ def rec_dispatch(ctx, state, payload):
                 task['status'] = 'unavailable'
                 state.setdefault('reviews', []).append({
                     'round': task['review_round'], 'task_id': task['id'], 'selection': args['target'],
+                    'perspective_id': task.get('perspective_id', 'default'),
                     'why': args['why'], 'verdict': 'unavailable', 'detail': payload['error'],
                     'recorded_at': ctx.at, 'invalidated': 'superseded by the next chain candidate'})
             elif task.get('kind') == 'probe':
@@ -425,6 +426,7 @@ def _take_result(ctx, state, task, text):
             verdict = 'adverse'  # the brief's rule: any blocker or major finding makes the verdict adverse
         state.setdefault('reviews', []).append({
             'round': task['review_round'], 'task_id': task['id'], 'selection': task.get('target'),
+            'perspective_id': task.get('perspective_id', 'default'),
             'why': task.get('target_why'), 'verdict': verdict, 'reported_verdict': result['verdict'],
             'findings': result['findings'],
             'artifact': artifact, 'snapshot': bind['snapshot'], 'contract_hash': bind['contract_hash'],
@@ -887,6 +889,11 @@ def _check_policy(state, changes):
     if 'review' in changes:
         old = state['policy'].get('review') or {}
         review = dict(old, **(changes['review'] or {}))
+        from .review import perspectives
+        perspectives(review)
+        for key, value in (old.get('perspectives') or {}).items():
+            if (review.get('perspectives') or {}).get(key) != value:
+                raise Prohibited('policy_weakening', f'required review perspective {key} cannot be removed or changed')
         if old.get('required') and not review.get('required'):
             raise Prohibited('policy_weakening', 'a required review cannot be made optional')
         if not old.get('waivable', True) and review.get('waivable', True):

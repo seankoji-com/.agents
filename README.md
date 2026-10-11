@@ -28,8 +28,8 @@ t3-plugins doctor
 t3-plugins prompt imps doctor
 ```
 
-Paste the printed line into a T3 thread. No marketplace, no slash-command
-registration, no second model client. Install on the machine where your provider
+Paste the printed line into a T3 thread, or install the optional
+[slash-menu skill adapters](docs/slash-commands.md). Install on the machine where your provider
 executes tools. [Source installs, upgrades, and rollback](docs/getting-started.md).
 
 ![Scripted recording: install imps, run doctor, paste the generated prompt into T3](docs/assets/demo.svg)

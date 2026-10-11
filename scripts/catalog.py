@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import install as installer
+import skills
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -34,6 +35,10 @@ def main(argv=None):
     parser.add_argument('--prefix', default=os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins'))
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('list', help='list bundled plugins')
+    adapters = sub.add_parser('skills', help='install or remove T3 slash-menu skill adapters')
+    adapters.add_argument('action', choices=('install', 'uninstall'))
+    adapters.add_argument('plugin', nargs='?')
+    adapters.add_argument('--root', required=True, help='provider skill directory on the T3 environment')
     helps = {'path': 'print the installed entry path of one plugin',
              'prompt': 'print a prompt that reads the installed entry and runs REQUEST (default: doctor)',
              'doctor': 'check installed file integrity for all plugins or one named plugin'}
@@ -41,7 +46,7 @@ def main(argv=None):
         command = sub.add_parser(name, help=helps[name])
         command.add_argument('plugin', nargs='?' if name == 'doctor' else None)
         if name == 'prompt':
-            command.add_argument('request', nargs='*', default=['doctor'])
+            command.add_argument('request', nargs=argparse.REMAINDER, default=['doctor'])
     install = sub.add_parser('install', help='install all plugins or one named plugin')
     install.add_argument('plugin', nargs='?')
     install.add_argument('--dry-run', action='store_true')
@@ -67,6 +72,12 @@ def main(argv=None):
                 print(f"{meta['name']:20} {meta['description']}")
             return 0
         prefix = Path(args.prefix).expanduser().absolute()
+        if args.command == 'skills':
+            for meta in plugins:
+                receipt = (skills.install(args.root, prefix, meta) if args.action == 'install'
+                           else skills.uninstall(args.root, meta))
+                print(json.dumps(receipt))
+            return 0
         if args.command in ('install', 'uninstall', 'activate'):
             # Per-plugin atomic activation. An all-catalog install can be partial;
             # each receipt identifies what completed, and retries are idempotent.

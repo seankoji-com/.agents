@@ -18,7 +18,8 @@ t3-plugins prompt imps doctor
 
 `brew install` adds the catalog and imps command-line tools. `t3-plugins install`
 creates your user-owned snapshots. Paste the final command's output into T3.
-Installation does not edit provider settings or register slash commands.
+Installation does not edit provider settings. Optional [skill adapters](slash-commands.md)
+make the entries discoverable in T3's slash menu.
 
 To install just one plugin's snapshot, use `t3-plugins install ape`.
 `t3-plugins list` shows the bundled catalog.

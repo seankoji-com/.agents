@@ -17,8 +17,8 @@ t3-plugins prompt imps doctor
 ```
 
 Paste the printed line into a T3 thread. The agent reads the installed entry with
-whatever provider you have selected. No marketplace, no slash-command registration,
-no second model client. [Source installs](getting-started.md#from-source) work the
+whatever provider you have selected. Optional [skill adapters](slash-commands.md)
+expose entries in the slash menu. [Source installs](getting-started.md#from-source) work the
 same way.
 
 <div class="demo" markdown="0">

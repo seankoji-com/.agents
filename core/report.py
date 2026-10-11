@@ -38,6 +38,7 @@ def build(ctx, state: dict) -> dict:
                                   'cancel': r.get('cancel'), 'dispatch_error': r.get('dispatch_error')}
                                  for r in task.get('rounds') or []]})
     reviews = [{'round': r['round'], 'verdict': r['verdict'], 'selection': r.get('selection'), 'why': r.get('why'),
+                'perspective_id': r.get('perspective_id', 'default'),
                 'host_task_id': r.get('host_task_id'), 'client_request_id': r.get('client_request_id'),
                 'findings': r.get('findings', []), 'invalidated': r.get('invalidated'),
                 'artifact': r.get('artifact')} for r in state.get('reviews', [])]
@@ -102,6 +103,8 @@ def markdown(report: dict) -> str:
         lines += ['## Checks', ''] + [f'- `{shlex.join(row["argv"])}`: {row["status"]}' for row in report['checks']] + ['']
     review = report['review']
     lines += ['## Review', '', f'- Required: {review["required"]}; status: {review["status"]}']
+    for row in review.get('perspectives', []):
+        lines.append(f'- Perspective {row["id"]}: {row["status"]}')
     for row in report['reviews']:
         target = row.get('selection') or {}
         lines.append(f'- Round {row["round"]}: {row["verdict"]} by {target.get("providerInstanceId")}/'

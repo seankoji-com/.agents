@@ -15,7 +15,9 @@
     "blast-radius",
     "audit",
     "issues",
-    "prs"
+    "prs",
+    "checklist",
+    "discussion"
   ],
   "kind": "workflow",
   "compatibility": "partial"
