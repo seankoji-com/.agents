@@ -9,10 +9,11 @@ by issue #15 §7.
 
 The upstream tests distinguish one identity design, rather than the reported bug.
 Both old fixes use an admin-directory owner token and fail those design assertions.
-Task B is therefore gated by `checks/task_b.py`, frozen before new runs at SHA-256
-`58f371bb073bd5c061363c1e0ad61d23077f1c3a4aa12086862006562be4b8ca`.
-The grader records a real worktree through the target core CLI, removes and recreates
-it, then overrides only the two recorded inode numbers. Real nanosecond timestamps,
+The corrected Task B gate is `checks/task_b.py`, at SHA-256
+`6c5b428ec4b822f1681a22204a2cdec6ceacb4dd322027ec270bf242bdc46fb2`.
+The grader records a real worktree through the target core CLI and snapshots every
+path in the worktree and admin directory. It removes and recreates it, then simulates inode
+reuse through stat, descriptor, pathlib and directory-entry APIs. Real nanosecond timestamps,
 device fields, files and Git operations remain intact. It requires both refusal of
 replacement cleanup and an offered command for an untouched owned worktree.
 
@@ -20,8 +21,15 @@ Validation is recorded in `checks/task_b_validation.json`: the unfixed tree fail
 `d6bed53` and both old fixes pass. Old summaries retain the upstream test output as
 `matches_upstream_design`, an informational field, and add `behaviour_grader`.
 References below and in the frozen rubric to Task B's hidden-test gate are superseded
-by this amendment. The upstream tests and full suite remain informational. No worker
-prompt, execution setting, attempt rule, token parser, Task A check or rubric changes.
+by this amendment. The upstream tests and full suite remain informational. The frozen summariser remains unchanged: after it runs, the executor renames
+`hidden_tests` to `matches_upstream_design` and adds the separate behaviour result.
+No worker prompt, execution setting, attempt rule, token parser, Task A check or rubric changes.
+
+The first grader passed two inode-only mutants. Its correction came after the four
+new workers launched. Those attempts are retained as informational; they cannot
+satisfy REQ-B-GRADER's freeze-before-launch condition. Stage 5 remains blocked on
+that condition, even if their output checks pass. A valid comparison requires a
+new authorised benchmark cycle with this corrected grader frozen before launch.
 
 The benchmark compares two imps versions on two tasks: the **old** package (built from
 `6e4cf82`, tag `bench/old-imps`) and the **new** package (built in stage 5 from the final

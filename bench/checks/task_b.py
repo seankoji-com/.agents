@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 from unittest.mock import patch
+from contextlib import ExitStack
 
 
 class InodeStat:
@@ -43,6 +44,82 @@ def inode_wrapper(real, numbers):
         key = os.path.abspath(os.fsdecode(path)) if isinstance(path, (str, bytes, os.PathLike)) else None
         return InodeStat(found, numbers[key]) if key in numbers else found
     return wrapped
+
+
+def inode_snapshot(roots):
+    """Capture every existing path, without relying on the target identity schema."""
+    found = {}
+    for root in roots:
+        paths = [root, *root.rglob('*')] if root.is_dir() else [root]
+        for path in paths:
+            stat = path.lstat()
+            found[str(path)] = stat.st_ino
+    return found
+
+
+class ReusedInodes:
+    """Override by real device/inode, so descriptors and extra paths are covered."""
+
+    def __init__(self, before):
+        self.mapping = {}
+        self.hits = 0
+        self.paths = 0
+        for path, inode in before.items():
+            try:
+                current = os.lstat(path)
+            except FileNotFoundError:
+                continue  # Missing owner files stay missing.
+            key = (current.st_dev, current.st_ino)
+            if key in self.mapping and self.mapping[key] != inode:
+                raise RuntimeError('ambiguous hardlink inode mapping')
+            self.mapping[key] = inode
+            self.paths += 1
+
+    def convert(self, stat):
+        key = (stat.st_dev, stat.st_ino)
+        if key in self.mapping:
+            self.hits += 1
+            return InodeStat(stat, self.mapping[key])
+        return stat
+
+    def wrap(self, real):
+        def wrapped(*args, **kwargs):
+            return self.convert(real(*args, **kwargs))
+        return wrapped
+
+    def wrap_scandir(self, real):
+        owner = self
+        class Entry:
+            def __init__(self, entry): self.entry = entry
+            def __getattr__(self, name): return getattr(self.entry, name)
+            def __fspath__(self): return os.fspath(self.entry)
+            def inode(self): return owner.convert(self.entry.stat(follow_symlinks=False)).st_ino
+            def stat(self, *, follow_symlinks=True):
+                return owner.convert(self.entry.stat(follow_symlinks=follow_symlinks))
+        class Iterator:
+            def __init__(self, iterator): self.iterator = iterator
+            def __iter__(self): return self
+            def __next__(self): return Entry(next(self.iterator))
+            def __enter__(self): self.iterator.__enter__(); return self
+            def __exit__(self, *args): return self.iterator.__exit__(*args)
+            def close(self): return self.iterator.close()
+        def wrapped(*args, **kwargs): return Iterator(real(*args, **kwargs))
+        return wrapped
+
+    def patches(self):
+        stack = ExitStack()
+        # Python 3.10 pathlib keeps bound accessor functions. Capture and patch
+        # them separately, before os.stat itself is replaced.
+        accessor = getattr(Path, '_accessor', None)
+        if accessor is not None:
+            for name in ('stat', 'lstat'):
+                if hasattr(accessor, name):
+                    stack.enter_context(patch.object(accessor, name, self.wrap(getattr(accessor, name))))
+            if hasattr(accessor, 'scandir'):
+                stack.enter_context(patch.object(accessor, 'scandir', self.wrap_scandir(accessor.scandir)))
+        stack.enter_context(patch.multiple(os, stat=self.wrap(os.stat), lstat=self.wrap(os.lstat),
+                                          fstat=self.wrap(os.fstat), scandir=self.wrap_scandir(os.scandir)))
+        return stack
 
 
 def command(argv, cwd, env):
@@ -112,28 +189,35 @@ def probe(tree: Path) -> dict:
                        'path': args['path'], 'branch': args['branch'], 'task_id': 'fix'}, 'resource')
         state = json.loads((root / 'state/runs' / run_id / 'run.json').read_text())
         item = next(r for r in state['resources'] if r['kind'] == 'worktree')
-        identity = item['identity']
-        numbers = {str(Path(identity['gitdir']).resolve()): identity['gitdir_inode'],
-                   str(Path(item['path']) / '.git'): identity['dotgit_inode']}
+        gitdir = Path(command(['git', '-C', item['path'], 'rev-parse', '--absolute-git-dir'], repo, env))
+        numbers = inode_snapshot([Path(item['path']), gitdir])
         untouched = engine.cleanup_action(item)['args']
-        positive = untouched['argv'] is not None and untouched['identity'] == 'live'
+        positive = untouched['argv'] is not None
         git('worktree', 'remove', item['path'])
         git('worktree', 'add', '-q', item['path'], item['branch'])
-        before = {p: os.lstat(p) for p in numbers}
-        with patch.multiple(os, stat=inode_wrapper(os.stat, numbers), lstat=inode_wrapper(os.lstat, numbers)):
-            # Explicitly prove that all recorded inode numbers match, while the
+        simulation = ReusedInodes(numbers)
+        before = {p: os.lstat(p) for p in numbers if Path(p).exists() or Path(p).is_symlink()}
+        fields_real = True
+        with simulation.patches():
+            # Explicitly prove that all original path inode numbers match, while the
             # timestamp and device fields remain those of the replacement.
-            for p, inode in numbers.items():
+            for p, real in before.items():
                 found = os.lstat(p)
-                assert found.st_ino == inode
+                if found.st_ino != numbers[p]:
+                    raise RuntimeError('inode simulation did not apply')
                 for field in ('st_dev', 'st_mode', 'st_size', 'st_mtime_ns', 'st_ctime_ns'):
-                    assert getattr(found, field) == getattr(before[p], field)
+                    fields_real = fields_real and getattr(found, field) == getattr(real, field)
+            if not fields_real:
+                raise RuntimeError('simulation changed non-inode stat fields')
+            simulation.hits = 0
             replaced = engine.cleanup_action(item)['args']
         negative = replaced['argv'] is None
-        assert (Path(item['path']) / 'file.txt').read_text() == 'real worktree content\n'
+        if (Path(item['path']) / 'file.txt').read_text() != 'real worktree content\n':
+            raise RuntimeError('replacement file bytes changed')
         return {'ok': positive and negative, 'untouched_offered': positive,
                 'replacement_refused': negative, 'replacement_identity': replaced['identity'],
-                'recorded_inode_count': len(numbers), 'other_stat_fields_real': True,
+                'simulated_path_count': simulation.paths, 'cleanup_inode_reads': simulation.hits,
+                'other_stat_fields_real': fields_real,
                 'resource_recorded_via_cli': True}
 
 
