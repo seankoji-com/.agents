@@ -38,3 +38,9 @@ must verify owner provenance in the active conversation before publishing.
 The second review found locale-dependent Git diagnostics. Identity probes now use
 the C locale, and the failure/fallback fixture verifies that inherited translations
 cannot change non-Git detection.
+
+Hosted macOS CI exposed a fixture path through `/var`'s symlink. The setup fixture
+now resolves its entire isolated root, matching the storage/grant fixtures.
+Running the same five tests through a symlinked temporary-directory alias reproduces
+the original two failures and passes after this fix. All assertions and runtime
+symlink refusals remain intact.

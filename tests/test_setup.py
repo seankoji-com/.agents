@@ -14,19 +14,22 @@ class SetupTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.home = Path(self.temp.name).resolve() / 'home with spaces'
+        # macOS temporary paths traverse /var -> /private/var. Provider state
+        # deliberately refuses symlink ancestors; use the real isolated root.
+        self.base = Path(self.temp.name).resolve()
+        self.home = self.base / 'home with spaces'
         self.home.mkdir()
         # Match the formula's installed tree, with no Git checkout or bin directory.
-        self.package = Path(self.temp.name) / 'libexec'
+        self.package = self.base / 'libexec'
         for name in ('scripts', 'core', 'plugins', 'shared'):
             shutil.copytree(ROOT / name, self.package / name,
                             ignore=shutil.ignore_patterns('__pycache__'))
         self.prefix = self.home / 'snapshots'
-        self.project = Path(self.temp.name) / 'project'
+        self.project = self.base / 'project'
         self.project.mkdir()
         self.env = {**os.environ, 'HOME': str(self.home),
                     'XDG_CONFIG_HOME': str(self.home / 'config'),
-                    'XDG_STATE_HOME': str(Path(self.temp.name) / 'state')}
+                    'XDG_STATE_HOME': str(self.base / 'state')}
         for key in ('CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'OPENCODE_CONFIG', 'OPENCODE_CONFIG_CONTENT'):
             self.env.pop(key, None)
 
@@ -64,7 +67,7 @@ class SetupTest(unittest.TestCase):
         self.assertEqual(next(g for g in grants if g['provider'] == 'claudeAgent')['status'], 'applied')
         config = json.loads((self.home / '.claude/settings.json').read_text())
         self.assertEqual(config, {'sandbox': {'filesystem': {'allowWrite': [
-            str(Path(self.temp.name) / 'state/t3-plugins/learnings')]}}})
+            str(self.base / 'state/t3-plugins/learnings')]}}})
         repeated = self.call('setup', 'imps', '--grant-learnings')
         grants = [json.loads(line)['learnings_grant'] for line in repeated.stdout.splitlines()
                   if 'learnings_grant' in json.loads(line)]
