@@ -2,7 +2,8 @@
 """Absolute checks for a Task A output directory (E10 near Greenwich, NSW).
 
 Inspects the emitted files statically; it never runs or renders the page. Four checks
-gate (`required`): Leaflet is vendored, the station IDs are exactly the in-radius set,
+gate (`required`): Leaflet is vendored, the station IDs are exactly the in-radius set
+(in data.json and on the page),
 price series exist for every station and for the overall history, and the
 recommendation names the cheapest in-radius station. Other results are informational.
 
@@ -29,6 +30,7 @@ CDN_HOSTS = ('unpkg.com', 'cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'ajax.goog
              'esm.sh', 'leafletjs.com/dist')
 TEXT_SUFFIXES = {'.html', '.htm', '.js', '.mjs', '.json', '.css', '.svg', '.txt', '.md', '.csv'}
 REMOTE_ATTR = re.compile(r'''(?:src|href)\s*=\s*["']((?:https?:)?//[^"']+)["']''', re.I)
+LOCAL_SCRIPT = re.compile(r'''<script[^>]*\ssrc\s*=\s*["'](?!(?:https?:)?//)([^"'?#]+)["']''', re.I)
 RECOMMENDED = re.compile(r'''data-recommended-station\s*=\s*["']([^"']*)["']''')
 
 
@@ -107,14 +109,20 @@ def check(out: Path, data_dir: Path) -> list:
         data = {}
         add('data_json', False, f'out/data.json unreadable: {exc}', required=False)
 
-    # 1. Leaflet is vendored: the fixture's files, loaded by relative path, and no CDN.
+    stations = data.get('stations') if isinstance(data.get('stations'), list) else []
+    stations = [s for s in stations if isinstance(s, dict)]
+
+    # 1. Leaflet is vendored: the whole provided directory, unchanged, loaded by relative path, no CDN.
     problems = []
-    for name in ('leaflet.js', 'leaflet.css'):
-        copy = out / 'vendor' / 'leaflet' / name
+    provided = FIXTURE / 'vendor' / 'leaflet'
+    for source in sorted(p for p in provided.rglob('*') if p.is_file()):
+        rel = source.relative_to(provided).as_posix()
+        copy = out / 'vendor' / 'leaflet' / rel
         if not copy.is_file():
-            problems.append(f'missing out/vendor/leaflet/{name}')
-        elif sha256(copy) != sha256(FIXTURE / 'vendor' / 'leaflet' / name):
-            problems.append(f'out/vendor/leaflet/{name} differs from the provided Leaflet')
+            problems.append(f'missing out/vendor/leaflet/{rel}')
+        elif sha256(copy) != sha256(source):
+            problems.append(f'out/vendor/leaflet/{rel} differs from the provided Leaflet')
+    for name in ('leaflet.js', 'leaflet.css'):
         if not re.search(r'''(?:src|href)\s*=\s*["'](?:\./)?vendor/leaflet/''' + re.escape(name) + r'''["']''', page):
             problems.append(f'index.html does not load vendor/leaflet/{name} by relative path')
     for rel, text in files.items():
@@ -123,22 +131,25 @@ def check(out: Path, data_dir: Path) -> list:
         problems += [f'{rel} loads remote {url}' for url in REMOTE_ATTR.findall(text) if 'leaflet' in url.lower()]
     add('leaflet_vendored', not problems, problems or 'vendored, loaded relatively, no CDN')
 
-    # 2. Station IDs: every in-radius ID is listed; no out-of-radius ID appears anywhere.
-    listed_ids = [s.get('id') for s in data.get('stations', []) if isinstance(s, dict)]
+    # 2. Station IDs: every in-radius ID is listed in data.json and reaches the page (index.html or a
+    # local script it loads, since the page must work from disk); no out-of-radius ID appears anywhere.
+    listed_ids = [s.get('id') for s in stations]
     missing = sorted(set(want['in_radius']) - set(listed_ids))
     extra = sorted(set(listed_ids) - set(want['in_radius']))
+    page_text = page + ''.join(files.get(src.lstrip('./'), '') for src in LOCAL_SCRIPT.findall(page))
+    not_on_page = sorted(set(want['in_radius']) - set(STATION_ID.findall(page_text)))
     leaked = sorted({sid for text in files.values() for sid in STATION_ID.findall(text)} & set(want['out_of_radius']))
-    add('station_ids', not (missing or extra or leaked) and bool(page),
-        {'missing_in_radius': missing, 'unexpected_in_data_json': extra, 'out_of_radius_present': leaked,
-         'index_html_present': bool(page)})
+    add('station_ids', not (missing or extra or leaked or not_on_page) and bool(page),
+        {'missing_in_radius': missing, 'unexpected_in_data_json': extra, 'not_reaching_page': not_on_page,
+         'out_of_radius_present': leaked, 'index_html_present': bool(page)})
 
     # 3. A price series per station and for the overall history.
     empty = []
-    for station in data.get('stations', []):
-        history = station.get('history') if isinstance(station, dict) else None
+    for station in stations:
+        history = station.get('history')
         if not isinstance(history, list) or not history or not all(
                 isinstance(p, dict) and number(p.get('price_cpl')) and p.get('recorded_at') for p in history):
-            empty.append(station.get('id') if isinstance(station, dict) else repr(station))
+            empty.append(station.get('id'))
     overall = data.get('overall_history')
     overall_ok = isinstance(overall, list) and bool(overall) and all(
         isinstance(p, dict) and number(p.get('mean_price_cpl')) and p.get('date') for p in overall)
@@ -152,7 +163,7 @@ def check(out: Path, data_dir: Path) -> list:
         {'expected': want['cheapest'], 'data_json': chosen, 'page_markers': marked})
 
     # Informational: values and map details the grader may want to see.
-    by_id = {s.get('id'): s for s in data.get('stations', []) if isinstance(s, dict)}
+    by_id = {s.get('id'): s for s in stations}
     wrong_listed = sorted(sid for sid, price in want['listed_price_cpl'].items()
                           if sid in by_id and by_id[sid].get('listed_price_cpl') != price)
     add('listed_prices_match', not wrong_listed, {'mismatched': wrong_listed}, required=False)

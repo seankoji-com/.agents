@@ -51,6 +51,8 @@ Write everything to `out/`. Do not change `data/` or `vendor/`.
   ```
 
   `stations` lists in-range stations only, each with its full E10 history.
+- Every in-range station ID appears in `out/index.html` or in a local script it loads
+  (for example `out/data.js`).
 - Mark the recommended station in `out/index.html` with exactly one element carrying
   `data-recommended-station="<station id>"`.
 - Out-of-range station IDs must not appear in any file under `out/`.

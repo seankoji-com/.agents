@@ -5,8 +5,8 @@ raw transcripts in the private directory.
 Collects tokens (tokens.py), the audit (audit.py), the delegations the worker made
 (`delegate_task` calls in its transcript), and the task's result (task_a.py or
 grade_task_b.py). Copies the raw transcripts to PRIVATE/runs/<version>/<slot>/ and
-records their sha256. Absolute paths in committed files are replaced with
-`<workspace>`, `<package>` and `<home>`.
+records their sha256. Absolute paths in every committed file (summary, report, copied output, patches)
+are replaced with `<workspace>`, `<package>` and `<home>`.
 
 Usage: python3 bench/tools/summarise.py --version old --slot a1 --attempt 1
          --workspace WS --package VERSION_DIR --thread-id ID --thread-json FILE
@@ -48,6 +48,18 @@ def sanitise(text: str, workspace: Path, package: Path) -> str:
                            key=len, reverse=True):
             text = text.replace(form, label)
     return text
+
+
+def sanitise_tree(root: Path, workspace: Path, package: Path) -> None:
+    """Replace machine paths in committed copies of worker output (text files only)."""
+    for path in sorted(p for p in root.rglob('*') if p.is_file()):
+        try:
+            text = path.read_text()
+        except (UnicodeDecodeError, OSError):
+            continue
+        clean = sanitise(text, workspace, package)
+        if clean != text:
+            path.write_text(clean)
 
 
 def delegations(parent_file: Path) -> list:
@@ -121,6 +133,7 @@ def main(argv=None) -> int:
                 target = dest / 'output' / rel
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, target)
+        sanitise_tree(dest / 'output', workspace, package)
     else:
         result = {'hidden_tests': None}
         if args.bundle:
@@ -130,6 +143,7 @@ def main(argv=None) -> int:
         patches = dest / 'output'
         patches.mkdir()
         git(workspace, 'format-patch', '--quiet', '-o', str(patches), f'{fixture_head}..HEAD')
+        sanitise_tree(patches, workspace, package)
     final = thread.get('final_message') or ''
     (dest / 'report.md').write_text(sanitise(final, workspace, package) + '\n')
     parent = run.get('parent') or {}
@@ -152,7 +166,8 @@ def main(argv=None) -> int:
         'raw_sha256': hashes,
     }
     summary['delegation_count'] = len(summary['delegations'])
-    (dest / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
+    text = sanitise(json.dumps(summary, indent=2), workspace, package)
+    (dest / 'summary.json').write_text(text + '\n')
     print(json.dumps({'summary': str(dest / 'summary.json'), 'private': str(private)}))
     return 0
 

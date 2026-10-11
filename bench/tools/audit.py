@@ -4,10 +4,11 @@
 Reads the tool calls (never the tool results) in the worker's transcript and its
 descendants' transcripts, and classifies every absolute path and network target:
 
-  void    a path outside the workspace, the installed imps package and the harness's
+  void    no attributable worker transcript (the attempt cannot be audited); a path
+          outside the workspace, the installed imps package and the harness's
           own per-project directory; or, for Task B, any reference to the upstream
           repository (`seankoji-com/t3-plugins`) or a GitHub tool call aimed at it
-  review  something the script cannot decide: a temporary directory, a `..` escape,
+  review  something the script cannot decide: a temporary directory, `/etc`, a `..` escape,
           a git call whose target is not in the workspace
   ok      everything else
 
@@ -31,8 +32,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tokens  # noqa: E402
 
 SYSTEM = ('/usr/', '/bin/', '/sbin/', '/opt/homebrew/', '/System/', '/Library/Developer/', '/Applications/',
-          '/dev/null', '/dev/stdout', '/dev/stderr', '/etc/', '/private/etc/', '/Library/Frameworks/',
-          '/Library/Apple/')
+          '/dev/null', '/dev/stdout', '/dev/stderr', '/Library/Frameworks/', '/Library/Apple/')
+# Configuration a tool call names explicitly is a read outside the workspace unless explained.
+CONFIG = ('/etc/', '/private/etc/')
 TEMP = ('/tmp/', '/private/tmp/', '/var/' + 'folders/', '/private/var/' + 'folders/')  # split: no literal machine paths
 ABSOLUTE = re.compile(r'''(?:(?<=^)|(?<=[\s='"`:(,]))(~?/[^\s'"`;|&<>(),]*)''')
 UPSTREAM = re.compile(r'seankoji-com/t3-plugins|seankoji-com\.github\.io/t3-plugins|seankoji\.com/t3-plugins', re.I)
@@ -77,7 +79,7 @@ def classify(path: str, allowed: list, harness: str, home: str) -> str:
         return 'ok'
     if normal in ('/', '/dev') or any((normal + '/').startswith(p) or normal + '/' == p for p in SYSTEM):
         return 'ok'
-    if any((normal + '/').startswith(p) for p in TEMP):
+    if any((normal + '/').startswith(p) for p in TEMP + CONFIG):
         return 'review'
     return 'void'
 
@@ -101,7 +103,9 @@ def audit_file(path: Path, task: str, allowed: list, harness: str, home: str) ->
             level = classify(candidate.rstrip('.:'), allowed, harness, home)
             if level != 'ok':
                 findings.append({'level': level, 'tool': name, 'path': candidate})
-        command = data.get('command') if isinstance(data.get('command'), str) else ''
+        command = next((data[k] for k in ('command', 'cmd') if isinstance(data.get(k), str)), '')
+        if isinstance(data.get('command'), list):  # Codex local_shell_call argv
+            command = ' '.join(map(str, data['command']))
         if re.search(r'(^|[\s/])\.\.(/|\s|$)', command):
             findings.append({'level': 'review', 'tool': name, 'reason': 'relative parent path in command'})
     return findings
@@ -126,6 +130,11 @@ def audit(workspace: Path, package: Path, task: str, projects_dir: Path, codex_d
         report['void'] += sum(f['level'] == 'void' for f in findings)
         report['review'] += sum(f['level'] == 'review' for f in findings)
     report['transcripts_found'] = len(files)
+    if not run['parent']:
+        # No attributable worker transcript means confinement cannot be shown: never report clean.
+        report['void'] += 1
+        report['transcripts'].append({'file': None, 'findings': [
+            {'level': 'void', 'tool': None, 'reason': 'worker transcript not found; attempt cannot be audited'}]})
     return report
 
 

@@ -37,8 +37,10 @@ def reference_output(out: Path) -> dict:
             'overall_history': want['overall_history']}
     shutil.copytree(DATA.parent / 'vendor' / 'leaflet', out / 'vendor' / 'leaflet')
     (out / 'data.json').write_text(json.dumps(data))
+    (out / 'data.js').write_text('window.DATA = ' + json.dumps(data) + ';\n')
     (out / 'index.html').write_text(
         '<link rel="stylesheet" href="vendor/leaflet/leaflet.css">\n'
+        '<script src="data.js"></script>\n'
         '<script src="./vendor/leaflet/leaflet.js"></script>\n'
         f'<p data-recommended-station="{want["cheapest"]}">Buy here</p>\n'
         "<script>L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', "
@@ -105,6 +107,22 @@ class TaskACheckTest(unittest.TestCase):
         (self.out / 'data.json').write_text(json.dumps(self.data))
         self.assertEqual(self.failing(), {'price_series'})
 
+    def test_station_ids_must_reach_the_page(self):
+        (self.out / 'data.js').unlink()
+        self.assertEqual(self.failing(), {'station_ids'})
+
+    def test_missing_leaflet_assets_fail(self):
+        (self.out / 'vendor/leaflet/LICENSE').unlink()
+        shutil.rmtree(self.out / 'vendor/leaflet/images')
+        self.assertEqual(self.failing(), {'leaflet_vendored'})
+
+    def test_malformed_data_json_fails_without_raising(self):
+        for stations in (None, 'x', [None, 3]):
+            with self.subTest(stations=stations):
+                self.data['stations'] = stations
+                (self.out / 'data.json').write_text(json.dumps(self.data))
+                self.assertEqual(self.failing(), {'station_ids', 'price_series'})
+
     def test_wrong_recommendation_fails(self):
         self.data['recommendation']['station_id'] = 'STN-0021'
         (self.out / 'data.json').write_text(json.dumps(self.data))
@@ -170,6 +188,17 @@ class AuditTest(unittest.TestCase):
         self.assertIn('upstream repository reference', void)
         self.assertNotIn('/bench/workspace', void)
         self.assertFalse(any('/elsewhere' in str(f) for f in findings))
+        with tempfile.TemporaryDirectory() as tmp:
+            codex = Path(tmp) / 'rollout.jsonl'
+            codex.write_text(json.dumps({'type': 'response_item', 'payload': {
+                'type': 'function_call', 'name': 'exec_command',
+                'arguments': json.dumps({'cmd': 'cat ../outside && cat /etc/hosts'})}}) + '\n')
+            levels = {(f['level'], f.get('path') or f.get('reason')) for f in
+                      audit.audit_file(codex, 'a', ['/bench/workspace'], '/bench/harness', '/bench/home')}
+            self.assertIn(('review', 'relative parent path in command'), levels)
+            self.assertIn(('review', '/etc/hosts'), levels)
+            missing = audit.audit(Path(tmp) / 'ws', Path(tmp) / 'pkg', 'a', Path(tmp) / 'projects', None)
+            self.assertEqual(missing['void'], 1)
         task_a_findings = audit.audit_file(TRANSCRIPTS / 'transcript_complete.jsonl', 'a',
                                            ['/bench/workspace'], '/bench/harness', '/bench/home')
         self.assertFalse(any(f.get('reason', '').startswith('upstream') for f in task_a_findings))
@@ -186,6 +215,8 @@ class RecordingTest(unittest.TestCase):
             (workspace / '.bench-state').mkdir()
             (workspace / '.bench-state' / 'run.json').write_text('{}')
             reference_output(workspace / 'out')
+            (workspace / 'out' / 'data.js').write_text(f'// built in {workspace}\n' +
+                                                       (workspace / 'out' / 'data.js').read_text())
             subprocess.run(['git', 'add', 'out'], cwd=workspace, check=True)
             subprocess.run(['git', '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'out'],
                            cwd=workspace, check=True)
@@ -214,6 +245,7 @@ class RecordingTest(unittest.TestCase):
             self.assertEqual((tmp / 'runs/old/a1/report.md').read_text(), 'Done in <workspace>/out\n')
             self.assertTrue((tmp / 'private/runs/old/a1/attempt-1/transcripts/parent.jsonl').is_file())
             self.assertNotIn(str(tmp), (tmp / 'runs/old/a1/summary.json').read_text())
+            self.assertNotIn(str(tmp), (tmp / 'runs/old/a1/output/out/data.js').read_text())
 
 
 if __name__ == '__main__':
