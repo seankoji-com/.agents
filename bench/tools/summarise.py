@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -34,6 +35,7 @@ import verify_package  # noqa: E402
 import task_a  # noqa: E402
 import tokens  # noqa: E402
 
+TEMP_PATH = re.compile(r'(?:/private)?/var/' + r'folders/[^\s"\']+?/T/|(?:/private)?/tmp/[A-Za-z0-9._-]+-[0-9]+/')
 PROJECTS = Path.home() / '.claude' / 'projects'
 CODEX = Path.home() / '.codex' / 'sessions'
 
@@ -48,7 +50,8 @@ def sanitise(text: str, workspace: Path, package: Path) -> str:
         for form in sorted({str(path), str(Path(path).resolve()), str(path).replace('/private/', '/', 1)},
                            key=len, reverse=True):
             text = text.replace(form, label)
-    return text
+    # Per-user temporary directories (macOS and sandbox scratch) are machine paths too.
+    return TEMP_PATH.sub('<tmp>/', text)
 
 
 def sanitise_tree(root: Path, workspace: Path, package: Path) -> None:

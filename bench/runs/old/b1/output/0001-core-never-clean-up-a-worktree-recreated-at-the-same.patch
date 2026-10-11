@@ -1,0 +1,174 @@
+From 8fb6f45ca397c2f77b1e8ebed07c02e7532413b2 Mon Sep 17 00:00:00 2001
+From: <worker git identity, redacted>
+Date: Sun, 11 Oct 2026 16:59:02 +1100
+Subject: [PATCH] core: never clean up a worktree recreated at the same path
+
+A worktree's identity was its admin-directory path plus two inode numbers.
+Git reuses the admin-directory name when a worktree is re-added at the same
+path, and ext4 and XFS hand freed inode numbers to the next files created.
+A worktree that was deleted and recreated there could therefore still read
+as live, and cleanup offered `git worktree remove` for it.
+
+Recording a worktree now leaves a random owner nonce in its admin directory,
+which git deletes with the worktree, and the identity includes that nonce.
+Identities recorded before this change are compared on their own keys, so
+in-flight runs keep the old inode check.
+
+The regression test pins inode reuse so it fails on any filesystem.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ core/records.py       |  2 +-
+ core/resources.py     | 36 +++++++++++++++++++++++++++++++-----
+ tests/test_cleanup.py | 41 ++++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 72 insertions(+), 7 deletions(-)
+
+diff --git a/core/records.py b/core/records.py
+index fd97b8e..3b636e6 100644
+--- a/core/records.py
++++ b/core/records.py
+@@ -670,7 +670,7 @@ def rec_resource(ctx, state, payload):
+         path, name, branch, task_id, probe, action_id = _created_worktree(ctx, state, payload)
+         entry = {'id': rid, 'kind': 'worktree', 'name': name, 'path': str(path), 'branch': branch,
+                  'task_id': task_id, 'status': 'live', 'created_at': ctx.at, 'created_by': action_id,
+-                 'identity': resources.worktree_identity(path),
++                 'identity': resources.mark_worktree(path),
+                  # Only a probe worktree, which holds nothing but the probe marker, is force-removed.
+                  'cleanup_argv': ['git', '-C', repo, 'worktree', 'remove', *(['--force'] if probe else []), str(path)]}
+         created.append(entry)
+diff --git a/core/resources.py b/core/resources.py
+index fff16f2..ab38767 100644
+--- a/core/resources.py
++++ b/core/resources.py
+@@ -4,8 +4,14 @@ from __future__ import annotations
+ 
+ import os
+ import subprocess
++import uuid
+ from pathlib import Path
+ 
++from .errors import Environment
++
++# Lives in the worktree's admin directory, which git deletes with the worktree.
++OWNER_FILE = 't3-plugins-owner'
++
+ 
+ def fingerprint(pid: int) -> str | None:
+     out = subprocess.run(['ps', '-o', 'lstart=', '-o', 'command=', '-p', str(int(pid))], capture_output=True)
+@@ -19,16 +25,34 @@ def _git(cwd, *args) -> str | None:
+ 
+ 
+ def worktree_identity(path) -> dict | None:
+-    """The worktree's own `.git` file and admin directory: recreating a worktree at
+-    the same path makes new ones."""
++    """The worktree's own `.git` file and admin directory, plus the owner nonce that
++    `mark_worktree` left there. A worktree recreated at the same path gets a new admin
++    directory without the nonce, even where the filesystem reuses the freed inodes."""
+     gitdir = _git(path, 'rev-parse', '--absolute-git-dir')
+     if not gitdir:
+         return None
+     try:
+-        return {'gitdir': gitdir, 'gitdir_inode': os.stat(gitdir).st_ino,
+-                'dotgit_inode': os.lstat(Path(path) / '.git').st_ino}
++        found = {'gitdir': gitdir, 'gitdir_inode': os.stat(gitdir).st_ino,
++                 'dotgit_inode': os.lstat(Path(path) / '.git').st_ino}
+     except OSError:
+         return None
++    try:
++        found['owner'] = (Path(gitdir) / OWNER_FILE).read_text().strip()
++    except OSError:
++        pass
++    return found
++
++
++def mark_worktree(path) -> dict:
++    """Leave a fresh owner nonce in the worktree's admin directory; return its identity."""
++    gitdir = _git(path, 'rev-parse', '--absolute-git-dir')
++    if not gitdir:
++        raise Environment('worktree_identity', f'cannot find the git directory of {path}')
++    (Path(gitdir) / OWNER_FILE).write_text(uuid.uuid4().hex + '\n')
++    found = worktree_identity(path)
++    if not found or 'owner' not in found:
++        raise Environment('worktree_identity', f'cannot read the owner marker of {path}')
++    return found
+ 
+ 
+ def branch_identity(repo, branch) -> dict | None:
+@@ -58,7 +82,9 @@ def _same(item: dict) -> bool:
+     if not recorded:
+         return True  # recorded before identities were kept
+     if item['kind'] == 'worktree':
+-        return worktree_identity(item['path']) == recorded
++        # Only the recorded keys: identities from before owner nonces keep the inode check.
++        current = worktree_identity(item['path']) or {}
++        return all(current.get(key) == value for key, value in recorded.items())
+     if item['kind'] == 'branch':
+         current = branch_identity(item['repo'], item['branch'])
+         if current is None:
+diff --git a/tests/test_cleanup.py b/tests/test_cleanup.py
+index 0e3a773..7d9cd2c 100644
+--- a/tests/test_cleanup.py
++++ b/tests/test_cleanup.py
+@@ -1,12 +1,28 @@
+ """REQ-CLEANUP: success removes every run-owned worktree, branch and process;
+ failure preserves them and the report lists one exact cleanup command each.
+ Evidence survives both."""
++import os
+ import shlex
+ import subprocess
+ import sys
+ from pathlib import Path
++from unittest import mock
+ 
+-from support import CoreTestCase, FakeT3, capabilities, cli, done, git, native, result_block
++from support import ROOT, CoreTestCase, FakeT3, capabilities, cli, done, git, native, result_block
++
++sys.path.insert(0, str(ROOT))
++from core import engine  # noqa: E402
++
++
++def reusing_inodes(numbers):
++    """Pin ext4 and XFS behaviour: files created after a delete get the freed inode numbers."""
++    def wrap(real):
++        def stat(target, *args, **kwargs):
++            found = real(target, *args, **kwargs)
++            ino = numbers.get(os.fspath(target)) if isinstance(target, (str, os.PathLike)) else None
++            return found if ino is None else os.stat_result((found.st_mode, ino, *found[2:10]))
++        return stat
++    return mock.patch.multiple(os, stat=wrap(os.stat), lstat=wrap(os.lstat))
+ 
+ 
+ class CleanupTest(CoreTestCase):
+@@ -74,6 +90,29 @@ class CleanupTest(CoreTestCase):
+         self.assertIn('All run-owned worktrees, branches and processes were removed',
+                       (run.run_dir / 'reports' / 'report.md').read_text())
+ 
++    def test_a_worktree_recreated_at_the_same_path_is_not_cleaned(self):
++        repo = self.make_repo()
++        run = self.init(self.plan(repo, execution={'mode': 'delegated', 'isolation': 'parallel'},
++                                  tasks=[{'id': 'fix', 'purpose': 'fix counting', 'files': ['wordstat.py']}],
++                                  policy={'review': {'required': False, 'role': 'reviewer'}, 'checks': [],
++                                          'worktree_root': str(self.tmp / 'wt')}))
++        run.claim()
++        run.record('capabilities', {'response': capabilities()})
++        run.record('transition', {'to': 'executing'})
++        created = run.only('create_worktree')
++        native(created['args']['argv'])
++        run.record('resource', {'action_id': created['id'], 'kind': 'worktree', 'name': created['args']['name'],
++                                'path': created['args']['path'], 'branch': created['args']['branch'], 'task_id': 'fix'})
++        tree = next(item for item in run.state['resources'] if item['kind'] == 'worktree')
++        path, recorded = tree['path'], tree['identity']
++        git(repo, 'worktree', 'remove', path)
++        git(repo, 'worktree', 'add', '-q', path, tree['branch'])
++        with reusing_inodes({recorded['gitdir']: recorded['gitdir_inode'],
++                             os.path.join(path, '.git'): recorded['dotgit_inode']}):
++            cleanup = engine.cleanup_action(tree)
++        self.assertEqual(cleanup['args']['identity'], 'replaced')
++        self.assertIsNone(cleanup['args']['argv'], 'the recreated worktree is not run-owned')
++
+     def test_failed_integration_preserves_and_lists_resources(self):
+         repo, run, t3, action, server = self.delegated_run()
+         (repo / 'wordstat.py').write_text('parent edit that conflicts\n')
+-- 
+2.56.0
+

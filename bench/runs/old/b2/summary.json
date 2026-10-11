@@ -1,0 +1,91 @@
+{
+  "version": "old",
+  "slot": "b2",
+  "attempt": 1,
+  "retry_reason": null,
+  "workspace_id": "10ae29d8",
+  "thread_id": "mcp:a20b4ea6-a086-432b-92af-80a574ad0bd7",
+  "outcome": "completed; imps blocked (full suite could not run cleanly in sandbox)",
+  "model_selection": {
+    "instanceId": "claudeAgent",
+    "model": "claude-opus-5-5",
+    "options": [
+      {
+        "id": "effort",
+        "value": "xhigh"
+      }
+    ]
+  },
+  "runtime_mode": "auto",
+  "wallclock_seconds": {
+    "thread": 1780.5,
+    "transcript": 1779.3
+  },
+  "parent_opus_tokens": {
+    "counted": 270893,
+    "cache_read": 14159045,
+    "other_models_in_parent": []
+  },
+  "parent_by_model": {
+    "claude-opus-5-5": {
+      "messages": 102,
+      "input_tokens": 204,
+      "output_tokens": 78926,
+      "cache_creation_input_tokens": 191763,
+      "cache_read_input_tokens": 14159045,
+      "counted": 270893,
+      "cache_read": 14159045
+    }
+  },
+  "descendants": [],
+  "delegations": [],
+  "package_verification": {
+    "ok": true,
+    "version": "0.2.3+g35d31354223b",
+    "source_commit": "35d31354223b78367369c859a0ad23002f07bedf",
+    "manifest_sha256": "99a4aa4512053d141c6aab36149036960cb29d22a1b4c6c9a5fc89e18f936012",
+    "files": 55,
+    "problems": []
+  },
+  "audit": {
+    "void": 2,
+    "review": 50,
+    "decision": "valid (executor judgement, precedent for stage 5): 2 void findings are interpreter discovery (ls ~/.local/bin, running a uv-installed python3.10), treated like the allowed system toolchain paths; no repository content read outside the workspace. 50 review findings are the worker's own scratch under the session temp dir (a git archive of its own HEAD, logs, plan) and harness-owned output"
+  },
+  "result": {
+    "hidden_tests": {
+      "ok": false,
+      "head": "8f8c7c988eb6b5f0a18d3d8f36c639a1542b0181",
+      "bundle_sha256": "19f12fe6d38ff0991c2f7000d3cb819d51f8ae58cb4f7122ba81610333d2465c",
+      "replaced_existing_file": false,
+      "hidden": {
+        "argv": [
+          "/opt/homebrew/opt/python@3.12/bin/python3.12",
+          "-m",
+          "unittest",
+          "-v",
+          "tests.test_resources_identity"
+        ],
+        "exit_code": 1,
+        "tail": "test_failed_identity_capture_never_authorizes_cleanup (tests.test_resources_identity.WorktreeIdentityTest.test_failed_identity_capture_never_authorizes_cleanup) ... FAIL\ntest_legacy_inode_only_identity_is_not_cleanup_authority (tests.test_resources_identity.WorktreeIdentityTest.test_legacy_inode_only_identity_is_not_cleanup_authority) ... FAIL\ntest_reused_inodes_do_not_authorize_cleanup (tests.test_resources_identity.WorktreeIdentityTest.test_reused_inodes_do_not_authorize_cleanup) ... ERROR\n\n======================================================================\nERROR: test_reused_inodes_do_not_authorize_cleanup (tests.test_resources_identity.WorktreeIdentityTest.test_reused_inodes_do_not_authorize_cleanup)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>/tmpam1hqr30/tree/tests/test_resources_identity.py\", line 34, in test_reused_inodes_do_not_authorize_cleanup\n    original = resources.worktree_identity('/fixture/tree')\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<tmp>/tmpam1hqr30/tree/core/resources.py\", line 46, in worktree_identity\n    'owner': owner.read_text().strip() if owner.is_file() else None}\n                                          ^^^^^^^^^^^^^^^\n  File \"/opt/homebrew/Cellar/python@3.12/3.12.15/Frameworks/Python.framework/Versions/3.12/lib/python3.12/pathlib.py\", line 892, in is_file\n    return S_ISREG(self.stat().st_mode)\n                   ^^^^^^^^^^^^^^^^^^^\nAttributeError: 'types.SimpleNamespace' object has no attribute 'st_mode'\n\n======================================================================\nFAIL: test_failed_identity_capture_never_authorizes_cleanup (tests.test_resources_identity.WorktreeIdentityTest.test_failed_identity_capture_never_authorizes_cleanup)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>/tmpam1hqr30/tree/tests/test_resources_identity.py\", line 22, in test_failed_identity_capture_never_authorizes_cleanup\n    self.assertEqual(action['args']['identity'], 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n======================================================================\nFAIL: test_legacy_inode_only_identity_is_not_cleanup_authority (tests.test_resources_identity.WorktreeIdentityTest.test_legacy_inode_only_identity_is_not_cleanup_authority)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>/tmpam1hqr30/tree/tests/test_resources_identity.py\", line 49, in test_legacy_inode_only_identity_is_not_cleanup_authority\n    self.assertEqual(resources.identity(item), 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n----------------------------------------------------------------------\nRan 3 tests in 0.001s\n\nFAILED (failures=2, errors=1)\n"
+      },
+      "full_suite": {
+        "argv": [
+          "/opt/homebrew/opt/python@3.12/bin/python3.12",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests"
+        ],
+        "exit_code": 1,
+        "tail": "[deep tier]\nreport\n\n[flash tier]\ncloud fixture\n\n[pro tier]\ncloud fixture\n[deep tier]\nreport\n\n[flash tier]\ncloud fixture\n\n[pro tier]\ncloud fixture\n..............................................................................................................................................................................................................................................................................................................................................................................................FFE............................................................................................................................................................................................\n======================================================================\nERROR: test_reused_inodes_do_not_authorize_cleanup (test_resources_identity.WorktreeIdentityTest.test_reused_inodes_do_not_authorize_cleanup)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>/tmpam1hqr30/tree/tests/test_resources_identity.py\", line 34, in test_reused_inodes_do_not_authorize_cleanup\n    original = resources.worktree_identity('/fixture/tree')\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<tmp>/tmpam1hqr30/tree/core/resources.py\", line 46, in worktree_identity\n    'owner': owner.read_text().strip() if owner.is_file() else None}\n                                          ^^^^^^^^^^^^^^^\n  File \"/opt/homebrew/Cellar/python@3.12/3.12.15/Frameworks/Python.framework/Versions/3.12/lib/python3.12/pathlib.py\", line 892, in is_file\n    return S_ISREG(self.stat().st_mode)\n                   ^^^^^^^^^^^^^^^^^^^\nAttributeError: 'types.SimpleNamespace' object has no attribute 'st_mode'\n\n======================================================================\nFAIL: test_failed_identity_capture_never_authorizes_cleanup (test_resources_identity.WorktreeIdentityTest.test_failed_identity_capture_never_authorizes_cleanup)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>/tmpam1hqr30/tree/tests/test_resources_identity.py\", line 22, in test_failed_identity_capture_never_authorizes_cleanup\n    self.assertEqual(action['args']['identity'], 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n======================================================================\nFAIL: test_legacy_inode_only_identity_is_not_cleanup_authority (test_resources_identity.WorktreeIdentityTest.test_legacy_inode_only_identity_is_not_cleanup_authority)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>/tmpam1hqr30/tree/tests/test_resources_identity.py\", line 49, in test_legacy_inode_only_identity_is_not_cleanup_authority\n    self.assertEqual(resources.identity(item), 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n----------------------------------------------------------------------\nRan 573 tests in 220.857s\n\nFAILED (failures=2, errors=1)\n"
+      }
+    }
+  },
+  "raw_sha256": {
+    "ecb8d12f-b844-471a-9c52-a9fe4d956269.jsonl": "588e52fc03a88ef18145f7a460c31dbd97c50a18805771e581db694d1af0dc3c",
+    "audit.json": "0170065b1e202c46220494f12210b55a17aeed288b3d3ae82f4d6c4d47b6d28a"
+  },
+  "delegation_count": 0
+}

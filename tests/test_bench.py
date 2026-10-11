@@ -292,7 +292,8 @@ class RecordingTest(unittest.TestCase):
             thread = tmp / 'thread.json'
             thread.write_text(json.dumps({'outcome': 'completed', 'started_at': '2026-10-11T00:00:00Z',
                                           'ended_at': '2026-10-11T00:10:00Z',
-                                          'final_message': f'Done in {workspace}/out'}))
+                                          'final_message': f'Done in {workspace}/out, log in /private/var/'
+                                                           'folders/ab/xyz/T/tmp1/run.log'}))
             result = subprocess.run([sys.executable, str(BENCH / 'tools/summarise.py'), '--version', 'old',
                                      '--slot', 'a1', '--attempt', '1', '--workspace', str(workspace),
                                      '--package', str(tmp / 'pkg'), '--thread-id', 'T', '--thread-json', str(thread),
@@ -307,7 +308,7 @@ class RecordingTest(unittest.TestCase):
             self.assertIn('parent.jsonl', summary['raw_sha256'])
             self.assertFalse(summary['package_verification']['ok'])  # no package in this fixture
             self.assertTrue((tmp / 'runs/old/a1/output/out/index.html').is_file())
-            self.assertEqual((tmp / 'runs/old/a1/report.md').read_text(), 'Done in <workspace>/out\n')
+            self.assertEqual((tmp / 'runs/old/a1/report.md').read_text(), 'Done in <workspace>/out, log in <tmp>/tmp1/run.log\n')
             self.assertTrue((tmp / 'private/runs/old/a1/attempt-1/transcripts/parent.jsonl').is_file())
             self.assertNotIn(str(tmp), (tmp / 'runs/old/a1/summary.json').read_text())
             self.assertNotIn(str(tmp), (tmp / 'runs/old/a1/output/out/data.js').read_text())

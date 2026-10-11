@@ -11,5 +11,10 @@
   "verify_before_runs": {
     "ok": true,
     "problems": []
+  },
+  "verify_after_runs": {
+    "ok": true,
+    "problems": [],
+    "manifest_sha256": "99a4aa4512053d141c6aab36149036960cb29d22a1b4c6c9a5fc89e18f936012"
   }
 }
