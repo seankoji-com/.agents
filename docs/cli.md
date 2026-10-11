@@ -88,9 +88,11 @@ Exit codes are `0` success, `2` input/version, `3` conflict, `4` prohibited and 
 environment failure. **Exit 0 from `validate` means validation ran, not that the work
 is ready.** Read `data.ready`, `data.outcome` and the missing/failed/stale evidence.
 
-`snapshot` captures the current tree without a submission. The agent uses `init`, `check`, `evidence`, `review`, `child`, `waive`,
+`snapshot` captures the current tree without a submission. The agent uses `init`,
+`check`, `evidence`, `review`, `child`, `waive`,
 `note`, `policy`, `remote` and `cancel` with schema-checked submissions. JSON goes
-through `--input FILE`; `--input -` reads stdin, or `--json OBJECT` takes inline JSON. Recipe commands are
+through `--input FILE`; `--input -` reads stdin, or `--json OBJECT` takes inline JSON.
+Recipe commands are
 `recipe-scaffold`, `recipe-check` and `recipe-stamp`. See the
 [imps entry](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/imps/entry.md)
 and [submission schemas](https://github.com/seankoji-com/t3-plugins/tree/master/core/schemas)

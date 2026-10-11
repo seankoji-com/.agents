@@ -8,10 +8,10 @@ This is a dated handoff, not an automatically updated release status.
 
 | Check | Result |
 | --- | --- |
-| Regression suite | Suite passed on Python 3.12; loopback fixtures ran with socket access |
+| Regression suite | 515 tests across 58 modules passed after rebasing on Python 3.12; loopback fixtures ran with socket access |
 | Documentation checks | Local Markdown links, catalog coverage and entry budgets passed |
 | Site | Strict MkDocs Material 9.7.7 build passed |
-| Rendered targets | 26 HTML pages and 1,479 local link, asset and anchor targets checked |
+| Rendered targets | 26 HTML pages and 1,481 local link, asset and anchor targets checked |
 | Shell examples | 34 documented shell blocks passed `bash -n` |
 | Installed artifact | Isolated release-tree setup installed all five snapshots and adapters; integrity, prompts and relocated settings audit passed |
 | Browser | Homepage and installation inspected in light/dark schemes; five plugin pages and CLI checked at 390px; homepage, first workflow, architecture and historical results checked at 768px; desktop checked at 1280px |
@@ -26,15 +26,18 @@ Reduced-motion CSS was inspected; no animated recording remains on the homepage.
 ## Remaining gates
 
 1. **Independent review passed.** OpenCode Qwen 3.8 Max approved the full diff
-   against refreshed `origin/master`, with no blocker or major findings. It independently
-   passed 510 tests across 58 modules and checked installed CLI behavior. All eight
+   in two rounds, with no blocker or major findings. Round one used base `6e650cb`
+   and independently passed 510 tests across 58 modules. Round two reviewed
+   `5a53586..b21f5dd` and the editorial updates, reproduced the strict build and
+   target count, and confirmed all prior findings resolved. The parent passed
+   515 tests across 58 modules on the rebased tree. All eight
    minor findings are addressed or verified: obsolete install-line CSS and design
    wording removed; release-channel cross-references added; adapter-removal refusal
    clarified; historical metadata corrected; demo elision labelled; the rendered
    target count rerun; source setup wording corrected.
 2. **Release alignment.** The public latest release and tap formula still point to
    `v0.4.0`. The tap's test still expects the retired prompt-builder plugin. This
-   checkout has five plugin manifests at `1.0.0`. Publish and verify the intended
+   checkout has five plugins in the `1.0` series. Publish and verify the intended
    catalog before promoting the new behavior through the Homebrew install command.
 3. **Current live workflow.** The published provider ledger describes an earlier
    imps gate. Run the installed current gate in T3 with a bounded task, retain its
@@ -56,4 +59,6 @@ source upgrades, adapter removal, upgrade-page copy and unused chooser CSS.
 Optional media are linked from the launch kit; their archive content identifiers
 are distinguished from Git revision identifiers. Provenance records and manifest
 metadata remain maintainer data; the visitor journey does not lead with them.
-The reviewer independently confirmed the full suite total of 510 tests. Only explicit changed paths will be staged.
+The final review’s two bookkeeping findings are corrected: review rounds and test
+counts are bound to their trees, and the removed install line no longer appears in
+the design token table. Both optional wording nits are also addressed.

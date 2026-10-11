@@ -70,7 +70,7 @@ them in `extra.css`.
 | Token | Light | Dark | Use |
 |---|---|---|---|
 | `--paper` | `#eef0e8` | `#15201b` | Page |
-| `--paper-deep` | `#e2e6da` | `#1d2b25` | Code, install line, footer, search field |
+| `--paper-deep` | `#e2e6da` | `#1d2b25` | Code, footer, search field |
 | `--ink` | `#1f2a24` | `#e6eae0` | Text, strong rules, primary button |
 | `--ink-soft` | `#55615a` | `#a6b1a8` | Secondary text, captions |
 | `--rule` | `#c6cdbf` | `#2f3e37` | Hairlines, table rows, plate inner frame |

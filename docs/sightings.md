@@ -8,7 +8,7 @@ This ledger predates imps 1.0. The current evidence gate has not completed a liv
 provider matrix. Use these results to understand the tested versions, not to select
 a current provider on the assumption of a pass. See [compatibility](compatibility.md).
 
-Live provider results for imps, generated at build time from
+Results from live provider runs of imps 0.1.0, generated at build time from
 `conformance/compatibility.json`. A unit test passing is not a sighting. A plausible
 answer from a model is not a sighting. A row here means a real T3 thread, on the named
 provider and model, ran the case and the artifacts are in the repository. The caption

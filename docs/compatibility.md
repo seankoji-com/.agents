@@ -8,7 +8,7 @@ Only a live workflow run answers the third.
 
 | Surface | Status | Evidence |
 | --- | --- | --- |
-| Five-plugin catalog | Deterministic install and invocation tests | `tests/test_catalog.py` |
+| Five-plugin catalog | Deterministic install and invocation tests | `tests/test_catalog.py`, `tests/test_skill_adapters.py` |
 | Portable workflow entries | Readable with local file access | Entry/path contracts and manual review; no full provider matrix yet |
 | imps 1.0 evidence gate | Deterministic tests; live provider matrix pending | Snapshot, evidence, review, readiness and child-liveness tests |
 | Previous imps gate | Historical partial live conformance for `0.1.0+ga50f506cd178` | [Recorded matrix](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/compatibility.md) |
