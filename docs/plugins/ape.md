@@ -4,23 +4,27 @@ Find ideas that transfer to your project.
 
 ## When to use it
 
-You want to learn from a named repository or discover several candidates for a specific local gap.
+You have a specific local gap and want to compare an approach with working source.
+Use `study` for one named GitHub repository; use `forage` to discover candidates.
 
 ## Try it
 
+After [installation](../getting-started.md), run in your terminal:
+
 ```sh
-t3-plugins install ape
 t3-plugins prompt ape doctor
 ```
 
-Paste the generated prompt into T3, then use an operation such as:
+Paste the printed line into a T3 thread attached to your project. Once readiness is
+clear, generate a task prompt:
 
-```text
-Read ~/.local/share/t3-plugins/ape/current/entry.md and run:
-study https://github.com/python/cpython testing strategy
+```sh
+t3-plugins prompt ape study https://github.com/python/cpython 'How are parser error cases tested? Compare with this project and propose a small experiment.'
 ```
 
-Replace sample repositories, paths, and tasks with your own.
+Paste that output into T3. Replace the sample task or path with your own.
+If you installed [skill adapters](../slash-commands.md), select **t3-ape**
+from `/` and append the same request instead.
 
 ## Operations
 
@@ -28,7 +32,11 @@ Replace sample repositories, paths, and tasks with your own.
 
 ## What you get
 
-A source-pinned report with adopt, adapt, and reject decisions, plus bounded experiments.
+A report pinned to the source commit, with Overlap, Adopt, Adapt, Reject and
+Command case sections. Each recommendation names local target files, effort,
+tradeoffs and a bounded experiment. An empty Adopt section is a valid result.
+The agent returns the source revision and report path; proposed experiments are
+not measured improvements.
 
 ## Limits
 

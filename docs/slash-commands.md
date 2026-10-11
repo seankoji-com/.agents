@@ -2,13 +2,16 @@
 
 Install a portable skill adapter for each plugin you want in T3's composer. The
 adapter reads the same installed entry file regardless of the selected provider.
-It is named `t3-imps` so it can coexist with your Claude imps package.
+Skill names use the `t3-` prefix: `t3-imps`, `t3-ape`, `t3-babysitter`,
+`t3-elephant-goldfish` and `t3-agent-tuneup`.
 
-For one-step user setup after Homebrew installation, use `t3-plugins setup`.
+For one-step user setup after installation, use `t3-plugins setup`
+(`python3 bin/t3-plugins setup` from source). The current source catalog and
+[Homebrew release channel](getting-started.md#homebrew-release-channel) differ.
 It installs the full catalog and adapters into the three default roots below.
 Use `t3-plugins setup imps` for just imps, or repeat `--root PATH` for custom roots.
 Setup preserves unowned or edited adapters and stops on a conflict. Earlier receipts
-remain valid; resolve the conflict and retry. Run setup again after `brew upgrade`.
+remain valid; resolve the conflict and retry. Run setup again after updating the installed package.
 For snapshots only or individual adapter roots, use these separate commands:
 
 ```sh
@@ -58,9 +61,8 @@ $t3-imps --personas 42 43
 $t3-imps checklist path/to/audit.md
 ```
 
-Selecting from `/` inserts a skill mention. `$t3-imps` is the portable invocation;
-the old `/imps:imps` belongs to the Claude plugin. Provider-native slash commands
-must start the message. T3 accepts skill mentions on any line, but put the imps
+Selecting from `/` inserts a skill mention. `$t3-imps` is the portable invocation.
+Provider-native slash commands must start the message. T3 accepts skill mentions on any line, but put the imps
 mention first and its operation or task after it so scope routing is unambiguous. See
 [T3's composer guide](https://github.com/pingdotgg/t3code/blob/main/docs/user/composer.md#commands-and-skills).
 

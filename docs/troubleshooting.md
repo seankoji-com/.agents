@@ -24,8 +24,7 @@ checks workflow prerequisites and T3 capabilities.
 
 Install the adapter into the selected provider's skill root, enable **Show skills in
 slash menu**, and restart the agent session. Check custom provider homes and skill
-permissions. See [slash commands](slash-commands.md). The old Claude colon commands
-remain separate. Use `t3-plugins prompt PLUGIN OPERATION` as the direct-entry fallback.
+permissions. See [slash commands](slash-commands.md). Use `t3-plugins prompt PLUGIN OPERATION` as the direct-entry fallback.
 
 ## A T3 task or watch tool is missing
 
@@ -47,9 +46,26 @@ Do not change the state version or try to convert it by editing JSON.
 
 ## Homebrew has an older catalog
 
+The tap currently packages v0.4.0; use the [source installation path](getting-started.md#homebrew-release-channel)
+for the catalog these guides describe until the release channel is aligned.
+
 Run `brew update`, `brew upgrade t3-plugins`, then `t3-plugins setup`. A GitHub release
 and its tap formula update are separate steps. Check the release notes and tap PR if
 the expected version has not reached the formula yet.
+
+## Setup stopped partway through
+
+Setup prints one receipt per completed step and stops on a conflict. An existing
+skill directory without a valid ownership marker, edited generated files or a
+symlinked root can cause refusal. Preserve the conflicting files and follow the
+[adapter recovery steps](slash-commands.md#ownership-and-removal), then retry.
+Do not delete a whole skill root or use snapshot `--force` to solve a skill conflict.
+
+## The CLI succeeded but imps is not complete
+
+`imps validate` exits 0 when validation succeeds, even if requirements remain open.
+Read `data.ready`, `data.outcome` and its evidence details. The report separates
+local readiness from remote confirmation. See [CLI receipts](cli.md#inspect-imps-state).
 
 ## Report a bug
 

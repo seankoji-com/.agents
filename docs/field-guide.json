@@ -3,7 +3,7 @@
   "imps": {
     "plate": "I",
     "binomial": "Daemon diligens",
-    "summary": "Implements one bounded change and refuses to call it done without evidence at the current revision.",
+    "summary": "Fix a bug or implement a change, with checks and review tied to the files you receive.",
     "habitat": "A T3 thread attached to a repository, with a small Python core holding run state.",
     "diet": "One task with an observable success condition and a stated endstate: local or PR.",
     "field_marks": "Any edit after verification makes the evidence stale. Blocked is a complete answer. Delegation goes through T3 only."
@@ -11,7 +11,7 @@
   "elephant-goldfish": {
     "plate": "II",
     "binomial": "Memoria duplex",
-    "summary": "Turns an uncertain problem into a testable brief, then checks the design document that comes out of it.",
+    "summary": "Turn an uncertain idea into acceptance criteria and a brief a fresh thread can use.",
     "habitat": "A thinking directory inside your repository.",
     "diet": "A problem you cannot yet state as a task.",
     "field_marks": "Thinking ends at the handoff and never starts implementation. Cold review and factual verification are kept as separate verdicts."
@@ -19,7 +19,7 @@
   "ape": {
     "plate": "III",
     "binomial": "Simia studiosa",
-    "summary": "Studies open-source repositories for ideas that transfer to a specific gap in yours.",
+    "summary": "Find an approach in another codebase, with source citations and a small experiment to try.",
     "habitat": "A research workspace of cloned repositories, outside your project.",
     "diet": "A named gap and a GitHub search, or one repository URL.",
     "field_marks": "Read-only in the current project. Every recommendation cites source lines and proposes a small experiment. Never runs third-party code."
@@ -27,7 +27,7 @@
   "babysitter": {
     "plate": "IV",
     "binomial": "Gallina patiens",
-    "summary": "Sits on an authorized pull request through review comments, failing checks, and conflicts until it lands.",
+    "summary": "Carry an authorized PR through review, failing checks and conflicts to an observed merge.",
     "habitat": "One pull request, a repository, or an organization, within the scope you state.",
     "diet": "Review findings, red checks, and base-branch drift.",
     "field_marks": "\"Review\" alone authorizes inspection only. Pushes to the PR branch only. Never bypasses protected-branch rules. T3 owns the watch."
@@ -35,7 +35,7 @@
   "agent-tuneup": {
     "plate": "V",
     "binomial": "Gryllus auditor",
-    "summary": "Audits agent configuration files and reports findings without weakening a single permission.",
+    "summary": "Find broad permission rules and duplicates in agent settings without changing them.",
     "habitat": "Your settings files: Claude JSON, OpenCode JSON or JSONC, Codex TOML.",
     "diet": "An explicitly supplied settings path and the provider format it belongs to.",
     "field_marks": "Read-only by default. The settings format is independent of the provider running the audit. Codex TOML needs Python 3.11 and says so."

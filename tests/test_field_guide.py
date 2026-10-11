@@ -47,16 +47,24 @@ class RepositoryGuideTest(unittest.TestCase):
         self.assertIn('not run', html)
         self.assertIn(ledger['t3_version'], html)
 
-    def test_homepage_and_sightings_pages_expand(self):
+    def test_historical_sightings_expand_on_the_ledger_page(self):
         guide = field_guide.load_guide(ROOT)
         sightings = field_guide.load_sightings(ROOT)
-        for page in ('index.md', 'sightings.md'):
+        for page in ('sightings.md',):
             source = (ROOT / 'docs' / page).read_text()
             self.assertIn(field_guide.SIGHTINGS_MARKER, source)
             out = field_guide.expand_page(source, page, ROOT, guide, sightings)
             self.assertNotIn(field_guide.SIGHTINGS_MARKER, out)
             self.assertNotIn('<!-- inline-svg', out)
             self.assertIn('sightings__table', out)
+
+    def test_homepage_links_to_compatibility_without_claiming_historical_passes(self):
+        source = (ROOT / 'docs' / 'index.md').read_text()
+        out = field_guide.expand_page(source, 'index.md', ROOT,
+                                      field_guide.load_guide(ROOT), field_guide.load_sightings(ROOT))
+        self.assertNotIn('sightings__table', out)
+        self.assertNotIn('<!-- inline-svg', out)
+        self.assertIn('(compatibility.md)', out)
 
     def test_plugin_pages_get_a_specimen_header_after_the_title(self):
         guide = field_guide.load_guide(ROOT)

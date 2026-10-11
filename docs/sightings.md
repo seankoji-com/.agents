@@ -1,8 +1,12 @@
 ---
-description: "Live provider results for imps on T3 Code, generated from the conformance ledger in the repository."
+description: "Historical provider results for imps 0.1.0+ga50f506cd178 on T3 Code 0.0.46-nightly.20261008.2849, generated from the conformance ledger."
 ---
 
-# Sightings
+# Historical sightings
+
+This ledger predates imps 1.0. The current evidence gate has not completed a live
+provider matrix. Use these results to understand the tested versions, not to select
+a current provider on the assumption of a pass. See [compatibility](compatibility.md).
 
 Live provider results for imps, generated at build time from
 `conformance/compatibility.json`. A unit test passing is not a sighting. A plausible
@@ -24,8 +28,8 @@ nothing about any other version.
 The matrix was useful because it failed. Two defects surfaced only under live
 providers and were fixed afterwards, with regression tests:
 
-1. Review briefs showed a `changed_files` example, and a Codex reviewer listed the files it had read there. The core rejected the claim and blocked two Antigravity repeats instead of accepting a false result. Read-only briefs now show an empty list and a stray list gets one correction round.
-2. A Claude child cited an evidence path relative to its own scratch directory. Briefs now require absolute paths, and a relative path that does not resolve gets one correction round.
+1. Review briefs showed a `changed_files` example, and a Codex reviewer listed the files it had read there. The core rejected the claim and blocked two Antigravity repeats instead of accepting a false result. The original dispatcher was repaired to require an empty list in read-only results. The current gate no longer uses that result parser.
+2. A Claude child cited an evidence path relative to its own scratch directory. The original dispatcher added absolute-path requirements and a correction round. The current gate validates submitted evidence paths directly.
 
 Both are recorded in [the full ledger](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/compatibility.md),
 with per-repeat transcripts under `conformance/results/`.

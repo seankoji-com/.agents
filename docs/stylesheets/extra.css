@@ -137,7 +137,7 @@
 .md-typeset table:not([class]) { font-size: .72rem; border: 0; box-shadow: none; }
 .md-typeset table:not([class]) th { background: transparent; color: var(--ink); font-weight: 600; border-bottom: 1.5px solid var(--ink); }
 .md-typeset table:not([class]) td { border-top: 1px solid var(--rule); vertical-align: top; }
-.md-typeset table:not([class]) td:first-child code { white-space: nowrap; word-break: keep-all; }
+.md-typeset table:not([class]) td:first-child code { white-space: normal; word-break: normal; }
 .md-typeset table:not([class]) tr:hover { background: transparent; box-shadow: none; }
 .md-typeset .admonition, .md-typeset details { border: 0; border-left: 2px solid var(--fern); border-radius: 0; box-shadow: none; background: transparent; font-size: .76rem; padding-left: .8rem; }
 .md-typeset .admonition-title, .md-typeset summary { background: transparent !important; padding-left: 1.6rem; font-weight: 600; }
@@ -159,9 +159,6 @@
 .fg-hero h1 { font-family: var(--display); font-optical-sizing: auto; font-weight: 600; font-size: clamp(2.2rem, 4.6vw, 3.3rem); line-height: 1.02; letter-spacing: -.025em; margin: 0 0 1.1rem; color: var(--ink); }
 .fg-hero h1 em { font-style: italic; font-weight: 500; }
 .fg-lead { font-size: .92rem; line-height: 1.55; color: var(--ink-soft); max-width: 32rem; margin: 0 0 1.4rem; }
-.fg-install { font-family: var(--mono); font-size: .74rem; margin: 0 0 1.3rem; color: var(--ink); }
-.fg-install code { display: inline-block; max-width: 100%; overflow-x: auto; white-space: nowrap; background: var(--paper-deep); padding: .45em .7em; border-radius: 4px; border: 1px solid var(--rule); vertical-align: middle; }
-.fg-install code::before { content: "$ "; color: var(--ink-soft); }
 .fg-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: 0; }
 .fg-actions a { display: inline-block; border: 1px solid var(--ink); border-radius: 4px; color: var(--ink); font-weight: 500; font-size: .74rem; padding: .5em 1.1em; text-decoration: none; }
 .fg-actions a:hover, .fg-actions a:focus { background: var(--paper-deep); }
@@ -180,7 +177,7 @@
 .fg-key h2 { font-family: var(--display); font-weight: 500; font-size: 1.4rem; margin: 0 0 .2rem; padding-top: .8rem; border-top: 1px solid var(--ink); letter-spacing: -.01em; }
 .fg-key__intro { font-size: .78rem; color: var(--ink-soft); margin: 0 0 1.2rem; max-width: 40rem; }
 .fg-key__list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
-.fg-row { display: grid; grid-template-columns: 2.2rem 3.4rem minmax(0, 11rem) minmax(0, 1fr) minmax(0, 11rem); gap: 0 1.2rem; align-items: start; padding: 1rem 0; border-bottom: 1px solid var(--rule); }
+.fg-row { display: grid; grid-template-columns: 2.2rem 3.4rem minmax(0, 11rem) minmax(0, 1fr); gap: 0 1.2rem; align-items: start; padding: 1rem 0; border-bottom: 1px solid var(--rule); }
 .fg-row__no { font-family: var(--display); font-style: italic; font-size: .78rem; color: var(--ochre-text); padding-top: .15rem; }
 .fg-row__mark { display: block; width: 3.4rem; height: 3.4rem; text-decoration: none; }
 .fg-row__mark svg { width: 100%; height: 100%; display: block; }
@@ -189,10 +186,11 @@
 .fg-row__name a:hover { color: var(--fern-deep); text-decoration: underline; text-underline-offset: .2em; }
 .fg-row__name i { display: block; font-family: var(--display); font-size: .8rem; color: var(--ink-soft); margin-top: .15rem; }
 .fg-row__summary { font-size: .78rem; line-height: 1.55; margin: 0; color: var(--ink); }
-.fg-row__ops { font-family: var(--mono); font-size: .66rem; line-height: 1.6; color: var(--ink-soft); margin: 0; word-spacing: .2em; }
-.fg-row__ops b { font-weight: 500; color: var(--ink); }
 
-/* sightings table (also used on the compatibility page) */
+/* Keep homepage prose readable when both sidebars are hidden. */
+.fg-key ~ .md-main .md-typeset > p { max-width: 75ch; }
+
+/* sightings table */
 .sightings { overflow-x: auto; margin: 1rem 0 .5rem; }
 .md-typeset .sightings__table { font-size: .68rem; border-collapse: collapse; width: 100%; display: table; }
 .md-typeset .sightings__table caption { caption-side: bottom; text-align: left; font-size: .66rem; color: var(--ink-soft); padding: .6rem 0 0; }
@@ -230,7 +228,6 @@
 @media (max-width: 76.1875em) {
   .fg-row { grid-template-columns: 2rem 3rem minmax(0, 1fr); gap: .3rem 1rem; }
   .fg-row__summary { grid-column: 3; }
-  .fg-row__ops { grid-column: 3; }
 }
 @media (max-width: 59.9375em) {
   .fg-hero { padding: 1.8rem 0 1.6rem; }

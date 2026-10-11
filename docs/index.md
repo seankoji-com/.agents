@@ -1,65 +1,50 @@
 ---
 template: home.html
 title: Overview
-description: "Five agent workflows for T3 Code that keep working when you change the model. Python standard library, evidence before completion, live provider results recorded."
+description: "Fix bugs with current evidence, plan work a fresh thread can use, and carry PRs through review and CI. Five installable workflows for T3 Code."
 hide:
   - toc
   - navigation
 ---
 
-## From install to first run
+## Start with one useful result
+
+Install on the machine where your T3 provider executes tools:
 
 ```sh
-brew install seankoji-com/tap/t3-plugins
-t3-plugins setup
-t3-plugins doctor
-t3-plugins prompt imps doctor
+git clone https://github.com/seankoji-com/t3-plugins.git
+cd t3-plugins
+python3 bin/t3-plugins setup
+python3 bin/t3-plugins doctor
+python3 bin/t3-plugins prompt imps doctor
 ```
 
-Setup installs snapshots and [skill adapters](slash-commands.md). Enable **Show
-skills in slash menu** in T3 and restart the agent session. The agent reads the same
-installed entry with the selected provider. Paste the printed prompt when a provider
-lacks skill discovery. [Source installs](getting-started.md#from-source) work the same way.
+Paste the last command's output into T3. The agent checks whether it can run the
+workflow before changing anything. For the picker, enable **Show skills in slash
+menu**, restart the agent session, then select **t3-imps** from `/` and append a task.
 
-<div class="demo" markdown="0">
-<!-- inline-svg: assets/demo.svg -->
-</div>
+[Installation and source setup](getting-started.md) ·
+[Your first workflow](first-workflow.md) · [Troubleshooting](troubleshooting.md)
 
-<p class="caption">A scripted recording of the first run: install, <code>doctor</code>, the generated prompt, and what <code>doctor</code> reports inside a T3 thread. Nothing here is a live model call; the frames come from <code>scripts/render_demo.py</code>.</p>
+## Know what was checked
 
-## Sightings
+imps ties checks and reviews to the revision they verified. If the files change,
+the evidence is stale. Its report names missing checks and blockers, with a run ID
+for resuming after an interruption. A local pass does not stand in for CI, merge or
+live deployment.
 
-A provider is only listed as working when a live run says so. The ledger below is
-generated from `conformance/compatibility.json` at build time, so the numbers on
-this page are the numbers in the repository.
+[See how imps works](plugins/imps.md) · [Safety and data](safety.md)
 
-<!-- sightings-matrix -->
+## Use the model you choose
 
-Two providers completed every repeat of the bug-fix and missing-capability cases.
-Antigravity passed one bug fix in three; the other two blocked when a reviewer
-listed files it only read as changed, which the core rejected rather than accepted.
-OpenCode could run as a child but never opened a parent session. Nothing here
-claims more than it observed. [Read the full ledger](sightings.md).
+The agent reads the same workflow entry with your selected T3 provider. Local helpers
+use Python's standard library; delegated tasks, previews and watches stay with T3.
+Skill discovery and host capabilities vary by provider, so every workflow has a
+readiness check and a direct-prompt fallback.
 
-## How it is built
+The current catalog has deterministic helper tests. The published live-provider
+ledger covers an earlier imps gate; it does **not** certify imps 1.0.
+[Compatibility and evidence](compatibility.md) has the exact scope.
 
-<!-- inline-svg: assets/architecture.svg -->
-
-Three parts, kept apart so each can be inspected on its own:
-
-- **Instructions.** A plugin entry under 1,500 words routes the agent to one playbook. The agent brings its own reasoning and shell.
-- **Local tools.** Python standard library only. Installers, state, hashes, and audits are plain scripts with tests.
-- **Host orchestration.** T3 owns child tasks, browser previews, and PR watches. The plugins discover its tools; they never ship a second scheduler.
-
-imps adds a small evidence gate. It stores checks, requirement artifacts and child
-observations, then validates them against the current tree and contract. File edits
-invalidate earlier evidence; a local pass never proves a remote outcome.
-
-## Why it is built this way
-
-The short version: switching providers should not mean rebuilding your workflow, and a
-workflow that cannot show its evidence is a demo. [The case study](case-study.md)
-covers the three decisions that shaped the design, what the live conformance matrix
-broke, and what changed as a result.
-
-Built by [Sean Carey](https://github.com/seankoji). MIT licensed.
+MIT licensed. [Source](https://github.com/seankoji-com/t3-plugins) ·
+[Contribute](contributing.md)

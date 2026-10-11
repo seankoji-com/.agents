@@ -12,14 +12,10 @@ Most tests drive the core CLI and Git in temporary repositories, so the suite sp
 its time waiting on child processes. `run_tests.py` gives each module its own process
 and prints that module's full output only if it fails. It is stricter than unittest in
 two ways: a module that collects no tests fails, and a module still running after
-`--timeout` seconds (default 600) is stopped and fails. On 2026-10-11, on a 16-core
-Linux machine, the pre-migration suite took about a minute in parallel; see the stage-3 PR logs for the new suite.
-
-Line coverage of `core/`, `scripts/`, and the plugin helpers was 87% on the same date,
-measured with coverage.py across the child processes the tests start. coverage.py is
-not a dependency; install it in a scratch environment to measure again. That figure
-predates the October 2026 retirement of two plugins. `run_imps.py` reads as 0% because it replaces its process with `os.execv`
-before coverage can save; its behavior is tested in `test_catalog.py`.
+`--timeout` seconds (default 600) is stopped and fails. Use `--jobs N` to bound concurrency on smaller machines. Coverage measurements need
+to include the child processes these tests launch; coverage.py is optional tooling,
+not a runtime dependency. The launcher replaces its process with `os.execv`; test
+its observable behavior rather than relying on launcher line coverage.
 
 The suite tests behavior across boundaries, not just successful return values:
 

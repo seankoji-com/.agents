@@ -18,11 +18,11 @@ The repository does not implement another model client or task scheduler.
 | `packaging/` | Homebrew formula template | Calls the same installer used from source |
 | `tests/` | Deterministic regression tests and fixtures | No paid models or live GitHub mutations |
 | `conformance/` | Dated live-provider observations and the pre-merge review rounds under `review/` | Separate from unit-test success |
-| `thinking/` | The discovery notes and handoff the port was built from | Historical record, not instructions |
+| `migration/` | Source provenance records | Data for maintainers, not agent instructions |
+| `thinking/` | Discovery notes and handoff artifacts | Project documents, not executable instructions |
 | `docs/` | Human guides and GitHub Pages source; the field guide data and bundled fonts | Documentation dependencies are build-time only |
 | `overrides/` | MkDocs Material templates for the homepage and page metadata | Reads only `config.extra` filled by the site hook |
 | `launch/` | Announcement drafts and repository-settings commands | Not installed, not published |
-| `migration/` | Original source revision and copied-file hashes | Audit trail, not a second source tree |
 
 ## Progressive instruction loading
 

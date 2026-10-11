@@ -1,0 +1,10 @@
+{# A plain repository link. Material's source component fetches GitHub metadata;
+   this site keeps navigation local and does not send readers to a third party
+   until they follow a link. #}
+<a href="{{ config.repo_url }}" title="{{ lang.t('source') }}" class="md-source">
+  <div class="md-source__icon md-icon">
+    {% set icon = config.theme.icon.repo or "fontawesome/brands/git-alt" %}
+    {% include ".icons/" ~ icon ~ ".svg" %}
+  </div>
+  <div class="md-source__repository">{{ config.repo_name }}</div>
+</a>

@@ -22,9 +22,9 @@ OUTPUT = ROOT / 'docs' / 'assets' / 'demo.svg'
 # (kind, text). kind: cmd = typed at the prompt, out = printed, note = dim aside, gap = blank.
 FRAMES = [
     ('cmd', 't3-plugins install imps'),
-    ('out', '{"ok": true, "data": {"action": "install", "plugin": "imps", "version": "0.2.0+gdf8e8c7", "files": 48}}'),
+    ('out', '{"ok": true, "data": {"action": "install", "plugin": "imps", "version": "1.0.0+content.664ed9e9b003", "files": 62}}'),
     ('cmd', 't3-plugins doctor imps'),
-    ('out', '{"plugin": "imps", "ok": true, "errors": [], "scope": "installed file integrity; provider behavior not tested"}'),
+    ('out', '{"plugin": "imps", "ok": true, "errors": [], "scope": "installed file integrity and package currency; provider behavior not tested"}'),
     ('cmd', 't3-plugins prompt imps doctor'),
     # catalog.py prints the absolute entry path; the home directory is shown as ~ so
     # no machine path ships in the repository (tests/test_contract.py enforces that).

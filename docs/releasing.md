@@ -18,6 +18,15 @@ Homebrew distribution, and Pages acceptance each need their own evidence.
 7. Observe the `Documentation` workflow's Pages deployment. Open the live site and
    check navigation, search, images, and installation text at desktop/mobile widths.
 
+## Before public promotion
+
+Check the install experience against the release you are announcing, not just the
+source branch. A plugin manifest's `1.0.0` is distinct from a catalog release tag and
+its Homebrew formula. The docs must describe the package users can obtain.
+Run a real installed workflow in T3 and retain the version, provider, T3 build,
+operation, result and any intervention. A historical conformance pass is insufficient
+for a changed evidence gate. See the [launch kit](https://github.com/seankoji-com/t3-plugins/tree/master/launch).
+
 ## GitHub Pages setup
 
 Set repository **Settings → Pages → Build and deployment → Source** to **GitHub

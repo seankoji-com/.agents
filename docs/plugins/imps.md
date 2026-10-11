@@ -4,23 +4,28 @@ Implement with revision-bound evidence.
 
 ## When to use it
 
-A bounded bug fix or change needs a plan, current-revision checks, and an independent review.
+A failing behavior needs fixing, or a small feature has clear acceptance criteria.
+Use a direct request for a trivial edit; use imps when current checks, independent
+review or interruption recovery justify saved run state.
 
 ## Try it
 
+After [installation](../getting-started.md), run in your terminal:
+
 ```sh
-t3-plugins install imps
 t3-plugins prompt imps doctor
 ```
 
-Paste the generated prompt into T3, then use an operation such as:
+Paste the printed line into a T3 thread attached to your project. Once readiness is
+clear, generate a task prompt:
 
-```text
-Read ~/.local/share/t3-plugins/imps/current/entry.md and run:
-run fix the failing date parser and verify locally
+```sh
+t3-plugins prompt imps run 'Fix the date parser: reject 31 April with a useful error. Add a regression check. Verify locally without committing or publishing.'
 ```
 
-Replace sample repositories, paths, and tasks with your own.
+Paste that output into T3. Replace the sample task or path with your own.
+If you installed [skill adapters](../slash-commands.md), select **t3-imps**
+from `/` and append the same request instead.
 
 ## Operations
 
@@ -42,22 +47,17 @@ the guide's per-provider discovery and live-verification steps.
 
 ## What you get
 
-A run ID, an evidence contract, copied artifacts, recorded child handles and a report.
-The agent plans and executes the work; the gate validates the evidence. Capture a
-binding before verification, then submit the check or inspection with that binding.
-An edit makes earlier evidence stale. Pending child runs prevent readiness.
-
-The CLI commands are `init`, `status`, `snapshot`, `check`, `evidence`, `review`,
-`child`, `waive`, `note`, `policy`, `remote`, `validate`, `report`, `cancel`,
-`recipe-scaffold`, `recipe-check` and `recipe-stamp`. JSON inputs use `--input FILE`.
-The package's `core/schemas/submission-*.schema.json` files describe each input.
-`validate` reports local readiness and the authorised outcome separately.
+You receive a run ID, current validation report and paths to copied evidence.
+The report distinguishes local readiness from the authorized remote outcome.
+If a check or review is missing, failed or stale, it names the remaining work.
+Keep the run ID and state root to [resume later](../first-workflow.md#resume-inspect-or-stop).
 
 ## Previous runs
 
 State major version 1 is refused by this gate without conversion or writes.
-Keep the previous installed version until its runs are finished. Use
-`t3-plugins list` to find installed versions, then
+Keep the previous installed version until its runs are finished. Find its version
+in the installation receipt or the version folders beside `current/`, one level
+above the entry printed by `t3-plugins path imps`, then use
 `t3-plugins activate imps <previous-version>`. Read that version's entry through
 `t3-plugins path imps`; use its `status`, `resume` or `cancel` operation with the
 original run ID and state root. Activate the new version again when done.

@@ -1,88 +1,81 @@
 # t3-plugins
 
-**Change the model. Keep the workflow.**
+**Give your T3 agent a repeatable way to fix bugs, plan work and finish PRs.**
 
 [![Tests](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml/badge.svg)](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml)
 [![Documentation](https://github.com/seankoji-com/t3-plugins/actions/workflows/docs.yml/badge.svg)](https://seankoji-com.github.io/t3-plugins/)
 [![MIT license](https://img.shields.io/badge/license-MIT-2f6b4f)](LICENSE)
 
-Five agent workflows for [T3 Code](https://github.com/pingdotgg/t3code) that run on
-whichever provider the thread has selected. Each one is a short entry the agent reads,
-plus local tools in the Python standard library for the parts that should be
-deterministic. T3 owns child tasks, previews, and PR watches. Nothing is called done
-without evidence.
+Five workflows for [T3 Code](https://github.com/pingdotgg/t3code). Pick the job,
+give it to your agent, and get a result you can inspect: a verified change, a usable
+brief, cited research, a PR carried through CI, or a settings audit.
+Switch models without rewriting the workflow.
 
-**[Docs](https://seankoji-com.github.io/t3-plugins/)** ·
-[Why it is built this way](https://seankoji-com.github.io/t3-plugins/case-study/) ·
-[Sightings](https://seankoji-com.github.io/t3-plugins/sightings/) ·
-[Contributing](CONTRIBUTING.md)
+**[Get started](https://seankoji-com.github.io/t3-plugins/getting-started/)** ·
+[Choose a workflow](https://seankoji-com.github.io/t3-plugins/plugins/) ·
+[CLI reference](https://seankoji-com.github.io/t3-plugins/cli/)
 
-[![The documentation homepage](docs/assets/docs-preview.png)](https://seankoji-com.github.io/t3-plugins/)
+## Pick your job
 
-## Install
+| You want to… | Use | What comes back |
+| --- | --- | --- |
+| Fix a bug or ship a bounded change | [imps](docs/plugins/imps.md) | A change with checks and review tied to the current revision |
+| Work out what to build | [elephant-goldfish](docs/plugins/elephant-goldfish.md) | A testable brief ready for a fresh thread |
+| Learn how another project solved a problem | [ape](docs/plugins/ape.md) | Source-pinned recommendations and small proposed experiments |
+| Get an authorized PR through review and CI | [babysitter](docs/plugins/babysitter.md) | Fixes, current-head check status and observed merge state |
+| Inspect your agent permissions | [agent-tuneup](docs/plugins/agent-tuneup.md) | A read-only findings report without exposing setting values |
+
+## Install and try it
+
+Install the current catalog from source on the machine where your provider executes tools:
 
 ```sh
-brew install seankoji-com/tap/t3-plugins
-t3-plugins setup
-t3-plugins doctor
-t3-plugins prompt imps doctor
+git clone https://github.com/seankoji-com/t3-plugins.git
+cd t3-plugins
+python3 bin/t3-plugins setup
+python3 bin/t3-plugins doctor
+python3 bin/t3-plugins prompt imps doctor
 ```
 
-Setup installs [slash-menu skill adapters](docs/slash-commands.md); enable the skill
-menu in T3 and restart the agent session. Paste the printed prompt when a provider
-lacks skill discovery. Install on the machine where your provider
-executes tools. [Source installs, upgrades, and rollback](docs/getting-started.md).
+Paste the last command's output into a T3 thread. The shell `doctor` checks installed
+files; the agent's `doctor` checks workflow readiness. To use the picker, enable
+**Show skills in slash menu** in T3, restart the agent session, then select **t3-imps**
+from `/` and append your task.
 
-![Scripted recording: install imps, run doctor, paste the generated prompt into T3](docs/assets/demo.svg)
+[Source installation](docs/getting-started.md#from-source) ·
+[Provider skill roots](docs/slash-commands.md) ·
+[Your first workflow](docs/first-workflow.md) ·
+[Troubleshooting](docs/troubleshooting.md)
 
-## The catalog
+## Why use a workflow?
 
-| Plate | Plugin | Use it when |
-| --- | --- | --- |
-| I | [imps](docs/plugins/imps.md) | A bounded change needs a plan, checks at the current revision, and an independent review |
-| II | [elephant-goldfish](docs/plugins/elephant-goldfish.md) | You cannot yet state the problem as a task |
-| III | [ape](docs/plugins/ape.md) | Another codebase probably solved your gap, and you want cited evidence |
-| IV | [babysitter](docs/plugins/babysitter.md) | An authorized PR needs carrying through review, CI, and conflicts |
-| V | [agent-tuneup](docs/plugins/agent-tuneup.md) | Your agent settings need an audit that never weakens a permission |
+imps keeps evidence with the work. An edit after a check or review makes that evidence
+stale, so an earlier pass cannot certify the change you receive. A blocked result
+names what is missing and how to resume. Publishing, CI, merge and deployment each
+need their own observations.
 
-A direct prompt is often enough. Reach for a plugin when its saved artifacts, checks,
-or recovery behavior earn their overhead. [Your first workflow](docs/first-workflow.md).
+The other workflows save the outputs you usually have to ask for again: acceptance
+criteria, source citations, review blockers and permission findings. For a trivial
+edit, a direct agent request is enough.
 
-## How it is built
+Instructions are readable Markdown. Local helpers use Python 3.10+ and the standard
+library; Codex TOML adapters need 3.11+. T3 owns delegated tasks, previews and watches.
+[Architecture](docs/architecture.md) · [Safety and data](docs/safety.md)
 
-![A T3 thread reads a plugin entry and one playbook, then uses local helpers or T3 host tools; imps records revision-bound evidence in a shared core](docs/assets/architecture.svg)
+## Compatibility
 
-- **Instructions** are Markdown entries under 1,500 words that route to one playbook. Any model with a filesystem can read them.
-- **Local tools** use only the Python standard library. Installers, run state, hashes, and audits are plain scripts with tests.
-- **Host orchestration** stays with T3. The plugins discover its tools at run time and never ship a scheduler of their own.
+The catalog is designed for T3 providers with local file and shell access. Provider
+skill discovery and available host tools vary. Install tests do not prove that a
+model follows the workflow. The [compatibility guide](docs/compatibility.md) separates
+current helper coverage from historical provider observations. imps 1.0's new gate
+has not yet completed a live provider matrix.
 
-imps adds a small evidence gate. It stores checks, requirement artifacts and child
-observations, then validates them against the current tree and contract. File edits
-invalidate earlier evidence; a local pass never proves a remote outcome.
-
-## What has been observed
-
-Provider-neutral is a design contract, not a claim that every model behaves the same.
-The [sightings ledger](https://seankoji-com.github.io/t3-plugins/sightings/) is
-generated from `conformance/compatibility.json` and lists per-provider pass counts,
-the cases that could not run, and the two defects the live matrix found in the
-briefs. Failed attempts are recorded alongside passes.
-
-## Develop
+## Contribute
 
 ```sh
-python3 scripts/run_tests.py          # the unittest suite, modules in parallel
+python3 scripts/run_tests.py
 python3 scripts/check_docs.py
 ```
 
-Python 3.10+, no runtime package installation. Some optional adapters need 3.11+.
-The docs site uses a separate pinned [MkDocs build](docs/contributing.md#work-on-the-site)
-and is generated from the plugin manifests and the conformance ledger at build time.
-See [testing](docs/testing.md) and [contributing](CONTRIBUTING.md).
-
-## Project
-
-Built by [Sean Carey](https://github.com/seankoji). Ported from
-[claude-plugins](https://github.com/seankoji-com/claude-plugins); the source revision
-and behavioral changes are in the [migration guide](docs/migration.md).
+[Contributor guide](CONTRIBUTING.md) · [Testing](docs/testing.md) ·
 [Security reporting](SECURITY.md) · [MIT license](LICENSE)
