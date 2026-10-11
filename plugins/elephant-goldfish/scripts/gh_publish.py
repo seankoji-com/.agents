@@ -133,7 +133,10 @@ def save_meta(meta_file: Path, meta: dict) -> None:
 def graphql(query: str, **variables) -> dict:
     cmd = ["gh", "api", "graphql", "-f", f"query={query}"]
     for key, value in variables.items():
-        cmd += ["-F", f"{key}={value}"]
+        # -f, not -F: every variable here is a GraphQL String. -F applies gh's typed
+        # parsing, which would turn a title or body of "123" or "true" into a number
+        # or boolean and have GitHub reject the mutation.
+        cmd += ["-f", f"{key}={value}"]
     data = json.loads(run(cmd))
     # GitHub answers many real failures — Discussions disabled, missing scope, rate limit,
     # unknown node id — with HTTP 200 and an `errors` array, so a zero exit status is not
@@ -194,7 +197,7 @@ def repo_ids(repo: str, category: str | None) -> tuple[str, str, str]:
 
 def body_for(path: Path, slug: str) -> str:
     heading = ARTIFACT_HEADINGS.get(path.name, path.name)
-    body = f"## {heading}\n\n_`{slug}/{path.name}` — posted by `/elephant-goldfish:thinking`_\n\n{path.read_text(encoding='utf-8').strip()}\n"
+    body = f"## {heading}\n\n_`{slug}/{path.name}` — posted by elephant-goldfish `thinking <topic>`_\n\n{path.read_text(encoding='utf-8').strip()}\n"
     size = len(body.encode("utf-8"))
     if size > MAX_BODY:
         raise PublishError(
@@ -223,7 +226,7 @@ def cmd_ensure(args) -> int:
     intro = (
         f"Thinking record for **{meta.get('title', args.slug)}** (`{args.slug}`), "
         f"output type: **{meta.get('output_type', 'unknown')}**.\n\n"
-        "Produced with [`/elephant-goldfish:thinking`](https://github.com/seankoji/claude-plugins/tree/master/plugins/elephant-goldfish) "
+        "Produced with elephant-goldfish [`thinking <topic>`](https://github.com/seankoji-com/t3-plugins/tree/master/plugins/elephant-goldfish) "
         "— steps 1 and 2 of Rensin's three-step process. Each artifact is posted as a comment below as it completes.\n"
     )
 

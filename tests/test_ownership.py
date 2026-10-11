@@ -16,7 +16,7 @@ class OwnershipTest(CoreTestCase):
         self.state_file = self.run.run_dir / 'run.json'
 
     def test_mutation_without_any_claim_is_rejected_when_no_owner_file_exists(self):
-        """Regression for workflow-evidence.py:212, where a missing owner file let a patch through."""
+        """Regression for an ownership hole in the migrated predecessor helper, where a missing owner file let a patch through."""
         self.assertFalse((self.run.run_dir / 'owner.json').exists())
         before = self.state_file.read_bytes()
         code, env, _ = self.run.record_raw('note', {'key': 'x', 'text': 'y'}, token='made-up-token', generation=1)

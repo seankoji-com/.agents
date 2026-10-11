@@ -1,7 +1,7 @@
 {
   "name": "imps",
-  "version": "0.2.0",
-  "description": "Provider-neutral imps workflow for T3 Code: direct and delegated bug fixes with revision-bound evidence.",
+  "version": "0.2.2",
+  "description": "Bounded engineering work on any T3 provider: implement, investigate, audit, and review with revision-bound evidence.",
   "entry": "entry.md",
   "defaults": "config.json",
   "tested_t3_version": "0.0.46-nightly.20261008.2849",

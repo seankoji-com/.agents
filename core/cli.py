@@ -171,7 +171,6 @@ def op_record(args, plugin, root):
 def op_validate(args, plugin, root):
     run = _run(args, root)
     state = run.load()
-    ctx = make_ctx(args, root, run, run.owner())
     ev = acceptance.evaluate(state, root, run.run_dir)
     return run.run_id, {k: ev[k] for k in ('ready', 'status', 'missing', 'failed', 'stale', 'counts',
                                            'requirements', 'checks', 'review', 'binding')}
@@ -206,6 +205,8 @@ def _decision(state, blocker, args):
             raise InvalidInput('value', 'v1 can only fall back to the local endstate')
         state['authorization']['endstate'] = args.value
     elif decision == 'adopt-parent':
+        if not args.value:
+            raise InvalidInput('value', 'adopt-parent needs --value with the new parent thread id')
         for task in state['tasks']:
             for item in task.get('rounds') or []:
                 if item.get('task_id') and not item.get('terminal'):
@@ -386,9 +387,11 @@ def main(argv=None) -> int:
         return exc.exit_code
     except OSError as exc:
         error = Environment('io_error', str(exc))
-    except (ValueError, TypeError, KeyError) as exc:
+    except ValueError as exc:  # explicit conversions of agent input (int(), JSON decoding)
         error = InvalidInput('invalid_input', f'{type(exc).__name__}: {exc}')
     except Exception as exc:  # the envelope contract holds even for bugs
+        # KeyError/TypeError land here too: handlers validate agent-supplied shapes
+        # explicitly, so a stray one is an engine or state-shape bug, not bad input.
         traceback.print_exc(file=sys.stderr)  # stderr is diagnostics only; stdout stays one envelope
         error = Environment('internal_error', f'{type(exc).__name__}: {exc}')
     print(json.dumps({'schema_version': ENVELOPE_VERSION, 'ok': False, 'op': op, 'run_id': run_id,

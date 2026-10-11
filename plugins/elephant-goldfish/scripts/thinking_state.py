@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""thinking_state.py — deterministic state resolver for /elephant-goldfish:thinking.
+"""thinking_state.py — deterministic state resolver for elephant-goldfish `thinking <topic>`.
 
 The command needs the same handful of facts at every turn: which topics exist, which
 phase this one is in, which artifacts are on disk, what was already published. Answering
@@ -27,8 +27,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,7 +51,7 @@ GITHUB_MODES = ("issue", "discussion", "none")
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 # The script's own CLI is unambiguous — a slug is always a positional after a subcommand, so
-# `resolve list` reads fine. The ambiguity is one level up: /elephant-goldfish:thinking takes
+# `resolve list` reads fine. The ambiguity is one level up: `thinking <topic>` takes
 # a bare `$ARGUMENTS` that is either the word `list` or a topic slug, and a topic actually
 # named `list` makes that undecidable. Reserve the subcommand names so the collision cannot
 # be created in the first place.
@@ -108,11 +110,24 @@ def read_meta(tdir: Path) -> dict:
 
 
 def write_meta(tdir: Path, meta: dict) -> None:
-    if meta_path(tdir).is_symlink():
+    """Replace meta.json atomically: a crash or full disk mid-write leaves the previous
+    file intact rather than a truncated one that every later `resolve` rejects."""
+    mp = meta_path(tdir)
+    if mp.is_symlink():
         raise StateError('topic metadata may not be a symlink')
     meta["updated_at"] = utcnow()
     tdir.mkdir(parents=True, exist_ok=True)
-    meta_path(tdir).write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    content = json.dumps(meta, indent=2, sort_keys=True) + "\n"
+    fd, temporary = tempfile.mkstemp(prefix=mp.name + ".", dir=tdir)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, mp)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def artifact_state(tdir: Path, meta: dict) -> dict:

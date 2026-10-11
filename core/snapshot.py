@@ -44,8 +44,8 @@ def _porcelain(root: Path):
         if not entry:
             continue
         status, path = entry[:2], entry[3:]
-        if status[0] in 'RC':
-            index += 1  # skip the rename source
+        if 'R' in status or 'C' in status:
+            index += 1  # skip the rename/copy source, whichever column flags it
         yield status, path
 
 

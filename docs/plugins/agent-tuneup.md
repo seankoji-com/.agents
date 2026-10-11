@@ -24,7 +24,7 @@ Replace sample repositories, paths, and tasks with your own.
 
 ## Operations
 
-`doctor`, `audit`, `scan`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/agent-tuneup/entry.md) routes each operation to its focused playbook.
+`doctor`, `audit`, `scan`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/agent-tuneup/entry.md) names the file to load for each operation.
 
 ## What you get
 

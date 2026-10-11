@@ -22,6 +22,17 @@ class PushPolicyTest(unittest.TestCase):
                     self.assertIn('plain owner/name', result.stderr)
                     self.assertFalse(root.exists())
 
+    def test_ref_syntax_in_branch_is_refused_before_any_clone(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'cache'
+            for branch in ('-x', 'a..b', 'src:dst', 'a*', 'a^', 'a~1', 'a[0]', 'a@{1}', 'a b'):
+                result = subprocess.run(['bash', str(SCRIPT), '--repo', 'owner/repo', '--pr', '1',
+                                         '--root', str(root), '--branch', branch],
+                                        capture_output=True, text=True, timeout=5)
+                self.assertNotEqual(result.returncode, 0, branch)
+                self.assertIn('plain head ref', result.stderr, branch)
+                self.assertFalse(root.exists(), branch)
+
     def test_reused_clone_refuses_upstream_misrouting_but_explicit_push_works(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

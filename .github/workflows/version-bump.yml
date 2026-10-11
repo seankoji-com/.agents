@@ -8,23 +8,37 @@ jobs:
   bump:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     concurrency:
       group: version-bump-${{ github.event.pull_request.number }}
       cancel-in-progress: true
-    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.actor != 'github-actions[bot]' && github.actor != 'seankoji-com-ci[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     steps:
+      # Pushing with GITHUB_TOKEN would not trigger CI on the bumped head; the App token does.
+      - name: Generate seankoji-com-ci App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.SEANKOJI_CI_APP_ID }}
+          private-key: ${{ secrets.SEANKOJI_CI_PRIVATE_KEY }}
+          owner: seankoji-com
+          repositories: t3-plugins
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Detect changed plugins and bump versions
         id: bump
+        env:
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          BASE="${{ github.event.pull_request.base.sha }}"
-          HEAD="${{ github.event.pull_request.head.sha }}"
+          # Compare against the fork point, not base.sha: commits that landed on the
+          # base branch after this PR branched are not this PR's changes.
+          BASE=$(git merge-base "origin/${BASE_REF}" "$HEAD")
 
           changed=0
 
@@ -65,8 +79,8 @@ jobs:
         env:
           PR_HEAD_REF: ${{ github.head_ref }}
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "seankoji-com-ci[bot]"
+          git config user.email "288827119+seankoji-com-ci[bot]@users.noreply.github.com"
           git add -u -- plugins/
           git commit -m "chore: auto-bump plugin versions"
           git push origin "HEAD:${PR_HEAD_REF}"

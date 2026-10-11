@@ -1,6 +1,6 @@
 # Run 20261009-121018-0f6d5d: cancelled
 
-Phase `cancelled` at generation 21. Readiness: `incomplete`. Repository `/tmp/claude-1000/imps-probe-fixture` on `main` at `7008f23c6ca6`.
+Phase `cancelled` at generation 21. Readiness: `incomplete`. Repository `$TMPDIR/imps-probe-fixture` on `main` at `7008f23c6ca6`.
 
 **Brief:** Live child-write probe for every child-capable provider (conformance REQ-ISOLATION)
 

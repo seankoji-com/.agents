@@ -6,7 +6,15 @@ Run from the repository root:
 python3 -m unittest discover -s tests -v
 ```
 
-Stdlib only. No network, credentials or model calls: T3 orchestration responses are scripted by `support.FakeT3`, whose response shapes come from live calls recorded in `conformance/live-t3/`. Every test drives `core/` code or the core CLI against temporary git repositories built from `tests/fixtures/`.
+To run one module, keep the discover form so `tests/` is on `sys.path` (most modules import `support` from there):
+
+```bash
+python3 -m unittest discover -s tests -p test_install.py
+```
+
+Running by dotted name (`python3 -m unittest tests.test_install`) fails with `ModuleNotFoundError: support`.
+
+Stdlib only. No network, credentials or model calls: T3 orchestration responses are scripted by `support.FakeT3`, whose response shapes come from live calls recorded in `conformance/live-t3/`. The imps suites drive `core/` code or the core CLI against temporary git repositories built from `tests/fixtures/`; the other plugins' suites exercise their helper scripts directly.
 
 ## Source-spec §14 cases
 

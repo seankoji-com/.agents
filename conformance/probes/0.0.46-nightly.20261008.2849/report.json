@@ -13,7 +13,7 @@
   },
   "labels": {},
   "repo": {
-    "worktree": "/tmp/claude-1000/imps-probe-fixture",
+    "worktree": "$TMPDIR/imps-probe-fixture",
     "base_ref": "HEAD",
     "base_sha": "7008f23c6ca6340cbc753c4494d7547f9618d021",
     "branch": "main",

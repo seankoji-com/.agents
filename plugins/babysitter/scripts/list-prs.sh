@@ -64,6 +64,21 @@ die() {
   exit "${2:-2}"
 }
 
+# Temp files are registered here and removed on exit, so an abort between mktemp and
+# the helper's own rm -f (a signal, a `set -e` failure) does not leave response bodies
+# behind in TMPDIR. Set again inside the helper, which runs in a command-substitution
+# subshell where the parent's EXIT trap does not apply.
+GRAPHQL_TMP=""
+cleanup_tmp() {
+  if [ -n "$GRAPHQL_TMP" ]; then
+    rm -f "$GRAPHQL_TMP" "${GRAPHQL_TMP}.err"
+  fi
+  return 0
+}
+trap cleanup_tmp EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 # Runs a GraphQL query, retrying a failed one twice with a widening pause.
 #
 # An org-wide sweep asks GitHub for every open PR across every repository in one
@@ -119,6 +134,10 @@ curl_graphql_retry() {
     return 1
   }
   errfile="${tmp}.err"
+  GRAPHQL_TMP="$tmp"
+  trap cleanup_tmp EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   while :; do
     code="$(curl -sS -o "$tmp" -w '%{http_code}' \
       -H @- \
@@ -145,15 +164,18 @@ curl_graphql_retry() {
 while [ $# -gt 0 ]; do
   case "$1" in
   --org)
-    ORG="${2:-}"
+    [ $# -ge 2 ] || die "--org requires a value"
+    ORG="$2"
     shift 2
     ;;
   --repo)
-    REPO="${2:-}"
+    [ $# -ge 2 ] || die "--repo requires a value"
+    REPO="$2"
     shift 2
     ;;
   --pr)
-    PR_NUMBER="${2:-}"
+    [ $# -ge 2 ] || die "--pr requires a value"
+    PR_NUMBER="$2"
     shift 2
     ;;
   --include-drafts)
@@ -169,7 +191,8 @@ while [ $# -gt 0 ]; do
     shift
     ;;
   --limit)
-    LIMIT="${2:-}"
+    [ $# -ge 2 ] || die "--limit requires a value"
+    LIMIT="$2"
     shift 2
     ;;
   -h | --help)
@@ -319,11 +342,20 @@ else
   NODES_PATH='[.data.repository.pullRequest]'
 fi
 
-# A GraphQL error can arrive with HTTP 200 and a null data block; gh does not treat
-# that as a failure, so check for it rather than emitting an empty snapshot that
-# looks like "no PRs".
+# A GraphQL error arrives with HTTP 200: an `errors` array, usually alongside a null
+# or partial `data` block. Neither curl nor jq treats that as a failure, so check for
+# it explicitly rather than emitting an empty snapshot that looks like "no PRs".
+if printf '%s' "$RAW" | jq -e '.errors != null' >/dev/null 2>&1; then
+  die "GitHub returned errors: $(printf '%s' "$RAW" | jq -r '[.errors[] | .message // tostring] | join("; ")' 2>/dev/null | head -c 400)" 3
+fi
 if ! printf '%s' "$RAW" | jq -e '.data' >/dev/null 2>&1; then
   die "GitHub returned no data: $(printf '%s' "$RAW" | head -c 400)" 3
+fi
+# In --pr mode a null pullRequest means the number does not exist in that repository
+# (or the token cannot see it). That is a failed query, not "no eligible PRs": a
+# caller that got an empty snapshot here would conclude the PR was merged.
+if [ -n "$PR_NUMBER" ] && printf '%s' "$RAW" | jq -e '.data.repository.pullRequest == null' >/dev/null 2>&1; then
+  die "pull request ${REPO}#${PR_NUMBER} not found or not accessible with the current credentials" 3
 fi
 
 printf '%s' "$RAW" | jq -c \

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """render_handoff.py — assemble handoff.md, the input to step 3.
 
-`handoff.md` is the deliverable of /elephant-goldfish:thinking: a single self-contained
+`handoff.md` is the deliverable of elephant-goldfish `thinking <topic>`: a single self-contained
 document you paste as the first message of a fresh session (or hand to imps in T3). It is
 pure concatenation of documents that already exist on disk, so the model must never
 generate it — having a model re-emit discovery.md and spec.md into a third file costs

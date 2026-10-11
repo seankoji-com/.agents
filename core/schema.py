@@ -1,7 +1,8 @@
 """A stdlib validator for the JSON Schema subset the published schemas use.
 
 Loading a schema that uses any keyword outside SUPPORTED raises, so a published
-schema can never declare a constraint this validator silently ignores."""
+schema can never declare a constraint this validator silently ignores. Tuple-form
+(list) `items` is unsupported and raises the same way; `items` must be one schema."""
 from __future__ import annotations
 
 import json
@@ -36,6 +37,8 @@ def check_keywords(node, where='#'):
         unknown = set(node) - SUPPORTED
         if unknown:
             raise InvalidInput('schema_keyword', f'unsupported schema keyword(s) at {where}: {sorted(unknown)}')
+        if isinstance(node.get('items'), list):
+            raise InvalidInput('schema_keyword', f'tuple-form items is unsupported at {where}/items')
         for key, value in node.items():
             if key in ('properties', '$defs'):
                 for name, sub in value.items():

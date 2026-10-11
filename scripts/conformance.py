@@ -28,6 +28,12 @@ FIXTURE = ROOT / 'tests' / 'fixtures' / 'bugfix-cli'
 GIT_ENV = {'GIT_AUTHOR_NAME': 'imps conformance', 'GIT_AUTHOR_EMAIL': 'conformance@example.invalid',
            'GIT_COMMITTER_NAME': 'imps conformance', 'GIT_COMMITTER_EMAIL': 'conformance@example.invalid'}
 HOME = str(Path.home())
+# A per-user temporary directory names the machine as surely as HOME does (a uid, a
+# sandbox prefix, a macOS /var/folders hash). The shared /tmp says nothing, so it stays.
+TEMP = os.environ.get('TMPDIR', '').rstrip('/')
+SHARED_TEMP = ('', '/tmp', '/var/tmp', '/private/tmp')
+# Operator arguments that become path components: one segment, no separators, no `..`.
+PATH_SEGMENT = re.compile(r'[A-Za-z0-9][A-Za-z0-9._+-]*')
 
 
 def state_root() -> Path:
@@ -43,9 +49,10 @@ def git(cwd, *args):
 
 
 def sanitise(text: str) -> str:
-    if HOME in ('', '/'):
-        return text
-    return re.sub(r'(?<![\w.~/-])' + re.escape(HOME) + r'(?![\w.-])', '~', text)
+    for prefix, replacement in ((TEMP, '$TMPDIR'), (HOME, '~')):
+        if prefix not in SHARED_TEMP + ('/',):
+            text = re.sub(r'(?<![\w.~/$-])' + re.escape(prefix) + r'(?![\w.-])', lambda _: replacement, text)
+    return text
 
 
 def setup(args):
@@ -138,7 +145,18 @@ def grade(case: str, state: dict, report: dict) -> dict:
             'passed': bool(checks) and all(ok for _, ok in checks)}
 
 
+def path_segment(name: str, value) -> str:
+    text = str(value)
+    if not PATH_SEGMENT.fullmatch(text) or '..' in text:
+        raise SystemExit(f'--{name} {value!r} is not a safe path segment (letters, digits, . _ + - only; no ..)')
+    return text
+
+
 def collect(args):
+    for name in ('run-id', 'provider', 'case', 't3-version', 'repeat'):
+        path_segment(name, getattr(args, name.replace('-', '_')))
+    if args.repeat < 1 or args.interventions < 0 or (args.elapsed is not None and args.elapsed < 0):
+        raise SystemExit('--repeat counts from 1; --interventions and --elapsed cannot be negative')
     run_dir = state_root() / 'runs' / args.run_id
     state = json.loads((run_dir / 'run.json').read_text())
     prefix = Path(os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins')).expanduser()

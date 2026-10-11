@@ -1,96 +1,66 @@
 ---
+template: home.html
+title: Overview
+description: "Seven agent workflows for T3 Code that keep working when you change the model. Python standard library, evidence before completion, live provider results recorded."
 hide:
   - toc
   - navigation
 ---
 
-<div class="hero-layout" markdown>
-<div class="hero" markdown>
-<p class="eyebrow">Open source · Built for T3 Code</p>
-
-# Change the model. Keep the workflow.
-
-<p class="lead">Seven practical plugins for planning, research, implementation, and review.
-Readable instructions guide the agent. Small local tools handle the parts that should be deterministic.</p>
-
-[Get started](getting-started.md){ .md-button .md-button--primary }
-[Explore the architecture](architecture.md){ .md-button }
-</div>
-<div class="terminal">
-<p class="label">From your terminal to a T3 thread</p>
-<pre><code>$ brew install seankoji-com/tap/t3-plugins
-$ t3-plugins install
-$ t3-plugins prompt imps doctor</code></pre>
-<p class="terminal-note">Paste the generated prompt into T3.<br>Keep the provider you already use.</p>
-</div>
-</div>
-
-<div class="principles">
-<div><strong>One catalog</strong><span>Install once. Read from any T3 provider.</span></div>
-<div><strong>Local tools</strong><span>Python standard library. No runtime package install.</span></div>
-<div><strong>Checkable outcomes</strong><span>Tests, hashes, revisions, and explicit limits.</span></div>
-</div>
-
-## Start with the job you need done
-
-<div class="grid cards" markdown>
-
-- **Make a change and prove it works**
-
-    imps tracks a bounded task through implementation, verification, and independent
-    review. Evidence belongs to the revision it actually checked.
-
-    [Meet imps](plugins/imps.md)
-
-- **Work out what to build**
-
-    elephant-goldfish turns a problem into discovery notes, acceptance criteria,
-    and a reproducible handoff for a fresh session.
-
-    [Prepare a brief](plugins/elephant-goldfish.md)
-
-- **Learn from another codebase**
-
-    ape studies open-source projects for ideas that address a specific gap in yours.
-    Every recommendation needs source evidence and a small experiment.
-
-    [Research with ape](plugins/ape.md)
-
-- **Keep pull requests moving**
-
-    babysitter handles review findings, failing checks, and conflicts within an
-    authorized scope. T3 owns the watch and wakes the thread when something changes.
-
-    [Maintain a PR](plugins/babysitter.md)
-
-</div>
-
-Also in the catalog: [prompt-builder](plugins/prompt-builder.md) for reusable prompts,
-[agent-tuneup](plugins/agent-tuneup.md) for settings audits, and
-[offload-sidecar](plugins/offload-sidecar.md) for file transforms by path.
-
-## A short path from install to first use
+## From install to first run
 
 ```sh
 brew install seankoji-com/tap/t3-plugins
 t3-plugins install
+t3-plugins doctor
 t3-plugins prompt imps doctor
 ```
 
-Paste the printed prompt into a T3 thread. The agent reads the installed entry and
-uses the provider you selected. You do not need a Claude marketplace or a second
-model client. [Source installation](getting-started.md#from-source) works too.
+Paste the printed line into a T3 thread. The agent reads the installed entry with
+whatever provider you have selected. No marketplace, no slash-command registration,
+no second model client. [Source installs](getting-started.md#from-source) work the
+same way.
 
-## Why this project exists
+<div class="demo" markdown="0">
+<!-- inline-svg: assets/demo.svg -->
+</div>
 
-Changing providers should not mean rebuilding the same development workflow.
-t3-plugins separates instructions, deterministic tools, and host orchestration so
-each can be inspected and tested on its own.
+<p class="caption">A scripted recording of the first run: install, <code>doctor</code>, the generated prompt, and what <code>doctor</code> reports inside a T3 thread. Nothing here is a live model call; the frames come from <code>scripts/render_demo.py</code>.</p>
 
-Built by [Sean Carey](https://github.com/seankoji), this repository documents the
-engineering decisions as well as the result: ownership-aware upgrades, bounded
-delegation, revision-bound evidence, and regression tests for failure paths.
+## Sightings
 
-Provider-neutral describes the design, not a promise that every model behaves
-identically. New ports are experimental; existing imps conformance is partial.
-[Read the evidence and limits](compatibility.md) before relying on unattended work.
+A provider is only listed as working when a live run says so. The ledger below is
+generated from `conformance/compatibility.json` at build time, so the numbers on
+this page are the numbers in the repository.
+
+<!-- sightings-matrix -->
+
+Two providers completed every repeat of the bug-fix and missing-capability cases.
+Antigravity passed one bug fix in three; the other two blocked when a reviewer
+listed files it only read as changed, which the core rejected rather than accepted.
+OpenCode could run as a child but never opened a parent session. Nothing here
+claims more than it observed. [Read the full ledger](sightings.md).
+
+## How it is built
+
+<!-- inline-svg: assets/architecture.svg -->
+
+Three parts, kept apart so each can be inspected on its own:
+
+- **Instructions.** A plugin entry under 1,500 words routes the agent to one playbook. The agent brings its own reasoning and shell.
+- **Local tools.** Python standard library only. Installers, state, hashes, and audits are plain scripts with tests.
+- **Host orchestration.** T3 owns child tasks, browser previews, and PR watches. The plugins discover its tools; they never ship a second scheduler.
+
+imps adds a small state engine: a claim token names the owner, a generation counter
+refuses stale writes, and evidence is tied to the exact revision it checked. An edit
+after verification makes the verification stale instead of inheriting its green tick.
+[Architecture](architecture.md) has the full picture.
+
+## Why it is built this way
+
+The short version: switching providers should not mean rebuilding your workflow, and a
+workflow that cannot show its evidence is a demo. [The case study](case-study.md)
+covers the three decisions that shaped the design, what the live conformance matrix
+broke, and what changed as a result.
+
+Built by [Sean Carey](https://github.com/seankoji). MIT licensed.
