@@ -26,6 +26,29 @@ class RuntimeModeTest(CoreTestCase):
         plain = t3.delegate_call(brief='b', title='t', role='review', client_request_id='r2', target=second)
         self.assertNotIn('runtimeMode', plain['arguments'])
 
+    def test_every_selector_keeps_an_explicit_restrictive_mode(self):
+        caps = {'inherited': {'providerInstanceId': 'claudeAgent', 'model': 'model-c1'},
+                'providers': [{'id': 'claudeAgent', 'models': ['model-c1']}, {'id': 'codex', 'models': ['model-x1']}]}
+        roles = {
+            'implementer': {'chain': [{'select': 'fixed', 'providerInstanceId': 'opencode', 'model': 'gateway/glm-9',
+                                       'runtimeMode': 'full-access'}]},
+            'inherited': {'chain': [{'select': 'inherit', 'runtimeMode': 'approval-required'}]},
+            'catalogued': {'chain': [{'select': 'catalog', 'exclude_roles': [], 'runtimeMode': 'auto-accept-edits'}]},
+            'sibling': {'chain': [{'select': 'same_provider', 'of_role': 'implementer', 'runtimeMode': 'auto'}]},
+            'plain_sibling': {'chain': [{'select': 'same_provider', 'of_role': 'implementer'}]},
+        }
+        state = {'roles': roles, 'capabilities': caps, 'host': {}, 'policy': {}}
+        expected = {'inherited': ['approval-required'], 'catalogued': ['auto-accept-edits', 'auto-accept-edits'],
+                    'sibling': ['auto'], 'plain_sibling': ['full-access']}
+        for role, modes in expected.items():
+            targets = [target for target, _ in selection.candidates(state, role)]
+            self.assertEqual([t.get('runtimeMode') for t in targets], modes, role)
+            for target in targets:
+                call = t3.delegate_call(brief='b', title='t', role='review', client_request_id=role, target=target)
+                self.assertEqual(call['arguments']['runtimeMode'], target['runtimeMode'], role)
+        # The override on a copied target never leaks back into the referenced role.
+        self.assertEqual(selection.candidates(state, 'implementer')[0][0]['runtimeMode'], 'full-access')
+
     def test_plan_accepts_runtime_mode_on_roles_and_task_targets(self):
         repo = self.make_repo()
         plan = self.plan(repo, roles={'reviewer': REVIEWER},
