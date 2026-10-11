@@ -17,7 +17,11 @@ from pathlib import Path
 
 def verify(version_dir: Path) -> dict:
     manifest_path = version_dir / 'install-manifest.json'
-    manifest = json.loads(manifest_path.read_text())
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except (OSError, ValueError) as exc:
+        return {'ok': False, 'version': None, 'source_commit': None, 'manifest_sha256': None, 'files': 0,
+                'problems': [f'install-manifest.json unreadable: {exc.__class__.__name__}']}
     listed = {f['path']: f['sha256'] for f in manifest['files']}
     problems = []
     for rel, digest in sorted(listed.items()):
@@ -27,8 +31,8 @@ def verify(version_dir: Path) -> dict:
         elif hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             problems.append(f'changed {rel}')
     present = {p.relative_to(version_dir).as_posix() for p in version_dir.rglob('*') if p.is_file()}
-    problems += [f'unlisted {rel}' for rel in sorted(present - set(listed) - {'install-manifest.json'})
-                 if '__pycache__' not in rel]
+    # No exceptions, not even __pycache__: the package is read-only, so any extra file is a change.
+    problems += [f'unlisted {rel}' for rel in sorted(present - set(listed) - {'install-manifest.json'})]
     return {'ok': not problems, 'version': manifest.get('version'), 'source_commit': manifest.get('source_commit'),
             'manifest_sha256': hashlib.sha256(manifest_path.read_bytes()).hexdigest(), 'files': len(listed),
             'problems': problems}

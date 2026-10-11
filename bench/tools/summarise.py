@@ -30,6 +30,7 @@ BENCH = HERE.parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(BENCH / 'checks'))
 import audit  # noqa: E402
+import verify_package  # noqa: E402
 import task_a  # noqa: E402
 import tokens  # noqa: E402
 
@@ -161,6 +162,8 @@ def main(argv=None) -> int:
                          'by_model': d.get('by_model'), 'model': d.get('model'), 'usage': d.get('usage')}
                         for d in run['descendants']],
         'delegations': delegations(project / parent['file']) if parent else [],
+        # The protocol re-verifies the package around the runs; each record keeps its own check too.
+        'package_verification': verify_package.verify(package),
         'audit': {'void': audited['void'], 'review': audited['review'], 'decision': args.audit_decision},
         'result': json.loads(sanitise(json.dumps(result), workspace, package)),
         'raw_sha256': hashes,

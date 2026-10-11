@@ -188,7 +188,8 @@ under the system temporary directory) are not the worker reading elsewhere.
   (thread start to terminal state, and first to last transcript timestamp), parent-Opus
   tokens and cache-read, each descendant with provider, model and tokens or `unknown`,
   delegation count and each delegation's stated reason, model and effort as read back
-  from the thread, retries with reasons, audit decision, check or grader results, and
+  from the thread, retries with reasons, audit decision, check or grader results, the package's
+  `verify_package.py` result at recording time, and
   the sha256 of every raw file kept privately.
 - `output/`: the run's committed changes. Task A: `out/` plus any other committed files.
   Task B: `git format-patch` of the worker's commits.

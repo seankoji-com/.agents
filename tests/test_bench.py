@@ -14,6 +14,7 @@ for sub in ('checks', 'tools'):
 
 import audit  # noqa: E402
 import prepare_workspace  # noqa: E402
+import verify_package  # noqa: E402
 import task_a  # noqa: E402
 import tokens  # noqa: E402
 
@@ -109,6 +110,23 @@ class TaskACheckTest(unittest.TestCase):
 
     def test_station_ids_must_reach_the_page(self):
         (self.out / 'data.js').unlink()
+        self.assertEqual(self.failing(), {'station_ids'})
+
+    def test_any_remote_script_or_stylesheet_fails(self):
+        page = self.out / 'index.html'
+        page.write_text(page.read_text() + '<script defer src="https://example.invalid/app.js"></script>'
+                        '<a href="https://www.openstreetmap.org/copyright">OSM</a>')
+        result = {r['check']: r for r in task_a.check(self.out, DATA)}
+        self.assertFalse(result['leaflet_vendored']['ok'])
+        self.assertEqual(result['leaflet_vendored']['detail'], ['index.html loads remote https://example.invalid/app.js'])
+
+    def test_duplicate_station_fails(self):
+        self.data['stations'].append(self.data['stations'][0])
+        (self.out / 'data.json').write_text(json.dumps(self.data))
+        self.assertEqual(self.failing(), {'station_ids'})
+
+    def test_out_of_radius_id_in_any_file_type_fails(self):
+        (self.out / 'notes.dat').write_bytes(b'\x00skipped STN-0902\xff')
         self.assertEqual(self.failing(), {'station_ids'})
 
     def test_extra_file_in_vendored_leaflet_fails(self):
@@ -236,6 +254,20 @@ class AuditTest(unittest.TestCase):
         self.assertFalse(any(f.get('reason', '').startswith('upstream') for f in task_a_findings))
 
 
+class PackageVerificationTest(unittest.TestCase):
+    def test_any_unlisted_file_is_a_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'entry.md').write_text('entry')
+            files = [{'path': 'entry.md', 'sha256': task_a.sha256(root / 'entry.md'), 'mode': 420}]
+            (root / 'install-manifest.json').write_text(json.dumps({'version': '1', 'files': files}))
+            self.assertTrue(verify_package.verify(root)['ok'])
+            (root / '__pycache__').mkdir()
+            (root / '__pycache__' / 'x.pyc').write_bytes(b'')
+            self.assertEqual(verify_package.verify(root)['problems'], ['unlisted __pycache__/x.pyc'])
+            self.assertFalse(verify_package.verify(root / 'missing')['ok'])
+
+
 class RecordingTest(unittest.TestCase):
     def test_prepared_task_a_workspace_is_reproducible_and_summarised(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -273,6 +305,7 @@ class RecordingTest(unittest.TestCase):
             self.assertEqual(summary['wallclock_seconds']['thread'], 600.0)
             self.assertTrue(all(r['ok'] for r in summary['result']['task_a_checks']))
             self.assertIn('parent.jsonl', summary['raw_sha256'])
+            self.assertFalse(summary['package_verification']['ok'])  # no package in this fixture
             self.assertTrue((tmp / 'runs/old/a1/output/out/index.html').is_file())
             self.assertEqual((tmp / 'runs/old/a1/report.md').read_text(), 'Done in <workspace>/out\n')
             self.assertTrue((tmp / 'private/runs/old/a1/attempt-1/transcripts/parent.jsonl').is_file())

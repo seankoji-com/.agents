@@ -30,7 +30,8 @@ STATION_ID = re.compile(r'\bSTN-\d{4}\b')
 CDN_HOSTS = ('unpkg.com', 'cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'ajax.googleapis.com', 'cdn.skypack.dev',
              'esm.sh', 'leafletjs.com/dist')
 TEXT_SUFFIXES = {'.html', '.htm', '.js', '.mjs', '.json', '.css', '.svg', '.txt', '.md', '.csv'}
-REMOTE_ATTR = re.compile(r'''(?:src|href)\s*=\s*["']((?:https?:)?//[^"']+)["']''', re.I)
+# A <script src> or <link href> (stylesheet, module preload, ...) that points off the machine.
+REMOTE_ASSET = re.compile(r'''<(?:script|link)\b[^>]*?\s(?:src|href)\s*=\s*["']((?:https?:)?//[^"']+)["']''', re.I)
 LOCAL_SCRIPT = re.compile(r'''<script[^>]*\ssrc\s*=\s*["'](?!(?:https?:)?//)([^"'?#]+)["']''', re.I)
 # The exact tile template the prompt names, and its attribution text (informational only).
 OSM_TILES = re.compile(r'''["'`]https://tile\.openstreetmap\.org/\{z\}/\{x\}/\{y\}\.png["'`]''')
@@ -144,7 +145,7 @@ def check(out: Path, data_dir: Path) -> list:
     for rel, text in files.items():
         lowered = text.lower()
         problems += [f'{rel} references CDN host {host}' for host in CDN_HOSTS if host in lowered]
-        problems += [f'{rel} loads remote {url}' for url in REMOTE_ATTR.findall(text) if 'leaflet' in url.lower()]
+        problems += [f'{rel} loads remote {url}' for url in REMOTE_ASSET.findall(text)]
     add('leaflet_vendored', not problems, problems or 'vendored, loaded relatively, no CDN')
 
     # 2. Station IDs: every in-radius ID is listed in data.json and reaches the page (index.html or a
@@ -152,11 +153,15 @@ def check(out: Path, data_dir: Path) -> list:
     listed_ids = [s.get('id') for s in stations]
     missing = sorted(set(want['in_radius']) - set(listed_ids))
     extra = sorted(set(listed_ids) - set(want['in_radius']))
+    duplicated = sorted({sid for sid in listed_ids if listed_ids.count(sid) > 1}, key=str)
     page_text = page + ''.join(files.get(local_path(src), '') for src in LOCAL_SCRIPT.findall(page))
     not_on_page = sorted(set(want['in_radius']) - set(STATION_ID.findall(page_text)))
-    leaked = sorted({sid for text in files.values() for sid in STATION_ID.findall(text)} & set(want['out_of_radius']))
-    add('station_ids', not (missing or extra or leaked or not_on_page) and bool(page),
-        {'missing_in_radius': missing, 'unexpected_in_data_json': extra, 'not_reaching_page': not_on_page,
+    # Every emitted file counts here, whatever its suffix, except the vendored Leaflet itself.
+    everything_raw = [p.read_bytes().decode('utf-8', 'replace') for p in sorted(out.rglob('*'))
+                      if p.is_file() and not p.relative_to(out).as_posix().startswith('vendor/leaflet/')]
+    leaked = sorted({sid for text in everything_raw for sid in STATION_ID.findall(text)} & set(want['out_of_radius']))
+    add('station_ids', not (missing or extra or duplicated or leaked or not_on_page) and bool(page),
+        {'missing_in_radius': missing, 'unexpected_in_data_json': extra, 'duplicated_in_data_json': duplicated, 'not_reaching_page': not_on_page,
          'out_of_radius_present': leaked, 'index_html_present': bool(page)})
 
     # 3. A price series per station and for the overall history.
