@@ -1,38 +1,35 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "run.schema.json",
-  "title": "Authoritative run record (run.json)",
-  "description": "Unknown fields are preserved across compatible updates.",
   "type": "object",
   "required": [
     "schema_version",
     "run_id",
-    "generation",
     "created_at",
     "updated_at",
-    "plugin",
     "phase",
+    "plugin",
     "repo",
     "brief",
     "authorization",
-    "execution",
     "host",
+    "roles",
     "policy",
-    "tasks",
-    "budget",
-    "blockers"
+    "children",
+    "checks",
+    "acceptance",
+    "reviews",
+    "waivers",
+    "remote",
+    "notes"
   ],
   "properties": {
     "schema_version": {
-      "const": 1
+      "const": 2
     },
     "run_id": {
       "type": "string",
-      "pattern": "^[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$"
-    },
-    "generation": {
-      "type": "integer",
-      "minimum": 1
+      "minLength": 1
     },
     "created_at": {
       "type": "string",
@@ -42,83 +39,17 @@
       "type": "string",
       "minLength": 1
     },
-    "plugin": {
-      "type": "object",
-      "required": [
-        "name",
-        "version"
-      ],
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "version": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
     "phase": {
       "enum": [
-        "planned",
-        "executing",
-        "verifying",
-        "ready",
-        "publishing",
-        "completed",
-        "blocked",
-        "cancelling",
-        "cancelled",
-        "failed"
+        "active",
+        "cancelled"
       ]
     },
-    "resume_phase": {
-      "anyOf": [
-        {
-          "type": "null"
-        },
-        {
-          "enum": [
-            "planned",
-            "executing",
-            "verifying",
-            "ready",
-            "publishing",
-            "completed",
-            "blocked",
-            "cancelling",
-            "cancelled",
-            "failed"
-          ]
-        }
-      ]
+    "plugin": {
+      "type": "object"
     },
     "repo": {
-      "type": "object",
-      "required": [
-        "worktree",
-        "base_sha"
-      ],
-      "properties": {
-        "worktree": {
-          "type": "string",
-          "minLength": 1
-        },
-        "base_ref": {
-          "type": "string"
-        },
-        "base_sha": {
-          "type": "string",
-          "minLength": 1
-        },
-        "branch": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      }
+      "type": "object"
     },
     "brief": {
       "type": "object",
@@ -126,44 +57,17 @@
         "text",
         "requirements",
         "constraints",
-        "contract_hash"
+        "requirements_source"
       ],
       "properties": {
         "text": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "requirements": {
           "type": "array",
-          "minItems": 1,
           "items": {
-            "type": "object",
-            "required": [
-              "id",
-              "text",
-              "kind",
-              "required"
-            ],
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^[A-Z][A-Z0-9_-]+$"
-              },
-              "text": {
-                "type": "string",
-                "minLength": 1
-              },
-              "kind": {
-                "enum": [
-                  "inspection",
-                  "command",
-                  "runtime",
-                  "manual"
-                ]
-              },
-              "required": {
-                "type": "boolean"
-              }
-            }
+            "$ref": "#/$defs/requirement"
           }
         },
         "constraints": {
@@ -177,12 +81,9 @@
             "string",
             "null"
           ]
-        },
-        "contract_hash": {
-          "type": "string",
-          "minLength": 1
         }
-      }
+      },
+      "additionalProperties": false
     },
     "authorization": {
       "type": "object",
@@ -190,14 +91,6 @@
         "endstate"
       ],
       "properties": {
-        "endstate": {
-          "enum": [
-            "local",
-            "pr",
-            "merge",
-            "release"
-          ]
-        },
         "local": {
           "type": "array",
           "items": {
@@ -209,55 +102,57 @@
           "items": {
             "type": "string"
           }
-        }
-      }
-    },
-    "execution": {
-      "type": "object",
-      "required": [
-        "mode",
-        "concurrency"
-      ],
-      "properties": {
-        "mode": {
+        },
+        "endstate": {
           "enum": [
-            "direct",
-            "delegated"
+            "local",
+            "pr",
+            "merge",
+            "release"
           ]
         },
-        "isolation": {
-          "enum": [
-            "parallel",
-            "serial",
-            null
-          ]
-        },
-        "concurrency": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10
+        "evidence": {
+          "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "host": {
       "type": "object",
       "properties": {
+        "kind": {
+          "const": "t3"
+        },
         "parent_thread_id": {
           "type": [
             "string",
             "null"
           ]
+        },
+        "provider_instance_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
+      },
+      "additionalProperties": false
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/role"
       }
     },
     "policy": {
       "type": "object",
-      "required": [
-        "checks",
-        "review",
-        "repair_limit",
-        "worktree_root"
-      ],
+      "required": [],
       "properties": {
         "checks": {
           "type": "array",
@@ -281,10 +176,12 @@
                 }
               },
               "cwd": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string"
+              },
+              "timeout_seconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
               },
               "required": {
                 "type": "boolean"
@@ -295,19 +192,8 @@
             }
           }
         },
-        "repair_limit": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "worktree_root": {
-          "type": "string",
-          "minLength": 1
-        },
         "review": {
           "type": "object",
-          "required": [
-            "required"
-          ],
           "properties": {
             "required": {
               "type": "boolean"
@@ -329,33 +215,315 @@
               }
             }
           }
-        }
-      }
-    },
-    "probes": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "required": [
-          "sibling_write"
-        ],
-        "properties": {
-          "sibling_write": {
-            "type": "boolean"
+        },
+        "brief_notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence_roots": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
           }
+        },
+        "role_overrides": {
+          "type": "object"
+        },
+        "model_preferences": {
+          "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
-    "tasks": {
+    "children": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/task"
+        "type": "object",
+        "required": [
+          "task_id",
+          "client_request_id",
+          "parent_thread_id",
+          "status",
+          "has_pending_child_runs"
+        ],
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "client_request_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parent_thread_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "completed",
+              "failed",
+              "cancelled",
+              "interrupted"
+            ]
+          },
+          "work_state": {
+            "enum": [
+              "working",
+              "waiting_for_children",
+              "result_available"
+            ]
+          },
+          "has_pending_child_runs": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "checks": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/check_entry"
+        "type": "object",
+        "required": [
+          "name",
+          "argv",
+          "cwd",
+          "exit_code",
+          "snapshot",
+          "contract_hash",
+          "policy_hash",
+          "recorded_at",
+          "status",
+          "artifact"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "cwd": {
+            "type": "string",
+            "minLength": 1
+          },
+          "exit_code": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "unavailable_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snapshot": {
+            "type": "object",
+            "required": [
+              "worktree",
+              "head",
+              "content_hash"
+            ],
+            "properties": {
+              "worktree": {
+                "type": "string",
+                "minLength": 1
+              },
+              "head": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "branch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "dirty_paths": {
+                "type": "integer"
+              },
+              "content_hash": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "contract_hash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policy_hash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recorded_at": {
+            "type": "string",
+            "minLength": 1
+          },
+          "invalidated": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "unavailable"
+            ]
+          },
+          "artifact": {
+            "type": "object",
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "requirement_id",
+          "status",
+          "kind",
+          "explanation",
+          "snapshot",
+          "contract_hash",
+          "policy_hash",
+          "recorded_at"
+        ],
+        "properties": {
+          "requirement_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "unverified",
+              "unavailable"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "inspection",
+              "command",
+              "runtime",
+              "manual"
+            ]
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "verifier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snapshot": {
+            "type": "object",
+            "required": [
+              "worktree",
+              "head",
+              "content_hash"
+            ],
+            "properties": {
+              "worktree": {
+                "type": "string",
+                "minLength": 1
+              },
+              "head": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "branch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "dirty_paths": {
+                "type": "integer"
+              },
+              "content_hash": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "contract_hash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policy_hash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recorded_at": {
+            "type": "string",
+            "minLength": 1
+          },
+          "invalidated": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
       }
     },
     "reviews": {
@@ -363,16 +531,24 @@
       "items": {
         "type": "object",
         "required": [
-          "round",
-          "verdict"
+          "task_id",
+          "perspective_id",
+          "verdict",
+          "findings",
+          "artifacts",
+          "snapshot",
+          "contract_hash",
+          "policy_hash",
+          "recorded_at"
         ],
         "properties": {
-          "round": {
-            "type": "integer",
-            "minimum": 1
-          },
           "task_id": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          },
+          "perspective_id": {
+            "type": "string",
+            "minLength": 1
           },
           "verdict": {
             "enum": [
@@ -381,413 +557,358 @@
               "unavailable"
             ]
           },
-          "reported_verdict": {
-            "enum": [
-              "approve",
-              "adverse"
-            ]
-          },
           "findings": {
             "type": "array",
             "items": {
-              "type": "object"
+              "type": "object",
+              "required": [
+                "severity",
+                "summary"
+              ],
+              "properties": {
+                "severity": {
+                  "enum": [
+                    "blocker",
+                    "major",
+                    "minor",
+                    "note"
+                  ]
+                },
+                "summary": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "file": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
             }
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "selection": {
+            "type": "object"
+          },
+          "why": {
+            "type": "string"
+          },
+          "snapshot": {
+            "type": "object",
+            "required": [
+              "worktree",
+              "head",
+              "content_hash"
+            ],
+            "properties": {
+              "worktree": {
+                "type": "string",
+                "minLength": 1
+              },
+              "head": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "branch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "dirty_paths": {
+                "type": "integer"
+              },
+              "content_hash": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "contract_hash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policy_hash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recorded_at": {
+            "type": "string",
+            "minLength": 1
           },
           "invalidated": {
-            "type": "string"
-          },
-          "perspective_id": {
             "type": "string",
-            "pattern": "^[a-z][a-z0-9-]{0,40}$"
+            "minLength": 1
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 1
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
-    "acceptance": {
+    "waivers": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/evidence"
-      }
-    },
-    "resources": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/resource"
-      }
-    },
-    "blockers": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/blocker"
-      }
-    },
-    "budget": {
-      "type": "object",
-      "required": [
-        "seconds",
-        "spent_seconds"
-      ],
-      "properties": {
-        "seconds": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 86400
-        },
-        "spent_seconds": {
-          "type": "number",
-          "minimum": 0
-        }
-      }
-    }
-  },
-  "$defs": {
-    "snapshot": {
-      "type": "object",
-      "required": [
-        "worktree",
-        "head",
-        "content_hash"
-      ],
-      "properties": {
-        "worktree": {
-          "type": "string",
-          "minLength": 1
-        },
-        "head": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "branch": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "dirty_paths": {
-          "type": "integer"
-        },
-        "content_hash": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
-    "round": {
-      "type": "object",
-      "required": [
-        "round",
-        "purpose"
-      ],
-      "properties": {
-        "round": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "purpose": {
-          "enum": [
-            "initial",
-            "correction",
-            "repair",
-            "self"
-          ]
-        },
-        "client_request_id": {
-          "type": "string"
-        },
-        "task_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "child_thread_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "parent_thread_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "terminal": {
-          "type": "boolean"
-        },
-        "wait_timed_out": {
-          "type": "boolean"
-        },
-        "observations": {
-          "type": "array"
-        },
-        "cancel": {
-          "type": [
-            "object",
-            "null"
-          ]
-        }
-      }
-    },
-    "task": {
-      "type": "object",
-      "required": [
-        "id",
-        "purpose",
-        "status",
-        "rounds"
-      ],
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^(?!\\.)[^/\\\\\\x00-\\x1f]{1,120}$"
-        },
-        "purpose": {
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "code",
-            "read",
-            "review",
-            "probe"
-          ]
-        },
-        "executor": {
-          "enum": [
-            "self",
-            "delegate"
-          ]
-        },
-        "role": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "writes": {
-          "type": "boolean"
-        },
-        "status": {
-          "enum": [
-            "pending",
-            "active",
-            "awaiting_text",
-            "correction_needed",
-            "accepted",
-            "integrated",
-            "blocked",
-            "cancelled",
-            "failed",
-            "unavailable"
-          ]
-        },
-        "depends_on": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "requirement_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "files": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "worktree": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "branch": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "target": {
-          "anyOf": [
-            {
-              "type": "null"
-            },
-            {
-              "$ref": "#/$defs/target"
+        "type": "object",
+        "required": [
+          "target",
+          "reason",
+          "decided_by",
+          "operator_quote",
+          "snapshot",
+          "contract_hash",
+          "policy_hash",
+          "recorded_at"
+        ],
+        "properties": {
+          "target": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decided_by": {
+            "type": "string",
+            "minLength": 1
+          },
+          "operator_quote": {
+            "type": "string",
+            "minLength": 1
+          },
+          "snapshot": {
+            "type": "object",
+            "required": [
+              "worktree",
+              "head",
+              "content_hash"
+            ],
+            "properties": {
+              "worktree": {
+                "type": "string",
+                "minLength": 1
+              },
+              "head": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "branch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "dirty_paths": {
+                "type": "integer"
+              },
+              "content_hash": {
+                "type": "string",
+                "minLength": 1
+              }
             }
-          ]
-        },
-        "rounds": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/round"
+          },
+          "contract_hash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policy_hash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recorded_at": {
+            "type": "string",
+            "minLength": 1
+          },
+          "invalidated": {
+            "type": "string",
+            "minLength": 1
           }
         },
-        "result": {
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "correction_used": {
-          "type": "boolean"
-        },
-        "perspective_id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9-]{0,40}$"
-        }
+        "additionalProperties": false
       }
     },
-    "blocker": {
+    "remote": {
       "type": "object",
       "required": [
-        "id",
-        "code",
-        "reason",
-        "task_ids",
-        "resume",
-        "status"
+        "receipts",
+        "observations"
       ],
       "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "code": {
-          "type": "string",
-          "minLength": 1
-        },
-        "reason": {
-          "type": "string",
-          "minLength": 1
-        },
-        "task_ids": {
+        "receipts": {
           "type": "array",
           "items": {
-            "type": "string"
-          }
-        },
-        "resume": {
-          "type": "object",
-          "required": [
-            "argv",
-            "decision"
-          ],
-          "properties": {
-            "argv": {
-              "type": "array",
-              "minItems": 1,
-              "items": {
+            "type": "object",
+            "required": [
+              "type",
+              "kind",
+              "url",
+              "state",
+              "head_sha"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "receipt",
+                  "observation"
+                ]
+              },
+              "kind": {
+                "enum": [
+                  "pr"
+                ]
+              },
+              "url": {
+                "type": "string",
+                "minLength": 1
+              },
+              "state": {
+                "enum": [
+                  "open",
+                  "merged",
+                  "closed"
+                ]
+              },
+              "head_sha": {
+                "type": "string",
+                "minLength": 1
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "observed_at": {
                 "type": "string",
                 "minLength": 1
               }
             },
-            "decision": {
-              "type": "string",
-              "minLength": 1
-            },
-            "then": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
+            "additionalProperties": false
           }
         },
-        "status": {
-          "enum": [
-            "active",
-            "resolved"
-          ]
+        "observations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "type",
+              "kind",
+              "url",
+              "state",
+              "head_sha"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "receipt",
+                  "observation"
+                ]
+              },
+              "kind": {
+                "enum": [
+                  "pr"
+                ]
+              },
+              "url": {
+                "type": "string",
+                "minLength": 1
+              },
+              "state": {
+                "enum": [
+                  "open",
+                  "merged",
+                  "closed"
+                ]
+              },
+              "head_sha": {
+                "type": "string",
+                "minLength": 1
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "observed_at": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
         }
-      }
+      },
+      "additionalProperties": false
     },
-    "resource": {
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "recorded_at": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "requirement": {
       "type": "object",
       "required": [
         "id",
-        "kind",
-        "status",
-        "cleanup_argv"
+        "text"
       ],
       "properties": {
         "id": {
           "type": "string",
-          "minLength": 1
-        },
-        "kind": {
-          "enum": [
-            "worktree",
-            "branch",
-            "process"
-          ]
-        },
-        "status": {
-          "enum": [
-            "live",
-            "removed",
-            "gone"
-          ]
-        },
-        "cleanup_argv": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      }
-    },
-    "artifact": {
-      "type": "object",
-      "required": [
-        "path",
-        "sha256"
-      ],
-      "properties": {
-        "path": {
-          "type": "string",
-          "minLength": 1
-        },
-        "sha256": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
-    "evidence": {
-      "type": "object",
-      "required": [
-        "requirement_id",
-        "status",
-        "kind",
-        "explanation",
-        "artifacts",
-        "snapshot",
-        "contract_hash",
-        "policy_hash"
-      ],
-      "properties": {
-        "requirement_id": {
-          "type": "string",
           "pattern": "^[A-Z][A-Z0-9_-]+$"
         },
-        "status": {
-          "enum": [
-            "passed",
-            "failed",
-            "unverified",
-            "unavailable"
-          ]
+        "text": {
+          "type": "string",
+          "minLength": 1
         },
         "kind": {
           "enum": [
@@ -797,92 +918,86 @@
             "manual"
           ]
         },
-        "explanation": {
-          "type": "string"
-        },
-        "artifacts": {
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "required": [
+        "chain"
+      ],
+      "properties": {
+        "chain": {
           "type": "array",
+          "minItems": 1,
           "items": {
-            "$ref": "#/$defs/artifact"
+            "$ref": "#/$defs/chain_entry"
           }
         },
-        "verifier": {
-          "type": [
-            "string",
-            "null"
+        "host_role": {
+          "enum": [
+            "implementation",
+            "research",
+            "review",
+            "design",
+            "test",
+            "general"
           ]
         },
-        "snapshot": {
-          "$ref": "#/$defs/snapshot"
-        },
-        "contract_hash": {
-          "type": "string",
-          "minLength": 1
-        },
-        "policy_hash": {
-          "type": "string",
-          "minLength": 1
-        },
-        "invalidated": {
+        "description": {
           "type": "string"
         }
       }
     },
-    "check_entry": {
+    "chain_entry": {
       "type": "object",
       "required": [
-        "name",
-        "argv",
-        "status",
-        "artifact",
-        "snapshot",
-        "contract_hash",
-        "policy_hash"
+        "select"
       ],
       "properties": {
-        "name": {
+        "select": {
+          "enum": [
+            "inherit",
+            "fixed",
+            "catalog",
+            "same_provider"
+          ]
+        },
+        "providerInstanceId": {
           "type": "string",
           "minLength": 1
         },
-        "argv": {
+        "model": {
+          "type": "string"
+        },
+        "options": {
+          "type": "object"
+        },
+        "runtimeMode": {
+          "enum": [
+            "approval-required",
+            "auto-accept-edits",
+            "auto",
+            "full-access"
+          ]
+        },
+        "exclude_roles": {
           "type": "array",
-          "minItems": 1,
           "items": {
-            "type": "string",
-            "minLength": 1
+            "type": "string"
           }
         },
-        "exit_code": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "status": {
-          "enum": [
-            "passed",
-            "failed",
-            "unavailable"
-          ]
-        },
-        "artifact": {
-          "$ref": "#/$defs/artifact"
-        },
-        "snapshot": {
-          "$ref": "#/$defs/snapshot"
-        },
-        "contract_hash": {
+        "of_role": {
           "type": "string",
           "minLength": 1
         },
-        "policy_hash": {
-          "type": "string",
-          "minLength": 1
-        },
-        "invalidated": {
+        "why": {
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "target": {
       "type": "object",
@@ -912,6 +1027,427 @@
           ]
         }
       }
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "requirement_id",
+        "status",
+        "kind",
+        "explanation",
+        "snapshot",
+        "contract_hash",
+        "policy_hash",
+        "recorded_at"
+      ],
+      "properties": {
+        "requirement_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "unverified",
+            "unavailable"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "inspection",
+            "command",
+            "runtime",
+            "manual"
+          ]
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "verifier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "snapshot": {
+          "type": "object",
+          "required": [
+            "worktree",
+            "head",
+            "content_hash"
+          ],
+          "properties": {
+            "worktree": {
+              "type": "string",
+              "minLength": 1
+            },
+            "head": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "branch": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "dirty_paths": {
+              "type": "integer"
+            },
+            "content_hash": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "contract_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recorded_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "invalidated": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "check": {
+      "type": "object",
+      "required": [
+        "name",
+        "argv",
+        "cwd",
+        "exit_code",
+        "snapshot",
+        "contract_hash",
+        "policy_hash",
+        "recorded_at",
+        "status",
+        "artifact"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "unavailable_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "snapshot": {
+          "type": "object",
+          "required": [
+            "worktree",
+            "head",
+            "content_hash"
+          ],
+          "properties": {
+            "worktree": {
+              "type": "string",
+              "minLength": 1
+            },
+            "head": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "branch": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "dirty_paths": {
+              "type": "integer"
+            },
+            "content_hash": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "contract_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recorded_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "invalidated": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "unavailable"
+          ]
+        },
+        "artifact": {
+          "type": "object",
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "review": {
+      "type": "object",
+      "required": [
+        "task_id",
+        "perspective_id",
+        "verdict",
+        "findings",
+        "artifacts",
+        "snapshot",
+        "contract_hash",
+        "policy_hash",
+        "recorded_at"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "perspective_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verdict": {
+          "enum": [
+            "approve",
+            "adverse",
+            "unavailable"
+          ]
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "severity",
+              "summary"
+            ],
+            "properties": {
+              "severity": {
+                "enum": [
+                  "blocker",
+                  "major",
+                  "minor",
+                  "note"
+                ]
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "file": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "selection": {
+          "type": "object"
+        },
+        "why": {
+          "type": "string"
+        },
+        "snapshot": {
+          "type": "object",
+          "required": [
+            "worktree",
+            "head",
+            "content_hash"
+          ],
+          "properties": {
+            "worktree": {
+              "type": "string",
+              "minLength": 1
+            },
+            "head": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "branch": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "dirty_paths": {
+              "type": "integer"
+            },
+            "content_hash": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "contract_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recorded_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "invalidated": {
+          "type": "string",
+          "minLength": 1
+        },
+        "round": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "child": {
+      "type": "object",
+      "required": [
+        "task_id",
+        "client_request_id",
+        "parent_thread_id",
+        "status",
+        "has_pending_child_runs"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "client_request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parent_thread_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "waiting",
+            "completed",
+            "failed",
+            "cancelled",
+            "interrupted"
+          ]
+        },
+        "work_state": {
+          "enum": [
+            "working",
+            "waiting_for_children",
+            "result_available"
+          ]
+        },
+        "has_pending_child_runs": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

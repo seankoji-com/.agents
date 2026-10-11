@@ -14,11 +14,11 @@ when needed; continue independent authorized checks. Never execute a checklist w
 through a shell, invent a missing criterion, or treat an existing checkbox as proof.
 
 Create a core plan with one stable requirement per actionable claim, kind `command`
-or `inspection`, preserving the claim and `Done when:` wording. Record the resolved
-path and source content hash in `labels.source`. Use read-only tasks,
+or `inspection`, preserving the claim and `Done when:` wording. Save the resolved
+path and source content hash in run notes. Use read-only verification,
 `authorization.endstate: local`, and checks as literal argv arrays. A command needing
 shell syntax must be reviewed as code before using an explicit shell argv. Follow the
-entry's loop; collect actual output and current-revision acceptance for every item.
+entry's evidence procedure; collect actual output and current-revision acceptance for every item.
 
 Report passed, failed, unverified, already checked, and skipped items separately.
 A failed check is a finding, not permission to remediate. If remediation was requested,

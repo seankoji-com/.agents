@@ -45,13 +45,13 @@ class SchemaParityTest(CoreTestCase):
                     self.assertEqual(problems, [], fixture.name)
                 else:
                     self.assertNotEqual(problems, [], f'{fixture.name} should be rejected')
-        for required in ('plan.schema.json', 'result.schema.json', 'run.schema.json', 'recipe.schema.json',
+        for required in ('plan.schema.json', 'run.schema.json', 'recipe.schema.json',
                          'roles.schema.json', 'defaults.schema.json'):
             self.assertIn(required, covered)
 
     def test_task_and_evidence_schemas_match_run_definitions(self):
         run = json.loads((ROOT / 'core' / 'schemas' / 'run.schema.json').read_text())
-        for name in ('task', 'evidence'):
+        for name in ('evidence',):
             standalone = json.loads((ROOT / 'core' / 'schemas' / f'{name}.schema.json').read_text())
             body = {k: v for k, v in standalone.items() if k not in ('$schema', '$id', 'title', '$defs')}
             self.assertEqual(body, run['$defs'][name])
@@ -63,20 +63,20 @@ class SchemaParityTest(CoreTestCase):
         self.assertEqual(schema.errors(config['roles'], roles), [])
 
     def test_persisted_perspective_fields_reject_malformed_values(self):
-        run = json.loads((FIXTURE_DIR / 'valid/run--verifying.json').read_text())
+        run = json.loads((FIXTURE_DIR / 'valid/run--active.json').read_text())
         review = run['policy']['review']
         review['perspectives'] = {'architecture': 'Trace contracts.'}
-        run['tasks'][0]['perspective_id'] = 'architecture'
-        run['reviews'] = [{'round': 1, 'verdict': 'approve', 'perspective_id': 'architecture'}]
         stored = schema.load_schema('run')
         self.assertEqual(schema.errors(run, stored), [])
-        for owner, key, bad in ((review, 'perspectives', {'architecture': 42}),
-                                (run['tasks'][0], 'perspective_id', 42),
-                                (run['reviews'][0], 'perspective_id', 'invalid name')):
-            original = owner[key]
-            owner[key] = bad
-            self.assertTrue(schema.errors(run, stored))
-            owner[key] = original
+        review['perspectives'] = {'architecture': 42}
+        self.assertTrue(schema.errors(run, stored))
+        review['perspectives'] = {'architecture': 'Trace contracts.'}
+        child = {'task_id': 'task-1', 'client_request_id': 'request-1', 'parent_thread_id': 'parent',
+                 'status': 'running', 'has_pending_child_runs': False}
+        run['children'] = [child]
+        self.assertEqual(schema.errors(run, stored), [])
+        child['has_pending_child_runs'] = 'no'
+        self.assertTrue(schema.errors(run, stored))
 
     def test_no_third_party_imports_or_runtime_dependency_manifests(self):
         pattern = re.compile(r'^(import|from) (jsonschema|pydantic|yaml|attrs)\b', re.M)
@@ -93,12 +93,12 @@ class VersionAndCorruptionTest(CoreTestCase):
         run = self.init(self.plan(repo))
         state_file = run.run_dir / 'run.json'
         data = json.loads(state_file.read_text())
-        data['schema_version'] = 2
+        data['schema_version'] = 3
         state_file.write_text(json.dumps(data, indent=1))
         before = state_file.read_bytes()
         code, env, _ = cli('status', *run.args())
         self.assertEqual((code, env['error']['code']), (2, 'unsupported_version'))
-        code, env, _ = cli('claim', *run.args())
+        code, env, _ = cli('snapshot', *run.args())
         self.assertEqual(code, 2)
         self.assertEqual(state_file.read_bytes(), before)
 
@@ -116,26 +116,11 @@ class VersionAndCorruptionTest(CoreTestCase):
     def test_record_that_would_corrupt_state_is_rejected(self):
         repo = self.make_repo()
         run = self.init(self.plan(repo))
-        run.claim()
         before = (run.run_dir / 'run.json').read_bytes()
-        code, env, _ = run.record_raw('transition', {'to': 'nonsense'})
-        self.assertEqual(code, 4)
-        code, env, _ = run.record_raw('not-a-kind', {})
+        code, env, _ = run.submit_raw('note', {'text': 'x', 'phase': 'nonsense'})
         self.assertEqual(code, 2)
-        code, env, _ = cli('record', *run.args('--kind', 'note', '--token', run.token, '--expect-generation',
-                                                run.generation, '--json', '{not json'))
-        self.assertEqual((code, env['error']['code']), (2, 'invalid_json'))
+        code, env, _ = cli('not-a-kind', *run.args())
+        self.assertEqual(code, 2)
+        code, env, _ = cli('note', *run.args('--json', '{not json'))
+        self.assertEqual((code, env['error']['code']), (2, 'invalid_input'))
         self.assertEqual((run.run_dir / 'run.json').read_bytes(), before)
-
-    def test_malformed_task_result_rejected_without_corrupting_state(self):
-        repo = self.make_repo()
-        run = self.init(self.plan(repo))
-        run.claim()
-        run.record('transition', {'to': 'executing'})
-        out = run.record('result', {'task_id': 'main', 'text': 'I fixed it, trust me.'})
-        self.assertEqual(out['result']['outcome'], 'correction_requested')
-        state = run.state
-        self.assertEqual(state['tasks'][0]['status'], 'correction_needed')
-        raw = run.run_dir / state['tasks'][0]['malformed'][0]['raw']['path']
-        self.assertEqual(raw.read_text(), 'I fixed it, trust me.')
-        self.assertEqual(state['acceptance'], [])

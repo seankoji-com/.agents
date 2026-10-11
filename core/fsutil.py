@@ -169,6 +169,8 @@ def verify_artifact(run_dir: Path, entry: dict) -> str | None:
         return 'artifact missing'
     if not resolved.is_relative_to(Path(run_dir).resolve()):
         return 'artifact symlink escapes the run directory'
+    if not resolved.is_file():
+        return 'artifact is not a regular file'
     if sha256_file(resolved) != entry.get('sha256'):
         return 'artifact hash changed'
     return None

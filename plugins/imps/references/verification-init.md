@@ -30,13 +30,13 @@ This writes `SKILL.md`, `recipe.json` (status `draft`), `features/index.md` and 
 
 Start a run whose plan has one runtime requirement for the feature, for example `{"id": "REQ-VERIFY-CREATE", "kind": "runtime", "text": "F-CREATE recipe creates a note and lists it"}`, with `review.required: false` unless the operator wants one. Then:
 
-1. Run the recipe's doctor commands.
-2. Launch the product as the recipe says, in the background, from a disposable data directory. Record it as `resource` with `kind: process` and its `pid`, so cleanup and cancellation reach it and nothing else.
+1. Capture the full `snapshot` binding, then run the recipe's doctor commands.
+2. Launch the product as the recipe says, in the background, from a disposable data directory. Save its PID and start identity in run notes; retain the process handle so cleanup reaches only this process.
 3. Wait for readiness within the stated timeout.
 4. Execute each step, and save every request and response (or command and output) under `scratch/`.
-5. Check each `expect` entry against what you captured. Record `acceptance` for the requirement with `kind: runtime`, and attach the captured files.
-6. Clean up with the recipe's cleanup commands. Record `cleanup` for the process. Confirm it has stopped and that the captured evidence still exists.
-7. Let `next` take the run to `ready` and `completed`. Stamping edits the recipe, so it comes after completion.
+5. Check each `expect` entry against what you captured. Submit `evidence` for the requirement with `kind: runtime`, and attach the captured files with the original binding.
+6. Clean up with the recipe's cleanup commands. Save the cleanup output in notes. Confirm it has stopped and that the captured evidence still exists.
+7. Run `validate` and require a completed outcome. Stamping edits the recipe, so it comes after verification.
 8. Stamp the recipe: `recipe-stamp --run-id <id> --recipe <dir>/recipe.json --feature F-CREATE --requirement REQ-VERIFY-CREATE`. This copies the evidence into `<dir>/evidence/<run-id>/` and sets `status: verified`. Run `recipe-check` again.
 
 If any step fails, leave the recipe as `draft`, record the failure, and report what blocked it.

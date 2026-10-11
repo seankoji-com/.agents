@@ -17,17 +17,14 @@ conflict rather than dropping repository-required perspectives.
 }
 ```
 
-The core retains its default independent review and then dispatches one fresh
-read-only T3 review per additional perspective, using the configured reviewer role
-and the live catalog. Follow the normal entry loop. Do not dispatch extra reviewers
-outside it. Reviews run sequentially; this keeps the existing task scheduler and
-ownership rules. The core retains each handle, issues distinct request IDs, binds
-verdicts to the dispatch revision, reconciles cancellation and blocks readiness until
-all required reviews approve the same current tree.
+Keep the default independent review and start one fresh read-only T3 review per
+additional perspective through the shared delegation contract. Retain every task
+ID and submit each child observation and review with its original binding. Keep
+going until every required perspective approves the current revision or a named
+perspective is blocked. The gate validates the panel; it does not schedule it.
 
-Any blocker or major is adverse, including a contradictory approval verdict. Adverse
-findings enter the existing bounded review repair process, never reviewer fallback.
-An edit stales approvals; a repair invalidates all evidence and repeats the panel.
+Any blocker or major is adverse, including a contradictory approval verdict. Repair adverse findings within the stated retry limit, never by reviewer fallback.
+An edit stales approvals; repaired work needs fresh evidence and the panel again.
 Unavailable targets follow the configured availability chain. If none remains, the
 run blocks. A waiver requires explicit operator authorization and is reported as
 waived, never passed; repository policy may prohibit it.

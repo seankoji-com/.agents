@@ -97,7 +97,7 @@ class EntryTest(CoreTestCase):
     def test_word_budgets(self):
         entry = len((PLUGIN / 'entry.md').read_text().split())
         bugfix = len((PLUGIN / 'playbooks' / 'bug-fix.md').read_text().split())
-        self.assertLess(entry, 1500)
+        self.assertLessEqual(entry, 800)
         self.assertLessEqual(entry + bugfix, 3000)
 
     def test_entry_supports_operations_and_names_every_loadable_file(self):
@@ -132,12 +132,12 @@ class CliContractTest(CoreTestCase):
         cases = [
             ('status', [*run.args()], 0),
             ('validate', [*run.args()], 0),
-            ('next', [*run.args()], 0),
+            ('snapshot', [*run.args()], 0),
             ('report', [*run.args()], 0),
-            ('claim', [*run.args()], 0),
-            ('claim', [*run.args()], 3),
-            ('record', [*run.args('--kind', 'nonsense', '--json', '{}', '--token', 'x', '--expect-generation', '1')], 2),
-            ('recover', [*run.args('--token', 'x')], 4),
+            ('note', [*run.args('--json', '{"text":"ok"}')], 0),
+            ('note', [*run.args('--json', '{"text":"x","ready":true}')], 2),
+            ('waive', [*run.args('--json', '{"target":"review","reason":"x","decided_by":"owner","operator_quote":"skip"}')], 0),
+            ('policy', [*run.args('--json', '{"policy":{"checks":[]}}')], 4),
             ('init', ['--state-root', repo / 'wordstat.py', '--plugin-dir', PLUGIN, '--json', json.dumps(self.plan(repo))], 5),
             ('status', ['--state-root', self.state_root, '--plugin-dir', PLUGIN, '--run-id', 'not-an-id'], 2),
         ]
@@ -151,10 +151,17 @@ class CliContractTest(CoreTestCase):
             if expected:
                 self.assertTrue(result.stderr.strip(), 'diagnostics go to stderr')
             seen.setdefault(expected, op)
-        token = run.status()['owner']['token']
-        code, env, _ = cli('release', *run.args('--token', token))
-        self.assertEnvelope(env, True)
-        self.assertEqual(set(seen), {0, 2, 3, 4, 5})
+        import contextlib
+        import io
+        from unittest import mock
+        from core import cli as module, store
+        output = io.StringIO()
+        with mock.patch.object(store, 'new_run_id', return_value=run.run_id), contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+            code = module.main(['init', '--state-root', str(self.state_root), '--plugin-dir', str(PLUGIN),
+                                '--json', json.dumps(self.plan(repo))])
+        self.assertEqual(code, 3)
+        self.assertEnvelope(json.loads(output.getvalue()), False)
+        self.assertEqual(set(seen), {0, 2, 4, 5})
 
     def test_usage_errors_are_json_too(self):
         result = subprocess.run([sys.executable, str(CLI), 'frobnicate'], capture_output=True, text=True)
@@ -166,16 +173,25 @@ class MappingTest(CoreTestCase):
     def test_every_mapped_test_id_exists(self):
         import unittest
         text = (ROOT / 'tests' / 'README.md').read_text()
-        table = text.split('## Source-spec §14 cases')[1].split('## Rubric')[0]
-        cases = {}
-        for line in table.splitlines():
-            match = re.match(r'^\| (\d+) \|', line)
-            if match:
-                cases[int(match.group(1))] = re.findall(r'`(test_\w+\.\w+\.test_\w+)`', line)
-        self.assertEqual(sorted(cases), list(range(1, 17)))
+        table = text.split('## Current evidence gate')[1]
+        ids = re.findall(r'`(test_\w+\.\w+\.test_\w+)`', table)
+        self.assertGreaterEqual(len(ids), 7)
         loader = unittest.TestLoader()
-        for case, ids in cases.items():
-            self.assertTrue(ids, f'case {case} has no test')
-            for test_id in ids:
-                suite = loader.loadTestsFromName(test_id)
-                self.assertEqual(suite.countTestCases(), 1, test_id)
+        for test_id in ids:
+            suite = loader.loadTestsFromName(test_id)
+            self.assertEqual(suite.countTestCases(), 1, test_id)
+            self.assertEqual(loader.errors, [], test_id)
+
+    def test_operations_and_removed_instruction_api(self):
+        meta = json.loads((PLUGIN/'plugin.json').read_text())
+        self.assertEqual(meta['operations'], ['doctor','run','resume','status','cancel','verification-init',
+                                              'blast-radius','audit','issues','prs','checklist','discussion'])
+        for path, text in text_files('plugins'):
+            for banned in ('--expect-generation', 'claim --', 'record --kind'):
+                self.assertNotIn(banned, text, path)
+            self.assertNotRegex(text, r'(?i)(?:next[^\n]{0,35}loop|loop[^\n]{0,35}`next`)', path)
+
+    def test_core_size_remains_within_stage_three_budget(self):
+        count = sum(len(path.read_text().splitlines()) for path in (ROOT/'core').rglob('*.py'))
+        self.assertLessEqual(count, 2156)
+        self.assertFalse((ROOT/'core/engine.py').exists())

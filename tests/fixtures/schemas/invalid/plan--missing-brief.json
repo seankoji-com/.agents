@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "repo": {
     "worktree": ".",
     "base_ref": "HEAD"
@@ -10,8 +10,5 @@
       "edit"
     ],
     "evidence": "operator asked for a local fix"
-  },
-  "execution": {
-    "mode": "direct"
   }
 }

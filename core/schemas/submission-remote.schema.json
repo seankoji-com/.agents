@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "submission-remote.schema.json",
+  "type": "object",
+  "required": [
+    "type",
+    "kind",
+    "url",
+    "state",
+    "head_sha"
+  ],
+  "properties": {
+    "type": {
+      "enum": [
+        "receipt",
+        "observation"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "pr"
+      ]
+    },
+    "url": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state": {
+      "enum": [
+        "open",
+        "merged",
+        "closed"
+      ]
+    },
+    "head_sha": {
+      "type": "string",
+      "minLength": 1
+    },
+    "number": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false
+}

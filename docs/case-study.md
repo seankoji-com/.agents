@@ -36,12 +36,12 @@ a single integrated product; it feels like a catalog, because it is one.
 
 ### 2. Tie evidence to the revision that produced it
 
-The imps workflow has a small state engine with three rules. A claim token names the
-single owner of a run. A generation counter refuses writes from anyone holding a stale
-view. And every piece of evidence, whether a test log, a review verdict, or an
-acceptance check, is recorded against the repository snapshot it was gathered on.
+The original imps workflow used a claim token, a generation counter and revision-bound
+evidence. Stage 3 of issue #15 replaces the dispatcher and lease protocol with a
+smaller evidence gate, retaining atomic storage and revision-bound verification.
+The observations below describe the original gate on their recorded dates.
 
-The last rule is the one I would defend hardest. Agents are very good at saying
+Revision-bound evidence is the rule I would defend hardest. Agents are very good at saying
 "tests pass" after a change that happened after the tests ran. With evidence bound to
 a revision, an edit after verification makes the verification stale. The agent has to
 re-verify. It cannot re-label. In the live runs no repeat reported a false completion;
@@ -53,8 +53,8 @@ the report can say `completed` and mean it.
 Nothing in the catalog knows what a "reviewer" model is. Roles are resolved against
 T3's live capability list at run time, and a provider that is disabled, uninstalled,
 or unauthenticated shows up as exactly that in the `doctor` report. No model ID is
-compiled into imps or the core: roles resolve as `inherit`, `catalog`, or
-`same_provider`. Role-to-model routing is user-local configuration that `t3-plugins
+compiled into imps or the core. The agent resolves its configured role against the
+current catalog; the gate stores evidence without selecting a model. Role-to-model routing is user-local configuration that `t3-plugins
 setup` writes from a saved capabilities response, so the package itself never names a
 model.
 
@@ -78,7 +78,9 @@ my defects, not the models':
 - **A review brief showed a `changed_files` example.** A Codex reviewer, asked only to read, dutifully listed the files it had read as changed. The core rejected the claim and blocked the run instead of accepting a false result, which is the behavior I wanted, but two Antigravity repeats blocked on it. Read-only briefs now show an empty list, and a stray list gets one correction round.
 - **A child cited a relative evidence path.** Children inherit the thread's scratch directory, not the clone, so the path did not resolve. Briefs now require absolute evidence paths, and a path that does not resolve gets one correction round.
 
-Both fixes have regression tests. Both would have been invisible without the matrix.
+Both fixes had regression tests in the original dispatcher. The smaller gate removes
+that result parser and rejects inadmissible evidence directly. Both defects would
+have been invisible without the matrix.
 The matrix also found infrastructure limits that are recorded rather than hidden:
 the Codex driver went down halfway through, and OpenCode never opened a parent
 session in that build. The ledger says so, with timestamps.
@@ -103,4 +105,4 @@ rather than a design one.
 - The design notes the port started from: `thinking/imps-t3/`, and the pre-merge review rounds under `conformance/review/`.
 
 If you read one file, read `plugins/imps/entry.md`. It is the whole contract between
-the agent and the engine, and it stays under 1,500 words by test.
+the agent and the engine, and it now stays at or below 800 words by test.

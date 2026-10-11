@@ -13,7 +13,7 @@ history before resuming. Never reset an existing branch or reuse another run's s
 Build a dependency map. Record each issue's observable criteria, affected files,
 required checks, and authorized endstate. Surface contradictory criteria before edits.
 Use one core run plan with stable requirement IDs. Follow `PKG/entry.md`'s `run`
-procedure; the existing core owns claims, generations, evidence, and completion.
+procedure; the evidence gate validates revision-bound evidence.
 For independent work use `PKG/references/delegation.md` and isolated T3 tasks.
 
 Integrate in dependency order, verify the combined tree, and obtain required independent

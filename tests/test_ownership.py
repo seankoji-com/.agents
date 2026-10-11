@@ -1,128 +1,51 @@
-"""Source-spec cases 2 and 3, REQ-OWNERSHIP: claims, generations and recovery."""
+"""Atomic transactions remain safe without an agent lease or optimistic counter."""
 import json
 import subprocess
 import sys
-import threading
-import time
 
 from support import CLI, CoreTestCase, cli
 
 
-class OwnershipTest(CoreTestCase):
-    def setUp(self):
-        super().setUp()
-        self.repo = self.make_repo()
-        self.run = self.init(self.plan(self.repo))
-        self.state_file = self.run.run_dir / 'run.json'
+class StorageTest(CoreTestCase):
+    def test_concurrent_writers_keep_every_update(self):
+        run = self.init(self.plan(self.make_repo()))
+        processes = [subprocess.Popen([sys.executable, str(CLI), 'note', *map(str, run.args()),
+                                       '--json', json.dumps({'text': f'note {i}'})],
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                     for i in range(12)]
+        for process in processes:
+            out, err = process.communicate(timeout=30)
+            self.assertEqual(process.returncode, 0, out + err)
+            self.assertTrue(json.loads(out)['ok'])
+        self.assertEqual({n['text'] for n in run.status()['notes']}, {f'note {i}' for i in range(12)})
+        self.assertTrue((run.run_dir / 'run.lock').is_file())
+        self.assertFalse((run.run_dir / 'owner.json').exists())
 
-    def test_mutation_without_any_claim_is_rejected_when_no_owner_file_exists(self):
-        """Regression for an ownership hole in the migrated predecessor helper, where a missing owner file let a patch through."""
-        self.assertFalse((self.run.run_dir / 'owner.json').exists())
-        before = self.state_file.read_bytes()
-        code, env, _ = self.run.record_raw('note', {'key': 'x', 'text': 'y'}, token='made-up-token', generation=1)
-        self.assertEqual(code, 3, env)
-        self.assertEqual(env['error']['code'], 'not_owned')
-        code, env, _ = self.run.record_raw('note', {'key': 'x', 'text': 'y'}, token='', generation=1)
-        self.assertEqual(code, 3, env)
-        self.assertEqual(self.state_file.read_bytes(), before)
+    def test_rejected_submission_leaves_state_byte_identical(self):
+        run = self.init(self.plan(self.make_repo()))
+        before = (run.run_dir / 'run.json').read_bytes()
+        code, env, _ = run.submit_raw('note', {'text': 'x', 'ready': True})
+        self.assertEqual(code, 2)
+        self.assertEqual((run.run_dir / 'run.json').read_bytes(), before)
 
-    def test_stale_generation_rejected_and_state_bytes_unchanged(self):
-        self.run.claim()
-        generation = self.run.generation
-        self.run.record('note', {'key': 'a', 'text': 'first'}, generation=generation)
-        before = self.state_file.read_bytes()
-        code, env, _ = self.run.record_raw('note', {'key': 'b', 'text': 'second'}, generation=generation)
-        self.assertEqual(code, 3, env)
-        self.assertEqual(env['error']['code'], 'stale_generation')
-        self.assertEqual(self.state_file.read_bytes(), before)
+    def test_removed_commands_and_counter_are_refused(self):
+        run = self.init(self.plan(self.make_repo()))
+        for op in ('claim', 'release', 'recover', 'next', 'record', 'unblock'):
+            code, env, _ = cli(op, *run.args())
+            self.assertEqual((code, env['error']['code']), (2, 'usage'))
+        code, env, _ = cli('note', *run.args('--expect-generation', '1', '--json', '{"text":"x"}'))
+        self.assertEqual(code, 2)
+        self.assertNotIn('generation', run.state)
 
-    def test_wrong_token_rejected(self):
-        self.run.claim()
-        before = self.state_file.read_bytes()
-        code, env, _ = self.run.record_raw('note', {'key': 'a', 'text': 'x'}, token='not-the-token')
-        self.assertEqual((code, env['error']['code']), (3, 'token_mismatch'))
-        self.assertEqual(self.state_file.read_bytes(), before)
-
-    def test_concurrent_claims_have_exactly_one_winner(self):
-        outcomes, errors = [], []
-        args = [sys.executable, str(CLI), 'claim', *self.run.args()]
-        args = [str(a) for a in args]
-
-        def claim():
-            try:
-                result = subprocess.run(args, capture_output=True, text=True, timeout=60)
-                outcomes.append((result.returncode, json.loads(result.stdout)))
-            except Exception as exc:  # a thread's exception is otherwise lost
-                errors.append(repr(exc))
-        threads = [threading.Thread(target=claim) for _ in range(8)]
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
-        self.assertEqual(errors, [])
-        winners = [env for code, env in outcomes if code == 0]
-        losers = [env for code, env in outcomes if code == 3]
-        self.assertEqual(len(winners), 1, outcomes)
-        self.assertEqual(len(losers), 7)
-        self.assertTrue(all(env['error']['code'] == 'owned' for env in losers))
-
-    def test_concurrent_writers_with_same_generation_only_one_lands(self):
-        self.run.claim()
-        generation = self.run.generation
-        results = []
-
-        errors = []
-
-        def write(n):
-            try:
-                results.append(self.run.record_raw('note', {'key': f'k{n}', 'text': str(n)}, generation=generation)[0])
-            except Exception as exc:
-                errors.append(repr(exc))
-        threads = [threading.Thread(target=write, args=(n,)) for n in range(6)]
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
-        self.assertEqual(errors, [])
-        self.assertEqual(sorted(results), [0, 3, 3, 3, 3, 3])
-        self.assertEqual(len(self.run.state['notes']), 1)
-
-    def test_unknown_fields_survive_updates(self):
-        data = json.loads(self.state_file.read_text())
-        data['x_future_field'] = {'kept': True}
-        data['tasks'][0]['x_task_extension'] = [1, 2]
-        self.state_file.write_text(json.dumps(data))
-        self.run.claim()
-        self.run.record('note', {'key': 'k', 'text': 'v'})
-        after = self.run.state
-        self.assertEqual(after['x_future_field'], {'kept': True})
-        self.assertEqual(after['tasks'][0]['x_task_extension'], [1, 2])
-
-    def test_recover_requires_confirmed_dead_even_after_deadline(self):
-        self.run.claim()
-        stale = self.run.token
-        owner_file = self.run.run_dir / 'owner.json'
-        owner = json.loads(owner_file.read_text())
-        owner['deadline'] = time.time() - 3600
-        owner_file.write_text(json.dumps(owner))
-        code, env, _ = cli('recover', *self.run.args('--token', stale))
-        self.assertNotEqual(code, 0)
-        self.assertEqual((code, env['error']['code']), (4, 'recovery_unconfirmed'))
-        self.assertTrue(owner_file.exists(), 'claim survives a recover without --confirmed-dead')
-        code, env, _ = cli('claim', *self.run.args())
-        self.assertEqual(code, 3, 'a new invocation cannot claim while the crashed claim stands')
-        code, env, _ = cli('recover', *self.run.args('--token', stale, '--confirmed-dead'))
-        self.assertEqual(code, 0, env)
-        self.assertFalse(owner_file.exists())
-        self.run.claim()
-        self.assertNotEqual(self.run.token, stale)
-
-    def test_budget_persists_across_resume(self):
-        self.run.claim()
-        time.sleep(1.1)
-        self.run.release()
-        spent = self.run.state['budget']['spent_seconds']
-        self.assertGreaterEqual(spent, 1.0)
-        self.run.claim()
-        self.run.release()
-        self.assertGreaterEqual(self.run.state['budget']['spent_seconds'], spent)
+    def test_old_major_is_refused_by_every_state_command_without_writes(self):
+        run = self.init(self.plan(self.make_repo()))
+        path = run.run_dir / 'run.json'
+        path.write_text('{"schema_version":1,"generation":9}')
+        (run.run_dir / 'run.lock').unlink()
+        before = {p.name: p.read_bytes() for p in run.run_dir.iterdir() if p.is_file()}
+        for op in ('status', 'snapshot', 'validate', 'report', 'note', 'cancel', 'recipe-stamp'):
+            code, env, _ = cli(op, *run.args('--json', '{"text":"x"}'))
+            self.assertEqual(code, 2, env)
+            self.assertIn('major version 1', env['error']['message'])
+            self.assertIn('major version 2', env['error']['message'])
+        self.assertEqual({p.name: p.read_bytes() for p in run.run_dir.iterdir() if p.is_file()}, before)

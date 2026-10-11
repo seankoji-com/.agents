@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "submission-child.schema.json",
+  "type": "object",
+  "required": [
+    "task_id",
+    "client_request_id",
+    "parent_thread_id",
+    "status",
+    "has_pending_child_runs"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "client_request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parent_thread_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "waiting",
+        "completed",
+        "failed",
+        "cancelled",
+        "interrupted"
+      ]
+    },
+    "work_state": {
+      "enum": [
+        "working",
+        "waiting_for_children",
+        "result_available"
+      ]
+    },
+    "has_pending_child_runs": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

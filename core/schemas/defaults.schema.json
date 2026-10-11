@@ -1,7 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "defaults.schema.json",
-  "title": "Plugin defaults merged under every plan",
   "type": "object",
   "required": [
     "schema_version"
@@ -10,6 +9,9 @@
     "schema_version": {
       "const": 1
     },
+    "description": {
+      "type": "string"
+    },
     "roles": {
       "type": "object",
       "additionalProperties": {
@@ -17,60 +19,149 @@
       }
     },
     "policy": {
-      "$ref": "#/$defs/policy"
-    },
-    "execution": {
       "type": "object",
+      "required": [],
       "properties": {
-        "mode": {
-          "enum": [
-            "direct",
-            "delegated"
-          ]
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "argv"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "argv": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "timeout_seconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "repository_required": {
+                "type": "boolean"
+              }
+            }
+          }
         },
-        "concurrency": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10
-        }
-      },
-      "additionalProperties": false
-    },
-    "labels": {
-      "type": "object"
-    },
-    "description": {
-      "type": "string"
-    }
-  },
-  "additionalProperties": false,
-  "$defs": {
-    "target": {
-      "type": "object",
-      "required": [
-        "providerInstanceId"
-      ],
-      "properties": {
-        "providerInstanceId": {
-          "type": "string",
-          "minLength": 1
+        "review": {
+          "type": "object",
+          "properties": {
+            "required": {
+              "type": "boolean"
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "waivable": {
+              "type": "boolean"
+            },
+            "perspectives": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
         },
-        "model": {
+        "brief_notes": {
           "type": [
             "string",
             "null"
           ]
         },
-        "options": {
+        "evidence_roots": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "role_overrides": {
           "type": "object"
         },
-        "runtimeMode": {
+        "model_preferences": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "requirement": {
+      "type": "object",
+      "required": [
+        "id",
+        "text"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_-]+$"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
           "enum": [
-            "approval-required",
-            "auto-accept-edits",
-            "auto",
-            "full-access"
+            "inspection",
+            "command",
+            "runtime",
+            "manual"
           ]
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "required": [
+        "chain"
+      ],
+      "properties": {
+        "chain": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/chain_entry"
+          }
+        },
+        "host_role": {
+          "enum": [
+            "implementation",
+            "research",
+            "review",
+            "design",
+            "test",
+            "general"
+          ]
+        },
+        "description": {
+          "type": "string"
         }
       }
     },
@@ -122,144 +213,32 @@
       },
       "additionalProperties": false
     },
-    "role": {
+    "target": {
       "type": "object",
       "required": [
-        "chain"
+        "providerInstanceId"
       ],
       "properties": {
-        "chain": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/$defs/chain_entry"
-          }
-        },
-        "host_role": {
-          "enum": [
-            "implementation",
-            "research",
-            "review",
-            "design",
-            "test",
-            "general"
-          ]
-        },
-        "description": {
-          "type": "string"
-        }
-      }
-    },
-    "check": {
-      "type": "object",
-      "required": [
-        "name",
-        "argv"
-      ],
-      "properties": {
-        "name": {
+        "providerInstanceId": {
           "type": "string",
           "minLength": 1
         },
-        "argv": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "cwd": {
-          "type": "string"
-        },
-        "timeout_seconds": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 3600
-        },
-        "required": {
-          "type": "boolean"
-        },
-        "repository_required": {
-          "type": "boolean"
-        }
-      }
-    },
-    "review_policy": {
-      "type": "object",
-      "properties": {
-        "required": {
-          "type": "boolean"
-        },
-        "role": {
+        "model": {
           "type": [
             "string",
             "null"
           ]
         },
-        "waivable": {
-          "type": "boolean"
+        "options": {
+          "type": "object"
         },
-        "perspectives": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      }
-    },
-    "policy": {
-      "type": "object",
-      "properties": {
-        "checks": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/check"
-          }
-        },
-        "review": {
-          "$ref": "#/$defs/review_policy"
-        },
-        "repair_limit": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 10
-        },
-        "budget_seconds": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 86400
-        },
-        "worktree_root": {
-          "type": "string"
-        },
-        "work_role": {
-          "type": "string"
-        },
-        "brief_notes": {
-          "type": [
-            "string",
-            "null"
+        "runtimeMode": {
+          "enum": [
+            "approval-required",
+            "auto-accept-edits",
+            "auto",
+            "full-access"
           ]
-        },
-        "role_overrides": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/target"
-          }
-        },
-        "model_preferences": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "evidence_roots": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       }
     }

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "imps defaults. Repository policy (.t3-plugins/imps.json) and the run plan override these.",
+  "description": "Evidence gate defaults. Repository policy overrides run-plan obligations.",
   "roles": {
     "implementer": {
       "description": "Writes the change. Defaults to the active T3 provider and model.",
@@ -47,13 +47,6 @@
       "role": "reviewer",
       "waivable": true
     },
-    "repair_limit": 2,
-    "budget_seconds": 14400,
-    "work_role": "implementer",
     "checks": []
-  },
-  "execution": {
-    "mode": "direct",
-    "concurrency": 4
   }
 }
