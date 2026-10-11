@@ -6,8 +6,8 @@ Skill names use the `t3-` prefix: `t3-imps`, `t3-ape`, `t3-babysitter`,
 `t3-elephant-goldfish` and `t3-agent-tuneup`.
 
 For one-step user setup after installation, use `t3-plugins setup`
-(`python3 bin/t3-plugins setup` from source). The current source catalog and
-[Homebrew release channel](getting-started.md#homebrew-release-channel) differ.
+(`python3 bin/t3-plugins setup` from source). For Homebrew, use
+[catalog v0.5.0 or later](getting-started.md#homebrew-release-channel).
 It installs the full catalog and adapters into the three default roots below.
 Use `t3-plugins setup imps` for just imps, or repeat `--root PATH` for custom roots.
 Setup preserves unowned or edited adapters and stops on a conflict. Earlier receipts
@@ -60,6 +60,12 @@ $t3-imps run fix the parser
 $t3-imps --personas 42 43
 $t3-imps checklist path/to/audit.md
 ```
+
+Each adapter's description includes argument hints, such as
+`study <GitHub URL> [focus]` or `audit --provider <name> --settings <path>`.
+Angle brackets mark required values; square brackets mark optional arguments.
+The hints live in the portable `description` frontmatter field. Run
+`t3-plugins setup` again and restart the agent session to refresh existing adapters.
 
 Selecting from `/` inserts a skill mention. `$t3-imps` is the portable invocation.
 Provider-native slash commands must start the message. T3 accepts skill mentions on any line, but put the imps

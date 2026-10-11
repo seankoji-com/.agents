@@ -44,8 +44,13 @@ def metadata_fields(meta):
 
 
 def render(meta, entry):
+    # Pickers expose the description across providers; keep argument syntax there
+    # rather than relying on a provider-specific argument-hint frontmatter field.
+    description = meta['description']
+    if meta.get('argument_hint'):
+        description += ' Args: ' + meta['argument_hint'] + '.'
     # JSON strings are valid quoted YAML scalars. Descriptions may contain colons.
-    header = ['---', 'name: t3-' + meta['name'], 'description: ' + json.dumps(meta['description'])]
+    header = ['---', 'name: t3-' + meta['name'], 'description: ' + json.dumps(description)]
     metadata = metadata_fields(meta)
     if metadata:
         header.append('metadata:')
