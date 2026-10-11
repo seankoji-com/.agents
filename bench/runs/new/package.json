@@ -1,0 +1,47 @@
+{
+  "version_label": "new",
+  "source_tree_commit": "12b51fca6b77384890587eae1c299fb96eb31722",
+  "entry": "<home>/t3-plugins-bench/install/imps-12b51fc/imps/1.0.0+g12b51fca6b77/entry.md",
+  "verify_before_runs": {
+    "ok": true,
+    "version": "1.0.0+g12b51fca6b77",
+    "source_commit": "12b51fca6b77384890587eae1c299fb96eb31722",
+    "manifest_sha256": "f14407d0a6b3962213400a8f8bb1ead3bbfad19e5aac8909dec7acd789228df2",
+    "files": 62,
+    "problems": []
+  },
+  "retry_package": {
+    "checkout_commit": "0181c2b249dcdd7e026cf6034fc91370da4e8f23",
+    "installed_version": "1.0.0+g12b51fca6b77",
+    "installer_source_commit": "12b51fca6b77384890587eae1c299fb96eb31722",
+    "protocol_freeze_commit": "cc014ab",
+    "entry": "<home>/t3-plugins-bench/install/imps-0181c2b/imps/1.0.0+g12b51fca6b77/entry.md",
+    "verify_before_runs": {
+      "ok": true,
+      "version": "1.0.0+g12b51fca6b77",
+      "source_commit": "12b51fca6b77384890587eae1c299fb96eb31722",
+      "manifest_sha256": "f14407d0a6b3962213400a8f8bb1ead3bbfad19e5aac8909dec7acd789228df2",
+      "files": 62,
+      "problems": []
+    },
+    "provenance_note": "Installer source_commit is the last commit touching installed runtime paths. Later grader, tests and docs commits do not change the identical 62-file runtime payload."
+  },
+  "verify_after_initial_runs": {
+    "ok": true,
+    "version": "1.0.0+g12b51fca6b77",
+    "source_commit": "12b51fca6b77384890587eae1c299fb96eb31722",
+    "manifest_sha256": "f14407d0a6b3962213400a8f8bb1ead3bbfad19e5aac8909dec7acd789228df2",
+    "files": 62,
+    "problems": []
+  },
+  "final_head_check": {
+    "source_tree_commit": "dbf9a85fb2129da059e0c5bbeb595c723a9cc0cd",
+    "method": "git archive of the commit installed with scripts/install.py --plugin imps into a scratch prefix under an isolated HOME/XDG, then diff -r against the benchmarked retry package.",
+    "files": 62,
+    "payload_identical": true,
+    "differences": [
+      "install-manifest.json version and source_commit only: the export has no git history, so the installer stamps a content version (1.0.0+content.664ed9e9b003) and no source commit."
+    ],
+    "later_commits": "The closeout commit changes only bench/runs/new/, which the installer does not package."
+  }
+}

@@ -4,16 +4,16 @@ There are three different questions: can a provider read the entry, can the help
 execute on that machine, and does the model complete the workflow correctly?
 Only a live workflow run answers the third.
 
-## Current status
+## Helper coverage and historical workflows
 
 | Surface | Status | Evidence |
 | --- | --- | --- |
 | Five-plugin catalog | Deterministic install and invocation tests | `tests/test_catalog.py` |
 | Portable workflow entries | Experimental ports | Entry/path contracts and manual review; no full provider matrix yet |
-| imps | Partial live conformance | [Recorded matrix](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/compatibility.md) |
+| imps | Historical partial live conformance for `0.1.0+ga50f506cd178` | [Recorded matrix](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/compatibility.md) |
 | agent-tuneup | Known-pattern audit adapters | Claude JSON, OpenCode JSON/JSONC, Codex TOML tests |
 
-The imps ledger records T3 `0.0.46-nightly.20261008.2849`, exact model IDs, repeat
+The historical imps ledger covers plugin `0.1.0+ga50f506cd178` and records T3 `0.0.46-nightly.20261008.2849`, exact model IDs, repeat
 counts, interventions, failures, and artifacts. Codex and Claude completed repeated
 bug-fix cases; other cases and providers remain partial or unavailable. These are
 historical observations, not certification of the migrated catalog or current T3.

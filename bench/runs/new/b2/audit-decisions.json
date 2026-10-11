@@ -1,0 +1,2054 @@
+{
+  "attempt": 1,
+  "outcome": "void",
+  "proposed_void": 13,
+  "proposed_review": 173,
+  "decisions": [
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 0,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/claude-cmd-NJMAlb"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 1,
+      "finding": {
+        "level": "void",
+        "tool": "Bash",
+        "path": "~/.config/t3-plugins"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 2,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/claude-cmd-SONRZg"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 3,
+      "finding": {
+        "level": "review",
+        "tool": "Write",
+        "path": "<tmp>/imps-scratch/plan.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 4,
+      "finding": {
+        "level": "review",
+        "tool": "Write",
+        "path": "<tmp>/imps-scratch/plan.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 5,
+      "finding": {
+        "level": "review",
+        "tool": "Write",
+        "path": "<tmp>/imps-scratch"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 6,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/plan.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 7,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-regression-test.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 8,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-regression-test.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 9,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-regression-test.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 10,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/repro.py"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 11,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-repro.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 12,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-repro.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 13,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "reason": "relative parent path in command"
+      },
+      "decision": "ok",
+      "reason": "Shell-variable suffix, regex, or in-file example, not an absolute path accessed outside the workspace/package."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 14,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-nW0ct7"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 15,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-nW0ct7"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 16,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/repro.py"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 17,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 18,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/repro.py"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 19,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/repro.py"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 20,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-repro.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 21,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-repro.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 22,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/-<home>-t3-plugins-bench-ws-f774d3d7/eba05c3b-a507-4be5-a20f-e01044432da3/tasks/b6suxjys3.output"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 23,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/-<home>-t3-plugins-bench-ws-f774d3d7/eba05c3b-a507-4be5-a20f-e01044432da3/tasks/b6suxjys3.output"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 24,
+      "finding": {
+        "level": "review",
+        "tool": "Write",
+        "path": "<tmp>/imps-scratch/review-brief.md"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 25,
+      "finding": {
+        "level": "review",
+        "tool": "Write",
+        "path": "<tmp>/imps-scratch/review-brief.md"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 26,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/-<home>-t3-plugins-bench-ws-f774d3d7/eba05c3b-a507-4be5-a20f-e01044432da3/tasks/b6suxjys3.output"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 27,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-XSBDpo"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 28,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-XSBDpo"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 29,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding-8b71b50.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 30,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding-8b71b50.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 31,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 32,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 33,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 34,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/check-docs.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 35,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/check-docs.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 36,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/check-docs.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 37,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/mkdocs.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 38,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/mkdocs.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 39,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/mkdocs-install-attempt.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 40,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/mkdocs.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 41,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/repro.py"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 42,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/green-repro.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 43,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/green-repro.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 44,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 45,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/review-brief.md"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 46,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 47,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/check-docs.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 48,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/mkdocs.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 49,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-repro.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 50,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/green-repro.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 51,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/repro.py"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 52,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/$f.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 53,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 54,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 55,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 56,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 57,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 58,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 59,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 60,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 61,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-regression-test.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 62,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 63,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 64,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 65,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/check-docs.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 66,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 67,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/$f.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 68,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/commit-inspection.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 69,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/commit-inspection.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 70,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 71,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/commit-inspection.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 72,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 73,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/sub-ev-commit.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 74,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 75,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/task.md"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 76,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/mkdocs-install-attempt.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 77,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/plan.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 78,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/note-env.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 79,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/review-r1"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 80,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 81,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 82,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 83,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/review-r1/"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 84,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 85,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 86,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 87,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/child-r1-done.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 88,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 89,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/sub-review-r1.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 90,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-TZZ8oA"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 91,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-TZZ8oA"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 92,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-repair-tests.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 93,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-repair-tests.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 94,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/red-repair-tests.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 95,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-BUvR3E"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 96,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-BUvR3E"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 97,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-LcMkSy"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 98,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-LcMkSy"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 99,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding-2.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 100,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 101,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 102,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/check-docs-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 103,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/check-docs-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 104,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/mkdocs-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 105,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/mkdocs-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 106,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/mkdocs-install-attempt.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 107,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/mkdocs-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 108,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/repro.py"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 109,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/green-repro-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 110,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/green-repro-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 111,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/green-repro-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 112,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-rsN0qD"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 113,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-rsN0qD"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 114,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 115,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/child-r2-running.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 116,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 117,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/unittest-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 118,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 119,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 120,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/commit-inspection-2.log"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 121,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 122,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding-2.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 123,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/$f.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 124,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-lvcRce"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 125,
+      "finding": {
+        "level": "review",
+        "tool": "Read",
+        "path": "<tmp>/claude-cmd-lvcRce"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 126,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/review-r2"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 127,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 128,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 129,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 130,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/review-r2/"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 131,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/review-r2/summary.md"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 132,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 133,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/child-r2-done.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 134,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/binding-2.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 135,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/sub-review-r2.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 136,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 137,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 138,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/review-r2/"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 139,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/validate.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "eba05c3b-a507-4be5-a20f-e01044432da3.jsonl",
+      "finding_index": 140,
+      "finding": {
+        "level": "review",
+        "tool": "Bash",
+        "path": "<tmp>/imps-scratch/validate.json"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 0,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.agents/skills/unslop/SKILL.md"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 1,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.codex/memories/MEMORY.md"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 2,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.codex/memories/MEMORY.md"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 3,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 4,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 5,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 6,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 7,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 8,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 9,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 10,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 11,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 12,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 13,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 14,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.dotfiles/docs/agent-runtime.md"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 15,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 16,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<workspace>\\n+T"
+      },
+      "decision": "ok",
+      "reason": "Shell-variable suffix, regex, or in-file example, not an absolute path accessed outside the workspace/package."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 17,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 18,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.agents/skills/unslop/SKILL.md\\n+rg"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 19,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.codex/memories/MEMORY.md\\n+nl"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 20,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.codex/memories/MEMORY.md\\n+rg"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 21,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.dotfiles/docs/agent-runtime.md\\n+sed"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-07-03-01a12a6e-2365-7e43-8599-9fd10497e9d1.jsonl",
+      "finding_index": 22,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 0,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.agents/skills/unslop/SKILL.md"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 1,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.codex/memories/MEMORY.md"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 2,
+      "finding": {
+        "level": "void",
+        "tool": "exec",
+        "path": "<home>/.codex/memories/MEMORY.md"
+      },
+      "decision": "void",
+      "reason": "Read or listed instruction/configuration/history data outside the allowed workspace, package and per-project harness directory."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 3,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 4,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 5,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 6,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 7,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 8,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 9,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 10,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 11,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 12,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 13,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 14,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 15,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 16,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 17,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 18,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 19,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 20,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    },
+    {
+      "transcript": "rollout-2026-10-11T21-21-07-01a12a7b-0216-7542-9252-8e3f6e3b92a9.jsonl",
+      "finding_index": 21,
+      "finding": {
+        "level": "review",
+        "tool": "exec",
+        "path": "<tmp>"
+      },
+      "decision": "ok",
+      "reason": "Task-owned scratch fixtures, plans, local-page renders or harness-generated logs; same treatment as old b2."
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "severity": "major",
+  "finding": "M3",
+  "status": "fixed in additional owner-authorised round; review round 5 approved the frozen grader within documented scope",
+  "description": "Stat-result slices and negative indexes bypass inode override; false passes possible and filesystem-dependent. No freeze or acceptance credit.",
+  "probes": [
+    {
+      "design": "os.stat(gitdir)[1:3][0]",
+      "expected_ok": false,
+      "observed": {
+        "ok": false,
+        "untouched_offered": true,
+        "replacement_refused": false,
+        "replacement_identity": "arbitrary-label",
+        "simulated_path_count": 57,
+        "cleanup_inode_reads": 1,
+        "other_stat_fields_real": true,
+        "resource_recorded_via_cli": true,
+        "grader_sha256": "4fe03056cd5ab62e0f99276630cfc89e6410788275fd5d36776f36b2c8666da3"
+      }
+    },
+    {
+      "design": "os.stat(gitdir)[-9]",
+      "expected_ok": false,
+      "observed": {
+        "ok": true,
+        "untouched_offered": true,
+        "replacement_refused": true,
+        "replacement_identity": "arbitrary-label",
+        "simulated_path_count": 57,
+        "cleanup_inode_reads": 1,
+        "other_stat_fields_real": true,
+        "resource_recorded_via_cli": true,
+        "grader_sha256": "4fe03056cd5ab62e0f99276630cfc89e6410788275fd5d36776f36b2c8666da3"
+      }
+    }
+  ],
+  "repair_probes": [
+    {
+      "design": "os.stat(gitdir)[1:3][0]",
+      "expected_ok": false,
+      "observed": {
+        "ok": false,
+        "untouched_offered": true,
+        "replacement_refused": false,
+        "replacement_identity": "arbitrary-label",
+        "simulated_path_count": 57,
+        "cleanup_inode_reads": 1,
+        "other_stat_fields_real": true,
+        "resource_recorded_via_cli": true,
+        "grader_sha256": "f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508"
+      }
+    },
+    {
+      "design": "os.stat(gitdir)[-9]",
+      "expected_ok": false,
+      "observed": {
+        "ok": false,
+        "untouched_offered": true,
+        "replacement_refused": false,
+        "replacement_identity": "arbitrary-label",
+        "simulated_path_count": 57,
+        "cleanup_inode_reads": 1,
+        "other_stat_fields_real": true,
+        "resource_recorded_via_cli": true,
+        "grader_sha256": "f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508"
+      }
+    },
+    {
+      "design": "list(os.stat(gitdir)[1:3])",
+      "expected_ok": false,
+      "observed": {
+        "ok": false,
+        "untouched_offered": true,
+        "replacement_refused": false,
+        "replacement_identity": "arbitrary-label",
+        "simulated_path_count": 57,
+        "cleanup_inode_reads": 1,
+        "other_stat_fields_real": true,
+        "resource_recorded_via_cli": true,
+        "grader_sha256": "f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508"
+      }
+    }
+  ],
+  "review5_mutant_validation": {
+    "designs": 22,
+    "repeats": 2,
+    "python_versions": [
+      "3.10.22",
+      "3.12",
+      "3.13"
+    ],
+    "total": 132,
+    "false_passes": 0
+  }
+}

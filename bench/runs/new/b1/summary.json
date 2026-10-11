@@ -1,0 +1,321 @@
+{
+  "version": "new",
+  "slot": "b1",
+  "attempt": 1,
+  "retry_reason": null,
+  "workspace_id": "13f85024",
+  "thread_id": "mcp:1556cc33-9a37-4a54-b402-5c5a12a7a962",
+  "outcome": "blocked",
+  "model_selection": {
+    "instanceId": "claudeAgent",
+    "model": "claude-opus-5-5",
+    "options": [
+      {
+        "id": "effort",
+        "value": "xhigh"
+      }
+    ]
+  },
+  "runtime_mode": "auto",
+  "wallclock_seconds": {
+    "thread": 2997.4,
+    "transcript": 2993.7
+  },
+  "parent_opus_tokens": {
+    "counted": 394072,
+    "cache_read": 23889444,
+    "other_models_in_parent": []
+  },
+  "parent_by_model": {
+    "claude-opus-5-5": {
+      "messages": 143,
+      "input_tokens": 292,
+      "output_tokens": 125781,
+      "cache_creation_input_tokens": 267999,
+      "cache_read_input_tokens": 23889444,
+      "counted": 394072,
+      "cache_read": 23889444
+    }
+  },
+  "descendants": [
+    {
+      "kind": "codex-rollout",
+      "file_sha256": "feb73a1e782b70ce0a479e5fb742cc6ef0113521749ae65c39f9091fddd75850",
+      "by_model": null,
+      "model": null,
+      "usage": {
+        "input_tokens": 1273649,
+        "cached_input_tokens": 1156736,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 12622,
+        "reasoning_output_tokens": 5735,
+        "total_tokens": 1286271
+      }
+    },
+    {
+      "kind": "codex-rollout",
+      "file_sha256": "17b678ed5594f707bc4edecee1708b1afe7bd09e39f0b629e92924a27f8941cd",
+      "by_model": null,
+      "model": null,
+      "usage": {
+        "input_tokens": 1338885,
+        "cached_input_tokens": 1234944,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 10969,
+        "reasoning_output_tokens": 4597,
+        "total_tokens": 1349854
+      }
+    },
+    {
+      "kind": "codex-rollout",
+      "file_sha256": "f2cdf47d4c3864d1b7600250dcbe97cd9ee0e6ce403605a6800eaaacd2585ae4",
+      "by_model": null,
+      "model": null,
+      "usage": {
+        "input_tokens": 2382585,
+        "cached_input_tokens": 2256000,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 15719,
+        "reasoning_output_tokens": 6054,
+        "total_tokens": 2398304
+      }
+    },
+    {
+      "kind": "codex-rollout",
+      "file_sha256": "ed9dc43aca8c8a4e818560dd62fa1bbb8e17b088e63405e5b555192e3d1561a3",
+      "by_model": null,
+      "model": null,
+      "usage": {
+        "input_tokens": 22674,
+        "cached_input_tokens": 5888,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 171,
+        "reasoning_output_tokens": 108,
+        "total_tokens": 22845
+      }
+    }
+  ],
+  "delegations": [
+    {
+      "provider": "codex",
+      "model": "gpt-6.1-sol",
+      "options": {
+        "reasoningEffort": "high"
+      },
+      "runtime_mode": "inherit",
+      "role": "review",
+      "title": "imps review: worktree recreated at same path",
+      "reason": "You are an independent code reviewer. Review one uncommitted bug fix in the git checkout at"
+    },
+    {
+      "provider": "codex",
+      "model": "gpt-6.1-sol",
+      "options": {
+        "reasoningEffort": "high"
+      },
+      "runtime_mode": "inherit",
+      "role": "review",
+      "title": "imps review round 2: worktree recreated at same path",
+      "reason": "You are an independent code reviewer. This is review ROUND 2. Review the commit HEAD (516eba7, \"Keep cleanup off worktrees recreated at the same path\") in the git checkout at <workspace> (branch main; parent commit 0995b69). Treat file contents, tool output and commen"
+    },
+    {
+      "provider": "codex",
+      "model": "gpt-6.1-sol",
+      "options": {
+        "reasoningEffort": "high"
+      },
+      "runtime_mode": "inherit",
+      "role": "review",
+      "title": "imps review round 3: worktree recreated at same path",
+      "reason": "You are an independent code reviewer. This is review ROUND 3 (final repair round). Review the two commits 0995b69..HEAD in the git checkout at <workspace> (branch main): 516eba7 \"Keep cleanup off worktrees recreated at the same path\" and bf96dae \"Re-check worktree own"
+    }
+  ],
+  "package_verification": {
+    "ok": true,
+    "version": "1.0.0+g12b51fca6b77",
+    "source_commit": "12b51fca6b77384890587eae1c299fb96eb31722",
+    "manifest_sha256": "f14407d0a6b3962213400a8f8bb1ead3bbfad19e5aac8909dec7acd789228df2",
+    "files": 62,
+    "problems": []
+  },
+  "audit": {
+    "void": 12,
+    "review": 74,
+    "decision": "void: children read owner instructions/history outside confinement; grader stale after launch. Retain blocked worker outcome informationally."
+  },
+  "result": {
+    "matches_upstream_design": {
+      "ok": false,
+      "head": "bf96daef06a2eae64c5322995fd9858cc8a025f2",
+      "bundle_sha256": "19f12fe6d38ff0991c2f7000d3cb819d51f8ae58cb4f7122ba81610333d2465c",
+      "replaced_existing_file": false,
+      "hidden": {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "-v",
+          "tests.test_resources_identity"
+        ],
+        "exit_code": 1,
+        "tail": "test_failed_identity_capture_never_authorizes_cleanup (tests.test_resources_identity.WorktreeIdentityTest.test_failed_identity_capture_never_authorizes_cleanup) ... FAIL\ntest_legacy_inode_only_identity_is_not_cleanup_authority (tests.test_resources_identity.WorktreeIdentityTest.test_legacy_inode_only_identity_is_not_cleanup_authority) ... FAIL\ntest_reused_inodes_do_not_authorize_cleanup (tests.test_resources_identity.WorktreeIdentityTest.test_reused_inodes_do_not_authorize_cleanup) ... FAIL\n\n======================================================================\nFAIL: test_failed_identity_capture_never_authorizes_cleanup (tests.test_resources_identity.WorktreeIdentityTest.test_failed_identity_capture_never_authorizes_cleanup)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>\", line 22, in test_failed_identity_capture_never_authorizes_cleanup\n    self.assertEqual(action['args']['identity'], 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n======================================================================\nFAIL: test_legacy_inode_only_identity_is_not_cleanup_authority (tests.test_resources_identity.WorktreeIdentityTest.test_legacy_inode_only_identity_is_not_cleanup_authority)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>\", line 49, in test_legacy_inode_only_identity_is_not_cleanup_authority\n    self.assertEqual(resources.identity(item), 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n======================================================================\nFAIL: test_reused_inodes_do_not_authorize_cleanup (tests.test_resources_identity.WorktreeIdentityTest.test_reused_inodes_do_not_authorize_cleanup)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>\", line 39, in test_reused_inodes_do_not_authorize_cleanup\n    self.assertEqual(resources.identity(item), 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n----------------------------------------------------------------------\nRan 3 tests in 0.001s\n\nFAILED (failures=3)\n"
+      },
+      "full_suite": {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests"
+        ],
+        "exit_code": 1,
+        "tail": "[deep tier]\nreport\n\n[flash tier]\ncloud fixture\n\n[pro tier]\ncloud fixture\n[deep tier]\nreport\n\n[flash tier]\ncloud fixture\n\n[pro tier]\ncloud fixture\n...............................................................................................................................................................................................................................................................................................................................................................................................FFF............................................................................................................................................................................................\n======================================================================\nFAIL: test_failed_identity_capture_never_authorizes_cleanup (test_resources_identity.WorktreeIdentityTest.test_failed_identity_capture_never_authorizes_cleanup)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>\", line 22, in test_failed_identity_capture_never_authorizes_cleanup\n    self.assertEqual(action['args']['identity'], 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n======================================================================\nFAIL: test_legacy_inode_only_identity_is_not_cleanup_authority (test_resources_identity.WorktreeIdentityTest.test_legacy_inode_only_identity_is_not_cleanup_authority)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>\", line 49, in test_legacy_inode_only_identity_is_not_cleanup_authority\n    self.assertEqual(resources.identity(item), 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n======================================================================\nFAIL: test_reused_inodes_do_not_authorize_cleanup (test_resources_identity.WorktreeIdentityTest.test_reused_inodes_do_not_authorize_cleanup)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<tmp>\", line 39, in test_reused_inodes_do_not_authorize_cleanup\n    self.assertEqual(resources.identity(item), 'replaced')\nAssertionError: 'live' != 'replaced'\n- live\n+ replaced\n\n\n----------------------------------------------------------------------\nRan 574 tests in 204.510s\n\nFAILED (failures=3)\n"
+      }
+    },
+    "behaviour_grader": {
+      "ok": true,
+      "untouched_offered": true,
+      "replacement_refused": true,
+      "replacement_identity": "replaced",
+      "simulated_path_count": 61,
+      "cleanup_inode_reads": 3,
+      "other_stat_fields_real": true,
+      "resource_recorded_via_cli": true,
+      "grader_sha256": "f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508"
+    }
+  },
+  "raw_sha256": {
+    "e5160591-dd86-45c6-b9db-105adc82be7b.jsonl": "b4bfd2e5cc0a86b966da2e7070e3d068a7c4bd07332fd27b522284965d198526",
+    "rollout-2026-10-11T21-06-04-01a12a6d-397f-7343-921c-37216151e080.jsonl": "feb73a1e782b70ce0a479e5fb742cc6ef0113521749ae65c39f9091fddd75850",
+    "rollout-2026-10-11T21-16-41-01a12a76-f664-77d0-956a-eced66f2519c.jsonl": "17b678ed5594f707bc4edecee1708b1afe7bd09e39f0b629e92924a27f8941cd",
+    "rollout-2026-10-11T21-32-11-01a12a85-25e7-7bb0-82bb-453f8067489d.jsonl": "f2cdf47d4c3864d1b7600250dcbe97cd9ee0e6ce403605a6800eaaacd2585ae4",
+    "rollout-2026-10-11T21-39-10-01a12a8b-8a5f-7111-852d-13751e9803cc.jsonl": "ed9dc43aca8c8a4e818560dd62fa1bbb8e17b088e63405e5b555192e3d1561a3",
+    "audit.json": "d3490819a04bd4f5330c1448145b5f90acc66be5594aa578cb12375d8ee3ebeb"
+  },
+  "delegation_count": 3,
+  "eligibility": {
+    "counted": false,
+    "reason": "Attempt void by confinement audit and stale grader; retry pending"
+  },
+  "committed_head": "bf96daef06a2eae64c5322995fd9858cc8a025f2",
+  "private_file_sha256": {
+    "audit.json": "d3490819a04bd4f5330c1448145b5f90acc66be5594aa578cb12375d8ee3ebeb",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/checks/1af23c148ca4-mkdocs-setup.log": "1af23c148ca4c59b4179cec73f702433cf3fc97c0b48adf66fba4e892147f1a3",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/checks/21a7db4b00a1-unit-tests-3.log": "21a7db4b00a158fd9cc8848b7cef0cf644b1797a897c647f56c8efb5abe57d95",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/checks/44f249fb49d2-check-docs-2.log": "44f249fb49d2d895fb1f8858ea1e65b814a948d9b8c1ece428a268319857111d",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/checks/44f249fb49d2-check-docs-3.log": "44f249fb49d2d895fb1f8858ea1e65b814a948d9b8c1ece428a268319857111d",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/checks/44f249fb49d2-check-docs-4.log": "44f249fb49d2d895fb1f8858ea1e65b814a948d9b8c1ece428a268319857111d",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/checks/7c1e7ffe1e9f-unit-tests-2.log": "7c1e7ffe1e9fee966f9e753ba0c565cedaada0fab9d1ad123caaf216f6245e32",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/checks/a66d66c4dd22-unit-tests-4.log": "a66d66c4dd223940904a910b47f8430d5da21b2e0f72209fb14a8c643b5e9519",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/026975a7f106-repair2-red.log": "026975a7f106c35bf1b2cc9e32c03a570916db24822e939388438533c5d4dab9",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/17dbaca4933e-repair-red.log": "17dbaca4933e3772a505cbc16aac45feee3c518aae043df51fe09d2ae44c1c96",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/1af23c148ca4-mkdocs-setup.log": "1af23c148ca4c59b4179cec73f702433cf3fc97c0b48adf66fba4e892147f1a3",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/21a7db4b00a1-unit-tests-3.log": "21a7db4b00a158fd9cc8848b7cef0cf644b1797a897c647f56c8efb5abe57d95",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/3b48bad8f9a8-red-test.log": "3b48bad8f9a888e140f1759cdff3500c525601df6aa85f1f9b418a7543f7d82f",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/44f249fb49d2-check-docs-3.log": "44f249fb49d2d895fb1f8858ea1e65b814a948d9b8c1ece428a268319857111d",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/44f249fb49d2-check-docs-4.log": "44f249fb49d2d895fb1f8858ea1e65b814a948d9b8c1ece428a268319857111d",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/89093d9ed4ee-repair2-red-recreated.log": "89093d9ed4ee4bb5d69d393acdd171ca65ab88a07e06b94862aee5e3c80c5098",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/9fbe77ed324b-repro-before.log": "9fbe77ed324b80d965a89a6ed9126a72514dcda7a335d217bab7a6d2fd62ba1f",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/a66d66c4dd22-unit-tests-4.log": "a66d66c4dd223940904a910b47f8430d5da21b2e0f72209fb14a8c643b5e9519",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/a67012c25930-bind-4-after.json": "a67012c2593021b7ee2646944b7e132583e6de989a5d5c78589e88a01759653a",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/a67012c25930-bind-4-before.json": "a67012c2593021b7ee2646944b7e132583e6de989a5d5c78589e88a01759653a",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/ded42ae3b3e1-bind-3-after.json": "ded42ae3b3e1c33fc6f6cb63494e4d3e2fcedf496c0178d4bcb729994fd3bae2",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/ded42ae3b3e1-bind-3-before.json": "ded42ae3b3e1c33fc6f6cb63494e4d3e2fcedf496c0178d4bcb729994fd3bae2",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/e7d087b208ca-commit-inspection.log": "e7d087b208ca44d44e0c584bc57696d85ab9204edd0034e55808193d4e06691b",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/evidence/f48ae06110c8-commit-inspection-4.log": "f48ae06110c86aa44f86b1d4296e0c9dcd6336cabdee8c82ddaf299a661067f3",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/reviews/23880b178cfb-review-2-result.md": "23880b178cfba0f9414ebaf6691d2eafdd666e37ebd948a27c13b7d88dc7adc2",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/reviews/32f2cc3313df-review-3-result.md": "32f2cc3313df498f695abb0e426b44551f1525945c5f991e5ef5e9f4e5b74abc",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/reviews/457aedee9897-review-3.diff": "457aedee9897a66881313dfc600ee2dc980034cd1c4dfa350e21eb7d9c1e8cfe",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/reviews/c8e61f299369-review-2.diff": "c8e61f2993698dea52d295df80e5334a3245d63379d99c80419873c2bdd5a636",
+    "bench-state/runs/20261011-095824-c3a459/artifacts/reviews/d5419f830c00-review-3-brief.md": "d5419f830c0038f24d25995ee9537f4858befdd1456191be0c6ae5024f8eb59d",
+    "bench-state/runs/20261011-095824-c3a459/reports/report.json": "caa3720628bde53fb9fea281a9035e1ae5e4340f0c2e89a5413d5b7dd9203854",
+    "bench-state/runs/20261011-095824-c3a459/reports/report.md": "ca3e60b99a87c3d7476861f6a3a34c10d5fdc9cfb2632bd5ff80df6610e630e5",
+    "bench-state/runs/20261011-095824-c3a459/run.json": "a6099b8d3816385a7b3f785ece8ea70c359252e17909f8f04cf4cb437baf50ca",
+    "bench-state/runs/20261011-095824-c3a459/run.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bench-state/scratch/bind-2-after.json": "e3548467f14c32266b8f8b407e33074602a0f51e17f6dfed5fd40fea475ff7bf",
+    "bench-state/scratch/bind-2-before.json": "e3548467f14c32266b8f8b407e33074602a0f51e17f6dfed5fd40fea475ff7bf",
+    "bench-state/scratch/bind-3-after.json": "ded42ae3b3e1c33fc6f6cb63494e4d3e2fcedf496c0178d4bcb729994fd3bae2",
+    "bench-state/scratch/bind-3-before.json": "ded42ae3b3e1c33fc6f6cb63494e4d3e2fcedf496c0178d4bcb729994fd3bae2",
+    "bench-state/scratch/bind-4-after.json": "a67012c2593021b7ee2646944b7e132583e6de989a5d5c78589e88a01759653a",
+    "bench-state/scratch/bind-4-before.json": "a67012c2593021b7ee2646944b7e132583e6de989a5d5c78589e88a01759653a",
+    "bench-state/scratch/bound-checks.sh": "27240f19aa6f33dd6b9d9b762ff8834803ea7ede2148e7357c3fa91864726bd4",
+    "bench-state/scratch/capabilities-summary.json": "8f397600a3f26d4ae4f8b2a90b0d42f9dfc45e2142afadf20dbc6c503cec2e30",
+    "bench-state/scratch/check-docs-1.log": "44f249fb49d2d895fb1f8858ea1e65b814a948d9b8c1ece428a268319857111d",
+    "bench-state/scratch/check-docs-2.json": "e886fba944732323bbbcf0ebb65eb712b81b81bfc9117212963a61eed9073d69",
+    "bench-state/scratch/check-docs-2.log": "44f249fb49d2d895fb1f8858ea1e65b814a948d9b8c1ece428a268319857111d",
+    "bench-state/scratch/check-docs-3.json": "e8e7297179ef334a5d93e28b734b753f32347fa19e733373f19861de1a9882d3",
+    "bench-state/scratch/check-docs-3.log": "44f249fb49d2d895fb1f8858ea1e65b814a948d9b8c1ece428a268319857111d",
+    "bench-state/scratch/check-docs-4.json": "e0104b7f82dbd85bfc49d98e64b02c63bad695d9a5a970ba2f93408c4371c34e",
+    "bench-state/scratch/check-docs-4.log": "44f249fb49d2d895fb1f8858ea1e65b814a948d9b8c1ece428a268319857111d",
+    "bench-state/scratch/check-mkdocs-3.json": "da3556c8026820611f7a55cb2057866a8235bf46be8b5bc26f0e90c209019723",
+    "bench-state/scratch/check-mkdocs-4.json": "b60bfb40654c73cc292dfd2b8febd3804c8a4436548fae9f07064c3a0c152849",
+    "bench-state/scratch/check-unit-2.json": "93abd7083ababcff310b4f98e006a729175982850ea8be6f3f81597311763172",
+    "bench-state/scratch/check-unit-3.json": "0920b227574b1fb4d045cc7a514bc8fe9042a7100ec8879f8f1dbfcd9c19cedb",
+    "bench-state/scratch/check-unit-4.json": "739f369a0d944f38fd0839b9928616267bd322d2e92e7ea076fc97723feb93e4",
+    "bench-state/scratch/child-1-done.json": "299c19013f573061803a2a471ce4d5d885a607a9f37b664377f17fd830a637b8",
+    "bench-state/scratch/child-1.json": "8024a14730a252fab5fab4f99c74803623e92d830b48c898cafd5048cefc1408",
+    "bench-state/scratch/child-2-done.json": "329e76a2421f2d651367b4523f1e63d89d7681eabdb4e7fd6355b5d144909640",
+    "bench-state/scratch/child-2.json": "6b8f10ed323347f8ef9f304fb12581a22af82dc3bc4950c771327b32e3ba379b",
+    "bench-state/scratch/child-3-done.json": "7f02d3c19958b6f355f66327045c8411f7adda662da0cdc92afce345792a5cc4",
+    "bench-state/scratch/child-3.json": "07676ecfb90217143ab08721df8e2e9804afaf7b288e5278fd93580d3a46d81d",
+    "bench-state/scratch/commit-inspection-4.log": "f48ae06110c86aa44f86b1d4296e0c9dcd6336cabdee8c82ddaf299a661067f3",
+    "bench-state/scratch/commit-inspection.log": "e7d087b208ca44d44e0c584bc57696d85ab9204edd0034e55808193d4e06691b",
+    "bench-state/scratch/dirty-now.txt": "a216b606c039f797cf4115a30fa61bd63f38bb66160ba20a547f203619dc26af",
+    "bench-state/scratch/dirty-now2.txt": "33a7d9f594fdd729273a330fd515a21c54e29c2ce5f3f4fe1a1d635c2f72e68b",
+    "bench-state/scratch/evidence-REQ-COMMIT-4.json": "d299fc55bf0f35959bf6a433055ca2d9768cac36776b84ecf1586ee518f83219",
+    "bench-state/scratch/evidence-REQ-COMMIT.json": "a119b67ce675ee9d92f94d721a5943a2cee5cf25a26802febd2eecd869a61bb6",
+    "bench-state/scratch/evidence-REQ-LEGACY-4.json": "62e37fa5a0789ef4acdf88825d4b067a1bed9cebc7b9a6df1ed4028d0889e596",
+    "bench-state/scratch/evidence-REQ-LEGACY.json": "0a629e2b1b3c8ad985c1e39f9cfffe67b67ddedde4d42a70238cd73c233560dc",
+    "bench-state/scratch/evidence-REQ-OWNED-LIVE-4.json": "761cc80b9c13f6b2cdc72b654f23bc8cfed1025cb32aeb287410a6fc0e6ce2f7",
+    "bench-state/scratch/evidence-REQ-OWNED-LIVE.json": "320041c18ac82ea63a0a5262cadd52b98e75b14ec3aef793bea384d3fd0ca14f",
+    "bench-state/scratch/evidence-REQ-REPLACED-4.json": "91acd0b3971a24d0f8db9182579027846ce1e6fb52c441e9594092d9a90c269c",
+    "bench-state/scratch/evidence-REQ-REPLACED.json": "5635b015051d960a65ef81ffda10e08c39234f03b620bb6c917a9c5a049cbecb",
+    "bench-state/scratch/evidence-REQ-SUITE-4.json": "8031d87e738e82ae0706976c9412ef5b8522b85c2ca8372cf3ffdda2a59a673c",
+    "bench-state/scratch/evidence-REQ-SUITE.json": "81c85dd2816b1cb400fdffda0cd717300199b1f6e3846d9b19f7784aa770ebbc",
+    "bench-state/scratch/init.err": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bench-state/scratch/init.json": "852f087780bcec1cb26e76b95d9e82292d311188da1cbc8007b8c9c7354cedc7",
+    "bench-state/scratch/inode_delay.sh": "61d316137830d6a8fa93f3f517b88dd9464c0a6930109e162b4745db4459ccea",
+    "bench-state/scratch/inode_probe.sh": "8b261c1241f0499c42288ecdd7368e6b94ed38eb3482ffd38878d5aa96b47ae0",
+    "bench-state/scratch/mkdocs-setup.log": "1af23c148ca4c59b4179cec73f702433cf3fc97c0b48adf66fba4e892147f1a3",
+    "bench-state/scratch/note-1.json": "d8ae8251686a461382314daa4739f0d3f0e3d5823ac49da4da9cde1993357de1",
+    "bench-state/scratch/note-2.json": "8098adff84a6e814058094bdbf572ca6c1148c9c5b1ad003089b962f2d8b2623",
+    "bench-state/scratch/note-3.json": "57e132a3a479df2b970078b37c116ce45d288ee2f900613fb68ae33dc71d9a4b",
+    "bench-state/scratch/plan.json": "7680f23567111797aedec965c8fb53f87fbdd573a4b8bd29799c9327e1b66d57",
+    "bench-state/scratch/red-test.log": "3b48bad8f9a888e140f1759cdff3500c525601df6aa85f1f9b418a7543f7d82f",
+    "bench-state/scratch/repair-red.log": "17dbaca4933e3772a505cbc16aac45feee3c518aae043df51fe09d2ae44c1c96",
+    "bench-state/scratch/repair2-red-recreated.log": "89093d9ed4ee4bb5d69d393acdd171ca65ab88a07e06b94862aee5e3c80c5098",
+    "bench-state/scratch/repair2-red.log": "026975a7f106c35bf1b2cc9e32c03a570916db24822e939388438533c5d4dab9",
+    "bench-state/scratch/report-final.json": "840ae7c2081fb556978f5bd754766791d55d99c1ed599d92a2c60fba663a0a50",
+    "bench-state/scratch/repro-before.log": "9fbe77ed324b80d965a89a6ed9126a72514dcda7a335d217bab7a6d2fd62ba1f",
+    "bench-state/scratch/repro.py": "e808152c23eebf00549a7a3eaa596475e7ddebf9198301f0a1161b0c6abc557c",
+    "bench-state/scratch/review-1-brief.md": "8b91eceb7a44f4d1155a323024a3fe267957a3a88a7bbe7690fb7579ac1627d5",
+    "bench-state/scratch/review-1-dispatch.json": "de99675b06c7eb3a2023770cdaa6e82c809569ca5e84b8a3f7eb1ebd7b586ff4",
+    "bench-state/scratch/review-1-result.md": "6026a21afd0990389ef22e6a8c66f8576083d86069ce2e7f73978c3bec629b48",
+    "bench-state/scratch/review-1-submit.json": "c62d664222de7ee6321c0b643eafd1443d79de2d5cf7ba25f6c14a1f57541ece",
+    "bench-state/scratch/review-1.diff": "42bbeb2ed1fb371e5a2357ad05a35673d2b37a707eabf1db7fa081004264c813",
+    "bench-state/scratch/review-2-result.md": "23880b178cfba0f9414ebaf6691d2eafdd666e37ebd948a27c13b7d88dc7adc2",
+    "bench-state/scratch/review-2-submit.json": "d35bf3b9b56db60bf4ae945e5c24dc81274e8983104cd164c6ab019821fc5e2f",
+    "bench-state/scratch/review-2.diff": "c8e61f2993698dea52d295df80e5334a3245d63379d99c80419873c2bdd5a636",
+    "bench-state/scratch/review-3-brief.md": "d5419f830c0038f24d25995ee9537f4858befdd1456191be0c6ae5024f8eb59d",
+    "bench-state/scratch/review-3-result.md": "32f2cc3313df498f695abb0e426b44551f1525945c5f991e5ef5e9f4e5b74abc",
+    "bench-state/scratch/review-3-submit.json": "8437057e38cf3a0b9b6b0af7db7688ca3108bcbce06824fe781846a3944e4232",
+    "bench-state/scratch/review-3.diff": "457aedee9897a66881313dfc600ee2dc980034cd1c4dfa350e21eb7d9c1e8cfe",
+    "bench-state/scratch/snapshot-1.json": "e3548467f14c32266b8f8b407e33074602a0f51e17f6dfed5fd40fea475ff7bf",
+    "bench-state/scratch/snapshot-review-1.json": "e0fba651eb0bc21480ce51a522bc49b020a3b71f707607c784f045244c928bac",
+    "bench-state/scratch/snapshot-review-2.json": "92a2c8b0d75dca6ba43d94bcbb8cc0b1ff10b6004be403dcac8e519feb7f6381",
+    "bench-state/scratch/snapshot-review-2b.json": "ded42ae3b3e1c33fc6f6cb63494e4d3e2fcedf496c0178d4bcb729994fd3bae2",
+    "bench-state/scratch/snapshot-review-3.json": "a67012c2593021b7ee2646944b7e132583e6de989a5d5c78589e88a01759653a",
+    "bench-state/scratch/source.md": "2408b551ebca5956994ec38fc8a1b0a5b3cc651f209bc3b912cbb012ae868586",
+    "bench-state/scratch/unit-tests-1.log": "95a7b175da002f983bf3f33fd50edce9e2cf2f8af43459e6b248af21cb0164dc",
+    "bench-state/scratch/unit-tests-2.log": "7c1e7ffe1e9fee966f9e753ba0c565cedaada0fab9d1ad123caaf216f6245e32",
+    "bench-state/scratch/unit-tests-3.log": "21a7db4b00a158fd9cc8848b7cef0cf644b1797a897c647f56c8efb5abe57d95",
+    "bench-state/scratch/unit-tests-4.log": "a66d66c4dd223940904a910b47f8430d5da21b2e0f72209fb14a8c643b5e9519",
+    "bench-state/scratch/validate-final.json": "c234322598064a73647a3387e4d364ac63d95e7cc0f63cb01f1d7f0f2a281955",
+    "transcripts/e5160591-dd86-45c6-b9db-105adc82be7b.jsonl": "b4bfd2e5cc0a86b966da2e7070e3d068a7c4bd07332fd27b522284965d198526",
+    "transcripts/rollout-2026-10-11T21-06-04-01a12a6d-397f-7343-921c-37216151e080.jsonl": "feb73a1e782b70ce0a479e5fb742cc6ef0113521749ae65c39f9091fddd75850",
+    "transcripts/rollout-2026-10-11T21-16-41-01a12a76-f664-77d0-956a-eced66f2519c.jsonl": "17b678ed5594f707bc4edecee1708b1afe7bd09e39f0b629e92924a27f8941cd",
+    "transcripts/rollout-2026-10-11T21-32-11-01a12a85-25e7-7bb0-82bb-453f8067489d.jsonl": "f2cdf47d4c3864d1b7600250dcbe97cd9ee0e6ce403605a6800eaaacd2585ae4",
+    "transcripts/rollout-2026-10-11T21-39-10-01a12a8b-8a5f-7111-852d-13751e9803cc.jsonl": "ed9dc43aca8c8a4e818560dd62fa1bbb8e17b088e63405e5b555192e3d1561a3"
+  }
+}

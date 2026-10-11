@@ -1,0 +1,47 @@
+{
+  "slot": 2,
+  "scores": {
+    "X": {
+      "C1": 5,
+      "C2": 5,
+      "C3": 5,
+      "C4": 5,
+      "C5": 5,
+      "C6": 5
+    },
+    "Y": {
+      "C1": 5,
+      "C2": 5,
+      "C3": 4,
+      "C4": 5,
+      "C5": 5,
+      "C6": 1
+    }
+  },
+  "reasons": {
+    "X": {
+      "C1": "X/out/data.json matches independent calculations from data/: all 21 in-range stations, latest prices, distances, full E10 histories and 14 daily means. STN-0007 is correctly recommended at 179.9 c/L, approximately 6.40 km away.",
+      "C2": "X/checks.json passes every required check, so no caps apply. X/out/index.html and its local assets satisfy the data shape, single recommendation marker, relative Leaflet loading, OSM tiles and attribution, with no excluded station IDs anywhere under X/out/.",
+      "C3": "X/screenshot-desktop.png and X/screenshot-mobile.png show a working map within the page width, a prominent green recommendation and a clear dashed search radius. X/out/index.html plots every supplied station and provides identifying popups with price, distance and history links.",
+      "C4": "X/out/index.html supplies every station's step history and dated tables with c/L headings, plus the complete daily chart with date and c/L axes and a daily-values table. X/checks.json passes price_series; the desktop screenshot places most of the overall chart below the fold.",
+      "C5": "X/screenshot-desktop.png shows the recommendation, price and distance without scrolling, while X/screenshot-mobile.png shows clean wrapping without clipping. X/out/index.html provides a cheapest-first list with consistent price, distance and history fields.",
+      "C6": "X/scripts/build.py derives the data and page from data/ using the specified rules; its compute and render functions reproduce X/out/data.json and X/out/index.html exactly. X/tests/test_output.py also supplies independent rule checks."
+    },
+    "Y": {
+      "C1": "Y/out/data.json matches independent calculations from data/: all 21 in-range stations, latest prices, distances, full E10 histories and 14 daily means. STN-0007 is correctly recommended at 179.9 c/L, approximately 6.40 km away.",
+      "C2": "Y/checks.json passes every required check, so no caps apply. Y/out/index.html and its local assets satisfy the data shape, single recommendation marker, relative Leaflet loading, OSM tiles and attribution, with no excluded station IDs anywhere under Y/out/.",
+      "C3": "Y/out/index.html plots all 21 stations with identifying popups, a search centre and radius, and a distinctive starred recommendation. Y/screenshot-desktop.png and Y/screenshot-mobile.png show overlapping price labels that obscure several stations in the dense central area.",
+      "C4": "Y/screenshot-desktop.png shows a readable daily chart with dated ticks, numerical labels and explicit cents-per-litre context. Y/out/index.html also supplies every station's step history, low/high values and dated c/L tables, plus the complete daily table.",
+      "C5": "Y/screenshot-desktop.png shows the recommendation, price and distance without scrolling alongside the full daily chart. Y/screenshot-mobile.png wraps the recommendation cleanly, and Y/out/index.html provides a cheapest-first list with consistent comparison fields.",
+      "C6": "Y/ contains no supplied derivation script, tests or repeatable derivation documentation. Y/out/data.json and Y/out/data.js contain precomputed values, while Y/out/index.html only displays them."
+    }
+  },
+  "weighted": {
+    "X": 1.0,
+    "Y": 0.89
+  },
+  "preference": "X",
+  "preference_reason": "X supplies the same correct buying recommendation with a less crowded map and an exactly reproducible build, outweighing Y's more compact desktop chart layout.",
+  "static_only": false,
+  "injected_text_found": []
+}

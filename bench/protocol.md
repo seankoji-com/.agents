@@ -2,7 +2,59 @@
 
 Frozen on 2026-10-11, before any baseline run, for stage 1 of issue #15. Stage 5 runs
 this protocol unchanged against the new imps. Any change after the first baseline run
-makes the baseline stale.
+makes the baseline stale, except for the single Task B amendment below authorised
+by issue #15 §7.
+
+## Stage 5 amendment: Task B behaviour gate (2026-10-11)
+
+The upstream tests distinguish one identity design, rather than the reported bug.
+Both old fixes use an admin-directory owner token and fail those design assertions.
+The candidate Task B gate is `checks/task_b.py`, at SHA-256
+`f00c365cff2081e264e76871392d35149db89c719d4d8817396d0751dd967508`.
+The grader records a real worktree through the target core CLI and snapshots every
+path in the worktree root and repository Git metadata, including the containing
+`.git/worktrees` directory. It removes and recreates it, then simulates inode
+reuse through os/native-os stat, descriptor, pathlib and directory-entry APIs. Real nanosecond timestamps,
+device fields, files and Git operations remain intact. It requires both refusal of
+replacement cleanup and an offered command for an untouched owned worktree.
+Patches are installed before importing the target, including aliases and default
+arguments captured at import time. The simulation covers these Python APIs only.
+Inode reads made in subprocesses or native code (for example `stat`, `ls -i`, Git
+index inspection or ctypes) remain a known gap. A passing result does not establish
+safety for those designs; such a candidate requires separate evidence and cannot
+be accepted solely from this grader.
+
+Validation is recorded in `checks/task_b_validation.json`: the unfixed tree (`unfixed`)
+and a refuse-all control (`refuse_all`) fail; the upstream fix (`upstream`, the fixture
+with `d6bed53` applied, head `c98e890`) and both old fixes (`old_b1`, `old_b2`) pass. Old summaries retain the upstream test output as
+`matches_upstream_design`, an informational field, and add `behaviour_grader`.
+References below and in the frozen rubric to Task B's hidden-test gate are superseded
+by this amendment. The upstream tests and full suite remain informational. The frozen summariser remains unchanged: after it runs, the executor renames
+`hidden_tests` to `matches_upstream_design` and adds the separate behaviour result.
+No worker prompt, execution setting, attempt rule, token parser, Task A check or rubric changes.
+
+The first grader passed two inode-only mutants. Its correction came after the four
+new workers launched. Those initial attempts are retained as informational and
+cannot establish benchmark acceptance. Their confinement audits voided all four
+slots. The issue permits one retry per voided slot and requires stale runs to be
+repeated. The retries must use the repaired grader frozen before launch and a
+scratch install from the final implementation commit. No attempt, audit finding or
+process deviation is omitted from the report.
+
+Review round 4 rejected the previous candidate: `InodeStat` exposed the real
+inode through stat-result slices and negative indexes (M3), with filesystem-dependent
+false passes. After the three planned repair rounds, the owner explicitly authorised
+one additional repair round. The current candidate replaces the inode before any
+sequence indexing or slicing, with regression cases for both. Review round 5 found
+no blockers or majors and approved freezing this SHA within the documented scope.
+It verified 22 inode-only mutants twice on Python 3.10, 3.12 and 3.13 (132 failures
+as required), plus the red/green matrix. That mutant matrix is the reviewer's own run,
+kept in its private report (sha256 in `runs/new/review.json`), not in the validation file. Minor m6 is deferred: the proxy is not a
+real stat_result and copy/pickle/type-sensitive designs may fail; contrived count
+or index calls can access real tuple values. These designs need separate evidence.
+Minor m7 is fixed by recording this review in the amendment before retry launch.
+Initial attempts remain diagnostic; stage acceptance awaits valid retries. The
+subprocess/native-code gap remains unverified.
 
 The benchmark compares two imps versions on two tasks: the **old** package (built from
 `6e4cf82`, tag `bench/old-imps`) and the **new** package (built in stage 5 from the final
@@ -47,7 +99,7 @@ outputs are kept in the summary. Old: see [runs/old/package.json](runs/old/packa
 | Task | Prompt | Workspace | Gate (stage 5) |
 | --- | --- | --- | --- |
 | A | [fixtures/task_a/prompt.md](fixtures/task_a/prompt.md) | `prepare_workspace.py a` | `checks/task_a.py` passes and the grader does not prefer old in both pairs |
-| B | [fixtures/task_b/prompt.md](fixtures/task_b/prompt.md) | `prepare_workspace.py b` | hidden tests pass |
+| B | [fixtures/task_b/prompt.md](fixtures/task_b/prompt.md) | `prepare_workspace.py b` | `checks/task_b.py` passes |
 
 Each version runs four slots: `a1`, `a2`, `b1`, `b2`. Old and new runs with the same slot
 form a grading pair. Slots of one version may run at the same time; each has its own
@@ -160,7 +212,10 @@ under the system temporary directory) are not the worker reading elsewhere.
 
 ## Grading
 
-- **Task B**: `python3 bench/tools/grade_task_b.py <workspace> <bundle> --full --json`.
+- **Task B gate**: `python3 bench/checks/task_b.py <workspace> --json`. Both new runs
+  must pass; apply it to committed output in an isolated clone. The regraded old
+  results are in `runs/old/b1/summary.json` and `runs/old/b2/summary.json`.
+- **Task B upstream design (informational)**: `python3 bench/tools/grade_task_b.py <workspace> <bundle> --full --json`.
   The script refuses a bundle whose sha256 is not
   `19f12fe6d38ff0991c2f7000d3cb819d51f8ae58cb4f7122ba81610333d2465c`. It clones the
   workspace's `HEAD`, adds the hidden test and runs it; the full suite is informational.

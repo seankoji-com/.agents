@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheapest E10 near Greenwich, NSW</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #6f6e69;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --accent: #2a78d6; --accent-fill: #256abf; --accent-ink: #1c5cab; --accent-wash: rgba(42,120,214,0.10);
+  --on-accent: #ffffff;
+  --good: #006300;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #9a9890;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-fill: #3987e5; --accent-ink: #86b6ef; --accent-wash: rgba(57,135,229,0.16);
+    --on-accent: #0b0b0b;
+    --good: #0ca30c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.page { max-width: 1240px; margin: 0 auto; padding: 28px 20px 40px; }
+h1, h2, h3, p { margin: 0; }
+button { font: inherit; color: inherit; }
+.num, .st-figs, .tick { font-variant-numeric: tabular-nums; }
+
+.masthead { margin-bottom: 20px; }
+.eyebrow { color: var(--muted); font-size: 13px; letter-spacing: 0.02em; }
+.masthead h1 { font-size: 28px; line-height: 1.2; margin: 4px 0 6px; }
+.lede { color: var(--ink-2); max-width: 62ch; }
+
+.reco { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 24px;
+  background: var(--surface); border: 1px solid var(--ring); border-left: 4px solid var(--accent);
+  border-radius: 10px; padding: 22px 24px; margin-bottom: 24px; }
+.reco-kicker { color: var(--ink-2); font-weight: 600; }
+.reco-price { font-size: 56px; font-weight: 650; line-height: 1.1; margin: 4px 0 6px; }
+.reco-price .unit, .st-price .unit { font-size: 0.4em; font-weight: 500; color: var(--ink-2); }
+.reco-saving { color: var(--good); font-weight: 600; font-size: 14px; }
+.reco-detail h2 { font-size: 22px; margin-bottom: 6px; }
+.reco-detail p { color: var(--ink-2); }
+.reco-detail .reco-id { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.reco-locate { margin-top: 12px; padding: 7px 14px; border-radius: 6px; border: 0; cursor: pointer;
+  background: var(--accent-fill); color: var(--on-accent); font-weight: 600; }
+.reco-locate:hover { filter: brightness(1.08); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.map-panel { position: sticky; top: 16px; }
+#map { height: 600px; border-radius: 10px; border: 1px solid var(--ring); background: var(--grid); }
+.map-note, .map-fallback { color: var(--muted); font-size: 13px; margin-top: 8px; }
+.map-failed { display: grid; place-items: center; padding: 24px; text-align: center; color: var(--ink-2); }
+
+.list-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  margin-bottom: 10px; }
+.list-head h2, .trend-panel h2 { font-size: 18px; }
+.sort { display: inline-flex; border: 1px solid var(--ring); border-radius: 8px; overflow: hidden; }
+.sort button { border: 0; background: var(--surface); padding: 5px 12px; cursor: pointer; color: var(--ink-2); }
+.sort button[aria-pressed="true"] { background: var(--accent-wash); color: var(--ink); font-weight: 600; }
+
+.stations { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.station { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 12px 14px;
+  transition: box-shadow 0.2s, border-color 0.2s; }
+.station.is-best { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.station.flash { box-shadow: 0 0 0 3px var(--accent-wash), inset 3px 0 0 var(--accent); border-color: var(--accent); }
+.st-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: start; }
+.st-rank { min-width: 26px; height: 26px; border-radius: 13px; display: grid; place-items: center;
+  font-size: 13px; font-weight: 600; color: var(--ink-2); background: var(--page); border: 1px solid var(--ring); }
+.is-best .st-rank { background: var(--accent-fill); color: var(--on-accent); border-color: var(--accent-fill); }
+.st-title h3 { font-size: 16px; line-height: 1.3; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.st-name { border: 0; background: none; padding: 0; font-weight: 600; text-align: left; cursor: pointer; }
+.st-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.badge { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px;
+  background: var(--accent-wash); color: var(--accent-ink); }
+.st-meta { color: var(--ink-2); font-size: 13px; }
+.st-id { color: var(--muted); }
+.st-figs { display: grid; justify-items: end; }
+.st-price { font-size: 22px; font-weight: 650; line-height: 1.1; }
+.st-dist { color: var(--ink-2); font-size: 13px; }
+.st-trend { display: flex; align-items: center; gap: 12px; margin: 8px 0 0 38px; }
+.st-updated { color: var(--muted); font-size: 12px; }
+.spark polyline { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.spark circle { fill: var(--ink-2); stroke: var(--surface); stroke-width: 2; }
+.is-best .spark polyline { stroke: var(--accent); stroke-width: 2; }
+.is-best .spark circle { fill: var(--accent); }
+details { margin: 6px 0 0 38px; }
+summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
+table { border-collapse: collapse; margin-top: 6px; font-size: 13px; }
+th, td { padding: 3px 14px 3px 0; text-align: left; border-bottom: 1px solid var(--grid); }
+th { color: var(--muted); font-weight: 600; }
+.num { text-align: right; }
+
+.trend-panel { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px;
+  padding: 20px 22px; margin-top: 28px; }
+.trend-sub { color: var(--ink-2); font-size: 14px; margin: 2px 0 10px; }
+.trend-wrap { position: relative; overflow-x: auto; }
+.trend { width: 100%; min-width: 560px; height: auto; display: block; }
+.trend .grid { stroke: var(--grid); stroke-width: 1; }
+.trend .tick { fill: var(--muted); font-size: 12px; }
+.trend .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.trend .pt { fill: var(--accent); stroke: var(--surface); stroke-width: 2; opacity: 0; }
+.trend .pt.on { opacity: 1; }
+.trend .end { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.trend .end-label { fill: var(--ink); font-size: 13px; font-weight: 600; }
+.trend .crosshair { stroke: var(--axis); stroke-width: 1; }
+.trend .hit { fill: transparent; cursor: crosshair; }
+.trend:focus { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--ring);
+  border-radius: 6px; padding: 5px 9px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); font-size: 13px;
+  display: grid; white-space: nowrap; transform: translate(-50%, -110%); }
+.tip.below { transform: translate(-50%, 14px); }
+.tip[hidden] { display: none; }
+.tip-date { color: var(--ink-2); }
+.trend-table { margin-left: 0; }
+
+.foot { color: var(--muted); font-size: 13px; margin-top: 24px; max-width: 80ch; }
+
+.price-pin { background: none; border: 0; }
+.price-pin span { display: inline-block; transform: translate(-50%, -50%); padding: 2px 7px; border-radius: 999px;
+  background: #fcfcfb; color: #0b0b0b; border: 1px solid rgba(11,11,11,0.35); font: 600 12px/1.4 system-ui, sans-serif;
+  white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,0.25); font-variant-numeric: tabular-nums; }
+.price-pin.best span { background: #256abf; color: #ffffff; border-color: #1c5cab; font-size: 13px; padding: 3px 9px; }
+.price-pin.unpriced span { color: #52514e; font-weight: 500; font-style: italic; }
+.centre-pin span { display: inline-block; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%;
+  background: #0b0b0b; border: 2px solid #fcfcfb; box-shadow: 0 0 0 1px #0b0b0b; }
+.leaflet-popup-content { font: 13px/1.45 system-ui, sans-serif; }
+.leaflet-popup-content strong { font-size: 14px; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .map-panel { position: static; }
+  #map { height: 380px; }
+  .reco { grid-template-columns: 1fr; gap: 12px; }
+  .reco-price { font-size: 48px; }
+  .st-trend { flex-wrap: wrap; gap: 4px 12px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <p class="eyebrow">E10 fuel · Greenwich, NSW</p>
+    <h1>Where to buy E10 near Greenwich</h1>
+    <p class="lede">21 stations within 10 km of Greenwich, ranked by their latest listed E10 price.
+      Prices are a snapshot of records up to 14 Sep 2026.</p>
+  </header>
+
+  <section class="reco" data-recommended-station="STN-0007" aria-labelledby="reco-title">
+    <div class="reco-figure">
+      <p class="reco-kicker" id="reco-title">Cheapest E10 within 10 km</p>
+      <p class="reco-price">179.9<span class="unit"> c/L</span></p>
+      <p class="reco-saving">20.8 c/L below the 200.7 c/L average listed price of 21 stations in range</p>
+    </div>
+    <div class="reco-detail">
+      <h2>Artarmon Junction Fuels</h2>
+      <p>112 Artarmon Street · Coastal</p>
+      <p>6.40 km from Greenwich · listed 14 Sep 2026, 2:15 pm</p>
+      <p class="reco-id">Station STN-0007</p>
+      <button type="button" class="reco-locate" data-station-id="STN-0007">Show on map</button>
+    </div>
+  </section>
+
+  <div class="layout">
+    <section class="map-panel" aria-label="Map of stations">
+      <div id="map" data-centre-lat="-33.833" data-centre-lon="151.183" data-radius-km="10">
+        <noscript><p class="map-fallback">The map needs JavaScript. Every station is in the list.</p></noscript>
+      </div>
+      <p class="map-note">Pins show the listed price in cents per litre. The circle marks 10 km from Greenwich.</p>
+    </section>
+
+    <section class="list-panel" aria-labelledby="list-title">
+      <div class="list-head">
+        <h2 id="list-title">All 21 stations in range</h2>
+        <div class="sort" role="group" aria-label="Sort stations">
+          <button type="button" data-sort="price" aria-pressed="true">Cheapest</button>
+          <button type="button" data-sort="distance" aria-pressed="false">Nearest</button>
+        </div>
+      </div>
+      <ol class="stations" id="stations">
+      <li class="station is-best" id="station-STN-0007" data-station-id="STN-0007"
+          data-price="179.9" data-distance="6.400026" data-rank="1">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">1</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Artarmon Junction Fuels on the map">Artarmon Junction Fuels</button><span class="badge">Cheapest</span></h3>
+            <p class="st-meta"><span class="st-addr">112 Artarmon Street</span> · Coastal · <span class="st-id">STN-0007</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">179.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">6.40 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 9 records from 1 Sep to 14 Sep, low 179.9, high 189.9, latest 179.9 c/L"><polyline points="5.0,25.9 40.5,25.9 40.5,24.1 64.0,24.1 64.0,25.9 118.4,25.9 118.4,27.7 119.0,27.7 119.0,27.7 137.6,27.7 137.6,25.0 138.2,25.0 138.2,25.9 165.8,25.9 165.8,23.2 191.5,23.2 191.5,32.3"/><circle cx="191.5" cy="32.3" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 2:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 9 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 2:15 pm</td><td class="num">179.9</td></tr><tr><td>12 Sep 2026, 6:10 pm</td><td class="num">189.9</td></tr><tr><td>10 Sep 2026, 6:40 pm</td><td class="num">186.9</td></tr><tr><td>10 Sep 2026, 5:40 pm</td><td class="num">187.9</td></tr><tr><td>9 Sep 2026, 9:50 am</td><td class="num">184.9</td></tr><tr><td>9 Sep 2026, 8:40 am</td><td class="num">184.9</td></tr><tr><td>5 Sep 2026, 11:20 am</td><td class="num">186.9</td></tr><tr><td>3 Sep 2026, 7:00 pm</td><td class="num">188.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">186.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0021" data-station-id="STN-0021"
+          data-price="183.9" data-distance="9.965017" data-rank="2">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">2</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Boundary Road Fuel on the map">Boundary Road Fuel</button></h3>
+            <p class="st-meta"><span class="st-addr">353 Boundary Street</span> · Metro · <span class="st-id">STN-0021</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">183.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">9.97 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 14 records from 1 Sep to 14 Sep, low 183.9, high 209.9, latest 183.9 c/L"><polyline points="5.0,9.5 35.9,9.5 35.9,8.6 48.4,8.6 48.4,10.5 52.3,10.5 52.3,6.8 61.4,6.8 61.4,5.0 76.5,5.0 76.5,6.8 97.8,6.8 97.8,5.0 136.6,5.0 136.6,6.8 138.5,6.8 138.5,5.9 164.7,5.9 164.7,5.9 164.8,5.9 164.8,7.7 177.8,7.7 177.8,9.5 179.9,9.5 179.9,6.8 195.0,6.8 195.0,28.6"/><circle cx="195.0" cy="28.6" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 8:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 14 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 8:15 pm</td><td class="num">183.9</td></tr><tr><td>13 Sep 2026, 6:20 pm</td><td class="num">207.9</td></tr><tr><td>13 Sep 2026, 2:40 pm</td><td class="num">204.9</td></tr><tr><td>12 Sep 2026, 4:20 pm</td><td class="num">206.9</td></tr><tr><td>12 Sep 2026, 4:10 pm</td><td class="num">208.9</td></tr><tr><td>10 Sep 2026, 7:10 pm</td><td class="num">208.9</td></tr><tr><td>10 Sep 2026, 4:00 pm</td><td class="num">207.9</td></tr><tr><td>7 Sep 2026, 9:20 pm</td><td class="num">209.9</td></tr><tr><td>6 Sep 2026, 8:50 am</td><td class="num">207.9</td></tr><tr><td>5 Sep 2026, 6:50 am</td><td class="num">209.9</td></tr><tr><td>4 Sep 2026, 3:10 pm</td><td class="num">207.9</td></tr><tr><td>4 Sep 2026, 8:30 am</td><td class="num">203.9</td></tr><tr><td>3 Sep 2026, 11:00 am</td><td class="num">205.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">204.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0011" data-station-id="STN-0011"
+          data-price="185.9" data-distance="4.799961" data-rank="3">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">3</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Neutral Bay Fuel Co on the map">Neutral Bay Fuel Co</button></h3>
+            <p class="st-meta"><span class="st-addr">100 Neutral Street</span> · Metro · <span class="st-id">STN-0011</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">185.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">4.80 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 13 records from 1 Sep to 14 Sep, low 184.9, high 190.9, latest 185.9 c/L"><polyline points="5.0,25.9 28.2,25.9 28.2,22.3 47.9,22.3 47.9,25.0 53.7,25.0 53.7,23.2 78.8,23.2 78.8,25.0 79.3,25.0 79.3,25.9 107.7,25.9 107.7,27.7 124.4,27.7 124.4,27.7 133.7,27.7 133.7,26.8 137.7,26.8 137.7,27.7 146.9,27.7 146.9,27.7 161.1,27.7 161.1,26.8 192.7,26.8 192.7,26.8"/><circle cx="192.7" cy="26.8" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 4:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 13 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 4:15 pm</td><td class="num">185.9</td></tr><tr><td>12 Sep 2026, 10:00 am</td><td class="num">185.9</td></tr><tr><td>11 Sep 2026, 9:40 am</td><td class="num">184.9</td></tr><tr><td>10 Sep 2026, 5:50 pm</td><td class="num">184.9</td></tr><tr><td>10 Sep 2026, 11:00 am</td><td class="num">185.9</td></tr><tr><td>9 Sep 2026, 7:00 pm</td><td class="num">184.9</td></tr><tr><td>8 Sep 2026, 2:20 pm</td><td class="num">184.9</td></tr><tr><td>6 Sep 2026, 1:40 pm</td><td class="num">186.9</td></tr><tr><td>6 Sep 2026, 12:40 pm</td><td class="num">187.9</td></tr><tr><td>4 Sep 2026, 5:40 pm</td><td class="num">189.9</td></tr><tr><td>4 Sep 2026, 7:40 am</td><td class="num">187.9</td></tr><tr><td>2 Sep 2026, 9:50 pm</td><td class="num">190.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">186.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0008" data-station-id="STN-0008"
+          data-price="192.9" data-distance="4.100000" data-rank="4">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">4</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Cammeray Bridge Service on the map">Cammeray Bridge Service</button></h3>
+            <p class="st-meta"><span class="st-addr">242 Cammeray Street</span> · Metro · <span class="st-id">STN-0008</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">192.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">4.10 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 12 records from 1 Sep to 14 Sep, low 188.9, high 192.9, latest 192.9 c/L"><polyline points="5.0,23.2 20.0,23.2 20.0,21.4 53.6,21.4 53.6,22.3 62.7,22.3 62.7,24.1 67.1,24.1 67.1,21.4 77.9,21.4 77.9,22.3 95.9,22.3 95.9,23.2 147.5,23.2 147.5,21.4 168.0,21.4 168.0,22.3 177.5,22.3 177.5,21.4 177.8,21.4 177.8,20.5 192.1,20.5 192.1,20.5"/><circle cx="192.1" cy="20.5" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 3:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 12 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 3:15 pm</td><td class="num">192.9</td></tr><tr><td>13 Sep 2026, 2:40 pm</td><td class="num">192.9</td></tr><tr><td>13 Sep 2026, 2:10 pm</td><td class="num">191.9</td></tr><tr><td>12 Sep 2026, 9:50 pm</td><td class="num">190.9</td></tr><tr><td>11 Sep 2026, 10:40 am</td><td class="num">191.9</td></tr><tr><td>7 Sep 2026, 6:00 pm</td><td class="num">189.9</td></tr><tr><td>6 Sep 2026, 11:10 am</td><td class="num">190.9</td></tr><tr><td>5 Sep 2026, 4:40 pm</td><td class="num">191.9</td></tr><tr><td>5 Sep 2026, 9:00 am</td><td class="num">188.9</td></tr><tr><td>4 Sep 2026, 5:30 pm</td><td class="num">190.9</td></tr><tr><td>2 Sep 2026, 7:50 am</td><td class="num">191.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">189.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0006" data-station-id="STN-0006"
+          data-price="195.9" data-distance="3.600012" data-rank="5">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">5</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Lane Cove West Fuel Stop on the map">Lane Cove West Fuel Stop</button></h3>
+            <p class="st-meta"><span class="st-addr">362 Lane Street</span> · Independent · <span class="st-id">STN-0006</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">195.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">3.60 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 12 records from 1 Sep to 14 Sep, low 186.9, high 195.9, latest 195.9 c/L"><polyline points="5.0,25.9 33.3,25.9 33.3,25.0 47.9,25.0 47.9,22.3 48.2,22.3 48.2,25.9 89.5,25.9 89.5,21.4 105.7,21.4 105.7,24.1 136.4,24.1 136.4,22.3 154.0,22.3 154.0,24.1 159.7,24.1 159.7,19.5 166.5,19.5 166.5,20.5 179.6,20.5 179.6,17.7 192.1,17.7 192.1,17.7"/><circle cx="192.1" cy="17.7" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 3:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 12 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 3:15 pm</td><td class="num">195.9</td></tr><tr><td>13 Sep 2026, 5:50 pm</td><td class="num">195.9</td></tr><tr><td>12 Sep 2026, 7:20 pm</td><td class="num">192.9</td></tr><tr><td>12 Sep 2026, 7:40 am</td><td class="num">193.9</td></tr><tr><td>11 Sep 2026, 9:50 pm</td><td class="num">188.9</td></tr><tr><td>10 Sep 2026, 3:40 pm</td><td class="num">190.9</td></tr><tr><td>8 Sep 2026, 10:50 am</td><td class="num">188.9</td></tr><tr><td>7 Sep 2026, 7:10 am</td><td class="num">191.9</td></tr><tr><td>4 Sep 2026, 8:10 am</td><td class="num">186.9</td></tr><tr><td>4 Sep 2026, 7:40 am</td><td class="num">190.9</td></tr><tr><td>3 Sep 2026, 6:40 am</td><td class="num">187.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">186.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0010" data-station-id="STN-0010"
+          data-price="195.9" data-distance="4.999981" data-rank="6">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">6</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Gladesville Roundabout Fuel on the map">Gladesville Roundabout Fuel</button></h3>
+            <p class="st-meta"><span class="st-addr">124 Gladesville Street</span> · Metro · <span class="st-id">STN-0010</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">195.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">5.00 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 14 records from 1 Sep to 14 Sep, low 188.9, high 196.9, latest 195.9 c/L"><polyline points="5.0,16.8 23.4,16.8 23.4,19.5 55.5,19.5 55.5,22.3 64.6,22.3 64.6,24.1 66.1,24.1 66.1,20.5 78.0,20.5 78.0,19.5 83.5,19.5 83.5,16.8 109.2,16.8 109.2,20.5 118.6,20.5 118.6,19.5 146.4,19.5 146.4,22.3 159.6,22.3 159.6,18.6 175.7,18.6 175.7,16.8 179.0,16.8 179.0,17.7 189.8,17.7 189.8,17.7"/><circle cx="189.8" cy="17.7" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 11:15 am</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 14 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 11:15 am</td><td class="num">195.9</td></tr><tr><td>13 Sep 2026, 4:50 pm</td><td class="num">195.9</td></tr><tr><td>13 Sep 2026, 11:10 am</td><td class="num">196.9</td></tr><tr><td>12 Sep 2026, 7:30 am</td><td class="num">194.9</td></tr><tr><td>11 Sep 2026, 8:50 am</td><td class="num">190.9</td></tr><tr><td>9 Sep 2026, 9:00 am</td><td class="num">193.9</td></tr><tr><td>8 Sep 2026, 5:00 pm</td><td class="num">192.9</td></tr><tr><td>6 Sep 2026, 8:50 pm</td><td class="num">196.9</td></tr><tr><td>6 Sep 2026, 11:20 am</td><td class="num">193.9</td></tr><tr><td>5 Sep 2026, 3:00 pm</td><td class="num">192.9</td></tr><tr><td>5 Sep 2026, 12:20 pm</td><td class="num">188.9</td></tr><tr><td>4 Sep 2026, 8:40 pm</td><td class="num">190.9</td></tr><tr><td>2 Sep 2026, 1:40 pm</td><td class="num">193.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">196.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0001" data-station-id="STN-0001"
+          data-price="197.9" data-distance="0.599979" data-rank="7">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">7</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Greenwich Point Fuel on the map">Greenwich Point Fuel</button></h3>
+            <p class="st-meta"><span class="st-addr">178 Greenwich Street</span> · Harbour · <span class="st-id">STN-0001</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">197.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">0.60 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 11 records from 1 Sep to 14 Sep, low 197.9, high 203.9, latest 197.9 c/L"><polyline points="5.0,13.2 75.3,13.2 75.3,15.0 79.3,15.0 79.3,13.2 108.3,13.2 108.3,14.1 120.8,14.1 120.8,15.0 123.5,15.0 123.5,14.1 135.5,14.1 135.5,10.5 137.5,10.5 137.5,13.2 177.9,13.2 177.9,14.1 180.9,14.1 180.9,15.9 193.8,15.9 193.8,15.9"/><circle cx="193.8" cy="15.9" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 6:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 11 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 6:15 pm</td><td class="num">197.9</td></tr><tr><td>13 Sep 2026, 8:00 pm</td><td class="num">197.9</td></tr><tr><td>13 Sep 2026, 2:50 pm</td><td class="num">199.9</td></tr><tr><td>10 Sep 2026, 5:30 pm</td><td class="num">200.9</td></tr><tr><td>10 Sep 2026, 2:00 pm</td><td class="num">203.9</td></tr><tr><td>9 Sep 2026, 5:30 pm</td><td class="num">199.9</td></tr><tr><td>9 Sep 2026, 12:50 pm</td><td class="num">198.9</td></tr><tr><td>8 Sep 2026, 3:20 pm</td><td class="num">199.9</td></tr><tr><td>6 Sep 2026, 1:30 pm</td><td class="num">200.9</td></tr><tr><td>6 Sep 2026, 6:40 am</td><td class="num">198.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">200.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0013" data-station-id="STN-0013"
+          data-price="198.9" data-distance="5.900002" data-rank="8">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">8</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Balmain Wharf Fuel on the map">Balmain Wharf Fuel</button></h3>
+            <p class="st-meta"><span class="st-addr">313 Balmain Street</span> · Harbour · <span class="st-id">STN-0013</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">198.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">5.90 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 11 records from 1 Sep to 14 Sep, low 198.9, high 205.9, latest 198.9 c/L"><polyline points="5.0,10.5 21.0,10.5 21.0,9.5 27.1,9.5 27.1,8.6 38.9,8.6 38.9,11.4 55.4,11.4 55.4,10.5 66.4,10.5 66.4,12.3 90.6,12.3 90.6,10.5 117.4,10.5 117.4,11.4 121.4,11.4 121.4,13.2 135.5,13.2 135.5,15.0 189.8,15.0 189.8,15.0"/><circle cx="189.8" cy="15.0" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 11:15 am</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 11 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 11:15 am</td><td class="num">198.9</td></tr><tr><td>10 Sep 2026, 2:10 pm</td><td class="num">198.9</td></tr><tr><td>9 Sep 2026, 1:50 pm</td><td class="num">200.9</td></tr><tr><td>9 Sep 2026, 7:00 am</td><td class="num">202.9</td></tr><tr><td>7 Sep 2026, 9:00 am</td><td class="num">203.9</td></tr><tr><td>5 Sep 2026, 3:30 pm</td><td class="num">201.9</td></tr><tr><td>4 Sep 2026, 8:30 pm</td><td class="num">203.9</td></tr><tr><td>3 Sep 2026, 4:10 pm</td><td class="num">202.9</td></tr><tr><td>2 Sep 2026, 8:00 pm</td><td class="num">205.9</td></tr><tr><td>2 Sep 2026, 9:30 am</td><td class="num">204.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">203.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0017" data-station-id="STN-0017"
+          data-price="198.9" data-distance="6.099992" data-rank="9">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">9</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Willoughby Heights Fuel on the map">Willoughby Heights Fuel</button></h3>
+            <p class="st-meta"><span class="st-addr">396 Willoughby Street</span> · Coastal · <span class="st-id">STN-0017</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">198.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">6.10 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 16 records from 1 Sep to 14 Sep, low 193.9, high 201.9, latest 198.9 c/L"><polyline points="5.0,15.9 24.2,15.9 24.2,15.0 54.4,15.0 54.4,17.7 65.4,17.7 65.4,12.3 69.4,12.3 69.4,15.9 82.4,15.9 82.4,13.2 82.7,13.2 82.7,15.0 90.5,15.0 90.5,14.1 104.4,14.1 104.4,19.5 110.8,19.5 110.8,16.8 132.9,16.8 132.9,18.6 149.2,18.6 149.2,15.0 160.3,15.0 160.3,16.8 173.1,16.8 173.1,13.2 176.7,13.2 176.7,15.0 187.4,15.0 187.4,15.0"/><circle cx="187.4" cy="15.0" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 7:15 am</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 16 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 7:15 am</td><td class="num">198.9</td></tr><tr><td>13 Sep 2026, 12:50 pm</td><td class="num">198.9</td></tr><tr><td>13 Sep 2026, 6:40 am</td><td class="num">200.9</td></tr><tr><td>12 Sep 2026, 8:40 am</td><td class="num">196.9</td></tr><tr><td>11 Sep 2026, 1:40 pm</td><td class="num">198.9</td></tr><tr><td>10 Sep 2026, 9:40 am</td><td class="num">194.9</td></tr><tr><td>8 Sep 2026, 7:40 pm</td><td class="num">196.9</td></tr><tr><td>8 Sep 2026, 8:40 am</td><td class="num">193.9</td></tr><tr><td>7 Sep 2026, 8:50 am</td><td class="num">199.9</td></tr><tr><td>6 Sep 2026, 7:20 pm</td><td class="num">198.9</td></tr><tr><td>6 Sep 2026, 6:50 pm</td><td class="num">200.9</td></tr><tr><td>5 Sep 2026, 8:30 pm</td><td class="num">197.9</td></tr><tr><td>5 Sep 2026, 1:40 pm</td><td class="num">201.9</td></tr><tr><td>4 Sep 2026, 6:50 pm</td><td class="num">195.9</td></tr><tr><td>2 Sep 2026, 3:00 pm</td><td class="num">198.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">197.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0012" data-station-id="STN-0012"
+          data-price="201.9" data-distance="5.600006" data-rank="10">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">10</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Chatswood Chase Service on the map">Chatswood Chase Service</button></h3>
+            <p class="st-meta"><span class="st-addr">365 Chatswood Street</span> · Coastal · <span class="st-id">STN-0012</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">201.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">5.60 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 10 records from 1 Sep to 14 Sep, low 200.9, high 209.9, latest 201.9 c/L"><polyline points="5.0,5.9 66.9,5.9 66.9,7.7 67.4,7.7 67.4,5.9 75.3,5.9 75.3,5.0 96.9,5.0 96.9,7.7 120.9,7.7 120.9,9.5 149.8,9.5 149.8,12.3 164.9,12.3 164.9,13.2 173.2,13.2 173.2,12.3 195.0,12.3 195.0,12.3"/><circle cx="195.0" cy="12.3" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 8:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 10 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 8:15 pm</td><td class="num">201.9</td></tr><tr><td>13 Sep 2026, 6:50 am</td><td class="num">201.9</td></tr><tr><td>12 Sep 2026, 4:30 pm</td><td class="num">200.9</td></tr><tr><td>11 Sep 2026, 2:40 pm</td><td class="num">201.9</td></tr><tr><td>9 Sep 2026, 1:00 pm</td><td class="num">204.9</td></tr><tr><td>7 Sep 2026, 7:50 pm</td><td class="num">206.9</td></tr><tr><td>6 Sep 2026, 6:40 am</td><td class="num">209.9</td></tr><tr><td>5 Sep 2026, 5:10 pm</td><td class="num">208.9</td></tr><tr><td>5 Sep 2026, 4:20 pm</td><td class="num">206.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">208.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0004" data-station-id="STN-0004"
+          data-price="203.9" data-distance="2.700024" data-rank="11">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">11</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Pacific Highway Fuels on the map">Pacific Highway Fuels</button></h3>
+            <p class="st-meta"><span class="st-addr">184 Pacific Street</span> · Independent · <span class="st-id">STN-0004</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">203.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">2.70 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 12 records from 1 Sep to 14 Sep, low 203.9, high 209.9, latest 203.9 c/L"><polyline points="5.0,8.6 34.3,8.6 34.3,6.8 61.3,6.8 61.3,8.6 77.0,8.6 77.0,6.8 80.8,6.8 80.8,5.0 120.5,5.0 120.5,6.8 131.3,6.8 131.3,8.6 153.4,8.6 153.4,9.5 165.7,9.5 165.7,10.5 179.5,10.5 179.5,8.6 180.6,8.6 180.6,10.5 193.3,10.5 193.3,10.5"/><circle cx="193.3" cy="10.5" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 5:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 12 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 5:15 pm</td><td class="num">203.9</td></tr><tr><td>13 Sep 2026, 7:30 pm</td><td class="num">203.9</td></tr><tr><td>13 Sep 2026, 5:40 pm</td><td class="num">205.9</td></tr><tr><td>12 Sep 2026, 6:00 pm</td><td class="num">203.9</td></tr><tr><td>11 Sep 2026, 8:50 pm</td><td class="num">204.9</td></tr><tr><td>10 Sep 2026, 6:50 am</td><td class="num">205.9</td></tr><tr><td>9 Sep 2026, 12:20 pm</td><td class="num">207.9</td></tr><tr><td>6 Sep 2026, 4:10 pm</td><td class="num">209.9</td></tr><tr><td>6 Sep 2026, 9:40 am</td><td class="num">207.9</td></tr><tr><td>5 Sep 2026, 6:40 am</td><td class="num">205.9</td></tr><tr><td>3 Sep 2026, 8:20 am</td><td class="num">207.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">205.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0009" data-station-id="STN-0009"
+          data-price="203.9" data-distance="4.399972" data-rank="12">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">12</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Hunters Hill Motor Fuel on the map">Hunters Hill Motor Fuel</button></h3>
+            <p class="st-meta"><span class="st-addr">2 Hunters Street</span> · Independent · <span class="st-id">STN-0009</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">203.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">4.40 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 14 records from 1 Sep to 14 Sep, low 198.9, high 207.9, latest 203.9 c/L"><polyline points="5.0,15.0 49.6,15.0 49.6,14.1 50.4,14.1 50.4,12.3 79.4,12.3 79.4,11.4 81.6,11.4 81.6,13.2 92.4,13.2 92.4,11.4 97.8,11.4 97.8,12.3 122.7,12.3 122.7,12.3 130.8,12.3 130.8,7.7 132.2,7.7 132.2,8.6 149.6,8.6 149.6,9.5 149.8,9.5 149.8,6.8 162.0,6.8 162.0,10.5 188.0,10.5 188.0,10.5"/><circle cx="188.0" cy="10.5" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 8:15 am</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 14 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 8:15 am</td><td class="num">203.9</td></tr><tr><td>12 Sep 2026, 11:30 am</td><td class="num">203.9</td></tr><tr><td>11 Sep 2026, 2:40 pm</td><td class="num">207.9</td></tr><tr><td>11 Sep 2026, 2:20 pm</td><td class="num">204.9</td></tr><tr><td>10 Sep 2026, 8:30 am</td><td class="num">205.9</td></tr><tr><td>10 Sep 2026, 6:00 am</td><td class="num">206.9</td></tr><tr><td>9 Sep 2026, 4:10 pm</td><td class="num">201.9</td></tr><tr><td>7 Sep 2026, 9:20 pm</td><td class="num">201.9</td></tr><tr><td>7 Sep 2026, 12:00 pm</td><td class="num">202.9</td></tr><tr><td>6 Sep 2026, 5:30 pm</td><td class="num">200.9</td></tr><tr><td>6 Sep 2026, 1:50 pm</td><td class="num">202.9</td></tr><tr><td>4 Sep 2026, 12:00 pm</td><td class="num">201.9</td></tr><tr><td>4 Sep 2026, 10:30 am</td><td class="num">199.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">198.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0019" data-station-id="STN-0019"
+          data-price="203.9" data-distance="8.799986" data-rank="13">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">13</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Putney Ferry Service on the map">Putney Ferry Service</button></h3>
+            <p class="st-meta"><span class="st-addr">183 Putney Street</span> · Metro · <span class="st-id">STN-0019</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">203.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">8.80 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 12 records from 1 Sep to 14 Sep, low 196.9, high 209.9, latest 203.9 c/L"><polyline points="5.0,5.0 23.1,5.0 23.1,7.7 23.2,7.7 23.2,10.5 53.0,10.5 53.0,14.1 54.1,14.1 54.1,11.4 75.8,11.4 75.8,16.8 90.1,16.8 90.1,13.2 96.3,13.2 96.3,15.9 145.5,15.9 145.5,8.6 150.4,8.6 150.4,12.3 178.5,12.3 178.5,10.5 187.4,10.5 187.4,10.5"/><circle cx="187.4" cy="10.5" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 7:15 am</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 12 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 7:15 am</td><td class="num">203.9</td></tr><tr><td>13 Sep 2026, 4:00 pm</td><td class="num">203.9</td></tr><tr><td>11 Sep 2026, 3:40 pm</td><td class="num">201.9</td></tr><tr><td>11 Sep 2026, 7:20 am</td><td class="num">205.9</td></tr><tr><td>7 Sep 2026, 6:50 pm</td><td class="num">197.9</td></tr><tr><td>7 Sep 2026, 8:10 am</td><td class="num">200.9</td></tr><tr><td>6 Sep 2026, 7:30 am</td><td class="num">196.9</td></tr><tr><td>4 Sep 2026, 6:20 pm</td><td class="num">202.9</td></tr><tr><td>4 Sep 2026, 4:30 pm</td><td class="num">199.9</td></tr><tr><td>2 Sep 2026, 1:10 pm</td><td class="num">203.9</td></tr><tr><td>2 Sep 2026, 1:00 pm</td><td class="num">206.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">209.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0002" data-station-id="STN-0002"
+          data-price="206.9" data-distance="1.400042" data-rank="14">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">14</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show River Road Service Centre on the map">River Road Service Centre</button></h3>
+            <p class="st-meta"><span class="st-addr">174 River Street</span> · Harbour · <span class="st-id">STN-0002</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">206.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">1.40 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 16 records from 1 Sep to 14 Sep, low 204.9, high 209.9, latest 206.9 c/L"><polyline points="5.0,8.6 25.2,8.6 25.2,6.8 47.2,6.8 47.2,5.0 48.9,5.0 48.9,5.0 81.3,5.0 81.3,5.0 92.6,5.0 92.6,5.0 103.2,5.0 103.2,5.9 125.3,5.9 125.3,8.6 125.9,8.6 125.9,7.7 132.9,7.7 132.9,9.5 145.8,9.5 145.8,9.5 151.0,9.5 151.0,8.6 162.4,8.6 162.4,7.7 164.5,7.7 164.5,5.0 176.7,5.0 176.7,7.7 187.4,7.7 187.4,7.7"/><circle cx="187.4" cy="7.7" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 7:15 am</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 16 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 7:15 am</td><td class="num">206.9</td></tr><tr><td>13 Sep 2026, 12:50 pm</td><td class="num">206.9</td></tr><tr><td>12 Sep 2026, 3:50 pm</td><td class="num">209.9</td></tr><tr><td>12 Sep 2026, 12:20 pm</td><td class="num">206.9</td></tr><tr><td>11 Sep 2026, 4:40 pm</td><td class="num">205.9</td></tr><tr><td>11 Sep 2026, 7:50 am</td><td class="num">204.9</td></tr><tr><td>10 Sep 2026, 9:40 am</td><td class="num">204.9</td></tr><tr><td>9 Sep 2026, 9:40 pm</td><td class="num">206.9</td></tr><tr><td>9 Sep 2026, 8:30 pm</td><td class="num">205.9</td></tr><tr><td>8 Sep 2026, 6:40 am</td><td class="num">208.9</td></tr><tr><td>7 Sep 2026, 12:30 pm</td><td class="num">209.9</td></tr><tr><td>6 Sep 2026, 5:00 pm</td><td class="num">209.9</td></tr><tr><td>4 Sep 2026, 9:20 am</td><td class="num">209.9</td></tr><tr><td>4 Sep 2026, 6:30 am</td><td class="num">209.9</td></tr><tr><td>2 Sep 2026, 4:40 pm</td><td class="num">207.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">205.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0020" data-station-id="STN-0020"
+          data-price="206.9" data-distance="9.399964" data-rank="15">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">15</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Roseville Ridge Fuel on the map">Roseville Ridge Fuel</button></h3>
+            <p class="st-meta"><span class="st-addr">353 Roseville Street</span> · Independent · <span class="st-id">STN-0020</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">206.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">9.40 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 13 records from 1 Sep to 14 Sep, low 198.9, high 206.9, latest 206.9 c/L"><polyline points="5.0,15.0 26.5,15.0 26.5,11.4 27.9,11.4 27.9,13.2 36.2,13.2 36.2,12.3 49.0,12.3 49.0,15.0 49.6,15.0 49.6,14.1 62.2,14.1 62.2,13.2 123.9,13.2 123.9,15.0 125.2,15.0 125.2,11.4 159.3,11.4 159.3,13.2 165.5,13.2 165.5,9.5 178.4,9.5 178.4,7.7 189.8,7.7 189.8,7.7"/><circle cx="189.8" cy="7.7" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 11:15 am</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 13 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 11:15 am</td><td class="num">206.9</td></tr><tr><td>13 Sep 2026, 3:40 pm</td><td class="num">206.9</td></tr><tr><td>12 Sep 2026, 5:40 pm</td><td class="num">204.9</td></tr><tr><td>12 Sep 2026, 7:00 am</td><td class="num">200.9</td></tr><tr><td>9 Sep 2026, 8:20 pm</td><td class="num">202.9</td></tr><tr><td>9 Sep 2026, 6:10 pm</td><td class="num">198.9</td></tr><tr><td>5 Sep 2026, 8:10 am</td><td class="num">200.9</td></tr><tr><td>4 Sep 2026, 10:40 am</td><td class="num">199.9</td></tr><tr><td>4 Sep 2026, 9:30 am</td><td class="num">198.9</td></tr><tr><td>3 Sep 2026, 11:30 am</td><td class="num">201.9</td></tr><tr><td>2 Sep 2026, 9:20 pm</td><td class="num">200.9</td></tr><tr><td>2 Sep 2026, 7:00 pm</td><td class="num">202.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">198.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0016" data-station-id="STN-0016"
+          data-price="207.9" data-distance="7.699992" data-rank="16">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">16</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show North Ryde Link Fuel on the map">North Ryde Link Fuel</button></h3>
+            <p class="st-meta"><span class="st-addr">355 North Street</span> · Harbour · <span class="st-id">STN-0016</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">207.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">7.70 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 10 records from 1 Sep to 14 Sep, low 207.9, high 209.9, latest 207.9 c/L"><polyline points="5.0,5.9 35.7,5.9 35.7,5.0 53.6,5.0 53.6,5.0 81.8,5.0 81.8,5.0 106.1,5.0 106.1,5.0 137.0,5.0 137.0,5.0 154.0,5.0 154.0,5.9 174.1,5.9 174.1,5.0 177.6,5.0 177.6,6.8 193.8,6.8 193.8,6.8"/><circle cx="193.8" cy="6.8" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 6:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 10 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 6:15 pm</td><td class="num">207.9</td></tr><tr><td>13 Sep 2026, 2:20 pm</td><td class="num">207.9</td></tr><tr><td>13 Sep 2026, 8:20 am</td><td class="num">209.9</td></tr><tr><td>11 Sep 2026, 9:50 pm</td><td class="num">208.9</td></tr><tr><td>10 Sep 2026, 4:40 pm</td><td class="num">209.9</td></tr><tr><td>8 Sep 2026, 11:40 am</td><td class="num">209.9</td></tr><tr><td>6 Sep 2026, 5:50 pm</td><td class="num">209.9</td></tr><tr><td>4 Sep 2026, 5:30 pm</td><td class="num">209.9</td></tr><tr><td>3 Sep 2026, 10:40 am</td><td class="num">209.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">208.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0003" data-station-id="STN-0003"
+          data-price="209.9" data-distance="2.100033" data-rank="17">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">17</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Longueville Express on the map">Longueville Express</button></h3>
+            <p class="st-meta"><span class="st-addr">29 Longueville Street</span> · Coastal · <span class="st-id">STN-0003</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">209.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">2.10 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 16 records from 1 Sep to 14 Sep, low 176.9, high 209.9, latest 209.9 c/L"><polyline points="5.0,12.3 24.4,12.3 24.4,15.0 39.7,15.0 39.7,17.7 49.6,17.7 49.6,13.2 55.0,13.2 55.0,16.8 62.2,16.8 62.2,35.0 67.4,35.0 67.4,11.4 77.6,11.4 77.6,9.5 90.3,9.5 90.3,5.9 110.0,5.9 110.0,5.0 111.9,5.0 111.9,5.0 119.7,5.0 119.7,5.9 133.6,5.9 133.6,5.0 149.3,5.0 149.3,5.0 153.5,5.0 153.5,5.0 192.7,5.0 192.7,5.0"/><circle cx="192.7" cy="5.0" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 4:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 16 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 4:15 pm</td><td class="num">209.9</td></tr><tr><td>11 Sep 2026, 9:00 pm</td><td class="num">209.9</td></tr><tr><td>11 Sep 2026, 1:50 pm</td><td class="num">209.9</td></tr><tr><td>10 Sep 2026, 10:50 am</td><td class="num">209.9</td></tr><tr><td>9 Sep 2026, 11:00 am</td><td class="num">208.9</td></tr><tr><td>8 Sep 2026, 9:30 pm</td><td class="num">209.9</td></tr><tr><td>8 Sep 2026, 6:20 pm</td><td class="num">209.9</td></tr><tr><td>7 Sep 2026, 8:30 am</td><td class="num">208.9</td></tr><tr><td>6 Sep 2026, 10:40 am</td><td class="num">204.9</td></tr><tr><td>5 Sep 2026, 5:10 pm</td><td class="num">202.9</td></tr><tr><td>5 Sep 2026, 8:10 am</td><td class="num">176.9</td></tr><tr><td>4 Sep 2026, 7:50 pm</td><td class="num">196.9</td></tr><tr><td>4 Sep 2026, 10:40 am</td><td class="num">200.9</td></tr><tr><td>3 Sep 2026, 5:40 pm</td><td class="num">195.9</td></tr><tr><td>2 Sep 2026, 3:20 pm</td><td class="num">198.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">201.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0005" data-station-id="STN-0005"
+          data-price="209.9" data-distance="3.200013" data-rank="18">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">18</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Northbridge Corner Store on the map">Northbridge Corner Store</button></h3>
+            <p class="st-meta"><span class="st-addr">20 Northbridge Street</span> · Harbour · <span class="st-id">STN-0005</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">209.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">3.20 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 14 records from 1 Sep to 14 Sep, low 205.9, high 209.9, latest 209.9 c/L"><polyline points="5.0,7.7 25.3,7.7 25.3,6.8 27.0,6.8 27.0,8.6 36.6,8.6 36.6,5.0 50.8,5.0 50.8,7.7 63.3,7.7 63.3,6.8 75.7,6.8 75.7,5.0 79.8,5.0 79.8,5.0 94.3,5.0 94.3,5.0 103.7,5.0 103.7,5.0 120.9,5.0 120.9,5.0 139.4,5.0 139.4,5.0 173.4,5.0 173.4,5.0 191.5,5.0 191.5,5.0"/><circle cx="191.5" cy="5.0" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 2:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 14 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 2:15 pm</td><td class="num">209.9</td></tr><tr><td>13 Sep 2026, 7:10 am</td><td class="num">209.9</td></tr><tr><td>10 Sep 2026, 8:50 pm</td><td class="num">209.9</td></tr><tr><td>9 Sep 2026, 1:00 pm</td><td class="num">209.9</td></tr><tr><td>8 Sep 2026, 7:30 am</td><td class="num">209.9</td></tr><tr><td>7 Sep 2026, 3:20 pm</td><td class="num">209.9</td></tr><tr><td>6 Sep 2026, 2:30 pm</td><td class="num">209.9</td></tr><tr><td>6 Sep 2026, 7:20 am</td><td class="num">209.9</td></tr><tr><td>5 Sep 2026, 10:10 am</td><td class="num">207.9</td></tr><tr><td>4 Sep 2026, 12:40 pm</td><td class="num">206.9</td></tr><tr><td>3 Sep 2026, 12:20 pm</td><td class="num">209.9</td></tr><tr><td>2 Sep 2026, 7:50 pm</td><td class="num">205.9</td></tr><tr><td>2 Sep 2026, 4:50 pm</td><td class="num">207.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">206.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0014" data-station-id="STN-0014"
+          data-price="209.9" data-distance="6.799978" data-rank="19">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">19</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Drummoyne Bay Petroleum on the map">Drummoyne Bay Petroleum</button></h3>
+            <p class="st-meta"><span class="st-addr">9 Drummoyne Street</span> · Coastal · <span class="st-id">STN-0014</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">209.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">6.80 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 8 records from 1 Sep to 14 Sep, low 203.9, high 209.9, latest 209.9 c/L"><polyline points="5.0,6.8 41.7,6.8 41.7,8.6 48.7,8.6 48.7,10.5 51.1,10.5 51.1,8.6 69.9,8.6 69.9,6.8 91.3,6.8 91.3,5.0 120.1,5.0 120.1,5.0 195.0,5.0 195.0,5.0"/><circle cx="195.0" cy="5.0" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 8:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 8 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 8:15 pm</td><td class="num">209.9</td></tr><tr><td>9 Sep 2026, 11:40 am</td><td class="num">209.9</td></tr><tr><td>7 Sep 2026, 10:10 am</td><td class="num">209.9</td></tr><tr><td>5 Sep 2026, 9:30 pm</td><td class="num">207.9</td></tr><tr><td>4 Sep 2026, 1:10 pm</td><td class="num">205.9</td></tr><tr><td>4 Sep 2026, 9:00 am</td><td class="num">203.9</td></tr><tr><td>3 Sep 2026, 9:00 pm</td><td class="num">205.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">207.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0015" data-station-id="STN-0015"
+          data-price="209.9" data-distance="7.200030" data-rank="20">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">20</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Pyrmont Bridge Road Fuel on the map">Pyrmont Bridge Road Fuel</button></h3>
+            <p class="st-meta"><span class="st-addr">132 Pyrmont Street</span> · Metro · <span class="st-id">STN-0015</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">209.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">7.20 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 15 records from 1 Sep to 14 Sep, low 194.9, high 209.9, latest 209.9 c/L"><polyline points="5.0,15.9 19.4,15.9 19.4,15.0 22.5,15.0 22.5,17.7 46.9,17.7 46.9,16.8 52.9,16.8 52.9,18.6 76.8,18.6 76.8,15.0 90.2,15.0 90.2,9.5 92.5,9.5 92.5,11.4 104.4,11.4 104.4,5.9 122.1,5.9 122.1,5.0 134.1,5.0 134.1,5.0 139.9,5.0 139.9,5.9 146.9,5.9 146.9,5.0 173.5,5.0 173.5,5.0 188.6,5.0 188.6,5.0"/><circle cx="188.6" cy="5.0" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 9:15 am</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 15 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 9:15 am</td><td class="num">209.9</td></tr><tr><td>13 Sep 2026, 7:20 am</td><td class="num">209.9</td></tr><tr><td>11 Sep 2026, 9:40 am</td><td class="num">209.9</td></tr><tr><td>10 Sep 2026, 9:40 pm</td><td class="num">208.9</td></tr><tr><td>10 Sep 2026, 11:40 am</td><td class="num">209.9</td></tr><tr><td>9 Sep 2026, 3:00 pm</td><td class="num">209.9</td></tr><tr><td>8 Sep 2026, 8:40 am</td><td class="num">208.9</td></tr><tr><td>7 Sep 2026, 12:10 pm</td><td class="num">202.9</td></tr><tr><td>7 Sep 2026, 8:20 am</td><td class="num">204.9</td></tr><tr><td>6 Sep 2026, 9:20 am</td><td class="num">198.9</td></tr><tr><td>4 Sep 2026, 4:10 pm</td><td class="num">194.9</td></tr><tr><td>4 Sep 2026, 6:00 am</td><td class="num">196.9</td></tr><tr><td>2 Sep 2026, 12:00 pm</td><td class="num">195.9</td></tr><tr><td>2 Sep 2026, 6:40 am</td><td class="num">198.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">197.9</td></tr></tbody></table>
+        </details>
+      </li>
+      <li class="station" id="station-STN-0018" data-station-id="STN-0018"
+          data-price="209.9" data-distance="8.300043" data-rank="21">
+        <div class="st-head">
+          <span class="st-rank" title="Price rank">21</span>
+          <div class="st-title">
+            <h3><button type="button" class="st-name" aria-label="Show Mosman Spit Junction Fuel on the map">Mosman Spit Junction Fuel</button></h3>
+            <p class="st-meta"><span class="st-addr">156 Mosman Street</span> · Metro · <span class="st-id">STN-0018</span></p>
+          </div>
+          <div class="st-figs">
+            <span class="st-price">209.9<span class="unit"> c/L</span></span>
+            <span class="st-dist">8.30 km</span>
+          </div>
+        </div>
+        <div class="st-trend">
+          <svg class="spark" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="E10 price history: 11 records from 1 Sep to 14 Sep, low 189.9, high 209.9, latest 209.9 c/L"><polyline points="5.0,21.4 22.5,21.4 22.5,23.2 27.8,23.2 27.8,19.5 51.3,19.5 51.3,15.9 65.5,15.9 65.5,12.3 77.1,12.3 77.1,13.2 90.7,13.2 90.7,9.5 122.3,9.5 122.3,12.3 159.5,12.3 159.5,5.0 164.7,5.0 164.7,8.6 193.3,8.6 193.3,5.0"/><circle cx="193.3" cy="5.0" r="3.5"/></svg>
+          <span class="st-updated">Listed 14 Sep 2026, 5:15 pm</span>
+        </div>
+        <details class="st-history">
+          <summary>E10 price history · 11 records</summary>
+          <table><thead><tr><th scope="col">Recorded</th><th scope="col" class="num">c/L</th></tr></thead><tbody><tr><td>14 Sep 2026, 5:15 pm</td><td class="num">209.9</td></tr><tr><td>12 Sep 2026, 4:10 pm</td><td class="num">205.9</td></tr><tr><td>12 Sep 2026, 7:20 am</td><td class="num">209.9</td></tr><tr><td>9 Sep 2026, 3:30 pm</td><td class="num">201.9</td></tr><tr><td>7 Sep 2026, 9:10 am</td><td class="num">204.9</td></tr><tr><td>6 Sep 2026, 9:50 am</td><td class="num">200.9</td></tr><tr><td>5 Sep 2026, 1:50 pm</td><td class="num">201.9</td></tr><tr><td>4 Sep 2026, 1:30 pm</td><td class="num">197.9</td></tr><tr><td>2 Sep 2026, 9:10 pm</td><td class="num">193.9</td></tr><tr><td>2 Sep 2026, 12:00 pm</td><td class="num">189.9</td></tr><tr><td>1 Sep 2026, 6:00 am</td><td class="num">191.9</td></tr></tbody></table>
+        </details>
+      </li>
+      </ol>
+    </section>
+  </div>
+
+  <section class="trend-panel" aria-labelledby="trend-heading">
+    <h2 id="trend-heading">Average E10 price within 10 km</h2>
+    <p class="trend-sub">Each day's mean of every in-range station's latest price recorded on or before that day, in cents per litre.</p>
+    <div class="trend-wrap">
+      <svg class="trend" viewBox="0 0 760 260" role="img" aria-labelledby="trend-title trend-desc" data-plot-left="52" data-plot-right="688"><title id="trend-title">Average listed E10 price within 10 km, by day</title><desc id="trend-desc">From 199.9 c/L on 1 Sep to 200.7 c/L on 14 Sep. The table below the chart lists every value.</desc><line class="grid" x1="52" x2="688" y1="226.0" y2="226.0"/><text class="tick" x="44" y="230.0" text-anchor="end">199.5</text><line class="grid" x1="52" x2="688" y1="191.3" y2="191.3"/><text class="tick" x="44" y="195.3" text-anchor="end">200.0</text><line class="grid" x1="52" x2="688" y1="156.7" y2="156.7"/><text class="tick" x="44" y="160.7" text-anchor="end">200.5</text><line class="grid" x1="52" x2="688" y1="122.0" y2="122.0"/><text class="tick" x="44" y="126.0" text-anchor="end">201.0</text><line class="grid" x1="52" x2="688" y1="87.3" y2="87.3"/><text class="tick" x="44" y="91.3" text-anchor="end">201.5</text><line class="grid" x1="52" x2="688" y1="52.7" y2="52.7"/><text class="tick" x="44" y="56.7" text-anchor="end">202.0</text><line class="grid" x1="52" x2="688" y1="18.0" y2="18.0"/><text class="tick" x="44" y="22.0" text-anchor="end">202.5</text><text class="tick" x="52.0" y="250" text-anchor="middle">1 Sep</text><text class="tick" x="149.8" y="250" text-anchor="middle">3 Sep</text><text class="tick" x="247.7" y="250" text-anchor="middle">5 Sep</text><text class="tick" x="345.5" y="250" text-anchor="middle">7 Sep</text><text class="tick" x="443.4" y="250" text-anchor="middle">9 Sep</text><text class="tick" x="541.2" y="250" text-anchor="middle">11 Sep</text><text class="tick" x="639.1" y="250" text-anchor="middle">13 Sep</text><text class="tick" x="688.0" y="250" text-anchor="middle">14 Sep</text><path class="line" d="M52.0,195.0 L100.9,195.0 L149.8,181.8 L198.8,191.7 L247.7,142.1 L296.6,128.9 L345.5,56.3 L394.5,79.4 L443.4,115.7 L492.3,115.7 L541.2,102.5 L590.2,66.2 L639.1,43.1 L688.0,142.1"/><line class="crosshair" x1="0" x2="0" y1="18" y2="226" visibility="hidden"/><circle class="pt" cx="52.0" cy="195.0" r="4" data-date="1 Sep 2026" data-value="199.95" data-stations="21"/><circle class="pt" cx="100.9" cy="195.0" r="4" data-date="2 Sep 2026" data-value="199.95" data-stations="21"/><circle class="pt" cx="149.8" cy="181.8" r="4" data-date="3 Sep 2026" data-value="200.14" data-stations="21"/><circle class="pt" cx="198.8" cy="191.7" r="4" data-date="4 Sep 2026" data-value="200.00" data-stations="21"/><circle class="pt" cx="247.7" cy="142.1" r="4" data-date="5 Sep 2026" data-value="200.71" data-stations="21"/><circle class="pt" cx="296.6" cy="128.9" r="4" data-date="6 Sep 2026" data-value="200.90" data-stations="21"/><circle class="pt" cx="345.5" cy="56.3" r="4" data-date="7 Sep 2026" data-value="201.95" data-stations="21"/><circle class="pt" cx="394.5" cy="79.4" r="4" data-date="8 Sep 2026" data-value="201.61" data-stations="21"/><circle class="pt" cx="443.4" cy="115.7" r="4" data-date="9 Sep 2026" data-value="201.09" data-stations="21"/><circle class="pt" cx="492.3" cy="115.7" r="4" data-date="10 Sep 2026" data-value="201.09" data-stations="21"/><circle class="pt" cx="541.2" cy="102.5" r="4" data-date="11 Sep 2026" data-value="201.28" data-stations="21"/><circle class="pt" cx="590.2" cy="66.2" r="4" data-date="12 Sep 2026" data-value="201.80" data-stations="21"/><circle class="pt" cx="639.1" cy="43.1" r="4" data-date="13 Sep 2026" data-value="202.14" data-stations="21"/><circle class="pt" cx="688.0" cy="142.1" r="4" data-date="14 Sep 2026" data-value="200.71" data-stations="21"/><circle class="end" cx="688.0" cy="142.1" r="4"/><text class="end-label" x="698.0" y="146.1">200.7</text><rect class="hit" x="52" y="18" width="636" height="208"/></svg>
+      <div class="tip" role="status" hidden><strong class="tip-value"></strong><span class="tip-date"></span></div>
+    </div>
+    <details class="trend-table">
+      <summary>Show the daily averages as a table</summary>
+      <table><thead><tr><th scope="col">Day</th><th scope="col" class="num">Mean c/L</th><th scope="col" class="num">Stations</th></tr></thead>
+      <tbody><tr><td>1 Sep 2026</td><td class="num">199.95</td><td class="num">21</td></tr><tr><td>2 Sep 2026</td><td class="num">199.95</td><td class="num">21</td></tr><tr><td>3 Sep 2026</td><td class="num">200.14</td><td class="num">21</td></tr><tr><td>4 Sep 2026</td><td class="num">200.00</td><td class="num">21</td></tr><tr><td>5 Sep 2026</td><td class="num">200.71</td><td class="num">21</td></tr><tr><td>6 Sep 2026</td><td class="num">200.90</td><td class="num">21</td></tr><tr><td>7 Sep 2026</td><td class="num">201.95</td><td class="num">21</td></tr><tr><td>8 Sep 2026</td><td class="num">201.61</td><td class="num">21</td></tr><tr><td>9 Sep 2026</td><td class="num">201.09</td><td class="num">21</td></tr><tr><td>10 Sep 2026</td><td class="num">201.09</td><td class="num">21</td></tr><tr><td>11 Sep 2026</td><td class="num">201.28</td><td class="num">21</td></tr><tr><td>12 Sep 2026</td><td class="num">201.80</td><td class="num">21</td></tr><tr><td>13 Sep 2026</td><td class="num">202.14</td><td class="num">21</td></tr><tr><td>14 Sep 2026</td><td class="num">200.71</td><td class="num">21</td></tr></tbody></table>
+    </details>
+  </section>
+
+  <footer class="foot">
+    <p>Listed price is each station's most recent E10 record. Distances are straight-line (haversine) from
+      -33.833, 151.183. Other fuels are ignored.</p>
+  </footer>
+</div>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="data.js"></script>
+<script>
+(function () {
+  "use strict";
+  var data = window.E10_DATA;
+  var list = document.getElementById("stations");
+  var items = Array.prototype.slice.call(list.querySelectorAll(".station"));
+  var byId = {};
+  items.forEach(function (li) { byId[li.dataset.stationId] = li; });
+
+  // Sorting
+  var sortButtons = document.querySelectorAll(".sort button");
+  Array.prototype.forEach.call(sortButtons, function (button) {
+    button.addEventListener("click", function () {
+      var key = button.dataset.sort;
+      Array.prototype.forEach.call(sortButtons, function (b) { b.setAttribute("aria-pressed", String(b === button)); });
+      items.slice().sort(function (a, b) {
+        var pa = parseFloat(a.dataset.price), pb = parseFloat(b.dataset.price);
+        var da = parseFloat(a.dataset.distance), db = parseFloat(b.dataset.distance);
+        return key === "distance" ? (da - db || pa - pb) : (Number(a.dataset.rank) - Number(b.dataset.rank));
+      }).forEach(function (li) { list.appendChild(li); });
+    });
+  });
+
+  function narrow() { return window.matchMedia("(max-width: 900px)").matches; }
+
+  function flash(li, scroll) {
+    items.forEach(function (other) { other.classList.remove("flash"); });
+    li.classList.add("flash");
+    if (scroll) { li.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+  }
+
+  // Map
+  var mapEl = document.getElementById("map");
+  var markers = {};
+  if (!data || typeof L === "undefined") {
+    mapEl.classList.add("map-failed");
+    mapEl.textContent = "The map could not load. Every station is in the list.";
+  } else {
+    var centre = [parseFloat(mapEl.dataset.centreLat), parseFloat(mapEl.dataset.centreLon)];
+    var map = L.map(mapEl, { scrollWheelZoom: false });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>'
+    }).addTo(map);
+    L.circle(centre, {
+      radius: parseFloat(mapEl.dataset.radiusKm) * 1000,
+      color: "#2a78d6", weight: 1.5, opacity: 0.7, fillColor: "#2a78d6", fillOpacity: 0.04, interactive: false
+    }).addTo(map);
+    L.marker(centre, {
+      icon: L.divIcon({ className: "centre-pin", html: "<span></span>", iconSize: [0, 0] }),
+      title: "Greenwich (search centre)", keyboard: false
+    }).addTo(map).bindTooltip("Greenwich");
+
+    var bounds = L.latLngBounds([centre]);
+    var bestId = data.recommendation.station_id;
+    data.stations.forEach(function (s) {
+      var li = byId[s.id];
+      var isBest = s.id === bestId;
+      var priced = s.listed_price_cpl !== null;
+      var price = priced ? s.listed_price_cpl.toFixed(1) + " c/L" : "No E10 price";
+      var pin = document.createElement("span");
+      pin.textContent = priced ? s.listed_price_cpl.toFixed(1) : "No price";
+      var marker = L.marker([s.lat, s.lon], {
+        icon: L.divIcon({ className: "price-pin" + (isBest ? " best" : "") + (priced ? "" : " unpriced"),
+                          html: pin.outerHTML, iconSize: [0, 0] }),
+        title: s.name + ": " + price,
+        riseOnHover: true,
+        zIndexOffset: isBest ? 1000 : 0
+      }).addTo(map);
+
+      var popup = document.createElement("div");
+      var name = document.createElement("strong");
+      name.textContent = s.name;
+      popup.appendChild(name);
+      var lines = [
+        (li ? li.querySelector(".st-addr").textContent : ""),
+        price + " · " + s.distance_km.toFixed(2) + " km away",
+        isBest ? "Cheapest E10 within 10 km" : ""
+      ];
+      lines.forEach(function (text) {
+        if (!text) { return; }
+        popup.appendChild(document.createElement("br"));
+        popup.appendChild(document.createTextNode(text));
+      });
+      marker.bindPopup(popup);
+      marker.on("click", function () { if (li) { flash(li, !narrow()); } });
+      markers[s.id] = marker;
+      bounds.extend([s.lat, s.lon]);
+    });
+    map.fitBounds(bounds, { padding: [24, 24] });
+
+    var focusStation = function (id) {
+      var marker = markers[id];
+      if (!marker) { return; }
+      map.setView(marker.getLatLng(), Math.max(map.getZoom(), 14));
+      marker.openPopup();
+      if (narrow()) { mapEl.scrollIntoView({ block: "center", behavior: "smooth" }); }
+    };
+    items.forEach(function (li) {
+      li.querySelector(".st-name").addEventListener("click", function () {
+        flash(li, false);
+        focusStation(li.dataset.stationId);
+      });
+    });
+    document.querySelector(".reco-locate").addEventListener("click", function (event) {
+      var id = event.currentTarget.dataset.stationId;
+      focusStation(id);
+      mapEl.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }
+
+  // Trend chart: crosshair and tooltip that snap to the nearest day
+  var svg = document.querySelector(".trend");
+  var tip = document.querySelector(".tip");
+  var points = Array.prototype.slice.call(svg.querySelectorAll(".pt"));
+  var cross = svg.querySelector(".crosshair");
+  var active = -1;
+  var wrap = svg.parentNode;
+  wrap.scrollLeft = wrap.scrollWidth;  // narrow screens scroll the chart; open on the latest day
+  function show(index, reveal) {
+    if (index < 0 || index >= points.length) { return; }
+    active = index;
+    var pt = points[index];
+    points.forEach(function (p) { p.classList.toggle("on", p === pt); });
+    var cx = pt.getAttribute("cx");
+    cross.setAttribute("x1", cx);
+    cross.setAttribute("x2", cx);
+    cross.setAttribute("visibility", "visible");
+    tip.querySelector(".tip-value").textContent = parseFloat(pt.dataset.value).toFixed(2) + " c/L";
+    tip.querySelector(".tip-date").textContent = pt.dataset.date + " · " + pt.dataset.stations + " stations";
+    var box = svg.getBoundingClientRect();
+    var scale = box.width / svg.viewBox.baseVal.width;
+    var x = parseFloat(cx) * scale;
+    if (reveal && (x < wrap.scrollLeft + 24 || x > wrap.scrollLeft + wrap.clientWidth - 24)) {
+      wrap.scrollLeft = x - wrap.clientWidth / 2;  // keyboard selection scrolls its day into view
+    }
+    tip.hidden = false;
+    var half = tip.offsetWidth / 2;
+    // Keep the tooltip inside the visible part of the (possibly scrolled) chart.
+    tip.style.left = Math.min(Math.max(x, wrap.scrollLeft + half), wrap.scrollLeft + wrap.clientWidth - half) + "px";
+    var y = parseFloat(pt.getAttribute("cy")) * scale;
+    tip.style.top = y + "px";
+    tip.classList.toggle("below", y < tip.offsetHeight * 1.1 + 4);  // no room above a high point
+  }
+  function hide() {
+    active = -1;
+    tip.hidden = true;
+    cross.setAttribute("visibility", "hidden");
+    points.forEach(function (p) { p.classList.remove("on"); });
+  }
+  function nearest(clientX) {
+    var box = svg.getBoundingClientRect();
+    var x = (clientX - box.left) * svg.viewBox.baseVal.width / box.width;
+    var best = 0;
+    points.forEach(function (p, i) {
+      if (Math.abs(p.getAttribute("cx") - x) < Math.abs(points[best].getAttribute("cx") - x)) { best = i; }
+    });
+    return best;
+  }
+  svg.addEventListener("pointermove", function (event) { show(nearest(event.clientX)); });
+  svg.addEventListener("pointerdown", function (event) { show(nearest(event.clientX)); });
+  // A mouse leaving hides the tooltip; a tapped tooltip stays until the next tap elsewhere.
+  svg.addEventListener("pointerleave", function (event) { if (event.pointerType === "mouse") { hide(); } });
+  document.addEventListener("pointerdown", function (event) { if (!svg.contains(event.target)) { hide(); } });
+  svg.setAttribute("tabindex", "0");
+  svg.addEventListener("focus", function () { show(points.length - 1, true); });
+  svg.addEventListener("blur", hide);
+  svg.addEventListener("keydown", function (event) {
+    if (event.key === "ArrowLeft") { show(Math.max(0, active - 1), true); event.preventDefault(); }
+    if (event.key === "ArrowRight") { show(Math.min(points.length - 1, active + 1), true); event.preventDefault(); }
+    if (event.key === "Escape") { hide(); }
+  });
+})();
+</script>
+</body>
+</html>
