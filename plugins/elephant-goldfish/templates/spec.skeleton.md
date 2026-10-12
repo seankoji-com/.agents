@@ -29,3 +29,6 @@ uses to break ties, so vagueness here costs less than vagueness in §1 — but i
 How to handle partial credit, source disagreement, and unresolvable open questions carried
 over from discovery.md §7. State whether an honest "not knowable" is an acceptable answer; if
 the interview never settled that, say it never settled.
+Retain named execution blockers, their owners and next actions. Routine nonblocking
+choices permit stated assumptions; dependent work stays held at unresolved licence,
+budget, identity, credential, or authorisation gates.

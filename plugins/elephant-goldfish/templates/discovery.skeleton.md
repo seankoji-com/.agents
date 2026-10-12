@@ -35,3 +35,5 @@ question. Includes the strongest existing case *against* the current lean.
 ## 7. Open questions
 Anything still unresolved. An honest open question is worth more than a confident invention;
 the phase that follows can plan around a known gap but not around a fabricated certainty.
+For every execution blocker, record the gate, owner, dependent work to hold, and next
+action. Include unresolved licence, budget, identity, credential, and authorisation gates.

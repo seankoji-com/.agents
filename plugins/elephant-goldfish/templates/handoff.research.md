@@ -6,9 +6,12 @@
   Do not edit it by hand — edit discovery.md or spec.md and re-render.
 -->
 
-You are producing a research deliverable. Everything you need is in this message; there is no
-prior conversation to draw on and no opportunity to ask follow-up questions. Treat this as a
-single attempt.
+When the user separately authorises research, use this brief within that scope.
+Unresolved gates may require follow-up questions. Verify provenance with
+`scripts/render_handoff.py <topic-slug> --check` and current review/readiness with
+`scripts/thinking_state.py gate <topic-slug> --require discovery,spec,handoff`.
+Neither check authorises execution. An owner override only permits finalising the brief.
+Run the helpers from the Elephant Goldfish installation, with the project's thinking root.
 
 Two documents follow. The first defines the problem and the constraints. The second is the
 rubric your output will be graded against by someone who did not write it and who will not
@@ -16,7 +19,10 @@ give you the benefit of the doubt.
 
 Produce a final output that thoroughly answers the question and comfortably passes every
 criterion in the evaluation section. Where the brief leaves something genuinely undetermined,
-state the assumption you made and carry on — do not stop to ask.
+state a reasonable assumption for routine nonblocking choices and continue. Hold work
+dependent on unresolved licence, budget, identity, credential, or authorisation gates.
+Retain owners and next actions, and ask the owner when needed. Do not invent credentials,
+widen access, or increase a budget to clear a blocker.
 
 ---
 

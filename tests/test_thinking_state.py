@@ -65,6 +65,15 @@ def run(argv):
         return code, None
 
 
+def accept(slug="t"):
+    digest = run(["resolve", slug])[1]["artifacts"]["discovery.md"]["sha256"]
+    code, out = run(["review", slug, "--decision", "accepted", "--scope", "finalise-brief",
+                     "--discovery-sha256", digest, "--evidence-ref", "fixture:user-message:1",
+                     "--operator-statement", "I accept this discovery as presented."])
+    if code:
+        raise AssertionError(out)
+
+
 class TestSlugValidation(unittest.TestCase):
     def test_topic_symlink_cannot_redirect_metadata_writes(self):
         from pathlib import Path
@@ -159,10 +168,15 @@ class TestPhaseProgression(unittest.TestCase):
             self._topic()
             self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "discovery")
             write("thinking/t/discovery.md", "d")
+            self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "discovery_review")
+            accept()
             self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "spec")
             write("thinking/t/spec.md", "s")
             self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "handoff")
-            write("thinking/t/handoff.md", "h")
+            import subprocess
+            import sys
+            subprocess.run([sys.executable, os.path.join(os.path.dirname(_SCRIPT_PATH), "render_handoff.py"), "t"],
+                           check=True, capture_output=True)
             self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "complete")
 
     def test_reports_only_the_three_pipeline_artifacts(self):
@@ -173,7 +187,7 @@ class TestPhaseProgression(unittest.TestCase):
             for name in ("discovery.md", "spec.md", "handoff.md"):
                 write(f"thinking/t/{name}", "x")
             out = run(["resolve", "t"])[1]
-            self.assertEqual(out["next_phase"], "complete")
+            self.assertEqual(out["next_phase"], "discovery_review")
             self.assertEqual(
                 sorted(out["artifacts"]), ["discovery.md", "handoff.md", "spec.md"]
             )
@@ -268,6 +282,7 @@ class TestGate(unittest.TestCase):
             run(["init", "t", "--output-type", "research"])
             write("thinking/t/discovery.md", "d")
             write("thinking/t/spec.md", "s")
+            accept()
             code, out = run(["gate", "t", "--require", "discovery,spec"])
             self.assertEqual(code, 0)
             self.assertEqual(out["gate"], "pass")
@@ -298,6 +313,7 @@ class TestGate(unittest.TestCase):
         with sandbox():
             run(["init", "t", "--output-type", "research"])
             write("thinking/t/discovery.md", "d")
+            accept()
             self.assertEqual(run(["gate", "t", "--require", "discovery.md"])[0], 0)
             self.assertEqual(run(["gate", "t", "--require", "discovery"])[0], 0)
 
@@ -332,7 +348,7 @@ class TestListAndLegacy(unittest.TestCase):
             write("thinking/bbb/discovery.md", "d")
             topics = {t["slug"]: t for t in run(["list"])[1]["topics"]}
             self.assertEqual(topics["aaa"]["next_phase"], "discovery")
-            self.assertEqual(topics["bbb"]["next_phase"], "spec")
+            self.assertEqual(topics["bbb"]["next_phase"], "discovery_review")
             self.assertEqual(topics["bbb"]["output_type"], "implementation")
 
     def test_corrupt_meta_reports_rather_than_crashing(self):

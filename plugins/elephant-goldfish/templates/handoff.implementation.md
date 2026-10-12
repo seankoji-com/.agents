@@ -6,9 +6,13 @@
   of a fresh session. Do not edit it by hand — edit discovery.md or spec.md and re-render.
 -->
 
-Verify `handoff.manifest.json` against this file and the discovery/spec inputs before implementation; use `scripts/render_handoff.py <topic-slug> --check` from the Elephant Goldfish installation. Re-render mismatches from the reviewed inputs.
+Before separately authorised implementation, verify provenance with
+`scripts/render_handoff.py <topic-slug> --check` and review/readiness with
+`scripts/thinking_state.py gate <topic-slug> --require discovery,spec,handoff`
+from the Elephant Goldfish installation. Re-render mismatches from reviewed inputs.
+Neither check authorises execution. An owner override applies only to finalising the brief.
 
-## Run it
+## When the user authorises implementation
 
 ```sh
 t3-plugins prompt imps "Read thinking/{{TOPIC_SLUG}}/handoff.md in full and implement what it describes. Treat the evaluation criteria as hard requirements and the auto-reject conditions as absolute. Do not re-propose any approach the problem definition rules out."
@@ -18,15 +22,20 @@ Or paste everything below as the first message of a fresh session.
 
 ---
 
-You are implementing a change. Everything you need is in this document; there is no prior
-conversation to draw on and no opportunity to ask follow-up questions. Preserve requirement IDs, constraints and rejected options. Implement and verify against the original acceptance contract; retain evidence on the tested revision. Unverified requirements remain incomplete. A fresh context is a design choice to evaluate, not a guarantee of independence.
+Once separately authorised, implement within the user's stated scope. This document
+contains the brief, but unresolved gates may require follow-up questions. Preserve
+requirement IDs, constraints and rejected options. Implement and verify against the
+original acceptance contract; retain evidence on the tested revision. Unverified
+requirements remain incomplete. A fresh context does not guarantee independence.
 
 Two sections follow. The first defines the problem, the current state of the code, and the
 constraints. The second is the rubric the change will be reviewed against by someone who did
 not write it.
 
-Follow the plan as specified. Where it leaves something genuinely undetermined, state the
-assumption you made and carry on — do not stop to ask.
+For routine nonblocking choices, state a reasonable assumption and continue. Hold work
+dependent on unresolved licence, budget, identity, credential, or authorisation gates.
+Retain each blocker's owner and next action; ask the owner when resolution is needed.
+Do not invent credentials, widen access, or increase a budget to clear a blocker.
 
 ---
 
