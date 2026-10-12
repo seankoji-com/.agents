@@ -311,6 +311,41 @@ class AlignmentTest(unittest.TestCase):
         server.write_text('{"projects":{"/fixture/project":{"mcpServers":{"repo":{"command":"fixture"}}}}}')
         self.assertEqual(align.compare(catalog, inventory)['capabilities'][0]['states'], ['unknown'])
 
+    def test_claude_disabled_servers_plan_and_apply_match_inventory_support(self):
+        plan = self.proposal('claude', '{"disabledMcpServers":[]}',
+                             '{"disabledMcpServers":["fixture"]}', ['/disabledMcpServers'])
+        backup = self.root / 'disable-backup'
+        align.apply(plan, plan['approval_digest'], str(backup))
+        self.assertEqual(json.loads(self.target.read_text())['disabledMcpServers'], ['fixture'])
+        self.assertEqual(align.resources('claude', json.loads(self.target.read_text()))['mcp']['fixture'], 'disabled')
+
+    def test_invalid_opencode_permission_actions_fail_before_planning(self):
+        for value in [True, 123, None, [], 'invalid', {'bash': 'invalid'}, {'bash': {'*': 123}}, {'bash': {'*': {'nested': 'allow'}}}]:
+            for agent in [False, True]:
+                data = {'permission': value}
+                if agent:
+                    data = {'agent': {'build': data}}
+                with self.subTest(value=value, agent=agent), self.assertRaises(ValueError):
+                    align.parse('opencode', json.dumps(data).encode())
+        align.parse('opencode', b'{"permission":{"bash":{"*":"ask","git *":"allow"}}}')
+
+    def test_project_scope_conflicts_are_never_overwritten_by_disable_markers(self):
+        data = {'projects': {'/fixture/project': {'mcpServers': {'fixture': {'command': 'fixture-command'}}}},
+                'disabledMcpServers': ['fixture'], 'enabledMcpjsonServers': ['fixture'],
+                'mcpServers': {'fixture': {'disabled': True, 'command': 'fixture-command'}}}
+        self.assertEqual(align.resources('claude', data)['mcp']['fixture'], 'scope_conflict')
+
+    def test_approval_only_mcp_is_unknown_until_a_definition_is_supplied(self):
+        catalog = {'providers': [{'providerInstanceId': 'claude'}]}
+        approvals = self.file('approvals.json', '{"enabledMcpjsonServers":["fixture"]}')
+        inventory = {'version': 1, 'providers': [{'provider_instance_id': 'claude', 'adapter': 'claude',
+                     'sources': [{'path': str(approvals), 'scope': 'global'}]}],
+                     'capabilities': [{'kind': 'mcp', 'members': {'claude': 'fixture'}}]}
+        self.assertEqual(align.compare(catalog, inventory)['capabilities'][0]['states'], ['unknown'])
+        definition = self.file('definition.json', '{"mcpServers":{"fixture":{"command":"fixture-command"}}}')
+        inventory['providers'][0]['sources'].append({'path': str(definition), 'scope': 'project'})
+        self.assertEqual(align.compare(catalog, inventory)['capabilities'][0]['states'], ['configured'])
+
     def test_compare_fifo_returns_invalid_instead_of_blocking(self):
         source = self.root / 'fifo-source'
         os.mkfifo(source)

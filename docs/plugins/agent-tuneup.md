@@ -93,7 +93,8 @@ The receipt uses indices in catalog/source/capability order, with states such as
 `configured`, `disabled`, `scope_conflict`, `not_in_supplied_sources`, and `unknown`.
 Keep the name legend private. `configured` describes the supplied file only. It does
 not prove that the provider loads the file, that a plugin is installed, or that an
-MCP authenticates. No files change during comparison.
+MCP authenticates. An approval-list entry without a supplied MCP definition remains `unknown`.
+No files change during comparison.
 
 ## Apply approved changes
 

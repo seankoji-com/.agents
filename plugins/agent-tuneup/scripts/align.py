@@ -21,7 +21,7 @@ _spec.loader.exec_module(audit)
 ADAPTERS = {'claude', 'codex', 'opencode', 'antigravity'}
 ROOTS = {
     'claude': {'permissions', 'mcpServers', 'enabledPlugins', 'enabledMcpjsonServers',
-               'disabledMcpjsonServers', 'enableAllProjectMcpServers', 'sandbox'},
+               'disabledMcpjsonServers', 'disabledMcpServers', 'enableAllProjectMcpServers', 'sandbox'},
     'codex': {'approval_policy', 'sandbox_mode', 'sandbox_workspace_write', 'mcp_servers', 'plugins'},
     'opencode': {'permission', 'mcp', 'plugin'},
     'antigravity': {'mcpServers'},
@@ -40,6 +40,16 @@ def sha(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
+def validate_permission(value, depth=0):
+    if isinstance(value, dict):
+        if depth >= 2:
+            raise ValueError('invalid_settings')
+        for action in value.values():
+            validate_permission(action, depth + 1)
+    elif not isinstance(value, str) or value not in {'allow', 'ask', 'deny'}:
+        raise ValueError('invalid_settings')
+
+
 def parse(adapter, raw):
     if adapter not in ADAPTERS:
         raise ValueError('unsupported_adapter')
@@ -56,12 +66,31 @@ def parse(adapter, raw):
         raise ValueError('invalid_settings')
     if adapter != 'antigravity':
         audit.inspect(adapter, data)
+    if adapter == 'opencode':
+        validate_permission(data.get('permission', {}))
+        agents = data.get('agent', {})
+        if not isinstance(agents, dict):
+            raise ValueError('invalid_settings')
+        for agent in agents.values():
+            if not isinstance(agent, dict):
+                raise ValueError('invalid_settings')
+            validate_permission(agent.get('permission', {}))
     resources(adapter, data)  # Validate fields used by the inventory.
     return data
 
 
 def resources(adapter, data):
     result = {'mcp': {}, 'plugin': {}}
+
+    def record(name, state):
+        previous = result['mcp'].get(name)
+        if state == 'approval_only' and previous is not None:
+            return
+        if previous in (None, 'approval_only'):
+            result['mcp'][name] = state
+        elif previous != state:
+            result['mcp'][name] = 'scope_conflict'
+
     key = {'codex': 'mcp_servers', 'opencode': 'mcp'}.get(adapter, 'mcpServers')
     servers = data.get(key, {})
     if not isinstance(servers, dict):
@@ -77,13 +106,15 @@ def resources(adapter, data):
                 raise ValueError('invalid_projects')
             nested = resources('claude', {k: v for k, v in project.items() if k != 'projects'})
             for name in nested['mcp']:
-                result['mcp'][name] = 'project_scoped'
+                record(name, 'project_scoped')
         for field in ('disabledMcpjsonServers', 'enabledMcpjsonServers', 'disabledMcpServers'):
             names = data.get(field, [])
             if not isinstance(names, list) or any(not isinstance(v, str) for v in names):
                 raise ValueError('invalid_mcp')
         for name in data.get('disabledMcpjsonServers', []) + data.get('disabledMcpServers', []):
-            result['mcp'][name] = 'disabled'
+            record(name, 'disabled')
+        for name in data.get('enabledMcpjsonServers', []):
+            record(name, 'approval_only')
     for name, config in servers.items():
         if not isinstance(config, dict):
             raise ValueError('invalid_mcp')
@@ -93,8 +124,7 @@ def resources(adapter, data):
             raise ValueError('invalid_mcp')
         # A configured server does not prove approval, authentication or reachability.
         state = 'disabled' if not enabled or disabled else 'configured'
-        previous = result['mcp'].get(name)
-        result['mcp'][name] = 'scope_conflict' if previous and previous != state else state
+        record(name, state)
     if adapter == 'claude':
         plugins = data.get('enabledPlugins', {})
         if not isinstance(plugins, dict) or any(type(v) is not bool for v in plugins.values()):
@@ -163,7 +193,10 @@ def compare(catalog, inventory):
                 status = 'unknown'
             else:
                 states = {o[kind][native] for o in observations[ident] if native in o[kind]}
-                status = 'unknown' if 'project_scoped' in states else next(iter(states)) if len(states) == 1 else 'scope_conflict' if states else 'not_in_supplied_sources'
+                states_without_approval = states - {'approval_only'}
+                status = 'unknown' if 'project_scoped' in states or states == {'approval_only'} else (
+                    next(iter(states_without_approval)) if len(states_without_approval) == 1 else
+                    'scope_conflict' if states_without_approval else 'not_in_supplied_sources')
                 # A failed layer makes the complete state unknown even if another parsed.
                 if any(s['status'] != 'parsed' for s in rows[ids.index(ident)]['sources']):
                     status = 'unknown'

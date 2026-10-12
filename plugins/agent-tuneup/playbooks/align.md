@@ -49,6 +49,7 @@ IDs. Claude JSON supports `mcpServers` and `enabledPlugins`; OpenCode JSON/JSONC
 supports `mcp` and `plugin`; Codex TOML supports `mcp_servers`. Codex plugin identity
 policy tables are not installed-plugin evidence. For Claude, include `.mcp.json`,
 user/local MCPs in `~/.claude.json`, and settings that contain approval/disable lists.
+Approval-list entries without a supplied server definition remain unknown.
 Nested `projects.<path>.mcpServers` and project disable lists are detected but remain
 unknown until the relevant project and native precedence are reviewed locally. Antigravity JSON/JSONC supports
 `mcpServers` inventory only; its permissions, extensions and loading behavior need
@@ -96,8 +97,8 @@ needed, with the same approval, backup and validation requirements.
 
 `--allow-key` repeats for every changed JSON pointer, using `~1` for `/` and `~0`
 for `~`. Arrays are reviewed as a whole. OpenCode permission-pattern reordering counts
-as a change to its parent object because pattern precedence depends on order. The helper rejects changes outside its
-supported settings roots and mismatched change lists. It also refuses newly added
+as a change to its parent object because pattern precedence depends on order.
+The helper rejects changes outside its supported settings roots and mismatched change lists. It also refuses newly added
 known broad permission/sandbox patterns, including supported policy overrides.
 The helper also conservatively refuses removal of exact Claude deny/ask rules,
 protected sandbox fields, explicit Codex policies, and OpenCode deny/ask actions,
@@ -107,12 +108,12 @@ MCPs, and added Codex workspace networking.
 Plans and receipts retain before/after risk counts and explicitly say permission
 semantics are not evaluated. Unlisted options, changed glob/command meaning, deny
 precedence and inheritance can still loosen access without a finding. Review every
-changed key and its native defaults before approving; equal counts prove nothing. Private plans contain paths,
-changed keys, hashes and file identity, but no configuration values. The public
-receipt contains the digest, changed-key count, risk code counts and validation limits. Plans and backups are 0600,
-created exclusively, and never overwrite existing files. The helper does not
-enforce repository exclusion; choose private storage outside every checkout. The settings files must
-be owned regular files without hard links or group/other write access.
+changed key and its native defaults before approving; equal counts prove nothing.
+Private plans contain paths, changed keys, hashes and file identity, but no configuration values. The public
+receipt contains the digest, changed-key count, risk code counts and validation
+limits. Plans and backups are 0600, created exclusively, and never overwrite existing files. The helper does not
+enforce repository exclusion; choose private storage outside every checkout.
+The settings files must be owned regular files without hard links or group/other write access.
 
 ## Apply approved changes
 
