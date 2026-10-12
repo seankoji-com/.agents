@@ -12,7 +12,7 @@ Only a live workflow run answers the third.
 | Portable workflow entries | Readable with local file access | Entry/path contracts and manual review; no full provider matrix yet |
 | imps 1.0 evidence gate | Deterministic tests; live provider matrix pending | `tests/test_snapshot.py`, `tests/test_review.py`, `tests/test_readiness.py`, `tests/test_gate_boundaries.py` |
 | Previous imps gate | Historical partial live conformance for `0.1.0+ga50f506cd178` | [Recorded matrix](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/compatibility.md) |
-| agent-tuneup | Known-pattern audit adapters | Claude JSON, OpenCode JSON/JSONC, Codex TOML tests |
+| agent-tuneup | Audit, alignment inventory and approved native settings writes | Claude JSON, OpenCode JSON/JSONC, Codex TOML; Antigravity MCP JSON/JSONC fixtures. Effective policy and live loading need separate checks. |
 
 The historical imps ledger covers plugin `0.1.0+ga50f506cd178` and records T3 `0.0.46-nightly.20261008.2849`, exact model IDs, repeat
 counts, interventions, failures, and artifacts. Codex and Claude completed repeated

@@ -128,6 +128,31 @@ class CatalogTest(unittest.TestCase):
         self.assertTrue(receipt['ok'])
         self.assertNotIn('Bash(*)', result.stdout)
 
+    def test_installed_alignment_helper_plans_and_applies_outside_checkout(self):
+        self.call('install', 'agent-tuneup')
+        project = Path(self.tmp.name).resolve() / 'alignment-project'
+        project.mkdir()
+        target = project / 'settings.json'
+        candidate = project / 'candidate.json'
+        target.write_text('{"permissions":{"allow":["Read(*)"]}}')
+        candidate.write_text('{"permissions":{"allow":[]}}')
+        target.chmod(0o600)
+        candidate.chmod(0o600)
+        script = self.prefix / 'agent-tuneup/current/scripts/align.py'
+        plan = project / 'plan.json'
+        result = subprocess.run([sys.executable, '-I', str(script), 'plan', '--adapter', 'claude',
+                                 '--target', str(target), '--candidate', str(candidate),
+                                 '--allow-key', '/permissions/allow', '--out', str(plan)],
+                                cwd=project, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        digest = json.loads(result.stdout)['approval_digest']
+        result = subprocess.run([sys.executable, '-I', str(script), 'apply', '--plan', str(plan),
+                                 '--approval', digest, '--backup', str(project / 'backup')],
+                                cwd=project, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(target.read_bytes(), candidate.read_bytes())
+        self.assertEqual((project / 'backup').read_text(), '{"permissions":{"allow":["Read(*)"]}}')
+
     def test_retired_plugins_are_not_in_the_catalog(self):
         listed = self.call('list').stdout
         for name in ('offload-sidecar', 'prompt-builder'):

@@ -8,7 +8,7 @@ Start with a concrete job. A short shell command or direct agent request is ofte
 | [elephant-goldfish](elephant-goldfish.md) | Prepare a brief that a fresh session can use |
 | [ape](ape.md) | Find ideas that transfer to your project |
 | [babysitter](babysitter.md) | Carry pull requests through review and CI |
-| [agent-tuneup](agent-tuneup.md) | Inspect agent settings without weakening them |
+| [agent-tuneup](agent-tuneup.md) | Align agent settings with reviewed provider-specific changes |
 
 All entries can be read by any T3 provider with filesystem access. That is a portability contract, not a completed live conformance matrix. See [compatibility](../compatibility.md).
 
@@ -18,7 +18,7 @@ All entries can be read by any T3 provider with filesystem access. That is a por
 - Still deciding what should change? Start with **elephant-goldfish**, then hand its brief to imps.
 - Need evidence from another codebase? Use **ape** before committing to an approach.
 - Already have a PR? Give **babysitter** its URL and the actions you authorize.
-- Worried about agent permissions? Use **agent-tuneup** with an explicit settings file.
+- Comparing provider permissions, MCPs or plugins? Use **agent-tuneup** with `align`.
 
 Every workflow has a `doctor` operation. [Install once](../getting-started.md), then
 use the T3 skill picker or [generate a prompt](../cli.md#catalog-commands).
