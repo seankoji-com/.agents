@@ -267,6 +267,26 @@ class AlignmentTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'unsupported_or_empty_change'):
             self.proposal('claude', '{}', candidate, ['/hooks'])
 
+    def test_opencode_permission_order_cannot_hide_behind_mcp_changes(self):
+        for prefix in [(), ('agent', 'build')]:
+            before = {'permission': {'bash': {'*': 'allow', 'rm *': 'deny'}}}
+            after = {'permission': {'bash': {'rm *': 'deny', '*': 'allow'}}}
+            if prefix:
+                before = {'agent': {'build': before}}
+                after = {'agent': {'build': after}}
+            before['mcp'] = {}
+            after['mcp'] = {'fixture': {'type': 'local', 'command': ['fixture-command']}}
+            with self.subTest(prefix=prefix), self.assertRaisesRegex(ValueError, 'changed_keys_do_not_match'):
+                self.proposal('opencode', json.dumps(before), json.dumps(after), ['/mcp/fixture'])
+            policy_key = '/agent/build/permission/bash' if prefix else '/permission/bash'
+            plan = self.proposal('opencode', json.dumps(before), json.dumps(after), ['/mcp/fixture', policy_key])
+            self.assertIn(policy_key, plan['changed_keys'])
+        # Reordering retained patterns must remain visible alongside a new pattern.
+        before = {'permission': {'bash': {'*': 'allow', 'rm *': 'deny'}}}
+        after = {'permission': {'bash': {'rm *': 'deny', '*': 'allow', 'git *': 'ask'}}}
+        self.assertEqual(align.changed_paths(before, after, adapter='opencode'), [('permission', 'bash')])
+        self.assertEqual(align.changed_paths(before, {'permission': {'bash': {'rm *': 'deny', '*': 'allow'}}}, adapter='claude'), [])
+
     def test_nested_policy_changes_work_without_changing_model_identity(self):
         cases = [('opencode', '{"agent":{"build":{"permission":{"bash":"allow"},"model":"fixture"}}}',
                   '{"agent":{"build":{"permission":{"bash":"ask"},"model":"fixture"}}}', ['/agent/build/permission/bash'])]

@@ -116,6 +116,8 @@ python3 "$(dirname "$entry")/scripts/align.py" apply \
 ```
 
 Repeat `--allow-key` for each changed JSON pointer; arrays count as one change.
+OpenCode permission-pattern reordering changes the parent pointer and needs review.
+Scalar-to-object permission rewrites may be conservatively refused.
 Unrelated settings roots cannot change. Supported changes include Claude permissions,
 MCP settings and sandbox; Codex approval/sandbox/MCP/plugin settings and
 profile policy overrides; OpenCode permissions, MCPs, plugins and agent permission

@@ -304,14 +304,22 @@ def equal_value(before, after):
     return before == after
 
 
-def changed_paths(before, after, prefix=()):
+def changed_paths(before, after, prefix=(), adapter=None):
     if isinstance(before, dict) and isinstance(after, dict):
+        ordered_policy = adapter == 'opencode' and (
+            prefix[:1] == ('permission',) or
+            len(prefix) >= 3 and prefix[0] == 'agent' and prefix[2] == 'permission')
+        # Retained patterns can change last-match precedence even when other
+        # patterns are added/deleted at the same time. Review the whole parent.
+        if ordered_policy and ([k for k in before if k in after] !=
+                               [k for k in after if k in before]):
+            return [prefix]
         paths = []
         for key in sorted(before.keys() | after.keys()):
             if key not in before or key not in after:
                 paths.append(prefix + (key,))
             else:
-                paths.extend(changed_paths(before[key], after[key], prefix + (key,)))
+                paths.extend(changed_paths(before[key], after[key], prefix + (key,), adapter))
         return paths
     # bool and int compare equal in Python but have distinct native config types.
     return [] if equal_value(before, after) else [prefix]
@@ -374,7 +382,7 @@ def prepare(adapter, target, candidate, allowed):
     before, info = read_regular(target)
     after, _ = read_regular(candidate)
     old, new = parse(adapter, before), parse(adapter, after)
-    changes = changed_paths(old, new)
+    changes = changed_paths(old, new, adapter=adapter)
     if not changes or any(not allowed_change(adapter, p, old, new) for p in changes):
         raise ValueError('unsupported_or_empty_change')
     before_risks, after_risks = risk_counts(adapter, old), risk_counts(adapter, new)

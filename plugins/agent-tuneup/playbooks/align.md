@@ -95,7 +95,8 @@ and Claude `projects`/`hooks` writes are excluded. Propose those edits separatel
 needed, with the same approval, backup and validation requirements.
 
 `--allow-key` repeats for every changed JSON pointer, using `~1` for `/` and `~0`
-for `~`. Arrays are reviewed as a whole. The helper rejects changes outside its
+for `~`. Arrays are reviewed as a whole. OpenCode permission-pattern reordering counts
+as a change to its parent object because pattern precedence depends on order. The helper rejects changes outside its
 supported settings roots and mismatched change lists. It also refuses newly added
 known broad permission/sandbox patterns, including supported policy overrides.
 The helper also conservatively refuses removal of exact Claude deny/ask rules,
@@ -108,7 +109,7 @@ semantics are not evaluated. Unlisted options, changed glob/command meaning, den
 precedence and inheritance can still loosen access without a finding. Review every
 changed key and its native defaults before approving; equal counts prove nothing. Private plans contain paths,
 changed keys, hashes and file identity, but no configuration values. The public
-receipt contains only the digest and changed-key count. Plans and backups are 0600,
+receipt contains the digest, changed-key count, risk code counts and validation limits. Plans and backups are 0600,
 created exclusively, and never overwrite existing files. The helper does not
 enforce repository exclusion; choose private storage outside every checkout. The settings files must
 be owned regular files without hard links or group/other write access.
@@ -144,3 +145,7 @@ read-only tool call; verify installed plugin/skill discovery and approval behavi
 T3-injected tools need a T3 session check. Report comparison, proposal, owner approval,
 files applied, backups, parser results and live acceptance separately. Do not claim
 aligned effective permissions from file equality, fixture tests or a running process.
+
+Scalar-to-object OpenCode permission rewrites may be conservatively refused.
+Review such native shape changes separately instead of treating the refusal as
+proof that the proposed grant is broad.
