@@ -48,8 +48,8 @@ plan the change. Continue while questions resolve useful uncertainty. Stop when 
 
 ## Phase 2 — Rubric (article step 2)
 
-Framing: the user is briefing an engineer who gets one shot at the change, cannot ask
-questions, and will not be around to explain themselves at review. Every criterion must be
+Framing: the user is briefing an engineer who needs a usable contract. Named execution
+blockers may require follow-up; routine choices permit stated assumptions. Every criterion must be
 checkable by a reviewer who wasn't in this conversation.
 
 ### Definition of done

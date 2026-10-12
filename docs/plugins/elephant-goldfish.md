@@ -35,11 +35,42 @@ from `/` and append the same request instead.
 Local `thinking/<topic>/discovery.md`, `spec.md`, `handoff.md` and a provenance
 manifest. Discovery records decisions and unknowns; the specification gives stable
 requirement IDs and observable acceptance criteria. The handoff copies the source
-verbatim with hashes. Give it to a fresh thread when you are ready to implement.
+verbatim with hashes. The agent presents refined discovery for your review before
+finalising the rubric. Your acceptance is recorded against that content's hash;
+editing discovery reopens review. A complete handoff still needs a separate instruction
+to start implementation or research.
+
+## Review and drafts
+
+`thinking list` and `resolve` show `discovery_review` and a reason when acceptance
+evidence is missing, malformed, or stale. Old topics need review too. A review
+receipt stores your actual statement and its source reference, with scope
+`finalise-brief`. It records evidence, not cryptographic proof of human intent.
+An explicit owner override records `owner_override` for that same scope. It does
+not claim acceptance or grant implementation authority.
+
+You can ask for an incomplete draft or stop the interview at any time. Draft specs
+carry `<!-- thinking:draft -->` and a visible non-executable label. The renderer's
+`--draft` option writes `handoff.draft.md` and `handoff.draft.manifest.json`, without
+an execution prompt. Draft output never completes a topic.
+
+The final renderer and `thinking_state.py gate <topic> --require discovery,spec,handoff`
+enforce current review/readiness. `render_handoff.py <topic> --check` verifies saved
+source/output hashes only. Provenance does not establish approval or permission to
+execute. After source changes, review discovery again if needed and re-render.
+
+Requirement changes such as "switch to the official API" refine the brief. Resumes,
+scheduled reminders, and unrelated production authorisation keep the thinking
+boundary. A clear request to leave thinking records the request and authorised scope
+before execution. Named licence, budget, identity, credential, and authorisation
+blockers retain owners and next actions; dependent work waits for resolution.
 
 ## Limits
 
 Thinking stops at the handoff. A cold-reader pass establishes readability and completeness, not factual correctness. See [compatibility](../compatibility.md) for the distinction between deterministic tests and live provider results.
+Helpers check receipt structure, content binding, and provenance. They cannot judge
+interview quality, authenticate an operator statement, or prevent every unauthorised
+agent action.
 
 ## Continue planning
 

@@ -71,6 +71,14 @@ def handoff_briefs():
                                                              'github': {'mode': 'none'}, 'published': {}}))
                 (topic / 'discovery.md').write_text('# Discovery\n\nThe problem, stated.\n')
                 (topic / 'spec.md').write_text('# Spec\n\nPass when the output matches.\n')
+                from thinking_state import main as thinking_main, sha256_of
+                with contextlib.redirect_stdout(io.StringIO()):
+                    review_code = thinking_main(['review', 't', '--decision', 'accepted', '--scope', 'finalise-brief',
+                                                 '--discovery-sha256', sha256_of(topic / 'discovery.md'),
+                                                 '--evidence-ref', 'fixture:user-message:1',
+                                                 '--operator-statement', 'I accept this discovery as presented.'])
+                if review_code:
+                    raise AssertionError('fixture discovery review could not be recorded')
                 out = io.StringIO()
                 with contextlib.redirect_stdout(out):
                     code = module.main(['t', '--stdout', '--template-dir', str(plugin / 'templates')])

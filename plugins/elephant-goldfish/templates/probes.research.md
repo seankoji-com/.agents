@@ -10,7 +10,8 @@ the answers they didn't.
 ## Phase 1 — Interrogation (article step 1)
 
 The target is a problem description that captures nuances the user overlooked when they
-started. Aim for 15–20 minutes of real back-and-forth. Stop when the user says stop.
+started. Continue while the answers resolve useful uncertainty; there is no minimum
+question count or duration. Stop when the user says stop.
 
 ### The decision underneath
 - What decision does this research serve? What would you actually *do* differently depending
@@ -50,7 +51,7 @@ already knows narrows the interrogation to territory they've already covered.
 ## Phase 2 — Rubric (article step 2)
 
 Framing to keep in front of you: the user is briefing a researcher they have never met, who
-gets exactly one attempt and cannot ask follow-up questions. Every criterion has to be
+needs a usable contract. Named execution blockers may require follow-up. Every criterion has to be
 checkable by a stranger as pass or fail.
 
 ### Evidence standards

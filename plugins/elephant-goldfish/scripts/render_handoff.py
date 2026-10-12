@@ -13,7 +13,7 @@ output_type, so the research and implementation paths differ in framing without 
 caller deciding anything at render time.
 
 Usage:
-  render_handoff.py <slug> [--root DIR] [--template-dir DIR] [--stdout]
+  render_handoff.py <slug> [--root DIR] [--template-dir DIR] [--stdout] [--draft] [--check]
 """
 
 from __future__ import annotations
@@ -27,6 +27,9 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from thinking_state import DRAFT_MARKER, StateError, cmd_gate, handoff_problem, read_meta
 
 DEFAULT_ROOT = "thinking"
 PLACEHOLDER_RE = re.compile(r"\{\{([A-Z_]+)\}\}")
@@ -93,6 +96,7 @@ def main(argv=None) -> int:
     parser.add_argument("--template-dir", default=None)
     parser.add_argument("--stdout", action="store_true", help="print instead of writing handoff.md")
     parser.add_argument("--check", action="store_true", help="verify saved input/output hashes without writing")
+    parser.add_argument("--draft", action="store_true", help="render/check a non-executable handoff.draft.md")
     args = parser.parse_args(argv)
 
     try:
@@ -101,17 +105,25 @@ def main(argv=None) -> int:
         tdir = Path(args.root) / args.slug
         if tdir.is_symlink() or not tdir.resolve().is_relative_to(Path(args.root).resolve()):
             raise RenderError('topic directory escapes the requested root')
-        for name in ('meta.json', 'discovery.md', 'spec.md', 'handoff.md', 'handoff.manifest.json'):
+        stem = "handoff.draft" if args.draft else "handoff"
+        for name in ('meta.json', 'discovery.md', 'spec.md', f'{stem}.md', f'{stem}.manifest.json'):
             if (tdir / name).is_symlink():
                 raise RenderError(f'topic file may not be a symlink: {name}')
         meta_file = tdir / "meta.json"
         if not meta_file.exists():
             raise RenderError(f"no topic {args.slug!r} under {args.root} — nothing to render")
-        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        meta = read_meta(tdir)
 
         output_type = meta.get("output_type")
         if output_type not in ("research", "implementation"):
             raise RenderError(f"meta.json has invalid output_type {output_type!r}")
+
+        if args.check:
+            problem = handoff_problem(tdir, meta, draft=args.draft)
+            if problem:
+                raise RenderError(problem)
+            print("handoff provenance verified; operator review/readiness and execution authority not verified")
+            return 0
 
         tpl_dir = Path(args.template_dir) if args.template_dir else default_template_dir()
         tpl_file = tpl_dir / f"handoff.{output_type}.md"
@@ -126,9 +138,26 @@ def main(argv=None) -> int:
             "DISCOVERY": read_required(tdir / "discovery.md", "discovery.md"),
             "SPEC": read_required(tdir / "spec.md", "spec.md"),
         }
-        out = render(tpl_file.read_text(encoding="utf-8"), values)
+        if args.draft:
+            # A draft has no execution prompt, even for an implementation output type.
+            out = (f"{DRAFT_MARKER}\n\n# Draft brief: {values['TITLE']}\n\n"
+                   "DRAFT. Non-executable. Discovery review and final readiness are pending.\n"
+                   "This document does not authorise implementation or research execution.\n\n"
+                   f"## Problem definition\n\n{values['DISCOVERY']}\n\n"
+                   f"## Proposed evaluation criteria\n\n{values['SPEC']}\n")
+        else:
+            gate = cmd_gate(argparse.Namespace(root=args.root, slug=args.slug,
+                                              require="discovery,spec", draft=False))
+            for key, filename in (("DISCOVERY", "discovery.md"), ("SPEC", "spec.md")):
+                if hashlib.sha256(values[key].encode()).hexdigest() != gate["input_hashes"][filename]:
+                    raise RenderError("inputs changed during readiness check; retry from reviewed inputs")
+            out = render(tpl_file.read_text(encoding="utf-8"), values)
+            out = (f"Review status: {gate['review']['status']}. Scope: finalise-brief.\n"
+                   "This handoff does not authorise execution. A separate user instruction is required.\n\n"
+                   + out)
         manifest = {
-            "schema": 1,
+            "schema": 2,
+            "status": "draft" if args.draft else "final",
             "topic": args.slug,
             "output_type": output_type,
             "discovery_sha256": hashlib.sha256(values["DISCOVERY"].encode()).hexdigest(),
@@ -136,21 +165,13 @@ def main(argv=None) -> int:
             "handoff_sha256": hashlib.sha256(out.encode()).hexdigest(),
             "requirement_ids": list(dict.fromkeys(re.findall(r"\[(REQ-[A-Z0-9_-]+)\]", values["SPEC"]))),
         }
-        if args.check:
-            manifest["handoff_sha256"] = hashlib.sha256((tdir / "handoff.md").read_bytes()).hexdigest()
-            saved = json.loads((tdir / "handoff.manifest.json").read_text())
-            if saved != manifest:
-                raise RenderError("handoff provenance mismatch; re-render from the reviewed inputs")
-            print("handoff provenance verified")
-            return 0
-
         if args.stdout:
             sys.stdout.write(out)
         else:
-            target = tdir / "handoff.md"
+            target = tdir / f"{stem}.md"
             # Each file is atomic. Consumers compare the output hash, so a crash between
             # the two replaces is detected instead of accepting a stale manifest.
-            for dest, content in ((target, out), (tdir / "handoff.manifest.json", json.dumps(manifest, indent=2) + "\n")):
+            for dest, content in ((target, out), (tdir / f"{stem}.manifest.json", json.dumps(manifest, indent=2) + "\n")):
                 fd, temporary = tempfile.mkstemp(prefix=dest.name + '.', dir=tdir)
                 try:
                     with os.fdopen(fd, "w", encoding="utf-8") as stream:
@@ -162,7 +183,7 @@ def main(argv=None) -> int:
                     if os.path.exists(temporary):
                         os.unlink(temporary)
             print(target)
-    except (RenderError, json.JSONDecodeError, OSError) as exc:
+    except (RenderError, StateError, ValueError, OSError) as exc:
         print(f"render_handoff: {exc}", file=sys.stderr)
         return 1
 

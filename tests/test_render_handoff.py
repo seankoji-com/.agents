@@ -11,6 +11,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import hashlib
 import os
 import tempfile
 import unittest
@@ -39,6 +40,12 @@ def topic(output_type="research", discovery="DISCOVERY BODY", spec="SPEC BODY", 
         os.chdir(tmp)
         os.makedirs("thinking/t")
         meta = {"slug": "t", "title": title, "output_type": output_type, "github": {"mode": "none"}, "published": {}}
+        if discovery:
+            meta["review"] = {"schema": 1, "status": "accepted", "scope": "finalise-brief",
+                              "discovery_sha256": hashlib.sha256(discovery.encode()).hexdigest(),
+                              "evidence_ref": "fixture:user-message:1",
+                              "operator_statement": "I accept this discovery as presented.",
+                              "recorded_at": "2026-10-12T00:00:00Z"}
         with open("thinking/t/meta.json", "w") as fh:
             json.dump(meta, fh)
         if discovery is not None:

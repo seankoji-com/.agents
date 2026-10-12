@@ -8,7 +8,7 @@ into the model's context to recover a few dozen bytes of state. This script answ
 one compact JSON blob instead — `resolve` is designed to be the single call the command
 makes when it starts.
 
-No network, no model, no side effects except under `init`/`set`. Pure enough to test.
+No network or model. Review receipts record evidence, not proof of human intent.
 
 Usage:
   thinking_state.py list [--root DIR]
@@ -17,6 +17,8 @@ Usage:
                     [--title TEXT] [--github issue|discussion|none] [--root DIR]
   thinking_state.py set <slug> KEY=VALUE [KEY=VALUE ...] [--root DIR]
   thinking_state.py gate <slug> --require discovery,spec [--root DIR]
+  thinking_state.py review <slug> --decision accepted|owner_override --scope finalise-brief
+                    --discovery-sha256 HASH --evidence-ref REF --operator-statement TEXT
 
 `gate` is fail-closed: a missing artifact exits 1 and names it. Every other subcommand
 prints JSON to stdout and exits 0, or prints a JSON error object and exits 1.
@@ -36,10 +38,8 @@ from pathlib import Path
 
 DEFAULT_ROOT = "thinking"
 
-# Artifact filenames in phase order. The order is load-bearing: NEXT_PHASE walks it to
-# decide what the command should do next, so inserting a stage means inserting it here.
+# Source and final artifact filenames. Draft handoffs are deliberately separate.
 ARTIFACTS = ("discovery.md", "spec.md", "handoff.md")
-PHASE_FOR_MISSING = {"discovery.md": "discovery", "spec.md": "spec", "handoff.md": "handoff"}
 
 OUTPUT_TYPES = ("research", "implementation")
 GITHUB_MODES = ("issue", "discussion", "none")
@@ -55,7 +55,9 @@ SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 # a bare `$ARGUMENTS` that is either the word `list` or a topic slug, and a topic actually
 # named `list` makes that undecidable. Reserve the subcommand names so the collision cannot
 # be created in the first place.
-RESERVED_SLUGS = frozenset({"list", "resolve", "init", "set", "gate"})
+RESERVED_SLUGS = frozenset({"list", "resolve", "init", "set", "gate", "review"})
+DRAFT_MARKER = "<!-- thinking:draft -->"
+REVIEW_SCOPE = "finalise-brief"
 
 
 class StateError(Exception):
@@ -104,7 +106,10 @@ def read_meta(tdir: Path) -> dict:
     if not mp.exists():
         return {}
     try:
-        return json.loads(mp.read_text(encoding="utf-8"))
+        meta = json.loads(mp.read_text(encoding="utf-8"))
+        if not isinstance(meta, dict) or not isinstance(meta.get("published", {}), dict):
+            raise StateError("topic metadata and published must be objects")
+        return meta
     except json.JSONDecodeError as exc:
         raise StateError(f"{mp} is not valid JSON: {exc}") from exc
 
@@ -147,21 +152,95 @@ def artifact_state(tdir: Path, meta: dict) -> dict:
         if not path.exists():
             out[name] = {"exists": False}
             continue
-        digest = sha256_of(path)
+        content = path.read_bytes()
+        digest = hashlib.sha256(content).hexdigest()
+        text = content.decode("utf-8")
         out[name] = {
             "exists": True,
             "sha256": digest,
-            "bytes": path.stat().st_size,
+            "bytes": len(content),
             "published": published.get(name) == digest,
+            "nonempty": bool(text.strip()),
+            "draft": text.lstrip().startswith(DRAFT_MARKER),
         }
     return out
 
 
-def next_phase(artifacts: dict) -> str:
-    for name in ARTIFACTS:
-        if not artifacts.get(name, {}).get("exists"):
-            return PHASE_FOR_MISSING[name]
-    return "complete"
+def review_state(meta: dict, artifacts: dict) -> dict:
+    """Validate a content-bound receipt. Its evidence still needs human inspection."""
+    receipt = meta.get("review")
+    reason = "missing operator discovery review evidence"
+    if receipt is not None:
+        reason = "malformed operator discovery review evidence"
+        if (isinstance(receipt, dict) and type(receipt.get("schema")) is int and receipt["schema"] == 1
+                and receipt.get("status") in ("accepted", "owner_override")
+                and receipt.get("scope") == REVIEW_SCOPE
+                and all(isinstance(receipt.get(key), str) and receipt[key].strip()
+                        for key in ("evidence_ref", "operator_statement", "recorded_at"))
+                and valid_timestamp(receipt["recorded_at"])
+                and re.fullmatch(r"[a-f0-9]{64}", str(receipt.get("discovery_sha256", "")))):
+            reason = "discovery changed since operator review"
+            discovery = artifacts.get("discovery.md", {})
+            if discovery.get("nonempty") and receipt["discovery_sha256"] == discovery.get("sha256"):
+                return {"ready": True, "status": receipt["status"], "scope": REVIEW_SCOPE,
+                        "reason": None, "execution_authorized": False}
+    return {"ready": False, "status": "review_needed", "reason": reason,
+            "execution_authorized": False}
+
+
+def valid_timestamp(value: str) -> bool:
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%dT%H:%M:%SZ") == value
+    except ValueError:
+        return False
+
+
+def handoff_problem(tdir: Path, meta: dict, *, draft: bool = False) -> str | None:
+    """Provenance only. Discovery review is checked independently by readiness."""
+    stem = "handoff.draft" if draft else "handoff"
+    try:
+        path = tdir / f"{stem}.manifest.json"
+        if path.is_symlink():
+            return "handoff manifest may not be a symlink"
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(saved, dict) or saved.get("schema") != 2:
+            return "missing or legacy handoff provenance; re-render"
+        expected = {"topic": tdir.name, "output_type": meta.get("output_type"),
+                    "status": "draft" if draft else "final",
+                    "requirement_ids": list(dict.fromkeys(re.findall(
+                        r"\[(REQ-[A-Z0-9_-]+)\]", (tdir / "spec.md").read_text(encoding="utf-8"))))}
+        for field, value in expected.items():
+            if saved.get(field) != value:
+                return "handoff provenance mismatch; re-render"
+        for field, filename in (("discovery_sha256", "discovery.md"),
+                                ("spec_sha256", "spec.md"), ("handoff_sha256", f"{stem}.md")):
+            source = tdir / filename
+            if source.is_symlink() or saved.get(field) != sha256_of(source):
+                return "handoff provenance mismatch; re-render"
+    except (OSError, ValueError):
+        return "missing or malformed handoff provenance; re-render"
+    return None
+
+
+def phase_state(tdir: Path, meta: dict, artifacts: dict) -> dict:
+    review = review_state(meta, artifacts)
+    phase, reason = "complete", None
+    if not artifacts["discovery.md"].get("nonempty"):
+        phase, reason = "discovery", "missing or empty discovery.md"
+    elif not review["ready"]:
+        phase, reason = "discovery_review", review["reason"]
+    elif artifacts["discovery.md"].get("draft"):
+        phase, reason = "discovery", "draft discovery.md must be finalised and reviewed"
+    elif not artifacts["spec.md"].get("nonempty") or artifacts["spec.md"].get("draft"):
+        phase, reason = "spec", "missing, empty, or draft spec.md"
+    elif not artifacts["handoff.md"].get("nonempty") or artifacts["handoff.md"].get("draft"):
+        phase, reason = "handoff", "missing, empty, or draft handoff.md"
+    else:
+        reason = handoff_problem(tdir, meta)
+        if reason:
+            phase = "handoff"
+    return {"next_phase": phase, "hold_reason": reason, "review": review,
+            "workflow": "thinking", "execution_authorized": False}
 
 
 def resolve(root: Path, slug: str) -> dict:
@@ -175,7 +254,7 @@ def resolve(root: Path, slug: str) -> dict:
         "exists": tdir.is_dir(),
         "meta": meta,
         "artifacts": artifacts,
-        "next_phase": next_phase(artifacts),
+        **phase_state(tdir, meta, artifacts),
     }
 
 
@@ -191,7 +270,7 @@ def cmd_list(args) -> dict:
                     "slug": tdir.name,
                     "title": meta.get("title", tdir.name),
                     "output_type": meta.get("output_type"),
-                    "next_phase": next_phase(artifacts),
+                    **phase_state(tdir, meta, artifacts),
                     "updated_at": meta.get("updated_at"),
                 }
             )
@@ -215,7 +294,7 @@ def cmd_init(args) -> dict:
         # Re-running init on a live topic must not silently reset output_type or drop the
         # published map — the command uses this path to resume, not to restart.
         raise StateError(
-            f"topic {args.slug!r} already initialised (phase: {next_phase(artifact_state(tdir, meta))}); "
+            f"topic {args.slug!r} already initialised; "
             "use `set` to change fields, or pick a different slug"
         )
 
@@ -242,6 +321,8 @@ def set_dotted(meta: dict, key: str, value):
             "refusing to set 'published' through `set`: its keys are filenames containing "
             "dots, which this dotted-key syntax cannot address. gh_publish.py maintains it."
         )
+    if key == "review" or key.startswith("review."):
+        raise StateError("use `review` to record operator evidence; `set` cannot grant review")
     parts = key.split(".")
     cursor = meta
     for part in parts[:-1]:
@@ -270,6 +351,28 @@ def cmd_set(args) -> dict:
             raise StateError(f"expected KEY=VALUE, got {pair!r}")
         key, raw = pair.split("=", 1)
         set_dotted(meta, key.strip(), coerce(raw))
+    write_meta(tdir, meta)
+    return resolve(root, args.slug)
+
+
+def cmd_review(args) -> dict:
+    root = Path(args.root)
+    tdir = topic_dir(root, args.slug)
+    meta = read_meta(tdir)
+    if not meta:
+        raise StateError("initialise the topic before recording review")
+    artifacts = artifact_state(tdir, meta)
+    discovery = artifacts["discovery.md"]
+    if not discovery.get("nonempty"):
+        raise StateError("missing or empty discovery.md")
+    if args.discovery_sha256 != discovery["sha256"]:
+        raise StateError("reviewed discovery hash differs from current discovery.md")
+    if not args.evidence_ref.strip() or not args.operator_statement.strip():
+        raise StateError("operator statement and source reference must be nonempty")
+    meta["review"] = {"schema": 1, "status": args.decision, "scope": args.scope,
+                      "discovery_sha256": args.discovery_sha256,
+                      "evidence_ref": args.evidence_ref,
+                      "operator_statement": args.operator_statement, "recorded_at": utcnow()}
     write_meta(tdir, meta)
     return resolve(root, args.slug)
 
@@ -309,7 +412,22 @@ def cmd_gate(args) -> dict:
             f"topic {args.slug!r} is not ready ({'; '.join(problems)}) — "
             "run the earlier phase before this one"
         )
-    return {"slug": args.slug, "gate": "pass", "required": required}
+    meta = read_meta(tdir)
+    artifacts = artifact_state(tdir, meta)
+    if not args.draft:
+        review = review_state(meta, artifacts)
+        if not review["ready"]:
+            raise StateError(review["reason"])
+        if any(artifacts[name].get("draft") for name in set(names) | {"discovery.md"}):
+            raise StateError("draft artifacts cannot pass final readiness")
+        if "handoff.md" in names:
+            problem = handoff_problem(tdir, meta)
+            if problem:
+                raise StateError(problem)
+    return {"slug": args.slug, "gate": "draft" if args.draft else "pass", "required": required,
+            "review": review_state(meta, artifacts),
+            "input_hashes": {name: state.get("sha256") for name, state in artifacts.items()},
+            "execution_authorized": False}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -332,9 +450,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_set.add_argument("slug")
     p_set.add_argument("pairs", nargs="+", metavar="KEY=VALUE")
 
-    p_gate = sub.add_parser("gate", help="fail-closed check that artifacts exist")
+    p_review = sub.add_parser("review", help="record actual operator evidence for a reviewed hash")
+    p_review.add_argument("slug")
+    p_review.add_argument("--decision", choices=("accepted", "owner_override"), required=True)
+    p_review.add_argument("--scope", choices=(REVIEW_SCOPE,), required=True)
+    p_review.add_argument("--discovery-sha256", required=True)
+    p_review.add_argument("--evidence-ref", required=True)
+    p_review.add_argument("--operator-statement", required=True)
+
+    p_gate = sub.add_parser("gate", help="check artifacts and operator discovery review")
     p_gate.add_argument("slug")
     p_gate.add_argument("--require", required=True, help="comma-separated artifact names")
+    p_gate.add_argument("--draft", action="store_true", help="check draft inputs without final readiness")
 
     return parser
 
@@ -345,6 +472,7 @@ HANDLERS = {
     "init": cmd_init,
     "set": cmd_set,
     "gate": cmd_gate,
+    "review": cmd_review,
 }
 
 
@@ -352,7 +480,7 @@ def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     try:
         result = HANDLERS[args.cmd](args)
-    except StateError as exc:
+    except (StateError, OSError, UnicodeError) as exc:
         json.dump({"error": str(exc)}, sys.stdout)
         sys.stdout.write("\n")
         return 1
