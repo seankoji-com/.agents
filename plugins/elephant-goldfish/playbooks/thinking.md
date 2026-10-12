@@ -43,6 +43,7 @@ next agent must inspect the actual user instruction and scope before acting.
    with `<!-- thinking:draft -->` and `DRAFT. Non-executable.` on separate lines.
    The exact standalone comment is the required machine-readable draft signal. Keep
    its spacing and do not substitute a decorated heading or label for it.
+   Put status lines at column zero, outside quotations and code blocks.
    Present the refined discovery for operator review before finalising the
    rubric. `resolve`/`list` now hold at `discovery_review`. Ask for acceptance of this
    specific content, not another feature choice. Only after a genuine operator response,
@@ -81,6 +82,8 @@ next agent must inspect the actual user instruction and scope before acting.
    draft manifest, never a final completion. `--check` (or `--draft --check`) verifies
    provenance only; the gate checks current review/readiness independently. Old topics
    without valid evidence need review even when spec and handoff already exist.
+   Changing a receipt, including acceptance to an owner override, requires re-rendering
+   the final handoff even when discovery content is unchanged.
 7. Deliver `handoff.md`, its manifest, remaining unknowns, and the intended next step.
    The user can give it to a fresh T3 thread or imps. Do not start that work here.
 

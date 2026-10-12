@@ -154,6 +154,24 @@ class ReviewCommands:
         self.assertIn("Review status: owner_override", text)
         self.assertIn("separate user instruction is required", text)
 
+    def test_replacing_review_receipt_reopens_handoff_without_changing_provenance(self):
+        self.accept()
+        self.render()
+        for decision, statement in (("owner_override", "Finalise only this brief without claiming discovery acceptance."),
+                                    ("accepted", "I accept this discovery as presented."),
+                                    ("accepted", "I accept this discovery; this is a replacement evidence statement.")):
+            with self.subTest(decision=decision, statement=statement):
+                state = self.accept(decision=decision, statement=statement)
+                self.assertEqual(state["next_phase"], "handoff")
+                self.assertIn("receipt changed", state["hold_reason"])
+                self.assertEqual(self.state("list")["topics"][0]["next_phase"], "handoff")
+                self.state("gate", "topic", "--require", "discovery,spec,handoff", ok=False)
+                self.render("--check")  # Source/output provenance is still intact.
+                self.render()
+                self.state("gate", "topic", "--require", "discovery,spec,handoff")
+                self.assertIn(f"Review status: {decision}.", (self.topic / "handoff.md").read_text())
+                self.assertEqual(self.state("resolve", "topic")["next_phase"], "complete")
+
     def test_provenance_is_independent_of_current_review_readiness(self):
         self.accept()
         self.render()

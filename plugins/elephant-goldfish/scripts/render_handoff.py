@@ -165,6 +165,8 @@ def main(argv=None) -> int:
             "handoff_sha256": hashlib.sha256(out.encode()).hexdigest(),
             "requirement_ids": list(dict.fromkeys(re.findall(r"\[(REQ-[A-Z0-9_-]+)\]", values["SPEC"]))),
         }
+        if not args.draft:
+            manifest["review_sha256"] = gate["review_sha256"]
         if args.stdout:
             sys.stdout.write(out)
         else:

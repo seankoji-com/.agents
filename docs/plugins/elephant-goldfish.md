@@ -58,13 +58,15 @@ carry `<!-- thinking:draft -->` and a visible non-executable label. The renderer
 an execution prompt. Draft output never completes a topic.
 Standalone draft markers or labels below a heading also hold final readiness.
 Quoted and code-fenced examples stay inert. Finalise a draft discovery before review.
-Use the exact standalone comment as the machine-readable status for incomplete
+Use the exact unindented standalone comment as the machine-readable status for incomplete
 discovery and specs; styled headings or labels cannot replace it.
 
 The final renderer and `thinking_state.py gate <topic> --require discovery,spec,handoff`
 enforce current review/readiness. `render_handoff.py <topic> --check` verifies saved
 source/output hashes only. Provenance does not establish approval or permission to
 execute. After source changes, review discovery again if needed and re-render.
+Final readiness also binds the handoff to its render-time review receipt. Replacing
+acceptance with an owner override, or changing the recorded evidence, requires re-rendering.
 
 Requirement changes such as "switch to the official API" refine the brief. Resumes,
 scheduled reminders, and unrelated production authorisation keep the thinking

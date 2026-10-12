@@ -216,8 +216,14 @@ def valid_timestamp(value: str) -> bool:
         return False
 
 
-def handoff_problem(tdir: Path, meta: dict, *, draft: bool = False) -> str | None:
-    """Provenance only. Discovery review is checked independently by readiness."""
+def review_digest(meta: dict) -> str:
+    return hashlib.sha256(json.dumps(meta.get("review"), sort_keys=True,
+                                     separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def handoff_problem(tdir: Path, meta: dict, *, draft: bool = False,
+                    check_review: bool = False) -> str | None:
+    """Check provenance, optionally binding final readiness to its render-time receipt."""
     stem = "handoff.draft" if draft else "handoff"
     try:
         path = tdir / f"{stem}.manifest.json"
@@ -238,6 +244,8 @@ def handoff_problem(tdir: Path, meta: dict, *, draft: bool = False) -> str | Non
             source = tdir / filename
             if source.is_symlink() or saved.get(field) != sha256_of(source):
                 return "handoff provenance mismatch; re-render"
+        if check_review and saved.get("review_sha256") != review_digest(meta):
+            return "review receipt changed since handoff rendering; re-render"
     except (OSError, ValueError):
         return "missing or malformed handoff provenance; re-render"
     return None
@@ -257,7 +265,7 @@ def phase_state(tdir: Path, meta: dict, artifacts: dict) -> dict:
     elif not artifacts["handoff.md"].get("nonempty") or artifacts["handoff.md"].get("draft"):
         phase, reason = "handoff", "missing, empty, or draft handoff.md"
     else:
-        reason = handoff_problem(tdir, meta)
+        reason = handoff_problem(tdir, meta, check_review=True)
         if reason:
             phase = "handoff"
     return {"next_phase": phase, "hold_reason": reason, "review": review,
@@ -459,11 +467,12 @@ def cmd_gate(args) -> dict:
         if any(artifacts[name].get("draft") for name in set(names) | {"discovery.md"}):
             raise StateError("draft artifacts cannot pass final readiness")
         if "handoff.md" in names:
-            problem = handoff_problem(tdir, meta)
+            problem = handoff_problem(tdir, meta, check_review=True)
             if problem:
                 raise StateError(problem)
     return {"slug": args.slug, "gate": "draft" if args.draft else "pass", "required": required,
             "review": review_state(meta, artifacts),
+            "review_sha256": review_digest(meta),
             "input_hashes": {name: state.get("sha256") for name, state in artifacts.items()},
             "execution_authorized": False}
 
