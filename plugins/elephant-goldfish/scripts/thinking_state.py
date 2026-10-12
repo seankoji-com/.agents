@@ -57,6 +57,7 @@ SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 # be created in the first place.
 RESERVED_SLUGS = frozenset({"list", "resolve", "init", "set", "gate", "review"})
 DRAFT_MARKER = "<!-- thinking:draft -->"
+DRAFT_LABEL = "DRAFT. Non-executable."
 REVIEW_SCOPE = "finalise-brief"
 
 
@@ -161,9 +162,27 @@ def artifact_state(tdir: Path, meta: dict) -> dict:
             "bytes": len(content),
             "published": published.get(name) == digest,
             "nonempty": bool(text.strip()),
-            "draft": text.lstrip().startswith(DRAFT_MARKER),
+            "draft": is_draft(text),
         }
     return out
+
+
+def is_draft(text: str) -> bool:
+    """Recognise standalone status lines, leaving quoted/fenced examples inert."""
+    fence = None
+    for line in text.lstrip("\ufeff").splitlines():
+        match = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if match:
+            run, suffix = match.groups()
+            if fence is None:
+                fence = run
+            elif run[0] == fence[0] and len(run) >= len(fence) and not suffix.strip():
+                fence = None
+            continue
+        if fence is None and not line.startswith(("    ", "\t")):
+            if line.strip() in (DRAFT_MARKER, DRAFT_LABEL):
+                return True
+    return False
 
 
 def review_state(meta: dict, artifacts: dict) -> dict:
@@ -227,10 +246,10 @@ def phase_state(tdir: Path, meta: dict, artifacts: dict) -> dict:
     phase, reason = "complete", None
     if not artifacts["discovery.md"].get("nonempty"):
         phase, reason = "discovery", "missing or empty discovery.md"
-    elif not review["ready"]:
-        phase, reason = "discovery_review", review["reason"]
     elif artifacts["discovery.md"].get("draft"):
         phase, reason = "discovery", "draft discovery.md must be finalised and reviewed"
+    elif not review["ready"]:
+        phase, reason = "discovery_review", review["reason"]
     elif not artifacts["spec.md"].get("nonempty") or artifacts["spec.md"].get("draft"):
         phase, reason = "spec", "missing, empty, or draft spec.md"
     elif not artifacts["handoff.md"].get("nonempty") or artifacts["handoff.md"].get("draft"):
@@ -240,7 +259,8 @@ def phase_state(tdir: Path, meta: dict, artifacts: dict) -> dict:
         if reason:
             phase = "handoff"
     return {"next_phase": phase, "hold_reason": reason, "review": review,
-            "workflow": "thinking", "execution_authorized": False}
+            "workflow": "thinking", "execution_authorized": False,
+            "has_execution_request": "execution_request" in meta}
 
 
 def resolve(root: Path, slug: str) -> dict:
@@ -263,14 +283,22 @@ def cmd_list(args) -> dict:
     topics = []
     if root.is_dir():
         for tdir in sorted(p for p in root.iterdir() if not p.is_symlink() and p.is_dir()):
-            meta = read_meta(tdir)
-            artifacts = artifact_state(tdir, meta)
+            try:
+                meta = read_meta(tdir)
+                artifacts = artifact_state(tdir, meta)
+                state = phase_state(tdir, meta, artifacts)
+            except (StateError, UnicodeError, OSError) as exc:
+                topics.append({"slug": tdir.name, "title": tdir.name, "output_type": None,
+                               "next_phase": "topic_repair", "hold_reason": f"malformed topic: {exc}",
+                               "workflow": "thinking", "execution_authorized": False,
+                               "review": {"ready": False, "status": "review_needed"}})
+                continue
             topics.append(
                 {
                     "slug": tdir.name,
                     "title": meta.get("title", tdir.name),
                     "output_type": meta.get("output_type"),
-                    **phase_state(tdir, meta, artifacts),
+                    **state,
                     "updated_at": meta.get("updated_at"),
                 }
             )
@@ -365,14 +393,20 @@ def cmd_review(args) -> dict:
     discovery = artifacts["discovery.md"]
     if not discovery.get("nonempty"):
         raise StateError("missing or empty discovery.md")
+    if discovery.get("draft"):
+        raise StateError("draft discovery.md must be finalised before recording operator review")
     if args.discovery_sha256 != discovery["sha256"]:
         raise StateError("reviewed discovery hash differs from current discovery.md")
-    if not args.evidence_ref.strip() or not args.operator_statement.strip():
+    statement = args.operator_statement
+    if args.operator_statement_file is not None:
+        statement = (sys.stdin.read() if args.operator_statement_file == "-"
+                     else Path(args.operator_statement_file).read_bytes().decode("utf-8"))
+    if not args.evidence_ref.strip() or not statement.strip():
         raise StateError("operator statement and source reference must be nonempty")
     meta["review"] = {"schema": 1, "status": args.decision, "scope": args.scope,
                       "discovery_sha256": args.discovery_sha256,
                       "evidence_ref": args.evidence_ref,
-                      "operator_statement": args.operator_statement, "recorded_at": utcnow()}
+                      "operator_statement": statement, "recorded_at": utcnow()}
     write_meta(tdir, meta)
     return resolve(root, args.slug)
 
@@ -456,7 +490,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_review.add_argument("--scope", choices=(REVIEW_SCOPE,), required=True)
     p_review.add_argument("--discovery-sha256", required=True)
     p_review.add_argument("--evidence-ref", required=True)
-    p_review.add_argument("--operator-statement", required=True)
+    statement = p_review.add_mutually_exclusive_group(required=True)
+    statement.add_argument("--operator-statement", help="literal statement; prefer a file for shell calls")
+    statement.add_argument("--operator-statement-file", help="UTF-8 statement file, or - for stdin")
 
     p_gate = sub.add_parser("gate", help="check artifacts and operator discovery review")
     p_gate.add_argument("slug")

@@ -48,11 +48,16 @@ receipt stores your actual statement and its source reference, with scope
 `finalise-brief`. It records evidence, not cryptographic proof of human intent.
 An explicit owner override records `owner_override` for that same scope. It does
 not claim acceptance or grant implementation authority.
+The review command accepts a statement file or literal stdin so shell calls do not
+interpolate your words. Topics with unreadable metadata or artifacts appear individually
+at `topic_repair` in `list`; other topics remain visible.
 
 You can ask for an incomplete draft or stop the interview at any time. Draft specs
 carry `<!-- thinking:draft -->` and a visible non-executable label. The renderer's
 `--draft` option writes `handoff.draft.md` and `handoff.draft.manifest.json`, without
 an execution prompt. Draft output never completes a topic.
+Standalone draft markers or labels below a heading also hold final readiness.
+Quoted and code-fenced examples stay inert. Finalise a draft discovery before review.
 
 The final renderer and `thinking_state.py gate <topic> --require discovery,spec,handoff`
 enforce current review/readiness. `render_handoff.py <topic> --check` verifies saved
@@ -64,6 +69,8 @@ scheduled reminders, and unrelated production authorisation keep the thinking
 boundary. A clear request to leave thinking records the request and authorised scope
 before execution. Named licence, budget, identity, credential, and authorisation
 blockers retain owners and next actions; dependent work waits for resolution.
+`has_execution_request` makes a saved transition visible. The agent-writable record
+is unvalidated context; an implementer must inspect the actual user instruction.
 
 ## Limits
 

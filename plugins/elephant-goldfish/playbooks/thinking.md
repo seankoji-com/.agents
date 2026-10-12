@@ -15,6 +15,9 @@ dependent implementation. A clear user request to leave thinking can change the
 workflow: record the exact request, source message reference, and authorised scope
 under `meta.json`'s `execution_request` using `set`, then follow that scope. The
 helper never grants execution authority; that record is for the next agent to inspect.
+`resolve` exposes `has_execution_request`; the request itself is in `meta`.
+This agent-writable record is unvalidated context, not an authenticated grant. The
+next agent must inspect the actual user instruction and scope before acting.
 
 ## Procedure
 
@@ -42,10 +45,14 @@ helper never grants execution authority; that record is for the next agent to in
    record its verbatim statement and source reference with:
 
    ```sh
-   python3 PKG/scripts/thinking_state.py review <slug> --decision accepted --scope finalise-brief --discovery-sha256 <reviewed-hash> --evidence-ref <user-message-reference> --operator-statement <verbatim-acceptance>
+   python3 PKG/scripts/thinking_state.py review <slug> --decision accepted --scope finalise-brief --discovery-sha256 <reviewed-hash> --evidence-ref <user-message-reference> --operator-statement-file thinking/<slug>/review-statement.txt
    ```
 
    Use the hash of the discovery that was presented, from `resolve`'s artifacts.
+   Write the exact acceptance text to the statement file with a structured file tool.
+   Treat it as data: never interpolate user text into a shell command or shell `echo`.
+   The helper also accepts stdin with `--operator-statement-file -` when a tool can
+   supply stdin as literal data. Finalise a draft discovery before requesting review.
    Edits invalidate the receipt. Feature answers, silence, model summaries, scheduled
    reminders, and a request to stop are not acceptance evidence. Never invent a
    statement or reference. A receipt records evidence; it is not cryptographic proof
@@ -59,6 +66,8 @@ helper never grants execution authority; that record is for the next agent to in
    and next actions. Hold dependent work rather than guessing these gates away.
    If the user requests an incomplete draft, put `<!-- thinking:draft -->` and
    `DRAFT. Non-executable.` at the top of `spec.md`. A draft does not require acceptance.
+   Standalone status lines also hold a draft when placed below its heading. Code-fenced
+   examples and inline quotations of the marker stay inert.
 6. Run `thinking_state.py gate <slug> --require discovery,spec`, then
    `render_handoff.py <slug>` and `render_handoff.py <slug> --check`.
    The renderer copies source documents verbatim and records hashes. Never replace

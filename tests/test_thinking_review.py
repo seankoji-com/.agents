@@ -27,15 +27,16 @@ class ReviewCommands:
         self.write("discovery.md", self.discovery)
         self.write("spec.md", "# Rubric\n[REQ-ONCE] No duplicate charge.\n")
 
-    def command(self, script, *args, ok=True):
+    def command(self, script, *args, ok=True, input_text=None):
         result = subprocess.run([sys.executable, str(self.scripts / script), "--root", str(self.root), *args],
                                 cwd=self.scratch.name, capture_output=True, text=True,
-                                env={key: value for key, value in os.environ.items() if key != "T3_PLUGIN_ROOT"})
+                                env={key: value for key, value in os.environ.items() if key != "T3_PLUGIN_ROOT"},
+                                input=input_text)
         self.assertEqual(result.returncode, 0 if ok else 1, result.stdout + result.stderr)
         return result
 
-    def state(self, *args, ok=True):
-        return json.loads(self.command("thinking_state.py", *args, ok=ok).stdout)
+    def state(self, *args, ok=True, input_text=None):
+        return json.loads(self.command("thinking_state.py", *args, ok=ok, input_text=input_text).stdout)
 
     def render(self, *args, ok=True):
         return self.command("render_handoff.py", "topic", *args, ok=ok)
@@ -173,6 +174,7 @@ class ReviewCommands:
                            'execution_request.evidence_ref=fixture:user-message:transition-1',
                            'execution_request.operator_statement=Leave thinking and implement the retry policy in this repo')
         self.assertEqual(state["meta"]["execution_request"]["scope"], "Implement retry policy in this repo")
+        self.assertTrue(state["has_execution_request"])
         self.assertFalse(state["execution_authorized"], "receipt storage itself grants no authority")
 
     def test_final_handoff_preserves_named_blocker_and_hold_instruction(self):
@@ -203,6 +205,78 @@ class ReviewCommands:
         self.accept()
         self.render()
         self.assertEqual(self.state("resolve", "topic")["next_phase"], "complete")
+
+    def test_standalone_draft_status_after_heading_or_bom_holds_final_output(self):
+        self.accept()
+        for content in ("# Spec\n<!-- thinking:draft -->\n[REQ-ONCE] Proposed.",
+                        "\ufeff<!-- thinking:draft -->\n[REQ-ONCE] Proposed.",
+                        "# Spec\nDRAFT. Non-executable.\n[REQ-ONCE] Proposed.",
+                        "\ufeff# Spec\nDRAFT. Non-executable.\n[REQ-ONCE] Proposed."):
+            with self.subTest(content=content):
+                self.write("spec.md", content)
+                self.assertEqual(self.state("resolve", "topic")["next_phase"], "spec")
+                self.assertEqual(self.state("list")["topics"][0]["next_phase"], "spec")
+                self.state("gate", "topic", "--require", "discovery,spec", ok=False)
+                self.render(ok=False)
+                self.render("--stdout", ok=False)
+
+    def test_code_fenced_draft_examples_are_inert(self):
+        self.accept()
+        examples = ("```markdown\n<!-- thinking:draft -->\nDRAFT. Non-executable.\n```",
+                    "~~~markdown\n<!-- thinking:draft -->\nDRAFT. Non-executable.\n~~~",
+                    "````markdown\n```\n<!-- thinking:draft -->\n```\n````",
+                    "    <!-- thinking:draft -->\n    DRAFT. Non-executable.")
+        for example in examples:
+            with self.subTest(example=example):
+                self.write("spec.md", "# Rubric\nExample only:\n" + example + "\n[REQ-ONCE] Final criterion.")
+                self.render()
+                self.assertEqual(self.state("resolve", "topic")["next_phase"], "complete")
+
+    def test_malformed_topic_does_not_hide_healthy_topics(self):
+        self.state("init", "bad", "--output-type", "research")
+        bad = self.root / "bad"
+        initial = (bad / "meta.json").read_bytes()
+        variants = (b'{not json', b'[]', b'{"published":null}')
+        for meta in variants:
+            with self.subTest(meta=meta):
+                (bad / "meta.json").write_bytes(meta)
+                topics = {row["slug"]: row for row in self.state("list")["topics"]}
+                self.assertEqual(topics["bad"]["next_phase"], "topic_repair")
+                self.assertFalse(topics["bad"]["review"]["ready"])
+                self.assertEqual(topics["topic"]["next_phase"], "discovery_review")
+        (bad / "meta.json").write_bytes(initial)
+        (bad / "discovery.md").write_bytes(b'\xff')
+        topics = {row["slug"]: row for row in self.state("list")["topics"]}
+        self.assertEqual(topics["bad"]["next_phase"], "topic_repair")
+        self.assertIn("malformed topic", topics["bad"]["hold_reason"])
+        self.assertEqual(topics["topic"]["next_phase"], "discovery_review")
+        self.state("resolve", "bad", ok=False)
+
+    def test_review_refuses_draft_discovery_before_recording_any_receipt(self):
+        self.write("discovery.md", "# Discovery\n<!-- thinking:draft -->\nProposed problem.")
+        digest = hashlib.sha256((self.topic / "discovery.md").read_bytes()).hexdigest()
+        result = self.state("review", "topic", "--decision", "accepted", "--scope", "finalise-brief",
+                            "--discovery-sha256", digest, "--evidence-ref", "fixture:user-message:1",
+                            "--operator-statement", "I accept the discovery.", ok=False)
+        self.assertIn("draft discovery", result["error"])
+        state = self.state("resolve", "topic")
+        self.assertEqual(state["next_phase"], "discovery")
+        self.assertNotIn("review", state["meta"])
+
+    def test_statement_file_and_stdin_preserve_shell_text_as_data(self):
+        statement = "--I accept this discovery. Keep `literal` and $(touch must-not-exist) as text.\n"
+        path = Path(self.scratch.name) / "operator-statement.txt"
+        path.write_text(statement)
+        base = ("review", "topic", "--decision", "accepted", "--scope", "finalise-brief",
+                "--discovery-sha256", hashlib.sha256(self.discovery.encode()).hexdigest(),
+                "--evidence-ref", "fixture:user-message:1", "--operator-statement-file")
+        for source in (str(path), "-"):
+            with self.subTest(source=source):
+                state = self.state(*base, source, input_text=statement if source == "-" else None)
+                self.assertEqual(state["meta"]["review"]["operator_statement"], statement)
+                self.assertFalse((Path(self.scratch.name) / "must-not-exist").exists())
+        self.state(*base, "-", input_text=" \n", ok=False)
+        self.state(*base, str(path.parent / "absent.txt"), ok=False)
 
 
 class TestSourceReview(ReviewCommands, unittest.TestCase):

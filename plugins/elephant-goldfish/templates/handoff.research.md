@@ -11,6 +11,7 @@ Unresolved gates may require follow-up questions. Verify provenance with
 `scripts/render_handoff.py <topic-slug> --check` and current review/readiness with
 `scripts/thinking_state.py gate <topic-slug> --require discovery,spec,handoff`.
 Neither check authorises execution. An owner override only permits finalising the brief.
+Run the helpers from the Elephant Goldfish installation, with the project's thinking root.
 
 Two documents follow. The first defines the problem and the constraints. The second is the
 rubric your output will be graded against by someone who did not write it and who will not
