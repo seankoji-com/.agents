@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import json
+import math
 import os
 import re
 import subprocess
@@ -28,12 +30,27 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TESTS = ROOT / 'tests'
+DURATIONS = ROOT / 'scripts' / 'test_durations.json'
 RAN = re.compile(r'^Ran (\d+) tests? in ', re.MULTILINE)
 
 
+def duration_hints() -> dict[str, float]:
+    """Optional measured seconds affect ordering only; unusable hints fall back to size."""
+    try:
+        data = json.loads(DURATIONS.read_text())
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {name: seconds for name, seconds in data.items()
+            if isinstance(seconds, (int, float)) and not isinstance(seconds, bool)
+            and 0 < seconds < math.inf}
+
+
 def modules(patterns: list[str]) -> list[Path]:
-    # Largest first: file size tracks run time well enough to start the long modules early.
-    found = sorted(TESTS.glob('test_*.py'), key=lambda p: (-p.stat().st_size, p.name))
+    hints = duration_hints()
+    found = sorted(TESTS.glob('test_*.py'),
+                   key=lambda p: (-hints.get(p.name, 0), -p.stat().st_size, p.name))
     if patterns:
         found = [p for p in found if any(fnmatch.fnmatch(p.name, pat if pat.endswith('.py') else pat + '*.py')
                                          for pat in patterns)]
