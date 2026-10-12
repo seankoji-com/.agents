@@ -16,5 +16,31 @@
     "repository": "seankoji-com/claude-plugins",
     "plugin": "ape",
     "version": "0.2.18"
-  }
+  },
+  "workers": [
+    {
+      "id": "ape/source-researcher",
+      "path": "agents/source-researcher.md",
+      "operations": [
+        "forage",
+        "study"
+      ],
+      "role": "workhorse",
+      "responsibility": "Compare pinned source repositories. Record fingerprints, provenance, and transferable patterns without changing targets."
+    },
+    {
+      "id": "ape/synthesizer",
+      "path": "agents/synthesizer.md",
+      "operations": [
+        "study"
+      ],
+      "role": "judgement",
+      "responsibility": "Compare accepted research reports, identify conflicts, and propose bounded experiments without implementing them."
+    }
+  ],
+  "worker_shared": [
+    "boundaries.md",
+    "manifest.schema.json",
+    "workers-config.schema.json"
+  ]
 }

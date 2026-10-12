@@ -78,9 +78,91 @@ def issue_operations() -> dict:
 
 
 def merged(data: dict, shards: list) -> dict:
-    """The main map with each stage shard's additions and removals applied."""
+    """Apply additive stage-local inventory, rejecting duplicate/conflicting facts."""
     data = copy.deepcopy(data)
+    keyed = {'operations': 'id', 'helpers': 'path', 'instructions': 'path', 'schemas': 'path',
+             'cli_subcommands': 'id', 'manifest_fields': 'id', 'persisted_formats': 'id'}
     for shard in shards:
+        if not isinstance(shard, dict):
+            data.setdefault('shard_errors', []).append('stage shard must be an object')
+            continue
+        inventory = shard.get('inventory', {})
+        if not isinstance(inventory, dict):
+            data.setdefault('shard_errors', []).append('stage shard inventory must be an object')
+            inventory = {}
+        allowed = set(keyed) | {'tests'}
+        for section in sorted(set(inventory) - allowed):
+            data.setdefault('shard_errors', []).append(f'unknown stage inventory section {section}')
+        for section, additions in inventory.items():
+            if section not in allowed: continue
+            if not isinstance(additions, list):
+                data.setdefault('shard_errors', []).append(f'{section} inventory must be a list')
+                continue
+            existing = data.setdefault(section, [])
+            for item in additions:
+                if not isinstance(item, dict):
+                    data.setdefault('shard_errors', []).append(f'{section} inventory item must be an object')
+                    continue
+                key_name = keyed.get(section, 'path')
+                key = item.get(key_name)
+                prior = next((entry for entry in existing if entry.get(key_name) == key), None)
+                if section == 'tests' and prior is not None:
+                    # A stage may extend a surviving module's assertion map, never replace its disposition.
+                    if any(prior.get(field) != item.get(field) for field in ('disposition', 'stage', 'reason') if field in item):
+                        data.setdefault('shard_errors', []).append(f'conflicting tests inventory entry {key}')
+                        continue
+                    known_assertions = {a.get('selector'): a for a in prior.get('assertions', [])}
+                    for assertion in item.get('assertions', []):
+                        selector = assertion.get('selector')
+                        if selector in known_assertions:
+                            replacement = {k: v for k, v in assertion.items() if k != 'replace'}
+                            if assertion.get('replace') is True:
+                                prior['assertions'] = [replacement if a.get('selector') == selector else a
+                                                       for a in prior.get('assertions', [])]
+                                known_assertions[selector] = replacement
+                            elif known_assertions[selector] != replacement:
+                                data.setdefault('shard_errors', []).append(f'conflicting test assertion {key}:{selector}')
+                        else:
+                            prior.setdefault('assertions', []).append(assertion)
+                            known_assertions[selector] = assertion
+                    continue
+                if prior is not None:
+                    data.setdefault('shard_errors', []).append(f'duplicate {section} inventory key {key}')
+                    continue
+                existing.append(copy.deepcopy(item))
+        updates = shard.get('updates', {})
+        if not isinstance(updates, dict):
+            data.setdefault('shard_errors', []).append('stage shard updates must be an object')
+            updates = {}
+        for section, changes in updates.items():
+            if section not in set(keyed) | {'tests'} or not isinstance(changes, list):
+                data.setdefault('shard_errors', []).append(f'invalid stage update section {section}')
+                continue
+            key_name = keyed.get(section, 'path')
+            seen_updates = set()
+            for change in changes:
+                if not isinstance(change, dict) or change.get('replace') is not True:
+                    data.setdefault('shard_errors', []).append(f'{section} updates require explicit replace: true')
+                    continue
+                key = change.get(key_name)
+                if key in seen_updates:
+                    data.setdefault('shard_errors', []).append(f'duplicate {section} update key {key}')
+                    continue
+                seen_updates.add(key)
+                prior = next((entry for entry in data.get(section, []) if entry.get(key_name) == key), None)
+                if prior is None:
+                    data.setdefault('shard_errors', []).append(f'update of unmapped {section} key {key}')
+                    continue
+                replacement = {k: v for k, v in change.items() if k != 'replace'}
+                if section == 'tests' and 'assertions' in replacement:
+                    by_selector = {a.get('selector'): a for a in prior.get('assertions', [])}
+                    for assertion in replacement.pop('assertions'):
+                        selector = assertion.get('selector')
+                        if selector not in by_selector:
+                            data.setdefault('shard_errors', []).append(f'update of unmapped test assertion {key}:{selector}')
+                        else:
+                            by_selector[selector].update({k: v for k, v in assertion.items() if k != 'selector'})
+                prior.update(replacement)
         data.setdefault('added', []).extend(shard.get('added', []))
         for removal in shard.get('removed', []):
             hits = [e for section in ('helpers', 'instructions', 'schemas', 'tests', 'added')
@@ -336,6 +418,47 @@ class CompatMapTest(unittest.TestCase):
                               'reason': 'synthetic', 'assertions': []})
         self.assertIn('test tests/test_gone.py: removed module must keep its assertion-to-coverage map',
                       problems(data))
+
+    def test_stage_inventory_merges_new_sections_and_test_assertions(self):
+        data = copy.deepcopy(self.data)
+        base = next(item for item in data['tests'] if item['path'] == 'tests/test_install.py')
+        original = len(base['assertions'])
+        shard = {'stage': 2, 'inventory': {
+            'manifest_fields': [{'id': 'plugin.json:synthetic', 'field': 'synthetic', 'disposition': 'change',
+                                 'stage': 2, 'reason': 'Worker catalog declaration.'}],
+            'cli_subcommands': [{'id': 't3-plugins:synthetic', 'path': 'scripts/catalog.py', 'disposition': 'change',
+                                 'stage': 2, 'reason': 'Explicit verified relocation adoption.'}],
+            'tests': []},
+            'updates': {'helpers': [{'path': 'scripts/catalog.py', 'replace': True,
+                                     'reason': 'Stage 2 implementation adds registry inspection and job pin resolution.'}]}}
+        merged_data = merged(data, [shard])
+        self.assertEqual(len(next(item for item in merged_data['tests'] if item['path'] == 'tests/test_install.py')['assertions']), original)
+        self.assertIn('plugin.json:synthetic', {item['id'] for item in merged_data['manifest_fields']})
+        self.assertIn('t3-plugins:synthetic', {item['id'] for item in merged_data['cli_subcommands']})
+        self.assertEqual(next(item for item in merged_data['helpers'] if item['path'] == 'scripts/catalog.py')['reason'],
+                         'Stage 2 implementation adds registry inspection and job pin resolution.')
+        self.assertEqual(problems(merged_data), [])
+        test_base = {'tests': [{'path': 'tests/test_registry.py', 'disposition': 'change', 'stage': 2,
+                                'reason': 'tests', 'assertions': [{'selector': 'test_registry.RegistryPolicyTest',
+                                'tests': 2, 'coverage': ['REQ-REGISTRY'], 'survives': True}]}]}
+        test_merge = merged(test_base, [{'inventory': {'tests': [{'path': 'tests/test_registry.py',
+            'assertions': [{'selector': 'test_registry.PinSnapshotTest', 'tests': 2,
+                           'coverage': ['REQ-REGISTRY'], 'survives': True}]}]}}])
+        self.assertEqual(len(test_merge['tests'][0]['assertions']), 2)
+
+    def test_stage_inventory_rejects_duplicate_and_conflicting_assertion(self):
+        path = 'scripts/catalog.py'
+        row = {'id': 't3-plugins:agents', 'path': path, 'disposition': 'change', 'stage': 2, 'reason': 'test'}
+        duplicate = merged(self.data, [{'inventory': {'cli_subcommands': [row, row]}}])
+        self.assertIn('duplicate cli_subcommands inventory key t3-plugins:agents', problems(duplicate))
+        test_row = {'path': 'tests/test_install.py', 'assertions': [{'selector': 'test_install.InstallTest',
+                    'tests': 99, 'coverage': ['REQ-REGISTRY'], 'survives': True}]}
+        conflict = merged(self.data, [{'inventory': {'tests': [test_row]}}])
+        self.assertIn('conflicting test assertion tests/test_install.py:test_install.InstallTest', problems(conflict))
+        duplicate_update = merged(self.data, [{'updates': {'helpers': [
+            {'path': 'scripts/catalog.py', 'replace': True, 'reason': 'one'},
+            {'path': 'scripts/catalog.py', 'replace': True, 'reason': 'two'}]}}])
+        self.assertIn('duplicate helpers update key scripts/catalog.py', problems(duplicate_update))
 
 
 if __name__ == '__main__':

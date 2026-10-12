@@ -16,10 +16,11 @@ class SkillAdapters(unittest.TestCase):
         self.base = Path(self.temp.name).resolve()
         self.prefix = self.base / 'package with spaces'
         self.skills = self.base / 'provider skills'
+        self.agents = self.base / 'managed agents'
 
     def call(self, *args, code=0):
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/catalog.py'),
-                                 '--prefix', str(self.prefix), *args],
+                                 '--prefix', str(self.prefix), '--agents-root', str(self.agents), *args],
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, code, result.stdout + result.stderr)
         self.assertNotIn('Traceback', result.stderr)

@@ -321,7 +321,8 @@ class TestInstalledReview(ReviewCommands, unittest.TestCase):
         cls.installation = tempfile.TemporaryDirectory(prefix="thinking-installed-test-")
         cls.addClassCleanup(cls.installation.cleanup)
         result = subprocess.run([sys.executable, str(ROOT / "scripts/install.py"),
-                                 "--plugin", "elephant-goldfish", "--prefix", cls.installation.name],
+                                 "--plugin", "elephant-goldfish", "--prefix", cls.installation.name,
+                                 "--agents-root", str(Path(cls.installation.name) / "managed-agents")],
                                 capture_output=True, text=True, cwd=ROOT)
         if result.returncode:
             raise AssertionError(result.stdout + result.stderr)

@@ -24,7 +24,7 @@ class LauncherTest(CoreTestCase):
     def test_launcher_runs_the_core_installed_and_from_source(self):
         home = self.tmp / 'home'
         source = self.tmp / 'src'
-        for part in ('core', 'plugins', 'scripts'):
+        for part in ('core', 'plugins', 'scripts', 'shared'):
             shutil.copytree(ROOT / part, source / part, ignore=shutil.ignore_patterns('__pycache__'))
         env = {key: value for key, value in os.environ.items()
                if key not in ('T3_PLUGINS_PREFIX', 'T3_PLUGINS_STATE_ROOT', 'XDG_STATE_HOME')}
@@ -59,7 +59,7 @@ class Round6Test(CoreTestCase):
     def test_uninstall_keeps_current_for_a_version_kept_for_local_edits(self):
         home = self.tmp / 'home'
         source = self.tmp / 'src'
-        for part in ('core', 'plugins', 'scripts'):
+        for part in ('core', 'plugins', 'scripts', 'shared'):
             shutil.copytree(ROOT / part, source / part, ignore=shutil.ignore_patterns('__pycache__'))
         env = {key: value for key, value in os.environ.items()
                if key not in ('T3_PLUGINS_PREFIX', 'T3_PLUGINS_STATE_ROOT', 'XDG_STATE_HOME')}

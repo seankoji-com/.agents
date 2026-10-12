@@ -52,6 +52,27 @@
         "additionalProperties": false
       }
     },
+    "package_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "installation_id": {
+      "type": "string",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "agents_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bundle_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bundle_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "preserved_modified": {
       "type": "boolean",
       "description": "set by uninstall when locally modified owned files were kept"

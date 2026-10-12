@@ -16,5 +16,31 @@
     "repository": "seankoji-com/claude-plugins",
     "plugin": "elephant-goldfish",
     "version": "0.2.9"
-  }
+  },
+  "workers": [
+    {
+      "id": "elephant-goldfish/factual-checker",
+      "path": "agents/factual-checker.md",
+      "operations": [
+        "check"
+      ],
+      "role": "judgement",
+      "responsibility": "Verify repository and command claims using cited evidence. Do not implement or infer unsupported facts."
+    },
+    {
+      "id": "elephant-goldfish/cold-reader",
+      "path": "agents/cold-reader.md",
+      "operations": [
+        "thinking",
+        "check"
+      ],
+      "role": "reviewer",
+      "responsibility": "Assess only the supplied document for usability and evidence. Do not inspect implementation or propose acceptance."
+    }
+  ],
+  "worker_shared": [
+    "boundaries.md",
+    "manifest.schema.json",
+    "workers-config.schema.json"
+  ]
 }

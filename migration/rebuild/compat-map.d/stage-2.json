@@ -1,0 +1,328 @@
+{
+  "schema_version": 1,
+  "stage": 2,
+  "added": [
+    {
+      "path": "plugins/imps/agents/stage-executor.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial imps engineering-stage worker definition; loaded only through explicit plugin selection."
+    },
+    {
+      "path": "plugins/imps/agents/investigator.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial imps read-only investigation worker definition."
+    },
+    {
+      "path": "plugins/imps/agents/auditor.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial imps audit worker definition."
+    },
+    {
+      "path": "plugins/imps/agents/reviewer.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial imps exact-snapshot reviewer definition."
+    },
+    {
+      "path": "plugins/ape/agents/source-researcher.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial pinned-source research definition."
+    },
+    {
+      "path": "plugins/ape/agents/synthesizer.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial accepted-report synthesis definition."
+    },
+    {
+      "path": "plugins/elephant-goldfish/agents/factual-checker.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial factual verification definition."
+    },
+    {
+      "path": "plugins/elephant-goldfish/agents/cold-reader.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial document-only cold-reader definition."
+    },
+    {
+      "path": "plugins/babysitter/agents/pr-maintainer.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial scoped PR maintenance definition."
+    },
+    {
+      "path": "plugins/babysitter/agents/pr-reviewer.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial independent final PR review definition."
+    },
+    {
+      "path": "plugins/agent-tuneup/agents/config-researcher.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial provider configuration research definition."
+    },
+    {
+      "path": "plugins/agent-tuneup/agents/config-verifier.md",
+      "stage": 2,
+      "kind": "worker definition",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Initial authorized configuration verification definition."
+    },
+    {
+      "path": "shared/agents/boundaries.md",
+      "stage": 2,
+      "kind": "worker contract",
+      "coverage": [
+        "REQ-REGISTRY",
+        "REQ-BOUNDARIES"
+      ],
+      "reason": "Common immutable authority and acceptance boundaries bundled with every declared worker catalog."
+    }
+  ],
+  "inventory": {
+    "helpers": [
+      {
+        "path": "scripts/registry.py",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Source worker catalog, immutable bundles, UUID identity, explicit adoption, override policy, pins and inspection."
+      },
+      {
+        "path": "shared/worker_registry.py",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Relocatable single implementation of registry ownership, integrity, configuration and exact pin snapshots; included in installed package identity."
+      }
+    ],
+    "schemas": [
+      {
+        "path": "shared/agents/manifest.schema.json",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Version 1 schema for managed worker bundle manifests."
+      },
+      {
+        "path": "shared/agents/workers-config.schema.json",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Version 1 schema for explicit worker overrides and limits."
+      }
+    ],
+    "manifest_fields": [
+      {
+        "id": "plugin.json:workers",
+        "field": "workers",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Stable IDs, source paths, supported operations, validated T3 routing category and separate responsibility text for every worker."
+      },
+      {
+        "id": "plugin.json:worker_shared",
+        "field": "worker_shared",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Declares shared worker contracts required in complete bundles."
+      }
+    ],
+    "cli_subcommands": [
+      {
+        "id": "t3-plugins:agents",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Read-only worker listing and provenance plus explicit override enable/disable."
+      },
+      {
+        "id": "t3-plugins:adopt",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Explicit verified relocation/adoption for a moved installation."
+      }
+    ],
+    "persisted_formats": [
+      {
+        "id": "managed-agent-bundle",
+        "location": "<agents-root>/installations/<installation-id>/<plugin>/<version>/manifest.json",
+        "schema": "shared/agents/manifest.schema.json",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Immutable external worker/shared asset bundle paired to package digest."
+      },
+      {
+        "id": "workers-config",
+        "location": "$XDG_CONFIG_HOME/t3-plugins/workers.json",
+        "schema": "shared/agents/workers-config.schema.json",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Explicit digest-bound overrides and validated worker limits."
+      },
+      {
+        "id": "installation-identity",
+        "location": "<prefix>/.t3-plugins-installation.json and <agents-root>/claims.json",
+        "schema": "installation marker and locator claims v1",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "UUID ownership and duplicate-locator detection with explicit relocation history."
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_registry.py",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Worker config validation, explicit overrides, exact pin snapshots and unresolved reference failures.",
+        "assertions": [
+          {
+            "selector": "test_registry.RegistryPolicyTest",
+            "tests": 5,
+            "coverage": [
+              "REQ-REGISTRY",
+              "REQ-OVERRIDES"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_registry.PinSnapshotTest",
+            "tests": 4,
+            "coverage": [
+              "REQ-REGISTRY",
+              "REQ-OVERRIDES"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_registry.BundleIntegrityTest",
+            "tests": 7,
+            "coverage": [
+              "REQ-REGISTRY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_rebuild_compat_map.py",
+        "disposition": "change",
+        "stage": 2,
+        "reason": "Stage-shard inventory merge, explicit updates, assertion-map extension and duplicate/conflict mutation checks.",
+        "assertions": [
+          {
+            "selector": "test_rebuild_compat_map.CompatMapTest",
+            "tests": 10,
+            "coverage": [
+              "REQ-COMPAT"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_install.py",
+        "assertions": [
+          {
+            "selector": "test_install.InstallTest",
+            "tests": 14,
+            "coverage": [
+              "REQ-REGISTRY",
+              "G-ROLLBACK"
+            ],
+            "survives": true,
+            "replace": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_catalog.py",
+        "assertions": [
+          {
+            "selector": "test_catalog.CatalogTest",
+            "tests": 16,
+            "coverage": [
+              "REQ-COMPAT",
+              "REQ-REGISTRY",
+              "G-ROLLBACK"
+            ],
+            "survives": true,
+            "replace": true
+          }
+        ]
+      }
+    ]
+  },
+  "updates": {
+    "helpers": [
+      {
+        "path": "scripts/install.py",
+        "replace": true,
+        "reason": "Stage 2 adds external worker-bundle materialization, UUID installation ownership, explicit agents-root handling, and pin-aware version retention/removal while preserving prefix and skill behavior."
+      },
+      {
+        "path": "scripts/catalog.py",
+        "replace": true,
+        "reason": "Stage 2 adds read-only agent inspection, explicit override management, verified relocation adoption, and exact --job pinned path resolution."
+      }
+    ],
+    "schemas": [
+      {
+        "path": "core/schemas/install-manifest.schema.json",
+        "replace": true,
+        "reason": "Adds optional package and bundle digests, installation UUID, bundle locator and agents-root fields while retaining legacy version-1 receipts."
+      }
+    ]
+  }
+}

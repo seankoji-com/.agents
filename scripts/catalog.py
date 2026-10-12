@@ -11,6 +11,7 @@ from pathlib import Path
 import install as installer
 import routing
 import skills
+import registry
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'shared'))
 import learning_grants
@@ -51,11 +52,85 @@ def snapshot_matches_bundle(manifest, plugin):
     return manifest['files'] == installer.plan_install(ROOT, plugin)['manifest']['files']
 
 
+def resolve_job_pin(job_path: Path, plugin: str) -> Path:
+    """Resolve only an explicitly declared, intact dependency from a versioned job."""
+    try: job = json.loads(registry.read_regular(job_path, 'job state').decode('utf-8'))
+    except (OSError, ValueError, UnicodeError) as exc: raise ValueError(f'job file is missing or malformed: {job_path}') from exc
+    if not isinstance(job, dict) or job.get('schema_version') != 1:
+        raise ValueError('job has unsupported or missing schema_version')
+    deps = job.get('dependencies'); pins = job.get('pins')
+    if not isinstance(deps, list) or not isinstance(pins, dict): raise ValueError('job dependency/pin state is malformed')
+    seen = set()
+    for dep in deps:
+        if (not isinstance(dep, dict) or not isinstance(dep.get('key'), str) or
+                not isinstance(dep.get('plugin'), str) or dep['key'] in seen):
+            raise ValueError('job dependency records are malformed or duplicated')
+        seen.add(dep['key'])
+    if set(pins) != seen:
+        raise ValueError('job dependency pins are missing or undeclared')
+    declared = [d for d in deps if d.get('plugin') == plugin]
+    if not declared: raise ValueError(f'undeclared job dependency: {plugin}')
+    candidates = []
+    for dep in declared:
+        key = dep.get('key')
+        pin = pins.get(key)
+        if not isinstance(key, str) or not isinstance(pin, dict): raise ValueError(f'unresolved job dependency pin: {key!r}')
+        candidates.append((key, pin))
+    paths = {str(Path(pin.get('package_dir', '')).absolute()) for _, pin in candidates}
+    if len(paths) != 1: raise ValueError(f'ambiguous dependency pin for {plugin}')
+    key, pin = candidates[0]
+    package = Path(pin.get('package_dir', '')).absolute()
+    if not Path(pin.get('package_dir', '')).is_absolute():
+        raise ValueError(f'package pin path must be absolute: {key}')
+    if package.is_symlink(): raise ValueError(f'pinned package directory is a symlink: {key}')
+    try: mf = json.loads(registry.read_regular(package / installer.MANIFEST, 'package receipt').decode('utf-8'))
+    except (OSError, ValueError, UnicodeError) as exc: raise ValueError(f'pinned package is missing or corrupt: {key}') from exc
+    if (mf.get('plugin') != plugin or package.name != mf.get('version') or
+            pin.get('package_digest') != mf.get('package_digest') or
+            (pin.get('installation_id') is not None and pin.get('installation_id') != mf.get('installation_id'))):
+        raise ValueError(f'wrong or changed package pin: {key}')
+    if registry.package_digest(mf) != mf.get('package_digest'):
+        raise ValueError(f'pinned package manifest digest mismatch: {key}')
+    registry.verify_package_files(package, mf)
+    try: plugin_manifest = json.loads(registry.read_regular(package / 'plugin.json', 'plugin manifest').decode('utf-8'))
+    except (OSError, ValueError, UnicodeError) as exc: raise ValueError(f'pinned plugin manifest is missing: {key}') from exc
+    if plugin_manifest.get('workers') and not mf.get('bundle_dir'):
+        raise ValueError(f'worker package has no complete external bundle: {key}')
+    if plugin_manifest.get('workers'):
+        required_pin = ('installation_id', 'package_dir', 'package_digest', 'bundle_dir', 'bundle_digest')
+        if any(not pin.get(field) for field in required_pin):
+            raise ValueError(f'worker dependency pin is incomplete: {key}')
+        if Path(pin['package_dir']).absolute() != package:
+            raise ValueError(f'package path does not match dependency pin: {key}')
+    if mf.get('bundle_dir'):
+        checked = registry.verify_bundle(Path(mf['bundle_dir']), mf.get('installation_id'), plugin,
+                                         mf.get('version'), mf.get('package_digest'))
+        if checked['bundle_digest'] != mf.get('bundle_digest') or pin.get('bundle_dir') != mf.get('bundle_dir') or pin.get('bundle_digest') != mf.get('bundle_digest'):
+            raise ValueError(f'pinned worker bundle integrity failure: {key}')
+    elif pin.get('bundle_dir') or pin.get('bundle_digest'):
+        raise ValueError(f'job pin references a bundle absent from legacy package: {key}')
+    return package
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prefix', default=os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins'))
+    parser.add_argument('--agents-root', default=os.environ.get('T3_PLUGINS_AGENTS_ROOT', registry.DEFAULT_AGENTS_ROOT))
+    parser.add_argument('--job', metavar='JOB', help='resolve package paths from this pinned job.json')
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('list', help='list bundled plugins')
+    adoption = sub.add_parser('adopt', help='verify and adopt a relocated installation receipt')
+    adoption.add_argument('--from-prefix', required=True)
+    adoption.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
+    agents = sub.add_parser('agents', help='inspect managed worker definitions')
+    agent_sub = agents.add_subparsers(dest='agent_command', required=True)
+    agent_list = agent_sub.add_parser('list', help='list installed workers and integrity')
+    agent_list.add_argument('plugin', nargs='?')
+    agent_show = agent_sub.add_parser('show', help='show an effective worker definition')
+    agent_show.add_argument('plugin'); agent_show.add_argument('worker')
+    for action in ('enable-override', 'disable-override'):
+        command = agent_sub.add_parser(action, help='explicitly enable or disable a worker override')
+        command.add_argument('worker_id'); command.add_argument('--base-digest', required=True)
     setup = sub.add_parser('setup', help='install snapshots and provider skill adapters together')
     setup.add_argument('plugin', nargs='?')
     setup.add_argument('--root', action='append', help='skill directory; repeat for multiple providers')
@@ -63,6 +138,7 @@ def main(argv=None):
                        help='saved orchestrator_capabilities response; writes the routing config if none exists')
     setup.add_argument('--grant-learnings', action='store_true',
                        help='apply the printed subtree grants after backing up provider configs')
+    setup.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
     resolve = sub.add_parser('resolve', help='list available routing candidates for a role, in tier order')
     resolve.add_argument('role')
     resolve.add_argument('--capabilities', metavar='FILE', required=True,
@@ -80,20 +156,24 @@ def main(argv=None):
     for name in ('path', 'prompt', 'doctor'):
         command = sub.add_parser(name, help=helps[name])
         command.add_argument('plugin', nargs='?' if name == 'doctor' else None)
+        if name == 'doctor': command.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
         if name == 'prompt':
             command.add_argument('request', nargs=argparse.REMAINDER, default=['doctor'])
     install = sub.add_parser('install', help='install all plugins or one named plugin')
     install.add_argument('plugin', nargs='?')
     install.add_argument('--dry-run', action='store_true')
     install.add_argument('--force', action='store_true')
+    install.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
     remove = sub.add_parser('uninstall', help='remove owned files, preserving state and local edits')
     remove.add_argument('plugin')
     remove.add_argument('--dry-run', action='store_true')
     remove.add_argument('--force', action='store_true', help='also remove locally modified owned files')
     remove.add_argument('--version', help='remove only this installed snapshot')
+    remove.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
     activate = sub.add_parser('activate', help='activate an installed snapshot')
     activate.add_argument('plugin')
     activate.add_argument('version')
+    activate.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     try:
         if args.command == 'resolve':
@@ -103,6 +183,30 @@ def main(argv=None):
             print(json.dumps(dict(result, sources=sources)))
             return 0 if result['candidates'] else 1
         prefix = Path(args.prefix).expanduser().absolute()
+        agents_root = registry.registry_root(getattr(args, 'agents_root_command', None) or args.agents_root)
+        if args.command == 'adopt':
+            print(json.dumps(registry.adopt(prefix, Path(args.from_prefix).expanduser().absolute(), agents_root)))
+            return 0
+        if args.command == 'agents':
+            if args.agent_command == 'list':
+                for item in registry.inspect_agents(agents_root, args.plugin, prefix): print(json.dumps(item))
+            elif args.agent_command == 'show':
+                print(json.dumps(registry.show_agent(agents_root, args.plugin, args.worker, prefix)))
+            else:
+                enabled = args.agent_command == 'enable-override'
+                if enabled:
+                    plugin_name = args.worker_id.split('/', 1)[0]
+                    current = prefix / plugin_name / 'current'
+                    if not current.is_symlink() or not current.resolve().is_relative_to((prefix / plugin_name).resolve()):
+                        raise ValueError('cannot enable override without a safe active plugin installation')
+                    active_version = current.resolve().name
+                    worker = next((item for item in registry.inspect_agents(agents_root, plugin_name, prefix)
+                                   if item['id'] == args.worker_id and item['version'] == active_version), None)
+                    if not worker: raise ValueError(f'worker is not active: {args.worker_id}')
+                    if worker['bundle_digest'] != args.base_digest:
+                        raise ValueError('override base digest is stale; inspect agents show and use the active bundle digest')
+                print(json.dumps(registry.set_override(agents_root, args.worker_id, args.base_digest, enabled)))
+            return 0
         plugins = catalog()
         if getattr(args, 'plugin', None) is not None:
             installer.validate_name(args.plugin)
@@ -124,7 +228,7 @@ def main(argv=None):
             roots = args.root or [str(Path.home() / path) for path in
                                   ('.agents/skills', '.claude/skills', '.gemini/config/skills')]
             for meta in plugins:
-                code = installer.main(['--plugin', meta['name'], '--prefix', str(prefix)])
+                code = installer.main(['--plugin', meta['name'], '--prefix', str(prefix), '--agents-root', str(agents_root)])
                 if code:
                     return code
                 for root in roots:
@@ -157,7 +261,7 @@ def main(argv=None):
             # Per-plugin atomic activation. An all-catalog install can be partial;
             # each receipt identifies what completed, and retries are idempotent.
             for meta in plugins:
-                forwarded = ['--plugin', meta['name'], '--prefix', str(prefix)]
+                forwarded = ['--plugin', meta['name'], '--prefix', str(prefix), '--agents-root', str(agents_root)]
                 if args.command == 'uninstall':
                     forwarded.append('--uninstall')
                     if getattr(args, 'version', None):
@@ -172,19 +276,37 @@ def main(argv=None):
                     return code
             return 0
         failed = False
+        reference_errors = registry.validate_job_references()
         for meta in plugins:
             current = prefix / meta['name'] / 'current'
             entry = current / meta['entry']
             if args.command == 'doctor':
                 errors = []
+                errors.extend(reference_errors)
                 try:
                     if not current.is_symlink() or not current.resolve().is_relative_to(current.parent.resolve()):
                         raise ValueError('missing or external current symlink')
                     manifest = installer.load_manifest(current / installer.MANIFEST)
                     if manifest.get('plugin') != meta['name']:
                         raise ValueError('manifest plugin mismatch')
+                    if manifest.get('version') != current.resolve().name:
+                        raise ValueError('manifest version mismatch')
                     if not snapshot_matches_bundle(manifest, meta['name']):
                         errors.append('snapshot_outdated: run t3-plugins install ' + meta['name'])
+                    if manifest.get('bundle_dir'):
+                        registry.assert_owned_locator(agents_root, manifest.get('installation_id'), prefix)
+                        if Path(manifest.get('agents_root', '')).expanduser().absolute() != agents_root:
+                            errors.append('worker_bundle_agents_root_mismatch')
+                        expected_bundle = registry.bundle_dir(agents_root, manifest.get('installation_id'),
+                                                              meta['name'], manifest.get('version'))
+                        if Path(manifest['bundle_dir']).absolute() != expected_bundle.absolute():
+                            errors.append('worker_bundle_path_mismatch')
+                        checked = registry.verify_bundle(Path(manifest['bundle_dir']), manifest.get('installation_id'),
+                                                         meta['name'], manifest.get('version'), manifest.get('package_digest'))
+                        if checked['bundle_digest'] != manifest.get('bundle_digest'):
+                            errors.append('worker_bundle_digest_mismatch')
+                    elif registry.load_manifest(ROOT / 'plugins' / meta['name']).get('workers'):
+                        errors.append('worker_bundle_missing')
                     for item in manifest['files']:
                         path = installer.owned_path(current.resolve(), item['path'])
                         if not path.is_file() or installer.sha256(path) != item['sha256']:
@@ -200,6 +322,14 @@ def main(argv=None):
                 print(json.dumps({'plugin': meta['name'], 'ok': not errors, 'errors': errors,
                                   'scope': 'installed file integrity and package currency; provider behavior not tested'}))
             else:
+                job_arg = args.job if args.job is not None else getattr(args, 'job', None)
+                if args.command == 'path' and job_arg:
+                    package = resolve_job_pin(Path(job_arg), args.plugin)
+                    pinned_meta = json.loads((package / 'plugin.json').read_text(encoding='utf-8'))
+                    pinned_entry = package / pinned_meta.get('entry', 'entry.md')
+                    if not pinned_entry.is_file(): raise ValueError(f'pinned entry missing: {pinned_entry}')
+                    print(pinned_entry)
+                    return 0
                 if not entry.is_file():
                     raise ValueError(f"{meta['name']} is not installed; run t3-plugins install {meta['name']}")
                 if args.command == 'path':

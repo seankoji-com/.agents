@@ -17,5 +17,30 @@
     "repository": "seankoji-com/claude-plugins",
     "plugin": "claude-tuneup",
     "version": "0.1.19"
-  }
+  },
+  "workers": [
+    {
+      "id": "agent-tuneup/config-researcher",
+      "path": "agents/config-researcher.md",
+      "operations": [
+        "audit"
+      ],
+      "role": "workhorse",
+      "responsibility": "Research exact provider configuration format and scope semantics with authoritative source citations."
+    },
+    {
+      "id": "agent-tuneup/config-verifier",
+      "path": "agents/config-verifier.md",
+      "operations": [
+        "audit"
+      ],
+      "role": "reviewer",
+      "responsibility": "Verify only explicitly authorized proposed or applied changes. Separate parse, load, and live enforcement evidence."
+    }
+  ],
+  "worker_shared": [
+    "boundaries.md",
+    "manifest.schema.json",
+    "workers-config.schema.json"
+  ]
 }

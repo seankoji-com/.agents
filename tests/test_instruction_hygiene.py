@@ -115,7 +115,8 @@ class InstructionHygiene(unittest.TestCase):
     def test_catalog_prompt_contains_no_banned_phrases(self):
         with tempfile.TemporaryDirectory() as tmp:
             prefix = Path(tmp) / 'prefix'
-            cli = [sys.executable, str(ROOT / 'scripts/catalog.py'), '--prefix', str(prefix)]
+            cli = [sys.executable, str(ROOT / 'scripts/catalog.py'), '--prefix', str(prefix),
+                   '--agents-root', str(Path(tmp) / 'managed-agents')]
             subprocess.run(cli + ['install', 'imps'], check=True, capture_output=True, timeout=60)
             prompt = subprocess.run(cli + ['prompt', 'imps', 'run', 'fix', 'it'], check=True, capture_output=True,
                                     text=True, timeout=60).stdout

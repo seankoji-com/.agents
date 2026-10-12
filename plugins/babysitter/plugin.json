@@ -17,5 +17,30 @@
     "repository": "seankoji-com/claude-plugins",
     "plugin": "babysitter",
     "version": "0.5.10"
-  }
+  },
+  "workers": [
+    {
+      "id": "babysitter/pr-maintainer",
+      "path": "agents/pr-maintainer.md",
+      "operations": [
+        "pr"
+      ],
+      "role": "workhorse",
+      "responsibility": "Maintain only the assigned PR within explicit authorization. Bind every claim to exact-head evidence."
+    },
+    {
+      "id": "babysitter/pr-reviewer",
+      "path": "agents/pr-reviewer.md",
+      "operations": [
+        "pr"
+      ],
+      "role": "reviewer",
+      "responsibility": "Independently review the final combined PR changes at the exact head; do not modify or merge."
+    }
+  ],
+  "worker_shared": [
+    "boundaries.md",
+    "manifest.schema.json",
+    "workers-config.schema.json"
+  ]
 }
