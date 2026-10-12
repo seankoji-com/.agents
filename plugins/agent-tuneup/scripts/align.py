@@ -21,7 +21,7 @@ _spec.loader.exec_module(audit)
 ADAPTERS = {'claude', 'codex', 'opencode', 'antigravity'}
 ROOTS = {
     'claude': {'permissions', 'mcpServers', 'enabledPlugins', 'enabledMcpjsonServers',
-               'disabledMcpjsonServers', 'enableAllProjectMcpServers', 'sandbox', 'hooks'},
+               'disabledMcpjsonServers', 'enableAllProjectMcpServers', 'sandbox'},
     'codex': {'approval_policy', 'sandbox_mode', 'sandbox_workspace_write', 'mcp_servers', 'plugins'},
     'opencode': {'permission', 'mcp', 'plugin'},
     'antigravity': {'mcpServers'},
@@ -209,8 +209,13 @@ def risk_locations(adapter, data, prefix=()):
     if adapter == 'antigravity':
         return set()
     local = {k: v for k, v in data.items() if k != 'profiles'} if adapter == 'codex' else data
-    result = {(prefix, f['code'], f['location']) for f in audit.inspect(adapter, local)
-              if f['code'] != 'duplicate_rule'}
+    result = {(prefix, f['code'], 'permission' if adapter == 'opencode' and
+               f['code'] == 'all_tools_allowed' else f['location'])
+              for f in audit.inspect(adapter, local)
+              if f['code'] != 'duplicate_rule' and
+              not (adapter == 'claude' and f['code'] == 'broad_execution_allow')}
+    # Claude allow arrays are compared by exact rule identity in protect_policy,
+    # so inserting/removing an earlier entry cannot invent a risk at a new index.
     if adapter == 'codex':
         for name, profile in data.get('profiles', {}).items():
             result |= risk_locations(adapter, profile, prefix + ('profiles', name))

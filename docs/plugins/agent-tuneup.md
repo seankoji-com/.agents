@@ -117,9 +117,9 @@ python3 "$(dirname "$entry")/scripts/align.py" apply \
 
 Repeat `--allow-key` for each changed JSON pointer; arrays count as one change.
 Unrelated settings roots cannot change. Supported changes include Claude permissions,
-MCP settings, sandbox and hooks; Codex approval/sandbox/MCP/plugin settings and
+MCP settings and sandbox; Codex approval/sandbox/MCP/plugin settings and
 profile policy overrides; OpenCode permissions, MCPs, plugins and agent permission
-overrides; and Antigravity MCP definitions. Profile/agent model edits and Claude
+overrides; and Antigravity MCP definitions. Profile/agent model edits, hooks, and Claude
 project-keyed store writes need separate proposals. Risk code counts are retained
 in plans. Protection-deletion and broad-rule-substitution checks also apply.
 The receipt explicitly says permission semantics are not evaluated. Unlisted

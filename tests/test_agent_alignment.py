@@ -250,6 +250,23 @@ class AlignmentTest(unittest.TestCase):
             new = {'profiles': {'b': {'approval_policy': 'on-request'}, 'a': {'approval_policy': 'never'}}}
             self.assertEqual(align.risk_locations('codex', old), align.risk_locations('codex', new))
 
+    def test_claude_tightening_and_reordering_preserve_broad_rule_identity(self):
+        for before, after in [
+            (["Read(x)", "Bash"], ["Bash"]),
+            (["Bash", "Read(x)"], ["Read(x)", "Bash"]),
+        ]:
+            plan = self.proposal('claude', json.dumps({'permissions': {'allow': before}}),
+                                 json.dumps({'permissions': {'allow': after}}), ['/permissions/allow'])
+            self.assertEqual(plan['risk_patterns_before'], plan['risk_patterns_after'])
+        self.assertEqual(align.risk_locations('opencode', {'permission': 'allow'}),
+                         align.risk_locations('opencode', {'permission': {'*': 'allow'}}))
+
+    def test_hook_commands_are_outside_automatic_apply(self):
+        candidate = json.dumps({'hooks': {'PreToolUse': [{'matcher': '*', 'hooks': [
+            {'type': 'command', 'command': 'fixture-command'}]}]}})
+        with self.assertRaisesRegex(ValueError, 'unsupported_or_empty_change'):
+            self.proposal('claude', '{}', candidate, ['/hooks'])
+
     def test_nested_policy_changes_work_without_changing_model_identity(self):
         cases = [('opencode', '{"agent":{"build":{"permission":{"bash":"allow"},"model":"fixture"}}}',
                   '{"agent":{"build":{"permission":{"bash":"ask"},"model":"fixture"}}}', ['/agent/build/permission/bash'])]

@@ -88,10 +88,10 @@ python3 PKG/scripts/align.py plan --adapter claude \
 ```
 
 Supported roots: Claude `permissions`, `mcpServers`, MCP approval/disable settings,
-`sandbox` and `hooks`; Codex approval/sandbox/MCP/plugin settings, including those
+`sandbox`; Codex approval/sandbox/MCP/plugin settings, including those
 policy fields inside named `profiles`; OpenCode `permission`, `mcp`, `plugin` and
 agent-specific `permission`; Antigravity `mcpServers`. Profile/agent model changes
-and Claude `projects` writes are excluded. Propose those edits separately when
+and Claude `projects`/`hooks` writes are excluded. Propose those edits separately when
 needed, with the same approval, backup and validation requirements.
 
 `--allow-key` repeats for every changed JSON pointer, using `~1` for `/` and `~0`
@@ -101,7 +101,8 @@ known broad permission/sandbox patterns, including supported policy overrides.
 The helper also conservatively refuses removal of exact Claude deny/ask rules,
 protected sandbox fields, explicit Codex policies, and OpenCode deny/ask actions,
 including supported overrides. It detects distinct broad Claude rules, sandbox
-escape hatches, auto-approval of project MCPs, and added Codex workspace networking.
+`allowUnsandboxedCommands` and `autoAllowBashIfSandboxed`, auto-approval of project
+MCPs, and added Codex workspace networking.
 Plans and receipts retain before/after risk counts and explicitly say permission
 semantics are not evaluated. Unlisted options, changed glob/command meaning, deny
 precedence and inheritance can still loosen access without a finding. Review every
