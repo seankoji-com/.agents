@@ -1,0 +1,503 @@
+{
+  "schema_version": 1,
+  "protocol": "bench-v2",
+  "issue": 28,
+  "providers": [
+    "codex",
+    "claudeAgent"
+  ],
+  "workers": [
+    "agent-tuneup/config-researcher",
+    "agent-tuneup/config-verifier",
+    "ape/source-researcher",
+    "ape/synthesizer",
+    "babysitter/pr-maintainer",
+    "babysitter/pr-reviewer",
+    "elephant-goldfish/cold-reader",
+    "elephant-goldfish/factual-checker",
+    "imps/auditor",
+    "imps/investigator",
+    "imps/reviewer",
+    "imps/stage-executor"
+  ],
+  "starts": [
+    {
+      "id": "eng-codex-r1-baseline",
+      "provider": "codex",
+      "scenario": "engineering-five-stage",
+      "arm": "baseline",
+      "pair": "eng-codex-r1",
+      "repetition": 1,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "eng-codex-r1-rebuilt",
+      "provider": "codex",
+      "scenario": "engineering-five-stage",
+      "arm": "rebuilt",
+      "pair": "eng-codex-r1",
+      "repetition": 1,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [
+        "imps/investigator",
+        "imps/stage-executor",
+        "imps/auditor",
+        "imps/reviewer"
+      ],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "eng-codex-r2-baseline",
+      "provider": "codex",
+      "scenario": "engineering-five-stage",
+      "arm": "baseline",
+      "pair": "eng-codex-r2",
+      "repetition": 2,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "eng-codex-r2-rebuilt",
+      "provider": "codex",
+      "scenario": "engineering-five-stage",
+      "arm": "rebuilt",
+      "pair": "eng-codex-r2",
+      "repetition": 2,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [
+        "imps/investigator",
+        "imps/stage-executor",
+        "imps/auditor",
+        "imps/reviewer"
+      ],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "eng-codex-r3-baseline",
+      "provider": "codex",
+      "scenario": "engineering-five-stage",
+      "arm": "baseline",
+      "pair": "eng-codex-r3",
+      "repetition": 3,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": "s3",
+      "workers_expected": [],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "eng-codex-r3-rebuilt",
+      "provider": "codex",
+      "scenario": "engineering-five-stage",
+      "arm": "rebuilt",
+      "pair": "eng-codex-r3",
+      "repetition": 3,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": "s3",
+      "workers_expected": [
+        "imps/investigator",
+        "imps/stage-executor",
+        "imps/auditor",
+        "imps/reviewer"
+      ],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "eng-claudeAgent-r1-baseline",
+      "provider": "claudeAgent",
+      "scenario": "engineering-five-stage",
+      "arm": "baseline",
+      "pair": "eng-claudeAgent-r1",
+      "repetition": 1,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "eng-claudeAgent-r1-rebuilt",
+      "provider": "claudeAgent",
+      "scenario": "engineering-five-stage",
+      "arm": "rebuilt",
+      "pair": "eng-claudeAgent-r1",
+      "repetition": 1,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [
+        "imps/investigator",
+        "imps/stage-executor",
+        "imps/auditor",
+        "imps/reviewer"
+      ],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "eng-claudeAgent-r2-baseline",
+      "provider": "claudeAgent",
+      "scenario": "engineering-five-stage",
+      "arm": "baseline",
+      "pair": "eng-claudeAgent-r2",
+      "repetition": 2,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "eng-claudeAgent-r2-rebuilt",
+      "provider": "claudeAgent",
+      "scenario": "engineering-five-stage",
+      "arm": "rebuilt",
+      "pair": "eng-claudeAgent-r2",
+      "repetition": 2,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [
+        "imps/investigator",
+        "imps/stage-executor",
+        "imps/auditor",
+        "imps/reviewer"
+      ],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "eng-claudeAgent-r3-baseline",
+      "provider": "claudeAgent",
+      "scenario": "engineering-five-stage",
+      "arm": "baseline",
+      "pair": "eng-claudeAgent-r3",
+      "repetition": 3,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": "s3",
+      "workers_expected": [],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "eng-claudeAgent-r3-rebuilt",
+      "provider": "claudeAgent",
+      "scenario": "engineering-five-stage",
+      "arm": "rebuilt",
+      "pair": "eng-claudeAgent-r3",
+      "repetition": 3,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": "s3",
+      "workers_expected": [
+        "imps/investigator",
+        "imps/stage-executor",
+        "imps/auditor",
+        "imps/reviewer"
+      ],
+      "expected_outcome": "completed",
+      "grading": "checks/five_stage.py"
+    },
+    {
+      "id": "ape-codex",
+      "provider": "codex",
+      "scenario": "workflow-ape",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/ape (pending: frozen by Stage 5 before any run)",
+      "interrupt_after": null,
+      "workers_expected": [
+        "ape/source-researcher",
+        "ape/synthesizer"
+      ],
+      "scope": "study of two synthetic source repositories with one declared same-scope source-research follow-up slot",
+      "expected_outcome": "completed",
+      "grading": "pending: hidden checks frozen with the fixture"
+    },
+    {
+      "id": "elephant-goldfish-codex",
+      "provider": "codex",
+      "scenario": "workflow-elephant-goldfish",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/elephant_goldfish (pending: frozen by Stage 5 before any run)",
+      "interrupt_after": null,
+      "workers_expected": [
+        "elephant-goldfish/factual-checker",
+        "elephant-goldfish/cold-reader"
+      ],
+      "scope": "elephant document with seeded factual errors and an isolated cold read",
+      "expected_outcome": "completed",
+      "grading": "pending: hidden checks frozen with the fixture"
+    },
+    {
+      "id": "babysitter-codex",
+      "provider": "codex",
+      "scenario": "workflow-babysitter",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/babysitter (pending: frozen by Stage 5 before any run)",
+      "interrupt_after": null,
+      "workers_expected": [
+        "babysitter/pr-maintainer",
+        "babysitter/pr-reviewer"
+      ],
+      "scope": "one synthetic-GitHub PR with a failing check and a review comment; merge not authorised",
+      "expected_outcome": "completed",
+      "grading": "pending: hidden checks frozen with the fixture"
+    },
+    {
+      "id": "agent-tuneup-codex",
+      "provider": "codex",
+      "scenario": "workflow-agent-tuneup",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/agent_tuneup (pending: frozen by Stage 5 before any run)",
+      "interrupt_after": null,
+      "workers_expected": [
+        "agent-tuneup/config-researcher",
+        "agent-tuneup/config-verifier"
+      ],
+      "scope": "audit of synthetic provider settings with one authorised backed-up edit",
+      "expected_outcome": "completed",
+      "grading": "pending: hidden checks frozen with the fixture"
+    },
+    {
+      "id": "ape-claudeAgent",
+      "provider": "claudeAgent",
+      "scenario": "workflow-ape",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/ape (pending: frozen by Stage 5 before any run)",
+      "interrupt_after": null,
+      "workers_expected": [
+        "ape/source-researcher",
+        "ape/synthesizer"
+      ],
+      "scope": "study of two synthetic source repositories with one declared same-scope source-research follow-up slot",
+      "expected_outcome": "completed",
+      "grading": "pending: hidden checks frozen with the fixture"
+    },
+    {
+      "id": "elephant-goldfish-claudeAgent",
+      "provider": "claudeAgent",
+      "scenario": "workflow-elephant-goldfish",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/elephant_goldfish (pending: frozen by Stage 5 before any run)",
+      "interrupt_after": null,
+      "workers_expected": [
+        "elephant-goldfish/factual-checker",
+        "elephant-goldfish/cold-reader"
+      ],
+      "scope": "elephant document with seeded factual errors and an isolated cold read",
+      "expected_outcome": "completed",
+      "grading": "pending: hidden checks frozen with the fixture"
+    },
+    {
+      "id": "babysitter-claudeAgent",
+      "provider": "claudeAgent",
+      "scenario": "workflow-babysitter",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/babysitter (pending: frozen by Stage 5 before any run)",
+      "interrupt_after": null,
+      "workers_expected": [
+        "babysitter/pr-maintainer",
+        "babysitter/pr-reviewer"
+      ],
+      "scope": "one synthetic-GitHub PR with a failing check and a review comment; merge not authorised",
+      "expected_outcome": "completed",
+      "grading": "pending: hidden checks frozen with the fixture"
+    },
+    {
+      "id": "agent-tuneup-claudeAgent",
+      "provider": "claudeAgent",
+      "scenario": "workflow-agent-tuneup",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/agent_tuneup (pending: frozen by Stage 5 before any run)",
+      "interrupt_after": null,
+      "workers_expected": [
+        "agent-tuneup/config-researcher",
+        "agent-tuneup/config-verifier"
+      ],
+      "scope": "audit of synthetic provider settings with one authorised backed-up edit",
+      "expected_outcome": "completed",
+      "grading": "pending: hidden checks frozen with the fixture"
+    },
+    {
+      "id": "neg-fallback-codex",
+      "provider": "codex",
+      "scenario": "negative-missing-delegation",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [],
+      "expected_outcome": "completed-with-direct-fallback",
+      "grading": "checks/five_stage.py plus visible fallback markers in every stage record"
+    },
+    {
+      "id": "neg-review-codex",
+      "provider": "codex",
+      "scenario": "negative-unavailable-required-review",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [
+        "imps/investigator",
+        "imps/stage-executor",
+        "imps/auditor"
+      ],
+      "expected_outcome": "blocked:required_review_unavailable",
+      "grading": "no stage accepted without its required review; final readiness absent; blocker named"
+    },
+    {
+      "id": "neg-fallback-claudeAgent",
+      "provider": "claudeAgent",
+      "scenario": "negative-missing-delegation",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [],
+      "expected_outcome": "completed-with-direct-fallback",
+      "grading": "checks/five_stage.py plus visible fallback markers in every stage record"
+    },
+    {
+      "id": "neg-review-claudeAgent",
+      "provider": "claudeAgent",
+      "scenario": "negative-unavailable-required-review",
+      "arm": "rebuilt",
+      "pair": null,
+      "repetition": 1,
+      "fixture": "fixtures/five_stage",
+      "interrupt_after": null,
+      "workers_expected": [
+        "imps/investigator",
+        "imps/stage-executor",
+        "imps/auditor"
+      ],
+      "expected_outcome": "blocked:required_review_unavailable",
+      "grading": "no stage accepted without its required review; final readiness absent; blocker named"
+    }
+  ],
+  "canaries": [
+    {
+      "id": "canary-input-read-hash-codex",
+      "provider": "codex",
+      "probe": "child reads the pinned brief path and returns its SHA-256",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-narrow-write-helper-codex",
+      "provider": "codex",
+      "probe": "child writes only its assigned task subtree and runs one pinned helper",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-summary-fidelity-codex",
+      "provider": "codex",
+      "probe": "terminal task_status.summary returns final JSON verbatim at 32,767, 32,768 and 32,769 bytes",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-original-message-codex",
+      "provider": "codex",
+      "probe": "t3_thread_read returns the exact final message of the recorded run",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-followup-new-task-codex",
+      "provider": "codex",
+      "probe": "t3_thread_send mode=queue on a terminal owned child yields a new task ID",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-loopback-github-codex",
+      "provider": "codex",
+      "probe": "child reaches the synthetic GitHub/loopback fixture and nothing else",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-input-read-hash-claudeAgent",
+      "provider": "claudeAgent",
+      "probe": "child reads the pinned brief path and returns its SHA-256",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-narrow-write-helper-claudeAgent",
+      "provider": "claudeAgent",
+      "probe": "child writes only its assigned task subtree and runs one pinned helper",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-summary-fidelity-claudeAgent",
+      "provider": "claudeAgent",
+      "probe": "terminal task_status.summary returns final JSON verbatim at 32,767, 32,768 and 32,769 bytes",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-original-message-claudeAgent",
+      "provider": "claudeAgent",
+      "probe": "t3_thread_read returns the exact final message of the recorded run",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-followup-new-task-claudeAgent",
+      "provider": "claudeAgent",
+      "probe": "t3_thread_send mode=queue on a terminal owned child yields a new task ID",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-loopback-github-claudeAgent",
+      "provider": "claudeAgent",
+      "probe": "child reaches the synthetic GitHub/loopback fixture and nothing else",
+      "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    }
+  ],
+  "infrastructure_retry_limit": 1,
+  "model_policy": {
+    "families": {
+      "codex": "luna",
+      "claudeAgent": "haiku"
+    },
+    "applies_to": [
+      "parent",
+      "worker",
+      "reviewer",
+      "canary",
+      "retry",
+      "repair",
+      "resume",
+      "native-child"
+    ],
+    "on_unavailable": "blocked",
+    "allow_model_escalation": false,
+    "guard": "tools/model_policy.py",
+    "exact_targets": "discover in live container catalog and freeze before first start",
+    "integration_gate": "S1b: guard every launch/dispatch and restrict catalog; forbidden target sends zero requests"
+  }
+}

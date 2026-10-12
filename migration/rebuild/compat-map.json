@@ -1,0 +1,3303 @@
+{
+  "schema_version": 1,
+  "issue": {
+    "path": "migration/rebuild/issue-28.md",
+    "sha256": "d99dea8b8a3649beb6acb6a9db07c8f6241741922f0cc6f533058b0258e4b07f"
+  },
+  "base_commit": "3cb0d1135b6c3cc3576b0f8aab67ee6415a855ff",
+  "dispositions": [
+    "keep",
+    "change",
+    "remove"
+  ],
+  "stages": {
+    "2": "registry and installation",
+    "3": "generic jobs, briefs, results and acceptance",
+    "4": "coordinator entries, adapters and worker definitions",
+    "5": "legacy migration, cross-stage regressions, installed tests and docs"
+  },
+  "requirements": [
+    "REQ-COMPAT",
+    "REQ-REGISTRY",
+    "REQ-OVERRIDES",
+    "REQ-JOB",
+    "REQ-DISPATCH",
+    "REQ-REPAIR",
+    "REQ-HANDOFF",
+    "REQ-EVIDENCE",
+    "REQ-LIFECYCLE",
+    "REQ-ROUTING",
+    "REQ-FALLBACK",
+    "REQ-BOUNDARIES",
+    "REQ-VISIBILITY",
+    "REQ-METRICS",
+    "REQ-LIVE",
+    "REQ-DELIVERY",
+    "REQ-APPROVAL-PICKER",
+    "REQ-TEST-MODELS"
+  ],
+  "guarantees": {
+    "G-IMPS-GATE": "imps: existing gate/evidence semantics and all operations",
+    "G-IMPS-LEGACY": "imps: new metadata external to old runs; owned legacy status/resume/cancel with pinned recovery paths",
+    "G-APE-READONLY": "ape: read-only target research and at most five candidates",
+    "G-APE-PROVENANCE": "ape: fingerprints, source provenance and reports",
+    "G-APE-CLEANUP": "ape: explicitly authorized owned cleanup only",
+    "G-EG-DISCOVERY": "elephant-goldfish: interactive discovery and content-bound discovery acceptance",
+    "G-EG-SEPARATION": "elephant-goldfish: factual and cold-read verification stay separate",
+    "G-EG-HANDOFF": "elephant-goldfish: deterministic handoff provenance; drafts, reminders, resume and requirement changes never launch implementation or bypass readiness (#25)",
+    "G-BS-ROSTER": "babysitter: eligible roster and pagination",
+    "G-BS-WORKSPACE": "babysitter: isolated PR workspaces",
+    "G-BS-EXACT-HEAD": "babysitter: exact-head checks and reviews",
+    "G-BS-SCOPE": "babysitter: explicit communication/merge scope, links, host watches, separately authorized future-PR sweeps",
+    "G-TU-FORMAT": "agent-tuneup: deterministic format checks",
+    "G-TU-SCAN": "agent-tuneup: optional transcript scan",
+    "G-TU-REPORT": "agent-tuneup: report-first; authorized backed-up edits; distinct parse/load/live-enforcement observations",
+    "G-ADAPTERS": "provider skill roots/adapters keep pointing to coordinator entries",
+    "G-LEARNINGS": "learnings/harvest optional, scoped, private and subject to owner/memory policy",
+    "G-ROLLBACK": "rollback covers definitions, entries and helpers; migrations never manufacture acceptance",
+    "G-APPROVAL-PICKER": "Every approval and owner decision uses the host native question picker."
+  },
+  "rules": [
+    "Every current operation, test module, helper/instruction file, core or plugin schema, manifest field and persisted format has one entry.",
+    "An entry whose path no longer exists must have disposition remove.",
+    "Files and test modules created after the base commit go in \"added\" with the stage that created them.",
+    "A removed test module keeps its assertions list; each assertion names the surviving coverage that replaces it.",
+    "New owner gates: approval picker and Haiku/Luna-only live test policy; S1b wires and verifies enforcement."
+  ],
+  "operations": [
+    {
+      "id": "imps:doctor",
+      "plugin": "imps",
+      "operation": "doctor",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Stays a direct deterministic check (no agents); adds installed bundle/pin integrity via t3-plugins doctor and agents list.",
+      "files": [
+        "plugins/imps/entry.md"
+      ],
+      "workers": [],
+      "guarantees": [
+        "G-IMPS-GATE"
+      ]
+    },
+    {
+      "id": "imps:run",
+      "plugin": "imps",
+      "operation": "run",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Coordinator creates a job with a finite stage plan and delegates whole stages to imps/stage-executor, imps/investigator and imps/reviewer; each stage keeps its own core gate run.",
+      "files": [
+        "plugins/imps/entry.md",
+        "plugins/imps/playbooks/bug-fix.md",
+        "plugins/imps/playbooks/investigation.md",
+        "plugins/imps/references/brief-probes.md",
+        "plugins/imps/references/delegation.md"
+      ],
+      "workers": [
+        "imps/stage-executor",
+        "imps/investigator",
+        "imps/reviewer"
+      ],
+      "guarantees": [
+        "G-IMPS-GATE"
+      ]
+    },
+    {
+      "id": "imps:resume",
+      "plugin": "imps",
+      "operation": "resume",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Resume reads the job overview and recovers pins before loading entries, reconciles handles, then acts. Legacy major-version-2 runs without a job keep their current resume path.",
+      "files": [
+        "plugins/imps/entry.md"
+      ],
+      "workers": [],
+      "guarantees": [
+        "G-IMPS-LEGACY"
+      ]
+    },
+    {
+      "id": "imps:status",
+      "plugin": "imps",
+      "operation": "status",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Direct: prints the deterministic job overview, or the legacy run status/validate/report; never launches agents.",
+      "files": [
+        "plugins/imps/entry.md"
+      ],
+      "workers": [],
+      "guarantees": [
+        "G-IMPS-LEGACY"
+      ]
+    },
+    {
+      "id": "imps:cancel",
+      "plugin": "imps",
+      "operation": "cancel",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Cancels only owned tasks recorded in the job (and legacy run children), confirms terminal state, then records cancel; artifacts are kept.",
+      "files": [
+        "plugins/imps/entry.md"
+      ],
+      "workers": [],
+      "guarantees": [
+        "G-IMPS-LEGACY"
+      ]
+    },
+    {
+      "id": "imps:verification-init",
+      "plugin": "imps",
+      "operation": "verification-init",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Direct recipe scaffold/check/stamp flow is already bounded; entry rewrite must keep it direct.",
+      "files": [
+        "plugins/imps/references/verification-init.md",
+        "plugins/imps/templates/verify-project.md",
+        "plugins/imps/templates/feature.md"
+      ],
+      "workers": [],
+      "guarantees": [
+        "G-IMPS-GATE"
+      ]
+    },
+    {
+      "id": "imps:blast-radius",
+      "plugin": "imps",
+      "operation": "blast-radius",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Read-only cited analysis delegated to imps/investigator as one stage.",
+      "files": [
+        "plugins/imps/playbooks/blast-radius.md"
+      ],
+      "workers": [
+        "imps/investigator"
+      ],
+      "guarantees": [
+        "G-IMPS-GATE"
+      ]
+    },
+    {
+      "id": "imps:audit",
+      "plugin": "imps",
+      "operation": "audit",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Per-dimension imps/auditor stages with refutation; coordinator integrates the plan.",
+      "files": [
+        "plugins/imps/playbooks/audit.md"
+      ],
+      "workers": [
+        "imps/auditor",
+        "imps/reviewer"
+      ],
+      "guarantees": [
+        "G-IMPS-GATE"
+      ]
+    },
+    {
+      "id": "imps:issues",
+      "plugin": "imps",
+      "operation": "issues",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Issue batch becomes a job with one stage per issue group and a declared final integration stage.",
+      "files": [
+        "plugins/imps/playbooks/issues.md"
+      ],
+      "workers": [
+        "imps/stage-executor",
+        "imps/reviewer"
+      ],
+      "guarantees": [
+        "G-IMPS-GATE"
+      ]
+    },
+    {
+      "id": "imps:prs",
+      "plugin": "imps",
+      "operation": "prs",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Cross-plugin dependency: job pins babysitter at creation; entry resolves it with t3-plugins --job JOB path babysitter instead of the mutable current path.",
+      "files": [
+        "plugins/imps/entry.md"
+      ],
+      "workers": [
+        "babysitter/pr-maintainer",
+        "babysitter/pr-reviewer"
+      ],
+      "guarantees": [
+        "G-BS-SCOPE",
+        "G-IMPS-GATE"
+      ]
+    },
+    {
+      "id": "imps:checklist",
+      "plugin": "imps",
+      "operation": "checklist",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Checklist claims become stage requirements; input.py keeps reading claims without executing content.",
+      "files": [
+        "plugins/imps/playbooks/checklist.md"
+      ],
+      "workers": [
+        "imps/stage-executor",
+        "imps/reviewer"
+      ],
+      "guarantees": [
+        "G-IMPS-GATE"
+      ]
+    },
+    {
+      "id": "imps:discussion",
+      "plugin": "imps",
+      "operation": "discussion",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Discussion source retained verbatim as job source; seeds a bounded plan.",
+      "files": [
+        "plugins/imps/playbooks/discussion.md"
+      ],
+      "workers": [
+        "imps/investigator"
+      ],
+      "guarantees": [
+        "G-IMPS-GATE"
+      ]
+    },
+    {
+      "id": "ape:doctor",
+      "plugin": "ape",
+      "operation": "doctor",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Direct deterministic check; adds bundle integrity reporting.",
+      "files": [
+        "plugins/ape/entry.md"
+      ],
+      "workers": [],
+      "guarantees": [
+        "G-APE-READONLY"
+      ]
+    },
+    {
+      "id": "ape:forage",
+      "plugin": "ape",
+      "operation": "forage",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Up to five candidates, each a pinned ape/source-researcher slot; ape/synthesizer compares accepted reports; validate_report.py accepts.",
+      "files": [
+        "plugins/ape/playbooks/forage.md"
+      ],
+      "workers": [
+        "ape/source-researcher",
+        "ape/synthesizer"
+      ],
+      "guarantees": [
+        "G-APE-READONLY",
+        "G-APE-PROVENANCE"
+      ]
+    },
+    {
+      "id": "ape:study",
+      "plugin": "ape",
+      "operation": "study",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "One pinned source-research stage plus a declared same-scope follow-up slot; validate_report.py accepts.",
+      "files": [
+        "plugins/ape/playbooks/study.md"
+      ],
+      "workers": [
+        "ape/source-researcher"
+      ],
+      "guarantees": [
+        "G-APE-READONLY",
+        "G-APE-PROVENANCE"
+      ]
+    },
+    {
+      "id": "ape:clean",
+      "plugin": "ape",
+      "operation": "clean",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Direct, explicitly authorized, marker-checked deletion; no agents.",
+      "files": [
+        "plugins/ape/playbooks/clean.md"
+      ],
+      "workers": [],
+      "guarantees": [
+        "G-APE-CLEANUP"
+      ]
+    },
+    {
+      "id": "elephant-goldfish:doctor",
+      "plugin": "elephant-goldfish",
+      "operation": "doctor",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Direct deterministic check; adds bundle integrity reporting.",
+      "files": [
+        "plugins/elephant-goldfish/entry.md"
+      ],
+      "workers": [],
+      "guarantees": [
+        "G-EG-DISCOVERY"
+      ]
+    },
+    {
+      "id": "elephant-goldfish:thinking",
+      "plugin": "elephant-goldfish",
+      "operation": "thinking",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Interactive discovery stays with the coordinator; readiness remains content-bound in thinking_state.py; cold reads run in fresh isolated children.",
+      "files": [
+        "plugins/elephant-goldfish/playbooks/thinking.md"
+      ],
+      "workers": [
+        "elephant-goldfish/cold-reader"
+      ],
+      "guarantees": [
+        "G-EG-DISCOVERY",
+        "G-EG-HANDOFF",
+        "G-EG-SEPARATION"
+      ]
+    },
+    {
+      "id": "elephant-goldfish:elephant",
+      "plugin": "elephant-goldfish",
+      "operation": "elephant",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Factual checks by elephant-goldfish/factual-checker and cold reads by elephant-goldfish/cold-reader, accepted separately by validate_document.py; round limit recorded.",
+      "files": [
+        "plugins/elephant-goldfish/playbooks/elephant.md"
+      ],
+      "workers": [
+        "elephant-goldfish/factual-checker",
+        "elephant-goldfish/cold-reader"
+      ],
+      "guarantees": [
+        "G-EG-SEPARATION"
+      ]
+    },
+    {
+      "id": "elephant-goldfish:check",
+      "plugin": "elephant-goldfish",
+      "operation": "check",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Factual drift pass only, delegated to elephant-goldfish/factual-checker.",
+      "files": [
+        "plugins/elephant-goldfish/playbooks/elephant.md"
+      ],
+      "workers": [
+        "elephant-goldfish/factual-checker"
+      ],
+      "guarantees": [
+        "G-EG-SEPARATION"
+      ]
+    },
+    {
+      "id": "babysitter:doctor",
+      "plugin": "babysitter",
+      "operation": "doctor",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Direct deterministic check; adds bundle integrity reporting.",
+      "files": [
+        "plugins/babysitter/entry.md"
+      ],
+      "workers": [],
+      "guarantees": [
+        "G-BS-SCOPE"
+      ]
+    },
+    {
+      "id": "babysitter:pr",
+      "plugin": "babysitter",
+      "operation": "pr",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "One PR is one job stage: babysitter/pr-maintainer repairs in its isolated workspace; babysitter/pr-reviewer reviews the final combined change; validate_pr.py accepts at the observed head.",
+      "files": [
+        "plugins/babysitter/playbooks/maintain.md"
+      ],
+      "workers": [
+        "babysitter/pr-maintainer",
+        "babysitter/pr-reviewer"
+      ],
+      "guarantees": [
+        "G-BS-WORKSPACE",
+        "G-BS-EXACT-HEAD",
+        "G-BS-SCOPE"
+      ]
+    },
+    {
+      "id": "babysitter:repo",
+      "plugin": "babysitter",
+      "operation": "repo",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Roster from list-prs.sh; one declared slot per eligible PR; future-PR sweeps stay separately authorized.",
+      "files": [
+        "plugins/babysitter/playbooks/maintain.md"
+      ],
+      "workers": [
+        "babysitter/pr-maintainer",
+        "babysitter/pr-reviewer"
+      ],
+      "guarantees": [
+        "G-BS-ROSTER",
+        "G-BS-SCOPE"
+      ]
+    },
+    {
+      "id": "babysitter:org",
+      "plugin": "babysitter",
+      "operation": "org",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "As repo, across the paginated org roster.",
+      "files": [
+        "plugins/babysitter/playbooks/maintain.md"
+      ],
+      "workers": [
+        "babysitter/pr-maintainer",
+        "babysitter/pr-reviewer"
+      ],
+      "guarantees": [
+        "G-BS-ROSTER",
+        "G-BS-SCOPE"
+      ]
+    },
+    {
+      "id": "agent-tuneup:doctor",
+      "plugin": "agent-tuneup",
+      "operation": "doctor",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Direct deterministic check; adds bundle integrity reporting.",
+      "files": [
+        "plugins/agent-tuneup/entry.md"
+      ],
+      "workers": [],
+      "guarantees": [
+        "G-TU-FORMAT"
+      ]
+    },
+    {
+      "id": "agent-tuneup:audit",
+      "plugin": "agent-tuneup",
+      "operation": "audit",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Deterministic audit.py first; agent-tuneup/config-researcher confirms provider semantics; config-verifier checks authorized edits; validate_audit.py accepts.",
+      "files": [
+        "plugins/agent-tuneup/playbooks/audit.md"
+      ],
+      "workers": [
+        "agent-tuneup/config-researcher",
+        "agent-tuneup/config-verifier"
+      ],
+      "guarantees": [
+        "G-TU-FORMAT",
+        "G-TU-REPORT"
+      ]
+    },
+    {
+      "id": "agent-tuneup:scan",
+      "plugin": "agent-tuneup",
+      "operation": "scan",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Direct optional transcript scan via scan_perms.py; no agents.",
+      "files": [
+        "plugins/agent-tuneup/entry.md"
+      ],
+      "workers": [],
+      "guarantees": [
+        "G-TU-SCAN"
+      ]
+    }
+  ],
+  "cli_subcommands": [
+    {
+      "id": "core:init",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:status",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:snapshot",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:validate",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:report",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:check",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:evidence",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:review",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:child",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:waive",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:note",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:policy",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:remote",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:cancel",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:recipe-scaffold",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:recipe-check",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "core:recipe-stamp",
+      "path": "core/cli.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate op unchanged; job acceptance invokes validate at the stage binding."
+    },
+    {
+      "id": "t3-plugins:list",
+      "path": "scripts/catalog.py",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "t3-plugins:setup",
+      "path": "scripts/catalog.py",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Adds --agents-root and materializes bundles alongside snapshots and adapters."
+    },
+    {
+      "id": "t3-plugins:resolve",
+      "path": "scripts/catalog.py",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Adds suitability reason and ordered escalation output; existing fields stay."
+    },
+    {
+      "id": "t3-plugins:skills",
+      "path": "scripts/catalog.py",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Unchanged; never registers worker definitions."
+    },
+    {
+      "id": "t3-plugins:path",
+      "path": "scripts/catalog.py",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Ordinary path unchanged; global --job JOB resolves recorded pins and refuses undeclared dependencies."
+    },
+    {
+      "id": "t3-plugins:prompt",
+      "path": "scripts/catalog.py",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "t3-plugins:doctor",
+      "path": "scripts/catalog.py",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Adds bundle/package pair integrity, overrides status and interrupted-install diagnosis."
+    },
+    {
+      "id": "t3-plugins:install",
+      "path": "scripts/catalog.py",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Adds --agents-root and bundle materialization."
+    },
+    {
+      "id": "t3-plugins:uninstall",
+      "path": "scripts/catalog.py",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Refuses versions referenced by live/resumable jobs; removes only owned unchanged bundle files."
+    },
+    {
+      "id": "t3-plugins:activate",
+      "path": "scripts/catalog.py",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Selects the matching package/bundle pair; legacy packages without bundles refuse new-format jobs."
+    },
+    {
+      "id": "thinking_state:list",
+      "path": "plugins/elephant-goldfish/scripts/thinking_state.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Unchanged command meaning."
+    },
+    {
+      "id": "thinking_state:resolve",
+      "path": "plugins/elephant-goldfish/scripts/thinking_state.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Unchanged command meaning."
+    },
+    {
+      "id": "thinking_state:init",
+      "path": "plugins/elephant-goldfish/scripts/thinking_state.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Unchanged command meaning."
+    },
+    {
+      "id": "thinking_state:set",
+      "path": "plugins/elephant-goldfish/scripts/thinking_state.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Unchanged command meaning."
+    },
+    {
+      "id": "thinking_state:review",
+      "path": "plugins/elephant-goldfish/scripts/thinking_state.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Unchanged command meaning."
+    },
+    {
+      "id": "thinking_state:gate",
+      "path": "plugins/elephant-goldfish/scripts/thinking_state.py",
+      "disposition": "change",
+      "stage": 3,
+      "reason": "Repaired readiness/review gate consumed by job acceptance."
+    },
+    {
+      "id": "gh_publish:detect-repo",
+      "path": "plugins/elephant-goldfish/scripts/gh_publish.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Unchanged; explicit authority only."
+    },
+    {
+      "id": "gh_publish:ensure",
+      "path": "plugins/elephant-goldfish/scripts/gh_publish.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Unchanged; explicit authority only."
+    },
+    {
+      "id": "gh_publish:post",
+      "path": "plugins/elephant-goldfish/scripts/gh_publish.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Unchanged; explicit authority only."
+    },
+    {
+      "id": "learnings:load",
+      "path": "shared/learnings.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "learnings:maintain",
+      "path": "shared/learnings.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "learnings:write",
+      "path": "shared/learnings.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "learnings:harvest",
+      "path": "shared/learnings.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "ape-workspace:init",
+      "path": "plugins/ape/scripts/workspace.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "ape-workspace:validate",
+      "path": "plugins/ape/scripts/workspace.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "conformance:setup",
+      "path": "scripts/conformance.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Historical tooling unchanged."
+    },
+    {
+      "id": "conformance:find-run",
+      "path": "scripts/conformance.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Historical tooling unchanged."
+    },
+    {
+      "id": "conformance:collect",
+      "path": "scripts/conformance.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Historical tooling unchanged."
+    },
+    {
+      "id": "conformance:compile",
+      "path": "scripts/conformance.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Historical tooling unchanged."
+    }
+  ],
+  "helpers": [
+    {
+      "path": "bench/checks/task_a.py",
+      "kind": "bench-v1",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Frozen v1 benchmark (issue #15); retained byte-for-byte. bench/v2 adds the new protocol alongside."
+    },
+    {
+      "path": "bench/checks/task_b.py",
+      "kind": "bench-v1",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Frozen v1 benchmark (issue #15); retained byte-for-byte. bench/v2 adds the new protocol alongside."
+    },
+    {
+      "path": "bench/checks/task_b_validation.json",
+      "kind": "bench-v1",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Frozen v1 benchmark (issue #15); retained byte-for-byte. bench/v2 adds the new protocol alongside."
+    },
+    {
+      "path": "bench/tools/audit.py",
+      "kind": "bench-v1",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Frozen v1 benchmark (issue #15); retained byte-for-byte. bench/v2 adds the new protocol alongside."
+    },
+    {
+      "path": "bench/tools/grade_task_b.py",
+      "kind": "bench-v1",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Frozen v1 benchmark (issue #15); retained byte-for-byte. bench/v2 adds the new protocol alongside."
+    },
+    {
+      "path": "bench/tools/prepare_workspace.py",
+      "kind": "bench-v1",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Frozen v1 benchmark (issue #15); retained byte-for-byte. bench/v2 adds the new protocol alongside."
+    },
+    {
+      "path": "bench/tools/summarise.py",
+      "kind": "bench-v1",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Frozen v1 benchmark (issue #15); retained byte-for-byte. bench/v2 adds the new protocol alongside."
+    },
+    {
+      "path": "bench/tools/tokens.py",
+      "kind": "bench-v1",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Frozen v1 benchmark (issue #15); retained byte-for-byte. bench/v2 adds the new protocol alongside."
+    },
+    {
+      "path": "bench/tools/verify_package.py",
+      "kind": "bench-v1",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Frozen v1 benchmark (issue #15); retained byte-for-byte. bench/v2 adds the new protocol alongside."
+    },
+    {
+      "path": "bin/t3-plugins",
+      "kind": "launcher",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Thin launcher over scripts/catalog.py; new subcommands arrive through catalog.py.",
+      "interface": "t3-plugins ARGS"
+    },
+    {
+      "path": "core/__init__.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Generic primitives reused by the job store; no plugin vocabulary added."
+    },
+    {
+      "path": "core/acceptance.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Stage-local gate validate remains the imps authority; job acceptance calls it, never replaces it."
+    },
+    {
+      "path": "core/cli.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Evidence gate CLI keeps every op and envelope; job operations get their own CLI so legacy callers are unaffected.",
+      "interface": "cli.py OP [--state-root] [--plugin-dir] [--run-id] [--input|--json] ..."
+    },
+    {
+      "path": "core/contract.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Run contract unchanged; job metadata stays external to major-version-2 runs."
+    },
+    {
+      "path": "core/errors.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Generic primitives reused by the job store; no plugin vocabulary added."
+    },
+    {
+      "path": "core/fsutil.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Generic primitives reused by the job store; no plugin vocabulary added."
+    },
+    {
+      "path": "core/planning.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps run plans unchanged; job stage plans use a separate core module."
+    },
+    {
+      "path": "core/recipe.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Recipe scaffold/check/stamp unchanged."
+    },
+    {
+      "path": "core/records.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Submission kinds unchanged; child observations still carry task/request/parent identity."
+    },
+    {
+      "path": "core/report.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Run report unchanged; job overview is a separate deterministic renderer."
+    },
+    {
+      "path": "core/review.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Review evidence semantics unchanged."
+    },
+    {
+      "path": "core/schema.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Generic primitives reused by the job store; no plugin vocabulary added."
+    },
+    {
+      "path": "core/snapshot.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Binding computation reused for job stage bindings."
+    },
+    {
+      "path": "core/store.py",
+      "kind": "core-module",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Run store unchanged; job store reuses its lock/atomic pattern in a new module."
+    },
+    {
+      "path": "packaging/t3-plugins.rb.tmpl",
+      "kind": "packaging",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Formula still calls the same installer; agent-root default is the installer's, not the formula's."
+    },
+    {
+      "path": "plugins/agent-tuneup/scripts/audit.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Deterministic, value-free audit; its receipts feed validate_audit.py.",
+      "interface": "audit.py --list-adapters | --provider P --settings PATH"
+    },
+    {
+      "path": "plugins/agent-tuneup/scripts/scan_perms.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Optional transcript scan unchanged.",
+      "interface": "scan_perms.py [--json]"
+    },
+    {
+      "path": "plugins/ape/scripts/clean-ape-workspace.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Owned cleanup gate (--confirm, marker) unchanged."
+    },
+    {
+      "path": "plugins/ape/scripts/clone-candidates.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Candidate cloning unchanged; max-five enforced by plan slots and playbook."
+    },
+    {
+      "path": "plugins/ape/scripts/init-workspace.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Workspace allocation unchanged."
+    },
+    {
+      "path": "plugins/ape/scripts/readme-peek.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Read-only triage unchanged."
+    },
+    {
+      "path": "plugins/ape/scripts/search-repos.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Read-only search unchanged."
+    },
+    {
+      "path": "plugins/ape/scripts/study-repo.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Pinned source preparation unchanged; its revision feeds report provenance."
+    },
+    {
+      "path": "plugins/ape/scripts/triage-repos.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Read-only triage unchanged."
+    },
+    {
+      "path": "plugins/ape/scripts/workspace-slug.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Host identity unchanged."
+    },
+    {
+      "path": "plugins/ape/scripts/workspace.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Workspace ownership marker check stays the cleanup gate.",
+      "interface": "workspace.py init|validate WORKSPACE"
+    },
+    {
+      "path": "plugins/babysitter/scripts/list-prs.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Only GitHub reader; roster/pagination unchanged."
+    },
+    {
+      "path": "plugins/babysitter/scripts/merge-pr.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Head-pinned merge unchanged; still requires explicit merge authority."
+    },
+    {
+      "path": "plugins/babysitter/scripts/pr-events.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Retained only as the legacy standalone adapter; never run in T3 and never used by job flows (no polling watcher)."
+    },
+    {
+      "path": "plugins/babysitter/scripts/pr-workspace.sh",
+      "kind": "shell-helper",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Isolated per-PR worktrees and push policy unchanged."
+    },
+    {
+      "path": "plugins/elephant-goldfish/scripts/gh_publish.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Publication guards unchanged; still explicit-authority only.",
+      "interface": "gh_publish.py [--root] detect-repo|ensure|post"
+    },
+    {
+      "path": "plugins/elephant-goldfish/scripts/render_handoff.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "render_handoff.py --check stays part of the elephant-goldfish acceptance chain.",
+      "interface": "render_handoff.py SLUG [--root] [--template-dir] [--stdout|--check] [--draft]"
+    },
+    {
+      "path": "plugins/elephant-goldfish/scripts/thinking_state.py",
+      "kind": "python-cli",
+      "disposition": "change",
+      "stage": 3,
+      "reason": "Readiness/review gate is repaired to serve as the authoritative validator input, and cold-read round limits are recorded (new topics 4, legacy topics 5 plus performed rounds).",
+      "interface": "thinking_state.py [--root] list|resolve|init|set|review|gate"
+    },
+    {
+      "path": "plugins/imps/cli.py",
+      "kind": "launcher",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Launcher keeps passing --plugin-dir; under a job it is invoked from the pinned package directory.",
+      "interface": "cli.py ARGS (execs core/cli.py)"
+    },
+    {
+      "path": "plugins/imps/config.json",
+      "kind": "defaults",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Evidence-gate defaults and role chains stay; specialized workers map onto existing host roles."
+    },
+    {
+      "path": "plugins/imps/scripts/input.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Request classification and checklist claim reading stay data-only.",
+      "interface": "input.py --input FILE"
+    },
+    {
+      "path": "scripts/catalog.py",
+      "kind": "python-cli",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Adds agents list/show, --job JOB path PLUGIN and agent-root support in setup/doctor/install/activate/uninstall; ordinary path unchanged.",
+      "interface": "t3-plugins [--prefix] list|setup|resolve|skills|path|prompt|doctor|install|uninstall|activate"
+    },
+    {
+      "path": "scripts/check_docs.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Docs link/entry-budget gate unchanged."
+    },
+    {
+      "path": "scripts/conformance.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Historical conformance tooling; the new live protocol lives under bench/v2.",
+      "interface": "conformance.py setup|find-run|collect|compile"
+    },
+    {
+      "path": "scripts/field_guide.py",
+      "kind": "python-module",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Site generation from repository data; may read new manifest fields additively."
+    },
+    {
+      "path": "scripts/install.py",
+      "kind": "python-cli",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Adds --agents-root, bundle materialization, installation identity, pin-aware removal and agent-root receipts; keeps prefix, current and uninstall semantics.",
+      "interface": "install.py [--plugin] [--prefix] [--dry-run] [--force] [--uninstall [--version]] [--activate VERSION]"
+    },
+    {
+      "path": "scripts/render_demo.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Homepage recording generator unchanged."
+    },
+    {
+      "path": "scripts/routing.py",
+      "kind": "python-module",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Adds suitability reasons, lowest-suitable-tier selection and ordered escalation over the existing workhorse/reviewer/judgement roles; config schema stays v1 unless additive."
+    },
+    {
+      "path": "scripts/run_imps.py",
+      "kind": "launcher",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Homebrew imps launcher keeps its snapshot mismatch warning."
+    },
+    {
+      "path": "scripts/run_tests.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Parallel test runner unchanged."
+    },
+    {
+      "path": "scripts/skills.py",
+      "kind": "python-module",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Adapters still point at coordinator entries; worker definitions are never written as skills."
+    },
+    {
+      "path": "shared/harvest.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Optional harvest unchanged.",
+      "interface": "harvest.py --input FILE --output FILE"
+    },
+    {
+      "path": "shared/learning_grants.py",
+      "kind": "python-module",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Setup grants unchanged; never touch owner config in tests."
+    },
+    {
+      "path": "shared/learning_store.py",
+      "kind": "python-module",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Private optional learnings unchanged."
+    },
+    {
+      "path": "shared/learnings.py",
+      "kind": "python-cli",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Optional learnings CLI unchanged.",
+      "interface": "learnings.py load|maintain|write|harvest --project P [--input FILE] [--package DIR]"
+    },
+    {
+      "path": "tests/support.py",
+      "kind": "test-support",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Shared fixtures for gate tests; job tests add their own support module."
+    }
+  ],
+  "instructions": [
+    {
+      "path": "plugins/agent-tuneup/entry.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Rebuilt as a coordinator entry that loads only the selected operation, under 1,500 words."
+    },
+    {
+      "path": "plugins/agent-tuneup/playbooks/audit.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/ape/entry.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Rebuilt as a coordinator entry that loads only the selected operation, under 1,500 words."
+    },
+    {
+      "path": "plugins/ape/playbooks/clean.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/ape/playbooks/forage.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/ape/playbooks/study.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/babysitter/entry.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Rebuilt as a coordinator entry that loads only the selected operation, under 1,500 words."
+    },
+    {
+      "path": "plugins/babysitter/playbooks/maintain.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/elephant-goldfish/entry.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Rebuilt as a coordinator entry that loads only the selected operation, under 1,500 words."
+    },
+    {
+      "path": "plugins/elephant-goldfish/playbooks/elephant.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/elephant-goldfish/playbooks/thinking.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/elephant-goldfish/templates/discovery.skeleton.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Template output formats unchanged."
+    },
+    {
+      "path": "plugins/elephant-goldfish/templates/handoff.implementation.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Template output formats unchanged."
+    },
+    {
+      "path": "plugins/elephant-goldfish/templates/handoff.research.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Template output formats unchanged."
+    },
+    {
+      "path": "plugins/elephant-goldfish/templates/probes.implementation.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Template output formats unchanged."
+    },
+    {
+      "path": "plugins/elephant-goldfish/templates/probes.research.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Template output formats unchanged."
+    },
+    {
+      "path": "plugins/elephant-goldfish/templates/spec.skeleton.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Template output formats unchanged."
+    },
+    {
+      "path": "plugins/imps/entry.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Rebuilt as a coordinator entry that loads only the selected operation, under 1,500 words."
+    },
+    {
+      "path": "plugins/imps/playbooks/audit.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/imps/playbooks/blast-radius.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/imps/playbooks/bug-fix.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/imps/playbooks/checklist.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/imps/playbooks/discussion.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/imps/playbooks/investigation.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/imps/playbooks/issues.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Operation playbook rewritten for whole-stage delegation, milestones and preserved boundaries."
+    },
+    {
+      "path": "plugins/imps/references/brief-probes.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Reference content survives; Stage 4 may adjust links only."
+    },
+    {
+      "path": "plugins/imps/references/compatibility.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Reference content survives; Stage 4 may adjust links only."
+    },
+    {
+      "path": "plugins/imps/references/delegation.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Delegation/T3 adapter guidance moves to the shared worker contract and job lifecycle."
+    },
+    {
+      "path": "plugins/imps/references/personas.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "personas.md: perspective text is pinned into the job before review."
+    },
+    {
+      "path": "plugins/imps/references/request.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Reference content survives; Stage 4 may adjust links only."
+    },
+    {
+      "path": "plugins/imps/references/t3-adapter.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Delegation/T3 adapter guidance moves to the shared worker contract and job lifecycle."
+    },
+    {
+      "path": "plugins/imps/references/verification-init.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Reference content survives; Stage 4 may adjust links only."
+    },
+    {
+      "path": "plugins/imps/templates/feature.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Template output formats unchanged."
+    },
+    {
+      "path": "plugins/imps/templates/verify-project.md",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Template output formats unchanged."
+    },
+    {
+      "path": "shared/delegation.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Replaced by whole-stage delegation over shared/agents boundaries and briefs."
+    },
+    {
+      "path": "shared/harvest.md",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Optional harvest guidance unchanged."
+    },
+    {
+      "path": "shared/learnings.md",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Optional learnings guidance unchanged."
+    },
+    {
+      "path": "shared/t3-runtime.md",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Gains task lifecycle rules: async delegate_task, same-ID retries, uncertain dispatch, follow-ups, capacity deferral."
+    }
+  ],
+  "schemas": [
+    {
+      "path": "core/schemas/defaults.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/evidence.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/install-manifest.schema.json",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Gains optional bundle and installation fields; version-1 manifests remain valid legacy input."
+    },
+    {
+      "path": "core/schemas/plan.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/recipe-facts.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/recipe.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/report.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/repository-policy.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/run.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/submission-cancel.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/submission-check.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/submission-child.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/submission-evidence.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/submission-note.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/submission-policy.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/submission-remote.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/submission-review.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "core/schemas/submission-waive.schema.json",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "imps gate schema unchanged; job schemas are new files."
+    },
+    {
+      "path": "plugins/imps/schemas/roles.schema.json",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "imps role chains unchanged."
+    }
+  ],
+  "manifest_fields": [
+    {
+      "id": "plugin.json:name",
+      "field": "name",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Stable plugin identity; reserved names jobs and learnings are refused."
+    },
+    {
+      "id": "plugin.json:version",
+      "field": "version",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Package version still major.minor.patch."
+    },
+    {
+      "id": "plugin.json:description",
+      "field": "description",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "plugin.json:argument_hint",
+      "field": "argument_hint",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Command meanings preserved."
+    },
+    {
+      "id": "plugin.json:entry",
+      "field": "entry",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Coordinator entry path."
+    },
+    {
+      "id": "plugin.json:operations",
+      "field": "operations",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Operation lists preserved exactly."
+    },
+    {
+      "id": "plugin.json:kind",
+      "field": "kind",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "plugin.json:compatibility",
+      "field": "compatibility",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Codex/Claude live acceptance updates it only after Stage 6 evidence."
+    },
+    {
+      "id": "plugin.json:origin",
+      "field": "origin",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Migration provenance unchanged."
+    },
+    {
+      "id": "plugin.json:origin.repository",
+      "field": "origin.repository",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "plugin.json:origin.plugin",
+      "field": "origin.plugin",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "plugin.json:origin.version",
+      "field": "origin.version",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "plugin.json:model_invocable",
+      "field": "model_invocable",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Adapter invocation policy unchanged; worker definitions are never model-invocable skills."
+    },
+    {
+      "id": "plugin.json:defaults",
+      "field": "defaults",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "imps evidence defaults file."
+    },
+    {
+      "id": "plugin.json:tested_t3_version",
+      "field": "tested_t3_version",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Updated only from recorded live evidence."
+    },
+    {
+      "id": "install-manifest:files",
+      "field": "files",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Package manifest also pins the bundle digest and shared contract files; existing path/sha256/mode entries unchanged."
+    }
+  ],
+  "persisted_formats": [
+    {
+      "id": "imps-run-state",
+      "location": "$XDG_STATE_HOME/t3-plugins/imps/runs/<run-id>/ (run.json, run.lock, artifacts, notes, reports)",
+      "schema": "core/schemas/run.schema.json",
+      "version": "schema_version 2",
+      "paths": [
+        "core/store.py",
+        "core/schemas/run.schema.json"
+      ],
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Major-version-2 records preserved; job linkage stored in the job, never in run.json. Incompatible majors keep refusing writes with the previous-package path."
+    },
+    {
+      "id": "imps-recipe",
+      "location": "<repo>/<recipe dir>/recipe.json",
+      "schema": "core/schemas/recipe.schema.json",
+      "version": "schema_version 1",
+      "paths": [
+        "core/recipe.py"
+      ],
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Verification recipe unchanged."
+    },
+    {
+      "id": "learnings-store",
+      "location": "$XDG_STATE_HOME/t3-plugins/learnings/<project-key>/<plugin>.md (+ .lock)",
+      "schema": null,
+      "version": "per-entry versions",
+      "paths": [
+        "shared/learning_store.py"
+      ],
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Optional private lessons unchanged."
+    },
+    {
+      "id": "learnings-grant-backups",
+      "location": "<provider config dir>/<file>.pre-learnings-<sha256>",
+      "schema": null,
+      "version": null,
+      "paths": [
+        "shared/learning_grants.py"
+      ],
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Setup grant backups unchanged."
+    },
+    {
+      "id": "install-manifest",
+      "location": "<prefix>/<plugin>/<version>/install-manifest.json and <prefix>/<plugin>/current symlink",
+      "schema": "core/schemas/install-manifest.schema.json",
+      "version": "schema_version 1",
+      "paths": [
+        "scripts/install.py",
+        "core/schemas/install-manifest.schema.json"
+      ],
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Adds bundle pin (digest, files) and installation id; v1 manifests stay readable as legacy packages without bundles."
+    },
+    {
+      "id": "skill-adapter-marker",
+      "location": "<skill root>/<name>/.t3-plugins-skill.json",
+      "schema": null,
+      "version": "schema_version 1",
+      "paths": [
+        "scripts/skills.py"
+      ],
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Adapter receipts unchanged."
+    },
+    {
+      "id": "ape-workspace-marker",
+      "location": "<workspace>/.ape-workspace.json",
+      "schema": null,
+      "version": "schema_version 1",
+      "paths": [
+        "plugins/ape/scripts/workspace.py"
+      ],
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Ownership marker unchanged."
+    },
+    {
+      "id": "babysitter-pr-cache",
+      "location": "$HOME/.local/state/t3-plugins/babysitter/repos/ (cache clones and per-PR worktrees)",
+      "schema": null,
+      "version": null,
+      "paths": [
+        "plugins/babysitter/scripts/pr-workspace.sh"
+      ],
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Isolated PR workspaces unchanged."
+    },
+    {
+      "id": "thinking-state",
+      "location": "thinking/<slug>/meta.json, discovery.md, spec.md, handoff.md, handoff.manifest.json (review schema 1, manifest schema 2)",
+      "schema": null,
+      "version": "review.schema 1; handoff manifest schema 2",
+      "paths": [
+        "plugins/elephant-goldfish/scripts/thinking_state.py",
+        "plugins/elephant-goldfish/scripts/render_handoff.py"
+      ],
+      "disposition": "change",
+      "stage": 3,
+      "reason": "Adds cold-read limit/performed-round fields; legacy topics without a limit record the five-round policy and prior rounds. Existing receipts stay valid."
+    },
+    {
+      "id": "routing-config",
+      "location": "$XDG_CONFIG_HOME/t3-plugins/routing.json and <repo>/.t3-plugins/routing.json",
+      "schema": null,
+      "version": "schema_version 1",
+      "paths": [
+        "scripts/routing.py"
+      ],
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Routing/model/runtime policy stays here, not in workers.json; any extension is additive."
+    },
+    {
+      "id": "harvest-receipts",
+      "location": "harvest --output FILE (caller-chosen)",
+      "schema": null,
+      "version": null,
+      "paths": [
+        "shared/harvest.py"
+      ],
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Unchanged."
+    },
+    {
+      "id": "bench-v1-records",
+      "location": "bench/runs/<version>/<slot>/",
+      "schema": null,
+      "version": "frozen 2026-10-11",
+      "paths": [
+        "bench/protocol.md",
+        "bench/rubric.md"
+      ],
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Historical benchmark retained byte-for-byte."
+    },
+    {
+      "id": "conformance-records",
+      "location": "conformance/results/<t3-version>/<provider>/<case>/<n>/",
+      "schema": null,
+      "version": null,
+      "paths": [
+        "scripts/conformance.py"
+      ],
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Historical live observations retained."
+    }
+  ],
+  "tests": [
+    {
+      "path": "tests/test_agent_tuneup.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Read-only audit receipts survive; validate_audit.py consumes them.",
+      "assertions": [
+        {
+          "selector": "test_agent_tuneup.AuditTest",
+          "tests": 6,
+          "coverage": [
+            "G-TU-FORMAT",
+            "G-TU-REPORT",
+            "REQ-BOUNDARIES"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_ape_boundaries.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Unsafe-target refusals survive.",
+      "assertions": [
+        {
+          "selector": "test_ape_boundaries.ResearchBoundaryTest",
+          "tests": 9,
+          "coverage": [
+            "G-APE-READONLY",
+            "G-APE-CLEANUP",
+            "REQ-BOUNDARIES"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_ape_workspace.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Workspace ownership survives.",
+      "assertions": [
+        {
+          "selector": "test_ape_workspace.WorkspaceTest",
+          "tests": 2,
+          "coverage": [
+            "G-APE-CLEANUP",
+            "G-APE-PROVENANCE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_babysitter_transport.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Credential-free transport survives.",
+      "assertions": [
+        {
+          "selector": "test_babysitter_transport.InventoryTransportTest",
+          "tests": 1,
+          "coverage": [
+            "G-BS-ROSTER"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_bench.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Frozen v1 harness tests; must keep passing unchanged.",
+      "assertions": [
+        {
+          "selector": "test_bench.DatasetTest",
+          "tests": 2,
+          "coverage": [
+            "REQ-METRICS"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_bench.TaskACheckTest",
+          "tests": 20,
+          "coverage": [
+            "REQ-METRICS"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_bench.TokenParserTest",
+          "tests": 4,
+          "coverage": [
+            "REQ-METRICS"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_bench.AuditTest",
+          "tests": 1,
+          "coverage": [
+            "REQ-METRICS"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_bench.PackageVerificationTest",
+          "tests": 1,
+          "coverage": [
+            "REQ-METRICS"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_bench.RecordingTest",
+          "tests": 1,
+          "coverage": [
+            "REQ-METRICS"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_bugfix_direct.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Direct gate bug fix remains the fallback path baseline.",
+      "assertions": [
+        {
+          "selector": "test_bugfix_direct.DirectBugFixTest",
+          "tests": 2,
+          "coverage": [
+            "G-IMPS-GATE",
+            "REQ-EVIDENCE",
+            "REQ-FALLBACK"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_catalog.py",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Extended for agents list/show, --job path and agent-root; existing assertions keep passing.",
+      "assertions": [
+        {
+          "selector": "test_catalog.CatalogTest",
+          "tests": 13,
+          "coverage": [
+            "REQ-COMPAT",
+            "REQ-REGISTRY",
+            "G-ROLLBACK"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_check_docs.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Docs checker unchanged.",
+      "assertions": [
+        {
+          "selector": "test_check_docs.CheckDocsTest",
+          "tests": 10,
+          "coverage": [
+            "REQ-DELIVERY"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_cleanup.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Evidence survives worktree cleanup.",
+      "assertions": [
+        {
+          "selector": "test_cleanup.CleanupTest",
+          "tests": 1,
+          "coverage": [
+            "REQ-EVIDENCE",
+            "G-IMPS-GATE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_conformance_args.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Historical tooling.",
+      "assertions": [
+        {
+          "selector": "test_conformance_args.CollectArgumentTest",
+          "tests": 3,
+          "coverage": [
+            "REQ-LIVE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_conformance_flows.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Historical tooling.",
+      "assertions": [
+        {
+          "selector": "test_conformance_flows.ConformanceFlowTest",
+          "tests": 5,
+          "coverage": [
+            "REQ-LIVE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_contract.py",
+      "disposition": "change",
+      "stage": 3,
+      "reason": "Purity applies to new core job modules; core size budget decision (see design.md open decisions); entry tests follow Stage 4 entries.",
+      "assertions": [
+        {
+          "selector": "test_contract.PurityTest",
+          "tests": 2,
+          "coverage": [
+            "REQ-BOUNDARIES"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_contract.SurfaceTest",
+          "tests": 6,
+          "coverage": [
+            "REQ-LIFECYCLE",
+            "G-BS-SCOPE",
+            "G-APPROVAL-PICKER"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_contract.NoMachinePathsTest",
+          "tests": 1,
+          "coverage": [
+            "REQ-DELIVERY"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_contract.EntryTest",
+          "tests": 2,
+          "coverage": [
+            "REQ-COMPAT"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_contract.CliContractTest",
+          "tests": 2,
+          "coverage": [
+            "G-IMPS-GATE"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_contract.MappingTest",
+          "tests": 3,
+          "coverage": [
+            "REQ-COMPAT",
+            "G-IMPS-GATE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_core_audit_followups.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Pre-check binding semantics survive and extend to job stage bindings.",
+      "assertions": [
+        {
+          "selector": "test_core_audit_followups.EvidenceBindingTest",
+          "tests": 6,
+          "coverage": [
+            "REQ-EVIDENCE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_core_hardening.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Artifact naming and snapshot rename regressions survive.",
+      "assertions": [
+        {
+          "selector": "test_core_hardening.ArtifactNameTest",
+          "tests": 2,
+          "coverage": [
+            "REQ-EVIDENCE"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_core_hardening.PorcelainRenameTest",
+          "tests": 2,
+          "coverage": [
+            "REQ-EVIDENCE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_field_guide.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Site generated from catalog data.",
+      "assertions": [
+        {
+          "selector": "test_field_guide.RepositoryGuideTest",
+          "tests": 8,
+          "coverage": [
+            "REQ-DELIVERY"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_field_guide.SyntheticRootTest",
+          "tests": 9,
+          "coverage": [
+            "REQ-DELIVERY"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_formula_template.py",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Formula still calls the installer.",
+      "assertions": [
+        {
+          "selector": "test_formula_template.FormulaTemplateTest",
+          "tests": 2,
+          "coverage": [
+            "REQ-DELIVERY"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_gate_boundaries.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Gate boundaries survive.",
+      "assertions": [
+        {
+          "selector": "test_gate_boundaries.GateBoundaries",
+          "tests": 8,
+          "coverage": [
+            "REQ-EVIDENCE",
+            "G-IMPS-GATE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_gh_publish_flows.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Publication guards survive.",
+      "assertions": [
+        {
+          "selector": "test_gh_publish_flows.PublishFlowTest",
+          "tests": 9,
+          "coverage": [
+            "G-EG-HANDOFF",
+            "REQ-BOUNDARIES"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_harvest.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Optional harvest.",
+      "assertions": [
+        {
+          "selector": "test_harvest.HarvestTest",
+          "tests": 7,
+          "coverage": [
+            "G-LEARNINGS"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_helper_hardening.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Codex TOML requirement survives.",
+      "assertions": [
+        {
+          "selector": "test_helper_hardening.CodexTomlRequirementTest",
+          "tests": 1,
+          "coverage": [
+            "G-TU-FORMAT"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_imps_input.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Request classification and non-executing claim reads survive.",
+      "assertions": [
+        {
+          "selector": "test_imps_input.ImpsInput",
+          "tests": 6,
+          "coverage": [
+            "G-IMPS-GATE",
+            "REQ-BOUNDARIES"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_install.py",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Extended for agent root, bundles, identity and pin retention; existing lifecycle assertions keep passing.",
+      "assertions": [
+        {
+          "selector": "test_install.InstallTest",
+          "tests": 11,
+          "coverage": [
+            "REQ-REGISTRY",
+            "G-ROLLBACK"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_instruction_hygiene.py",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Must also scan worker definitions and shared/agents; brief/adapter assertions follow the rebuilt entries.",
+      "assertions": [
+        {
+          "selector": "test_instruction_hygiene.InstructionHygiene",
+          "tests": 5,
+          "coverage": [
+            "REQ-HANDOFF",
+            "REQ-BOUNDARIES"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_learning_grants.py",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Grants never touch owner config.",
+      "assertions": [
+        {
+          "selector": "test_learning_grants.GrantsTest",
+          "tests": 5,
+          "coverage": [
+            "G-LEARNINGS"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_learnings.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Private learnings. Known sandbox artefact: test_concurrent_writers_do_not_lose_entries needs AF_UNIX sockets.",
+      "assertions": [
+        {
+          "selector": "test_learnings.LearningsTest",
+          "tests": 13,
+          "coverage": [
+            "G-LEARNINGS"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_merge_pr.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Head-pinned merge survives.",
+      "assertions": [
+        {
+          "selector": "test_merge_pr.MergeTest",
+          "tests": 23,
+          "coverage": [
+            "G-BS-EXACT-HEAD",
+            "G-BS-SCOPE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_model_ids.py",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Release archive (now including worker definitions) carries no fixed model IDs.",
+      "assertions": [
+        {
+          "selector": "test_model_ids.ReleaseArchiveModelIds",
+          "tests": 2,
+          "coverage": [
+            "REQ-REGISTRY",
+            "REQ-ROUTING"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_ownership.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Atomic locked storage; same guarantees required of the job store.",
+      "assertions": [
+        {
+          "selector": "test_ownership.StorageTest",
+          "tests": 4,
+          "coverage": [
+            "REQ-JOB",
+            "G-IMPS-LEGACY"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_paths.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Artifact containment survives.",
+      "assertions": [
+        {
+          "selector": "test_paths.PathSafetyTest",
+          "tests": 3,
+          "coverage": [
+            "REQ-EVIDENCE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_pr_events.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Legacy standalone adapter only.",
+      "assertions": [
+        {
+          "selector": "test_pr_events.EventDiffTest",
+          "tests": 1,
+          "coverage": [
+            "G-BS-SCOPE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_pr_workspace_push_policy.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Isolated workspace push policy survives.",
+      "assertions": [
+        {
+          "selector": "test_pr_workspace_push_policy.PushPolicyTest",
+          "tests": 3,
+          "coverage": [
+            "G-BS-WORKSPACE",
+            "G-BS-SCOPE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_publish_transactions.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Publication retries survive.",
+      "assertions": [
+        {
+          "selector": "test_publish_transactions.PublishTransactions",
+          "tests": 6,
+          "coverage": [
+            "G-EG-HANDOFF"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_readiness.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Readiness/invalidation semantics survive per stage.",
+      "assertions": [
+        {
+          "selector": "test_readiness.CompletionGateTest",
+          "tests": 3,
+          "coverage": [
+            "REQ-EVIDENCE",
+            "G-IMPS-GATE"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_readiness.InvalidationTest",
+          "tests": 6,
+          "coverage": [
+            "REQ-EVIDENCE",
+            "G-IMPS-GATE"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_readiness.LabelTest",
+          "tests": 2,
+          "coverage": [
+            "REQ-EVIDENCE",
+            "G-IMPS-GATE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_remote.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Remote receipts need independent observation.",
+      "assertions": [
+        {
+          "selector": "test_remote.RemoteTest",
+          "tests": 3,
+          "coverage": [
+            "REQ-EVIDENCE",
+            "G-BS-EXACT-HEAD"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_render_demo.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Site asset.",
+      "assertions": [
+        {
+          "selector": "test_render_demo.RenderDemoTest",
+          "tests": 6,
+          "coverage": [
+            "REQ-DELIVERY"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_render_handoff.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "render_handoff --check stays in the acceptance chain.",
+      "assertions": [
+        {
+          "selector": "test_render_handoff.TestRenderPure",
+          "tests": 5,
+          "coverage": [
+            "G-EG-HANDOFF"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_render_handoff.TestRenderCLIWithBraceContent",
+          "tests": 2,
+          "coverage": [
+            "G-EG-HANDOFF"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_render_handoff.TestRenderCLI",
+          "tests": 8,
+          "coverage": [
+            "G-EG-HANDOFF"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_render_handoff.TestPublishGuards",
+          "tests": 7,
+          "coverage": [
+            "G-EG-HANDOFF"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_render_handoff.TestGraphQLErrorHandling",
+          "tests": 5,
+          "coverage": [
+            "G-EG-HANDOFF"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_render_handoff.TestHandoffManifest",
+          "tests": 1,
+          "coverage": [
+            "G-EG-HANDOFF"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_render_handoff.TestWriteFailures",
+          "tests": 1,
+          "coverage": [
+            "G-EG-HANDOFF"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_results.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Agent assertions cannot grant readiness; same rule for worker results.",
+      "assertions": [
+        {
+          "selector": "test_results.SubmissionTest",
+          "tests": 2,
+          "coverage": [
+            "REQ-EVIDENCE",
+            "REQ-HANDOFF"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_retired_plugins.py",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Retired adapter removal survives.",
+      "assertions": [
+        {
+          "selector": "test_retired_plugins.RetiredAdapters",
+          "tests": 7,
+          "coverage": [
+            "REQ-REGISTRY",
+            "G-ADAPTERS"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_retired_plugins.RetiredUninstall",
+          "tests": 4,
+          "coverage": [
+            "REQ-REGISTRY",
+            "G-ADAPTERS"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_review.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Review revision binding survives.",
+      "assertions": [
+        {
+          "selector": "test_review.ReviewTest",
+          "tests": 5,
+          "coverage": [
+            "REQ-EVIDENCE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_review_followups.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Policy obligations survive.",
+      "assertions": [
+        {
+          "selector": "test_review_followups.FollowupTest",
+          "tests": 4,
+          "coverage": [
+            "REQ-EVIDENCE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_review_perspectives.py",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Perspective text becomes pinned in the job before review; existing same-revision approvals survive.",
+      "assertions": [
+        {
+          "selector": "test_review_perspectives.Perspectives",
+          "tests": 3,
+          "coverage": [
+            "REQ-EVIDENCE",
+            "REQ-ROUTING"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_review_regressions.py",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Installer regressions survive agent-root changes.",
+      "assertions": [
+        {
+          "selector": "test_review_regressions.InstallerFindingsTest",
+          "tests": 4,
+          "coverage": [
+            "REQ-REGISTRY",
+            "G-ROLLBACK"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_review_regressions.Round2InstallerTest",
+          "tests": 3,
+          "coverage": [
+            "REQ-REGISTRY",
+            "G-ROLLBACK"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_review_regressions.Round3InstallerTest",
+          "tests": 4,
+          "coverage": [
+            "REQ-REGISTRY",
+            "G-ROLLBACK"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_review_round5.py",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Launcher and recipe/uninstall regressions survive.",
+      "assertions": [
+        {
+          "selector": "test_review_round5.LauncherTest",
+          "tests": 1,
+          "coverage": [
+            "REQ-COMPAT"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_review_round5.Round6Test",
+          "tests": 3,
+          "coverage": [
+            "REQ-EVIDENCE",
+            "REQ-REGISTRY"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_review_round5_peripheral.py",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Installer, recipe and conformance regressions survive.",
+      "assertions": [
+        {
+          "selector": "test_review_round5_peripheral.ArtifactWriteTest",
+          "tests": 1,
+          "coverage": [
+            "REQ-EVIDENCE"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_review_round5_peripheral.RecipeEvidenceContainmentTest",
+          "tests": 1,
+          "coverage": [
+            "REQ-EVIDENCE"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_review_round5_peripheral.RecipeSchemaCouplingTest",
+          "tests": 1,
+          "coverage": [
+            "G-IMPS-GATE"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_review_round5_peripheral.ConformanceGraderTest",
+          "tests": 3,
+          "coverage": [
+            "REQ-LIVE"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_review_round5_peripheral.Round5InstallerTest",
+          "tests": 5,
+          "coverage": [
+            "REQ-REGISTRY",
+            "G-ROLLBACK"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_routing.py",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Extended for suitability reasons and escalation; existing assertions survive.",
+      "assertions": [
+        {
+          "selector": "test_routing.RoutingCli",
+          "tests": 17,
+          "coverage": [
+            "REQ-ROUTING"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_run_tests.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Runner unchanged.",
+      "assertions": [
+        {
+          "selector": "test_run_tests.RunTestsTest",
+          "tests": 5,
+          "coverage": [
+            "REQ-DELIVERY"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_runtime_mode.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Runtime modes stay config data.",
+      "assertions": [
+        {
+          "selector": "test_runtime_mode.RuntimeModeTest",
+          "tests": 1,
+          "coverage": [
+            "REQ-ROUTING"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_scan_perms.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Optional scan.",
+      "assertions": [
+        {
+          "selector": "test_scan_perms.TranscriptEncodingTest",
+          "tests": 1,
+          "coverage": [
+            "G-TU-SCAN"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_scan_perms.FirstRealTokenTest",
+          "tests": 9,
+          "coverage": [
+            "G-TU-SCAN"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_scan_perms.FirstSegmentTest",
+          "tests": 4,
+          "coverage": [
+            "G-TU-SCAN"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_scan_perms.FindRecentTranscriptsTest",
+          "tests": 2,
+          "coverage": [
+            "G-TU-SCAN"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_scan_perms.IterToolUsesTest",
+          "tests": 11,
+          "coverage": [
+            "G-TU-SCAN"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_scan_perms.MainEndToEndTest",
+          "tests": 6,
+          "coverage": [
+            "G-TU-SCAN"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_schemas.py",
+      "disposition": "change",
+      "stage": 3,
+      "reason": "Parity extended to new job and result schemas.",
+      "assertions": [
+        {
+          "selector": "test_schemas.SchemaParityTest",
+          "tests": 6,
+          "coverage": [
+            "REQ-COMPAT",
+            "G-IMPS-LEGACY"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_schemas.VersionAndCorruptionTest",
+          "tests": 3,
+          "coverage": [
+            "REQ-COMPAT",
+            "G-IMPS-LEGACY"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_setup.py",
+      "disposition": "change",
+      "stage": 2,
+      "reason": "Setup gains agent root; adapters unchanged.",
+      "assertions": [
+        {
+          "selector": "test_setup.SetupTest",
+          "tests": 5,
+          "coverage": [
+            "REQ-REGISTRY",
+            "G-ADAPTERS"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_skill_adapters.py",
+      "disposition": "keep",
+      "stage": 2,
+      "reason": "Adapters point to coordinator entries only.",
+      "assertions": [
+        {
+          "selector": "test_skill_adapters.SkillAdapters",
+          "tests": 14,
+          "coverage": [
+            "G-ADAPTERS",
+            "REQ-BOUNDARIES"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_snapshot.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Binding guarantees survive.",
+      "assertions": [
+        {
+          "selector": "test_snapshot.SnapshotTest",
+          "tests": 5,
+          "coverage": [
+            "REQ-EVIDENCE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_task_b_grader.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Frozen v1 grader.",
+      "assertions": [
+        {
+          "selector": "test_task_b_grader.InodeSimulationTest",
+          "tests": 3,
+          "coverage": [
+            "REQ-METRICS"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_task_b_grader.BehaviourProbeTest",
+          "tests": 3,
+          "coverage": [
+            "REQ-METRICS"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_tasks.py",
+      "disposition": "keep",
+      "stage": 3,
+      "reason": "Child identity/descendant/cancel gate survives.",
+      "assertions": [
+        {
+          "selector": "test_tasks.ChildTest",
+          "tests": 6,
+          "coverage": [
+            "REQ-LIFECYCLE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_thinking_review.py",
+      "disposition": "change",
+      "stage": 3,
+      "reason": "Review gate repairs and cold-read limits; existing boundary assertions survive.",
+      "assertions": [
+        {
+          "selector": "test_thinking_review.ReviewCommands",
+          "tests": 18,
+          "coverage": [
+            "G-EG-DISCOVERY",
+            "G-EG-HANDOFF",
+            "G-EG-SEPARATION"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_thinking_review.TestSourceReview",
+          "tests": 18,
+          "coverage": [
+            "G-EG-DISCOVERY",
+            "G-EG-HANDOFF",
+            "G-EG-SEPARATION"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_thinking_review.TestInstalledReview",
+          "tests": 18,
+          "coverage": [
+            "G-EG-DISCOVERY",
+            "G-EG-HANDOFF",
+            "G-EG-SEPARATION"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_thinking_review.TestThinkingInstructionContract",
+          "tests": 1,
+          "coverage": [
+            "G-EG-DISCOVERY",
+            "G-EG-HANDOFF",
+            "G-EG-SEPARATION"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_thinking_state.py",
+      "disposition": "change",
+      "stage": 3,
+      "reason": "Cold-read limit migration fields; existing assertions survive.",
+      "assertions": [
+        {
+          "selector": "test_thinking_state.TestSlugValidation",
+          "tests": 6,
+          "coverage": [
+            "G-EG-DISCOVERY",
+            "G-EG-HANDOFF",
+            "REQ-REPAIR"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_thinking_state.TestInit",
+          "tests": 5,
+          "coverage": [
+            "G-EG-DISCOVERY",
+            "G-EG-HANDOFF",
+            "REQ-REPAIR"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_thinking_state.TestPhaseProgression",
+          "tests": 2,
+          "coverage": [
+            "G-EG-DISCOVERY",
+            "G-EG-HANDOFF",
+            "REQ-REPAIR"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_thinking_state.TestPublishTracking",
+          "tests": 2,
+          "coverage": [
+            "G-EG-DISCOVERY",
+            "G-EG-HANDOFF",
+            "REQ-REPAIR"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_thinking_state.TestSet",
+          "tests": 3,
+          "coverage": [
+            "G-EG-DISCOVERY",
+            "G-EG-HANDOFF",
+            "REQ-REPAIR"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_thinking_state.TestGate",
+          "tests": 7,
+          "coverage": [
+            "G-EG-DISCOVERY",
+            "G-EG-HANDOFF",
+            "REQ-REPAIR"
+          ],
+          "survives": true
+        },
+        {
+          "selector": "test_thinking_state.TestListAndLegacy",
+          "tests": 5,
+          "coverage": [
+            "G-EG-DISCOVERY",
+            "G-EG-HANDOFF",
+            "REQ-REPAIR"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_verification_init.py",
+      "disposition": "keep",
+      "stage": 4,
+      "reason": "Recipe flow survives.",
+      "assertions": [
+        {
+          "selector": "test_verification_init.VerificationInitTest",
+          "tests": 4,
+          "coverage": [
+            "G-IMPS-GATE"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_version_bump.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Release workflow.",
+      "assertions": [
+        {
+          "selector": "test_version_bump.VersionBumpTest",
+          "tests": 1,
+          "coverage": [
+            "REQ-DELIVERY"
+          ],
+          "survives": true
+        }
+      ]
+    },
+    {
+      "path": "tests/test_workflow_hygiene.py",
+      "disposition": "keep",
+      "stage": 5,
+      "reason": "Workflow hygiene.",
+      "assertions": [
+        {
+          "selector": "test_workflow_hygiene.WorkflowHygieneTest",
+          "tests": 2,
+          "coverage": [
+            "REQ-DELIVERY"
+          ],
+          "survives": true
+        }
+      ]
+    }
+  ],
+  "added": [
+    {
+      "path": "tests/test_rebuild_compat_map.py",
+      "stage": 1,
+      "kind": "test",
+      "coverage": [
+        "REQ-COMPAT"
+      ],
+      "reason": "Fails when an operation, test module, helper, schema or mapped file is missing from this map."
+    },
+    {
+      "path": "tests/test_bench_v2.py",
+      "stage": 1,
+      "kind": "test",
+      "coverage": [
+        "REQ-METRICS"
+      ],
+      "reason": "Frozen five-stage fixture checks, plan table and usage parser."
+    }
+  ]
+}

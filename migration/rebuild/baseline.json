@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "purpose": "Baseline package identity for issue #28 Stage 1. The rebuilt packages are compared against these digests; the paired benchmark's baseline arm installs exactly this commit.",
+  "issue": {
+    "path": "migration/rebuild/issue-28.md",
+    "sha256": "d99dea8b8a3649beb6acb6a9db07c8f6241741922f0cc6f533058b0258e4b07f"
+  },
+  "base_commit": "3cb0d1135b6c3cc3576b0f8aab67ee6415a855ff",
+  "built_on": "2026-10-12",
+  "builder": {
+    "installer": "scripts/install.py",
+    "source": "repository worktree at base_commit; plugins/, core/ and shared/ clean (git status --porcelain empty for those paths)",
+    "python": "3.15 (installer requires 3.10+)",
+    "isolation": "HOME, XDG_STATE_HOME, XDG_CONFIG_HOME and --prefix were set to paths below a fresh temporary directory; the real user directory and prefix were not read or written.",
+    "command": "env HOME=<scratch>/user-root XDG_STATE_HOME=<scratch>/user-root/.local/state XDG_CONFIG_HOME=<scratch>/user-root/.config python3 scripts/install.py --plugin <plugin> --prefix <scratch>/prefix",
+    "repeat_build": "The same command into <scratch>/prefix2 produced byte-identical install-manifest.json files for every plugin.",
+    "post_check": "python3 bench/tools/verify_package.py <tmp>/prefix/<plugin>/<version> reported ok for every plugin (no missing, modified or unlisted files)",
+    "cross_check": "git archive <base_commit> | tar -x -C <scratch>/src; python3 scripts/install.py --plugin <plugin> --prefix <scratch>/prefix --source <scratch>/src. Without Git, version label uses +content.<12 hex>; package_content_sha256 matched listed values."
+  },
+  "digest_definitions": {
+    "package_content_sha256": "sha256 of json.dumps(manifest['files'], sort_keys=True).encode(), the installer's own content hash (plan_install `content`). Independent of Git provenance and of the version label.",
+    "install_manifest_sha256": "sha256 of the installed install-manifest.json bytes, which also binds version and source_commit.",
+    "version": "plugin.json version plus +g<12-hex commit>: the last commit that touched plugins/<plugin>, core or shared. It is a provenance label, not the base commit."
+  },
+  "plugins": [
+    {
+      "name": "imps",
+      "manifest_version": "1.0.1",
+      "installed_version": "1.0.1+gda8906ac4f08",
+      "source_commit": "da8906ac4f08c5aa38c447d6e885310c8ee7a900",
+      "files": 62,
+      "package_content_sha256": "7fc89233416e499fd6faff79fe68d9c3559fc28d00bb9e8ad8126c6923fecd7a",
+      "install_manifest_sha256": "0e3c1e22a361c3a6857b3062d5a9ccc5712bace5725bfc4796905a9ec0c19a71"
+    },
+    {
+      "name": "ape",
+      "manifest_version": "1.0.1",
+      "installed_version": "1.0.1+gda8906ac4f08",
+      "source_commit": "da8906ac4f08c5aa38c447d6e885310c8ee7a900",
+      "files": 54,
+      "package_content_sha256": "6918bf4bab4658e08d218a374460addfe85f53711280a4ad95b02e5c61a2b5c4",
+      "install_manifest_sha256": "93555d84651cca4cb508c79c88fbfc627f6d4d6265bbf53eb8d80b9820af30c2"
+    },
+    {
+      "name": "elephant-goldfish",
+      "manifest_version": "1.0.2",
+      "installed_version": "1.0.2+g3cb0d1135b6c",
+      "source_commit": "3cb0d1135b6c3cc3576b0f8aab67ee6415a855ff",
+      "files": 53,
+      "package_content_sha256": "3fabfb6886991eed09e8820eba6c55d2a40c94a9fcede16773def2e3bf6aa712",
+      "install_manifest_sha256": "ee028d80381dac796731c3d49da47bfb51087281489b47471cbe03d7c09d7ef8"
+    },
+    {
+      "name": "babysitter",
+      "manifest_version": "1.0.2",
+      "installed_version": "1.0.2+gda8906ac4f08",
+      "source_commit": "da8906ac4f08c5aa38c447d6e885310c8ee7a900",
+      "files": 47,
+      "package_content_sha256": "f7dc4968773bf28bbe8c5b28e1f445b293bbbd2d52115fad254c6ba8a8baf490",
+      "install_manifest_sha256": "56fa5fce1935c9a1d6bb08aae079f7c9a49ed43c50c7829aca20bbde3d5f34ec"
+    },
+    {
+      "name": "agent-tuneup",
+      "manifest_version": "1.0.1",
+      "installed_version": "1.0.1+gda8906ac4f08",
+      "source_commit": "da8906ac4f08c5aa38c447d6e885310c8ee7a900",
+      "files": 45,
+      "package_content_sha256": "4bfc0a921bf6616a4b49ff7f55944a09eac2e7a14d03b04d1fbb1b7842a1658e",
+      "install_manifest_sha256": "53f20679825e3e5aefe7ffce5bdbc577531a6efe9f96d44a8d0bc71deeba0aa1"
+    }
+  ],
+  "limits": [
+    "Digests identify package bytes only. They say nothing about provider behaviour.",
+    "No managed worker definitions or agent bundles exist at this commit; the baseline arm has no bundle identity."
+  ]
+}

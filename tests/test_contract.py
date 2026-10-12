@@ -63,6 +63,15 @@ class SurfaceTest(CoreTestCase):
         self.assertIn('`link_pull_request`', text)
         self.assertIn('when exposed', text)
 
+    def test_approvals_go_through_the_native_question_picker(self):
+        text = (ROOT / 'shared' / 't3-runtime.md').read_text()
+        self.assertIn("host's native question picker", text)
+        self.assertIn('`AskUserQuestion`', text)
+        self.assertIn('Never bury an approval in a prose status', text)
+        self.assertIn('silence is not approval', text)
+        for entry in sorted((ROOT / 'plugins').glob('*/entry.md')):
+            self.assertIn('shared/t3-runtime.md', entry.read_text(), entry.parent.name)
+
     def test_top_level_thread_tools_appear_only_as_prohibitions(self):
         for path, text in [*text_files('plugins'), *text_files('shared')]:
             for line in text.splitlines():
