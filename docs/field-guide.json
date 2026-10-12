@@ -35,9 +35,9 @@
   "agent-tuneup": {
     "plate": "V",
     "binomial": "Gryllus auditor",
-    "summary": "Find broad permission rules and duplicates in agent settings without changing them.",
-    "habitat": "Your settings files: Claude JSON, OpenCode JSON or JSONC, Codex TOML.",
-    "diet": "An explicitly supplied settings path and the provider format it belongs to.",
-    "field_marks": "Read-only by default. The settings format is independent of the provider running the audit. Codex TOML needs Python 3.11 and says so."
+    "summary": "Compare provider permissions, MCPs and plugins, then apply reviewed native changes.",
+    "habitat": "A T3 thread with a live provider catalog and explicitly identified settings layers.",
+    "diet": "An audit target, or an alignment request followed by approval of concrete changes.",
+    "field_marks": "Read-only by default. Unknown capabilities stay visible. Native settings writes require a reviewed plan, unchanged file hashes and a private backup."
   }
 }

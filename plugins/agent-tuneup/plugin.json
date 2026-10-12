@@ -1,12 +1,14 @@
 {
   "name": "agent-tuneup",
-  "version": "1.0.1",
-  "description": "Read-only configuration audits with explicit provider adapters.",
-  "argument_hint": "doctor | audit --provider <name> --settings <path> | scan --provider claude",
+  "version": "1.1.0",
+  "description": "Audit and align provider permissions, MCPs and plugins with approved native changes.",
+  "argument_hint": "doctor | audit --provider NAME --settings PATH | align | apply --plan PATH | scan --provider claude",
   "entry": "entry.md",
   "operations": [
     "doctor",
     "audit",
+    "align",
+    "apply",
     "scan"
   ],
   "kind": "workflow",
