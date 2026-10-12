@@ -39,7 +39,11 @@ next agent must inspect the actual user instruction and scope before acting.
    current notes and report unresolved questions without manufacturing acceptance.
 4. Synthesize `thinking/<slug>/discovery.md` using `PKG/templates/discovery.skeleton.md`. Preserve
    agreed constraints verbatim. Distinguish facts, hypotheses, preferences, and open
-   questions. Present the refined discovery for operator review before finalising the
+   questions. Mark incomplete discovery, including notes saved when the user stops,
+   with `<!-- thinking:draft -->` and `DRAFT. Non-executable.` on separate lines.
+   The exact standalone comment is the required machine-readable draft signal. Keep
+   its spacing and do not substitute a decorated heading or label for it.
+   Present the refined discovery for operator review before finalising the
    rubric. `resolve`/`list` now hold at `discovery_review`. Ask for acceptance of this
    specific content, not another feature choice. Only after a genuine operator response,
    record its verbatim statement and source reference with:

@@ -58,6 +58,8 @@ carry `<!-- thinking:draft -->` and a visible non-executable label. The renderer
 an execution prompt. Draft output never completes a topic.
 Standalone draft markers or labels below a heading also hold final readiness.
 Quoted and code-fenced examples stay inert. Finalise a draft discovery before review.
+Use the exact standalone comment as the machine-readable status for incomplete
+discovery and specs; styled headings or labels cannot replace it.
 
 The final renderer and `thinking_state.py gate <topic> --require discovery,spec,handoff`
 enforce current review/readiness. `render_handoff.py <topic> --check` verifies saved
@@ -71,6 +73,7 @@ before execution. Named licence, budget, identity, credential, and authorisation
 blockers retain owners and next actions; dependent work waits for resolution.
 `has_execution_request` makes a saved transition visible. The agent-writable record
 is unvalidated context; an implementer must inspect the actual user instruction.
+The flag is `null` when malformed metadata makes the saved request unknowable.
 
 ## Limits
 

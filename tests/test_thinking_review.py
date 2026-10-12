@@ -242,12 +242,14 @@ class ReviewCommands:
                 (bad / "meta.json").write_bytes(meta)
                 topics = {row["slug"]: row for row in self.state("list")["topics"]}
                 self.assertEqual(topics["bad"]["next_phase"], "topic_repair")
+                self.assertIsNone(topics["bad"]["has_execution_request"])
                 self.assertFalse(topics["bad"]["review"]["ready"])
                 self.assertEqual(topics["topic"]["next_phase"], "discovery_review")
         (bad / "meta.json").write_bytes(initial)
         (bad / "discovery.md").write_bytes(b'\xff')
         topics = {row["slug"]: row for row in self.state("list")["topics"]}
         self.assertEqual(topics["bad"]["next_phase"], "topic_repair")
+        self.assertFalse(topics["bad"]["has_execution_request"])
         self.assertIn("malformed topic", topics["bad"]["hold_reason"])
         self.assertEqual(topics["topic"]["next_phase"], "discovery_review")
         self.state("resolve", "bad", ok=False)
@@ -262,6 +264,18 @@ class ReviewCommands:
         state = self.state("resolve", "topic")
         self.assertEqual(state["next_phase"], "discovery")
         self.assertNotIn("review", state["meta"])
+
+    def test_inline_backtick_spans_do_not_hide_later_draft_status(self):
+        self.accept()
+        for inline in ("```x``` is inline code in prose.", "```a`b"):
+            with self.subTest(inline=inline):
+                self.write("spec.md", "# Spec\n" + inline +
+                           "\n<!-- thinking:draft -->\nDRAFT. Non-executable.\n[REQ-ONCE] Proposed.")
+                self.assertEqual(self.state("resolve", "topic")["next_phase"], "spec")
+                self.assertEqual(self.state("list")["topics"][0]["next_phase"], "spec")
+                self.state("gate", "topic", "--require", "discovery,spec", ok=False)
+                self.render(ok=False)
+                self.render("--stdout", ok=False)
 
     def test_statement_file_and_stdin_preserve_shell_text_as_data(self):
         statement = "--I accept this discovery. Keep `literal` and $(touch must-not-exist) as text.\n"

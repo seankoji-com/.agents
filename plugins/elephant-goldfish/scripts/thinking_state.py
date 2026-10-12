@@ -175,7 +175,9 @@ def is_draft(text: str) -> bool:
         if match:
             run, suffix = match.groups()
             if fence is None:
-                fence = run
+                # A backtick fence's info string cannot itself contain backticks.
+                if run[0] != "`" or "`" not in suffix:
+                    fence = run
             elif run[0] == fence[0] and len(run) >= len(fence) and not suffix.strip():
                 fence = None
             continue
@@ -283,6 +285,7 @@ def cmd_list(args) -> dict:
     topics = []
     if root.is_dir():
         for tdir in sorted(p for p in root.iterdir() if not p.is_symlink() and p.is_dir()):
+            meta = None
             try:
                 meta = read_meta(tdir)
                 artifacts = artifact_state(tdir, meta)
@@ -291,6 +294,7 @@ def cmd_list(args) -> dict:
                 topics.append({"slug": tdir.name, "title": tdir.name, "output_type": None,
                                "next_phase": "topic_repair", "hold_reason": f"malformed topic: {exc}",
                                "workflow": "thinking", "execution_authorized": False,
+                               "has_execution_request": "execution_request" in meta if meta is not None else None,
                                "review": {"ready": False, "status": "review_needed"}})
                 continue
             topics.append(
