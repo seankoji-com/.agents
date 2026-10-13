@@ -1182,3 +1182,74 @@ Receipt: `history[31].files` retains the pass 23 map
 `1279d4741bc967ae3855d01a2772ef60aba6df79d1b47a88951e4b037c831120`, which pass 25
 supersedes. `amendment_receipt.pass23` keeps the pass 23 pair: `history[30]` and the pass 22
 map `3f5293b175df63280fbf3c04597099da9107ef7881b7c7a7b1b53217335b4a24`.
+
+### Owner-delegated Stage 6 amendment, 13 October 2026 AEDT
+
+This amendment preserves every earlier attempt, map, ledger and amendment, the shipped
+defaults, the model targets and the 24-start plan. No quality start has run. The owner is
+away and delegated judgment to the parent coordinator ("i trust your judgement in my
+absence ... keep going until all stages complete"); the parent recorded these decisions
+under that delegation. Two live canaries exposed a harness defect: run
+20261013T082516Z-4c069f (Haiku) and run 20261013T083900Z-8d0196 (Luna). The canary prompt
+stripped the trailing newline from the boundary-reader literals and ran the primary literal
+into the following prose, so the parent never saw the bytes the host matcher checks. In the
+Luna run every dispatch lost its trailing newline and no role matched. The reader literals
+also carried no instruction, so readers returned prose.
+
+1. Stage 6 runner (`bench/container/startctl.py`, `packages.py`,
+   `observations_to_context.py`) is adopted as recorded in the runner amendment notes:
+   - Wrapper prompts: `bench/container/prompts/wrapper.md` names the arm's
+     version-directory entry, the operation (imps `run`, ape `study`, elephant-goldfish
+     `check`, babysitter `pr`, agent-tuneup `audit`), `/bench/ws` and the task. Engineering
+     uses `fixtures/five_stage/prompt.md` verbatim, so both arms of a pair differ only in the
+     entry path. The resume turn is exactly `resume`.
+   - Interrupt boundary (repetition 3): baseline at the first `stage-3:` commit; rebuilt
+     when job stage `s3` (else the third stage) has a status starting `accepted`. The runner
+     records whether stage 4 had already landed when the interrupt arrived. A boundary that
+     is never observed fails the start.
+   - One `up` per start and always `down`. Canary evidence from an earlier run is reused only
+     when that run's provider canary is verified and the pinned sources and programs, frozen
+     catalog targets and primary response IDs are equal. Each start records the link.
+   - The baseline arm has no agent bundles, so its `bundle_digests` holds one entry,
+     `baseline-identity-no-agent-bundles`: the SHA-256 of `migration/rebuild/baseline.json`.
+   - Canary prompt repair: each frozen literal appears once, on its own line, as a JSON
+     string whose decoded value equals the matcher's canonical bytes, trailing newline
+     included. Each child literal states its own instruction and forbids delegation and
+     other writes. Matching remains byte-exact.
+   - Fixture integration: routing for the unavailable-review start comes from the linked
+     run's frozen catalog. `sidecar-observation.json` is written by the coordinator from the
+     sidecar's own log. Missing delegation counts only with a verified `mcp_shim` audit;
+     otherwise the attempt is an infrastructure-invalid candidate.
+2. Tracked follow-up: the pass 10 rule stands, and a refused continuation never counts as
+   a pass. A refusal with host evidence (the host recorded the refusal and observed the
+   original summary unchanged and terminal, and the parent reported `not_allowed` with no
+   new task and an unchanged original) is recorded as "continuation unsupported
+   (host-reported), unverified". It does not gate quality starts (issue section 3: exercise
+   the fresh fallback and leave continuation support explicitly unverified). The ape
+   follow-up slot then uses a fresh child with a visible fallback reason. Missing, malformed
+   or contradictory follow-up evidence still fails the canary, and every other canary probe
+   still gates.
+3. Fixtures amendment adopted. `head-abc123` is not a Git object ID, and the babysitter
+   `merge-pr.sh` correctly rejects it. The babysitter workflow fixture is re-frozen with the
+   deterministic fixture commits: head `1e9721ca7f65fcb51d67f3329e4761da261d563a` and base
+   `ab624926987dfb8b302afebae4cc27c14198d37c`. The affected files are `input.json`,
+   `head.json`, `checks.json`, `thread.json` and `sidecar-observation.json`, their
+   `contracts.json` digests, and the babysitter coordinator-context seed. The checks are
+   unchanged.
+4. Launcher wiring for the synthetic GitHub sidecar and the missing-delegation shim:
+   - the sidecar receives only its private `--env-file`;
+   - the sidecar's private-network address is read after it starts, and `github.com` and
+     `api.github.com` resolve to it in the agent container only; `verify_isolation` checks
+     `HostConfig.ExtraHosts` for that and for leaks to the gateway or sidecar;
+   - the agent's `/run/secrets/bench-gateway-ca.pem` is a bundle of the gateway CA and the
+     synthetic GitHub CA;
+   - babysitter starts keep the stage-provided `GH_HOST=github.com` instead of the bench
+     host default, and only synthetic token values are admitted;
+   - `mcp_shim.py` is in the image and in `SOURCE_FILES`, `native_exec.py` hands launches to
+     it when its configuration is mounted, and the configuration mount is part of the
+     verified agent mount set.
+
+Receipt: `history[32].files` retains the pass 25 map
+`d57b23dd0a84a4c6fa167d0655cf0f917d720551b3ff4fb208ec5bdc40e466a3`, which this amendment
+supersedes. `amendment_receipt.pass25` keeps the pass 25 pair: `history[31]` and the pass 23
+map `1279d4741bc967ae3855d01a2772ef60aba6df79d1b47a88951e4b037c831120`.

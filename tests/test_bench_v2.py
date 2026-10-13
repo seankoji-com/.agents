@@ -245,22 +245,25 @@ class FrozenTest(unittest.TestCase):
         self.assertEqual((entry['superseded_map_sha256'], entry['replacement_map_sha256']),
                          (receipt['superseded_map_sha256'], receipt['current_map_sha256']))
         self.assertNotEqual(receipt['current_map_sha256'], receipt['superseded_map_sha256'])
-        # Pass 25 superseded the pass 23 map (pass 24 was review-only and recorded none); pass 23
+        # The owner-delegated Stage 6 amendment superseded the pass 25 map. Pass 25 superseded the
+        # pass 23 map (pass 24 was review-only and recorded none); pass 23
         # superseded the pass 22 map; pass 22 superseded the pass 21 map; pass 21 superseded the
         # pass 20 map; pass 20 superseded the pass 19 map; pass 19 superseded the pass 16 map (passes 17
         # and 18 recorded none). The pass 23, 22, 21, 20, 19, 16, 15, 14, 13, 12, 11 and 10 pairs are retained
         # unchanged.
-        pass23 = receipt['pass23']
+        pass25, pass23 = receipt['pass25'], receipt['pass23']
         pass22, pass21, pass20, pass19 = receipt['pass22'], receipt['pass21'], receipt['pass20'], receipt['pass19']
         pass16, pass15, pass14, pass13 = receipt['pass16'], receipt['pass15'], receipt['pass14'], receipt['pass13']
         pass12, pass11, pass10 = receipt['pass12'], receipt['pass11'], receipt['pass10']
-        self.assertEqual((receipt['history_index'], pass23['history_index'], pass22['history_index'], pass21['history_index'],
+        self.assertEqual((receipt['history_index'], pass25['history_index'], pass23['history_index'],
+                          pass22['history_index'], pass21['history_index'],
                           pass20['history_index'], pass19['history_index'], pass16['history_index'],
                           pass15['history_index'], pass14['history_index'], pass13['history_index'],
                           pass12['history_index'], pass11['history_index'], pass10['history_index']),
-                         (31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19))
-        # History entries 0-30 are immutable: passes 19, 20, 21, 22, 23 and 25 each appended exactly one entry.
-        self.assertEqual(len(history), 32)
+                         (32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19))
+        # History entries 0-31 are immutable: passes 19, 20, 21, 22, 23 and 25 and the Stage 6
+        # amendment each appended exactly one entry.
+        self.assertEqual(len(history), 33)
         self.assertEqual(map_digest(history[:26]),
                          '880f73d45da58d1200916316382b2b44fcfa937697b114e8c4b6cfc41264cfe3')
         self.assertEqual(map_digest(history[:27]),
@@ -273,13 +276,21 @@ class FrozenTest(unittest.TestCase):
                          '4609adc3a8929b9f216c09cce1b663c8f57340a3b1950e47f9feeba978afec2e')
         self.assertEqual(map_digest(history[:31]),
                          '3532ee72def9ac3afdfad8bac1721211135be4c006b611a147a708124daf25c0')
+        self.assertEqual(map_digest(history[:32]),
+                         'f79dd76cd54693f3e40f7c501587a12903a19dc12ed774b7500376b8a01cf572')
         self.assertEqual(history[26]['map_role'], 'pass16 map superseded by pass19')
         self.assertEqual(history[27]['map_role'], 'pass19 map superseded by pass20')
         self.assertEqual(history[28]['map_role'], 'pass20 map superseded by pass21')
         self.assertEqual(history[29]['map_role'], 'pass21 map superseded by pass22')
         self.assertEqual(history[30]['map_role'], 'pass22 map superseded by pass23')
         self.assertEqual(history[31]['map_role'], 'pass23 map superseded by pass25')
-        self.assertEqual(pass23['current_map_sha256'], receipt['superseded_map_sha256'])
+        self.assertEqual(history[32]['map_role'], 'pass25 map superseded by stage6')
+        self.assertEqual(pass25['current_map_sha256'], receipt['superseded_map_sha256'])
+        self.assertEqual(pass25['current_map_sha256'], 'd57b23dd0a84a4c6fa167d0655cf0f917d720551b3ff4fb208ec5bdc40e466a3')
+        self.assertEqual(pass25['superseded_map_sha256'], map_digest(history[pass25['history_index']]['files']))
+        self.assertEqual((history[31]['superseded_map_sha256'], history[31]['replacement_map_sha256']),
+                         (pass25['superseded_map_sha256'], pass25['current_map_sha256']))
+        self.assertEqual(pass23['current_map_sha256'], pass25['superseded_map_sha256'])
         self.assertEqual(pass23['current_map_sha256'], '1279d4741bc967ae3855d01a2772ef60aba6df79d1b47a88951e4b037c831120')
         self.assertEqual(pass23['superseded_map_sha256'], map_digest(history[pass23['history_index']]['files']))
         self.assertEqual((history[30]['superseded_map_sha256'], history[30]['replacement_map_sha256']),
@@ -390,6 +401,15 @@ class FrozenTest(unittest.TestCase):
             self.assertIn(digest, section)
         self.assertNotIn('\n>', section)
         self.assertIn('No quality start has run', section)
+        section = protocol_section('### Owner-delegated Stage 6 amendment, 13 October 2026 AEDT')
+        for digest in (pass25['current_map_sha256'], pass25['superseded_map_sha256']):
+            self.assertIn(digest, section)
+        self.assertNotIn('\n>', section)
+        self.assertIn('No quality start has run', section)
+        self.assertIn('i trust your judgement in my', section)
+        for run in ('20261013T082516Z-4c069f', '20261013T083900Z-8d0196'):
+            self.assertIn(run, section)
+        self.assertTrue((V2 / 'protocol.md').read_text().endswith(section))  # the last section
 
     def test_pass10_amendment_records_superseded_in_place_text(self):
         """R9-BE-06: protocol text rewritten in place is quoted and bound to its digest."""

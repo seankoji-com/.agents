@@ -649,8 +649,14 @@ def isolation_inventory(name, log):
     return mounts, networks
 
 
+def extra_hosts(name):
+    result = subprocess.run(['docker', 'inspect', '--format', '{{json .HostConfig.ExtraHosts}}', name],
+                            capture_output=True, text=True, check=True, timeout=20)
+    return sorted(json.loads(result.stdout) or [])
+
+
 def verify_isolation(names, private_net, egress_net, config, ca_cert, cert, key, task_input, workspace, raw, state, logs,
-                     extra_mounts=()):
+                     extra_mounts=(), agent_hosts=()):
     expected_agent = {container: (Path(host), rw) for host, container, rw in extra_mounts}
     expected_agent |= {
         '/bench/input': (task_input, False),
@@ -666,6 +672,12 @@ def verify_isolation(names, private_net, egress_net, config, ca_cert, cert, key,
     agent = {item['Destination']: (Path(item['Source']), item['RW']) for item in agent_mounts}
     if agent != expected_agent or set(agent_networks) != {private_net}:
         raise RuntimeError('agent container mounts or network attachments differ from policy')
+    if agent_hosts:
+        # Sidecar aliases exist in the agent only; the gateway and sidecar keep real resolution.
+        if extra_hosts(names['agent']) != sorted(['host.docker.internal:host-gateway', *agent_hosts]):
+            raise RuntimeError('agent host aliases differ from policy')
+        if extra_hosts(names['gateway']) or extra_hosts(names['github']):
+            raise RuntimeError('sidecar host aliases leaked outside the agent container')
     _gateway_mounts, gateway_networks = isolation_inventory(names['gateway'], logs)
     _github_mounts, github_networks = isolation_inventory(names['github'], logs)
     if set(gateway_networks) != {private_net, egress_net} or set(github_networks) != {private_net}:
@@ -688,7 +700,9 @@ SAFE_MOUNT_PATH = re.compile(r'/[A-Za-z0-9._/@+-]+')
 ENV_KEY = re.compile(r'[A-Z_][A-Z0-9_]*')
 PROTECTED_ENV = re.compile(r'(?:ANTHROPIC|OPENAI|GH|GITHUB|BENCH|NODE|SSL|CODEX|CLAUDE|T3CODE)_.*|.*(?:KEY|TOKEN|SECRET).*'
                            r'|HOME|PATH|XDG_.*|MAX_THINKING_TOKENS')
-SYNTHETIC_GITHUB_ENV = {'GH_HOST': r'[a-z0-9-]+\.bench\.test', 'GH_ENTERPRISE_TOKEN': 'bench-synthetic-token',
+# github.com is allowed only because the agent resolves it to the synthetic sidecar (agent-only --add-host).
+SYNTHETIC_GITHUB_ENV = {'GH_HOST': r'github\.com|[a-z0-9-]+\.bench\.test', 'GH_TOKEN': 'bench-synthetic-token',
+                        'GITHUB_TOKEN': 'bench-synthetic-token', 'GH_ENTERPRISE_TOKEN': 'bench-synthetic-token',
                         'GITHUB_ENTERPRISE_TOKEN': 'bench-synthetic-token', 'GH_PROMPT_DISABLED': '1',
                         'GH_NO_UPDATE_NOTIFIER': '1'}
 HOSTNAME = re.compile(r'[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?')
@@ -790,14 +804,16 @@ def start_options(args):
             'host_aliases': aliases}
 
 
-def sidecar_address(name, network):
-    """The synthetic GitHub sidecar's address on the private network, for agent-only host aliases."""
-    result = subprocess.run(['docker', 'inspect', '--format', '{{json .NetworkSettings.Networks}}', name],
+def sidecar_host_args(name, network, aliases):
+    """Agent-only `--add-host` flags pointing aliases at the sidecar's private-network address."""
+    import github_sidecar
+    result = subprocess.run(github_sidecar.sidecar_ip_command(name, network),
                             capture_output=True, text=True, check=True, timeout=20)
-    address = (json.loads(result.stdout).get(network) or {}).get('IPAddress')
-    if not isinstance(address, str) or not re.fullmatch(r'\d{1,3}(?:\.\d{1,3}){3}', address):
-        raise RuntimeError('synthetic GitHub sidecar address is unavailable')
-    return address
+    try:
+        # Rejects loopback, public, unspecified and link-local addresses.
+        return github_sidecar.agent_host_args(result.stdout.strip(), names=tuple(aliases))
+    except ValueError as exc:
+        raise RuntimeError(f'synthetic GitHub sidecar address rejected: {exc}') from None
 
 
 def seed_workspace(seed, workspace):
@@ -915,15 +931,16 @@ def setup(args):
                       '--entrypoint', 'python3', image, '/opt/bench/github_sidecar.py'], logs)
         if options['host_aliases']:
             # Agent only: the gateway and sidecar keep their real resolution.
-            address = sidecar_address(names['github'], private_net)
-            options['args'] = [*options['args'], *(arg for name in options['host_aliases']
-                                                   for arg in ('--add-host', f'{name}:{address}'))]
+            host_args = sidecar_host_args(names['github'], private_net, options['host_aliases'])
+            options['args'] = [*options['args'], *host_args]
+            manifest['start_inputs']['agent_extra_hosts'] = host_args[1::2]
         create_owned(manifest, locate, 'container', 'container_agent', names['agent'],
                      agent_command(names['agent'], private_net, task_input, workspace, raw,
                                    state, config.parent, agent_ca, image, options), logs)
         manifest['isolation'] = verify_isolation(
             names, private_net, egress_net, config, agent_ca, cert, key, task_input,
-            workspace, raw, state, logs, options['mounts'])
+            workspace, raw, state, logs, options['mounts'],
+            [arg for flag, arg in zip(options['args'], options['args'][1:]) if flag == '--add-host'])
         manifest['status'] = 'running'
         write_manifest(manifest_path, manifest)
         print(json.dumps({'status': 'running', 'run_id': run_id, 'resources_recorded': True}))
@@ -1252,6 +1269,11 @@ print(json.dumps(checks))
         followup_audit = wait.get('tracked_followup_audit')
         # Fail-closed owner decision: a refused continuation is recorded, never a pass.
         audit_result['tracked_followup_recorded'] = tracked_followup_accepted(followup_audit)
+        # Owner-delegated Stage 6 amendment: a host-verified refusal is recorded as unsupported
+        # and unverified; it never passes, but it does not gate. Anything else ambiguous fails.
+        classification = followup_classification(followup_audit, canary_result)
+        audit_result['tracked_followup_classification'] = classification
+        audit_result['continuation_capability'] = CONTINUATION_CAPABILITY[classification]
         audit_result['input_hash_reported'] = (
             isinstance(canary_result, dict)
             and canary_result.get('input_sha256') ==
@@ -1284,7 +1306,7 @@ print(json.dumps(checks))
                                     and audit_result['original_message_exact']
                                     and audit_result['final_message_retrieval_exact']
                                     and audit_result['summary_boundary_verified']
-                                    and audit_result['tracked_followup_recorded']
+                                    and classification != 'failed'
                                     and audit_result['input_hash_reported']
                                     and audit_result['github_login_reported']
                                     and audit_result['synthetic_github_reached']
@@ -1821,6 +1843,32 @@ def canary_native_launch_audit(container_id, before, provider, logs):
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as exc:
         return {'verified': False, 'program': NATIVE_PROGRAMS[provider], 'shim_launches': 0,
                 'reason': 'native launch log unavailable: ' + type(exc).__name__}
+
+
+CONTINUATION_CAPABILITY = {'supported-verified': 'verified',
+                           'unsupported-host-reported': 'continuation unsupported (host-reported), unverified',
+                           'failed': 'failed'}
+
+
+def followup_classification(audit, canary_result):
+    """`supported-verified`, `unsupported-host-reported` or `failed`.
+
+    Only a supported, host-verified continuation passes (pass 10). A refusal counts as
+    `unsupported-host-reported` when the parent reported `not_allowed` with no new task and
+    an unchanged original, and the host independently recorded the refusal and observed the
+    original summary unchanged and terminal. It is recorded, never a pass, and does not gate
+    (issue section 3: leave continuation explicitly unverified). Missing, malformed or
+    contradictory evidence is `failed`, which still gates the canary.
+    """
+    if tracked_followup_accepted(audit):
+        return 'supported-verified'
+    report = canary_result.get('tracked_followup') if isinstance(canary_result, dict) else None
+    if (isinstance(audit, dict) and audit.get('recorded') is True and audit.get('supported') is False
+            and audit.get('verified') is False and audit.get('original_unchanged_host_observed') is True
+            and isinstance(report, dict) and report.get('status') == 'not_allowed'
+            and report.get('new_task_id') is None and report.get('original_unchanged') is True):
+        return 'unsupported-host-reported'
+    return 'failed'
 
 
 def tracked_followup_accepted(audit):

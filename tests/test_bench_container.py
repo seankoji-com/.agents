@@ -3604,7 +3604,7 @@ class Pass15ContainerRepairTest(unittest.TestCase):
         del missing['file_changes']
         self.assertFalse(host_observations.file_changes_bound_to_primary(missing, 'task-primary'))
 
-    def run_canary(self, captured, canary_result=None):
+    def run_canary(self, captured, canary_result=None, followup=None):
         """Drive `canary` to acceptance with every other piece of evidence passing."""
         targets = {'codex': dict(CANARY_TARGET),
                    'claudeAgent': {'providerInstanceId': 'claudeAgent', 'model': 'fixture-anthropic',
@@ -3663,7 +3663,7 @@ class Pass15ContainerRepairTest(unittest.TestCase):
                     patch.object(benchctl.driver_module, 'verify_summary_boundary_tasks',
                                  return_value=boundary), \
                     patch.object(benchctl.driver_module, 'verify_tracked_followup',
-                                 return_value={'recorded': True, 'supported': True, 'verified': True}), \
+                                 return_value=followup or {'recorded': True, 'supported': True, 'verified': True}), \
                     patch.object(benchctl, 'helper_output_valid', return_value=True), \
                     patch.object(benchctl, 'workspace_write_scope_valid', return_value=True), \
                     patch.object(benchctl, 'gateway_model_observations', return_value={'verified': True}), \
@@ -3686,6 +3686,37 @@ class Pass15ContainerRepairTest(unittest.TestCase):
                 'receipt_mode': (stat.S_IMODE(receipt_file.stat().st_mode)
                                  if receipt_file.is_file() else None)}
         return code, saved['canary_attempts'][0]['model_audit']
+
+    def test_stage6_host_verified_refusal_is_recorded_unverified_and_does_not_gate(self):
+        observation = actor_observation(file_change_threads=('child-primary',))
+        refused = {'recorded': True, 'supported': False, 'verified': False, 'policy_blocked': False,
+                   'counts_as_pass': False, 'original_unchanged_host_observed': True}
+        report = {'input_sha256': 'b' * 64, 'github_login': 'bench-user', 'primary_task_id': 'task-primary',
+                  'summary_boundary_task_ids': {key: f'task-{key}' for key in ('32767', '32768', '32769')},
+                  'tracked_followup': {'status': 'not_allowed', 'original_task_id': 'task-primary',
+                                       'new_task_id': None, 'original_unchanged': True}}
+        code, audit = self.run_canary(observation, report, refused)
+        self.assertEqual(code, 0)
+        self.assertIs(audit['verified'], True)
+        self.assertIs(audit['tracked_followup_recorded'], False)  # pass 10: never a pass
+        self.assertEqual(audit['tracked_followup_classification'], 'unsupported-host-reported')
+        self.assertEqual(audit['continuation_capability'], 'continuation unsupported (host-reported), unverified')
+        ambiguous = {
+            'host did not see the original unchanged': (dict(refused, original_unchanged_host_observed=False), report),
+            'no host capture': ({'recorded': False, 'verified': False}, report),
+            'supported but unverified': ({'recorded': True, 'supported': True, 'verified': False}, report),
+            'parent reported a new task': (refused, {**report, 'tracked_followup': dict(
+                report['tracked_followup'], new_task_id='task-extra')}),
+            'parent reported supported': (refused, {**report, 'tracked_followup': dict(
+                report['tracked_followup'], status='supported')}),
+            'parent did not confirm the original': (refused, {**report, 'tracked_followup': dict(
+                report['tracked_followup'], original_unchanged=False)})}
+        for label, (followup, result) in ambiguous.items():
+            with self.subTest(case=label):
+                code, audit = self.run_canary(observation, result, followup)
+                self.assertEqual(code, 2)
+                self.assertIs(audit['verified'], False)
+                self.assertEqual(audit['tracked_followup_classification'], 'failed')
 
     def test_r14_co_02_canary_acceptance_binds_helper_and_writes_to_the_primary(self):
         cases = {'helper run only by a boundary reader': (actor_observation(('child-b1',)),
