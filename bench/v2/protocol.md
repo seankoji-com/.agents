@@ -1171,6 +1171,13 @@ and C8 grade behaviour. Citations, severity, evidence, reproducers, the rule of 
 per defect and the C13 review check are unchanged. Reported as
 R24-benchmark-range-shard-2-01.
 
+Pass 25 review then found that C12 matched only the first `Fix:` line, so a second `Fix:` line
+or an unlabelled continuation line could contradict an accepted fix. C12 now splits each
+block into labelled fields; a line without a known label continues the field above it.
+`Finding`, `Severity`, `Evidence`, `Reproducer` and `Fix` must each appear exactly once,
+and the whole continued `Fix` field must match a supported sentence. The prompt states this
+rule. Reported as R25-benchmark-range-shard-1-01, -2-01, -3-01 and -5-01.
+
 Receipt: `history[31].files` retains the pass 23 map
 `1279d4741bc967ae3855d01a2772ef60aba6df79d1b47a88951e4b037c831120`, which pass 25
 supersedes. `amendment_receipt.pass23` keeps the pass 23 pair: `history[30]` and the pass 22

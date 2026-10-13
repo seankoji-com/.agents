@@ -364,7 +364,19 @@ def check(workspace: Path, review_context=None, *, trusted_synthetic_fixture=Fal
         locations = {(file, int(line)) for file, line in cites}
         severity = bool(re.search(r'(?im)^Severity: (high|medium|low)$', block))
         repro = re.search(r'(?im)^Reproducer: (.+)$', block)
-        fix = re.search(r'(?im)^Fix: (.+)$', block)
+        # Split the block into labelled fields; an unlabelled line continues the field
+        # above it. Each required field must appear exactly once, so a second or
+        # continued Fix cannot contradict the accepted one.
+        fields = {}
+        for line in block.splitlines():
+            label = re.match(r'(?i)(Finding|Severity|Evidence|Reproducer|Fix|Status|Disposition):\s?(.*)$', line.strip())
+            if label:
+                fields.setdefault(label.group(1).lower(), []).append(label.group(2).strip())
+            elif fields and line.strip():
+                last = list(fields)[-1]
+                fields[last][-1] = (fields[last][-1] + ' ' + line.strip()).strip()
+        once = all(len(fields.get(name, [])) == 1 for name in ('finding', 'severity', 'evidence', 'reproducer', 'fix'))
+        fix = fields['fix'][0] if once else None
         seeded_citations = locations & {(file, line) for file, lines in seeded.items() for line in lines}
         formula = (severity and ('io', 24) in seeded_citations and re.search(r'(?im)^Evidence: .*io\.py:24\b', block) and repro is not None and
                    bool(re.search(r'=[A-Z]+\(', repro.group(1))))
@@ -373,10 +385,10 @@ def check(workspace: Path, review_context=None, *, trusted_synthetic_fixture=Fal
         # Each fix must be the one affirmative corrective sentence the prompt discloses
         # for its own defect. The whole field must match, so negated, opposite, swapped
         # or extra clauses fail closed; this checks the stated claim, not behaviour.
-        fix_text = fix.group(1).strip() if fix else ''
+        fix_text = fix or ''
         formula_fix = bool(FORMULA_FIX.fullmatch(fix_text))
         overwrite_fix = bool(OVERWRITE_FIX.fullmatch(fix_text))
-        valid = severity and repro is not None
+        valid = once and severity and repro is not None
         # A block citing both seeded defects is a combined finding and counts for neither.
         single_defect = len(seeded_citations) == 1
         formula_ok = bool(valid and single_defect and formula and formula_fix)

@@ -667,6 +667,27 @@ class HiddenCheckTest(unittest.TestCase):
                              .replace(overwrite_fix, overwrite_cases['explicit opposite'][0]))
             self.assertIn('C12', failed(trusted_check(target)))
 
+    def test_c12_rejects_a_second_or_continued_fix_field(self):
+        """R25-benchmark-range-shard-1/2/3/5-01: only one Fix per block, continuations included."""
+        formula_fix = 'Fix: `neutralise` prefixes dangerous text cells with an apostrophe.'
+        overwrite_fix = 'Fix: `cli.main` checks `os.path.samefile` and refuses the output before opening it.'
+        cases = {
+            'second contradictory fix': (formula_fix + '\nFix: Never add an apostrophe; leave dangerous cells untouched.',
+                                         overwrite_fix + '\nFix: Never reject samefile paths; always overwrite the input.'),
+            'second identical fix': (formula_fix + '\n' + formula_fix, overwrite_fix),
+            'unlabelled continuation': (formula_fix + '\nNever add an apostrophe; leave dangerous cells untouched.', overwrite_fix),
+            'unknown label continuation': (formula_fix, overwrite_fix + '\nNote: always overwrite the input instead.'),
+            'duplicate severity': (formula_fix + '\nSeverity: low', overwrite_fix)}
+        for name, (first, second) in cases.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                target = workspace(Path(tmp)); audit = target / 'notes/audit.md'
+                audit.write_text(audit.read_text().replace(formula_fix, first).replace(overwrite_fix, second))
+                result = next(r for r in trusted_check(target) if r['id'].startswith('C12'))
+                self.assertFalse(result['passed'], result['detail'])
+        with tempfile.TemporaryDirectory() as tmp:
+            result = next(r for r in trusted_check(workspace(Path(tmp))) if r['id'].startswith('C12'))
+            self.assertTrue(result['passed'], result['detail'])
+
     def test_c1_and_c13_require_numeric_and_current_review_evidence(self):
         boilerplate={'notes/investigation.md':('Input: `0.29`','Input: decimal'),
                      'notes/review.md':('Changed: ledger/model.py:22','Changed: model.py:1')}

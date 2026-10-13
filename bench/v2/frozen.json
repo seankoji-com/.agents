@@ -1,7 +1,7 @@
 {
   "amendment": "2026-10-13 owner-authorized pass23 (limit 23; one benchmark repair): preserve every earlier attempt 0-22, map, ledger and amendment, shipped defaults and 24-start gate; a usage summary source sha256 is computed over the exact bytes its single parse read, never a second read of a file that may have been appended or replaced since; no quality starts.",
   "amendment_receipt": {
-    "current_map_sha256": "f05c681a4ea796b21cd83b22fcf6e9dce0ea6f869b5273c8aacbe9c34beaa148",
+    "current_map_sha256": "d57b23dd0a84a4c6fa167d0655cf0f917d720551b3ff4fb208ec5bdc40e466a3",
     "history_index": 31,
     "pass10": {
       "current_map_sha256": "0fd7c28881fd99df977b3ba857f9ffab7d15a966fd41636c521f59320df02b59",
@@ -84,7 +84,7 @@
     }
   },
   "files": {
-    "checks/five_stage.py": "86e9436b0c709288080ff75b838e8e1c1c05899fcd3c366407484bcc88865f36",
+    "checks/five_stage.py": "c50a406f6b90cba8337244445004a2a74fecea93db85e4c6ee45b80eb223ae8d",
     "checks/negative_start.py": "979442884334c0ce196b88080d51a924755be1f94d14f2f9ef7571aa8adc75b3",
     "checks/reference/CHANGELOG.md": "0e58fe921d1880d0d8ae45b78b8e23c37796d7922e1766e0811182e89a6ca0b4",
     "checks/reference/README.md": "91d52e3faf2a4b0a8b035de829aea8d4d266bc78b17b4be22f0abf8217113d7a",
@@ -97,7 +97,7 @@
     "checks/reference/notes/review.md": "b2256faabd44fb429a5d9ffe2d7b8180c11bc2bd9cfec2f1eb8bc69f4c8ffa95",
     "checks/reference/tests/test_stages.py": "a62362a770ec199bcc5785e2f110a2593d68a0a4cbe5855eec37d1f51959874a",
     "checks/workflow_contract.py": "0f61cd6df37adbb83ebc49670c20a71684cc37481a4fae132efd4b66296d026c",
-    "fixtures/five_stage/prompt.md": "d785fe1c263318df5952f713ba582c6dca915c4db0ab080b8427a376bf9ba8bc",
+    "fixtures/five_stage/prompt.md": "1a7233187b6c73d4345278eb893523cfce53b3a3f9b9b696446d26c2a13d3743",
     "fixtures/five_stage/workspace/CHANGELOG.md": "6b7e9697e7ba93ee5cb00503fd5a1fea95bc59a2b4a48147da0187aa3aa3d87c",
     "fixtures/five_stage/workspace/README.md": "18d3bda9ba97f17f9ea34720b748b92f5e0f975f034b5de2dacfdc12c48c3502",
     "fixtures/five_stage/workspace/data/sample.csv": "ca1ed011761dcdd58fae5db50b727d7264cde0c892d96796624394111f199210",
@@ -148,7 +148,7 @@
     "fixtures/workflows/workflow-elephant-goldfish/observation.json": "8fde3be1921cab4c83b84b81479fcb8387a57c083a62a74d4458e93da9b74214",
     "fixtures/workflows/workflow-elephant-goldfish/source.md": "cf3c276170d4535ce8957eebfd4c5b89e6bac4a653d79628dd4b75c03283376b",
     "plan.json": "93d35e8bfa795e5ad5c4d4ec0cd4e13465fa58fa19a2528ea3d5757bc71fcd0f",
-    "protocol.md": "798ff387865512559a473802698f27c4d69e874b387655365941fbb633093976",
+    "protocol.md": "8444e3188d9f845d386ed1395fdff3ccd4108a903d27e16e060eed311d7c23a2",
     "tools/attempt.schema.json": "5ebe0f6e6d940ef2bf386f3e1efcb627cf4df682d99ea600f6ac8154a926e9fe",
     "tools/attempt_record.py": "48dbb959bb2203bd41310963722fa55463d52085a5beba9cc817970e9d70e8a7",
     "tools/captured_ledger.py": "222d9577cdad59cae63c5c19dfadf85a389ca930a0c949cb17b75094d8299bb4",
@@ -163,7 +163,7 @@
     "tools/model_policy.py": "b4d04f197499c1af63c037c0619954d26698ce77386a17e1da313226ce05df2a",
     "tools/prepare_workspace.py": "93384a1dcb02b3c0dfdbe1bb3335e48885e4f6b882951fd5d080237173070850",
     "tools/usage.py": "c932cd65d30175db60422de91df2e15800f109b258fc2877add145f482c406a2",
-    "../../tests/test_bench_v2.py": "0b4bce96166416238698a2c0b292c6c7be181f7640b1f561418ec2a94be9bd11"
+    "../../tests/test_bench_v2.py": "6436c9a8a8b55918e24395b5ce81e1cad679e714913122fe5242d121c59809c0"
   },
   "frozen_on": "2026-10-13",
   "history": [
@@ -2865,7 +2865,7 @@
       },
       "frozen_on": "2026-10-13",
       "map_role": "pass23 map superseded by pass25",
-      "replacement_map_sha256": "f05c681a4ea796b21cd83b22fcf6e9dce0ea6f869b5273c8aacbe9c34beaa148",
+      "replacement_map_sha256": "d57b23dd0a84a4c6fa167d0655cf0f917d720551b3ff4fb208ec5bdc40e466a3",
       "superseded_map_sha256": "1279d4741bc967ae3855d01a2772ef60aba6df79d1b47a88951e4b037c831120"
     }
   ],
