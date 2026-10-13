@@ -23,7 +23,9 @@
       "id": "babysitter/pr-maintainer",
       "path": "agents/pr-maintainer.md",
       "operations": [
-        "pr"
+        "pr",
+        "repo",
+        "org"
       ],
       "role": "workhorse",
       "responsibility": "Maintain only the assigned PR within explicit authorization. Bind every claim to exact-head evidence."
@@ -32,7 +34,9 @@
       "id": "babysitter/pr-reviewer",
       "path": "agents/pr-reviewer.md",
       "operations": [
-        "pr"
+        "pr",
+        "repo",
+        "org"
       ],
       "role": "reviewer",
       "responsibility": "Independently review the final combined PR changes at the exact head; do not modify or merge."
