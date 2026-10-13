@@ -1792,6 +1792,37 @@ class Pass11ContainerRepairTest(unittest.TestCase):
                                               'fast_mode': False, 'ultrafast_mode': False,
                                               'browser_use': False})
 
+    def test_bench_codex_config_skips_nested_sandbox_and_keeps_every_other_setting(self):
+        startup = (CONTAINER / 'start-container.sh').read_text(encoding='utf-8')
+        config = startup.split("<<'TOML'\n", 1)[1].split('\nTOML', 1)[0]
+        # Rootless Docker gives Codex's nested bwrap no namespaces; the container is the boundary.
+        self.assertEqual(config.split('\n[', 1)[0].splitlines(), [
+            'openai_base_url = "https://gateway.bench.test:8443/v1"',
+            'web_search = "disabled"',
+            'sandbox_mode = "danger-full-access"'])
+        self.assertNotIn('approval_policy', config)
+        self.assertNotIn('\nmodel =', '\n' + config)
+        self.assertIn('[model_providers.bench-gateway]\nname = "Bench model gateway"\n'
+                      'base_url = "https://gateway.bench.test:8443/v1"\nwire_api = "responses"\n'
+                      'requires_openai_auth = true\nsupports_websockets = false', config)
+        try:
+            import tomllib
+        except ImportError:  # Python 3.10: the line checks above still apply.
+            tomllib = None
+        if tomllib is not None:
+            parsed = tomllib.loads(config)
+            self.assertEqual(parsed['sandbox_mode'], 'danger-full-access')
+            self.assertEqual(set(parsed), {'openai_base_url', 'web_search', 'sandbox_mode',
+                                           'features', 'model_providers'})
+            self.assertEqual(parsed['model_providers'], {'bench-gateway': {
+                'name': 'Bench model gateway', 'base_url': 'https://gateway.bench.test:8443/v1',
+                'wire_api': 'responses', 'requires_openai_auth': True, 'supports_websockets': False}})
+        # Only the in-container startup writes it; no host-side bench code sets it.
+        writers = sorted(path.name for path in CONTAINER.rglob('*') if path.is_file()
+                         and path.suffix != '.md' and 'danger-full-access' in path.read_text(encoding='utf-8', errors='replace'))
+        self.assertEqual(writers, ['start-container.sh'])
+        self.assertEqual(startup.count('danger-full-access'), 1)
+
     def native_observation(self, runs):
         return {'parent_thread_id': 'parent', 'tool_records': [], 'runtime_requests': [], 'subagents': [
             {'id': 'native-id', 'origin': 'provider_native', 'threadId': 'parent',
@@ -3604,7 +3635,7 @@ class Pass15ContainerRepairTest(unittest.TestCase):
         del missing['file_changes']
         self.assertFalse(host_observations.file_changes_bound_to_primary(missing, 'task-primary'))
 
-    def run_canary(self, captured, canary_result=None, followup=None):
+    def run_canary(self, captured, canary_result=None, followup=None, wait_overrides=None):
         """Drive `canary` to acceptance with every other piece of evidence passing."""
         targets = {'codex': dict(CANARY_TARGET),
                    'claudeAgent': {'providerInstanceId': 'claudeAgent', 'model': 'fixture-anthropic',
@@ -3637,7 +3668,9 @@ class Pass15ContainerRepairTest(unittest.TestCase):
                              'tracked_followup': {'new_task_id': None}}
         wait = {'status': 'completed', 'timed_out': False, 'readback_model': 'fixture-openai',
                 'readback_provider': 'codex', 'original_message_exact': True,
-                'final_message_retrieval_exact': True, 'canary_result': canary_result}
+                'final_message_retrieval_exact': True, 'canary_result': canary_result,
+                'settled': True, 'latest_run_id': 'run-1'}
+        wait.update(wait_overrides or {})
 
         def fake_driver(_manifest, arguments, _logs):
             return {'threadId': 'parent', 'status': 'running'} if '--launch-provider' in arguments else wait
@@ -3686,6 +3719,24 @@ class Pass15ContainerRepairTest(unittest.TestCase):
                 'receipt_mode': (stat.S_IMODE(receipt_file.stat().st_mode)
                                  if receipt_file.is_file() else None)}
         return code, saved['canary_attempts'][0]['model_audit']
+
+    def test_unsettled_parent_is_never_completed_and_its_interim_output_is_not_audited(self):
+        observation = actor_observation(file_change_threads=('child-primary',))
+        interim = {'input_sha256': 'b' * 64, 'github_login': 'bench-user', 'primary_task_id': 'task-primary',
+                   'summary_boundary_task_ids': {key: f'task-{key}' for key in ('32767', '32768', '32769')},
+                   'tracked_followup': {'new_task_id': None}}
+        with patch.object(host_observations, 'reported_role_bindings') as bindings:
+            code, audit = self.run_canary(observation, interim, wait_overrides={
+                'status': 'not settled', 'settled': False, 'timed_out': True, 'latest_run_id': None})
+        bindings.assert_not_called()
+        self.assertIs(audit['thread_settled'], False)
+        self.assertIs(audit['thread_completed'], False)
+        self.assertIs(audit['verified'], False)
+        self.assertIs(audit['owned_children_terminal'], False)
+        self.assertIn('did not settle', audit['host_observation_error'])
+        self.assertIs(audit['input_hash_reported'], False)
+        self.assertEqual(self.last_canary['canary']['run_status'], 'not settled')
+        self.assertNotEqual(code, 0)
 
     def test_stage6_host_verified_refusal_is_recorded_unverified_and_does_not_gate(self):
         observation = actor_observation(file_change_threads=('child-primary',))
