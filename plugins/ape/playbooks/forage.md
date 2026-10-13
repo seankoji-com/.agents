@@ -13,7 +13,7 @@ Comparison and synthesis run as delegated stages. Job shape: `PKG/references/res
 4. Select at most five candidates. Explain why each can address a named local gap.
    Clone through `scripts/clone-candidates.sh <workspace> <url> <name> <sparse:0|1>`;
    repeat triples for multiple candidates. Never reinterpret rejected URLs as shell code.
-   Record each clone's resolved commit, then write and hash its source snapshot.
+   Pin each clone's source snapshot with `PKG/scripts/snapshot_source.py`.
 5. Create the job: one independent `research-<n>` stage per clone with one
    `ape/source-researcher` slot, then one `synthesis` stage that depends on all of them,
    with one `ape/synthesizer` slot. The research stages are parallel readers; dispatch
@@ -23,6 +23,7 @@ Comparison and synthesis run as delegated stages. Job shape: `PKG/references/res
    brief with the accepted report paths and hashes. The synthesizer compares overlap and
    conflicting recommendations and proposes the smallest useful experiment with the
    evidence against it. It builds on the accepted reports, not fresh source research;
-   its descriptor pins every candidate snapshot and quotes the text those reports cited.
+   its descriptor pins every candidate snapshot and accepted report, quotes the text
+   those reports cited, and carries your receipts for Conflicts and the experiment.
 7. Accept synthesis, run `validate-final` over every stage, and save the reports in the
    workspace. Do not modify the target project or start any experiment.

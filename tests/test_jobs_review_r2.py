@@ -106,11 +106,8 @@ class R2ReviewSupportTests(unittest.TestCase):
             root = Path(td)
             version, manifest, prefix, agents, state_root = self.fx.install(root, "ape")
             validator = version / "scripts" / "validate_report.py"
-            source = root / "source.txt"
-            source.write_text("Pinned synthetic source. Finding F-1 is evidenced on line 1.\n")
-            source_sha = digest(source.read_bytes())
-            source_pin = {"id": "S-1", "url": "https://example.invalid/source", "revision": "r1",
-                          "path": str(source), "sha256": source_sha}
+            from tests.test_ape_validate_report import pin_source, study_descriptor
+            source_pin = pin_source(root, "S-1")
             criteria = [{"id": "provenance", "kind": "source-provenance"},
                         {"id": "coverage", "kind": "finding-source-coverage"}]
             job = self.fx.base_job("ape-pins-r2")
@@ -124,11 +121,7 @@ class R2ReviewSupportTests(unittest.TestCase):
             caller = {"installation_id": manifest["installation_id"], "workflow": job["workflow"],
                       "package_digest": manifest["package_digest"], "actor": "coordinator"}
             report = root / "report.json"
-            data = {
-                "sources": [source_pin], "criteria": criteria,
-                "findings": [{"id": "F-1", "severity": "minor", "source_id": "S-1", "quote": "Pinned synthetic source",
-                              "line": 1, "evidence": "Pinned synthetic source"}],
-            }
+            data = study_descriptor(root, source_pin, job["stages"][0]["requirements"], criteria)
             def run():
                 report.write_text(json.dumps(data))
                 ref = publish_observation(store, caller, "s0", str(report))

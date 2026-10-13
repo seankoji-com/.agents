@@ -32,11 +32,16 @@ from `/` and append the same request instead.
 
 ## What you get
 
-A report pinned to the source commit, with Overlap, Adopt, Adapt, Reject and
-Command case sections. Each recommendation names local target files, effort,
+A report pinned to the source commit, with Provenance, Overlap, Adopt, Adapt, Reject
+and Command case sections. Each recommendation names local target files, effort,
 tradeoffs and a bounded experiment. An empty Adopt section is a valid result.
 The agent returns the source revision and report path; proposed experiments are
 not measured improvements.
+
+A report is accepted only when `validate_report.py` finds its sections, pinned
+revisions and snapshot hashes, line-numbered citations, coverage of every candidate
+and the coordinator's inspection receipts in the actual files. That proves the
+evidence trail, not that a recommendation is right.
 
 ## Limits
 

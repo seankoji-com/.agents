@@ -286,6 +286,19 @@ def _adapter(job, stage, argv, input_file):
             raise AcceptanceError('ape stage criteria must declare checks, never result statuses')
         if not isinstance(data.get('criteria'), list) or sorted(data['criteria'],key=canonical) != sorted(criteria,key=canonical) or not contract.get('sources') or data.get('sources') != contract['sources']:
             raise AcceptanceError('report source pins or criteria differ from the declared stage')
+        # The validator checks coverage of what the report declares; bind that declaration to the stage.
+        synthesis = bool(stage.get('depends_on'))
+        operations = {'ape/study': {'study'}, 'ape/forage': {'forage-synthesis' if synthesis else 'forage-research'}}
+        if job['workflow'] in operations and data.get('operation') not in operations[job['workflow']]:
+            raise AcceptanceError('ape report operation differs from the job workflow and stage')
+        declared = data.get('requirements')
+        if not isinstance(declared, list) or any(not isinstance(row, dict) for row in declared) or sorted(map(str, (row.get('id') for row in declared))) != sorted(stage.get('requirements', [])):
+            raise AcceptanceError('ape report requirements differ from the stage assignment')
+        if data.get('operation') == 'forage-synthesis':
+            outputs = sorted(path for sid in stage['depends_on'] for path in _stage(job, sid).get('outputs', []))
+            consumed = data.get('consumed_reports')
+            if not isinstance(consumed, list) or any(not isinstance(row, dict) for row in consumed) or sorted(map(str, (row.get('path') for row in consumed))) != outputs:
+                raise AcceptanceError('ape synthesis must consume exactly the accepted dependency outputs')
     if dep['plugin'] in ('babysitter', 'agent-tuneup'):
         required = ({'pr', 'head_sha', 'required_contexts', 'allow_empty_required_contexts', 'optional_contexts', 'authorized_endstate'} if dep['plugin'] == 'babysitter' else {'criteria'})
         if not required <= set(contract) or any(data.get(key) != value for key, value in contract.items()):

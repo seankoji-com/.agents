@@ -27,7 +27,8 @@ holds the job plan shape, worker slots and the report descriptor the validator r
   stop; follow-on work needs a separate owner request.
 - `forage` compares at most five candidates. A sixth needs a new owner request.
 - Every claim is pinned to the source URL at a resolved commit with line numbers. Every
-  accepted report pins its source files by absolute path and SHA-256.
+  accepted report pins its source files by absolute path and SHA-256: one snapshot per
+  clone, written by `PKG/scripts/snapshot_source.py` outside the job's `artifacts/`.
 - `clean` deletes only a marker-owned workspace and only after explicit deletion
   authorization. A study or forage request never implies it.
 - Ask every owner decision and approval through the native question picker described in
@@ -52,12 +53,14 @@ children or accept their own work.
 The authority is the pinned `PKG/scripts/validate_report.py`, run through
 `job_acceptance_cli.py accept-stage` on a coordinator observation frozen with
 `job_cli.py observation`. A terminal task, a worker's `ready-for-acceptance`, or a
-validator exit 0 on a different input is not acceptance. The validator checks source
-pins against actual bytes, finding quotes against those sources, and declared criterion
-coverage. It does not establish that a conclusion is true: open the cited lines for
-every Adopt or Adapt proposal before you freeze the observation, and record each
-finding's disposition with evidence. Final readiness is `validate-final` over every
-stage at the current pins.
+validator exit 0 on a different input is not acceptance. From actual bytes, the
+validator checks the operation's report sections, the pinned revisions and snapshot
+hashes the report declares, cited lines, coverage of every assigned requirement and
+candidate, and your inspection receipts. It cannot tell whether a conclusion is true,
+so read the report and open the cited lines for every consequential finding, then
+record a receipt for each, as `PKG/references/research-job.md` describes. A missing
+receipt rejects the stage. Record each finding's disposition with evidence. Final
+readiness is `validate-final` over every stage at the current pins.
 
 ## Same-scope follow-up
 

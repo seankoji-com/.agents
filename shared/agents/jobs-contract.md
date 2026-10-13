@@ -185,8 +185,13 @@ target and write scope. Only a fresh preparation of a never-executed slot clears
 Ape criteria declare id/kind (source-provenance or finding-source-coverage), never
 status. Optional minimum_findings is a nonnegative integer. The stage contract
 pins sources {id,url,revision,path,sha256} before work; validators read the actual
-absolute source bytes and check finding quotes against those sources. These checks
-establish provenance/coverage, not the semantic truth of all research conclusions.
+absolute source bytes and check finding quotes against those sources. The adapter
+also binds the observation's operation to the workflow (ape/study: study; ape/forage:
+forage-research, or forage-synthesis when the stage has dependencies), its requirement
+IDs to the stage, and synthesis consumed_reports to the dependency outputs.
+validate_report.py then checks report sections, pinned revisions, citations, coverage
+and coordinator inspection receipts. These checks establish provenance/coverage, not
+the semantic truth of all research conclusions.
 Babysitter contracts declare pr, head_sha, required_contexts, optional_contexts,
 allow_empty_required_contexts and authorized_endstate. Optional failures remain
 visible and cannot be silently promoted to required or ignored without policy.

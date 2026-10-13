@@ -196,15 +196,9 @@ class Installed:
         return proc.returncode, json.loads(proc.stdout)
 
 
-def source_pin(base, sid, text):
-    path = base / f'{sid}.py'
-    path.write_text(text)
-    return {'id': sid, 'url': f'https://example.invalid/{sid}/blob/rev-1/{sid}.py', 'revision': 'rev-1',
-            'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
-
-
-CRITERIA = [{'id': 'provenance', 'kind': 'source-provenance'},
-            {'id': 'coverage', 'kind': 'finding-source-coverage', 'minimum_findings': 1}]
+from tests.test_ape_validate_report import (CRITERIA, descriptor, fingerprint, pin_source,  # noqa: E402
+                                             research_findings, research_markdown, synthesis_descriptor,
+                                             synthesis_findings, synthesis_markdown)
 
 
 def research_task(task_id, stage_id, worker='ape/source-researcher', followups=1):
@@ -283,18 +277,22 @@ class ApeSyntheticJobTests(unittest.TestCase):
         self.assertEqual(task['status'], expected, task.get('execution_history'))
         return prepared, Path(report['path'])
 
-    def freeze(self, ins, job_id, workflow, stage_id, sources, findings):
-        descriptor = ins.write('descriptor-' + stage_id, {'sources': sources, 'findings': findings,
-                                                          'criteria': CRITERIA})
+    def freeze(self, ins, job_id, workflow, stage_id, data):
+        path = ins.write('descriptor-' + stage_id, data)
         return ins.job('observation', job_id, {'caller': ins.caller(workflow), 'stage_id': stage_id,
-                                               'input_file': str(descriptor)})['path']
+                                               'input_file': str(path)})['path']
+
+    @staticmethod
+    def report_pin(path):
+        path = Path(path)
+        return {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
 
     def test_study_job_runs_tracked_followup_and_accepts_through_pinned_validator(self):
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
             ins = Installed(self, base)
-            src = source_pin(base, 'src-1', 'def retry(call):\n    """Bounded retry with jitter."""\n')
-            job = plan(ins, 'ape-study', 'ape/study', {'R-SRC-1': 'pinned comparison of src-1 at rev-1'},
+            src = pin_source(base, 'src-1')
+            job = plan(ins, 'ape-study', 'ape/study', {'R-SRC-1': 'pinned comparison of src-1'},
                        [stage('research', ['R-SRC-1'], [src])], [research_task('source-1', 'research')])
             ins.create(job)
             caller = ins.caller('ape/study')
@@ -302,8 +300,8 @@ class ApeSyntheticJobTests(unittest.TestCase):
             self.assertEqual([s['id'] for s in overview['stages']], ['research'])
 
             # Original execution asks for a same-scope follow-up.
-            original, _ = self.run_task(ins, 'ape-study', 'ape/study', 'source-1', 'research',
-                                        '# Overlap\n\nBounded retry with jitter.\n', 'host-1', 'needs-followup')
+            original, report_path = self.run_task(ins, 'ape-study', 'ape/study', 'source-1', 'research',
+                                                  research_markdown(src), 'host-1', 'needs-followup')
             original_bytes = Path(original['path']).read_bytes()
             followup = ins.job('followup-prepare', 'ape-study',
                                {'caller': caller, 'task_id': 'source-1', 'request_id': 'req-source-1-fu1'})
@@ -331,12 +329,28 @@ class ApeSyntheticJobTests(unittest.TestCase):
             hosts = [h.get('host_task_id', h.get('task_id')) for h in task['handles'] + task['followups']]
             self.assertEqual(hosts, ['host-1', 'host-1-fu'])
 
+            data = descriptor('study', [src], [{'id': 'R-SRC-1', 'source_ids': ['src-1']}], fingerprint(base),
+                              self.report_pin(report_path), research_findings(src))
             # The validator rejects an unconfirmed quote without spending the stage budget.
-            code, verdict = ins.validate({'sources': [src], 'findings': [{'source_id': 'src-1', 'quote': 'invented'}],
-                                          'criteria': CRITERIA})
+            invented = json.loads(json.dumps(data))
+            invented['findings'][0]['quote'] = 'invented'
+            code, verdict = ins.validate(invented)
             self.assertEqual((code, verdict['accepted']), (1, False))
-            observation = self.freeze(ins, 'ape-study', 'ape/study', 'research', [src],
-                                      [{'source_id': 'src-1', 'quote': 'Bounded retry with jitter.'}])
+            # It also rejects a report the coordinator has not recorded inspecting.
+            uninspected = {**data, 'inspections': [r for r in data['inspections'] if r['category'] != 'adopt']}
+            code, verdict = ins.validate(uninspected)
+            self.assertEqual((code, verdict['accepted']), (1, False))
+            self.assertIn('receipt for adopt finding',
+                          verdict['requirement_outcomes']['report-acceptance']['evidence']['reason'])
+            # The adapter binds the declared operation and requirements to the stage before running it.
+            for wrong in ({**data, 'operation': 'forage-research'},
+                          {**data, 'requirements': [{'id': 'R-OTHER', 'source_ids': ['src-1']}]}):
+                bad = self.freeze(ins, 'ape-study', 'ape/study', 'research', wrong)
+                ins.accept('accept-stage', 'ape-study', {'caller': caller, 'stage_id': 'research', 'revision': 'rev-1',
+                                                         'validator_argv': [str(ins.validator), '--input', bad],
+                                                         'input_file': bad}, expect=2)
+                self.assertRegex(ins.stderr, 'operation differs|requirements differ')
+            observation = self.freeze(ins, 'ape-study', 'ape/study', 'research', data)
             argv = [str(ins.validator), '--input', observation]
             receipt = ins.accept('accept-stage', 'ape-study', {'caller': caller, 'stage_id': 'research',
                                                                'validator_argv': argv, 'input_file': observation,
@@ -355,7 +369,7 @@ class ApeSyntheticJobTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
             ins = Installed(self, base)
-            sources = [source_pin(base, f'src-{n}', f'pattern {n}: cache invalidation by key\n') for n in (1, 2)]
+            sources = [pin_source(base, f'src-{n}') for n in (1, 2)]
             stages = [stage(f'research-{n}', [f'R-SRC-{n}'], [sources[n - 1]]) for n in (1, 2)]
             for n in (1, 2):
                 stages[n - 1]['outputs'] = [str(ins.state / 'ape-forage' / f'artifacts/tasks/source-{n}/report.md')]
@@ -370,28 +384,43 @@ class ApeSyntheticJobTests(unittest.TestCase):
             # Synthesis cannot start before its research dependencies are accepted.
             ins.job('prepare', 'ape-forage', {'caller': caller, 'task_id': 'synth'}, expect=2)
             self.assertIn('predecessor acceptance is not current', ins.stderr)
-            argv, inputs = {}, {}
+            argv, inputs, consumed = {}, {}, []
             for n in (1, 2):
-                self.run_task(ins, 'ape-forage', 'ape/forage', f'source-{n}', f'research-{n}',
-                              f'# Adopt\n\npattern {n}: cache invalidation by key\n', f'host-{n}')
-                obs = self.freeze(ins, 'ape-forage', 'ape/forage', f'research-{n}', [sources[n - 1]],
-                                  [{'source_id': f'src-{n}', 'quote': f'pattern {n}: cache invalidation by key'}])
+                pin = sources[n - 1]
+                _, path = self.run_task(ins, 'ape-forage', 'ape/forage', f'source-{n}', f'research-{n}',
+                                        research_markdown(pin), f'host-{n}')
+                self.assertEqual(str(path), stages[n - 1]['outputs'][0])
+                consumed.append({'id': f'rep-{n}', 'source_id': pin['id'], **self.report_pin(path)})
+                obs = self.freeze(ins, 'ape-forage', 'ape/forage', f'research-{n}', descriptor(
+                    'forage-research', [pin], [{'id': f'R-SRC-{n}', 'source_ids': [pin['id']]}], fingerprint(base),
+                    consumed[-1], research_findings(pin)))
                 argv[f'research-{n}'], inputs[f'research-{n}'] = [str(ins.validator), '--input', obs], obs
                 receipt = ins.accept('accept-stage', 'ape-forage', {
                     'caller': caller, 'stage_id': f'research-{n}', 'revision': 'rev-1', 'input_file': obs,
                     'validator_argv': argv[f'research-{n}']})
                 self.assertTrue(receipt['accepted'], receipt)
-            prepared, _ = self.run_task(ins, 'ape-forage', 'ape/forage', 'synth', 'synthesis',
-                                        '# Overlap\n\nBoth key caches by invalidation.\n', 'host-synth')
+            prepared, synth_path = self.run_task(ins, 'ape-forage', 'ape/forage', 'synth', 'synthesis',
+                                                 synthesis_markdown(sources, consumed), 'host-synth')
             brief = json.loads(Path(prepared['path']).read_text())
             self.assertEqual(brief['worker_id'], 'ape/synthesizer')
             self.assertEqual(brief['authorization'], {'actions': ['read']})
             # The synthesizer reads exactly the accepted research reports.
             self.assertEqual(brief['consumed_outputs'], [stages[0]['outputs'][0], stages[1]['outputs'][0]])
             for path in brief['consumed_outputs']:
-                self.assertIn('cache invalidation by key', Path(path).read_text())
-            obs = self.freeze(ins, 'ape-forage', 'ape/forage', 'synthesis', sources,
-                              [{'source_id': f'src-{n}', 'quote': f'pattern {n}: cache invalidation'} for n in (1, 2)])
+                self.assertIn('## Provenance', Path(path).read_text())
+            synthesis = descriptor('forage-synthesis', sources, [{'id': 'R-SYNTH', 'source_ids': ['src-1', 'src-2']}],
+                                   fingerprint(base), self.report_pin(synth_path),
+                                   synthesis_findings(sources, consumed), consumed)
+            # Synthesis must consume exactly the accepted dependency outputs, not another copy.
+            elsewhere = json.loads(json.dumps(synthesis))
+            elsewhere['consumed_reports'][0]['path'] = str(base / 'copy.md')
+            bad = self.freeze(ins, 'ape-forage', 'ape/forage', 'synthesis', elsewhere)
+            ins.accept('accept-stage', 'ape-forage', {'caller': caller, 'stage_id': 'synthesis', 'revision': 'rev-1',
+                                                      'input_file': bad,
+                                                      'validator_argv': [str(ins.validator), '--input', bad]},
+                       expect=2)
+            self.assertIn('accepted dependency outputs', ins.stderr)
+            obs = self.freeze(ins, 'ape-forage', 'ape/forage', 'synthesis', synthesis)
             argv['synthesis'], inputs['synthesis'] = [str(ins.validator), '--input', obs], obs
             receipt = ins.accept('accept-stage', 'ape-forage', {'caller': caller, 'stage_id': 'synthesis',
                                                                 'revision': 'rev-1', 'input_file': obs,
@@ -402,10 +431,11 @@ class ApeSyntheticJobTests(unittest.TestCase):
             self.assertTrue(final['accepted'], final)
 
             # Six candidates exceed the forage cap at the authoritative validator.
-            six = [source_pin(base, f'cap-{n}', f'quote {n}\n') for n in range(6)]
-            code, verdict = ins.validate({'sources': six, 'findings': [], 'criteria': CRITERIA[:1]})
+            code, verdict = ins.validate(synthesis_descriptor(base / 'six', 6))
             self.assertEqual((code, verdict['accepted']), (1, False))
-            code, verdict = ins.validate({'sources': six[:5], 'findings': [], 'criteria': CRITERIA[:1]})
+            self.assertIn('at most 5 candidates',
+                          verdict['requirement_outcomes']['report-acceptance']['evidence']['reason'])
+            code, verdict = ins.validate(synthesis_descriptor(base / 'five', 5))
             self.assertEqual((code, verdict['accepted']), (0, True))
 
     def test_worker_cannot_widen_scope_or_accept_and_extra_slot_needs_owner(self):
@@ -414,7 +444,7 @@ class ApeSyntheticJobTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
             ins = Installed(self, base)
-            src = source_pin(base, 'src-1', 'one idea\n')
+            src = pin_source(base, 'src-1')
             job = plan(ins, 'ape-bounds', 'ape/study', {'R-SRC-1': 'compare src-1'},
                        [stage('research', ['R-SRC-1'], [src])], [research_task('source-1', 'research')])
             ins.create(job)
