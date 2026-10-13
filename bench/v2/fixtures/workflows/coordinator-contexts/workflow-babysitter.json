@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "scenario": "workflow-babysitter",
+  "observed_ids": {
+    "head_sha": "head-abc123"
+  },
+  "host_observations": {
+    "post_calls": [],
+    "merge_calls": [],
+    "observed_head_sha": "head-abc123",
+    "trace_coverage": [
+      "sidecar_post_calls",
+      "sidecar_merge_calls",
+      "head_readback",
+      "check_readback",
+      "comment_readback",
+      "dispatch_calls"
+    ],
+    "observed_check_sha": "head-abc123",
+    "observed_comment_id": "thread-1",
+    "dispatch_calls": [
+      {
+        "operation": "pr_maintenance",
+        "worker": "babysitter/pr-maintainer",
+        "task_id": "task-maintainer-1"
+      },
+      {
+        "operation": "pr_review",
+        "worker": "babysitter/pr-reviewer",
+        "task_id": "task-reviewer-1"
+      }
+    ]
+  }
+}

@@ -1,6 +1,16 @@
 # Export audit
 
-| Finding | Severity | Evidence | Status |
-| --- | --- | --- | --- |
-| Text cells starting with `=`, `+`, `-`, `@`, tab or CR are evaluated as formulas by spreadsheets | high | `write_csv` wrote descriptions verbatim | fixed: such cells get a leading `'`; amounts stay numbers |
-| `export FILE FILE` overwrites its own input | medium | output opened for writing without checking it is the input | fixed: refused when both name the same file |
+Finding: Spreadsheet formula injection in exported text.
+Severity: high
+Evidence: `ledger/io.py:24` writes account and description values directly.
+Reproducer: export a CSV description `=HYPERLINK("https://invalid","x")`; a spreadsheet evaluates the cell.
+Fix: `neutralise` prefixes dangerous text cells with an apostrophe.
+Status: fixed.
+
+Finding: Export can truncate its own input.
+Severity: medium
+Evidence: `ledger/cli.py:31` calls `io.write_csv(entries, args.out)` without checking aliases.
+Reproducer: run `python3 -m ledger export data.csv data.csv`; the source is overwritten.
+Fix: `cli.main` checks `os.path.samefile` and refuses the output before opening it.
+Disposition: fixed.
+Status: fixed.

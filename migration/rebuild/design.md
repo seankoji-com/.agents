@@ -70,15 +70,19 @@ re-enable. Snapshots pin exact definition and policy bytes.
 
 ## Ownership and integration order
 
-Stage 2 and Stage 3 can proceed concurrently after Stage 1 outputs are accepted. They own
-disjoint paths. If a listed future path does not exist yet, its named stage creates it.
+Stage 2 and Stage 3 can proceed concurrently after Stage 1 outputs are accepted. Stage 2
+materializes immutable worker definition bytes into external bundles but does not edit their
+semantics. Stage 4 owns source definition semantics under `plugins/*/agents/`. The compatibility map keeps original worker-definition and shared-boundary path entries
+under Stage 2 as the materialization/package owner; Stage 4 alone owns semantic edits to
+those source definitions. Stage 2 owns `shared/agents/workers-config.schema.json` v1. If a listed future path does not exist yet,
+its named stage creates it.
 
 | Stage | Owned paths | Boundary |
 |---|---|---|
-| 2: registry/installation | `scripts/install.py`, `scripts/catalog.py`, `scripts/setup.py`, `scripts/doctor.py`, `core/installation*.py`, `plugins/*/plugin.json`, `shared/agents/manifest.schema.json`, `tests/test_install.py`, `tests/test_catalog.py`, `tests/test_setup.py`, `tests/test_registry*.py`, `migration/rebuild/compat-map.d/stage-2.json` | Agent-root packages, receipts, identity, pins, overrides, inspection, upgrade/rollback/uninstall. No job-state implementation. |
+| 2: registry/installation | `scripts/install.py`, `scripts/catalog.py`, `scripts/setup.py`, `scripts/doctor.py`, `core/installation*.py`, `plugins/*/plugin.json`, `shared/agents/manifest.schema.json`, `shared/agents/workers-config.schema.json`, `tests/test_install.py`, `tests/test_catalog.py`, `tests/test_setup.py`, `tests/test_registry*.py`, `migration/rebuild/compat-map.d/stage-2.json` | Agent-root packages, receipts, identity, pins, overrides, inspection, upgrade/rollback/uninstall. Materializes immutable definition bytes; no semantic edits or job-state implementation. |
 | 3: jobs/briefs/results/acceptance | `core/jobs/`, `shared/agents/job.schema.json`, `shared/agents/stage.schema.json`, `shared/agents/worker-brief.schema.json`, `shared/agents/worker-result.schema.json`, `shared/agents/result-envelope.schema.json`, `shared/agents/acceptance.schema.json`, `shared/worker_result.py`, `shared/job_acceptance.py`, `plugins/*/scripts/validate_*.py`, `tests/test_jobs*.py`, `tests/test_worker_result.py`, `tests/test_job_acceptance.py`, `migration/rebuild/compat-map.d/stage-3.json` | Generic job data and adapter validation interfaces. No dispatch loop, registry mutation, or entry rewrite. |
-| 4: coordinator adapters | `plugins/*/entry.md`, `plugins/*/agents/`, `plugins/*/playbooks/`, `plugins/*/references/`, `shared/t3-runtime.md`, `tests/test_*workflow*.py`, `migration/rebuild/compat-map.d/stage-4.json` | All five plugin policies, stage delegation, routing, repair/fallback and approval picker. |
-| 5: integration | Remaining migration/docs/tests plus `migration/rebuild/compat-map.d/stage-5.json` | Legacy migration, installed artifact and cross-stage regressions, docs and review. |
+| 4: coordinator adapters | `plugins/*/entry.md`, `plugins/*/agents/`, `plugins/*/playbooks/`, `plugins/*/references/`, `shared/t3-runtime.md`, `tests/test_*workflow*.py`, `tests/test_contract.py`, `migration/rebuild/compat-map.d/stage-4.json` | All five plugin policies, worker definition semantics, stage delegation, routing, repair/fallback and approval picker. |
+| 5: integration | `migration/rebuild/compat-map.md`, `migration/rebuild/compat-map.json`, `migration/rebuild/compat-map.d/stage-5.json`, `docs/architecture.md`, `docs/case-study.md`, `docs/cli.md`, `docs/compatibility.md`, `docs/contributing.md`, `docs/first-workflow.md`, `docs/getting-started.md`, `docs/imps-gate-migration.md`, `docs/imps-gate-test-map.md`, `docs/index.md`, `docs/learnings.md`, `docs/migration.md`, `docs/plugins/agent-tuneup.md`, `docs/plugins/ape.md`, `docs/plugins/babysitter.md`, `docs/plugins/elephant-goldfish.md`, `docs/plugins/imps.md`, `docs/plugins/index.md`, `docs/releasing.md`, `docs/safety.md`, `docs/sightings.md`, `docs/slash-commands.md`, `docs/stage4-test-map.md`, `docs/testing.md`, `docs/troubleshooting.md`, `tests/test_rebuild_integration.py`, `tests/test_rebuild_installed.py`, `tests/test_rebuild_migration.py` | Legacy migration, installed artifact and cross-stage regressions, docs and review. Other tests remain with named stage owners. A missing named future integration test is created by Stage 5. |
 | S1b: bench isolation | `bench/container/` (Dockerfile, launcher, synthetic GitHub sidecar, canary scripts) and S1b-owned protocol/plan amendment | Container confinement and live canaries; not a Stage 1 writer path. |
 
 Integration order: Stage 2 and 3 work in parallel. Integrate their schemas and interfaces
@@ -144,6 +148,62 @@ probe is a named blocker; no schema/unit-test result substitutes for live eviden
 | REQ-DELIVERY | 5–6 | full required suite, isolated installed-artifact checks, docs inspection and separately reported hosted CI |
 | REQ-APPROVAL-PICKER | 4–5 | `tests/test_contract.py` and per-plugin approval routing tests |
 | REQ-TEST-MODELS | 1, S1b, 6 | model-policy unit tests, zero-dispatch forbidden-target test, actual transcript-model audits |
+
+## Persisted interface contract authority
+
+The current detailed field authority is `shared/agents/jobs-contract.md` and its linked
+version-1 schemas (`job.schema.json`, `stage.schema.json`, `worker-brief.schema.json`,
+`worker-result.schema.json`, `result-envelope.schema.json`, `acceptance.schema.json`,
+`manifest.schema.json`, and `workers-config.schema.json`). Stage 3 may amend these schemas
+with its owned compatibility shard; it must preserve these meanings or record an explicit
+compatibility decision. This section fixes the cross-stage shapes without duplicating
+individual schema field inventories:
+
+- `job.json`: schema_version, job_id, installation_id, workflow, owner, requirements,
+  authorization, constraints, dependencies, finite stages, pins, policy, tasks, decisions,
+  history and metrics. Job/stage lifecycle values are pending, running, awaiting-followup,
+  awaiting-acceptance, accepted-at-snapshot, blocked, failed, cancelled and stale.
+- `stage`: id, unique depends_on, requirements, status, criteria/resources, validator
+  dependency, per-slot attempts, acceptance receipt, revision, outputs and cycle counters.
+- `brief`: schema_version, job_id, stage_id, logical_slot_id, request_id, worker_id,
+  effective_brief_sha256, requirements, scope, authority, snapshot, pins, slot/counters,
+  target_rationale, stop_conditions and result_contract. `handle` records the host-reported
+  provider_instance_id, task_id/thread_id, request_id, mode (`wait` or `queue`), lifecycle
+  state, created/observed timestamps and raw host receipt reference; IDs are never invented.
+- `receipt`: schema_version, job_id, stage_id, validator path and argv, validator_sha256,
+  package_digest, binding (input hash, semantic generation and revision), exit_code,
+  outcomes, accepted boolean and receipt_sha256. Null exit_code has an error reason.
+- `workers.json`: schema_version 1, max_live_workers (null or positive integer),
+  max_repair_cycles (nonnegative integer), and explicit digest-bound override records. It
+  contains no routing targets.
+- `manifest.json`: schema_version 1 installation/package/bundle identity and exact file
+  digests; immutable bundle files are materialized by Stage 2.
+- `result`: exactly one complete inline worker-result object or result-envelope object,
+  correlated to the immutable brief and host task. The inline schema requires version,
+  correlation IDs, status, summary, findings, requirement outcomes, review verdict, gaps,
+  changes, commands, evidence references, blockers, metrics and extra-work requests; nulls
+  carry reasons. Artifact envelopes contain relative path, SHA-256, byte count, finding IDs
+  and count plus the same correlation. The worker-result/result-envelope schemas define
+  exact field constraints and the pinned per-job byte limit.
+- An override record includes worker_id, base_bundle_digest, relative path and enabled. An
+  owner decision includes an exact quote, source, source SHA-256, scope and author/time;
+  retrieved content never authorizes actions.
+
+Stable error codes include `plan_invalid`, `undeclared_expansion`, `uncertain_dispatch`,
+`result_transport_unavailable`, `required_review_unavailable`, `owner_decision_required`,
+`stale_evidence`, `pin_mismatch`, `capacity_deferred`, `attempt_budget_exhausted`,
+`schema_invalid`, `ownership_mismatch`, `artifact_invalid`, `artifact_oversize`,
+`dispatch_unavailable`, `cancel_unconfirmed` and `dependency_stale`. A
+validator emits exit 0 only for authoritative pass and nonzero otherwise; CLI syntax/usage
+errors exit 2, accepted validation exits 0, rejected validation exits 1. Native picker
+questions are routed through the host picker with the recommended option first.
+
+Stage 5 owns exactly the integration paths listed above, not arbitrary Stage 2–4 files.
+`tests/test_contract.py` is Stage 4-owned and proves REQ-APPROVAL-PICKER.
+
+Owner-added requirements provenance (2026-10-12): run note `notes/overview.md` records the dated owner quote: "approvals must go via native question picker in every plugin (REQ-APPROVAL-PICKER)" (source SHA-256 `c89c7f327ded793b4f1fff15b378f6dc321ec197ec8c66ff26655afc5139348d`).
+`notes/note-test-models.json` records the 2026-10-12 owner quote: "tests always use Haiku and Luna, never high-cost models" (REQ-TEST-MODELS; source SHA-256 `47133fbb49899db491f7f1be62f7803305d29224454746b53af3caf81cd45835`). Both are dated owner decisions outside the immutable issue;
+the original quotes remain in the private run notes and are not copied into public fixtures.
 
 ## Open decisions
 

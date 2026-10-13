@@ -31,8 +31,12 @@ class StageTests(unittest.TestCase):
 
     def test_invalid_amounts(self):
         for value in ('1e3', '1.234', ''):
-            result = ledger('total', str(self.write([['2026-01-01', 'a', 'x', value]])))
-            self.assertEqual((result.returncode, result.stdout), (2, ''), value)
+            path = str(self.write([['2026-01-01', 'a', 'x', value]]))
+            for command in (['total', path], ['report', path, '--by', 'month'],
+                            ['export', path, str(self.tmp / 'out.csv')]):
+                result = ledger(*command)
+                self.assertEqual((result.returncode, result.stdout), (2, ''), (command[0], value))
+                self.assertTrue(result.stderr.startswith('error:'), (command[0], value))
 
     def test_month_report(self):
         path = self.write([['2026-01-31', 'a', 'x', '1.15'], ['2026-02-01', 'a', 'y', '0.29']])

@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "stage": 1,
+  "added": [
+    {
+      "path": "bench/container/audit_models.py",
+      "stage": 1,
+      "kind": "transcript-auditor",
+      "reason": "Checks observed parent and child model IDs without emitting transcript content."
+    },
+    {
+      "path": "bench/container/Dockerfile",
+      "stage": 1,
+      "kind": "container-runtime",
+      "reason": "Pinned image for the isolated, fresh-home benchmark environment."
+    },
+    {
+      "path": "bench/container/README.md",
+      "stage": 1,
+      "kind": "documentation",
+      "reason": "Operator instructions and isolation boundary for S1b only."
+    },
+    {
+      "path": "bench/container/benchctl.py",
+      "stage": 1,
+      "kind": "container-launcher",
+      "reason": "Creates, records, smoke-checks and stops only task-owned Docker resources."
+    },
+    {
+      "path": "bench/container/driver.py",
+      "stage": 1,
+      "kind": "mcp-driver",
+      "reason": "Uses container T3's supported MCP endpoint and model-policy gate."
+    },
+    {
+      "path": "bench/container/gateway.py",
+      "stage": 1,
+      "kind": "egress-gateway",
+      "reason": "Rejects unapproved API models, options and endpoints before upstream requests."
+    },
+    {
+      "path": "bench/container/github_sidecar.py",
+      "stage": 1,
+      "kind": "synthetic-github",
+      "reason": "Read-only deterministic GitHub-compatible fixture on the private network."
+    },
+    {
+      "path": "bench/v2/tools/model_policy.py",
+      "stage": 1,
+      "kind": "model-policy-adapter",
+      "reason": "Installed copy of the frozen benchmark target validator."
+    },
+    {
+      "path": "bench/container/smoke.py",
+      "stage": 1,
+      "kind": "smoke-check",
+      "reason": "Deterministic no-model network and mount isolation probe."
+    },
+    {
+      "path": "bench/container/smoke_helper.py",
+      "stage": 1,
+      "kind": "canary-helper",
+      "reason": "Deterministic pinned-input hash and assigned-workspace output fixture."
+    },
+    {
+      "path": "bench/container/start-container.sh",
+      "stage": 1,
+      "kind": "container-entrypoint",
+      "reason": "Initializes clean provider homes and starts the pinned headless T3 runtime."
+    },
+    {
+      "path": "tests/test_bench_container.py",
+      "stage": 1,
+      "kind": "test",
+      "reason": "Offline container isolation, exact target gating, and zero-upstream egress rejection fixtures."
+    },
+    {
+      "path": "bench/container/host_observations.py",
+      "stage": 1,
+      "kind": "host-observation-adapter",
+      "reason": "Exports authenticated parent tool records from a read-only snapshot of the pinned isolated T3 store, retaining actual child statuses outside worker mounts."
+    },
+    {
+      "path": "bench/container/identity_metadata.py",
+      "stage": 1,
+      "kind": "primary-model-metadata",
+      "reason": "Freezes exact alias/canonical identity from primary provider metadata without inference; no heuristic response matching."
+    }
+  ],
+  "discovered_from": "live T3 orchestrator_capabilities",
+  "discovered_on": "2026-10-12",
+  "base_image": "debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587",
+  "t3": "0.0.46-nightly.20261007.2787",
+  "provider_programs": {
+    "claude_code": "2.1.296",
+    "codex_cli": "0.162.1"
+  },
+  "node_version": "24.21.0",
+  "runtime": {
+    "effort": "low",
+    "service_tier": "standard",
+    "claude_fast_mode": false,
+    "model_escalation": false
+  },
+  "runtime_policy": {
+    "target_source": "isolated-container-live-catalog",
+    "families": {
+      "claudeAgent": "haiku",
+      "codex": "luna"
+    },
+    "effort": "low",
+    "service_tier": "standard",
+    "fast_mode": false,
+    "model_escalation": false
+  }
+}

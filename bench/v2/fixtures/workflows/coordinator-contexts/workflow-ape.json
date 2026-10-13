@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "scenario": "workflow-ape",
+  "observed_ids": {
+    "conversation_id": "conversation-1",
+    "followup_task_id": "task-followup-1"
+  },
+  "host_observations": {
+    "trace_coverage": [
+      "dispatch_calls",
+      "stage_transitions",
+      "source_access_events"
+    ],
+    "dispatch_calls": [
+      {
+        "operation": "research_followup",
+        "task_id": "task-followup-1",
+        "prior_task_id": "task-original",
+        "conversation_id": "conversation-1"
+      },
+      {
+        "operation": "source_research",
+        "worker": "ape/source-researcher",
+        "task_id": "task-original"
+      },
+      {
+        "operation": "synthesis",
+        "worker": "ape/synthesizer",
+        "task_id": "task-synthesis-1"
+      }
+    ],
+    "stage_transitions": [
+      {
+        "operation": "research",
+        "stage_id": "study"
+      }
+    ],
+    "source_access_events": [
+      {
+        "operation": "read",
+        "path": "source-alpha.json",
+        "sha256": "3f6ce0096e5fa0d45698c463b41922f5c044ce939b9856c9d9de2569059e3ff7"
+      },
+      {
+        "operation": "read",
+        "path": "source-beta.json",
+        "sha256": "17b509af4c6e32b4e6fa65faa371a4d5f7fddd4ccdb4ce3d7ef43a2e2b4449f2"
+      }
+    ]
+  }
+}

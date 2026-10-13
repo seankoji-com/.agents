@@ -1,0 +1,160 @@
+{
+  "negative_scenarios": {
+    "negative-missing-delegation": {
+      "check_ids": [
+        "N1-ALL-FIVE-DIRECT-STAGES",
+        "N2-VALID-FALLBACK-MARKERS",
+        "N3-SCOPE-BUDGET-GATES-PRESERVED",
+        "N4-ZERO-WORKER-DISPATCH"
+      ],
+      "fixture_dir": "negative-missing-delegation",
+      "input": "input.json",
+      "input_sha256": {
+        "input.json": "8ec6e8b9b63aab380dad35436cf8dce5441ec2707274ef23033243f274b15127",
+        "scope.json": "f6826a451b836a9be9cf43845396c778e641fca234e80e4ddf269833933b103a"
+      },
+      "required_outputs": [
+        "coordinator-observation.json",
+        "direct-stage-receipts.json",
+        "fallback-markers.json"
+      ],
+      "required_observed_ids": [
+        "job_id",
+        "receipt_ids"
+      ]
+    },
+    "negative-unavailable-required-review": {
+      "check_ids": [
+        "N5-BLOCKED-REVIEW-UNAVAILABLE",
+        "N6-NO-ACCEPTED-STAGES",
+        "N7-NO-FINAL-READINESS",
+        "N8-ZERO-REVIEWER-DISPATCH"
+      ],
+      "fixture_dir": "negative-unavailable-required-review",
+      "input": "input.json",
+      "input_sha256": {
+        "input.json": "4ee320782f7ebf7ad0339f4d6111bfaa8c496ae0b431db9ab6845f50c9a7ffd9"
+      },
+      "required_outputs": [
+        "job.json",
+        "reviewer-observation.json"
+      ],
+      "required_observed_ids": [
+        "job_id",
+        "required_review_status"
+      ]
+    }
+  },
+  "scenarios": {
+    "workflow-agent-tuneup": {
+      "check_ids": [
+        "TUNE-BACKUP-EXACT",
+        "TUNE-ALLOWLIST-DIFF",
+        "TUNE-PARSE-LOAD-ENFORCEMENT"
+      ],
+      "fixture_dir": "workflow-agent-tuneup",
+      "input": "input.json",
+      "input_sha256": {
+        "input.json": "21a682c51b4be4d6d3e604895137adba973f4c8963714be00f2287f520f6f863",
+        "settings-before.json": "34df27f19389cbf3d84fecc35759e7396c40909ea894dbf41206e49af8126dea"
+      },
+      "required_outputs": [
+        "host-observation.json",
+        "settings-after.json",
+        "backup.bin"
+      ],
+      "required_observed_ids": [
+        "settings_sha256"
+      ],
+      "required_worker_dispatches": [
+        "agent-tuneup/config-researcher",
+        "agent-tuneup/config-verifier"
+      ]
+    },
+    "workflow-ape": {
+      "check_ids": [
+        "APE-RO-SOURCES",
+        "APE-RESULT-IMMUTABLE",
+        "APE-FOLLOWUP-CORRELATED",
+        "APE-NO-IMPLEMENTATION"
+      ],
+      "fixture_dir": "workflow-ape",
+      "input": "input.json",
+      "input_sha256": {
+        "input.json": "4a4c51b970de72c05ea981119f1d171c9ff2aa8b37c3f27fa921feb791b69bfd",
+        "original-result.json": "237096448e63cd47103920bc5a7f54f1464a90c5b57702cf04a39e4c19830db8",
+        "source-alpha.json": "3f6ce0096e5fa0d45698c463b41922f5c044ce939b9856c9d9de2569059e3ff7",
+        "source-beta.json": "17b509af4c6e32b4e6fa65faa371a4d5f7fddd4ccdb4ce3d7ef43a2e2b4449f2"
+      },
+      "required_outputs": [
+        "observation.json",
+        "followup.json",
+        "original-result-after.json"
+      ],
+      "required_observed_ids": [
+        "conversation_id",
+        "followup_task_id"
+      ],
+      "required_worker_dispatches": [
+        "ape/source-researcher",
+        "ape/synthesizer"
+      ]
+    },
+    "workflow-babysitter": {
+      "check_ids": [
+        "BABY-HEAD-BOUND",
+        "BABY-FAILURE-RETAINED",
+        "BABY-NO-UNAUTHORIZED-POST",
+        "BABY-NO-UNAUTHORIZED-MERGE"
+      ],
+      "fixture_dir": "workflow-babysitter",
+      "input": "input.json",
+      "input_sha256": {
+        "input.json": "3dd28c0e37a74154baaefd411cdaf3054f2602fe3c4cda24f9473e435a7c402b",
+        "head.json": "c5891306497941a9c461d5ed17488d68df7b2c97086d9d1ad02faa653f3ec369",
+        "checks.json": "86191fdda70118dd374e10aa35568a5709f1cac6d016ee511ad504ce4411475d"
+      },
+      "required_outputs": [
+        "sidecar-observation.json",
+        "thread.json"
+      ],
+      "required_observed_ids": [
+        "head_sha"
+      ],
+      "required_worker_dispatches": [
+        "babysitter/pr-maintainer",
+        "babysitter/pr-reviewer"
+      ]
+    },
+    "workflow-elephant-goldfish": {
+      "check_ids": [
+        "EG-SOURCE-FACTS",
+        "EG-CORRECTIONS-CITED",
+        "EG-COLD-BRIEF-OMISSIONS",
+        "EG-NO-IMPLEMENTATION"
+      ],
+      "fixture_dir": "workflow-elephant-goldfish",
+      "input": "input.json",
+      "input_sha256": {
+        "input.json": "846539fc6104629b7651ef9b0024ca8054b95a6553b739d39f4c67ecd94270bb",
+        "cold-brief-template.md": "61f43331411ef18794916b48a00c6c8d8a26cb008310921ba20656abd5578cc5",
+        "incorrect.md": "c8f2bdb08eaab3ec6ba2edd6d733823b32efd258457bbd8e1b4ec64fb308eba8",
+        "source.md": "cf3c276170d4535ce8957eebfd4c5b89e6bac4a653d79628dd4b75c03283376b"
+      },
+      "required_outputs": [
+        "observation.json",
+        "corrections.json",
+        "cold-brief.md"
+      ],
+      "required_observed_ids": [
+        "cold_reader_task_id",
+        "source_hash"
+      ],
+      "required_worker_dispatches": [
+        "elephant-goldfish/factual-checker",
+        "elephant-goldfish/cold-reader"
+      ]
+    }
+  },
+  "schema_version": 3
+}

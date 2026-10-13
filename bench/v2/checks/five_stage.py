@@ -6,14 +6,20 @@ workspace is prepared only from fixtures/five_stage/workspace. Every check runs 
 workspace's own CLI or tests in a temporary copy, so the evaluated tree is never
 written. Required checks gate a counted start; informational checks are reported only.
 
-Usage: python3 bench/v2/checks/five_stage.py WORKSPACE [--json]
+Usage: python3 bench/v2/checks/five_stage.py WORKSPACE [--json] [--review-context PATH]
 Exit status: 0 when every required check passes, 1 otherwise, 2 on bad usage.
-Executes code from WORKSPACE. Run it only on a disposable copy or isolated clone.
+Executes untrusted code from WORKSPACE. Run it only inside the isolated S1b container.
+main(), check() and Sandbox refuse to execute workspace code elsewhere; only offline
+tests over repository-owned synthetic fixtures pass trusted_synthetic_fixture=True.
 """
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
+import difflib
+from decimal import Decimal
+import hashlib
 import json
 import os
 import re
@@ -22,9 +28,15 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+import model_policy
 
 FIXTURE = Path(__file__).resolve().parent.parent / 'fixtures' / 'five_stage' / 'workspace'
 TIMEOUT = 120
+# The two supported audit Fix sentences disclosed in the fixture prompt (C12).
+FORMULA_FIX = re.compile(r'(?i)(?:`[\w.]+`\s+)?prefix(?:es)?\s+dangerous\s+(?:text\s+)?cells\s+with\s+an\s+apostrophe\.?')
+OVERWRITE_FIX = re.compile(r'(?i)(?:`[\w.]+`\s+)?(?:checks?|compares?)\s+(?:paths\s+with\s+)?`os\.path\.samefile`'
+                           r'\s+and\s+refuses?\s+the\s+output(?:\s+before\s+opening\s+it)?\.?')
 HEADER = 'date,account,description,amount\n'
 AMOUNTS_CSV = HEADER + ''.join(f'{d},{a},{x},{m}\n' for d, a, x, m in [
     ('2026-03-01', 'food', 'a', '1.15'), ('2026-03-02', 'food', 'b', '2.20'), ('2026-03-05', 'food', 'c', '0.29'),
@@ -48,10 +60,41 @@ def write_csv(path: Path, rows) -> Path:
     return path
 
 
+ISOLATION_MARKER = Path('/.dockerenv')
+
+
+class HostExecutionRefused(RuntimeError):
+    """Raised before candidate code would run outside the isolated grader."""
+
+
+def isolated_grader_environment(environ=None, marker=None) -> bool:
+    """True only inside a container that declares itself the isolated grader.
+
+    This prevents accidental host execution of candidate code; it is not a
+    defence against a host user who forges both signals.
+    """
+    environ = os.environ if environ is None else environ
+    marker = ISOLATION_MARKER if marker is None else marker
+    return environ.get('T3_BENCH_ISOLATED_GRADER') == '1' and marker.is_file()
+
+
+def require_isolated_execution(trusted_synthetic_fixture=False):
+    """Guard every path that executes workspace code.
+
+    Only offline tests over repository-owned synthetic fixtures may pass
+    trusted_synthetic_fixture=True; candidate workspaces never may.
+    """
+    if trusted_synthetic_fixture is not True and not isolated_grader_environment():
+        raise HostExecutionRefused('five_stage.py executes untrusted workspace code; run it only in the isolated '
+                                   'grader container with T3_BENCH_ISOLATED_GRADER=1')
+
+
 class Sandbox:
     """A disposable copy of the workspace with a scrubbed environment."""
 
-    def __init__(self, workspace: Path, root: Path):
+    def __init__(self, workspace: Path, root: Path, trusted_synthetic_fixture=False):
+        require_isolated_execution(trusted_synthetic_fixture)
+        self.trusted_synthetic_fixture = trusted_synthetic_fixture is True
         self.dir = root / 'ws'
         shutil.copytree(workspace, self.dir, ignore=shutil.ignore_patterns('.git', '__pycache__', '.bench-state'),
                         symlinks=True)
@@ -61,6 +104,7 @@ class Sandbox:
                     'PYTHONDONTWRITEBYTECODE': '1', 'LC_ALL': 'C.UTF-8'}
 
     def run(self, *args, cwd=None):
+        require_isolated_execution(self.trusted_synthetic_fixture)
         try:
             return subprocess.run([sys.executable, '-E', '-s', *args], cwd=cwd or self.dir, env=self.env,
                                   capture_output=True, text=True, timeout=TIMEOUT)
@@ -102,20 +146,110 @@ def defect_lines() -> set:
     return {n for n, line in enumerate(source, 1) if 'float(text)' in line or 'int(value * 100)' in line}
 
 
-def check(workspace: Path) -> list:
+def numeric_reproducer(value, actual, expected):
+    try:
+        amount = Decimal(value)
+        old = Decimal(int(float(value) * 100)) / 100
+        return old != amount and Decimal(actual) == old and Decimal(expected) == amount
+    except (ValueError, ArithmeticError, OverflowError):
+        return False
+
+
+def relevant_changed_line(workspace, line):
+    source = read_text(workspace, 'ledger/model.py')
+    try:
+        function = next(n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == 'parse_amount')
+    except (SyntaxError, StopIteration):
+        return False
+    original = (FIXTURE / 'ledger/model.py').read_text().splitlines()
+    current = source.splitlines()
+    changed = {n + 1 for tag, _, _, start, end in difflib.SequenceMatcher(a=original, b=current, autojunk=False).get_opcodes()
+               if tag in {'replace', 'insert'} for n in range(start, end)}
+    statements = [n for n in ast.walk(function) if isinstance(n, ast.stmt) and not isinstance(n, ast.FunctionDef)
+                  and not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str))]
+    return line in changed and any(n.lineno == line and any(isinstance(v, ast.Name) and v.id in
+        {'text', 'cents', 'whole', 'fraction', 'value', 'match', 'AMOUNT', 'Decimal', 'int', 'float'} for v in ast.walk(n)) for n in statements)
+
+
+# The combined change the review must cover. notes/review.md carries the review
+# itself, so binding it would make the receipt self-referential.
+REVIEWED_DOCUMENTS = ('README.md', 'CHANGELOG.md', 'notes/audit.md')
+
+
+def reviewed_source_hash(workspace):
+    files = {str(p.relative_to(workspace)): hashlib.sha256(p.read_bytes()).hexdigest()
+             for directory in ('ledger', 'tests') for p in sorted((workspace / directory).rglob('*.py')) if p.is_file()}
+    for rel in REVIEWED_DOCUMENTS:
+        path = workspace / rel
+        files[rel] = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+    return hashlib.sha256(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def target_lineage(catalog, target, role):
+    """Return (provider, model, lineage) of an allowed target; unknown lineage raises.
+
+    Mirrors shared/job_acceptance._lineage: lineage comes from the cheap-family policy
+    for the validated provider, and a recorded lineage must agree with it.
+    """
+    selected = model_policy.validate_target(catalog, target, role=role)
+    family = model_policy.FAMILIES[selected['providerInstanceId']]
+    if 'lineage' in target and target['lineage'] != family:
+        raise ValueError('recorded target lineage disagrees with its model family')
+    return selected['providerInstanceId'], selected['model'], family
+
+
+def independent_review_matches(workspace, context_path, review):
+    """Check retained host transport; filesystem ownership is the host's boundary."""
+    try:
+        path = Path(context_path)
+        if path.resolve().is_relative_to(workspace.resolve()):
+            return False
+        context = json.loads(path.read_text())
+        target = model_policy.validate_target(context['catalog'], context['target'], role='reviewer')
+        # The reviewer needs a known lineage different from the implementing parent's:
+        # a different provider/model target and a different model family.
+        reviewer = target_lineage(context['catalog'], context['target'], 'reviewer')
+        implementer = target_lineage(context['catalog'], context['parent_target'], 'parent')
+        if reviewer[:2] == implementer[:2] or reviewer[2] == implementer[2]:
+            return False
+        task_id = context['task_id']
+        launches = [r for r in context['tool_records'] if r['toolName'] == 't3-code.delegate_task' and r['output'].get('taskId') == task_id]
+        statuses = [r for r in context['tool_records'] if r['toolName'] == 't3-code.task_status' and r['input'].get('taskId') == task_id]
+        launch, status = launches[0], statuses[-1]
+        marker = 'ISSUE28_REVIEW_SOURCE_SHA256=' + reviewed_source_hash(workspace)
+        out = status['output']
+        return (len(launches) == 1 and isinstance(task_id, str) and bool(task_id) and
+                launch.get('threadId') == status.get('threadId') == context['parent_thread_id'] and
+                launch['input'].get('role') == 'review' and launch['input'].get('target') == target and
+                marker in launch['input'].get('task', '').splitlines() and out.get('taskId') == task_id and
+                out.get('providerInstanceId') == target['providerInstanceId'] and out.get('model') == target['model'] and
+                out.get('status') == 'completed' and out.get('workState') == 'result_available' and
+                out.get('hasPendingChildRuns') is False and out.get('summary') == review)
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, IndexError):
+        return False
+
+
+def check(workspace: Path, review_context=None, *, trusted_synthetic_fixture=False) -> list:
+    require_isolated_execution(trusted_synthetic_fixture)
     results = []
 
     def record(check_id, required, passed, detail=''):
         results.append({'id': check_id, 'required': required, 'passed': bool(passed), 'detail': detail})
 
     investigation = read_text(workspace, 'notes/investigation.md')
-    cited = {int(n) for n in re.findall(r'(?:ledger/)?model\.py:(\d+)', investigation)}
+    citations = re.findall(r'(?:ledger/)?model\.py:(\d+)', investigation)
+    cited = {int(n) for n in citations}
+    input_value = re.search(r'(?im)^Input: `?(-?\d+\.\d{1,2})`?$', investigation)
+    actual_value = re.search(r'(?im)^Actual: `?(-?\d+\.\d{2})`?$', investigation)
+    expected_value = re.search(r'(?im)^Expected: `?(-?\d+\.\d{2})`?$', investigation)
+    numeric_repro = bool(input_value and actual_value and expected_value and
+                         numeric_reproducer(input_value.group(1), actual_value.group(1), expected_value.group(1)))
     record('C1-investigation-cites-defect', True,
-           cited & defect_lines() and re.search(r'(?i)float|binary|truncat', investigation),
+           bool(cited & defect_lines()) and numeric_repro and re.search(r'(?i)float|binary|truncat', investigation),
            f'cited lines {sorted(cited)}; defect lines {sorted(defect_lines())}')
 
     with tempfile.TemporaryDirectory(prefix='bench-v2-') as tmp:
-        box = Sandbox(workspace, Path(tmp))
+        box = Sandbox(workspace, Path(tmp), trusted_synthetic_fixture)
         amounts = box.file('amounts.csv', AMOUNTS_CSV)
         total = box.ledger('total', str(amounts))
         record('C2-exact-cent-totals', True, total.returncode == 0 and lines(total) == TOTALS,
@@ -124,7 +258,8 @@ def check(workspace: Path) -> list:
         bad = []
         for value in BAD_AMOUNTS:
             path = write_csv(box.data / 'bad-amount.csv', [['2026-03-01', 'food', 'x', value]])
-            for command in (['total', str(path)], ['export', str(path), str(box.data / 'bad-out.csv')]):
+            for command in (['total', str(path)], ['report', str(path), '--by', 'month'],
+                            ['export', str(path), str(box.data / 'bad-out.csv')]):
                 if not error_contract(box.ledger(*command)):
                     bad.append(f'{command[0]} {value!r}')
         record('C3-invalid-amounts-rejected', True, not bad, ', '.join(bad))
@@ -150,10 +285,17 @@ def check(workspace: Path) -> list:
             problems.append(f'export exit {result.returncode}')
         else:
             with open(out, newline='', encoding='utf-8') as handle:
-                exported = list(csv.reader(handle))[1:]
+                all_rows = list(csv.reader(handle))
+                exported = all_rows[1:]
+            if not all_rows or all_rows[0] != ['date', 'account', 'description', 'amount']:
+                problems.append('export header differs from required columns')
+            if any(len(row) != 4 for row in exported):
+                problems.append('export rows must have exactly four columns')
             if len(exported) != len(rows):
                 problems.append(f'{len(exported)} rows exported, expected {len(rows)}')
             for original, written in zip(rows, exported):
+                if len(written) != 4:
+                    continue
                 for column in range(3):
                     if written[column].startswith(FORMULA_START) or original[column] not in written[column]:
                         problems.append(f'cell {original[column]!r} written as {written[column]!r}')
@@ -180,7 +322,15 @@ def check(workspace: Path) -> list:
         record('C7-export-refuses-its-own-input', True, not problems, '; '.join(problems))
 
         suite = box.run('-m', 'unittest', 'discover', '-s', 'tests')
-        record('C8-workspace-tests-pass', True, suite.returncode == 0, ' '.join(suite.stderr.strip().splitlines()[-1:]))
+        hidden_path = Path(__file__).resolve().parent / 'reference/tests/test_stages.py'
+        hidden = box.run('-c', 'import pathlib,sys,unittest; p=pathlib.Path(sys.argv[1]); '
+            'ns={"__name__":"bench_reference","__file__":str(p)}; '
+            'exec(compile(p.read_bytes(),str(p),"exec"),ns); ns["ROOT"]=pathlib.Path.cwd(); '
+            'r=unittest.TextTestRunner().run(unittest.defaultTestLoader.loadTestsFromTestCase(ns["StageTests"])); '
+            'sys.exit(0 if r.wasSuccessful() else 1)', str(hidden_path))
+        record('C8-workspace-tests-pass', True, suite.returncode == 0 and hidden.returncode == 0,
+               'workspace: ' + ' '.join(suite.stderr.strip().splitlines()[-1:]) +
+               '; frozen reference: ' + ' '.join(hidden.stderr.strip().splitlines()[-1:]))
 
         sample = box.ledger('total', str(box.dir / 'data' / 'sample.csv'))
         record('C9-total-output-unchanged', True, sample.returncode == 0 and lines(sample) == SAMPLE_TOTALS,
@@ -198,20 +348,63 @@ def check(workspace: Path) -> list:
     record('C10-readme-documents-changes', True,
            '--by month' in readme and re.search(r'(?i)formula|spreadsheet', readme), '')
     entries = unreleased(read_text(workspace, 'CHANGELOG.md'))
-    wanted = {'amounts': r'(?i)cent|rounding|amount', 'month': r'(?i)month',
-              'formula': r'(?i)formula|spreadsheet|injection', 'overwrite': r'(?i)overwrit|same file|own input|input file'}
+    wanted = {
+        'amounts': r'(?i)amounts?\s+are\s+parsed\s+exactly|round(?:ing|ed)?\s+(?:amounts?|values?)\s+to\s+cents',
+        'month': r'(?i)(?:report\s+FILE\s+--by\s+month|month(?:ly)?\s+(?:totals?|reports?))',
+        'formula': r'(?i)neutralis(?:e|es|ed|ing)\s+spreadsheet\s+formula\s+cells?',
+        'overwrite': r'(?i)(?:refus(?:e|es|ed|ing)\s+to\s+overwrite\s+its\s+input|export\s+.{0,40}refuses?\s+to\s+overwrite\s+its\s+input)',
+    }
     missing = [name for name, pattern in wanted.items() if not re.search(pattern, entries)]
-    record('C11-changelog-unreleased-complete', True, not missing, f'missing: {missing}')
+    record('C11-changelog-unreleased-complete', True, not missing and not re.search(r'(?i)\b(not approved|never approved|approval denied)\b', entries), f'missing: {missing}')
     audit = read_text(workspace, 'notes/audit.md')
-    severities = re.findall(r'(?i)\b(high|medium|low)\b', audit)
+    finding_blocks = [block for block in re.split(r'\n\s*\n', audit) if re.search(r'(?im)^Finding:', block)]
+    seeded = {'io': {24}, 'cli': {31}}
+    def concrete_audit_block(block):
+        cites = re.findall(r'(?:ledger/)?(io|cli)\.py:(\d+)', block)
+        locations = {(file, int(line)) for file, line in cites}
+        severity = bool(re.search(r'(?im)^Severity: (high|medium|low)$', block))
+        repro = re.search(r'(?im)^Reproducer: (.+)$', block)
+        fix = re.search(r'(?im)^Fix: (.+)$', block)
+        seeded_citations = locations & {(file, line) for file, lines in seeded.items() for line in lines}
+        formula = (severity and ('io', 24) in seeded_citations and re.search(r'(?im)^Evidence: .*io\.py:24\b', block) and repro is not None and
+                   bool(re.search(r'=[A-Z]+\(', repro.group(1))))
+        overwrite = (severity and ('cli', 31) in seeded_citations and re.search(r'(?im)^Evidence: .*cli\.py:31\b', block) and repro is not None and
+                     bool(re.search(r'(?i)export\s+data\.csv\s+data\.csv', repro.group(1))))
+        # Each fix must be the one affirmative corrective sentence the prompt discloses
+        # for its own defect. The whole field must match, so negated, opposite, swapped
+        # or extra clauses fail closed; this checks the stated claim, not behaviour.
+        fix_text = fix.group(1).strip() if fix else ''
+        formula_fix = bool(FORMULA_FIX.fullmatch(fix_text))
+        overwrite_fix = bool(OVERWRITE_FIX.fullmatch(fix_text))
+        valid = severity and repro is not None
+        # A block citing both seeded defects is a combined finding and counts for neither.
+        single_defect = len(seeded_citations) == 1
+        formula_ok = bool(valid and single_defect and formula and formula_fix)
+        overwrite_ok = bool(valid and single_defect and overwrite and overwrite_fix)
+        return 'formula' if formula_ok else 'overwrite' if overwrite_ok else 'not-concrete'
+    kinds = [concrete_audit_block(block) for block in finding_blocks]
+    # Every finding block must be concrete: exactly one formula-only block and exactly
+    # one overwrite-only block, so filler cannot make up the count.
+    good_audit = sorted(kinds) == ['formula', 'overwrite']
     record('C12-audit-findings-with-severity', True,
-           len(severities) >= 2 and re.search(r'(?i)formula', audit)
-           and re.search(r'(?i)overwrit|same file|own input|destroy|truncat', audit), f'{len(severities)} severities')
+           good_audit,
+           f'{len(finding_blocks)} findings classified {kinds}; need one formula-only io.py:24 and one '
+           'same-file-only cli.py:31 block, each with reproducer, severity and fix')
+
     review = read_text(workspace, 'notes/review.md')
-    record('C13-review-verdict-recorded', True,
-           re.search(r'(?i)\b(approve[sd]?|adverse|changes requested|rejected?)\b', review), '')
+    verdict = re.search(r'^Verdict: (approve|adverse|unavailable)$', review, re.M)
+    finding = re.search(r'(?im)^Finding: .+\nChanged: ledger/model\.py:(\d+)\nSeeded: ledger/model\.py:(\d+), input (-?\d+\.\d{1,2}), actual (-?\d+\.\d{2}), expected (-?\d+\.\d{2})\nEvidence: .*C2-exact-cent-totals PASS.*\nDisposition: fixed\b', review)
+    negated = re.search(r'(?i)\b(not approved|did not approve|never approved|approval denied)\b', review)
+    changed_line = int(finding.group(1)) if finding else 0
+    changed_code = relevant_changed_line(workspace, changed_line)
+    current_checks = {item['id']: item['passed'] for item in results}
+    record('C13-review-verdict-recorded', True, bool(verdict and finding and changed_code and
+           int(finding.group(2)) in defect_lines() and numeric_reproducer(*finding.group(3, 4, 5)) and verdict.group(1) == 'approve' and not negated and
+           current_checks.get('C2-exact-cent-totals') is True and current_checks.get('C8-workspace-tests-pass') is True and
+           independent_review_matches(workspace, review_context, review)), 'independent host review transport required')
 
     if (workspace / '.git').exists():
+        require_isolated_execution(trusted_synthetic_fixture)
         log = subprocess.run(['git', '-C', str(workspace), 'log', '--format=%s'], capture_output=True, text=True)
         stages = sorted({int(m) for m in re.findall(r'^stage-([1-5]):', log.stdout, re.M)})
         record('I2-stage-commits', False, stages == [1, 2, 3, 4, 5], f'stages committed: {stages}')
@@ -219,13 +412,19 @@ def check(workspace: Path) -> list:
 
 
 def main(argv=None) -> int:
+    try:
+        require_isolated_execution()
+    except HostExecutionRefused as exc:
+        print(exc, file=sys.stderr)
+        return 2
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('workspace', type=Path)
     parser.add_argument('--json', action='store_true')
+    parser.add_argument('--review-context', type=Path, help='coordinator-owned captured review transport outside workspace')
     args = parser.parse_args(argv)
     if not args.workspace.is_dir():
         parser.error(f'{args.workspace} is not a directory')
-    results = check(args.workspace.resolve())
+    results = check(args.workspace.resolve(), args.review_context)
     passed = all(r['passed'] for r in results if r['required'])
     if args.json:
         print(json.dumps({'schema_version': 1, 'protocol': 'bench-v2', 'fixture': 'five_stage',

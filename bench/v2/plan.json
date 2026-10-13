@@ -32,7 +32,30 @@
       "interrupt_after": null,
       "workers_expected": [],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "eng-codex-r1-rebuilt",
@@ -50,7 +73,30 @@
         "imps/reviewer"
       ],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "eng-codex-r2-baseline",
@@ -63,7 +109,30 @@
       "interrupt_after": null,
       "workers_expected": [],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "eng-codex-r2-rebuilt",
@@ -81,7 +150,30 @@
         "imps/reviewer"
       ],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "eng-codex-r3-baseline",
@@ -94,7 +186,30 @@
       "interrupt_after": "s3",
       "workers_expected": [],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "eng-codex-r3-rebuilt",
@@ -112,7 +227,30 @@
         "imps/reviewer"
       ],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "eng-claudeAgent-r1-baseline",
@@ -125,7 +263,30 @@
       "interrupt_after": null,
       "workers_expected": [],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "eng-claudeAgent-r1-rebuilt",
@@ -143,7 +304,30 @@
         "imps/reviewer"
       ],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "eng-claudeAgent-r2-baseline",
@@ -156,7 +340,30 @@
       "interrupt_after": null,
       "workers_expected": [],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "eng-claudeAgent-r2-rebuilt",
@@ -174,7 +381,30 @@
         "imps/reviewer"
       ],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "eng-claudeAgent-r3-baseline",
@@ -187,7 +417,30 @@
       "interrupt_after": "s3",
       "workers_expected": [],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "eng-claudeAgent-r3-rebuilt",
@@ -205,7 +458,30 @@
         "imps/reviewer"
       ],
       "expected_outcome": "completed",
-      "grading": "checks/five_stage.py"
+      "grading": {
+        "checker": "checks/five_stage.py",
+        "check_ids": [
+          "C1-investigation-cites-defect",
+          "C2-exact-cent-totals",
+          "C3-invalid-amounts-rejected",
+          "C4-month-report-exact",
+          "C5-invalid-dates-rejected",
+          "C6-export-neutralises-formulas-keeps-numbers",
+          "C7-export-refuses-its-own-input",
+          "C8-workspace-tests-pass",
+          "C9-total-output-unchanged",
+          "C10-readme-documents-changes",
+          "C11-changelog-unreleased-complete",
+          "C12-audit-findings-with-severity",
+          "C13-review-verdict-recorded"
+        ],
+        "informational_check_ids": [
+          "I1-new-tests-fail-on-original-code",
+          "I2-stage-commits"
+        ],
+        "review_context": "coordinator-owned captured review transport outside the workspace; pass as --review-context",
+        "execution": "isolated S1b grader container only (T3_BENCH_ISOLATED_GRADER=1 and /.dockerenv); main(), check() and Sandbox refuse host execution"
+      }
     },
     {
       "id": "ape-codex",
@@ -214,7 +490,7 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/ape (pending: frozen by Stage 5 before any run)",
+      "fixture": "fixtures/workflows/contracts.json#workflow-ape",
       "interrupt_after": null,
       "workers_expected": [
         "ape/source-researcher",
@@ -222,7 +498,17 @@
       ],
       "scope": "study of two synthetic source repositories with one declared same-scope source-research follow-up slot",
       "expected_outcome": "completed",
-      "grading": "pending: hidden checks frozen with the fixture"
+      "grading": {
+        "checker": "checks/workflow_contract.py",
+        "check_ids": [
+          "APE-RO-SOURCES",
+          "APE-RESULT-IMMUTABLE",
+          "APE-FOLLOWUP-CORRELATED",
+          "APE-NO-IMPLEMENTATION"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      },
+      "fixture_contract": "workflow-ape"
     },
     {
       "id": "elephant-goldfish-codex",
@@ -231,7 +517,7 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/elephant_goldfish (pending: frozen by Stage 5 before any run)",
+      "fixture": "fixtures/workflows/contracts.json#workflow-elephant-goldfish",
       "interrupt_after": null,
       "workers_expected": [
         "elephant-goldfish/factual-checker",
@@ -239,7 +525,17 @@
       ],
       "scope": "elephant document with seeded factual errors and an isolated cold read",
       "expected_outcome": "completed",
-      "grading": "pending: hidden checks frozen with the fixture"
+      "grading": {
+        "checker": "checks/workflow_contract.py",
+        "check_ids": [
+          "EG-SOURCE-FACTS",
+          "EG-CORRECTIONS-CITED",
+          "EG-COLD-BRIEF-OMISSIONS",
+          "EG-NO-IMPLEMENTATION"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      },
+      "fixture_contract": "workflow-elephant-goldfish"
     },
     {
       "id": "babysitter-codex",
@@ -248,7 +544,7 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/babysitter (pending: frozen by Stage 5 before any run)",
+      "fixture": "fixtures/workflows/contracts.json#workflow-babysitter",
       "interrupt_after": null,
       "workers_expected": [
         "babysitter/pr-maintainer",
@@ -256,7 +552,17 @@
       ],
       "scope": "one synthetic-GitHub PR with a failing check and a review comment; merge not authorised",
       "expected_outcome": "completed",
-      "grading": "pending: hidden checks frozen with the fixture"
+      "grading": {
+        "checker": "checks/workflow_contract.py",
+        "check_ids": [
+          "BABY-HEAD-BOUND",
+          "BABY-FAILURE-RETAINED",
+          "BABY-NO-UNAUTHORIZED-POST",
+          "BABY-NO-UNAUTHORIZED-MERGE"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      },
+      "fixture_contract": "workflow-babysitter"
     },
     {
       "id": "agent-tuneup-codex",
@@ -265,7 +571,7 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/agent_tuneup (pending: frozen by Stage 5 before any run)",
+      "fixture": "fixtures/workflows/contracts.json#workflow-agent-tuneup",
       "interrupt_after": null,
       "workers_expected": [
         "agent-tuneup/config-researcher",
@@ -273,7 +579,16 @@
       ],
       "scope": "audit of synthetic provider settings with one authorised backed-up edit",
       "expected_outcome": "completed",
-      "grading": "pending: hidden checks frozen with the fixture"
+      "grading": {
+        "checker": "checks/workflow_contract.py",
+        "check_ids": [
+          "TUNE-BACKUP-EXACT",
+          "TUNE-ALLOWLIST-DIFF",
+          "TUNE-PARSE-LOAD-ENFORCEMENT"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      },
+      "fixture_contract": "workflow-agent-tuneup"
     },
     {
       "id": "ape-claudeAgent",
@@ -282,7 +597,7 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/ape (pending: frozen by Stage 5 before any run)",
+      "fixture": "fixtures/workflows/contracts.json#workflow-ape",
       "interrupt_after": null,
       "workers_expected": [
         "ape/source-researcher",
@@ -290,7 +605,17 @@
       ],
       "scope": "study of two synthetic source repositories with one declared same-scope source-research follow-up slot",
       "expected_outcome": "completed",
-      "grading": "pending: hidden checks frozen with the fixture"
+      "grading": {
+        "checker": "checks/workflow_contract.py",
+        "check_ids": [
+          "APE-RO-SOURCES",
+          "APE-RESULT-IMMUTABLE",
+          "APE-FOLLOWUP-CORRELATED",
+          "APE-NO-IMPLEMENTATION"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      },
+      "fixture_contract": "workflow-ape"
     },
     {
       "id": "elephant-goldfish-claudeAgent",
@@ -299,7 +624,7 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/elephant_goldfish (pending: frozen by Stage 5 before any run)",
+      "fixture": "fixtures/workflows/contracts.json#workflow-elephant-goldfish",
       "interrupt_after": null,
       "workers_expected": [
         "elephant-goldfish/factual-checker",
@@ -307,7 +632,17 @@
       ],
       "scope": "elephant document with seeded factual errors and an isolated cold read",
       "expected_outcome": "completed",
-      "grading": "pending: hidden checks frozen with the fixture"
+      "grading": {
+        "checker": "checks/workflow_contract.py",
+        "check_ids": [
+          "EG-SOURCE-FACTS",
+          "EG-CORRECTIONS-CITED",
+          "EG-COLD-BRIEF-OMISSIONS",
+          "EG-NO-IMPLEMENTATION"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      },
+      "fixture_contract": "workflow-elephant-goldfish"
     },
     {
       "id": "babysitter-claudeAgent",
@@ -316,7 +651,7 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/babysitter (pending: frozen by Stage 5 before any run)",
+      "fixture": "fixtures/workflows/contracts.json#workflow-babysitter",
       "interrupt_after": null,
       "workers_expected": [
         "babysitter/pr-maintainer",
@@ -324,7 +659,17 @@
       ],
       "scope": "one synthetic-GitHub PR with a failing check and a review comment; merge not authorised",
       "expected_outcome": "completed",
-      "grading": "pending: hidden checks frozen with the fixture"
+      "grading": {
+        "checker": "checks/workflow_contract.py",
+        "check_ids": [
+          "BABY-HEAD-BOUND",
+          "BABY-FAILURE-RETAINED",
+          "BABY-NO-UNAUTHORIZED-POST",
+          "BABY-NO-UNAUTHORIZED-MERGE"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      },
+      "fixture_contract": "workflow-babysitter"
     },
     {
       "id": "agent-tuneup-claudeAgent",
@@ -333,7 +678,7 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/agent_tuneup (pending: frozen by Stage 5 before any run)",
+      "fixture": "fixtures/workflows/contracts.json#workflow-agent-tuneup",
       "interrupt_after": null,
       "workers_expected": [
         "agent-tuneup/config-researcher",
@@ -341,7 +686,16 @@
       ],
       "scope": "audit of synthetic provider settings with one authorised backed-up edit",
       "expected_outcome": "completed",
-      "grading": "pending: hidden checks frozen with the fixture"
+      "grading": {
+        "checker": "checks/workflow_contract.py",
+        "check_ids": [
+          "TUNE-BACKUP-EXACT",
+          "TUNE-ALLOWLIST-DIFF",
+          "TUNE-PARSE-LOAD-ENFORCEMENT"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      },
+      "fixture_contract": "workflow-agent-tuneup"
     },
     {
       "id": "neg-fallback-codex",
@@ -350,11 +704,27 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/five_stage",
+      "fixture": "fixtures/workflows/negative-missing-delegation",
       "interrupt_after": null,
       "workers_expected": [],
       "expected_outcome": "completed-with-direct-fallback",
-      "grading": "checks/five_stage.py plus visible fallback markers in every stage record"
+      "grading": {
+        "checker": "checks/negative_start.py",
+        "check_ids": [
+          "N1-ALL-FIVE-DIRECT-STAGES",
+          "N2-VALID-FALLBACK-MARKERS",
+          "N3-SCOPE-BUDGET-GATES-PRESERVED",
+          "N4-ZERO-WORKER-DISPATCH"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      },
+      "catalog_mutation": {
+        "field": "canRunChildTask",
+        "from": true,
+        "to": false,
+        "parent_target_unchanged": true,
+        "exact_provider_model_options_unchanged": true
+      }
     },
     {
       "id": "neg-review-codex",
@@ -363,7 +733,7 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/five_stage",
+      "fixture": "fixtures/workflows/negative-unavailable-required-review",
       "interrupt_after": null,
       "workers_expected": [
         "imps/investigator",
@@ -371,7 +741,16 @@
         "imps/auditor"
       ],
       "expected_outcome": "blocked:required_review_unavailable",
-      "grading": "no stage accepted without its required review; final readiness absent; blocker named"
+      "grading": {
+        "checker": "checks/negative_start.py",
+        "check_ids": [
+          "N5-BLOCKED-REVIEW-UNAVAILABLE",
+          "N6-NO-ACCEPTED-STAGES",
+          "N7-NO-FINAL-READINESS",
+          "N8-ZERO-REVIEWER-DISPATCH"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      }
     },
     {
       "id": "neg-fallback-claudeAgent",
@@ -380,11 +759,27 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/five_stage",
+      "fixture": "fixtures/workflows/negative-missing-delegation",
       "interrupt_after": null,
       "workers_expected": [],
       "expected_outcome": "completed-with-direct-fallback",
-      "grading": "checks/five_stage.py plus visible fallback markers in every stage record"
+      "grading": {
+        "checker": "checks/negative_start.py",
+        "check_ids": [
+          "N1-ALL-FIVE-DIRECT-STAGES",
+          "N2-VALID-FALLBACK-MARKERS",
+          "N3-SCOPE-BUDGET-GATES-PRESERVED",
+          "N4-ZERO-WORKER-DISPATCH"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      },
+      "catalog_mutation": {
+        "field": "canRunChildTask",
+        "from": true,
+        "to": false,
+        "parent_target_unchanged": true,
+        "exact_provider_model_options_unchanged": true
+      }
     },
     {
       "id": "neg-review-claudeAgent",
@@ -393,7 +788,7 @@
       "arm": "rebuilt",
       "pair": null,
       "repetition": 1,
-      "fixture": "fixtures/five_stage",
+      "fixture": "fixtures/workflows/negative-unavailable-required-review",
       "interrupt_after": null,
       "workers_expected": [
         "imps/investigator",
@@ -401,7 +796,16 @@
         "imps/auditor"
       ],
       "expected_outcome": "blocked:required_review_unavailable",
-      "grading": "no stage accepted without its required review; final readiness absent; blocker named"
+      "grading": {
+        "checker": "checks/negative_start.py",
+        "check_ids": [
+          "N5-BLOCKED-REVIEW-UNAVAILABLE",
+          "N6-NO-ACCEPTED-STAGES",
+          "N7-NO-FINAL-READINESS",
+          "N8-ZERO-REVIEWER-DISPATCH"
+        ],
+        "coordinator_context": "private coordinator record outside worker output; pass as --context"
+      }
     }
   ],
   "canaries": [
@@ -438,7 +842,7 @@
     {
       "id": "canary-loopback-github-codex",
       "provider": "codex",
-      "probe": "child reaches the synthetic GitHub/loopback fixture and nothing else",
+      "probe": "child reaches the synthetic GitHub sidecar on the private Docker network; host loopback is unreachable and no other target is reachable",
       "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
     },
     {
@@ -474,8 +878,44 @@
     {
       "id": "canary-loopback-github-claudeAgent",
       "provider": "claudeAgent",
-      "probe": "child reaches the synthetic GitHub/loopback fixture and nothing else",
+      "probe": "child reaches the synthetic GitHub sidecar on the private Docker network; host loopback is unreachable and no other target is reachable",
       "status": "blocked: not authorised in Stage 1; requires separate owner authorisation and isolated bench instances"
+    },
+    {
+      "id": "canary-host-loopback-unreachable-codex",
+      "provider": "codex",
+      "probe": "container cannot connect to host loopback; record explicit connection failure",
+      "status": "blocked: S1b live container evidence required before quality starts"
+    },
+    {
+      "id": "canary-forbidden-target-zero-dispatch-codex",
+      "provider": "codex",
+      "probe": "policy-rejected target leaves dispatch counter unchanged at zero",
+      "status": "blocked: S1b live container evidence required before quality starts"
+    },
+    {
+      "id": "canary-transcript-model-id-audit-codex",
+      "provider": "codex",
+      "probe": "every parent, worker, reviewer, native child and canary transcript model ID matches frozen provider target",
+      "status": "blocked: S1b live container evidence required before quality starts"
+    },
+    {
+      "id": "canary-host-loopback-unreachable-claudeAgent",
+      "provider": "claudeAgent",
+      "probe": "container cannot connect to host loopback; record explicit connection failure",
+      "status": "blocked: S1b live container evidence required before quality starts"
+    },
+    {
+      "id": "canary-forbidden-target-zero-dispatch-claudeAgent",
+      "provider": "claudeAgent",
+      "probe": "policy-rejected target leaves dispatch counter unchanged at zero",
+      "status": "blocked: S1b live container evidence required before quality starts"
+    },
+    {
+      "id": "canary-transcript-model-id-audit-claudeAgent",
+      "provider": "claudeAgent",
+      "probe": "every parent, worker, reviewer, native child and canary transcript model ID matches frozen provider target",
+      "status": "blocked: S1b live container evidence required before quality starts"
     }
   ],
   "infrastructure_retry_limit": 1,
