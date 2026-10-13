@@ -354,6 +354,23 @@ WHERE = ('(function(sel){var list=document.querySelectorAll(sel);for(var i=0;i<l
          'if(hit&&(hit===e||e.contains(hit)))return [x,y,Math.round(r.width),Math.round(r.height),'
          'e.getAttribute("href")||""]}return null})(%s)')
 
+# Where a reader would go to another page, in order. The homepage hides the sidebar at
+# desktop widths, so the header tabs are the visible navigation there.
+NAV_TARGETS = (
+    ('sidebar', '.md-sidebar--primary .md-nav__link[href]:not([href^="#"]):not([href="."])'
+                ':not(.md-nav__link--active)'),
+    ('tabs', '.md-tabs__item:not(.md-tabs__item--active) .md-tabs__link[href]'),
+)
+
+
+def nav_link(page: str, locate) -> tuple:
+    """Return (kind, point) for the first visible navigation link, using locate(selector)."""
+    for kind, selector in NAV_TARGETS:
+        point = locate(selector)
+        if point:
+            return kind, point
+    raise CaptureError(f'{page}: no visible navigation link in the sidebar or header tabs')
+
 
 def check_controls(site: Path, out: Path, page: str, width: int, height: int, scheme: str,
                    zoom: int, chrome: str) -> dict:
@@ -390,13 +407,13 @@ def check_controls(site: Path, out: Path, page: str, width: int, height: int, sc
                 tab.until('document.getElementById("__drawer").checked', 'the navigation drawer')
                 time.sleep(.4)
             here = path_now()
-            link = where('.md-sidebar--primary .md-nav__link[href]:not([href^="#"]):not([href="."])'
-                         ':not(.md-nav__link--active)', 'navigation link')
+            via, link = nav_link(page, lambda sel: tab.js(WHERE % json.dumps(sel)))
             tab.screenshot(out / f'{stem}-nav.png')
             tab.click(link)
             followed = tab.until(f'location.pathname + location.hash !== {json.dumps(here)} && '
                                  'location.pathname', 'the navigation link to load')
-            result['navigation'] = {'drawer': bool(toggle), 'link': link[4], 'opened': followed}
+            result['navigation'] = {'drawer': bool(toggle), 'via': via, 'link': link[4],
+                                    'opened': followed}
 
             # Search: open it, type, wait for results, then open the first one.
             tab.open(url)
@@ -473,7 +490,7 @@ def main(argv=None) -> int:
         nav, search, copy = c['navigation'], c['search'], c['copy']
         print(f"controls {c['width']:>4} {c['scheme']:5} zoom={c['zoom']}% viewport={c['viewport_width']} "
               f"dpr={c['device_pixel_ratio']} {c['page']}\n"
-              f"  navigation: {'drawer' if nav['drawer'] else 'sidebar'} link {nav['link']} opened {nav['opened']}\n"
+              f"  navigation: {'drawer' if nav['drawer'] else nav['via']} link {nav['link']} opened {nav['opened']}\n"
               f"  search: {search['results']} results for {search['query']!r}, first opened {search['opened']}\n"
               f"  copy: {copy['button'][0]}x{copy['button'][1]}px button, clipboard matched "
               f"{copy['lines']} line(s)")

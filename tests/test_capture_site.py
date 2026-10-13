@@ -90,6 +90,23 @@ class CaptureSiteTest(unittest.TestCase):
             capture_site.check_controls(self.site, Path(self.tmp.name) / 'out', 'index.html', 390, 844,
                                         'light', 100, 'chrome')
 
+    def test_navigation_falls_back_to_header_tabs_when_the_sidebar_is_hidden(self):
+        # The desktop homepage hides its sidebar; the header tabs are what a reader clicks.
+        asked = []
+
+        def homepage(selector):
+            asked.append(selector)
+            return [10, 20, 60, 18, 'getting-started/'] if 'md-tabs' in selector else None
+
+        self.assertEqual(capture_site.nav_link('index.html', homepage),
+                         ('tabs', [10, 20, 60, 18, 'getting-started/']))
+        self.assertIn('md-sidebar--primary', asked[0])  # the sidebar is still tried first
+        self.assertIn(':not(.md-tabs__item--active)', asked[1])
+        sidebar = capture_site.nav_link('p', lambda sel: [1, 2, 3, 4, 'x/'] if 'sidebar' in sel else None)
+        self.assertEqual(sidebar[0], 'sidebar')
+        with self.assertRaisesRegex(capture_site.CaptureError, 'index.html: no visible navigation link'):
+            capture_site.nav_link('index.html', lambda sel: None)
+
 
     def test_missing_tools_and_sites_fail_clearly(self):
         with mock.patch.object(capture_site.shutil, 'which', return_value=None):
