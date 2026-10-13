@@ -1,6 +1,7 @@
 """The site screenshot helper serves a built site, probes layout width, and fails clearly."""
 import json
 import math
+import os
 import sys
 import tempfile
 import unittest
@@ -125,8 +126,11 @@ class CaptureSiteTest(unittest.TestCase):
 
 # Stands in for Chrome: speaks NUL-framed JSON on fds 3 and 4 like --remote-debugging-pipe.
 FAKE_CHROME = r'''
-import json, os, sys
+import json, os, sys, time
 assert '--remote-debugging-pipe' in sys.argv, sys.argv
+fail = os.environ.get('FAKE_FAIL')
+if fail == 'hang':  # a stuck browser: never answers, ignores closed pipes
+    time.sleep(600)
 buf = b''
 def send(obj):
     os.write(4, json.dumps(obj).encode() + b'\0')
@@ -144,6 +148,9 @@ while True:
         reply = {'targetInfos': [{'type': 'browser', 'targetId': 'b'}, {'type': 'page', 'targetId': 'p1'}]}
     elif method == 'Target.attachToTarget':
         assert msg['params']['targetId'] == 'p1'
+        if fail == 'attach':
+            send({'id': msg['id'], 'error': {'message': 'attach refused'}})
+            continue
         reply = {'sessionId': 's1'}
     elif method == 'Runtime.evaluate':
         assert msg.get('sessionId') == 's1'
@@ -161,22 +168,44 @@ while True:
 
 
 class DevToolsPipeTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.fake = Path(tmp.name) / 'chrome'
+        self.fake.write_text(f'#!{sys.executable}\n' + FAKE_CHROME)
+        self.fake.chmod(0o755)
+
+    def assert_released(self, tab):
+        self.assertIsNotNone(tab.proc.poll(), 'Chrome is still running')
+        self.assertTrue(tab.proc.stderr.closed)
+        for fd in (tab._commands, tab._replies):
+            with self.assertRaises(OSError, msg=f'pipe fd {fd} is still open'):
+                os.fstat(fd)
+
+    def test_failed_startup_stops_chrome_and_closes_pipes(self):
+        for fail, timeout, error in (('attach', 10, 'Target.attachToTarget: attach refused'),
+                                     ('hang', .5, 'did not answer in time')):
+            with self.subTest(fail=fail):
+                env = {'PATH': '/usr/bin:/bin', 'FAKE_FAIL': fail}
+                tab = capture_site.DevTools([str(self.fake)], env, timeout=timeout)
+                with self.assertRaisesRegex(capture_site.CaptureError, error):
+                    with tab:
+                        self.fail('__enter__ should have raised')
+                self.assert_released(tab)
+                tab.close()  # a second close is a no-op
+
     def test_pipe_framing_sessions_and_errors(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            fake = Path(tmp) / 'chrome'
-            fake.write_text(f'#!{sys.executable}\n' + FAKE_CHROME)
-            fake.chmod(0o755)
-            with capture_site.DevTools([str(fake), '--headless=new'], {'PATH': '/usr/bin:/bin'}, timeout=10) as tab:
-                self.assertEqual(tab.session, 's1')
-                expression, argc = tab.js('1 + 1')
-                self.assertEqual(expression, '1 + 1')
-                self.assertEqual(argc, 4)  # program, --headless=new, --remote-debugging-pipe, about:blank
-                with self.assertRaisesRegex(capture_site.CaptureError, 'page script failed: Uncaught'):
-                    tab.js('boom')
-                with self.assertRaisesRegex(capture_site.CaptureError, 'Page.bogus: no such method'):
-                    tab.send('Page.bogus')
-            self.assertEqual(tab.proc.returncode, 0)
-            self.assertTrue(tab.proc.stderr.closed)
+        with capture_site.DevTools([str(self.fake), '--headless=new'], {'PATH': '/usr/bin:/bin'}, timeout=10) as tab:
+            self.assertEqual(tab.session, 's1')
+            expression, argc = tab.js('1 + 1')
+            self.assertEqual(expression, '1 + 1')
+            self.assertEqual(argc, 4)  # program, --headless=new, --remote-debugging-pipe, about:blank
+            with self.assertRaisesRegex(capture_site.CaptureError, 'page script failed: Uncaught'):
+                tab.js('boom')
+            with self.assertRaisesRegex(capture_site.CaptureError, 'Page.bogus: no such method'):
+                tab.send('Page.bogus')
+        self.assertEqual(tab.proc.returncode, 0)
+        self.assert_released(tab)
 
 
 if __name__ == '__main__':

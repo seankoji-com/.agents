@@ -249,37 +249,64 @@ class DevTools:
     def __init__(self, args: list[str], env: dict, timeout: float = 30):
         to_chrome, self._commands = os.pipe()
         self._replies, from_chrome = os.pipe()
-        self.proc = subprocess.Popen([sys.executable, '-c', self.MOVE, str(to_chrome), str(from_chrome),
-                                      *args, '--remote-debugging-pipe', 'about:blank'],
-                                     env=env, pass_fds=(to_chrome, from_chrome),
-                                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        os.close(to_chrome)
-        os.close(from_chrome)
+        try:
+            self.proc = subprocess.Popen([sys.executable, '-c', self.MOVE, str(to_chrome), str(from_chrome),
+                                          *args, '--remote-debugging-pipe', 'about:blank'],
+                                         env=env, pass_fds=(to_chrome, from_chrome),
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        except BaseException:
+            for fd in (self._commands, self._replies):
+                os.close(fd)
+            raise
+        finally:
+            os.close(to_chrome)
+            os.close(from_chrome)
         self.timeout, self._buffer, self._id, self.session = timeout, b'', 0, None
+        self._closed = False
 
     def __enter__(self):
-        targets = self.send('Target.getTargets', session=False)['targetInfos']
-        page = next(t['targetId'] for t in targets if t['type'] == 'page')
-        self.session = self.send('Target.attachToTarget', {'targetId': page, 'flatten': True},
-                                 session=False)['sessionId']
-        self.send('Page.enable')
-        self.send('Emulation.setFocusEmulationEnabled', {'enabled': True})
+        try:
+            targets = self.send('Target.getTargets', session=False)['targetInfos']
+            page = next(t['targetId'] for t in targets if t['type'] == 'page')
+            self.session = self.send('Target.attachToTarget', {'targetId': page, 'flatten': True},
+                                     session=False)['sessionId']
+            self.send('Page.enable')
+            self.send('Emulation.setFocusEmulationEnabled', {'enabled': True})
+        except BaseException:
+            # __exit__ never runs when __enter__ raises, so stop Chrome here.
+            self.close(graceful=False)
+            raise
         return self
 
     def __exit__(self, *exc):
+        self.close()
+
+    def close(self, graceful: bool = True) -> None:
+        """Stop Chrome and release both pipe ends and stderr; safe to call twice.
+
+        A graceful close asks Chrome to quit first. After a failed startup Chrome may
+        not be answering, so it is terminated straight away."""
+        if self._closed:
+            return
+        self._closed = True
         try:
-            self.send('Browser.close', session=False)
-        except CaptureError:
-            pass
-        for fd in (self._commands, self._replies):
-            os.close(fd)
-        try:
-            self.proc.wait(10)
-        except subprocess.TimeoutExpired:
-            self.proc.kill()
-            self.proc.wait()
+            if graceful:
+                try:
+                    self.send('Browser.close', session=False)
+                except (CaptureError, OSError):
+                    graceful = False
         finally:
-            self.proc.stderr.close()
+            for fd in (self._commands, self._replies):
+                os.close(fd)
+            try:
+                if not graceful:
+                    self.proc.terminate()
+                self.proc.wait(10 if graceful else 5)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait()
+            finally:
+                self.proc.stderr.close()
 
     def _read(self) -> dict:
         import select
