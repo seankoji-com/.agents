@@ -2,6 +2,7 @@
 import contextlib
 import importlib.util
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -28,6 +29,62 @@ class RunTestsTest(unittest.TestCase):
         patcher = patch.object(runner, 'TESTS', tests)
         patcher.start()
         self.addCleanup(patcher.stop)
+        hints = patch.object(runner, 'DURATIONS', tests / 'durations.json')
+        hints.start()
+        self.addCleanup(hints.stop)
+        return tests
+
+    def test_measured_long_modules_precede_tiny_modules_without_omissions(self):
+        tests = self.suite(test_tiny=PASSING, test_new=PASSING + '# padding\n' * 100,
+                           test_review_perspectives=PASSING, test_task_b_grader=PASSING,
+                           test_review_regressions=PASSING, test_tasks=PASSING)
+        names = ['test_review_perspectives', 'test_task_b_grader', 'test_review_regressions', 'test_tasks']
+        runner.DURATIONS.write_text(json.dumps({f'{name}.py': 40 - i for i, name in enumerate(names)}))
+        expected = [tests / f'{name}.py' for name in names] + [tests / 'test_new.py', tests / 'test_tiny.py']
+        self.assertEqual(runner.modules([]), expected)
+        self.assertEqual(runner.modules(['test_review*']), [expected[0], expected[2]])
+        code, out, _ = self.run_main()
+        self.assertEqual(code, 0, out)
+        self.assertIn('12 tests in 6 modules', out)
+
+    def test_missing_or_invalid_hints_use_size_and_name_fallback(self):
+        tests = self.suite(test_b=PASSING, test_a=PASSING, test_large=PASSING + '# padding\n')
+        expected = [tests / 'test_large.py', tests / 'test_a.py', tests / 'test_b.py']
+        self.assertEqual(runner.modules([]), expected)
+        for data in ('{', '[]', 'null', '{"test_b.py": "slow"}',
+                     '{"test_b.py": true}', '{"test_b.py": -5}',
+                     '{"test_b.py": 0}', '{"test_b.py": NaN}', '{"test_b.py": Infinity}'):
+            with self.subTest(data=data):
+                runner.DURATIONS.write_text(data)
+                self.assertEqual(runner.modules([]), expected)
+
+    def test_stale_hints_never_add_modules_or_hide_new_modules(self):
+        tests = self.suite(test_new=PASSING, test_known=PASSING)
+        runner.DURATIONS.write_text(json.dumps({'test_deleted.py': 1000, 'test_known.py': 20}))
+        self.assertEqual(runner.modules([]), [tests / 'test_known.py', tests / 'test_new.py'])
+
+    def test_scheduled_real_failure_empty_and_hang_still_run_every_module(self):
+        self.suite(test_pass=PASSING, test_fail=FAILING, test_empty=EMPTY, test_hang=HANGING)
+        runner.DURATIONS.write_text(json.dumps({'test_hang.py': 100, 'test_empty.py': 90, 'test_fail.py': 80}))
+        code, out, err = self.run_main('--timeout', '1')
+        self.assertEqual(code, 1, out)
+        self.assertIn('3 tests in 4 modules', out)
+        self.assertIn('3 module(s) failed', out)
+        for name in ('test_fail', 'test_empty', 'test_hang'):
+            self.assertIn(f'FAIL {name}', out)
+            self.assertIn(f'===== {name} =====', err)
+        self.assertIn('planted', err)
+        self.assertIn('stopped after 1s', err)
+
+    def test_modules_keep_separate_interpreter_state(self):
+        body = ('import builtins, unittest\nclass T(unittest.TestCase):\n'
+                '    def test_state(self):\n'
+                '        self.assertFalse(hasattr(builtins, "scheduler_fixture"))\n'
+                '        builtins.scheduler_fixture = True\n')
+        self.suite(test_one=body, test_two=body)
+        code, out, _ = self.run_main()
+        self.assertEqual(code, 0, out)
+        self.assertIn('2 tests in 2 modules', out)
 
     def run_main(self, *argv):
         out, err = io.StringIO(), io.StringIO()
