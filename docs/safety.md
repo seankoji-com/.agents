@@ -22,6 +22,12 @@ exposes. Delegated T3 children receive their supplied brief and may use their al
 tools. Cross-provider review can expose code or artifacts to another provider;
 follow your project's authorization and privacy rules before using it.
 
+In a job, each worker receives one brief file with its stage, constraints and the
+actions it may take. Worker definitions and overrides grant no push, merge, message
+or settings-edit authority; the brief can only narrow it. Workers write only to
+their own task directory, and their results are data: they cannot accept a stage
+or approve anything. A cold reader sees only the document under review.
+
 The helpers do not ship a separate model client, telemetry service or credential
 store. GitHub operations use host tools or your authenticated `gh`. Public posts,
 PRs and harvest publication require authorization for their destination and content.
@@ -29,11 +35,13 @@ PRs and harvest publication require authorization for their destination and cont
 ## Local artifacts
 
 imps stores contracts, logs, copied evidence and reports under its state root.
+Jobs store plans, briefs, worker results, receipts and the owner decisions they quote
+under `~/.local/state/t3-plugins/jobs`, with private permissions.
 Planning writes discovery and handoff files in the project. ape writes clones and
 reports in its research workspace. Optional project lessons live outside the checkout.
 These may contain project material: inspect and redact artifacts before sharing.
 
-Snapshot uninstall leaves run state and added files alone. Skill adapters are removed
+Snapshot uninstall leaves run and job state, overrides and added files alone. Skill adapters are removed
 separately. Do not assume uninstall erases task artifacts or provider transcripts.
 
 ## Scope and limits

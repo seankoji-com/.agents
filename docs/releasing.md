@@ -25,7 +25,10 @@ source branch. A plugin manifest's `1.0.0` is distinct from a catalog release ta
 its Homebrew formula. The docs must describe the package users can obtain.
 Run a real installed workflow in T3 and retain the version, provider, T3 build,
 operation, result and any intervention. A historical conformance pass is insufficient
-for a changed evidence gate. See the [launch kit](https://github.com/seankoji-com/t3-plugins/tree/master/launch).
+for a changed evidence gate. The rebuilt whole-job workflows also need the live
+Codex and Claude runs in the frozen
+[benchmark protocol v2](https://github.com/seankoji-com/t3-plugins/blob/master/bench/v2/protocol.md);
+until those are recorded, describe them as unverified. See the [launch kit](https://github.com/seankoji-com/t3-plugins/tree/master/launch).
 
 ## GitHub Pages setup
 
@@ -42,7 +45,8 @@ to that tag: it skips tests, tagging, and the GitHub release, reads the publishe
 `.sha256` asset, and only re-proposes the formula, so no second version is invented.
 If Pages fails, retain the last successful deployment
 and fix its build. Users can reactivate an earlier installed snapshot with
-`t3-plugins activate PLUGIN VERSION`; run state is independent of the package version.
+`t3-plugins activate PLUGIN VERSION`; run state is independent of the package version,
+and running jobs keep the versions they pinned.
 
 The formula's `imps` command is a second executable from the same catalog package and a
 direct state CLI; `t3-plugins install` and `t3-plugins setup` update user snapshots.

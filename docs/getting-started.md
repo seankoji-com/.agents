@@ -68,7 +68,10 @@ to populate your skill adapters.
 
 Snapshots live in `~/.local/share/t3-plugins/<plugin>/<version>/`. A `current` symlink
 gives the agent a stable entry path. Each snapshot contains its required shared files;
-it does not depend on the source checkout remaining in place.
+it does not depend on the source checkout remaining in place. Worker definitions go
+into a matching bundle under `~/.agents/agents/t3-plugins`, and jobs keep their state
+in `~/.local/state/t3-plugins/jobs`. See [custom locations](cli.md#custom-locations)
+to move the agents root.
 
 Install on the machine where the T3 provider executes tools. A path on your laptop
 is not automatically available to a remote provider. If its sandbox cannot access
@@ -102,7 +105,8 @@ Use a version printed by the installer to roll back:
 t3-plugins activate imps VERSION
 ```
 
-Activation changes only `current`. Running `install` again while rolled back reports
+Activation changes only `current` and selects that version's worker bundle with it.
+Jobs already running keep the versions they pinned. Running `install` again while rolled back reports
 `reactivated`: the snapshot already existed and only `current` moved back to it.
 Run `doctor` afterward: an intentional rollback
 reports `snapshot_outdated` when its files differ from the bundled package. The Homebrew
@@ -193,9 +197,10 @@ t3-plugins uninstall ape
 brew uninstall t3-plugins
 ```
 
-Snapshot removal deletes only manifest-owned, unmodified files for that plugin.
-Added files and local edits remain. Repeat for other snapshots you want removed
-before uninstalling the Homebrew command. Run state is never removed by uninstall.
+Snapshot removal deletes only manifest-owned, unmodified files for that plugin and
+its worker bundle. Added files, local edits and worker overrides remain. A version
+that a live or resumable job pins is refused with `version_referenced`. Repeat for other snapshots you want removed
+before uninstalling the Homebrew command. Run and job state are never removed by uninstall.
 
 Homebrew's `imps` command runs the packaged CLI directly. It does not silently
 install, overwrite, or change your user snapshots.

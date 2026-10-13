@@ -11,6 +11,9 @@ Start with a concrete job. A short shell command or direct agent request is ofte
 | [agent-tuneup](agent-tuneup.md) | Align agent settings with reviewed provider-specific changes |
 | [ralph](ralph.md) | Retry all evaluator feedback in fresh tasks and open a PR on success |
 
+The first five run long work as one job: your thread keeps the plan and accepts each
+stage, while fresh T3 tasks do the stage work. See [architecture](../architecture.md#whole-jobs).
+
 All entries can be read by any T3 provider with filesystem access. That is a portability contract, not a completed live conformance matrix. See [compatibility](../compatibility.md).
 
 ## Not sure where to start?

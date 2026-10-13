@@ -4,6 +4,8 @@ Stage 3 of issue #15 replaces executable workflow scheduling with a small eviden
 The agent owns implementation, integration, routing, retries and process cleanup. T3 owns
 child execution and watches. The core admits revision-bound evidence and validates it.
 This removes a second scheduler without removing the requested evidence guarantees.
+The later whole-job rebuild keeps this gate as each imps stage's authority; see
+[whole-job coordination](migration.md#whole-job-coordination).
 
 ## Operations
 

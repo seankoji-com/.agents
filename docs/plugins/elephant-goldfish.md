@@ -77,6 +77,21 @@ blockers retain owners and next actions; dependent work waits for resolution.
 is unvalidated context; an implementer must inspect the actual user instruction.
 The flag is `null` when malformed metadata makes the saved request unknowable.
 
+## Jobs and workers
+
+Discovery is never delegated: a worker cannot hear you. `doctor`, `thinking list`,
+`resolve` and `render_handoff.py --check` stay direct. Delegated checks use two
+workers:
+
+- `elephant-goldfish/factual-checker` verifies repository and command claims.
+- `elephant-goldfish/cold-reader` sees only the document and says whether a newcomer
+  could act on it.
+
+Factual and cold-read verdicts are separate stages with separate validator receipts.
+New topics allow four cold-read rounds in total; older topics keep their recorded
+limit. Another round, an owner override or leaving thinking is asked through the
+question picker.
+
 ## Limits
 
 Thinking stops at the handoff. A cold-reader pass establishes readability and completeness, not factual correctness. See [compatibility](../compatibility.md) for the distinction between deterministic tests and live provider results.
