@@ -553,6 +553,15 @@ class BlockGrammarTests(ValidatorCase):
         self.rewrite(data, 'report', text.replace('## Adapt\n\nNone.', '## Adapt\n\nNothing to adapt here.'))
         self.rejects(data, 'structure', "unexpected line 'Nothing to adapt here.'")
 
+    def test_block_id_reused_in_another_section_rejects(self):
+        """RC2-ape-01: a reused finding id cannot hide an unlisted, uninspected proposal."""
+        data = research_descriptor(self.base)
+        pin = data['sources'][0]
+        text = Path(data['report']['path']).read_text()
+        hidden = block('src-1-adopt', 'Remove guard', blob(pin, 3), 'return call()').rstrip('\n')
+        self.rewrite(data, 'report', text.replace('## Adapt\n\nNone.', '## Adapt\n\n' + hidden))
+        self.rejects(data, 'structure', 'block id src-1-adopt appears in more than one consequential section')
+
 
 class SnapshotCitationTests(ValidatorCase):
     """FR-ape-02: every blob citation names real lines of the pinned snapshot holding the quote."""

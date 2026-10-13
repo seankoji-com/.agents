@@ -350,11 +350,15 @@ def check_findings(data, spec, bodies, resolved, claims, consumed):
             if block['citation'] != url or norm(block['quote']) != norm(quote):
                 raise Reject('provenance', f'finding {fid} citation or quote differs from its report block')
         rows[fid] = {**finding, 'section': section}
+    seen_blocks = set()
     for name, blocks in claims.items():
         for bid, block in blocks.items():
-            if bid not in rows:
+            if bid in seen_blocks:
+                raise Reject('structure', f'block id {bid} appears in more than one consequential section')
+            seen_blocks.add(bid)
+            if bid not in rows or rows[bid]['section'] != name:
                 raise Reject('coverage', f'report {name} claim citing {block["citation"]} has no descriptor finding '
-                             f'(block {bid}, and so no inspection receipt)')
+                             f'in that section (block {bid}, and so no inspection receipt)')
     return rows
 
 
