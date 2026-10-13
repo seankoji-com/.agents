@@ -159,6 +159,7 @@ class DevToolsPipeTest(unittest.TestCase):
                 with self.assertRaisesRegex(capture_site.CaptureError, 'Page.bogus: no such method'):
                     tab.send('Page.bogus')
             self.assertEqual(tab.proc.returncode, 0)
+            self.assertTrue(tab.proc.stderr.closed)
 
 
 if __name__ == '__main__':

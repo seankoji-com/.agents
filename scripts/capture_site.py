@@ -278,6 +278,8 @@ class DevTools:
         except subprocess.TimeoutExpired:
             self.proc.kill()
             self.proc.wait()
+        finally:
+            self.proc.stderr.close()
 
     def _read(self) -> dict:
         import select
