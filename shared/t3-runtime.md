@@ -4,7 +4,9 @@ Read once per run. The plugin entry defines the task; this file defines how it u
 
 - Inherit the active provider and model, and respect the operator's choices.
 - Delegation follows `PKG/shared/delegation.md`: when to hand off, which model, which
-  tools, and what a child brief contains.
+  tools, and what a child brief contains. Substantive multi-stage work follows
+  `PKG/shared/job-coordination.md`: one pinned job, coordinator-only dispatch, tracked
+  handles, validator acceptance, bounded repair and visible fallback.
 - Tool prefixes vary by harness. Match exposed tools by name and description. If an
   expected tool is absent, attempt bounded discovery. Report the missing capability
   rather than inventing a substitute. Do not change provider configuration to unblock it.

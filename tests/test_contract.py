@@ -92,6 +92,228 @@ class SurfaceTest(CoreTestCase):
         self.assertIn('`unavailable`', adapter.split('## Preview toolkit')[1])
 
 
+COORDINATORS = ('imps', 'ape', 'elephant-goldfish', 'babysitter', 'agent-tuneup')
+COORDINATION = ROOT / 'shared' / 'job-coordination.md'
+PENDING_ENTRY = 'pending Stage 4 plugin entry'
+# Approval channels that bypass the picker: "reply yes", "type approve", "approve in chat".
+PROSE_APPROVAL = re.compile(r'(?i)\b(?:reply|respond|answer|type)\b[^.\n]{0,20}\b(?:yes|approved?|approves)\b'
+                            r'|\bapprov\w* (?:in|via|by) (?:chat|prose|a reply)\b')
+
+
+def cli_surface(script: Path) -> tuple:
+    """(subcommand choices, option flags) declared by a CLI's argparse calls, read from its source."""
+    choices, flags = set(), set()
+    for node in ast.walk(ast.parse(script.read_text(), str(script))):
+        if not (isinstance(node, ast.Call) and getattr(node.func, 'attr', None) in ('add_argument', 'add_parser')):
+            continue
+        names = [a.value for a in node.args if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+        flags |= {n for n in names if n.startswith('--')}
+        if node.func.attr == 'add_parser':
+            choices |= set(names)
+        for keyword in node.keywords:
+            if keyword.arg == 'choices' and isinstance(keyword.value, (ast.List, ast.Tuple)):
+                choices |= {e.value for e in keyword.value.elts if isinstance(e, ast.Constant)}
+    return choices, flags
+
+
+def plugin_instructions(plugin: str):
+    base = ROOT / 'plugins' / plugin
+    yield base / 'entry.md'
+    for folder in ('playbooks', 'references'):
+        yield from sorted((base / folder).glob('**/*.md'))
+
+
+def installer_module():
+    sys.path.insert(0, str(ROOT / 'scripts'))
+    try:
+        import install
+    finally:
+        sys.path.remove(str(ROOT / 'scripts'))
+    return install
+
+
+class ApprovalPickerTest(CoreTestCase):
+    """REQ-APPROVAL-PICKER: every coordinator routes owner decisions through the native picker."""
+
+    def test_each_coordinator_entry_routes_owner_decisions_through_the_installed_picker_contract(self):
+        install = installer_module()
+        runtime = (ROOT / 'shared' / 't3-runtime.md').read_text()
+        for phrase in ("host's native question picker", 'recommended option first', 'silence is not approval'):
+            self.assertIn(phrase, ' '.join(runtime.split()))
+        for plugin in COORDINATORS:
+            with self.subTest(plugin=plugin):
+                entry = (ROOT / 'plugins' / plugin / 'entry.md').read_text()
+                self.assertIn('`PKG/shared/t3-runtime.md`', entry)
+                # The installed package carries the same contract the entry points at.
+                mapping = install.source_files(ROOT, plugin)
+                self.assertEqual(mapping['shared/t3-runtime.md'].read_text(), runtime)
+                self.assertIn('shared/job-coordination.md', mapping)
+                for name in re.findall(r'`PKG/(shared/[\w./-]+)`', entry):
+                    self.assertIn(name, mapping, f'{plugin} entry names {name}, absent from its package')
+                for path in plugin_instructions(plugin):
+                    match = PROSE_APPROVAL.search(path.read_text())
+                    self.assertIsNone(match, f'{path.relative_to(ROOT)} asks for approval outside the picker: '
+                                             f'{match and match.group(0)!r}')
+
+    def test_each_coordinator_entry_adopts_the_job_coordination_protocol(self):
+        for plugin in COORDINATORS:
+            with self.subTest(plugin=plugin):
+                entry = (ROOT / 'plugins' / plugin / 'entry.md').read_text()
+                if 'job-coordination.md' not in entry:
+                    self.skipTest(PENDING_ENTRY)
+                self.assertIn('`PKG/shared/job-coordination.md`', entry)
+                self.assertIn('`PKG/shared/t3-runtime.md`', entry)
+
+    def test_protocol_sends_every_owner_decision_to_the_picker_and_records_it(self):
+        text = COORDINATION.read_text()
+        section = ' '.join(text.split('## 9. Approvals and owner decisions')[1].split())
+        self.assertIn('native question picker', section)
+        self.assertIn('`PKG/shared/t3-runtime.md`', section)
+        self.assertIn('recommended option first', section)
+        self.assertIn('Silence is not approval', section)
+        self.assertIsNone(PROSE_APPROVAL.search(text))
+
+    def test_documented_approval_wait_blocks_acceptance_until_resolved_and_decision_is_source_bound(self):
+        from core.jobs import decision, record_dispatch
+        from core.jobs.store import JobError, Store, digest
+        from shared.job_acceptance import _pending
+        job = {'schema_version': 1, 'job_id': 'job-1', 'installation_id': 'install-1', 'workflow': 'imps/run',
+               'owner': 'coordinator', 'objective': 'x', 'requirements': {'R1': 'keep evidence'},
+               'authorization': {'actions': ['edit']}, 'constraints': ['no network'],
+               'dependencies': [{'key': 'imps', 'plugin': 'imps'}], 'pins': {'imps': {'package_digest': 'c' * 64}},
+               'result_contract': {'schema_version': 1}, 'policy': {'max_repair_cycles': 3, 'max_artifact_bytes': 16777216},
+               'stages': [{'id': 's0', 'depends_on': [], 'requirements': ['R1'], 'status': 'pending',
+                           'attempts': {'primary': 0, 'support': 0, 'review': 0, 'final': 0}, 'acceptance': None}],
+               'tasks': [{'task_id': 't0', 'stage_id': 's0', 'logical_slot_id': 'primary', 'request_id': 'req0',
+                          'worker_id': 'imps/stage-executor', 'dependency_key': 'imps', 'status': 'pending', 'attempt': 0,
+                          'handles': [], 'followups': [], 'dispatch_retries': 0, 'dispatch_history': []}],
+               'decisions': [], 'history': [], 'metrics': {}}
+        store = Store(self.state_root, 'job-1')
+        store.create(job)
+        caller = {'actor': 'coordinator', 'installation_id': 'install-1', 'workflow': 'imps/run', 'package_digest': 'c' * 64}
+        stage = lambda: store.load()['stages'][0]
+        self.assertFalse(_pending(store.load(), stage()))
+        record_dispatch(store, caller, 't0', {'kind': 'approval-wait', 'request_id': 'req0', 'wait_id': 'w1'})
+        self.assertTrue(_pending(store.load(), stage()), 'an open picker question must block acceptance')
+        # The picker answer is saved outside the job directory and bound by quote and hash.
+        source = self.tmp / 'owner-answer.txt'
+        source.write_text('Approve plan revision rev-1\n')
+        record = {'id': 'owner-1', 'quote': 'Approve plan revision rev-1', 'source': str(source),
+                  'source_sha256': digest(source.read_bytes()), 'scope': 'plan:rev-1'}
+        with self.assertRaises(JobError):
+            decision(store, caller, dict(record, quote='Approve everything'))
+        inside = store.path / 'answer.txt'
+        inside.write_bytes(source.read_bytes())
+        with self.assertRaises(JobError):
+            decision(store, caller, dict(record, source=str(inside)))
+        decision(store, caller, record)
+        record_dispatch(store, caller, 't0', {'kind': 'approval-resolved', 'request_id': 'req0', 'wait_id': 'w1'})
+        state = store.load()
+        self.assertEqual([d['id'] for d in state['decisions']], ['owner-1'])
+        self.assertFalse(_pending(state, stage()))
+
+
+class JobCoordinationTest(CoreTestCase):
+    """shared/job-coordination.md names only real helper commands and keeps cheap operations direct."""
+    JOB_CLI = ROOT / 'shared' / 'job_cli.py'
+    ACCEPT_CLI = ROOT / 'shared' / 'job_acceptance_cli.py'
+
+    def documented(self):
+        text = COORDINATION.read_text()
+        named = re.findall(r'\b(job_cli|job_acceptance_cli)\.py"?\s+`?([a-z][a-z-]*)', text)
+        return text, named
+
+    def test_protocol_names_only_real_subcommands_and_flags(self):
+        text, named = self.documented()
+        job_choices, job_flags = cli_surface(self.JOB_CLI)
+        accept_choices, accept_flags = cli_surface(self.ACCEPT_CLI)
+        _, catalog_flags = cli_surface(ROOT / 'scripts' / 'catalog.py')
+        catalog_help = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'catalog.py'), '--help'],
+                                      capture_output=True, text=True, check=True, timeout=60).stdout
+        catalog_choices = set(re.search(r'\{([a-z,-]+)\}', catalog_help).group(1).split(','))
+        self.assertIn('task-observation', job_choices)
+        self.assertEqual(accept_choices, {'accept-stage', 'validate', 'validate-final'})
+        choices = {'job_cli': job_choices, 'job_acceptance_cli': accept_choices}
+        self.assertGreaterEqual(len(named), 12)
+        for helper, command in named:
+            self.assertIn(command, choices[helper], f'{helper}.py {command} is not a real subcommand')
+        # Every job_cli subcommand is covered, so the protocol cannot silently drop one.
+        tokens = set(re.findall(r'`([a-z][a-z-]*)`', text)) | {c for h, c in named if h == 'job_cli'}
+        self.assertEqual(job_choices - tokens, set())
+        for command in re.findall(r'`t3-plugins (?:--job \S+ )?([a-z]+)', text):
+            self.assertIn(command, catalog_choices)
+        for flag in set(re.findall(r'(?<![\w-])--[a-z][a-z-]*', text)):
+            self.assertIn(flag, job_flags | accept_flags | catalog_flags, f'{flag} is not a real helper option')
+        self.assertLess(len(text.split()), 1500)
+
+    def test_documented_subcommands_reach_the_helpers_instead_of_failing_argparse(self):
+        import contextlib
+        import io
+        from shared import job_acceptance_cli, job_cli
+        _, named = self.documented()
+        missing = self.tmp / 'missing-input.json'
+        for helper, command in sorted(set(named)):
+            module = job_cli if helper == 'job_cli' else job_acceptance_cli
+            argv = [command, '--state-root', str(self.state_root), '--job', 'probe-job', '--input', str(missing)]
+            if command == 'create':
+                argv += ['--prefix', str(self.tmp / 'prefix'), '--agents-root', str(self.tmp / 'agents')]
+            with self.subTest(helper=helper, command=command), contextlib.redirect_stderr(io.StringIO()) as err, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                try:
+                    code = module.main(argv)
+                except SystemExit as exc:  # argparse rejected the documented command line
+                    self.fail(f'{helper}.py {command}: usage error {exc.code}: {err.getvalue()[-200:]}')
+                self.assertEqual(code, 2, 'a job that does not exist is refused as invalid state, not accepted')
+            self.assertFalse((self.state_root / 'probe-job' / 'job.json').exists())
+
+    def test_cheap_operations_stay_direct_and_status_reads_without_mutating(self):
+        text = COORDINATION.read_text()
+        cheap = text.split('## 1. Cheap operations stay direct')[1].split('##')[0]
+        for word in ('`doctor`', '`status`', 'directly', 'Never create a job or launch a worker'):
+            self.assertIn(word, cheap)
+        for plugin in COORDINATORS:
+            for line in (ROOT / 'plugins' / plugin / 'entry.md').read_text().splitlines():
+                if re.search(r'\*\*doctor\b|`doctor`|^- doctor\b', line):
+                    self.assertNotRegex(line, r'delegate_task|job_cli\.py|dispatch', f'{plugin}: {line}')
+        # job_cli status/overview render through Store.overview(persist=False): no state write.
+        from core.jobs.store import Store
+        store = Store(self.state_root, 'job-1')
+        store.create({'schema_version': 1, 'job_id': 'job-1', 'installation_id': 'i', 'workflow': 'ape/forage',
+                      'owner': 'coordinator', 'objective': 'x', 'requirements': {'R1': 'x'},
+                      'authorization': {'actions': []}, 'constraints': [], 'dependencies': [{'key': 'ape', 'plugin': 'ape'}],
+                      'pins': {'ape': {'package_digest': 'c' * 64}}, 'result_contract': {'schema_version': 1},
+                      'policy': {'max_repair_cycles': 3, 'max_artifact_bytes': 16777216},
+                      'stages': [{'id': 's0', 'depends_on': [], 'requirements': ['R1'], 'status': 'pending',
+                                  'attempts': {'primary': 0, 'support': 0, 'review': 0, 'final': 0}, 'acceptance': None}],
+                      'tasks': [], 'decisions': [], 'history': [], 'metrics': {}})
+        before = store.file.read_bytes()
+        view = store.overview(persist=False)
+        self.assertEqual(view['current_stage'], 's0')
+        self.assertEqual(store.file.read_bytes(), before)
+
+    def test_installed_package_ships_the_protocol_beside_the_runtime_contract(self):
+        home = self.tmp / 'home'
+        home.mkdir()
+        env = {k: v for k, v in __import__('os').environ.items() if not k.startswith(('T3_PLUGINS_', 'XDG_'))}
+        env['HOME'] = str(home)
+        cli = [sys.executable, str(ROOT / 'scripts' / 'catalog.py'), '--prefix', str(self.tmp / 'prefix'),
+               '--agents-root', str(self.tmp / 'agents')]
+        subprocess.run(cli + ['install', 'babysitter'], check=True, capture_output=True, env=env, timeout=120)
+        entry = Path(subprocess.run(cli + ['path', 'babysitter'], check=True, capture_output=True, text=True, env=env,
+                                    timeout=60).stdout.strip())
+        package = entry.parent
+        self.assertTrue(package.is_relative_to(self.tmp))
+        installed = package / 'shared' / 'job-coordination.md'
+        self.assertEqual(installed.read_bytes(), COORDINATION.read_bytes())
+        self.assertIn('`PKG/shared/job-coordination.md`', (package / 'shared' / 't3-runtime.md').read_text())
+        self.assertIn('`PKG/shared/job-coordination.md`', (package / 'shared' / 'delegation.md').read_text())
+        for name in re.findall(r'`PKG/(shared/[\w./-]+)`', installed.read_text()):
+            self.assertTrue((package / name).is_file(), f'protocol names {name}, absent from the installed package')
+        for helper in ('job_cli.py', 'job_acceptance_cli.py'):
+            self.assertTrue((package / 'shared' / helper).is_file())
+        self.assertFalse(any(home.rglob('*')), 'install wrote into HOME despite explicit roots')
+
+
 class NoMachinePathsTest(CoreTestCase):
     def test_no_developer_home_paths_in_tracked_files(self):
         # Per-user temporary directories too: a sandbox's /tmp/<tool>-<uid> or macOS /var/folders.
