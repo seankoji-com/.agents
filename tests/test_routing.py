@@ -83,7 +83,7 @@ class RoutingCli(unittest.TestCase):
         # Runtime modes are data in the config: auto by default, full-access for OpenCode.
         self.assertEqual(config['providers'], {'claudeAgent': {'runtimeMode': 'auto'}, 'codex': {'runtimeMode': 'auto'},
                                                'gemini-box': {'runtimeMode': 'auto'},
-                                               'opencode': {'runtimeMode': 'full-access'}})
+                                               'opencode': {'runtimeMode': 'full-access', 'requireRuntimeMode': True}})
         # Disabled providers get no entries.
         names = {e['providerInstanceId'] for entries in config['roles'].values() for e in entries}
         self.assertNotIn('cursor', names)
@@ -283,6 +283,30 @@ class RoutingCli(unittest.TestCase):
         self.assertEqual(first['runtimeMode'], 'auto')
         self.assertIn('switch this child to full-access', first['owner_action'])
         self.assertNotIn('owner_action', second)
+
+    def test_required_mode_above_parent_is_skipped_not_lowered(self):
+        self.write({'schema_version': 1, 'tiers': ['low'],
+                    'providers': {'opencode': {'runtimeMode': 'full-access', 'requireRuntimeMode': True}},
+                    'roles': {'workhorse': [entry('opencode', 'gateway/glm-9', 'low', 'glm'),
+                                            entry('codex', 'model-x1', 'low', 'openai')]}})
+        self.assertEqual([c['providerInstanceId'] for c in self.resolve('workhorse')['candidates']],
+                         ['opencode', 'codex'])
+        self.caps.write_text(json.dumps(dict(CAPABILITIES, runtimeMode='auto')))
+        result = self.resolve('workhorse')
+        self.assertEqual([c['providerInstanceId'] for c in result['candidates']], ['codex'])
+        self.assertEqual(result['unavailable'][0]['reason'],
+                         'runtime_mode_above_parent: needs full-access, parent runs auto')
+        # Unlisted OpenCode providers get the same default as setup writes.
+        self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                    'roles': {'workhorse': [entry('opencode', 'gateway/glm-9', 'low', 'glm')]}})
+        result = self.resolve('workhorse', code=1)
+        self.assertEqual(result['candidates'], [])
+        self.assertTrue(result['unavailable'][0]['reason'].startswith('runtime_mode_above_parent'))
+        # A non-boolean flag is a config error.
+        self.write({'schema_version': 1, 'tiers': ['low'],
+                    'providers': {'opencode': {'runtimeMode': 'full-access', 'requireRuntimeMode': 'yes'}},
+                    'roles': {'workhorse': [entry('opencode', 'gateway/glm-9', 'low', 'glm')]}})
+        self.assertIn('requireRuntimeMode must be true or false', self.resolve('workhorse', code=2).stderr)
 
 
 if __name__ == '__main__':

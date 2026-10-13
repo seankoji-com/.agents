@@ -23,6 +23,9 @@ RUNTIME_MODES = ('approval-required', 'auto-accept-edits', 'auto', 'full-access'
 # Owner defaults written into a new config; after that the config is the source.
 DEFAULT_RUNTIME_MODE = 'auto'
 DEFAULT_RUNTIME_MODES = {'opencode': 'full-access'}  # by driverKind
+# Drivers that fail below their configured mode: resolve skips them rather than
+# launching them at a narrower parent mode.
+DEFAULT_REQUIRED_MODES = {'opencode'}  # by driverKind
 # Default lineage labels for a new config. A provider can serve several lineages,
 # so multi-model gateways are labelled from the model's family instead.
 DRIVER_LINEAGE = {'claudeAgent': 'anthropic', 'codex': 'openai', 'antigravity': 'google', 'grok': 'xai'}
@@ -75,6 +78,13 @@ def _models(provider: dict) -> list:
     return [m['id'] for m in provider.get('models') or [] if isinstance(m, dict) and isinstance(m.get('id'), str)]
 
 
+def _provider_defaults(driver: str) -> dict:
+    settings = {'runtimeMode': DEFAULT_RUNTIME_MODES.get(driver, DEFAULT_RUNTIME_MODE)}
+    if driver in DEFAULT_REQUIRED_MODES:
+        settings['requireRuntimeMode'] = True
+    return settings
+
+
 def default_config(capabilities: dict) -> dict:
     """A starting config: the session model judges and works. Reviewers are the
     first advertised model of every other lineage, across all runnable providers
@@ -107,8 +117,7 @@ def default_config(capabilities: dict) -> dict:
     return {
         'schema_version': SCHEMA_VERSION,
         'tiers': list(TIERS),
-        'providers': {pid: {'runtimeMode': DEFAULT_RUNTIME_MODES.get(driver, DEFAULT_RUNTIME_MODE)}
-                      for pid, driver in sorted(drivers.items())},
+        'providers': {pid: _provider_defaults(driver) for pid, driver in sorted(drivers.items())},
         'roles': {'workhorse': [session], 'reviewer': reviewers, 'judgement': [session]},
     }
 
@@ -126,6 +135,8 @@ def validate(config) -> dict:
     for pid, settings in providers.items():
         if not isinstance(settings, dict) or settings.get('runtimeMode') not in RUNTIME_MODES:
             raise RoutingError('config_invalid', f'provider {pid} needs a runtimeMode from {list(RUNTIME_MODES)}')
+        if not isinstance(settings.get('requireRuntimeMode', False), bool):
+            raise RoutingError('config_invalid', f'provider {pid} requireRuntimeMode must be true or false')
     roles = config.get('roles')
     if not isinstance(roles, dict):
         raise RoutingError('config_invalid', '"roles" must map role names to entries')
@@ -224,11 +235,15 @@ def resolve(role: str, capabilities: dict, config: dict, implementer_lineage: st
         if reason:
             unavailable.append(dict(item, reason=reason))
             continue
-        configured = (config.get('providers', {}).get(item['providerInstanceId']) or {}).get('runtimeMode')
-        # A provider the config does not list gets the same owner default setup would write.
-        mode = configured or DEFAULT_RUNTIME_MODES.get(provider.get('driverKind', ''), DEFAULT_RUNTIME_MODE)
+        # A provider the config does not list gets the same owner defaults setup would write.
+        settings = config.get('providers', {}).get(item['providerInstanceId']) \
+            or _provider_defaults(provider.get('driverKind', ''))
+        mode = settings['runtimeMode']
         candidate = dict(item, runtimeMode=mode)
         if parent_mode in RUNTIME_MODES and RUNTIME_MODES.index(mode) > RUNTIME_MODES.index(parent_mode):
+            if settings.get('requireRuntimeMode'):
+                unavailable.append(dict(candidate, reason=f'runtime_mode_above_parent: needs {mode}, parent runs {parent_mode}'))
+                continue
             # T3 refuses a child broader than its parent. Launch at the parent's mode
             # and tell the owner; never lower it silently.
             candidate['runtimeMode'] = parent_mode

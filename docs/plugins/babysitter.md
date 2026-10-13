@@ -32,21 +32,44 @@ from `/` and append the same request instead.
 
 ## What you get
 
-Findings against the current PR head, check status and exact remaining blockers.
-When you authorize maintenance, the agent fixes eligible problems and observes the
-result. A green local test, armed auto-merge and an actual merge are different
-outcomes. T3 owns the watch and wakes the thread for later events.
+A babysitting run works in three steps:
+
+1. **Quick pass.** The thread merges every targeted PR that GitHub reports ready at
+   its current head and arms auto-merge on the rest, including PRs with open threads
+   or conflicts.
+2. **Fixers.** Each PR with work left (conflicts, failing checks, review comments)
+   gets its own low-cost T3 child in a separate worktree. The child fixes the
+   branch, replies to and resolves the threads it handled, and pushes. The model
+   comes from the `workhorse` role in your [routing config](../getting-started.md#model-routing),
+   cheapest first. A child that gets stuck hands off to the next candidate.
+3. **Watch.** The thread watches every open PR. When T3 wakes it for a new failure,
+   comment or conflict, it sends the next fixer round, until each PR merges or needs
+   a person.
+
+The thread keeps one table of the targeted PRs and posts it again whenever one merges:
+
+| PR | Description | Not merged because |
+|---|---|---|
+| [owner/repo#12](https://github.com/owner/repo/pull/12) | Fix login redirect | failing check `lint`; auto-merge armed; fixer round 1 |
+| [owner/repo#9](https://github.com/owner/repo/pull/9) | Bump parser | merged |
+
+A green local test, armed auto-merge and an actual merge are different outcomes; the
+table reports only merges it has observed.
 
 ## Authorize the finish line
 
-The example above requests inspection. To let it land the PR, state that scope:
+Invoking `pr`, `repo` or `org` authorizes babysitting through merge within that
+scope. The [Try it](#try-it) example asks for inspection only, which keeps the run
+read-only. To land the PR, drop that restriction:
 
 ```sh
-t3-plugins prompt babysitter pr https://github.com/OWNER/REPO/pull/NUMBER 'Babysit through merge: fix review findings and CI, push to this PR branch, and merge once current-head requirements pass.'
+t3-plugins prompt babysitter pr https://github.com/OWNER/REPO/pull/NUMBER 'Babysit through merge.'
 ```
 
-Use `repo OWNER/REPO` or `org OWNER` only when you intend that wider scope. Protected
-branch rules remain required. Unknown or unsafe changes stay blocked.
+Auto-merge is armed even while review threads are open, so in a repository without
+a conversation-resolution rule a PR can land once its checks pass. Use `repo
+OWNER/REPO` or `org OWNER` only when you intend that wider scope. Protected branch
+rules remain required. Unknown or unsafe changes stay blocked.
 
 ## Limits
 
