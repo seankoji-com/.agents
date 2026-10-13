@@ -344,6 +344,11 @@ def claim_installation(root: Path, identity: str, prefix: Path):
         return _claim_installation_locked(root, identity, prefix)
 
 
+def same_prefix(recorded: str, prefix: Path) -> bool:
+    """Whether two spellings name one prefix directory (e.g. macOS /var and /private/var)."""
+    return Path(recorded).absolute() == prefix.absolute() or os.path.realpath(recorded) == os.path.realpath(prefix)
+
+
 def _claim_installation_locked(root: Path, identity: str, prefix: Path):
     root.mkdir(parents=True, exist_ok=True)
     claims = root / 'claims.json'
@@ -356,7 +361,7 @@ def _claim_installation_locked(root: Path, identity: str, prefix: Path):
     if not isinstance(data, dict): raise RegistryError('registry claims are malformed')
     current = data.get(identity)
     if current and (not isinstance(current, dict) or not isinstance(current.get('prefix'), str) or
-                    Path(current['prefix']).absolute() != prefix.absolute()):
+                    not same_prefix(current['prefix'], prefix)):
         raise RegistryError('identity conflict: installation UUID already claims another prefix; use explicit adoption')
     locators = current.get('locators', []) if isinstance(current, dict) else []
     if not isinstance(locators, list) or any(not isinstance(item, str) for item in locators):
@@ -371,7 +376,7 @@ def assert_owned_locator(root: Path, identity: str, prefix: Path):
     try: claims = json.loads(read_regular(claims_path, 'installation locator claim').decode('utf-8'))
     except (OSError, ValueError, UnicodeError) as exc: raise RegistryError('installation locator claim is missing or corrupt') from exc
     claim = claims.get(identity) if isinstance(claims, dict) else None
-    if not isinstance(claim, dict) or not isinstance(claim.get('prefix'), str) or Path(claim['prefix']).absolute() != prefix.absolute():
+    if not isinstance(claim, dict) or not isinstance(claim.get('prefix'), str) or not same_prefix(claim['prefix'], prefix):
         raise RegistryError('identity conflict: this prefix is not the owned locator; explicit adoption is required')
 
 
@@ -541,7 +546,7 @@ def validate_job_references(state_root: Path | None = None) -> list[str]:
             bundle = pin.get('bundle_dir')
             if bundle:
                 if (pin.get('installation_id') != package_manifest.get('installation_id') or
-                        Path(bundle).absolute() != Path(package_manifest.get('bundle_dir', '')).absolute() or
+                        os.path.realpath(bundle) != os.path.realpath(package_manifest.get('bundle_dir', '')) or
                         pin.get('bundle_digest') != package_manifest.get('bundle_digest')):
                     errors.append(f'job_bundle_receipt_mismatch:{job_path}:{key}'); continue
                 try:
@@ -886,7 +891,7 @@ def _adopt_locked(prefix: Path, old_prefix: Path, agents_root: Path) -> dict:
         try: old_claims = json.loads(read_regular(claims_path, 'registry claims').decode('utf-8'))
         except (OSError, ValueError, UnicodeError) as exc: raise RegistryError('old relocation locator is not present in registry claims') from exc
         claim = old_claims.get(old_id)
-        if not claim or Path(claim.get('prefix', '')).absolute() != old_prefix.absolute():
+        if not claim or not same_prefix(claim.get('prefix', ''), old_prefix):
             raise RegistryError('old relocation locator does not match this installation identity')
     new_marker = prefix / '.t3-plugins-installation.json'
     if new_marker.exists():
@@ -899,7 +904,7 @@ def _adopt_locked(prefix: Path, old_prefix: Path, agents_root: Path) -> dict:
         except (ValueError, OSError, UnicodeError) as exc: raise RegistryError('registry claims are corrupt') from exc
     claim = current.get(old_id)
     if claim and (not isinstance(claim, dict) or not isinstance(claim.get('prefix'), str) or
-                  Path(claim['prefix']).absolute() != old_prefix.absolute()):
+                  not same_prefix(claim['prefix'], old_prefix)):
         raise RegistryError('identity conflict: duplicate live locator')
     # Validate all existing bundle pairs before changing either path record.
     source_root = old_prefix
@@ -912,7 +917,7 @@ def _adopt_locked(prefix: Path, old_prefix: Path, agents_root: Path) -> dict:
             manifest = json.loads(read_regular(mf, 'install receipt').decode('utf-8'))
             if manifest.get('installation_id') != old_id: raise RegistryError('copied receipt identity conflict')
             if manifest.get('bundle_dir'):
-                if Path(manifest.get('agents_root', '')).expanduser().absolute() != root.absolute():
+                if os.path.realpath(Path(manifest.get('agents_root', '')).expanduser()) != os.path.realpath(root):
                     raise RegistryError('receipt agents root does not match adoption root')
                 expected = bundle_dir(root, old_id, manifest['plugin'], manifest['version'])
                 if Path(manifest['bundle_dir']).absolute() != expected.absolute():
@@ -930,7 +935,7 @@ def _adopt_locked(prefix: Path, old_prefix: Path, agents_root: Path) -> dict:
             manifest = json.loads(read_regular(mf, 'install receipt').decode('utf-8'))
             if manifest.get('installation_id') != old_id: raise RegistryError('destination receipt does not match source identity')
             if manifest.get('bundle_dir'):
-                if Path(manifest.get('agents_root', '')).expanduser().absolute() != root.absolute():
+                if os.path.realpath(Path(manifest.get('agents_root', '')).expanduser()) != os.path.realpath(root):
                     raise RegistryError('destination receipt agents root does not match adoption root')
                 expected = bundle_dir(root, old_id, manifest['plugin'], manifest['version'])
                 if Path(manifest['bundle_dir']).absolute() != expected.absolute():

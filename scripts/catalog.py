@@ -100,7 +100,7 @@ def resolve_job_pin(job_path: Path, plugin: str) -> Path:
         required_pin = ('installation_id', 'package_dir', 'package_digest', 'bundle_dir', 'bundle_digest')
         if any(not pin.get(field) for field in required_pin):
             raise ValueError(f'worker dependency pin is incomplete: {key}')
-        if Path(pin['package_dir']).absolute() != package:
+        if os.path.realpath(pin['package_dir']) != os.path.realpath(package):
             raise ValueError(f'package path does not match dependency pin: {key}')
     if mf.get('bundle_dir'):
         checked = registry.verify_bundle(Path(mf['bundle_dir']), mf.get('installation_id'), plugin,
@@ -295,11 +295,11 @@ def main(argv=None):
                         errors.append('snapshot_outdated: run t3-plugins install ' + meta['name'])
                     if manifest.get('bundle_dir'):
                         registry.assert_owned_locator(agents_root, manifest.get('installation_id'), prefix)
-                        if Path(manifest.get('agents_root', '')).expanduser().absolute() != agents_root:
+                        if os.path.realpath(Path(manifest.get('agents_root', '')).expanduser()) != os.path.realpath(agents_root):
                             errors.append('worker_bundle_agents_root_mismatch')
                         expected_bundle = registry.bundle_dir(agents_root, manifest.get('installation_id'),
                                                               meta['name'], manifest.get('version'))
-                        if Path(manifest['bundle_dir']).absolute() != expected_bundle.absolute():
+                        if os.path.realpath(manifest['bundle_dir']) != os.path.realpath(expected_bundle):
                             errors.append('worker_bundle_path_mismatch')
                         checked = registry.verify_bundle(Path(manifest['bundle_dir']), manifest.get('installation_id'),
                                                          meta['name'], manifest.get('version'), manifest.get('package_digest'))

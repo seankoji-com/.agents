@@ -244,7 +244,7 @@ def activate(args) -> dict:
         agents_root = registry.registry_root(args.agents_root)
         registry.assert_owned_locator(agents_root, mf.get('installation_id'), prefix_path(args))
         expected_bundle = registry.bundle_dir(agents_root, mf.get('installation_id'), args.plugin, args.activate)
-        if Path(mf['bundle_dir']).absolute() != expected_bundle.absolute():
+        if os.path.realpath(mf['bundle_dir']) != os.path.realpath(expected_bundle):
             raise InstallError('bundle_invalid', 'selected package belongs to a different agents root')
         if registry.package_digest(mf) != mf.get('package_digest'):
             raise InstallError('bundle_invalid', 'selected package manifest digest is invalid')
@@ -374,7 +374,7 @@ def uninstall(args) -> dict:
             registry.assert_owned_locator(expected_root, manifest.get('installation_id'), prefix_path(args))
             expected_bundle = registry.bundle_dir(expected_root, manifest.get('installation_id'), args.plugin,
                                                   manifest.get('version'))
-            if bundle_path.absolute() != expected_bundle.absolute():
+            if os.path.realpath(bundle_path) != os.path.realpath(expected_bundle):
                 raise InstallError('bundle_invalid', 'receipt bundle path is outside its owned registry location')
             checked = registry.verify_bundle(bundle_path, manifest.get('installation_id'), args.plugin,
                                              manifest.get('version'), manifest.get('package_digest'))

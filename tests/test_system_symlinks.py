@@ -209,6 +209,26 @@ class CheckSiteTests(unittest.TestCase):
         self.assert_rule(run, refused_walk, OSError)
 
 
+
+class PrefixSpellingTests(unittest.TestCase):
+    """macOS CI: a prefix claimed as /var/... must match the same directory spelled /private/var/..."""
+
+    def test_claim_and_ownership_agree_across_symlinked_spellings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            real = base / 'private' / 'prefix'
+            real.mkdir(parents=True)
+            link = base / 'var'
+            link.symlink_to(base / 'private')
+            root = base / 'registry'
+            worker_registry._claim_installation_locked(root, 'id-1', link / 'prefix')
+            worker_registry.assert_owned_locator(root, 'id-1', real)
+            worker_registry.assert_owned_locator(root, 'id-1', link / 'prefix')
+            other = base / 'other'
+            other.mkdir()
+            with self.assertRaises(worker_registry.RegistryError):
+                worker_registry.assert_owned_locator(root, 'id-1', other)
+
 class JsonDepthTests(unittest.TestCase):
     """An explicit nesting limit, independent of the interpreter's recursion behaviour."""
 
