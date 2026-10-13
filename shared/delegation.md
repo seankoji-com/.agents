@@ -38,9 +38,14 @@ context it lacked), write the observed failure as a learning through
 Child work goes only through T3 `delegate_task`, `task_status` and `task_cancel`.
 `t3_thread_read` may fetch a result those tools omit, from an owned `childThreadId`
 only, after `task_status` has been read and recorded: reading a direct child's
-untruncated terminal result acknowledges its completion delivery. Follow `itemId` and
-`textOffset` until `nextTextOffset` is null and pass the whole final message on. A
-partial read is a result gap, never a result; do not truncate or summarise it.
+untruncated terminal result acknowledges its completion delivery. Bind the read to
+the recorded task: locate the terminal assistant item of the run `task_status`
+reported as `childRunId`, continuing with `afterPosition` set to `nextPosition` until
+that item is found or the timeline ends. A later turn's result (`latestTerminal*`)
+belongs to that turn, never to the original task. Then follow that item's `itemId`
+and `textOffset` until `nextTextOffset` is null and pass the whole message on. A
+missing item or partial read is a result gap, never a result; do not truncate or
+summarise it.
 Never use it or `t3_thread_send` to relaunch a child. The only continuation is a tracked
 same-scope follow-up prepared with `job_cli.py followup-prepare` and sent with
 `t3_thread_send` `mode=queue`, when the host records it as a new task
@@ -57,10 +62,12 @@ integration order. When you cannot establish that isolation (for example, a chil
 cannot write outside your checkout), run writers one at a time in your checkout.
 Readers may still run in parallel.
 
-A dependent slot consumes earlier work only as a commit or branch at an observed SHA:
-inspect it with `git diff` or `git log`, or merge it into the dependent worktree.
-Never read from or write into a worktree whose writer is still active, and never
-re-run a completed task to recover its output. T3's per-turn checkpoints are host
+A dependent slot consumes earlier source-worktree changes only as a commit or branch
+at an observed SHA: inspect it with `git diff` or `git log`, or merge it into the
+dependent worktree. Accepted artifacts, such as reports under the job directory named
+in `consumed_outputs`, are handed off by path and recorded hash instead; they need no
+commit. Never read from or write into a worktree whose writer is still active, and
+never re-run a completed task to recover its output. T3's per-turn checkpoints are host
 state: do not fetch, reset to or depend on their refs unless the host documents them.
 
 ## Task hygiene

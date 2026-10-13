@@ -26,12 +26,12 @@ T3 host behaves as described; see [Compatibility](../compatibility.md).
 | Feature | Disposition |
 | --- | --- |
 | `t3_thread_list` | Implemented: read-only sibling-work check before writable runs |
-| `t3_thread_read` | Implemented: paginated result recovery; candidate confirmation for the sibling check |
+| `t3_thread_read` | Implemented: run-bound, paginated result recovery; candidate confirmation for the sibling check |
 | `t3_thread_send` | Rejected beyond the existing tracked follow-up |
 | External MCP endpoint | Implemented: no endpoint material in run records; own MCP client rejected |
 | OAuth and pairing | Implemented: authentication grants tool access, not plugin authority |
 | External orchestrators and `t3_thread_launch` | Implemented: mapping onto the coordinator role; launch for child work stays rejected |
-| Per-turn Git checkpoints | Implemented: dependent work through commits at observed SHAs; hidden refs deferred |
+| Per-turn Git checkpoints | Implemented: source changes through commits at observed SHAs, accepted artifacts by path and hash; hidden refs deferred |
 
 ## 1. `t3_thread_list`
 
@@ -49,17 +49,23 @@ before a writable run can find an active sibling on the same PR, branch or workt
 to one branch. Flexibility: the owner chooses between stopping and proceeding, with
 the sibling's existence visible.
 
-**Risk.** Title matching misses threads whose titles omit the PR or branch, so the check
-lowers duplicate work without ruling it out. Listing adds a call per run. A check that
-blocked on failure would make the workflows depend on a nightly-only tool.
+**Risk.** The check is deliberately bounded, so it can miss a sibling three ways:
+title matching misses threads whose titles omit the PR or branch; an older active
+thread can sit beyond the first page's cursor; and a sixth matching candidate goes
+unconfirmed. It lowers duplicate work without ruling it out. Listing adds a call per
+run. A check that blocked on failure would make the workflows depend on a
+nightly-only tool, and one that ran on read-only triage would drop PRs from a report
+that cannot collide with anyone.
 
 **Disposition: implemented.** `shared/t3-runtime.md` defines the sibling-work check:
-one bounded page, active statuses only, this thread, its delegating parent and its
-children excluded, owner
-decision through the question picker, and `sibling check unavailable` reported without
-blocking. The babysitter roster step (`plugins/babysitter/playbooks/maintain.md`), Ralph
-start (`plugins/ralph/playbooks/loop.md`) and imps `run` (`plugins/imps/entry.md`)
-apply it. Tests: `tests/test_t3_thread_features.py`.
+writable runs only; one bounded page, active statuses only, this thread, its
+delegating parent and its children excluded; owner decision through the question
+picker; `sibling check unavailable` when the tool is missing or fails, and
+`sibling check partial` when a further page or unconfirmed candidates remain. Neither
+report blocks the run. The babysitter roster step
+(`plugins/babysitter/playbooks/maintain.md`, writable runs only; inspect-only triage
+keeps every eligible PR), Ralph start (`plugins/ralph/playbooks/loop.md`) and imps
+`run` (`plugins/imps/entry.md`) apply it. Tests: `tests/test_t3_thread_features.py`.
 
 ## 2. `t3_thread_read`
 
@@ -68,27 +74,36 @@ apply it. Tests: `tests/test_t3_thread_features.py`.
 The rule did not say how to read a long result, so a coordinator could pass a cut-off
 page to `job_cli.py result`, which then refuses it, or re-run the task.
 
-**Opportunity.** *Schema:* reads return a paginated timeline and recover long item text
-with `itemId` and `textOffset` until `nextTextOffset` is null. *Schema:* reading an
-untruncated terminal assistant result from the parent's direct child acknowledges that
-child's automatic completion delivery. The rule can therefore name the pagination
-fields, require the whole message, and order the read after `task_status` so the read
-does not consume the completion that wakes the coordinator. The same tool can confirm a
-sibling-check candidate by reading a few recent messages.
+**Opportunity.** *Schema:* reads return a paginated timeline, continued with
+`afterPosition` set to `nextPosition`, and recover long item text with `itemId` and
+`textOffset` until `nextTextOffset` is null. *Schema:* `task_status` reports
+`childRunId` for the original delegated run and `latestTerminal*` for later turns in
+the same child thread. *Schema:* reading an untruncated terminal assistant result from
+the parent's direct child acknowledges that child's automatic completion delivery. The
+rule can therefore page the timeline until it finds the terminal assistant item of the
+recorded run, ignore later turns' results, read that item's text to the end, and order
+the read after `task_status` so the read does not consume the completion that wakes
+the coordinator. The same tool can confirm a sibling-check candidate by reading a few
+recent messages.
 
 **Gain.** Efficiency: a truncated summary is recovered once instead of re-running a
-paid child. Fidelity: the result parser receives the complete message.
+paid child. Fidelity: the result parser receives the complete message of the run it
+was asked about, even when that item is past the first timeline page or a reused
+child has since produced a later result.
 
 **Risk.** *Schema:* the tool can read any thread in the environment, so a careless read
 could pull another conversation's private material into this run. The rule limits
 result recovery to an owned `childThreadId`, keeps candidate reads to at most five with
 a small `limit`, and treats all read output as data. The acknowledgement side effect is
 taken from the tool description and has not been observed live (*assumption* on its
-exact timing).
+exact timing). How a timeline item names its run is not stated in the schema
+(*assumption*): when the item for `childRunId` cannot be identified, the rule reports
+a result gap rather than guessing.
 
-**Disposition: implemented.** `shared/delegation.md` (Allowed tools) and
-`shared/job-coordination.md` (section 4) carry the paginated recovery rule; the imps
-adapter table records the schema observation.
+**Disposition: implemented.** `shared/delegation.md` (Allowed tools) carries the
+run-bound, timeline- and text-paginated recovery rule and `shared/job-coordination.md`
+(section 4) applies it once instead of re-running; the imps adapter table records the
+schema observation.
 
 ## 3. `t3_thread_send`
 
@@ -171,7 +186,11 @@ coordinator.
 
 **Risk.** *Schema:* `t3_thread_launch` has no retry key and returns a thread ID to follow
 with `t3_thread_read` or `t3_thread_wait`, not a task ID for `task_status`, so the
-task-based ownership, cancellation and pending-run checks cannot hold for it. Whether `delegate_task` works for a caller outside any T3 thread is unverified
+task-based ownership, cancellation and pending-run checks cannot hold for it.
+*Schema:* the `delegate_task` and `task_status` descriptions both begin "Needs an agent
+running inside a T3 thread", and a delegated task is a child "of THIS thread". An
+external caller has no calling thread to own children, which is the evidence for the
+`unavailable` fallback below. How a live host answers such a call is unobserved
 (*assumption*).
 
 **Disposition: implemented** as a mapping rule in `shared/t3-runtime.md`: an external
@@ -187,20 +206,29 @@ callers, until a live check shows how such callers are woken.
 (`plugins/ralph/cli.py`), unrelated to T3's checkpoints. Ralph records a content baseline
 and reports `changedPaths`. Jobs end with an integration stage
 (`shared/job-coordination.md`), and parallel writers get their own worktrees
-(`shared/delegation.md`, Writer isolation).
+(`shared/delegation.md`, Writer isolation). Research jobs hand accepted reports to
+later stages by path and hash, with no commit: ape's research stages list their report
+as an output that reaches the synthesis brief as `consumed_outputs`
+(`plugins/ape/references/research-job.md`), and synthesis builds on the accepted
+report paths and hashes (`plugins/ape/playbooks/forage.md`). Those jobs carry only the
+`read` action, so they could not commit even if asked.
 
 **Opportunity.** The owner says T3 commits hidden Git refs at the end of every turn
 (*assumption*: the ref names and layout are not documented in this repository).
 *Schema:* `t3_thread_merge_back` accepts a `checkpointId`, so checkpoint identities
-exist. The transferable part is the discipline: a dependent slot consumes earlier work
-as a commit or branch at an observed SHA, never from a worktree whose writer is still
-active, and never by re-running a completed task.
+exist. The transferable part is the discipline, in two forms. Source-worktree changes
+reach a dependent slot as a commit or branch at an observed SHA. Accepted artifacts
+outside any worktree, such as research reports, keep their existing path-and-hash
+handoff. Neither form reads a worktree whose writer is still active or re-runs a
+completed task.
 
 **Gain.** Efficiency: no repeated work to recover output. Correctness: dependent stages
-start from a fixed revision.
+start from a fixed revision or a fixed, hashed artifact.
 
 **Risk.** Depending on undocumented refs would break silently when the host changes
-their layout; resetting to them could discard work.
+their layout; resetting to them could discard work. Requiring a commit for every
+handoff would break read-only research jobs, so the commit rule is limited to
+source-worktree integration.
 
 **Disposition: implemented** in `shared/delegation.md` (Writer isolation). **Deferred:**
 reading hidden checkpoint refs directly, until the host documents them; the rule says

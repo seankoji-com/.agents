@@ -1,8 +1,9 @@
 """REQ-T3-THREADS: how the workflows use T3's thread tools. Sibling-work discovery is
-read-only and applied before writable runs; result recovery reads an owned child to
-the end; dependent work moves through commits; external coordinators keep the same
-authority and leave no endpoint material behind. The design note covers all seven
-features with a disposition each."""
+read-only, applied before writable runs, and reports partial coverage; result recovery
+reads an owned child's recorded run to the end; source changes move through commits and
+accepted artifacts by hash; external coordinators keep the same authority and leave no
+endpoint material behind. The design note covers all seven features with a disposition
+each."""
 import re
 import sys
 import unittest
@@ -60,12 +61,24 @@ class SiblingWorkCheckTest(unittest.TestCase):
     def test_missing_tool_is_reported_not_blocking(self):
         self.assertIn('reported as `sibling check unavailable` and does not block the run', self.rule)
 
+    def test_bounded_coverage_gaps_are_reported_not_silent(self):
+        self.assertIn('When the page returns a cursor for a further page or more than five candidates match, '
+                      'report `sibling check partial` with the unread page or unconfirmed candidates', self.rule)
+        self.assertIn('title matching also misses threads whose titles omit the target', self.rule)
+
+    def test_check_applies_to_writable_runs_only(self):
+        self.assertIn('before a writable run claims a PR, branch or worktree', self.rule)
+        self.assertIn('Read-only runs skip the check', self.rule)
+
     def test_writable_workflows_run_the_check_before_claiming_work(self):
         maintain = flat((ROOT / 'plugins/babysitter/playbooks/maintain.md').read_text())
         step1 = maintain.split(' 2. Quick pass')[0]
         self.assertIn(SIBLING_REF, step1)
         self.assertLess(step1.index(SIBLING_REF), step1.index('Freeze the eligible roster'))
         self.assertIn('leaves the roster unless the owner keeps it', step1)
+        self.assertIn('On a writable run, run ' + SIBLING_REF, step1)
+        self.assertIn('An inspect-only run skips the check and keeps every eligible PR', step1)
+        self.assertLess(step1.index('On a writable run'), step1.index('leaves the roster'))
 
         loop = flat((ROOT / 'plugins/ralph/playbooks/loop.md').read_text())
         self.assertIn('Before initialization, run ' + SIBLING_REF, loop)
@@ -98,9 +111,20 @@ class ResultRecoveryTest(unittest.TestCase):
         tools = flat((SHARED / 'delegation.md').read_text().split('## Allowed tools')[1].split('## ')[0])
         for phrase in ('from an owned `childThreadId` only', 'after `task_status` has been read and recorded',
                        'acknowledges its completion delivery',
-                       'Follow `itemId` and `textOffset` until `nextTextOffset` is null',
-                       'A partial read is a result gap, never a result'):
+                       'follow that item\'s `itemId` and `textOffset` until `nextTextOffset` is null',
+                       'A missing item or partial read is a result gap, never a result'):
             self.assertIn(phrase, tools)
+
+    def test_recovery_pages_the_timeline_to_the_recorded_run(self):
+        tools = flat((SHARED / 'delegation.md').read_text().split('## Allowed tools')[1].split('## ')[0])
+        locate = ('locate the terminal assistant item of the run `task_status` reported as `childRunId`, '
+                  'continuing with `afterPosition` set to `nextPosition` until that item is found or the '
+                  'timeline ends')
+        self.assertIn(locate, tools)
+        self.assertIn('A later turn\'s result (`latestTerminal*`) belongs to that turn, never to the original task',
+                      tools)
+        self.assertLess(tools.index(locate), tools.index('`nextTextOffset` is null'),
+                        'find the run\'s item before reading its text')
 
     def test_job_protocol_recovers_once_instead_of_rerunning(self):
         lifecycle = flat((SHARED / 'job-coordination.md').read_text().split('## 4. Lifecycle')[1].split('## 5.')[0])
@@ -123,11 +147,23 @@ class SendBoundaryTest(unittest.TestCase):
 class DependentWorkTest(unittest.TestCase):
     def test_dependent_slots_consume_commits_not_live_worktrees_or_hidden_refs(self):
         isolation = flat((SHARED / 'delegation.md').read_text().split('## Writer isolation')[1].split('## ')[0])
-        for phrase in ('consumes earlier work only as a commit or branch at an observed SHA',
+        for phrase in ('consumes earlier source-worktree changes only as a commit or branch at an observed SHA',
                        'Never read from or write into a worktree whose writer is still active',
                        'never re-run a completed task to recover its output',
                        'do not fetch, reset to or depend on their refs unless the host documents them'):
             self.assertIn(phrase, isolation)
+
+    def test_accepted_artifacts_keep_their_hash_bound_handoff(self):
+        isolation = flat((SHARED / 'delegation.md').read_text().split('## Writer isolation')[1].split('## ')[0])
+        self.assertIn('Accepted artifacts, such as reports under the job directory named in `consumed_outputs`, '
+                      'are handed off by path and recorded hash instead; they need no commit', isolation)
+        self.assertNotIn('consumes earlier work only as a commit', isolation)
+        # The research workflows that rely on that form still describe it.
+        job = flat((ROOT / 'plugins/ape/references/research-job.md').read_text())
+        self.assertIn('`authorization.actions`: `["read"]`', job)
+        self.assertIn("(dependents' `consumed_outputs`)", job)
+        self.assertIn('prepare the synthesis brief with the accepted report paths and hashes',
+                      flat((ROOT / 'plugins/ape/playbooks/forage.md').read_text()))
 
 
 class ExternalCoordinatorTest(unittest.TestCase):
@@ -187,6 +223,27 @@ class DesignNoteTest(unittest.TestCase):
         self.assertIn('not verified host behaviour', self.text)
         self.assertGreaterEqual(self.text.count('*assumption'), 4)
         self.assertIn('*Schema:*', self.text)
+
+    def test_note_records_the_limits_and_both_handoff_forms(self):
+        flat_sections = {k: flat(v) for k, v in self.sections.items()}
+        listing = flat_sections['`t3_thread_list`']
+        for phrase in ('an older active thread can sit beyond the first page\'s cursor',
+                       'a sixth matching candidate goes unconfirmed', '`sibling check partial`',
+                       'inspect-only triage keeps every eligible PR'):
+            self.assertIn(phrase, listing)
+        reading = flat_sections['`t3_thread_read`']
+        for phrase in ('`afterPosition` set to `nextPosition`', '`childRunId`', '`latestTerminal*`'):
+            self.assertIn(phrase, reading)
+        checkpoints = flat_sections['Per-turn Git checkpoints']
+        for phrase in ('`plugins/ape/references/research-job.md`', '`plugins/ape/playbooks/forage.md`',
+                       'path-and-hash handoff', 'limited to source-worktree integration'):
+            self.assertIn(phrase, checkpoints)
+
+    def test_external_fallback_cites_the_delegate_task_schema(self):
+        external = flat(self.sections['External orchestrators'])
+        self.assertIn('"Needs an agent running inside a T3 thread"', external)
+        self.assertNotIn('Whether `delegate_task` works for a caller outside any T3 thread is unverified', external)
+        self.assertIn('How a live host answers such a call is unobserved (*assumption*)', external)
 
     def test_note_carries_no_endpoint_material_or_machine_paths(self):
         self.assertIsNone(LEAKS.search(self.text))

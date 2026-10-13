@@ -9,10 +9,11 @@ merge-capable call until its review stage is accepted at the exact current head.
    `bash PKG/scripts/list-prs.sh --repo <owner/name>` / `--org <owner>`.
    For a named PR add `--pr <number>`. Read the helper's filter and pagination warnings;
    a partial page is not the whole roster. Exclude drafts, forks, and other authors
-   unless the operator includes them. Run the sibling-work check in
+   unless the operator includes them. On a writable run, run the sibling-work check in
    `PKG/shared/t3-runtime.md` for each PR number and head branch; a PR another active
-   thread is maintaining leaves the roster unless the owner keeps it. Freeze the
-   eligible roster and link each PR
+   thread is maintaining leaves the roster unless the owner keeps it. An inspect-only
+   run skips the check and keeps every eligible PR, since reading cannot collide.
+   Freeze the eligible roster and link each PR
    through T3 with `link_pull_request`. An inspect-only run skips step 2's helper,
    posts step 3's table from read-only evidence, and stops; for deep triage of many
    PRs it may plan `read` only maintainer slots, whose `blocked` results with named
