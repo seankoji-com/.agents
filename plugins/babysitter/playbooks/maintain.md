@@ -1,20 +1,26 @@
 # Maintain pull requests
 
+This thread is the coordinator. It owns the roster, the PR table, every watch, every
+merge, and every acceptance. Children own one PR's repair or review at a time.
+
 1. Resolve the exact scope and endstate. Inspect the roster through GitHub tools or
    `bash PKG/scripts/list-prs.sh --repo <owner/name>` / `--org <owner>`.
    For a named PR add `--pr <number>`. Read the helper's filter and pagination warnings;
    a partial page is not the whole roster. Exclude drafts, forks, and other authors
    unless the operator includes them. Freeze the eligible roster and link each PR
-   through T3. An inspect-only run skips step 2's helper, posts step 3's table from
-   read-only evidence, and stops.
+   through T3 with `link_pull_request`. An inspect-only run skips step 2's helper,
+   posts step 3's table from read-only evidence, and stops; for deep triage of many
+   PRs it may plan `read` only maintainer slots, whose `blocked` results with named
+   blockers are a complete triage answer, never an acceptance.
 2. Quick pass, in this thread, before any child: for every roster PR run
    `bash PKG/scripts/merge-pr.sh --repo <owner/name> --pr <N> --arm-always`.
    It merges a PR whose current head is CLEAN with green checks and resolved threads,
    and otherwise attempts to arm GitHub auto-merge, including on PRs with open threads
    or conflicts; the operator accepted that auto-merge may land those once GitHub's own
-   requirements pass. Record each `MERGED` or `BLOCKED reason=... automerge=...` line;
-   `automerge=unavailable` means GitHub refused, so this thread must merge it later.
-   Inspect its help first. Never use admin bypass, dismiss reviews, or weaken checks.
+   requirements pass. If the operator asked for review before landing, use
+   `--no-auto` instead so nothing lands ahead of `babysitter/pr-reviewer`. Record each
+   `MERGED` or `BLOCKED reason=... automerge=...` line; `automerge=unavailable` means
+   GitHub refused, so this thread must merge it later. Inspect its help first.
 3. Keep the PR table in this thread and post it after the quick pass:
 
    | PR | Description | Not merged because |
@@ -24,41 +30,63 @@
    The last column names the current blocker in plain words, the auto-merge state,
    and any fixer in flight. Merged rows read `merged` and move to the bottom.
    Post the whole table again each time a PR merges and when a blocker changes.
-4. Dispatch one fixer per PR that has work a child can do: conflicts, a behind branch
-   the helper could not update, failing checks, unresolved threads, or requested
-   changes. A PR waiting only on running checks or a required human review gets no
-   child; watch it. Prepare each PR's worktree with `bash PKG/scripts/pr-workspace.sh`,
+   Emit the job's compact checklist from `job_cli.py overview` beside it at stage
+   start, acceptance, blocker and integration milestones; never stream raw logs.
+4. Plan one job for the run once the quick pass shows which PRs have work a child can
+   do: conflicts, a behind branch the helper could not update, failing checks,
+   unresolved threads, or requested changes. Follow `PKG/references/job-plan.md`.
+   A PR waiting only on running checks or a required human review gets a direct
+   stage and no child; watch it. PRs merged in the quick pass get a direct stage
+   accepted from the observed merge.
+5. Route each fixer. Prepare its worktree with `bash PKG/scripts/pr-workspace.sh`,
    then run `t3-plugins resolve workhorse --capabilities FILE --repo <that worktree>`
    so the target repository's routing policy applies. Start with the first candidate
-   on the cheapest configured tier and pass its `runtimeMode`; later candidates are for
-   escalation. Report each `unavailable` entry once, such as a provider that needs a
-   broader mode than this thread. Without routing, or with no cheapest-tier candidate,
-   report that and ask the operator before fanning out. Give each child its worktree.
-5. Each brief follows `PKG/shared/delegation.md` and adds: the PR URL, the head SHA
-   at dispatch, the blocker, and earlier rounds' findings. Pre-authorize: edit and
-   test in its worktree; push to that PR's head branch only, never forced; reply to
-   handled threads with evidence and resolve them through `merge-pr.sh
-   --resolve-thread`; then run `merge-pr.sh --arm-always`. Finish line: the blocker is
-   fixed at a pushed head, local verification passes, and the helper reports
-   `MERGED` or only pending checks or a human review. Return the PR, pushed SHAs,
-   helper output, tests run, and remaining blockers. Return `blocked` for product
-   decisions, secrets, or human approval. Rejected findings need a reason.
-6. Call `watch_pull_request` for every unmerged PR and end the turn. Children cannot
-   watch; this thread owns every watch. On a wake, read that PR's live state at its
+   on the cheapest configured tier, pass its `runtimeMode`, and record the target,
+   reason and ordered escalation in the slot; later candidates are for escalation.
+   Report each `unavailable` entry once, such as a provider that needs a broader mode
+   than this thread. Without routing, or with no cheapest-tier candidate, ask the
+   operator through the question picker before fanning out. Resolve the reviewer with
+   `t3-plugins resolve reviewer --implementer-lineage <fixer lineage>`.
+6. Dispatch per `PKG/shared/job-coordination.md`: `job_cli.py prepare`, launch
+   `babysitter/pr-maintainer` with `delegate_task`, and record the handle with
+   `task-observation` at once. The brief carries the PR URL, its worktree, the head SHA
+   at dispatch, the blocker, earlier rounds' findings, and only that PR's recorded
+   actions. Finish line: the blocker is fixed at a pushed head and local verification
+   passes, or the result is `blocked` with what a human must decide. Children never
+   run `merge-pr.sh` merge or arm modes; only `--resolve-thread` when that PR records
+   `communicate`.
+7. Call `watch_pull_request` for every unmerged PR and end the turn. Children cannot
+   watch; this thread owns every watch. On a PR wake, read that PR's live state at its
    current head; a check from an older SHA proves nothing. Rerun step 2's helper first:
-   green checks or a new approval may make the PR mergeable now. When it merged,
-   update the table and unwatch it. On a new failure, comment, or conflict with no
-   child in flight, dispatch the next round as a new `delegate_task` with the prior
-   findings.
-   On a child result, verify the claimed push against the PR head before relying on it.
-7. Escalate when a child returns `blocked` or a blocker survives its round: use the
-   next `resolve` candidate. After two rounds on the last candidate, or when a human
-   must act, mark the row `needs human:` with the exact blocker and stop dispatching.
-   Report auto-merge as queued until the merge is observed.
-8. Org/repo discovery of future PRs needs an explicitly authorized T3 scheduled sweep;
-   watching today's PRs does not discover tomorrow's. Use the host scheduler only
-   when requested, with a bounded scope and cadence. Report its ID and stop command.
-9. Hand off when every row is merged or `needs human:`. Unwatch PRs, confirm every
-   child stopped through `task_status`, and remove only clean, task-owned worktrees.
-   Post the final table. Never claim all landed from an empty or partial response.
-   Do not run `pr-events.sh` in T3; it is retained only as a legacy standalone adapter.
+   green checks or a new approval may make the PR mergeable now. On a child completion,
+   read `task_status`, ingest with `job_cli.py result`, and verify the claimed push
+   against the PR head before relying on it. A verified new head is rebound as
+   `PKG/references/job-plan.md` describes. Dispose every finding with evidence.
+8. After the fixer's final push, dispatch `babysitter/pr-reviewer` on the final
+   combined change at that exact head. An `adverse` verdict returns its findings to
+   the next fixer round; never switch reviewers to reverse it. With `merge` recorded
+   and an `approve` verdict, rerun step 2's helper. If auto-merge was already armed,
+   GitHub may land the PR before review ends; report an adverse verdict on a merged
+   PR as a post-merge blocker row.
+9. On a new failure, comment, or conflict with no child in flight, start the next
+   round with `job_cli.py retry` and the prior findings. Escalate to the next
+   recorded candidate when a child returns `blocked` or a blocker survives its round;
+   escalation never resets counters. When the stage's repair budget is spent, or when
+   a human must act, mark the row `needs human:` with the exact blocker and stop
+   dispatching for that PR. More rounds need an owner decision through the picker.
+10. Accept each PR stage from a fresh coordinator observation: publish it with
+    `job_cli.py observation`, then run `job_acceptance_cli.py accept-stage` with the
+    pinned `validate_pr.py`. When it merged, update the table and use
+    `unwatch_pull_request`. Report auto-merge as queued until the merge is observed.
+11. If `delegate_task` or a suitable target is unavailable, record the discovery and
+    run the fixer stage directly in this thread under the same brief, actions,
+    counters and gate, with a visible fallback marker. A missing independent reviewer
+    stays a blocker for that PR; direct work cannot stand in for it.
+12. Org/repo discovery of future PRs needs an explicitly authorized T3 scheduled sweep;
+    watching today's PRs does not discover tomorrow's. Use the host scheduler only
+    when requested, with a bounded scope and cadence. Report its ID and stop command.
+13. Hand off when every row is merged or `needs human:`. Run `job_acceptance_cli.py
+    validate-final` with fresh observations, unwatch PRs, confirm every child stopped
+    through `task_status`, and remove only clean, task-owned worktrees. Post the final
+    table and checklist. Never claim all landed from an empty or partial response.
+    Do not run `pr-events.sh` in T3; it is retained only as a legacy standalone adapter.
