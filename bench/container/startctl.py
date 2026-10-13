@@ -156,8 +156,10 @@ def normalise_stage(result):
         values['SETTINGS_PATH'] = paths['settings_target']
     if paths.get('sources'):
         values['SOURCES_DIR'] = os.path.commonpath([row['path'] for row in paths['sources'].values()])
+    aliases = list(result.get('host_aliases') or ((sidecar or {}).get('agent_add_hosts') or {}).get('names') or [])
     if sidecar and sidecar.get('host'):
-        values['GITHUB_URL'] = 'https://' + sidecar['host']
+        # With agent-only aliases the scripts' own github.com names reach the sidecar.
+        values['GITHUB_URL'] = 'https://' + ('github.com' if 'github.com' in aliases else sidecar['host'])
     values.update(result.get('prompt_values') or {})
     return {'mounts': [_mount_row(row) for row in result.get('mounts', []) or []],
             'env': dict(result.get('agent_env') or result.get('env') or {}), 'outcome_dir': scenario_dir,
@@ -165,7 +167,7 @@ def normalise_stage(result):
             'coordinator_outputs': dict(result.get('coordinator_outputs') or {}),
             'sidecar_args': list((sidecar or {}).get('docker_args') or []), 'sidecar': sidecar is not None,
             'extra_ca': (result.get('trust') or {}).get('github_ca'),
-            'host_aliases': list(result.get('host_aliases') or (sidecar or {}).get('host_aliases') or []),
+            'host_aliases': aliases,
             'record': {k: result[k] for k in ('staged_inputs', 'notes', 'five_stage', 'routing_sha256')
                        if k in result}}
 

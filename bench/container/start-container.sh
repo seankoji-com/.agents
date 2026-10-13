@@ -55,7 +55,9 @@ export OPENAI_BASE_URL='https://gateway.bench.test:8443/v1'
 export NPM_CONFIG_CACHE=/tmp/bench-npm-cache
 export npm_config_cache=/tmp/bench-npm-cache
 export ANTHROPIC_API_KEY OPENAI_API_KEY
-export GH_HOST='github.bench.test'
+# Babysitter starts pass GH_HOST=github.com, which the agent alone resolves to the
+# synthetic sidecar; benchctl admits only synthetic values. Other runs keep the bench host.
+export GH_HOST="${GH_HOST:-github.bench.test}"
 export GH_TOKEN='bench-synthetic-token'
 export GITHUB_TOKEN='bench-synthetic-token'
 

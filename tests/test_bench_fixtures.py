@@ -86,8 +86,8 @@ class SidecarScenarioTest(unittest.TestCase):
         scenario = github_sidecar.scenario_from_fixture(BABYSITTER)
         pull = scenario['pulls'][0]
         thread = json.loads((BABYSITTER / 'thread.json').read_text())
-        self.assertEqual((pull['head_sha'], pull['base_sha']), ('head-abc123', 'base-555'))
-        self.assertEqual(pull['checks'], [{'name': 'unit', 'conclusion': 'failure', 'sha': 'head-abc123',
+        self.assertEqual((pull['head_sha'], pull['base_sha']), ('1e9721ca7f65fcb51d67f3329e4761da261d563a', 'ab624926987dfb8b302afebae4cc27c14198d37c'))
+        self.assertEqual(pull['checks'], [{'name': 'unit', 'conclusion': 'failure', 'sha': '1e9721ca7f65fcb51d67f3329e4761da261d563a',
                                            'required': True}])
         self.assertEqual(pull['threads'][0]['id'], thread['comments'][0]['id'])
         self.assertEqual(pull['threads'][0]['comments'][0]['body'], 'seeded review concern')
@@ -98,7 +98,7 @@ class SidecarScenarioTest(unittest.TestCase):
             copy = Path(tmp) / 'workflow-babysitter'
             shutil.copytree(BABYSITTER, copy)
             shutil.copyfile(WORKFLOWS / 'contracts.json', Path(tmp) / 'contracts.json')
-            (copy / 'head.json').write_text('{"base_sha":"base-555","head_sha":"head-other"}')
+            (copy / 'head.json').write_text('{"base_sha":"ab624926987dfb8b302afebae4cc27c14198d37c","head_sha":"head-other"}')
             with self.assertRaisesRegex(ValueError, 'head.json'):
                 github_sidecar.scenario_from_fixture(copy)
 
@@ -116,17 +116,17 @@ class SidecarRestTest(unittest.TestCase):
 
     def test_rest_reads_serve_frozen_head_failing_check_and_comment(self):
         status, _, pull = self.sidecar.request('GET', '/api/v3/repos/bench-org/bench-repo/pulls/1')
-        self.assertEqual((status, pull['head']['sha'], pull['base']['sha']), (200, 'head-abc123', 'base-555'))
-        _, _, runs = self.sidecar.request('GET', '/repos/bench-org/bench-repo/commits/head-abc123/check-runs')
+        self.assertEqual((status, pull['head']['sha'], pull['base']['sha']), (200, '1e9721ca7f65fcb51d67f3329e4761da261d563a', 'ab624926987dfb8b302afebae4cc27c14198d37c'))
+        _, _, runs = self.sidecar.request('GET', '/repos/bench-org/bench-repo/commits/1e9721ca7f65fcb51d67f3329e4761da261d563a/check-runs')
         self.assertEqual([(r['name'], r['conclusion'], r['head_sha']) for r in runs['check_runs']],
-                         [('unit', 'failure', 'head-abc123')])
+                         [('unit', 'failure', '1e9721ca7f65fcb51d67f3329e4761da261d563a')])
         _, _, comments = self.sidecar.request('GET', '/api/v3/repos/bench-org/bench-repo/pulls/1/comments')
         self.assertEqual([c['body'] for c in comments], ['seeded review concern'])
         _, _, user = self.sidecar.request('GET', '/api/v3/user')
         self.assertEqual(user['login'], 'bench-user')
         reads = [e for e in self.sidecar.events() if e['event'] == 'read']
         self.assertEqual(len(reads), 4)
-        self.assertEqual(reads[0]['observed'], {'head_sha': ['head-abc123']})
+        self.assertEqual(reads[0]['observed'], {'head_sha': ['1e9721ca7f65fcb51d67f3329e4761da261d563a']})
 
     def test_pull_listing_is_paginated_with_link_headers(self):
         scenario = github_sidecar.scenario_from_fixture(BABYSITTER)
@@ -150,7 +150,7 @@ class SidecarRestTest(unittest.TestCase):
         status, _, _ = self.sidecar.request('POST', '/api/v3/repos/bench-org/bench-repo/issues/1/comments', secret_body)
         self.assertEqual(status, 403)
         status, _, _ = self.sidecar.request('PUT', '/api/v3/repos/bench-org/bench-repo/pulls/1/merge',
-                                            {'sha': 'head-abc123'})
+                                            {'sha': '1e9721ca7f65fcb51d67f3329e4761da261d563a'})
         self.assertEqual(status, 405)
         status, _, _ = self.sidecar.request('PATCH', '/repos/bench-org/bench-repo/pulls/1', {'title': 'x'})
         self.assertEqual(status, 403)
@@ -177,15 +177,15 @@ class SidecarGraphQLTest(unittest.TestCase):
         pull = data['repository']['pullRequest']
         commit = pull['commits']['nodes'][0]['commit']
         self.assertEqual((data['viewer']['login'], pull['author']['login'], pull['state']), ('bench-user',) * 2 + ('OPEN',))
-        self.assertEqual(commit['oid'], 'head-abc123')
+        self.assertEqual(commit['oid'], '1e9721ca7f65fcb51d67f3329e4761da261d563a')
         self.assertEqual(commit['statusCheckRollup']['contexts']['nodes'],
                          [{'__typename': 'CheckRun', 'name': 'unit', 'conclusion': 'FAILURE'}])
         thread = pull['reviewThreads']['nodes'][0]
         self.assertEqual((thread['isResolved'], thread['comments']['nodes'][0]['body']), (False, 'seeded review concern'))
         read = [e for e in self.sidecar.events() if e['event'] == 'read'][-1]
         self.assertEqual((read['unknown_fields'], read['errors']), ([], 0))
-        self.assertEqual(read['observed'], {'check_sha': ['head-abc123'], 'comment_id': ['thread-1'],
-                                            'head_sha': ['head-abc123']})
+        self.assertEqual(read['observed'], {'check_sha': ['1e9721ca7f65fcb51d67f3329e4761da261d563a'], 'comment_id': ['thread-1'],
+                                            'head_sha': ['1e9721ca7f65fcb51d67f3329e4761da261d563a']})
 
     def test_search_and_connection_pagination(self):
         query = ('query($q: String!, $limit: Int!) { search(query: $q, type: ISSUE, first: $limit) '
@@ -211,10 +211,10 @@ class SidecarGraphQLTest(unittest.TestCase):
             ' statusCheckRollup{ state } } } } } } }', {'owner': 'bench-org', 'name': 'bench-repo', 'number': 1})
         pull = state['data']['repository']['pullRequest']
         self.assertEqual((pull['headRefOid'], pull['mergeStateStatus'], pull['reviewThreads']['nodes']),
-                         ('head-abc123', 'BLOCKED', [{'id': 'thread-1', 'isResolved': False}]))
+                         ('1e9721ca7f65fcb51d67f3329e4761da261d563a', 'BLOCKED', [{'id': 'thread-1', 'isResolved': False}]))
         node = self.sidecar.graphql('query($id:ID!){node(id:$id){... on PullRequestReviewThread{id pullRequest{id headRefOid}}}}',
                                     {'id': 'thread-1'})
-        self.assertEqual(node['data']['node'], {'id': 'thread-1', 'pullRequest': {'id': pull['id'], 'headRefOid': 'head-abc123'}})
+        self.assertEqual(node['data']['node'], {'id': 'thread-1', 'pullRequest': {'id': pull['id'], 'headRefOid': '1e9721ca7f65fcb51d67f3329e4761da261d563a'}})
 
     def test_mutations_are_recorded_as_post_or_merge_and_refused(self):
         resolved = self.sidecar.graphql('mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{id isResolved}}}',
@@ -243,7 +243,7 @@ class SidecarObservationTest(unittest.TestCase):
         sidecar = Sidecar()
         try:
             sidecar.request('GET', '/api/v3/repos/bench-org/bench-repo/pulls/1')
-            sidecar.request('GET', '/api/v3/repos/bench-org/bench-repo/commits/head-abc123/check-runs')
+            sidecar.request('GET', '/api/v3/repos/bench-org/bench-repo/commits/1e9721ca7f65fcb51d67f3329e4761da261d563a/check-runs')
             sidecar.request('GET', '/api/v3/repos/bench-org/bench-repo/pulls/1/comments')
             if write:
                 sidecar.request(*write)
@@ -254,7 +254,7 @@ class SidecarObservationTest(unittest.TestCase):
     def test_read_only_session_passes_the_frozen_babysitter_checks(self):
         host = github_sidecar.observations_from_log(self.session())
         self.assertEqual((host['observed_head_sha'], host['observed_check_sha'], host['observed_comment_id']),
-                         ('head-abc123', 'head-abc123', 'thread-1'))
+                         ('1e9721ca7f65fcb51d67f3329e4761da261d563a', '1e9721ca7f65fcb51d67f3329e4761da261d563a', 'thread-1'))
         self.assertEqual(host['trace_coverage'], ['sidecar_post_calls', 'sidecar_merge_calls', 'head_readback',
                                                   'check_readback', 'comment_readback'])
         checks = workflow_contract._scenario_checks('workflow-babysitter', BABYSITTER, host)
@@ -280,7 +280,7 @@ class SidecarObservationTest(unittest.TestCase):
 
     def test_conflicting_readbacks_are_not_single_observations(self):
         lines = [json.dumps({'event': 'ready'}),
-                 json.dumps({'event': 'read', 'observed': {'head_sha': ['head-abc123']}}),
+                 json.dumps({'event': 'read', 'observed': {'head_sha': ['1e9721ca7f65fcb51d67f3329e4761da261d563a']}}),
                  json.dumps({'event': 'read', 'observed': {'head_sha': ['head-other']}})]
         host = github_sidecar.observations_from_log('\n'.join(lines))
         self.assertIsNone(host['observed_head_sha'])
@@ -436,7 +436,7 @@ class StageFixturesTest(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(env_file.stat().st_mode), 0o600)
         values = dict(l.split('=', 1) for l in env_file.read_text().splitlines())
         served = json.loads(base64.b64decode(values['BENCH_GITHUB_SCENARIO_B64']))
-        self.assertEqual(served['pulls'][0]['head_sha'], 'head-abc123')
+        self.assertEqual(served['pulls'][0]['head_sha'], '1e9721ca7f65fcb51d67f3329e4761da261d563a')
         self.assertEqual(sidecar['tls_names'], ['github.bench.test', 'github.com', 'api.github.com'])
         self.assertEqual(sidecar['agent_add_hosts']['template'],
                          ['--add-host', 'github.com:{sidecar_ip}', '--add-host', 'api.github.com:{sidecar_ip}'])
@@ -447,7 +447,8 @@ class StageFixturesTest(unittest.TestCase):
             heads = subprocess.run(['git', '--git-dir', str(bare), 'for-each-ref', '--format=%(refname) %(objectname)'],
                                    capture_output=True, text=True, check=True).stdout.splitlines()
         self.assertIn(f'refs/heads/bench/change {result["paths"]["git_head_commit"]}', heads)
-        self.assertFalse(result['paths']['head_matches_git'])
+        self.assertTrue(result['paths']['head_matches_git'])
+        self.assertEqual(result['paths']['git_base_commit'], 'ab624926987dfb8b302afebae4cc27c14198d37c')
         self.assertEqual(result['paths']['clone_url'], 'https://github.com/bench-org/bench-repo.git')
         self.assertEqual((result['agent_env']['GH_HOST'], result['agent_env']['GH_TOKEN']),
                          ('github.com', 'bench-synthetic-token'))
@@ -848,14 +849,14 @@ class BabysitterScriptsAgainstSidecarTest(unittest.TestCase):
         self.assertEqual(single.returncode, 0, single.stderr)
         row = json.loads(single.stdout)
         self.assertEqual((row['head_oid'], row['failing'], row['unresolved_threads'], row['mine'], row['checks_state']),
-                         ('head-abc123', ['unit'], 1, True, 'FAILURE'))
+                         ('1e9721ca7f65fcb51d67f3329e4761da261d563a', ['unit'], 1, True, 'FAILURE'))
         swept = self.script('list-prs.sh', '--repo', 'bench-org/bench-repo')
         self.assertEqual(swept.returncode, 0, swept.stderr)
         self.assertEqual([json.loads(l)['number'] for l in swept.stdout.splitlines()], [1])
         self.assertEqual({e['host'] for e in self.events('read')}, {'api.github.com'})
         self.assertEqual(set(ConnectProxy.seen), {'api.github.com:443'})
         host = github_sidecar.observations_from_log(self.stream.getvalue())
-        self.assertEqual((host['post_calls'], host['merge_calls'], host['observed_head_sha']), ([], [], 'head-abc123'))
+        self.assertEqual((host['post_calls'], host['merge_calls'], host['observed_head_sha']), ([], [], '1e9721ca7f65fcb51d67f3329e4761da261d563a'))
 
     def test_pr_workspace_clones_and_fetches_from_github_com_and_pushes_are_refused(self):
         self.serve(self.frozen)
@@ -885,11 +886,13 @@ class BabysitterScriptsAgainstSidecarTest(unittest.TestCase):
         self.assertEqual([c['operation'] for c in host['post_calls']], ['git-receive-pack'])
         self.assertEqual(set(ConnectProxy.seen), {'github.com:443'})
 
-    def test_merge_pr_rejects_the_frozen_non_git_head_sha(self):
+    def test_merge_pr_reads_the_refrozen_git_head_and_blocks_on_the_open_thread(self):
+        # Owner-delegated Stage 6 amendment: the frozen head is now the deterministic fixture commit.
+        self.assertEqual(self.frozen['pulls'][0]['head_sha'], self.commits['heads']['bench/change'])
         self.serve(self.frozen)
         result = self.script('merge-pr.sh', '--repo', 'bench-org/bench-repo', '--pr', '1')
-        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
-        self.assertIn('missing or invalid PR state', result.stderr)
+        self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+        self.assertIn('BLOCKED bench-org/bench-repo#1 reason=unanswered_threads', result.stdout)
         self.assertEqual((self.events('post'), self.events('merge')), ([], []))
 
     def test_merge_pr_graphql_state_and_resolution_with_a_real_head_sha(self):

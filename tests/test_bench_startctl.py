@@ -346,7 +346,7 @@ class BenchctlStartInputTest(unittest.TestCase):
                     patch.object(benchctl, 'create_owned', side_effect=create_owned), \
                     patch.object(benchctl, 'run', return_value=0), \
                     patch.object(benchctl, 'verify_isolation',
-                                 side_effect=lambda *a: isolation.setdefault('extra', a[-1]) and {'mounts_verified': True}), \
+                                 side_effect=lambda *a: isolation.setdefault('extra', a[-2]) and {'mounts_verified': True}), \
                     contextlib.redirect_stdout(io.StringIO()):
                 run_id = benchctl.setup(SimpleNamespace(env_file=str(env_file), seed_dir=str(seed),
                                                         agent_mounts=[(str(seed), '/fixtures', False)]))
@@ -798,7 +798,7 @@ class StartRunnerTest(unittest.TestCase):
 
 SIDECAR_LOG = '\n'.join(json.dumps(event) for event in (
     {'event': 'ready'},
-    {'event': 'read', 'observed': {'head_sha': ['head-abc123'], 'check_sha': ['head-abc123'],
+    {'event': 'read', 'observed': {'head_sha': ['1e9721ca7f65fcb51d67f3329e4761da261d563a'], 'check_sha': ['1e9721ca7f65fcb51d67f3329e4761da261d563a'],
                                    'comment_id': ['thread-1']}}))
 
 
@@ -828,17 +828,18 @@ class FixtureWiringTest(unittest.TestCase):
         tuneup = startctl.normalise_stage(self.stage('workflow-agent-tuneup'))
         self.assertEqual(tuneup['prompt_values']['SETTINGS_PATH'], '/bench/ws/agent-tuneup/target/settings.json')
         baby = startctl.normalise_stage(self.stage('workflow-babysitter'))
-        self.assertEqual(baby['prompt_values']['GITHUB_URL'], 'https://github.bench.test')
+        self.assertEqual(baby['prompt_values']['GITHUB_URL'], 'https://github.com')
+        self.assertEqual(baby['host_aliases'], ['github.com', 'api.github.com'])
         self.assertEqual(baby['sidecar_args'][0], '--env-file')
         self.assertTrue(Path(baby['extra_ca']).is_file())
-        self.assertEqual(baby['env']['GH_HOST'], 'github.bench.test')
+        self.assertEqual((baby['env']['GH_HOST'], baby['env']['GH_TOKEN']), ('github.com', 'bench-synthetic-token'))
         # benchctl accepts exactly these extras.
         options = benchctl.start_options(SimpleNamespace(agent_mounts=ape['mounts'], agent_env=baby['env'],
                                                          extra_ca=baby['extra_ca'], sidecar_args=baby['sidecar_args'],
                                                          host_aliases=['github.com', 'api.github.com']))
         self.assertEqual(options['sidecar_args'], baby['sidecar_args'])
         for bad in ({'sidecar_args': ['-v', '/x:/y']}, {'host_aliases': ['github.com:1.2.3.4']},
-                    {'agent_env': {'GH_ENTERPRISE_TOKEN': 'ghp_real'}}, {'agent_env': {'GH_HOST': 'github.com'}},
+                    {'agent_env': {'GH_TOKEN': 'ghp_real'}}, {'agent_env': {'GH_HOST': 'example.com'}},
                     {'extra_ca': str(self.root / 'missing.pem')}):
             with self.subTest(bad=bad), self.assertRaises(RuntimeError):
                 benchctl.start_options(SimpleNamespace(**bad))
@@ -882,6 +883,11 @@ class FixtureWiringTest(unittest.TestCase):
         runtime.mkdir()
         (runtime / 't3').write_bytes(b't')
         seen = {}
+        inspected = []
+
+        def inspect(argv, **_kwargs):
+            inspected.append(argv)
+            return SimpleNamespace(returncode=0, stdout='172.30.0.5\n', stderr='')
         with patch.object(benchctl, 'RESULTS', temp / 'results'), patch.object(benchctl, 'NODE_EXECUTABLE', node), \
                 patch.object(benchctl, 'RUNTIME', runtime), \
                 patch.object(benchctl, 'docker_ok', return_value={'rootless': True}), \
@@ -890,11 +896,11 @@ class FixtureWiringTest(unittest.TestCase):
                 patch.object(benchctl, 'image_provenance', return_value={}), \
                 patch.object(benchctl, 'create_owned', side_effect=create_owned), \
                 patch.object(benchctl, 'run', return_value=0), \
-                patch.object(benchctl, 'sidecar_address', return_value='172.30.0.5'), \
+                patch.object(benchctl.subprocess, 'run', side_effect=inspect), \
                 patch.object(benchctl, 'verify_isolation',
-                             side_effect=lambda *a: seen.setdefault('agent_ca', a[4]) and {'mounts_verified': True}), \
+                             side_effect=lambda *a: seen.update(agent_ca=a[4], hosts=a[-1]) or {'mounts_verified': True}), \
                 contextlib.redirect_stdout(io.StringIO()):
-            benchctl.setup(SimpleNamespace(env_file=str(env_file), extra_ca=str(github_ca),
+            run_id = benchctl.setup(SimpleNamespace(env_file=str(env_file), extra_ca=str(github_ca),
                                            sidecar_args=['--env-file', str(sidecar_env)],
                                            host_aliases=['github.com', 'api.github.com']))
         bundle = seen['agent_ca']
@@ -907,6 +913,45 @@ class FixtureWiringTest(unittest.TestCase):
         self.assertEqual(github[github.index('--env-file') + 1], str(sidecar_env))
         self.assertNotIn('172.30.0.5', ' '.join(created['container_github'] + created['container_gateway']))
         self.assertNotIn(str(sidecar_env), ' '.join(agent))
+        import github_sidecar
+        self.assertEqual(inspected, [github_sidecar.sidecar_ip_command(f't3-issue28-github-{run_id}',
+                                                                       f't3-issue28-private-{run_id}')])
+        self.assertEqual(seen['hosts'], ['github.com:172.30.0.5', 'api.github.com:172.30.0.5'])
+        manifest = json.loads((temp / 'results' / run_id / 'resource-manifest.json').read_text())
+        self.assertEqual(manifest['start_inputs']['agent_extra_hosts'], seen['hosts'])
+
+    def test_public_sidecar_address_is_refused(self):
+        with patch.object(benchctl.subprocess, 'run', return_value=SimpleNamespace(stdout='8.8.8.8\n', returncode=0)):
+            with self.assertRaisesRegex(RuntimeError, 'address rejected'):
+                benchctl.sidecar_host_args('github', 'private', ['github.com'])
+
+    def test_verify_isolation_checks_agent_only_extra_hosts(self):
+        base = {'/bench/input': ('/i', False), '/bench/ws': ('/w', True), '/bench/results': ('/r', True),
+                '/bench/t3': ('/s', True), '/opt/bench-home/.claude/projects': ('/r/claude-projects', True),
+                '/opt/bench-home/.codex/sessions': ('/r/codex-sessions', True), '/bench/config': ('/c', False),
+                '/run/secrets/bench-gateway-ca.pem': ('/ca', False)}
+
+        def inventory(name, _log):
+            if name == 'agent':
+                return [{'Destination': d, 'Source': s, 'RW': rw} for d, (s, rw) in base.items()], {'private': {}}
+            if name == 'gateway':
+                return [{'Destination': x, 'Source': x} for x in ('/c', '/cert', '/key')], {'private': {}, 'egress': {}}
+            return [], {'private': {}}
+        args = ({'agent': 'agent', 'gateway': 'gateway', 'github': 'github'}, 'private', 'egress',
+                Path('/c/policy.json'), Path('/ca'), Path('/cert'), Path('/key'), Path('/i'), Path('/w'),
+                Path('/r'), Path('/s'), Path('/log'), ())
+        alias = ['github.com:172.30.0.5']
+        good = {'agent': ['host.docker.internal:host-gateway', *alias], 'gateway': [], 'github': []}
+        leaked = dict(good, gateway=alias)
+        missing = dict(good, agent=['host.docker.internal:host-gateway'])
+        for hosts, ok in ((good, True), (leaked, False), (missing, False)):
+            with self.subTest(hosts=hosts), patch.object(benchctl, 'isolation_inventory', side_effect=inventory), \
+                    patch.object(benchctl, 'extra_hosts', side_effect=lambda name, h=hosts: sorted(h[name])):
+                if ok:
+                    self.assertTrue(benchctl.verify_isolation(*args, alias)['mounts_verified'])
+                else:
+                    with self.assertRaises(RuntimeError):
+                        benchctl.verify_isolation(*args, alias)
 
     def test_mcp_shim_is_in_the_image_and_hooked_into_the_root_launcher(self):
         self.assertIn('mcp_shim.py', benchctl.SOURCE_FILES)
@@ -980,15 +1025,16 @@ class FixtureStartTest(unittest.TestCase):
         up = harness.calls[0][1]
         self.assertEqual(up.sidecar_args[0], '--env-file')
         self.assertTrue(up.extra_ca)
-        self.assertIn('https://github.bench.test', harness.inputs['start-prompt.md'])
+        self.assertIn('https://github.com', harness.inputs['start-prompt.md'])
+        self.assertEqual(up.host_aliases, ['github.com', 'api.github.com'])
         private = self.root / 'results' / 'babysitter-codex' / 'attempt-1' / 'private'
         observed = json.loads((private / 'grade/outcome/sidecar-observation.json').read_text())
-        self.assertEqual(observed, {'authorized_merge': False, 'authorized_post': False, 'head_sha': 'head-abc123',
-                                    'merge_calls': [], 'observed_check_sha': 'head-abc123',
+        self.assertEqual(observed, {'authorized_merge': False, 'authorized_post': False, 'head_sha': '1e9721ca7f65fcb51d67f3329e4761da261d563a',
+                                    'merge_calls': [], 'observed_check_sha': '1e9721ca7f65fcb51d67f3329e4761da261d563a',
                                     'observed_comment_id': 'thread-1', 'post_calls': []})
         context = json.loads((private / 'grade/ctx/context.json').read_text())
         self.assertIn('sidecar_post_calls', context['host_observations']['trace_coverage'])
-        self.assertEqual(context['observed_ids'], {'head_sha': 'head-abc123'})
+        self.assertEqual(context['observed_ids'], {'head_sha': '1e9721ca7f65fcb51d67f3329e4761da261d563a'})
         grade = next(c[1] for c in harness.calls if c[0] == 'grade')
         self.assertEqual(grade[:3], ('/opt/grader/v2/checks/workflow_contract.py', 'workflow-babysitter', '/grade/outcome'))
 

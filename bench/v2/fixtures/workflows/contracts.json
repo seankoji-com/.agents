@@ -110,9 +110,9 @@
       "fixture_dir": "workflow-babysitter",
       "input": "input.json",
       "input_sha256": {
-        "input.json": "3dd28c0e37a74154baaefd411cdaf3054f2602fe3c4cda24f9473e435a7c402b",
-        "head.json": "c5891306497941a9c461d5ed17488d68df7b2c97086d9d1ad02faa653f3ec369",
-        "checks.json": "86191fdda70118dd374e10aa35568a5709f1cac6d016ee511ad504ce4411475d"
+        "input.json": "98a231cac1cae380fc7d8a9998989026a0de0402a0b9f6c1557d98be633e48cb",
+        "head.json": "fca5ee6d4f087cebb44339ea4d503a31d4dedede0d7b750322178a76933d64c5",
+        "checks.json": "e022f634317b9915c06b14b9c015f63c0404e63d5d875725a7a5171f157a72d5"
       },
       "required_outputs": [
         "sidecar-observation.json",

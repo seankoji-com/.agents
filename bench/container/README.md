@@ -385,6 +385,14 @@ agent trusts one bundle (gateway CA plus synthetic GitHub CA) at its usual CA pa
 worker. Host aliases such as `github.com` point at the sidecar in the agent container
 only, and only when a fixture asks for them. Missing delegation counts only with a
 verified `mcp_shim.audit_log`; otherwise the attempt is an infrastructure-invalid candidate.
+Babysitter starts keep `GH_HOST=github.com`, which only the agent resolves to the sidecar;
+`verify_isolation` checks the agent's `ExtraHosts` and that no alias reaches the gateway or
+sidecar.
+
+Canary follow-up (owner-delegated Stage 6 amendment): a refusal with host evidence and a
+matching `not_allowed` report is recorded as "continuation unsupported (host-reported),
+unverified". It never counts as a pass and does not gate the canary. Missing or
+contradictory follow-up evidence still fails it.
 
 Private evidence stays under `<results>/<start>/attempt-<n>/private`. `summary.json` and
 `attempt-record.json` beside it hold no absolute paths. A second attempt needs
