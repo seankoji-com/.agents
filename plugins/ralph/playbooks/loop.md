@@ -7,6 +7,9 @@ unrelated work. Use the current task worktree throughout; if the checkout cannot
 safely hold this work, establish a task worktree before initialization and record
 its absolute path. All writers run sequentially there. Do not create a worktree per
 attempt, reset it, stash unrelated edits, or discard previous attempts.
+Before initialization, run the sibling-work check in `PKG/shared/t3-runtime.md`
+for this worktree and branch. Writers here run one at a time, so another active
+thread on the same worktree or branch needs an owner decision before dispatch.
 
 Discover T3's live schemas and call `orchestrator_capabilities`. If tools are absent,
 try bounded discovery and the host's documented ACP transport before declaring

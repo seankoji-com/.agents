@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "stage": 5,
+  "inventory": {
+    "tests": [
+      {
+        "path": "tests/test_t3_thread_features.py",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "T3 thread-feature contracts added after issue 28: sibling-work check, paginated result recovery, commit-based dependent work, external coordinators, and the design note.",
+        "assertions": [
+          {
+            "selector": "test_t3_thread_features.SiblingWorkCheckTest",
+            "coverage": [
+              "REQ-BOUNDARIES",
+              "REQ-LIFECYCLE",
+              "REQ-APPROVAL-PICKER"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_t3_thread_features.ResultRecoveryTest",
+            "coverage": [
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_t3_thread_features.SendBoundaryTest",
+            "coverage": [
+              "REQ-BOUNDARIES",
+              "REQ-DISPATCH"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_t3_thread_features.DependentWorkTest",
+            "coverage": [
+              "REQ-DISPATCH",
+              "REQ-HANDOFF"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_t3_thread_features.ExternalCoordinatorTest",
+            "coverage": [
+              "REQ-BOUNDARIES"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_t3_thread_features.DesignNoteTest",
+            "coverage": [
+              "REQ-COMPAT"
+            ],
+            "survives": true
+          }
+        ]
+      }
+    ]
+  }
+}

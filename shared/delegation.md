@@ -36,7 +36,11 @@ context it lacked), write the observed failure as a learning through
 ## Allowed tools
 
 Child work goes only through T3 `delegate_task`, `task_status` and `task_cancel`.
-`t3_thread_read` may fetch a result those tools omit.
+`t3_thread_read` may fetch a result those tools omit, from an owned `childThreadId`
+only, after `task_status` has been read and recorded: reading a direct child's
+untruncated terminal result acknowledges its completion delivery. Follow `itemId` and
+`textOffset` until `nextTextOffset` is null and pass the whole final message on. A
+partial read is a result gap, never a result; do not truncate or summarise it.
 Never use it or `t3_thread_send` to relaunch a child. The only continuation is a tracked
 same-scope follow-up prepared with `job_cli.py followup-prepare` and sent with
 `t3_thread_send` `mode=queue`, when the host records it as a new task
@@ -52,6 +56,12 @@ Parallel writers each get their own worktree, declared path ownership, and a sta
 integration order. When you cannot establish that isolation (for example, a child
 cannot write outside your checkout), run writers one at a time in your checkout.
 Readers may still run in parallel.
+
+A dependent slot consumes earlier work only as a commit or branch at an observed SHA:
+inspect it with `git diff` or `git log`, or merge it into the dependent worktree.
+Never read from or write into a worktree whose writer is still active, and never
+re-run a completed task to recover its output. T3's per-turn checkpoints are host
+state: do not fetch, reset to or depend on their refs unless the host documents them.
 
 ## Task hygiene
 
