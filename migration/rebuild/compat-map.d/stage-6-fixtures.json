@@ -18,7 +18,7 @@
       "path": "tests/test_bench_fixtures.py",
       "stage": 6,
       "kind": "test",
-      "reason": "Offline loopback fixtures for the synthetic GitHub scenario, HTTPS, fixture staging, routing seed and MCP catalog shim; checks the babysitter log against the frozen grader."
+      "reason": "Offline loopback fixtures for the synthetic GitHub scenario, HTTPS, fixture staging, routing seed and MCP catalog shim; checks the babysitter log against the frozen grader and runs the unmodified babysitter scripts against the sidecar answering as github.com and api.github.com."
     }
   ]
 }

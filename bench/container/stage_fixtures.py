@@ -9,8 +9,9 @@ never copied. It also builds what the scenario needs around them:
 - workflow-ape: two read-only synthetic source repositories, mounted at /bench/sources;
 - workflow-agent-tuneup: an editable copy of the synthetic settings, outside any
   provider home;
-- workflow-babysitter: a local clone of the synthetic repository, the sidecar scenario,
-  per-run TLS material and its env-file, plus the agent's GH_HOST environment;
+- workflow-babysitter: a deterministic bare fixture repository, the sidecar scenario and
+  per-run TLS material (all carried in the sidecar env-file), the agent-only
+  `--add-host` template for github.com and api.github.com, and the agent's gh environment;
 - negative starts: the five-stage workspace (reused per bench/v2/protocol.md), their
   inputs, and for unavailable-required-review a repository routing policy whose only
   reviewer target cannot run.
@@ -180,34 +181,35 @@ def _stage_babysitter(workspace, outcome, area, result):
     scenario = github_sidecar.scenario_from_fixture(WORKFLOWS / 'workflow-babysitter')
     pull = scenario['pulls'][0]
     repo = scenario['repository']
-    clone = workspace / repo['name']
-    clone.mkdir()
-    (clone / 'README.md').write_text('# bench-repo\n\nSynthetic repository for the babysitter scenario.\n',
-                                     encoding='utf-8')
-    _git(clone, 'init', '-q', '-b', pull['base_ref'])
-    _git(clone, 'add', '-A')
-    _git(clone, 'commit', '-q', '-m', 'fixture: base')
-    _git(clone, 'checkout', '-q', '-b', pull['head_ref'])
-    (clone / 'CHANGE.md').write_text('Synthetic change under review.\n', encoding='utf-8')
-    _git(clone, 'add', '-A')
-    _git(clone, 'commit', '-q', '-m', 'fixture: change')
-    _git(clone, 'remote', 'add', 'origin', f'https://{scenario["host"]}/{repo["owner"]}/{repo["name"]}.git')
+    # The bare repository reaches the sidecar as a bundle in its env-file; the agent
+    # clones it from https://github.com/<owner>/<repo>.git, exactly as the scripts do.
+    commits = github_sidecar.build_fixture_repository(area / 'github-git', scenario)
     tls = github_sidecar.tls_material(area / 'github-tls')
-    env_file = github_sidecar.write_env_file(area / 'github-sidecar.env', scenario, tls)
+    env_file = github_sidecar.write_env_file(area / 'github-sidecar.env', scenario, tls,
+                                             github_sidecar.git_bundle(commits['bare']))
+    template = [arg for name in github_sidecar.REAL_NAMES for arg in ('--add-host', name + ':{sidecar_ip}')]
     result['sidecar'] = {'env_file': str(env_file), 'docker_args': github_sidecar.container_args(env_file),
                          'ca_cert': str(tls['ca_cert']), 'tls_port': 443, 'http_port': 8080,
-                         'host': scenario['host'], 'scenario_sha256': hashlib.sha256(
-                             json.dumps(scenario, sort_keys=True).encode()).hexdigest()}
-    result['agent_env'].update({'GH_HOST': scenario['host'], 'GH_ENTERPRISE_TOKEN': SYNTHETIC_TOKEN,
-                                'GITHUB_ENTERPRISE_TOKEN': SYNTHETIC_TOKEN, 'GH_PROMPT_DISABLED': '1',
-                                'GH_NO_UPDATE_NOTIFIER': '1'})
+                         'tls_names': list(tls['names']), 'host': scenario['host'],
+                         'scenario_sha256': hashlib.sha256(json.dumps(scenario, sort_keys=True).encode()).hexdigest(),
+                         'agent_add_hosts': {'names': list(github_sidecar.REAL_NAMES), 'template': template,
+                                             'fill': 'github_sidecar.agent_host_args(<sidecar IP on the private '
+                                                     'network, read with github_sidecar.sidecar_ip_command>)',
+                                             'apply_to': 'agent container only'}}
+    result['agent_env'].update({'GH_HOST': 'github.com', 'GH_TOKEN': SYNTHETIC_TOKEN, 'GITHUB_TOKEN': SYNTHETIC_TOKEN,
+                                'GH_PROMPT_DISABLED': '1', 'GH_NO_UPDATE_NOTIFIER': '1'})
     result['trust'] = {'github_ca': str(tls['ca_cert']),
                        'instruction': 'concatenate with the gateway CA via github_sidecar.trust_bundle and mount '
                                       'the bundle where SSL_CERT_FILE/NODE_EXTRA_CA_CERTS/CURL_CA_BUNDLE point'}
-    result['paths'].update({'clone': _container_path(workspace, clone), 'repository': f'{repo["owner"]}/{repo["name"]}',
-                            'pull_request': pull['number'], 'api': f'https://{scenario["host"]}/api/v3'})
-    result['notes'].append('the local clone has real Git commits; the synthetic API serves the frozen head '
-                           f'{pull["head_sha"]}, which no local commit carries')
+    head_commit = commits['heads'][pull['head_ref']]
+    result['paths'].update({'repository': f'{repo["owner"]}/{repo["name"]}', 'pull_request': pull['number'],
+                            'clone_url': f'https://github.com/{repo["owner"]}/{repo["name"]}.git',
+                            'api': 'https://api.github.com', 'head_ref': pull['head_ref'],
+                            'git_head_commit': head_commit, 'git_base_commit': commits['base_sha'],
+                            'served_head_sha': pull['head_sha'], 'head_matches_git': head_commit == pull['head_sha']})
+    if head_commit != pull['head_sha']:
+        result['notes'].append(f'the frozen head {pull["head_sha"]} is not a Git object ID, so merge-pr.sh rejects '
+                               f'the PR state as invalid; the deterministic fixture commit is {head_commit}')
 
 
 def unavailable_review_routing(capabilities: dict) -> dict:

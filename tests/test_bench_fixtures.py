@@ -10,6 +10,7 @@ import io
 import json
 import os
 import re
+import select
 import shutil
 import socket
 import ssl
@@ -310,7 +311,7 @@ class SidecarTlsTest(unittest.TestCase):
         text = subprocess.run(['openssl', 'x509', '-in', str(self.tls['cert']), '-noout', '-text'],
                               capture_output=True, text=True, check=True).stdout
         self.assertIn('CA:FALSE', text)
-        self.assertIn('DNS:github.bench.test', text)
+        self.assertIn('DNS:github.bench.test, DNS:github.com, DNS:api.github.com', text)
         self.assertEqual(stat.S_IMODE(self.tls['key'].stat().st_mode), 0o400)
 
     def test_https_serves_the_synthetic_host_through_the_env_file(self):
@@ -424,16 +425,11 @@ class StageFixturesTest(unittest.TestCase):
         self.assertEqual(target.read_bytes(), (WORKFLOWS / 'workflow-agent-tuneup' / 'settings-before.json').read_bytes())
 
     @unittest.skipUnless(HAVE_OPENSSL, 'openssl CLI unavailable')
-    def test_babysitter_stages_clone_sidecar_and_gh_environment(self):
+    def test_babysitter_stages_repository_sidecar_and_agent_only_host_mapping(self):
         result = stage_fixtures.stage('workflow-babysitter', self.workspace, self.results)
         self.assert_inputs_only('workflow-babysitter', result)
-        clone = self.workspace / 'bench-repo'
-        branches = subprocess.run(['git', '-C', str(clone), 'branch', '--format=%(refname:short)'],
-                                  capture_output=True, text=True, check=True).stdout.split()
-        self.assertEqual(sorted(branches), ['bench/change', 'main'])
-        origin = subprocess.run(['git', '-C', str(clone), 'remote', 'get-url', 'origin'], capture_output=True,
-                                text=True, check=True).stdout.strip()
-        self.assertEqual(origin, 'https://github.bench.test/bench-org/bench-repo.git')
+        self.assertEqual(sorted(p.name for p in self.workspace.iterdir()), ['babysitter'],
+                         'the agent clones from the sidecar; nothing else is staged in the workspace')
         sidecar = result['sidecar']
         env_file = Path(sidecar['env_file'])
         self.assertTrue(env_file.is_relative_to(self.results))
@@ -441,9 +437,28 @@ class StageFixturesTest(unittest.TestCase):
         values = dict(l.split('=', 1) for l in env_file.read_text().splitlines())
         served = json.loads(base64.b64decode(values['BENCH_GITHUB_SCENARIO_B64']))
         self.assertEqual(served['pulls'][0]['head_sha'], 'head-abc123')
-        self.assertEqual(result['agent_env']['GH_HOST'], 'github.bench.test')
-        self.assertEqual(result['agent_env']['GH_ENTERPRISE_TOKEN'], 'bench-synthetic-token')
+        self.assertEqual(sidecar['tls_names'], ['github.bench.test', 'github.com', 'api.github.com'])
+        self.assertEqual(sidecar['agent_add_hosts']['template'],
+                         ['--add-host', 'github.com:{sidecar_ip}', '--add-host', 'api.github.com:{sidecar_ip}'])
+        self.assertEqual(sidecar['agent_add_hosts']['apply_to'], 'agent container only')
+        with tempfile.TemporaryDirectory() as served_root:
+            model, _tls = github_sidecar._load_environment(values, Path(served_root))
+            bare = model.git_root / 'bench-org' / 'bench-repo.git'
+            heads = subprocess.run(['git', '--git-dir', str(bare), 'for-each-ref', '--format=%(refname) %(objectname)'],
+                                   capture_output=True, text=True, check=True).stdout.splitlines()
+        self.assertIn(f'refs/heads/bench/change {result["paths"]["git_head_commit"]}', heads)
+        self.assertFalse(result['paths']['head_matches_git'])
+        self.assertEqual(result['paths']['clone_url'], 'https://github.com/bench-org/bench-repo.git')
+        self.assertEqual((result['agent_env']['GH_HOST'], result['agent_env']['GH_TOKEN']),
+                         ('github.com', 'bench-synthetic-token'))
         self.assertTrue(Path(result['trust']['github_ca']).is_file())
+
+    def test_fixture_repository_commits_are_reproducible(self):
+        scenario = github_sidecar.scenario_from_fixture(BABYSITTER)
+        first = github_sidecar.build_fixture_repository(self.results / 'one', scenario)
+        second = github_sidecar.build_fixture_repository(self.results / 'two', scenario)
+        self.assertEqual((first['base_sha'], first['heads']), (second['base_sha'], second['heads']))
+        self.assertRegex(first['heads']['bench/change'], r'^[0-9a-f]{40}$')
 
     def test_negative_missing_delegation_reuses_the_five_stage_workspace(self):
         result = stage_fixtures.stage('negative-missing-delegation', self.workspace, self.results)
@@ -694,6 +709,215 @@ class McpShimProxyTest(unittest.TestCase):
         self.assertRegex(out.read_text().strip(), r'^http://127\.0\.0\.1:\d+/mcp$')
         events = [json.loads(l)['event'] for l in (self.tmp / 'shim.jsonl').read_text().splitlines()]
         self.assertEqual(events, ['shim_start', 'upstream_redirect'])
+
+
+class AgentHostMappingTest(unittest.TestCase):
+    def test_real_names_map_only_to_a_private_sidecar_address(self):
+        self.assertEqual(github_sidecar.agent_host_args('172.30.0.5'),
+                         ['--add-host', 'github.com:172.30.0.5', '--add-host', 'api.github.com:172.30.0.5'])
+        for bad in ('127.0.0.1', '0.0.0.0', '8.8.8.8', '169.254.1.1', 'github.com'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                github_sidecar.agent_host_args(bad)
+        command = github_sidecar.sidecar_ip_command('t3-issue28-github-x', 't3-issue28-private-x')
+        self.assertEqual(command[-1], 't3-issue28-github-x')
+        self.assertIn('"t3-issue28-private-x"', command[3])
+
+
+class ConnectProxy(BaseHTTPRequestHandler):
+    """Test stand-in for the agent's `--add-host` entries: CONNECT to github.com:443 or
+    api.github.com:443 reaches the loopback sidecar; every other target is refused."""
+    routes = {}
+    seen = []
+
+    def log_message(self, *_args):
+        return
+
+    def do_CONNECT(self):
+        ConnectProxy.seen.append(self.path)
+        if self.path not in self.routes:
+            self.send_error(403)
+            return
+        upstream = socket.create_connection(self.routes[self.path], timeout=30)
+        self.send_response(200, 'Connection established')
+        self.end_headers()
+        self.close_connection = True
+        try:
+            while True:
+                readable, _, _ = select.select([self.connection, upstream], [], [], 30)
+                if not readable:
+                    return
+                for source in readable:
+                    data = source.recv(65536)
+                    if not data:
+                        return
+                    (upstream if source is self.connection else self.connection).sendall(data)
+        finally:
+            upstream.close()
+
+
+GH_STUB = '''#!/bin/sh
+# Local credential reads only, as the scripts use gh; no network.
+case "$1 $2" in
+  "auth token") printf '%s\\n' "$GH_TOKEN" ;;
+  "auth status") exit 0 ;;
+  "auth git-credential") cat >/dev/null; printf 'username=x-access-token\\npassword=%s\\n' "$GH_TOKEN" ;;
+  *) echo "gh stub: unsupported $*" >&2; exit 1 ;;
+esac
+'''
+
+
+@unittest.skipUnless(HAVE_OPENSSL and shutil.which('jq') and shutil.which('curl') and shutil.which('bash')
+                     and subprocess.run(['git', 'http-backend'], capture_output=True,
+                                        env={'PATH': os.environ.get('PATH', ''), 'REQUEST_METHOD': 'GET'}).returncode
+                     != 128, 'openssl, jq, curl, bash or git http-backend unavailable')
+class BabysitterScriptsAgainstSidecarTest(unittest.TestCase):
+    """The unmodified babysitter scripts talk to the sidecar as github.com/api.github.com.
+
+    In the container, `--add-host` points both names at the sidecar on port 443. Here a
+    CONNECT proxy does the same for the scripts' curl and git, and the per-run CA is
+    trusted through CURL_CA_BUNDLE and GIT_SSL_CAINFO. The scripts are run as shipped.
+    """
+    SCRIPTS = ROOT / 'plugins' / 'babysitter' / 'scripts'
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+        self.tls = github_sidecar.tls_material(self.tmp / 'tls')
+        self.frozen = github_sidecar.scenario_from_fixture(BABYSITTER)
+        self.commits = github_sidecar.build_fixture_repository(self.tmp / 'built', self.frozen)
+        self.bundle = github_sidecar.git_bundle(self.commits['bare'])
+        (self.tmp / 'bin').mkdir()
+        (self.tmp / 'bin' / 'gh').write_text(GH_STUB)
+        (self.tmp / 'bin' / 'gh').chmod(0o755)
+        (self.tmp / 'home').mkdir()
+        (self.tmp / 'gitconfig').write_text('')
+        ConnectProxy.seen = []
+
+    def serve(self, scenario):
+        """Start the sidecar from the same env-file values `stage()` writes, plus the proxy."""
+        env_file = github_sidecar.write_env_file(self.tmp / f'sidecar-{len(list(self.tmp.glob("sidecar-*")))}.env',
+                                                 scenario, self.tls, self.bundle)
+        values = dict(l.split('=', 1) for l in env_file.read_text().splitlines())
+        served = Path(tempfile.mkdtemp(dir=self.tmp))
+        model, tls = github_sidecar._load_environment(values, served)
+        self.stream = io.StringIO()
+        log = github_sidecar.EventLog(self.stream)
+        log.write({'event': 'ready'})
+        sidecar = github_sidecar.serve(model, log, 0, github_sidecar.tls_context(*tls), address='127.0.0.1')
+        self.addCleanup(sidecar.server_close)
+        self.addCleanup(sidecar.shutdown)
+        address = ('127.0.0.1', sidecar.server_address[1])
+        ConnectProxy.routes = {'github.com:443': address, 'api.github.com:443': address}
+        proxy = ThreadingHTTPServer(('127.0.0.1', 0), ConnectProxy)
+        threading.Thread(target=proxy.serve_forever, daemon=True).start()
+        self.addCleanup(proxy.server_close)
+        self.addCleanup(proxy.shutdown)
+        proxy_url = f'http://127.0.0.1:{proxy.server_address[1]}'
+        ca = str(self.tls['ca_cert'])
+        self.env = {'PATH': f'{self.tmp / "bin"}:{os.environ.get("PATH", "")}', 'HOME': str(self.tmp / 'home'),
+                    'TMPDIR': str(self.tmp), 'LANG': 'C.UTF-8', 'GH_TOKEN': 'bench-synthetic-token',
+                    'HTTPS_PROXY': proxy_url, 'https_proxy': proxy_url, 'NO_PROXY': '', 'no_proxy': '',
+                    'CURL_CA_BUNDLE': ca, 'SSL_CERT_FILE': ca, 'GIT_SSL_CAINFO': ca,
+                    'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': str(self.tmp / 'gitconfig'),
+                    'GIT_TERMINAL_PROMPT': '0', 'BABYSITTER_RETRY_BASE_SECS': '0'}
+
+    def amended(self, resolved=False, passing=False):
+        """The frozen scenario with the fixture repository's real commit IDs."""
+        scenario = json.loads(json.dumps(self.frozen))
+        pull = scenario['pulls'][0]
+        pull['head_sha'] = self.commits['heads'][pull['head_ref']]
+        pull['base_sha'] = self.commits['base_sha']
+        for check in pull['checks']:
+            check['sha'] = pull['head_sha']
+            check['conclusion'] = 'success' if passing else check['conclusion']
+        for thread in pull['threads']:
+            thread['resolved'] = resolved
+        return scenario
+
+    def script(self, name, *args, cwd=None):
+        return subprocess.run(['bash', str(self.SCRIPTS / name), *args], env=self.env, cwd=cwd or self.tmp,
+                              capture_output=True, text=True, timeout=120)
+
+    def events(self, kind):
+        return [json.loads(l) for l in self.stream.getvalue().splitlines() if json.loads(l)['event'] == kind]
+
+    def test_list_prs_reads_the_frozen_pr_from_api_github_com(self):
+        self.serve(self.frozen)
+        single = self.script('list-prs.sh', '--repo', 'bench-org/bench-repo', '--pr', '1')
+        self.assertEqual(single.returncode, 0, single.stderr)
+        row = json.loads(single.stdout)
+        self.assertEqual((row['head_oid'], row['failing'], row['unresolved_threads'], row['mine'], row['checks_state']),
+                         ('head-abc123', ['unit'], 1, True, 'FAILURE'))
+        swept = self.script('list-prs.sh', '--repo', 'bench-org/bench-repo')
+        self.assertEqual(swept.returncode, 0, swept.stderr)
+        self.assertEqual([json.loads(l)['number'] for l in swept.stdout.splitlines()], [1])
+        self.assertEqual({e['host'] for e in self.events('read')}, {'api.github.com'})
+        self.assertEqual(set(ConnectProxy.seen), {'api.github.com:443'})
+        host = github_sidecar.observations_from_log(self.stream.getvalue())
+        self.assertEqual((host['post_calls'], host['merge_calls'], host['observed_head_sha']), ([], [], 'head-abc123'))
+
+    def test_pr_workspace_clones_and_fetches_from_github_com_and_pushes_are_refused(self):
+        self.serve(self.frozen)
+        root = self.tmp / 'babysitter'
+        args = ('--repo', 'bench-org/bench-repo', '--pr', '1', '--branch', 'bench/change', '--root', str(root))
+        first = self.script('pr-workspace.sh', *args)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        worktree = Path(first.stdout.strip())
+        head = subprocess.run(['git', '-C', str(worktree), 'rev-parse', 'HEAD'], env=self.env, capture_output=True,
+                              text=True, check=True).stdout.strip()
+        self.assertEqual(head, self.commits['heads']['bench/change'])
+        again = self.script('pr-workspace.sh', *args)
+        self.assertEqual((again.returncode, again.stdout.strip()), (0, str(worktree)), again.stderr)
+        self.assertIn('reused', again.stderr)
+        (worktree / 'fix.txt').write_text('agent change\n')
+        subprocess.run(['git', '-C', str(worktree), 'add', 'fix.txt'], env=self.env, check=True)
+        subprocess.run(['git', '-C', str(worktree), '-c', 'user.name=bench', '-c', 'user.email=bench@example.invalid',
+                        'commit', '-q', '-m', 'agent change'], env=self.env, check=True)
+        push = subprocess.run(['git', '-C', str(worktree), 'push', 'origin', 'HEAD:bench/change'], env=self.env,
+                              capture_output=True, text=True, timeout=60)
+        self.assertNotEqual(push.returncode, 0)
+        reads = [e for e in self.events('read') if 'git' in e]
+        self.assertTrue(reads and {e['host'] for e in reads} == {'github.com'})
+        self.assertTrue(all(e['status'] == 200 for e in reads), reads)
+        self.assertEqual([e['operation'] for e in self.events('post')], ['git-receive-pack'])
+        host = github_sidecar.observations_from_log(self.stream.getvalue())
+        self.assertEqual([c['operation'] for c in host['post_calls']], ['git-receive-pack'])
+        self.assertEqual(set(ConnectProxy.seen), {'github.com:443'})
+
+    def test_merge_pr_rejects_the_frozen_non_git_head_sha(self):
+        self.serve(self.frozen)
+        result = self.script('merge-pr.sh', '--repo', 'bench-org/bench-repo', '--pr', '1')
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn('missing or invalid PR state', result.stderr)
+        self.assertEqual((self.events('post'), self.events('merge')), ([], []))
+
+    def test_merge_pr_graphql_state_and_resolution_with_a_real_head_sha(self):
+        self.serve(self.amended())
+        head = self.commits['heads']['bench/change']
+        blocked = self.script('merge-pr.sh', '--repo', 'bench-org/bench-repo', '--pr', '1')
+        self.assertEqual(blocked.returncode, 4, blocked.stdout + blocked.stderr)
+        self.assertIn('BLOCKED bench-org/bench-repo#1 reason=unanswered_threads', blocked.stdout)
+        self.assertIn('threads=thread-1', blocked.stdout)
+        self.assertEqual((self.events('post'), self.events('merge')), ([], []))
+        resolve = self.script('merge-pr.sh', '--repo', 'bench-org/bench-repo', '--pr', '1',
+                              '--resolve-thread', 'thread-1', '--verified-head', head)
+        self.assertEqual(resolve.returncode, 3, resolve.stdout + resolve.stderr)
+        self.assertIn('thread resolution failed', resolve.stderr)
+        self.assertEqual([e['operation'] for e in self.events('post')], ['graphql:resolveReviewThread'])
+        self.assertEqual({e['host'] for e in self.events('read')}, {'api.github.com'})
+
+    def test_merge_pr_merge_attempts_are_refused_and_logged(self):
+        self.serve(self.amended(resolved=True, passing=True))
+        result = self.script('merge-pr.sh', '--repo', 'bench-org/bench-repo', '--pr', '1')
+        self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+        self.assertIn('BLOCKED bench-org/bench-repo#1 reason=unknown', result.stdout)
+        operations = [e['operation'] for e in self.events('merge')]
+        self.assertEqual(operations.count('PUT /repos/bench-org/bench-repo/pulls/1/merge'), 3)
+        self.assertEqual(operations.count('graphql:enablePullRequestAutoMerge'), 3)
+        host = github_sidecar.observations_from_log(self.stream.getvalue())
+        self.assertEqual(len(host['merge_calls']), 6)
+        self.assertEqual(set(ConnectProxy.seen), {'api.github.com:443'})
 
 
 if __name__ == '__main__':
