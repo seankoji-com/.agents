@@ -82,11 +82,12 @@ not read worker transcripts.
 | --- | --- | --- |
 | `uncertain_dispatch` | A launch had no clear answer after two same-ID retries | Find the task in T3. Nothing replaces it until it is proven absent or stopped |
 | `capacity_deferred` | T3 refused the launch while this job had live tasks | Wait; the retry follows the next completion notification from a task this job owns |
-| attempt budget exhausted | The stage used its initial attempt and every repair | Choose in the picker: raise the limit, narrow the work or stop |
+| `attempt_budget_exhausted` | The stage used its initial attempt and every repair | Choose in the picker: raise the limit, narrow the work or stop |
 | `undeclared_expansion` | The change adds work, widens authority or weakens a requirement | Answer the picker question; the agent records your exact words |
-| review absent, adverse or not independent | No approving reviewer on another known lineage | Configure a reviewer in routing; self-review cannot replace it |
-| `stale_evidence` or a stale predecessor | Inputs, pins or an earlier stage changed after acceptance | Let the agent repair and accept the stage again |
-| `wrong executing package` or a changed pin | A helper ran from a package the job did not pin | Load the entry printed by `--job JOB path PLUGIN` |
+| `required_review_unavailable`, or an adverse review | No approving reviewer on another known lineage | Configure a reviewer in routing; self-review cannot replace it |
+| `stale_evidence` or `dependency_stale` | Inputs, pins or an earlier stage changed after acceptance | Let the agent repair and accept the stage again |
+| `pin_mismatch` (`wrong executing package` or a changed pin) | A helper ran from a package the job did not pin | Load the entry printed by `--job JOB path PLUGIN` |
+| `pin_mismatch: legacy package has no worker bundle` | The active package predates worker bundles | Activate a listed version that has bundles, or run `t3-plugins setup PLUGIN` |
 | a rejected result | The worker returned prose, a partial object or oversize output | It counts as a failed attempt; results are never truncated or guessed |
 
 Blocked stages keep their counters. Resume, a new model or a replacement task never
@@ -94,11 +95,14 @@ resets them.
 
 ## Uninstall says a version is still in use
 
-`version_referenced` means a live or resumable job under
-`$XDG_STATE_HOME/t3-plugins/jobs` pins that package or worker bundle. Finish or
-cancel the job first; cancelling keeps its artifacts. Uninstall checks only that
-default jobs directory, so keep any version that a job under a custom `--state-root`
-still uses.
+`version_referenced` means a live or resumable job pins that package or worker
+bundle. Uninstall checks `$XDG_STATE_HOME/t3-plugins/jobs` and every state root
+recorded in `<agents-root>/job-index.json` when a job was created, including custom
+`--state-root` paths. Finish, cancel or discard the job first; both keep its artifacts.
+
+Uninstall also refuses when that index is corrupt, or when a recorded job's state is
+missing or unreadable and the job was never cancelled or discarded. Restore the state
+root, or repair the index entry if you deleted that job deliberately.
 
 ## `doctor` reports a worker bundle or job pin problem
 

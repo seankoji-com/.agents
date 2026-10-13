@@ -18,7 +18,7 @@ Run `t3-plugins --help` or `t3-plugins COMMAND --help` for all options.
 | `prompt PLUGIN [REQUEST…]` | Print a prompt to paste into T3; defaults to `doctor` |
 | `doctor [PLUGIN]` | Check installed files and package currency; omit the name for all plugins |
 | `activate PLUGIN VERSION` | Select an existing snapshot without migrating run state |
-| `uninstall PLUGIN [--version VERSION]` | Remove owned snapshot and bundle files, preserving local edits, overrides and state; refuses a version a live job pins |
+| `uninstall PLUGIN [--version VERSION]` | Remove owned snapshot and bundle files, preserving local edits, overrides and state; refuses a version a live job pins, in any recorded state root |
 | `skills install [PLUGIN] --root PATH` | Install an adapter into one provider skill root |
 | `skills uninstall [PLUGIN] --root PATH` | Remove an unchanged owned adapter |
 | `resolve ROLE --capabilities FILE` | List available configured child-model candidates |

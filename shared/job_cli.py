@@ -5,6 +5,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from core.jobs import prepare,record_result,decision,cancel,discard,record_dispatch,retry_task,revise_plan
 from shared.job_coordinator import create_pinned_job,verify_pinned_dependency,verify_all_pins,adopt_pins,pinned_store,prepare_task,prepare_followup,publish_observation,dispose_finding,record_observation,revise_document
 from shared.job_acceptance import validate_stage
+from shared.worker_registry import job_agents_roots,record_job_root
 from core.jobs.store import Store,JobError,strict_load
 
 def main(argv=None):
@@ -15,7 +16,7 @@ def main(argv=None):
   if a.command=='create' and (not a.prefix or not a.agents_root):raise JobError('create requires --prefix and --agents-root')
   if a.command!='create':
    job=verify_all_pins(store)
-   if not any(Path(pin['package_dir']).absolute()==Path(__file__).resolve().parents[1] for pin in job['pins'].values()):raise JobError('wrong executing package; use the stored pinned package recovery argv')
+   if not any(Path(pin['package_dir']).absolute()==Path(__file__).resolve().parents[1] for pin in job['pins'].values()):raise JobError('pin_mismatch: wrong executing package; use the stored pinned package recovery argv')
   if a.input:
    from core.jobs.store import _regular
    data=strict_load(_regular(Path(a.input),max_bytes=16*1024*1024))
@@ -52,11 +53,14 @@ def main(argv=None):
   elif a.command=='task-observation':out=record_observation(store,data['caller'],data['task_id'],data['event'])
   elif a.command=='retry':out=retry_task(store,data['caller'],data['task_id'],data['reason'],data.get('category','primary'))
   elif a.command=='plan-revision':
-   out=revise_plan(store,data['caller'],data['revision'],data['new_plan'],lambda job,deps: adopt_pins(job,deps,a.state_root,a.prefix or '',a.agents_root or '',a.config,data['revision'].get('adopt_keys',[])))
+   def adopt(job,deps):
+    pins=adopt_pins(job,deps,a.state_root,a.prefix or '',a.agents_root or '',a.config,data['revision'].get('adopt_keys',[]))
+    record_job_root(job_agents_roots(pins),a.state_root,a.job);return pins  # index new owning roots before the revision is written
+   out=revise_plan(store,data['caller'],data['revision'],data['new_plan'],adopt)
   elif a.command=='document-revision':out=revise_document(store,data['caller'],data['task_id'],data['document'],data['reason'])
   elif a.command=='decision':out=decision(store,data['caller'],data['decision'])
-  elif a.command=='cancel':out=cancel(store,data['caller'],data['reason'])
-  else:out=discard(store,data['caller'],data['reason'])
+  elif a.command=='cancel':out=cancel(store,data['caller'],data['reason']);record_job_root(job_agents_roots(out['pins']),a.state_root,a.job,'cancelled')
+  else:out=discard(store,data['caller'],data['reason']);record_job_root(job_agents_roots(out['pins']),a.state_root,a.job,'discarded')
   print(json.dumps(out,ensure_ascii=False,sort_keys=True));return 0
  except (JobError,KeyError,TypeError,ValueError,OSError,RecursionError) as e:print(f'job_error: {e}',file=sys.stderr);return 2
 if __name__=='__main__':raise SystemExit(main())
