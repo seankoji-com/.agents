@@ -234,7 +234,7 @@ class R2ReviewSupportTests(unittest.TestCase):
             ref = publish_observation(store, caller, "s0", str(input_path))
             stage = store.load()["stages"][0]
             argv = [str(validator), "--input", ref["path"]]
-            self.assertEqual(_adapter(store.load(), stage, argv, ref["path"])[0], validator)
+            self.assertEqual(os.path.realpath(_adapter(store.load(), stage, argv, ref["path"])[0]), os.path.realpath(validator))
             proc = subprocess.run(argv, capture_output=True, text=True)
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
