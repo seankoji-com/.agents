@@ -17,6 +17,18 @@ import importlib.util
 _spec = importlib.util.spec_from_file_location('tuneup_audit', Path(__file__).with_name('audit.py'))
 audit = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(audit)
+# The package's core/jobs/store.py (installed beside scripts/, or the source checkout root)
+# owns the one rule for immutable system symlinks; without it every symlink stays refused.
+_store = next((p / 'core/jobs/store.py' for p in Path(__file__).resolve().parents
+               if (p / 'core/jobs/store.py').is_file()), None)
+if _store is None:
+    def trusted_link(path):
+        return False
+else:
+    _spec = importlib.util.spec_from_file_location('tuneup_core_store', _store)
+    _core_store = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_core_store)
+    trusted_link = _core_store.trusted_link
 
 ADAPTERS = {'claude', 'codex', 'opencode', 'antigravity'}
 ROOTS = {
@@ -366,9 +378,10 @@ def checked_path(value):
     path = Path(value).expanduser()
     if not path.is_absolute() or '..' in path.parts:
         raise ValueError('absolute_path_required')
-    # Refuse symlinks in every component, including directory aliases.
+    # Refuse symlinks in every component, including directory aliases, except
+    # root-owned system links that no other user can swap (macOS /var, /tmp).
     for component in [*reversed(path.parents), path]:
-        if component.is_symlink():
+        if component.is_symlink() and not trusted_link(component):
             raise ValueError('symlink_refused')
     return path
 
@@ -379,8 +392,9 @@ def open_parent(path):
         raise ValueError('apply_requires_posix')
     fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY)
     try:
-        for component in path.parent.parts[1:]:
-            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+        for index, component in enumerate(path.parent.parts[1:], 2):
+            follow = trusted_link(Path(*path.parent.parts[:index]))
+            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | (0 if follow else os.O_NOFOLLOW), dir_fd=fd)
             os.close(fd)
             fd = child
         return fd

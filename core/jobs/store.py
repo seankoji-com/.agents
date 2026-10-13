@@ -1,19 +1,19 @@
 """Private, versioned generic job state. Stores evidence, not readiness."""
 from __future__ import annotations
-import fcntl, hashlib, json, os, re, stat, tempfile
+import fcntl, hashlib, itertools, json, math, os, re, stat, tempfile
 from pathlib import Path
 VERSION=1
-MAX_STATE_BYTES=16*1024*1024
+MAX_STATE_BYTES=16*1024*1024;MAX_JSON_DEPTH=512  # explicit: Python 3.14+ may parse far deeper without RecursionError
 class JobError(ValueError): pass
 def _pairs(pairs):
- out=dict(pairs)
- if len(out)!=len(pairs):raise JobError('duplicate JSON key: '+next(k for i,(k,_) in enumerate(pairs) if any(k==x for x,_ in pairs[:i])))
+ if len(out:=dict(pairs))!=len(pairs):raise JobError('duplicate JSON key: '+next(k for i,(k,_) in enumerate(pairs) if any(k==x for x,_ in pairs[:i])))
  return out
 def strict_load(data):
- def bad(x): raise JobError(f'non-finite number: {x}')
- def number(x):return float(x) if __import__('math').isfinite(float(x)) else bad(x)
- try:return json.loads(data.decode('utf-8') if isinstance(data,(bytes,bytearray)) else data,object_pairs_hook=_pairs,parse_constant=bad,parse_float=number)
+ def bad(x,why='non-finite number'): raise JobError(f'{why}: {x}')
+ try:v=json.loads(t:=data.decode('utf-8') if isinstance(data,(bytes,bytearray)) else data,object_pairs_hook=_pairs,parse_constant=bad,parse_float=lambda x:float(x) if math.isfinite(float(x)) else bad(x))
  except (UnicodeError,json.JSONDecodeError,RecursionError) as e:raise JobError(f'invalid JSON: {e}') from e
+ return v if json_depth(t)<=MAX_JSON_DEPTH else bad(MAX_JSON_DEPTH,'invalid JSON: nesting exceeds maximum depth')
+def json_depth(text):return max(itertools.accumulate(1 if c in '[{' else -1 for c in re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"|[^\][{}"]+','',text)),default=0)  # valid JSON only: strings are stripped, so quoted brackets never count
 def digest(data):return hashlib.sha256(data).hexdigest()
 def canonical(value):return (json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)+'\n').encode()
 def _regular(path,max_bytes=MAX_STATE_BYTES):
@@ -56,11 +56,11 @@ def _directory_fd(path,create=False):
  if '..' in path.parts:raise JobError('escaping directory path')
  fd=os.open(path.anchor,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
  try:
-  for part in path.parts[1:]:
+  for i,part in enumerate(path.parts[1:],2):
    if create:
     try:os.mkdir(part,0o700,dir_fd=fd)
     except FileExistsError:pass
-   nxt=os.open(part,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=fd);os.close(fd);fd=nxt
+   nxt=os.open(part,os.O_RDONLY|os.O_DIRECTORY|(0 if trusted_link(Path(*path.parts[:i])) else os.O_NOFOLLOW),dir_fd=fd);os.close(fd);fd=nxt
   return fd
  except BaseException:os.close(fd);raise
 def validate(j):
@@ -104,9 +104,11 @@ def validate(j):
  for key,value in j['policy'].items():
   if key.endswith('_bytes') and key!='max_artifact_bytes' and (type(value) is not int or value<1):raise JobError(f'invalid integer policy limit: {key}')
  return j
+def trusted_link(p):  # Root-owned symlink whose every ancestor is a root-owned directory no group/other can write (macOS /var, /tmp): only root can swap it.
+ try:return '..' not in Path(p).parts and stat.S_ISLNK((s:=os.lstat(p)).st_mode) and s.st_uid==0 and all((a:=os.stat(d)).st_uid==0 and not a.st_mode&0o022 for d in Path(p).absolute().parents)
+ except OSError:return False
 def _reject_symlink_components(path):
- path=Path(path).absolute();bad=next((c for c in (Path(*path.parts[:i]) for i in range(2,len(path.parts)+1)) if c.is_symlink()),None)
- if bad:raise JobError(f'symlink in job state path: {bad}')
+ if bad:=next((c for c in (Path(*Path(path).absolute().parts[:i]) for i in range(2,len(Path(path).absolute().parts)+1)) if c.is_symlink() and not trusted_link(c)),None):raise JobError(f'symlink in job state path: {bad}')
 def _authorize(job,caller,operation):
  if not isinstance(caller,dict):raise JobError('caller metadata is required')
  if caller.get('installation_id')!=job['installation_id'] or caller.get('workflow')!=job['workflow'] or caller.get('package_digest') not in {p['package_digest'] for p in job['pins'].values()}:
@@ -114,7 +116,6 @@ def _authorize(job,caller,operation):
  if caller.get('actor') not in ('coordinator','worker'):raise JobError('explicit caller actor is required')
  if caller['actor']!='coordinator' and operation!='worker-evidence':
   raise JobError('coordinator-only operation')
-
 class Store:
  def __init__(self,state_root,job_id,verify_pins=None):
   if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',job_id):raise JobError('unsafe job id')
@@ -142,8 +143,7 @@ class Store:
  def mutate(self,caller,fn):
   fd=self.locked()
   try:
-   j=self.verified_load()
-   _authorize(j,caller,'mutate')
+   j=self.verified_load();_authorize(j,caller,'mutate')
    if j.get('status')=='cancelled' or j.get('discard_requested'):raise JobError('job is cancelled or discarded')
    old=canonical(j);out=fn(j) or j;validate(out)
    if canonical(out)!=old:_atomic(self.file,canonical(out));self.overview(out)

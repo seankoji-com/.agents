@@ -2292,7 +2292,13 @@ class Pass13ContainerRepairTest(unittest.TestCase):
     def test_r12_co_01_special_removed_or_retyped_entries_fail_scope(self):
         def make_socket(path):
             # mknod makes a socket inode without binding, so no network access is needed.
-            os.mknod(path, stat.S_IFSOCK | 0o600)
+            # macOS reserves mknod for root; a bound and closed Unix socket leaves the same inode.
+            try:
+                os.mknod(path, stat.S_IFSOCK | 0o600)
+            except PermissionError:
+                import socket
+                with socket.socket(socket.AF_UNIX) as server:
+                    server.bind(str(path))
 
         def replace_with_directory(path):
             path.unlink()

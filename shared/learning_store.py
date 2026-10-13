@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,22 @@ import stat
 import subprocess
 import uuid
 from urllib.parse import urlsplit
+
+
+def _core_trusted_link():
+    """core/jobs/store.py's trusted_link, loaded by path so -I and relocated installs share
+    one rule; without the core package every symlink stays refused."""
+    store = next((p / 'core' / 'jobs' / 'store.py' for p in Path(__file__).resolve().parents
+                  if (p / 'core' / 'jobs' / 'store.py').is_file()), None)
+    if store is None:
+        return lambda path: False
+    spec = importlib.util.spec_from_file_location('t3_core_jobs_store', store)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.trusted_link
+
+
+trusted_link = _core_trusted_link()
 
 
 class Unavailable(ValueError):
@@ -95,13 +112,14 @@ def directory(path, create=False):
         raise Unavailable('safe directory operations unavailable on this platform')
     fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY)
     try:
-        for part in path.parts[1:]:
+        for index, part in enumerate(path.parts[1:], 2):
             if create:
                 try:
                     os.mkdir(part, 0o700, dir_fd=fd)
                 except FileExistsError:
                     pass
-            new = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            follow = trusted_link(Path(*path.parts[:index]))
+            new = os.open(part, os.O_RDONLY | os.O_DIRECTORY | (0 if follow else os.O_NOFOLLOW), dir_fd=fd)
             os.close(fd)
             fd = new
         yield fd

@@ -91,6 +91,8 @@ Adapters follow the plugin's `current` link, so upgrades and activation switches
 use the selected snapshot. Reinstall adapters if the prefix moves. They do not
 change provider settings or permissions. Existing skill folders, edited adapters,
 and symlinked skill paths are refused. For a symlinked root, pass its real directory.
+The one exception is a root-owned system link that no other user can replace, such
+as macOS `/var` or `/tmp`.
 For `setup`, custom roots replace all defaults: repeat `--root` for each real
 provider directory you want to populate. Setup also removes unchanged adapters for
 [retired plugins](getting-started.md#retired-plugins) from the same roots.

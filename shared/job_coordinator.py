@@ -2,7 +2,7 @@
 from pathlib import Path
 from shared.worker_registry import snapshot_pins,read_regular,digest,package_digest,verify_package_files,verify_bundle,compose_worker
 from core.jobs import create_job,JobError
-from core.jobs.store import Store, _directory_fd, _retain, requests
+from core.jobs.store import Store, _directory_fd, _retain, requests, trusted_link
 import json
 import os
 import shlex
@@ -24,7 +24,7 @@ def _write_probe(job,state_root):
         if part.parent==part:break
         part=part.parent
     for part in reversed(chain):
-        if part.is_symlink():raise JobError('symlink in pin probe path')
+        if part.is_symlink() and not trusted_link(part):raise JobError('symlink in pin probe path')
     probe=root/('.pin-probe-'+secrets.token_hex(12)+'.json')
     fd=os.open(probe,os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,'O_NOFOLLOW',0),0o600)
     try:
