@@ -30,6 +30,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       /opt/bench-home/.config /opt/bench-home/.local/share /opt/bench-home/.local/state \
       /opt/bench /run/secrets
 
+# stage6-fixtures: pinned gh and jq (babysitter scripts need both) from the signed
+# Debian bookworm archive; the build fails if either exact version is unavailable.
+# gh and curl then trust only the per-run bundle mounted at the gateway CA path,
+# which holds the gateway CA plus the synthetic GitHub CA (github_sidecar.trust_bundle).
+ARG GH_VERSION=2.23.0+dfsg1-1
+ARG JQ_VERSION=1.6-2.1
+RUN apt-get update && apt-get install -y --no-install-recommends "gh=${GH_VERSION}" "jq=${JQ_VERSION}" \
+    && rm -rf /var/lib/apt/lists/* \
+    && gh --version && jq --version
+ENV CURL_CA_BUNDLE=/run/secrets/bench-gateway-ca.pem \
+    GIT_SSL_CAINFO=/run/secrets/bench-gateway-ca.pem
+# end stage6-fixtures
+
 COPY t3-runtime/ /opt/t3-runtime/
 RUN ln -s /opt/t3-runtime/t3 /usr/local/bin/t3 \
     && claude --version | grep -F "${CLAUDE_VERSION}" \
