@@ -165,7 +165,7 @@ class PinSnapshotTest(unittest.TestCase):
                                   env=isolated_env, capture_output=True, text=True)
         self.assertEqual(imported.returncode, 0, imported.stderr)
         pin = json.loads(imported.stdout)
-        self.assertEqual(pin['package_dir'], package)
+        self.assertEqual(os.path.realpath(pin['package_dir']), os.path.realpath(package))
         self.assertIn('imps/stage-executor', pin['effective_workers'])
         self.assertEqual(pin['task_contract']['bytes'], 'Isolated installed task.')
         receipt = json.loads((Path(package) / 'install-manifest.json').read_text())

@@ -209,7 +209,7 @@ class R2ReviewSupportTests(unittest.TestCase):
             # The installed validator itself confirms the declared optional failure policy.
             proc = subprocess.run(argv, capture_output=True, text=True)
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-            self.assertEqual(_adapter(store.load(), stage, argv, ref["path"])[0], validator)
+            self.assertEqual(os.path.realpath(_adapter(store.load(), stage, argv, ref["path"])[0]), os.path.realpath(validator))
             stage["validator_contract"]["required_checks"] = []
             with self.assertRaises(AcceptanceError):
                 _adapter(store.load(), stage, argv, ref["path"])
@@ -254,7 +254,7 @@ class R2ReviewSupportTests(unittest.TestCase):
             create_pinned_job(job,state,prefix,agents,root/'config/workers.json'); store=pinned_store(state,job['job_id'])
             caller={'installation_id':manifest['installation_id'],'workflow':job['workflow'],'package_digest':manifest['package_digest'],'actor':'coordinator'}
             ref=publish_observation(store,caller,'s0',str(descriptor)); argv=[str(version/'scripts/validate_stage.py'),'--state-root',data['state_root'],'--final-plan',str(plan)]
-            self.assertEqual(_adapter(store.load(),store.load()['stages'][0],argv,ref['path'])[0],Path(argv[0]))
+            self.assertEqual(os.path.realpath(_adapter(store.load(),store.load()['stages'][0],argv,ref['path'])[0]), os.path.realpath(Path(argv[0])))
             data.update(required_stages=['other'],stages=[{**row,'id':'other'}]); plan.write_text(json.dumps(data))
             with self.assertRaisesRegex(AcceptanceError,'gate identities/coverage'):
                 _adapter(store.load(),store.load()['stages'][0],argv,ref['path'])
@@ -362,7 +362,7 @@ class R2ReviewSupportTests(unittest.TestCase):
             caller={'installation_id':manifest['installation_id'],'workflow':job['workflow'],'package_digest':manifest['package_digest'],'actor':'coordinator'}
             inp=root/'descriptor.json';inp.write_text(json.dumps(contract));ref=publish_observation(store,caller,'s0',str(inp))
             argv=[str(version/'scripts/validate_document.py'),'--root',contract['root'],'--slug','fixture','--mode','handoff']
-            self.assertEqual(_adapter(store.load(),store.load()['stages'][0],argv,ref['path'])[0],Path(argv[0]))
+            self.assertEqual(os.path.realpath(_adapter(store.load(),store.load()['stages'][0],argv,ref['path'])[0]), os.path.realpath(Path(argv[0])))
             argv[2]='thinking'
             with self.assertRaisesRegex(AcceptanceError,'root must be absolute'):
                 _adapter(store.load(),store.load()['stages'][0],argv,ref['path'])
@@ -401,7 +401,7 @@ class R2ReviewSupportTests(unittest.TestCase):
             stage = store.load()["stages"][0]
             argv = [str(version / "scripts" / "validate_document.py"), "--root", str(root), "--slug", "docs",
                     "--mode", "cold-read", "--input", ref["path"]]
-            self.assertEqual(_adapter(store.load(), stage, argv, ref["path"])[0], version / "scripts" / "validate_document.py")
+            self.assertEqual(os.path.realpath(_adapter(store.load(), stage, argv, ref["path"])[0]), os.path.realpath(version / "scripts" / "validate_document.py"))
             del stage["validator_contract"]["slug"]
             with self.assertRaises(AcceptanceError):
                 _adapter(store.load(), stage, argv, ref["path"])

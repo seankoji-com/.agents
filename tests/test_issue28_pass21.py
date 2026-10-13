@@ -8,6 +8,7 @@ Unsafe job IDs given to the installed job CLI are invalid input (exit 2), not a 
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -172,7 +173,7 @@ class Pass21AdapterFinalPlanTests(unittest.TestCase):
 
             program, _, binding = adapt('final-unique', {'required_stages': ['s', 't'],
                                                          'stages': [row('s', 'good'), row('t', 'bad')]})
-            self.assertEqual(program, Path(argv[0]))
+            self.assertEqual(os.path.realpath(program), os.path.realpath(Path(argv[0])))
             self.assertEqual(binding['expected_outcome_ids'], ['imps-stage-s', 'imps-stage-t'])
             refused = {
                 'final-duplicate': {'required_stages': ['s'], 'stages': [row('s', 'good'), row('s', 'bad')]},
