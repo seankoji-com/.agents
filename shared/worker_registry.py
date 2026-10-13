@@ -45,7 +45,10 @@ WORKER_CATALOG = {
 
 
 class RegistryError(ValueError):
-    pass
+    """A registry refusal; `code` is a stable contract error code when one applies."""
+    def __init__(self, message='', code=None):
+        super().__init__(f'{code}: {message}' if code else message)
+        self.code = code
 
 
 _LOCK_DEPTH = {}
@@ -370,19 +373,100 @@ def assert_owned_locator(root: Path, identity: str, prefix: Path):
         raise RegistryError('identity conflict: this prefix is not the owned locator; explicit adoption is required')
 
 
+JOB_INDEX = 'job-index.json'
+JOB_INDEX_STATES = ('live', 'cancelled', 'discarded')
+JOB_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}')
+
+
+def job_agents_roots(pins: dict) -> list[Path]:
+    """The owning agents root of each pinned bundle: <root>/installations/<id>/<plugin>/<version>."""
+    roots = {Path(pin['bundle_dir']).absolute().parents[3] for pin in pins.values()
+             if isinstance(pin, dict) and isinstance(pin.get('bundle_dir'), str) and Path(pin['bundle_dir']).is_absolute()}
+    return sorted(roots, key=str)
+
+
+def load_job_index(agents_root: Path) -> dict:
+    """Read the private job-root index; corruption fails closed for removal."""
+    path = Path(agents_root) / JOB_INDEX
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return {'schema_version': 1, 'jobs': {}}
+    try: data = json.loads(read_regular(path, 'job root index').decode('utf-8'))
+    except (OSError, ValueError, UnicodeError) as exc: raise RegistryError(f'job root index is corrupt; refusing removal: {path}') from exc
+    jobs = data.get('jobs') if isinstance(data, dict) and data.get('schema_version') == 1 else None
+    if not isinstance(jobs, dict) or any(
+            not isinstance(entry, dict) or set(entry) != {'state_root', 'job_id', 'status'} or
+            not isinstance(entry['state_root'], str) or not Path(entry['state_root']).is_absolute() or
+            not isinstance(entry['job_id'], str) or not JOB_ID.fullmatch(entry['job_id']) or
+            entry['status'] not in JOB_INDEX_STATES or key != str(Path(entry['state_root']) / entry['job_id'])
+            for key, entry in jobs.items()):
+        raise RegistryError(f'job root index is malformed; refusing removal: {path}')
+    return data
+
+
+def record_job_root(agents_roots, state_root, job_id: str, status: str = 'live') -> list[Path]:
+    """Atomically index a job's state root in each owning agents root.
+
+    A live record never overwrites an existing one; cancel/discard records replace it.
+    Returns the roots where a new record was added, so a failed creation can roll back.
+    """
+    if status not in JOB_INDEX_STATES or not isinstance(job_id, str) or not JOB_ID.fullmatch(job_id):
+        raise RegistryError('invalid job root index record')
+    state = str(Path(state_root).expanduser().absolute())
+    key = str(Path(state) / job_id)
+    added = []
+    for root in sorted({Path(r).absolute() for r in agents_roots}, key=str):
+        with locked(root):
+            index = load_job_index(root)
+            if key not in index['jobs']: added.append(root)
+            elif status == 'live': continue
+            index['jobs'][key] = {'state_root': state, 'job_id': job_id, 'status': status}
+            atomic(root / JOB_INDEX, canonical(index), 0o600)
+    return added
+
+
+def forget_job_root(agents_roots, state_root, job_id: str) -> None:
+    """Remove live records this process added for a job that was never created."""
+    key = str(Path(state_root).expanduser().absolute() / job_id)
+    for root in sorted({Path(r).absolute() for r in agents_roots}, key=str):
+        with locked(root):
+            index = load_job_index(root)
+            if index['jobs'].get(key, {}).get('status') == 'live':
+                del index['jobs'][key]
+                atomic(root / JOB_INDEX, canonical(index), 0o600)
+
+
 def referenced_versions(agents_root: Path, bundle: Path | None, state_root: Path | None = None,
                         package_dir: Path | None = None) -> list[str]:
-    """Find live/resumable job references conservatively; malformed jobs block deletion."""
+    """Find live/resumable job references conservatively; malformed jobs block deletion.
+
+    Scans the default (or given) job root and every state root recorded in the agents
+    root's job index. A recorded live job whose state is missing or unreadable blocks
+    removal; only an explicit job_cli cancel/discard releases it.
+    """
     if state_root is None:
         state_root = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))).expanduser() / 't3-plugins/jobs'
-    found = []
-    if not state_root.exists(): return found
-    for job_path in state_root.glob('*/job.json'):
+    found, seen = [], set()
+    job_paths = sorted(state_root.glob('*/job.json')) if state_root.exists() else []
+    index_path = Path(agents_root) / JOB_INDEX
+    for key, entry in sorted(load_job_index(agents_root)['jobs'].items()):
+        if entry['status'] != 'live': continue
+        job_path = Path(key) / 'job.json'
+        try:
+            if not stat.S_ISREG(job_path.lstat().st_mode): raise OSError('not a regular file')
+        except OSError as exc:
+            raise RegistryError(f'recorded job state is missing or unreadable; restore it, or cancel/discard the job '
+                                f'through job_cli before removal (index {index_path}): {key}') from exc
+        job_paths.append(job_path)
+    for job_path in job_paths:
+        if job_path.absolute() in seen: continue
+        seen.add(job_path.absolute())
         try: job = json.loads(read_regular(job_path, 'job state').decode('utf-8'))
         except (OSError, ValueError, UnicodeError) as exc: raise RegistryError(f'cannot determine pin references: {job_path}') from exc
         if not isinstance(job, dict) or job.get('schema_version') != 1: raise RegistryError(f'unknown job schema blocks removal: {job_path}')
         status = job.get('status', 'live')
-        if status in ('accepted', 'cancelled', 'discarded', 'complete'): continue
+        if status in ('accepted', 'cancelled', 'discarded', 'complete') or job.get('discard_requested'): continue
         pins = job.get('pins', {})
         deps = job.get('dependencies', [])
         if not isinstance(pins, dict) or not isinstance(deps, list):
@@ -680,6 +764,20 @@ def validate_override(root: Path, worker_id: str, base_digest: str, cfg: dict) -
     return {'status': 'enabled', 'path': str(path), 'content': text, 'sha256': digest(data)}
 
 
+def bundled_versions(plugin_root: Path, plugin: str) -> list[str]:
+    """Installed versions of a plugin whose receipts name a worker bundle (not verified here)."""
+    found = []
+    if not plugin_root.is_dir() or plugin_root.is_symlink(): return found
+    for version_dir in sorted(plugin_root.iterdir()):
+        if version_dir.name == 'current' or version_dir.is_symlink() or not version_dir.is_dir(): continue
+        try: receipt = json.loads(read_regular(version_dir / 'install-manifest.json', 'package receipt').decode('utf-8'))
+        except (OSError, ValueError, UnicodeError): continue
+        if (isinstance(receipt, dict) and receipt.get('plugin') == plugin and receipt.get('bundle_dir') and
+                not receipt.get('preserved_modified')):
+            found.append(version_dir.name)
+    return found
+
+
 def snapshot_pins(job_path: Path, dependency_plugins: dict[str, str], prefix: Path, agents_root: Path,
                   config_path: Path | None = None, task_contract: bytes | None = None) -> dict:
     """Return exact dependency-keyed package/bundle/worker/limits pin payload for Stage 3."""
@@ -715,11 +813,16 @@ def snapshot_pins(job_path: Path, dependency_plugins: dict[str, str], prefix: Pa
             version_dir = current.resolve()
         try: manifest = json.loads(read_regular(version_dir / 'install-manifest.json', 'package receipt').decode('utf-8'))
         except (OSError, ValueError, UnicodeError) as exc: raise RegistryError(f'unresolved package pin: {key}') from exc
-        if manifest.get('plugin') != plugin or manifest.get('version') != version_dir.name: raise RegistryError(f'wrong package pin: {key}')
+        if manifest.get('plugin') != plugin or manifest.get('version') != version_dir.name: raise RegistryError(f'wrong package pin: {key}', 'pin_mismatch')
+        if not manifest.get('bundle_dir'):
+            bundled = bundled_versions(version_dir.parent, plugin)
+            raise RegistryError(f'legacy package has no worker bundle: {key} ({plugin} {version_dir.name}); new-format jobs '
+                                f'need a package with worker bundles; installed versions with bundles: '
+                                f'{", ".join(bundled) if bundled else "none (install the current release)"}', 'pin_mismatch')
         package_hash = manifest.get('package_digest')
-        if not isinstance(package_hash, str) or not re.fullmatch(r'[0-9a-f]{64}', package_hash): raise RegistryError(f'package digest missing: {key}')
+        if not isinstance(package_hash, str) or not re.fullmatch(r'[0-9a-f]{64}', package_hash): raise RegistryError(f'package digest missing: {key}', 'pin_mismatch')
         verify_package_files(version_dir, manifest)
-        if package_digest(manifest) != package_hash: raise RegistryError(f'package manifest digest mismatch: {key}')
+        if package_digest(manifest) != package_hash: raise RegistryError(f'package manifest digest mismatch: {key}', 'pin_mismatch')
         identity = manifest.get('installation_id')
         dependency_root = Path(manifest.get('agents_root', '')).expanduser().absolute()
         if uses_active_locator and dependency_root != agents_root.absolute():
@@ -734,7 +837,7 @@ def snapshot_pins(job_path: Path, dependency_plugins: dict[str, str], prefix: Pa
         assert_owned_locator(dependency_root, identity, package_prefix)
         checked = verify_bundle(bundle, identity, plugin, manifest['version'], package_hash)
         declared_bundle_digest = item.get('bundle_digest') or existing_pin.get('bundle_digest') or manifest.get('bundle_digest')
-        if checked['bundle_digest'] != declared_bundle_digest: raise RegistryError(f'bundle digest mismatch: {key}')
+        if checked['bundle_digest'] != declared_bundle_digest: raise RegistryError(f'bundle digest mismatch: {key}', 'pin_mismatch')
         workers, shared = {}, {}
         for asset in checked['manifest']['assets']:
             data = (bundle / asset['path']).read_bytes()

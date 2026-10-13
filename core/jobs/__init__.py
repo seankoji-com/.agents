@@ -38,7 +38,7 @@ def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason
     if not callable(verify_pin):raise JobError('pinned dependency verifier is required')
     def check(job):
         for dep in job['dependencies']:
-            if verify_pin(dep,job['pins'][dep['key']]) is not True:raise JobError('pinned dependency verification failed')
+            if verify_pin(dep,job['pins'][dep['key']]) is not True:raise JobError('pin_mismatch: pinned dependency verification failed')
     store.verify_pins=check
     def apply(j):
         task=next((t for t in j['tasks'] if t['task_id']==task_id),None)
@@ -47,7 +47,7 @@ def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason
         if task.get('uncertain_calls') and not any(h.get('request_id')==task['request_id'] for h in task.get('handles',[])+task.get('followups',[])) or task.get('blocked_reason')=='uncertain_dispatch' or _open_dispatch(task):raise JobError(_open_dispatch(task) or 'uncertain original must be reconciled before fresh preparation')
         stage=next(s for s in j['stages'] if s['id']==task['stage_id'])
         if _spent(stage) or task.get('attempt',0) and (task.get('status')=='stale' or task.get('inputs_stale')):raise JobError('stale reexecution or a new execution in a validated pass requires a charged repair pass')
-        if task.get('attempt',0)>=1+j['policy']['max_repair_cycles']:raise JobError('task execution budget exhausted')
+        if task.get('attempt',0)>=1+j['policy']['max_repair_cycles']:raise JobError('attempt_budget_exhausted: task execution budget exhausted')
         for dep in stage.get('depends_on',[]):
             if not callable(verify_acceptance) or verify_acceptance(dep) is not True:raise JobError('predecessor acceptance is not current')
         pin=j['pins'][task['dependency_key']];effective=pin['effective_workers'].get(task['worker_id'])
@@ -95,7 +95,7 @@ def record_result(store,caller,task_id,result,result_parser=None):
         if not isinstance(completion_id,str) or not completion_id:raise JobError('result completion_id is required for idempotent ingestion')
         if any(x.get('completion_id')==completion_id for x in task.get('execution_history',[])):return task
         if any(x.get('request_id')==request for x in task.get('execution_history',[])):raise JobError('request execution result already ingested')
-        if task['attempt']>=1+j['policy']['max_repair_cycles'] and not any(h.get('request_id')==request for h in handles):raise JobError('attempt budget exhausted')
+        if task['attempt']>=1+j['policy']['max_repair_cycles'] and not any(h.get('request_id')==request for h in handles):raise JobError('attempt_budget_exhausted: attempt budget exhausted')
         transport=store.path/'results'/(request+'.json');_retain(transport,bytes(result['result']),'result transport for this request is already retained for another execution')
         task['attempt']+=1
         try:parsed=parser(bytes(result['result']),expected,store.path if task.get('write_scope',{}).get('mode')=='worker-evidence' else None,j['policy']['max_artifact_bytes'])
@@ -156,7 +156,7 @@ def record_dispatch(store,caller,task_id,event):
         elif kind=='uncertain':
             if any(h.get('request_id')==request for h in handles):raise JobError('accepted request cannot become uncertain')
             calls=t.get('uncertain_calls',0)
-            if calls>=3:raise JobError('uncertain dispatch original plus two retries exhausted')
+            if calls>=3:raise JobError('uncertain_dispatch: uncertain dispatch original plus two retries exhausted')
             t['uncertain_calls']=calls+1;t['dispatch_retries']=calls;t['status']='awaiting-followup'
             if calls==2:t['blocked_reason']='uncertain_dispatch';t['status']='blocked'
         elif kind=='capacity-deferred':
@@ -188,7 +188,7 @@ def record_dispatch(store,caller,task_id,event):
             if any(h['request_id']==request and h.get('task_id')!=host_id for h in handles):raise JobError('request already has an accepted host handle')
             if any(h['request_id']==request for h in handles):return
             if not ((t.get('followup_dispatch') or {}).get('uncertain_calls') and (t.get('followup_dispatch') or {}).get('request_id')==request) and (t.get('attempt',0)>=1+j['policy']['max_repair_cycles'] or t.get('inputs_stale') or t.get('status')=='stale' or _spent(next(s for s in j['stages'] if s['id']==t['stage_id']))):raise JobError('stale, validated-pass or exhausted task requires a charged fresh preparation, not a follow-up')
-            if len(_slot_followups(j,t))>=t.get('max_followups',1):raise JobError('declared followup budget exhausted')
+            if len(_slot_followups(j,t))>=t.get('max_followups',1):raise JobError('attempt_budget_exhausted: declared followup budget exhausted')
             staged=t.get('prepared_followup',{})
             if staged.get('request_id')!=request:raise JobError('followup requires a prepared immutable brief')
             if digest(raw:=_regular(Path(staged['path'])))!=staged['sha256'] or t['request_id']!=strict_load(raw).get('followup_of') or t['request_id']!=parent['request_id']:raise JobError('prepared followup brief changed or follows a superseded request')
@@ -212,8 +212,8 @@ def worker_write(store,caller,task_id,relative_path,data):
         scope=task.get('write_scope',{});prefix=scope.get('path')
         if caller.get('actor')=='worker' and (caller.get('task_id')!=task_id or caller.get('stage_id')!=task['stage_id'] or caller.get('scope')!=scope or caller.get('package_digest')!=j['pins'][task['dependency_key']]['package_digest']):raise JobError('worker actor does not own assigned evidence')
         rel=Path(relative_path)
-        if scope.get('mode')!='worker-evidence' or not isinstance(prefix,str) or not relative_path.startswith(prefix.rstrip('/')+'/') or rel.as_posix()!=relative_path or rel.is_absolute() or '..' in rel.parts:raise JobError('write outside assigned artifact subtree')
-        if any(not __import__('re').fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',p) for p in rel.parts):raise JobError('unsafe artifact path')
+        if scope.get('mode')!='worker-evidence' or not isinstance(prefix,str) or not relative_path.startswith(prefix.rstrip('/')+'/') or rel.as_posix()!=relative_path or rel.is_absolute() or '..' in rel.parts:raise JobError('artifact_invalid: write outside assigned artifact subtree')
+        if any(not __import__('re').fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',p) for p in rel.parts):raise JobError('artifact_invalid: unsafe artifact path')
         if any(a.get('path')==relative_path for h in task.get('execution_history',[]) for a in h.get('result',{}).get('artifacts',[])):raise JobError('prior execution evidence is immutable')
         if any(h.get('transport_ref',{}).get('kind')=='artifact' and strict_load(_regular(Path(h['transport_ref']['transport_path'])))['artifact']['path']==relative_path for h in task.get('execution_history',[])):raise JobError('prior full-result artifact is immutable')
         _atomic(store.path/rel,data)
@@ -230,8 +230,8 @@ def retry_task(store,caller,task_id,reason,category='primary'):
         if t.get('status') not in ('failed','blocked','stale','awaiting-acceptance'):raise JobError('task is not eligible for retry')
         stage=next(s for s in j['stages'] if s['id']==t['stage_id']);counter=stage.setdefault('attempts',{}).setdefault(category,0)
         cur=stage.get('cycle',0);advance=t.get('cycle',cur if t.get('attempt') or t.get('handles') or t.get('followups') or t.get('execution_history') else 0)>=cur or _spent(stage)  # executed in this pass, executed but unbound, or a validated pass: charge
-        if advance and stage.get('cycle',0)>=j['policy']['max_repair_cycles']:raise JobError('shared stage repair cycle budget exhausted')
-        if t.get('attempt',0)>=1+j['policy']['max_repair_cycles']:raise JobError('task execution budget exhausted')
+        if advance and stage.get('cycle',0)>=j['policy']['max_repair_cycles']:raise JobError('attempt_budget_exhausted: shared stage repair cycle budget exhausted')
+        if t.get('attempt',0)>=1+j['policy']['max_repair_cycles']:raise JobError('attempt_budget_exhausted: task execution budget exhausted')
         if advance:stage['cycle']=stage.get('cycle',0)+1;stage['attempts'][category]=counter+1
         t['cycle']=stage['cycle'];t.pop('blocked_reason',None);t.pop('inputs_stale',None);t['uncertain_calls']=0;t['status']='pending';t.setdefault('retry_reasons',[]).append(reason)
         t.setdefault('original_request_id',t['request_id']);new=t['original_request_id'][:96]+'-'+digest(t['original_request_id'].encode())[:8]+'-a'+str(stage['cycle'])

@@ -71,7 +71,7 @@ def validate(j):
   contract=published_schema.load_schema_file(Path(__file__).resolve().parents[2]/'shared'/'agents'/'job.schema.json')
   problems=published_schema.errors(j,contract)
   if problems:raise JobError('published job schema violations: '+'; '.join(problems[:10]))
- except Exception as exc:raise JobError(f'job does not match published job schema: {exc}') from exc
+ except Exception as exc:raise JobError(f'schema_invalid: job does not match published job schema: {exc}') from exc
  if not j['owner'] or not j['requirements']:raise JobError('owner and requirements must be nonempty')
  if any(not isinstance(k,str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,127}',k) or not isinstance(v,str) or not v for k,v in j['requirements'].items()):raise JobError('requirements need safe IDs and nonempty statements')
  ids=set();deps={};slots=set();task_ids=set();request_ids=set()
@@ -110,7 +110,7 @@ def _reject_symlink_components(path):
 def _authorize(job,caller,operation):
  if not isinstance(caller,dict):raise JobError('caller metadata is required')
  if caller.get('installation_id')!=job['installation_id'] or caller.get('workflow')!=job['workflow'] or caller.get('package_digest') not in {p['package_digest'] for p in job['pins'].values()}:
-  raise JobError('wrong-package/installation/workflow caller')
+  raise JobError('ownership_mismatch: wrong-package/installation/workflow caller')
  if caller.get('actor') not in ('coordinator','worker'):raise JobError('explicit caller actor is required')
  if caller['actor']!='coordinator' and operation!='worker-evidence':
   raise JobError('coordinator-only operation')

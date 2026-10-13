@@ -53,32 +53,41 @@ def adopt_pins(job,new_dependencies,state_root,prefix,agents_root,config_path=No
     return {**retained,**added}
 
 def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
-    pins=verified_pins(job,state_root,prefix,agents_root,config_path)
-    return create_job(job,state_root,pins)
+    """Pin, index the state root in each owning agents root, then create the job.
+
+    The registry lock spans pinning and indexing, so a concurrent uninstall either runs
+    first (and the pin fails) or sees the index record (and refuses removal)."""
+    from shared.worker_registry import locked,registry_root,job_agents_roots,record_job_root,forget_job_root
+    with locked(registry_root(agents_root)):
+        pins=verified_pins(job,state_root,prefix,agents_root,config_path)
+        added=record_job_root(job_agents_roots(pins),state_root,job['job_id'])
+    try:return create_job(job,state_root,pins)
+    except BaseException:
+        forget_job_root(added,state_root,job['job_id']);raise
 
 def verify_pinned_dependency(dep,pin):
     package=Path(pin['package_dir']);bundle=Path(pin['bundle_dir'])
     manifest=json.loads(read_regular(package/'install-manifest.json','pinned package receipt').decode())
-    if package_digest(manifest)!=pin['package_digest'] or manifest.get('package_digest')!=pin['package_digest']:raise JobError('pinned package changed')
+    if package_digest(manifest)!=pin['package_digest'] or manifest.get('package_digest')!=pin['package_digest']:raise JobError('pin_mismatch: pinned package changed')
     verify_package_files(package,manifest)
     checked=verify_bundle(bundle,pin['installation_id'],dep['plugin'],manifest['version'],pin['package_digest'])
-    if checked.get('bundle_digest')!=pin['bundle_digest']:raise JobError('pinned bundle changed')
+    if checked.get('bundle_digest')!=pin['bundle_digest']:raise JobError('pin_mismatch: pinned bundle changed')
     actual_workers={};actual_shared={}
     for asset in checked['manifest']['assets']:
         data=read_regular(bundle/asset['path'],'immutable worker asset')
         record={'bytes':data.decode('utf-8'),'sha256':digest(data)}
         if asset['path'].startswith('workers/'):actual_workers[asset['id']]=record
         elif asset['path'].startswith('shared/'):actual_shared[asset['path'][7:]]=record
-    if pin['workers']!=actual_workers or pin['shared']!=actual_shared or set(pin['effective_workers'])!=set(actual_workers):raise JobError('stored worker/shared definitions differ from immutable bundle')
+    if pin['workers']!=actual_workers or pin['shared']!=actual_shared or set(pin['effective_workers'])!=set(actual_workers):raise JobError('pin_mismatch: stored worker/shared definitions differ from immutable bundle')
     for wid,record in pin['effective_workers'].items():
         base=pin['workers'].get(wid)
-        if not base:raise JobError('pinned worker base is missing')
+        if not base:raise JobError('pin_mismatch: pinned worker base is missing')
         custom=record.get('override_bytes') if record.get('override_status')=='enabled' else ''
-        if record.get('base_sha256')!=base['sha256'] or custom and digest(custom.encode())!=record.get('override_sha256'):raise JobError('stored worker base or override hash changed')
+        if record.get('base_sha256')!=base['sha256'] or custom and digest(custom.encode())!=record.get('override_sha256'):raise JobError('pin_mismatch: stored worker base or override hash changed')
         contract=pin.get('task_contract');contract_bytes=contract['bytes'].encode() if contract else None
-        if contract and digest(contract_bytes)!=contract.get('sha256'):raise JobError('stored task contract hash changed')
+        if contract and digest(contract_bytes)!=contract.get('sha256'):raise JobError('pin_mismatch: stored task contract hash changed')
         effective=compose_worker([(name,data['bytes'].encode()) for name,data in pin['shared'].items()],base['bytes'].encode(),custom or '',contract_bytes)
-        if effective!=record['bytes'] or digest(effective.encode())!=record['sha256']:raise JobError('pinned effective worker composition changed')
+        if effective!=record['bytes'] or digest(effective.encode())!=record['sha256']:raise JobError('pin_mismatch: pinned effective worker composition changed')
     return True
 
 
@@ -94,7 +103,7 @@ def verify_all_pins(store,caller=None):
 def verify_job_pins(job):
     for dep in job['dependencies']:
         pin=job['pins'].get(dep['key'])
-        if not pin:raise JobError(f"missing stored pin: {dep['key']}")
+        if not pin:raise JobError(f"pin_mismatch: missing stored pin: {dep['key']}")
         verify_pinned_dependency(dep,pin)
     return True
 
@@ -143,10 +152,10 @@ def _shared_observation(job, task_id, event):
             raise JobError('accepted request cannot become uncertain')
         current = task.get('followup_dispatch') or {}
         if current.get('request_id') not in (None, request) and current.get('uncertain_calls') and not any(h.get('request_id') == current['request_id'] for h in owned):
-            raise JobError('another uncertain follow-up dispatch remains unreconciled')
+            raise JobError('uncertain_dispatch: another uncertain follow-up dispatch remains unreconciled')
         calls = current.get('uncertain_calls', 0) if current.get('request_id') == request else 0
         if calls >= 3:
-            raise JobError('uncertain dispatch original plus two retries exhausted')
+            raise JobError('uncertain_dispatch: uncertain dispatch original plus two retries exhausted')
         task['followup_dispatch'] = {'request_id': request, 'uncertain_calls': calls + 1, 'dispatch_retries': calls}
         if calls == 2:
             task['followup_dispatch']['blocked_reason'] = 'uncertain_dispatch'

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from core.jobs.store import JobError, _regular, _retain, canonical, digest, strict_load, _authorize
 from shared.job_coordinator import verify_all_pins
+from shared.error_codes import code_of
 from core.jobs import _owner_current, _live_handles, _open_dispatch, _uningested
 
 class AcceptanceError(ValueError):
@@ -90,7 +91,7 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
             raise AcceptanceError('task inputs changed while its owned handle remained live; charged repair required')
         owned = task.get('handles', []) + task.get('followups', [])
         if task.get('blocked_reason') or task.get('uncertain_calls') and not any(h.get('request_id') == task['request_id'] for h in owned):
-            raise AcceptanceError('uncertain dispatch lacks an authoritative host observation for the current request')
+            raise AcceptanceError('uncertain_dispatch: uncertain dispatch lacks an authoritative host observation for the current request')
         if _open_dispatch(task):
             raise AcceptanceError(_open_dispatch(task))
         if any(b.get('kind') == 'conflicting-host-handle' and b.get('task_id') == task['task_id'] and not b.get('reconciled') for b in job.get('blockers', [])):
@@ -159,7 +160,7 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
             if task.get('review_required'):
                 reviewers = task.get('review_task_ids', [])
                 if not reviewers:
-                    raise AcceptanceError('required independent review task IDs are absent')
+                    raise AcceptanceError('required_review_unavailable: required independent review task IDs are absent')
                 for task_id in reviewers:
                     reviewer = next((t for t in job['tasks'] if t['task_id'] == task_id), {})
                     if reviewer.get('role') != 'review' or reviewer.get('stage_id') != stage['id'] or task['task_id'] not in reviewer.get('reviewed_task_ids', []):
@@ -182,7 +183,7 @@ def _lineage(task, handle=None):
             handle = next((h for h in chain if h.get('task_id') == handle.get('parent_task_id')), None)
         target = (handle or {}).get('target')
     if not isinstance(target, dict) or any(not isinstance(target.get(key), str) or not target[key] for key in ('providerInstanceId', 'model', 'lineage')):
-        raise AcceptanceError('review lineage is unknown; independent review is unverified')
+        raise AcceptanceError('required_review_unavailable: review lineage is unknown; independent review is unverified')
     return target['providerInstanceId'], target['model'], target['lineage']
 
 
@@ -196,7 +197,7 @@ def independent_lineage(worker, reviewer, worker_handle=None, reviewer_handle=No
 def review_handle(task):
     handles = [h for h in task.get('handles', []) + task.get('followups', []) if h.get('request_id') == task.get('request_id')]
     if len(handles) != 1 or handles[0].get('status') != 'completed' or handles[0].get('work_state') != 'result_available' or handles[0].get('has_pending_child_runs') is not False or not handles[0].get('task_id') or not handles[0].get('child_thread_id'):
-        raise AcceptanceError('independent review requires a completed owned host execution')
+        raise AcceptanceError('required_review_unavailable: independent review requires a completed owned host execution')
     return handles[0]
 
 
@@ -257,7 +258,8 @@ def _ready_slots(store, job, stage):
     try:
         _check_slots(store, job, stage)
     except (KeyError, OSError, TypeError, ValueError) as exc:
-        raise AcceptanceError('current task evidence is invalid: ' + str(exc)) from exc
+        code = code_of(exc)  # keep a stable contract code visible through the wrapper
+        raise AcceptanceError((code + ': ' if code else '') + 'current task evidence is invalid: ' + str(exc)) from exc
 
 
 def _bounded_run(argv, cwd, limits):
@@ -488,7 +490,7 @@ def accept_stage(store, caller, stage_id, validator_argv, input_file, expected_r
         raise AcceptanceError('owned tasks or approval waits remain unreconciled')
     for dependency in stage.get('depends_on', []):
         if not validate_stage(store, dependency).get('accepted'):
-            raise AcceptanceError('stage dependency lacks current authoritative acceptance')
+            raise AcceptanceError('dependency_stale: stage dependency lacks current authoritative acceptance')
     program, pin, actual = _adapter(job, stage, validator_argv, input_file)
     binding = {**actual, 'revision': expected_revision,
                'semantic_sha256': _semantic_binding(job, stage), 'pin_sha256': digest(canonical(pin))}
@@ -500,7 +502,7 @@ def accept_stage(store, caller, stage_id, validator_argv, input_file, expected_r
         cycle = current.get('cycle', 0)
         if current.get('validated_cycle') == cycle:
             if cycle >= state['policy']['max_repair_cycles']:
-                raise AcceptanceError('shared stage pass budget exhausted')
+                raise AcceptanceError('attempt_budget_exhausted: shared stage pass budget exhausted')
             cycle += 1
             current['cycle'] = cycle
             # Standalone validation can advance only a stage without worker slots;
@@ -578,7 +580,7 @@ def validate_stage(store, stage_id, _seen=None, run_validator=True):
             raise AcceptanceError('stage lacks a current receipt or still owns live work')
         for dependency in stage.get('depends_on', []):
             if not validate_stage(store, dependency, seen, run_validator=run_validator).get('accepted'):
-                raise AcceptanceError('predecessor acceptance is stale: ' + dependency)
+                raise AcceptanceError('dependency_stale: predecessor acceptance is stale: ' + dependency)
         reference = stage['acceptance']
         path = Path(reference['path']).absolute()
         if path.parent != store.path / 'acceptance' or path.is_symlink():
@@ -639,7 +641,7 @@ def validate_final(store, caller, argv_by_stage, input_by_stage):
             raise AcceptanceError('job changed during final preparation; retry against the current job')
         runs = state.get('final_passes', 0)
         if runs >= 1 + state['policy']['max_repair_cycles']:
-            raise AcceptanceError('integrated final pass budget exhausted')
+            raise AcceptanceError('attempt_budget_exhausted: integrated final pass budget exhausted')
         state['final_passes'] = runs + 1
         if not coverage:
             state['history'].append({'kind': 'final-failure', 'reason': 'stage coverage differs from complete job requirements', 'final_pass': runs + 1})
