@@ -91,19 +91,27 @@ def redact(text: str, pairs: list[tuple[str, str]]) -> str:
 
 
 def leaks(text: str, user: str | None = None, host: str | None = None) -> list[str]:
-    """Anything private that survived redaction. An empty list means the text is safe."""
+    """What kind of private data survived redaction, and on which line.
+
+    The matched value is never returned, so an error message cannot leak it. An empty
+    list means the text is safe.
+    """
+    def line(pos: int) -> str:
+        return f'line {text.count(chr(10), 0, pos) + 1}'
+
     found = []
     for pattern, label in ((EMAIL, 'email'), (TOKEN, 'token'), (HOME_DIR, 'home directory'),
                            (TEMP_DIR, 'temporary path')):
-        found += [f'{label}: {m.group(0)}' for m in pattern.finditer(text)]
+        found += [f'{label} on {line(m.start())}' for m in pattern.finditer(text)]
     user = getpass.getuser() if user is None else user
     host = socket.gethostname() if host is None else host
     # A user name counts when it appears as a path component or an address part; an
     # organisation slug that merely starts with the same letters does not.
-    if user and re.search(rf'(?:^|[/\\@\s"]){re.escape(user)}(?:$|[/\\@\s"])', text):
-        found.append(f'user name: {user}')
-    if host and host not in ('localhost',) and len(host) > 2 and re.search(rf'\b{re.escape(host)}\b', text):
-        found.append(f'host name: {host}')
+    if user:
+        found += [f'user name on {line(m.start())}' for m in
+                  re.finditer(rf'(?<![^/\\@\s"]){re.escape(user)}(?![^/\\@\s"])', text)]
+    if host and host not in ('localhost',) and len(host) > 2:
+        found += [f'host name on {line(m.start())}' for m in re.finditer(rf'\b{re.escape(host)}\b', text)]
     return found
 
 
@@ -186,9 +194,9 @@ def write(sessions: dict, out: Path) -> list[Path]:
     for name, session in sessions.items():
         data = json.dumps(session, indent=1, ensure_ascii=False) + '\n'
         text = transcript_text(session)
-        problems = leaks(data) + leaks(text)
+        problems = [f'{name}.json {p}' for p in leaks(data)] + [f'{name}.txt {p}' for p in leaks(text)]
         if problems:
-            raise LeakError(f'{name}: ' + '; '.join(sorted(set(problems))))
+            raise LeakError('; '.join(problems))
         rendered[out / f'{name}.json'] = data
         rendered[out / f'{name}.txt'] = text
     out.mkdir(parents=True, exist_ok=True)

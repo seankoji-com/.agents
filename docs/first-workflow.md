@@ -43,9 +43,13 @@ planned, and gets an independent review. Its report gives you:
 - paths to the saved check output;
 - anything still blocked, and why.
 
-Any edit after a check makes that check stale, and the report says so. If no reviewer
-from another model lineage is available, the report lists the review as missing. A
-plausible patch is not a pass.
+Any edit after a check makes that check stale, and the report says so. The reviewer
+comes from a different model lineage when one is available. If none is, imps falls
+back to a same-lineage reviewer and records why it chose that reviewer. Without
+lineage data in your routing config, reviewer independence is reported as unverified.
+The review is listed as missing when no reviewer returned a verdict; a verdict on an
+older revision is listed as stale. A repository review policy that asks for more
+overrides the fallback. A plausible patch is not a pass.
 
 Read the diff yourself as well. A local pass says nothing about CI, a merge or a
 deployment; each needs its own authorization and its own observation.

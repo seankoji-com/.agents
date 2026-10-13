@@ -61,7 +61,10 @@ in light and dark mode, with keyboard focus, reduced motion and 200% zoom.
 Tables and diagrams may scroll inside their frames; the page itself must not overflow.
 `python3 scripts/capture_site.py --site site --out /tmp/shots` screenshots the key
 pages at 1440px and 390px in both schemes with headless Chrome, and exits 1 if any
-page overflows horizontally. Screenshots should show the actual rendered artifact,
+page overflows horizontally. Add `--zoom 200 --controls --width 1440` for the 200%
+check: it sets Chrome's own page zoom (not a smaller window), then opens the
+navigation, runs a search and copies a code block with real mouse and keyboard input,
+saving a screenshot of each. Screenshots should show the actual rendered artifact,
 use synthetic data, and state what they demonstrate. Never substitute an
 illustration for live acceptance evidence.
 

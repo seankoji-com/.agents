@@ -1,3 +1,9 @@
+---
+# Searches for "brew" or "install" should land here before the release runbook.
+search:
+  boost: 2
+---
+
 # Install and first ten minutes
 
 By the end of this page you will have the six workflows installed, a readiness report

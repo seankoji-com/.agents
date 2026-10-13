@@ -107,6 +107,7 @@ overflow at 390px; wide code blocks scroll inside their own containers.
 
 ## 5. Components
 
+- **Code-copy buttons.** Material's `.md-code__button`, in ink-soft at rest (Material's default is the hairline colour, about 1.3:1) and fern-deep on hover or keyboard focus, on paper-deep in both schemes. The homepage install block sits outside Material's content area, so `overrides/home.html` writes the same button markup and Material's document-wide clipboard handler serves it; `.fg-install .md-code__nav` restores the 24px target there.
 - **Buttons.** 1px ink border, 4px radius, Plex Sans 500 at `0.74rem`. Primary is ink fill with paper text, hovering to fern-deep with paper text (never a fixed white, which fails on dark mode's pale fern). Focus is a 2px `--ochre-text` outline. Secondary is transparent, hovering to paper-deep. One primary per section.
 - **Specimen marks.** 96 by 96 viewBox, `role="img"` with an `aria-label`, no scripts, no external references. Tests enforce this.
 - **Sightings marks.** Filled and empty circles followed by `passed/repeats`, with an `aria-label` carrying the same numbers. States: clean (fern), mixed (ochre-text), failed (madder), not run (ink-soft italic).
@@ -171,3 +172,10 @@ and exits 1 when any page overflows horizontally. It serves the site on loopback
 drives headless Chrome with `--virtual-time-budget`, which also advances the recording.
 Headless Chrome will not open a window narrower than 500px, so narrow widths load in a
 frame of exactly that width and are cropped with ffmpeg.
+For the 200 percent check, add `--zoom 200 --controls --width 1440`. `--zoom` sets
+Chrome's own page zoom in the temporary profile and fails unless the page reports
+`devicePixelRatio` 2 and a 720px CSS viewport; resizing the window or forcing a device
+scale does not count. `--controls` then uses each page with real mouse and keyboard
+input over Chrome's DevTools pipe: it opens the navigation drawer and follows a link,
+searches for `brew` and opens the first result, and presses a code-copy button and
+compares the clipboard with the block. It saves a screenshot of each state.

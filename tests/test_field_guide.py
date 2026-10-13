@@ -1,5 +1,6 @@
 """The documentation site must be generated from the catalog, not hand-copied."""
 import json
+import re
 import shutil
 import sys
 import tempfile
@@ -100,6 +101,10 @@ class RepositoryGuideTest(unittest.TestCase):
         # says why before the command, not after it.
         self.assertIn('brew install --HEAD seankoji-com/tap/t3-plugins', template)
         self.assertLess(template.index('fg-install__note'), template.index('brew install --HEAD'))
+        # The hero sits outside Material's content area, so it carries its own copy
+        # button; Material's document-wide clipboard handler serves it.
+        self.assertIn('<pre id="fg-install-code">', template)
+        self.assertIn('data-clipboard-target="#fg-install-code > code" data-md-type="copy"', template)
         for bad in ('<svg><script>x</script></svg>', '<svg><a href="https://e.invalid/">x</a></svg>',
                     '<svg><style>@import "x.css";</style></svg>', '<svg onload="x()"></svg>',
                     '<svg><rect style="fill:url(https://e.invalid/p#x)"/></svg>', '<p>no</p>'):
@@ -111,6 +116,37 @@ class RepositoryGuideTest(unittest.TestCase):
         guide = field_guide.load_guide(ROOT)
         text = '# Plain\n\nNo markers here.\n'
         self.assertEqual(field_guide.expand_page(text, 'testing.md', ROOT, guide, {}), text)
+
+
+class StylesheetContrastTest(unittest.TestCase):
+    """DESIGN.md: controls need 3:1 against their background in both schemes."""
+
+    @staticmethod
+    def _luminance(hex_colour):
+        channels = [int(hex_colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        r, g, b = [c / 12.92 if c <= .03928 else ((c + .055) / 1.055) ** 2.4 for c in channels]
+        return .2126 * r + .7152 * g + .0722 * b
+
+    def _ratio(self, a, b):
+        hi, lo = sorted((self._luminance(a), self._luminance(b)), reverse=True)
+        return (hi + .05) / (lo + .05)
+
+    def test_code_copy_icon_is_a_visible_control(self):
+        css = (ROOT / 'docs' / 'stylesheets' / 'extra.css').read_text()
+        # Material 9.7 names the copy control .md-code__button; hover and keyboard focus count too.
+        rule = re.search(r'^\.md-code__button \{ color: var\(--([\w-]+)\); \}', css, re.M)
+        hover = re.search(r'^\.md-code__button:hover, \.md-code__button\.focus-visible, '
+                          r'\.md-code__button:focus-visible \{ color: var\(--([\w-]+)\); \}', css, re.M)
+        self.assertTrue(rule and hover, 'copy icon colours are not set in extra.css')
+        light, dark = css.split('[data-md-color-scheme="slate"]', 1)
+        for scheme, block in (('light', light), ('dark', dark)):
+            # The button sits on the code block and on Material's code-nav backing.
+            backing = re.findall(r'--md-code-bg-color(?:--light|--lighter)?: var\(--paper-deep\);', block)
+            self.assertEqual(len(backing), 3, f'{scheme}: code and copy-button backgrounds must be --paper-deep')
+            tokens = dict(re.findall(r'--([\w-]+): (#[0-9a-fA-F]{6});', block))
+            for state, token in (('rest', rule[1]), ('hover', hover[1])):
+                ratio = self._ratio(tokens[token], tokens['paper-deep'])
+                self.assertGreaterEqual(ratio, 3, f'{scheme} {state}: {ratio:.2f}:1')
 
 
 class SyntheticRootTest(unittest.TestCase):

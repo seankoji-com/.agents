@@ -1,4 +1,6 @@
 """Terminal captures run real commands in a throwaway home and never write private strings."""
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -58,6 +60,30 @@ class RedactionTest(unittest.TestCase):
             with self.assertRaisesRegex(capture_terminal.LeakError, 'home directory'):
                 capture_terminal.write({'x': session}, out)
             self.assertFalse(out.exists())
+
+
+    def test_refusal_names_the_kind_and_line_but_never_the_value(self):
+        token = 'ghp_' + 'Q7x' * 12
+        mail = 'carol' + '@' + 'example.org'
+        session = {'name': 'x', 'summary': 's', 'recorded': '2026-10-13', 'commit': 'abc',
+                   'environment': {'os': 'Linux', 'python': '3.12', 'home': 'h'},
+                   'steps': [{'command': 'echo', 'exit': 0, 'expected_exit': 0, 'seconds': 0.0,
+                              'lines': [[0.0, 'fine'], [0.1, f'auth {token}'],
+                                        [0.2, f'{HOME}carol/x and {mail}']]}]}
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(capture_terminal, 'record', return_value={'x': session}), \
+                mock.patch.object(capture_terminal.getpass, 'getuser', return_value='carol'), \
+                contextlib.redirect_stderr(stderr):
+            out = Path(tmp) / 'rec'
+            self.assertEqual(capture_terminal.main(['--out', str(out)]), 1)
+            self.assertFalse(out.exists())
+        message = stderr.getvalue()
+        for value in (token, mail, f'{HOME}carol', 'carol'):
+            self.assertNotIn(value, message)
+        self.assertIn('x.txt token on line 5', message)
+        for label in ('email', 'home directory', 'user name'):
+            self.assertIn(f'x.txt {label} on line 6', message)
 
 
 class RecordTest(unittest.TestCase):
