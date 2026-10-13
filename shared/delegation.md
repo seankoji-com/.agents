@@ -64,22 +64,15 @@ cannot write outside your checkout), run writers one at a time in your checkout.
 Readers may still run in parallel.
 
 A dependent slot consumes earlier source-worktree changes only from a finished writer,
-at a recorded revision. Committed changes, where the job authorizes commits, arrive as
-a commit or branch at an observed SHA: inspect it with `git diff` or `git log`, or
-merge it into the dependent worktree. Uncommitted local work, as on an edit-only job,
-arrives as the accepted stage's snapshot (`head` and `content_hash`): the dependent
-slot continues in that worktree once its snapshot matches, or takes a transfer. While
-the writer's snapshot still matches, point `GIT_INDEX_FILE` at a new file outside the
-worktree, run `git read-tree HEAD` and `git add -A -- <owned paths>`, then record
-`head`, `git write-tree` and the patch from `git diff --cached --binary HEAD`. That
-covers staged, unstaged, untracked and deleted owned paths; plain `git diff --binary`
-omits staged and untracked work and is not a transfer. The dependent applies the patch
-with `git apply` at the same `head`, repeats those steps for the same paths, and starts
-only if its tree matches. A tree records a submodule only as its commit, so refuse the
-transfer, and continue in that worktree instead, when
-`git status --porcelain=v2 --ignore-submodules=none -- <owned paths>` shows an `S`
-submodule field or the patch contains `Subproject commit`. Staging is not carried, and
-only unreferenced Git objects are written. Never commit only to hand work on; that needs the job's commit authority. Accepted artifacts, such as
+at a recorded revision, in one of two forms. Committed changes, where the job authorizes
+commits, arrive as a commit or branch at an observed SHA: inspect it with `git diff` or
+`git log`, or merge it into the dependent worktree. Uncommitted, edit-only work stays in
+the accepted writer's own worktree: once that writer is finished, the dependent slot
+continues there, and before starting it takes a new snapshot and confirms that its
+`head` and `content_hash` still match the accepted stage's snapshot. On a mismatch it
+stops and reports the drift. Never move uncommitted work to another worktree; plain
+`git diff --binary` omits staged and untracked work and is not a transfer. Never commit
+only to hand work on; that needs the job's commit authority. Accepted artifacts, such as
 reports under the job directory named in `consumed_outputs`, are handed off by path
 and recorded hash instead; they need no commit. Never read from or write into a
 worktree whose writer is still active, and never re-run a completed task to recover

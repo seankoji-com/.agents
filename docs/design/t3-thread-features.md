@@ -33,7 +33,7 @@ T3 host behaves as described; see [Compatibility](../compatibility.md).
 | External MCP endpoint | Implemented: no endpoint material in run records; own MCP client rejected |
 | OAuth and pairing | Implemented: authentication grants tool access, not plugin authority |
 | External orchestrators and `t3_thread_launch` | Implemented: mapping onto the coordinator role; launch for child work stays rejected |
-| Per-turn Git checkpoints | Implemented: committed changes by SHA, uncommitted work by snapshot or tree-checked transfer, artifacts by path and hash; hidden refs deferred |
+| Per-turn Git checkpoints | Implemented: committed changes by SHA, edit-only work by continuing in the writer's worktree at a matching snapshot, artifacts by path and hash; cross-worktree transfer and hidden refs deferred |
 
 ## 1. `t3_thread_list`
 
@@ -231,45 +231,53 @@ report paths and hashes (`plugins/ape/playbooks/forage.md`). Those jobs carry on
 (*assumption*: the ref names and layout are not documented in this repository).
 *Schema:* `t3_thread_merge_back` accepts a `checkpointId`, so checkpoint identities
 exist. The transferable part is the discipline: a dependent stage starts from a fixed,
-recorded revision of finished work, in one of three forms. Committed changes, where the
-job authorizes commits, reach it as a commit or branch at an observed SHA. Uncommitted
-local work reaches it as the accepted stage's snapshot. imps defaults to local work
-and binds every check to a snapshot (`plugins/imps/entry.md`), and a job may authorize
-only `edit` and `local-checks`, so the second stage either continues in that worktree
-once its snapshot `head` and `content_hash` (`core/snapshot.py`) match the accepted
-one, or takes a transfer. The writer builds a temporary index from `HEAD`, adds its
-owned paths with `git add -A`, and records `head`, the `git write-tree` ID and the
-`git diff --cached --binary HEAD` patch. The dependent applies the patch at the same
-`head`, rebuilds the tree the same way and starts only on a match. A plain
-`git diff --binary` would not do: it leaves out staged changes and untracked files, so a
-dependent could apply it cleanly, match its hash and still lack an accepted new file.
-The tree ID compares contents, not the patch. It does not see inside a submodule: a
-tree records only the submodule's commit, so a dependent could match the tree while
-lacking edits made inside an owned submodule, which the accepted snapshot does hash
-(`core/snapshot.py`). When `git status --porcelain=v2 --ignore-submodules=none` shows
-an `S` submodule field among the owned paths, or the patch contains
-`Subproject commit` (a moved or newly embedded repository), the writer does not
-transfer and the dependent continues in that worktree. No commit is created that the
-job did not authorize. Accepted artifacts outside any worktree, such
-as research reports, keep their existing path-and-hash handoff. No form reads a
-worktree whose writer is still active or re-runs a completed task.
+recorded revision of finished work, in one of two forms. Committed changes, where the
+job authorizes commits, reach it as a commit or branch at an observed SHA. Uncommitted,
+edit-only work stays where it was made. imps defaults to local work and binds every
+check to a snapshot (`plugins/imps/entry.md`), and a job may authorize only `edit` and
+`local-checks`. The dependent stage therefore continues in the accepted writer's own
+worktree once that writer has finished, after confirming that a new snapshot's `head`
+and `content_hash` (`core/snapshot.py`) still match the accepted stage's snapshot. A
+later edit changes `content_hash`, so the dependent stage stops on the drift instead of
+building on unaccepted content. No commit is created that the job did not authorize.
+Accepted artifacts outside any worktree, such as research reports, keep their existing
+path-and-hash handoff. No form reads a worktree whose writer is still active or re-runs
+a completed task.
 
 **Gain.** Efficiency: no repeated work to recover output. Correctness: dependent stages
-start from a fixed revision or a fixed, hashed artifact.
+start from a fixed revision, a confirmed snapshot or a fixed, hashed artifact.
 
 **Risk.** Depending on undocumented refs would break silently when the host changes
 their layout; resetting to them could discard work. Requiring a commit for every
 handoff would break read-only research jobs and edit-only engineering jobs, so the
 commit rule is limited to source-worktree integration of changes the job may commit.
-A transfer applied to a moved base can conflict; the dependent slot then stops on the
-apply failure or tree mismatch instead of guessing. A transfer carries contents, not
-staging, and writes unreferenced Git objects that `git gc` later prunes. Work inside an
-owned submodule cannot be transferred at all; the dependent slot continues in the
-writer's worktree once the writer has finished.
+Continuing in the writer's worktree runs dependent edit-only stages one at a time there,
+as Writer isolation already does when separate worktrees cannot be established. Without
+commit authority, edit-only writers in separate worktrees cannot be combined.
 
-**Disposition: implemented** in `shared/delegation.md` (Writer isolation). **Deferred:**
-reading hidden checkpoint refs directly, until the host documents them; the rule says
-not to fetch, reset to or depend on them before then.
+**Disposition: implemented** in `shared/delegation.md` (Writer isolation).
+
+**Deferred: cross-worktree transfer of uncommitted work.** An earlier revision of this
+change moved edit-only work into a dependent's own worktree, first as a plain patch,
+then with a temporary-index tree-ID check, then with a refusal for submodules. Each
+round of review found a Git case the check could not see:
+
+- A plain `git diff --binary` leaves out staged changes and untracked files, so a
+  dependent could apply it cleanly and still lack an accepted new file.
+- A tree records a submodule only as its commit, so edits inside a dirty owned
+  submodule were invisible to the tree ID while the accepted snapshot hashed them.
+- `git add` applies clean filters and `git apply` does not run smudge filters, so a
+  matching tree ID did not prove the working bytes arrived.
+- With `core.filemode=false`, executable-bit changes were lost without a mismatch.
+- Refusing any patch containing the text `Subproject commit` also refused ordinary
+  files that happen to contain it.
+
+Until a transfer can verify the actual working bytes and modes of the owned paths, the
+contract keeps edit-only work in the writer's worktree and says that a plain diff is not
+a transfer.
+
+**Deferred: hidden checkpoint refs.** Reading them directly waits until the host
+documents them; the rule says not to fetch, reset to or depend on them before then.
 
 ## Not changed
 
