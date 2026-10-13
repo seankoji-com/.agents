@@ -26,8 +26,9 @@ through `t3-plugins --job JOB path babysitter`, never the mutable current path.
 ## Authorization
 
 Invoking `pr`, `repo`, or `org` authorizes babysitting through merge within that
-scope: arming auto-merge on every targeted PR, merging PRs that are ready now, and
-fixing, pushing to, and replying on the targeted PR branches until they merge. A
+scope: merging targeted PRs that are ready, arming auto-merge where the review gate
+below allows it, and fixing, pushing to, and replying on the targeted PR branches
+until they merge. A
 request that says "inspect", "review only", or "do not merge" authorizes inspection
 alone. Never bypass protected branch requirements.
 
@@ -42,6 +43,20 @@ Never post to a PR, push, arm auto-merge, or merge without the matching recorded
 action for that PR. Never use admin bypass, dismiss reviews, weaken checks, or
 force-push shared history. A queued auto-merge is reported as queued until the merge
 is observed.
+
+## Review gate
+
+A PR is review-gated when the operator asked for review before landing, or when the
+plan gives it a `babysitter/pr-reviewer` slot, which every PR a fixer may push to
+has. For a review-gated PR no merge-capable call happens until its review stage is
+accepted by `validate_pr.py` at the exact current head, with an `approve` verdict
+from the reviewer. Merge-capable means `merge-pr.sh` in any merge mode, including
+`--no-auto` (it still merges a CLEAN PR) and `--arm-always`, arming auto-merge any
+other way, and the quick-pass merge. `merge-pr.sh --resolve-thread` is not
+merge-capable. After that acceptance, the PR's land stage rereads the head and runs
+`merge-pr.sh --no-auto` only if it still equals the accepted head; it never arms
+auto-merge. A push-authorized fixer is never dispatched while the PR has an
+auto-merge request, because GitHub would land its push before review.
 
 ## Workers
 

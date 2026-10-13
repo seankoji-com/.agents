@@ -92,12 +92,13 @@ class EntryRoutingTest(unittest.TestCase):
                       'direct in this thread', ops)
         quick = steps('playbooks/maintain.md')[2]
         self.assertIn('Quick pass, in this thread, before any child', quick)
-        self.assertIn('--arm-always', quick)
+        self.assertIn('--no-auto', quick)
+        self.assertIn('it arms nothing', quick)
 
     def test_word_budgets(self):
         entry = len((PLUGIN / 'entry.md').read_text().split())
         self.assertLess(entry, 1500)
-        self.assertLess(entry + len((PLUGIN / 'playbooks/maintain.md').read_text().split()), 1800)
+        self.assertLess(entry + len((PLUGIN / 'playbooks/maintain.md').read_text().split()), 2000)
 
 
 class BoundaryTest(unittest.TestCase):
@@ -183,8 +184,8 @@ class BoundaryTest(unittest.TestCase):
         self.assertIn('`t3-plugins resolve workhorse --capabilities FILE --repo <that worktree>`', play[5])
         self.assertIn('cheapest configured tier', play[5])
         self.assertIn('`needs human:`', play[9])
-        self.assertIn('`automerge=unavailable`', play[2])
-        self.assertIn('Rerun step 2\'s helper first', play[7])
+        self.assertIn('`automerge=preexisting`', play[2])
+        self.assertIn("For a PR that is not review-gated, rerun step 2's helper first", play[7])
 
 
 class WorkerDefinitionTest(unittest.TestCase):
@@ -219,8 +220,84 @@ class WorkerDefinitionTest(unittest.TestCase):
             self.assertIn(phrase, body)
 
 
+def documented_plan(head12=H1, head13=H3, installation_id='fixture-installation'):
+    """The example job plan from references/job-plan.md, with its placeholders filled."""
+    raw = (PLUGIN / 'references/job-plan.md').read_text().split('```json\n', 1)[1].split('\n```', 1)[0]
+    for placeholder, value in (('"<workhorse-target>"', json.dumps(WORKHORSE)), ('"<reviewer-target>"', json.dumps(REVIEWER)),
+                               ('<job-id>', 'bs-1'), ('<installation-id>', installation_id),
+                               ('<pr-12-url>', PR12), ('<pr-13-url>', PR13), ('<decision-id>', 'owner-invocation'),
+                               ('<head-12-short>', head12[:12]), ('<head-13-short>', head13[:12]),
+                               ('<head-12>', head12), ('<head-13>', head13)):
+        raw = raw.replace(placeholder, value)
+    if '<' in raw:
+        raise AssertionError('unfilled placeholder in the documented plan: ' + re.search(r'<[^>]*>', raw).group(0))
+    return json.loads(raw)
+
+
+def merge_gate_violations(plan):
+    """Every way a plan lets a merge-capable stage run before its PR's review stage is accepted.
+
+    A stage holding a review slot is a review stage. It must not request `merged`, and every stage
+    of the same PR that requests `merged` must depend on it (transitively). A PR whose fixer slot
+    may push needs a review slot, so every such PR is review-gated.
+    """
+    stages = {s['id']: s for s in plan['stages']}
+    def ancestors(stage_id, seen=None):
+        seen = set() if seen is None else seen
+        for dep in stages[stage_id].get('depends_on', []):
+            if dep not in seen:
+                seen.add(dep)
+                ancestors(dep, seen)
+        return seen
+    pr_of = {sid: s['validator_contract']['pr'] for sid, s in stages.items()}
+    requested = {sid: s['validator_contract']['authorized_endstate']['requested'] for sid, s in stages.items()}
+    review_stages = {t['stage_id'] for t in plan['tasks'] if t.get('role') == 'review'}
+    violations = []
+    for task in plan['tasks']:
+        pr = pr_of[task['stage_id']]
+        if (task.get('role', 'worker') == 'worker' and 'push' in plan['authorization']['prs'].get(pr, [])
+                and not task.get('review_task_ids')):
+            violations.append(f'{task["task_id"]}: a push-authorized fixer has no independent review slot')
+    for review in sorted(review_stages):
+        if requested[review] == 'merged':
+            violations.append(f'{review}: a review stage requests merged, so it merges before its own acceptance')
+        for sid in sorted(stages):
+            if sid != review and pr_of[sid] == pr_of[review] and requested[sid] == 'merged' and review not in ancestors(sid):
+                violations.append(f'{sid}: merges {pr_of[sid]} without depending on review stage {review}')
+    return violations
+
+
+class MergeGatePlanTest(unittest.TestCase):
+    def test_documented_plan_merges_only_after_review(self):
+        self.assertEqual(merge_gate_violations(documented_plan()), [])
+
+    def test_gate_checker_rejects_every_early_merge_shape(self):
+        mutations = {
+            'land stage without the review dependency': lambda p: p['stages'][1].update(depends_on=[]),
+            'review stage requesting merged': lambda p: p['stages'][0]['validator_contract']['authorized_endstate'].update(
+                requested='merged', observed='merged'),
+            'fixer without a review slot': lambda p: p['tasks'][0].pop('review_task_ids'),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name):
+                plan = documented_plan()
+                mutate(plan)
+                self.assertNotEqual(merge_gate_violations(plan), [])
+
+    def test_gate_is_stated_where_the_coordinator_reads_it(self):
+        gate = sections('entry.md')['Review gate']
+        self.assertIn('no merge-capable call happens until its review stage is accepted by `validate_pr.py` at the '
+                      'exact current head', gate)
+        self.assertIn('`--no-auto` (it still merges a CLEAN PR)', gate)
+        self.assertIn('never dispatched while the PR has an auto-merge request', gate)
+        self.assertIn('A review-gated PR gets no helper run on a wake until its review stage is accepted',
+                      steps('playbooks/maintain.md')[7])
+        self.assertIn('Only after a review stage is accepted', steps('playbooks/maintain.md')[10])
+        self.assertIn('No stage that holds a `review` slot may request `merged`', sections('references/job-plan.md')['Stages'])
+
+
 class SyntheticJobTest(unittest.TestCase):
-    """Repo-mode jobs through the installed helpers: fixer, independent review, exact-head acceptance."""
+    """The documented plan driven through the installed helpers: fixer, review gate, land, final acceptance."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -245,6 +322,9 @@ class SyntheticJobTest(unittest.TestCase):
         self.counter = 0
 
     # -- helpers -----------------------------------------------------------------------------
+    def plan(self, head12=H1):
+        return documented_plan(head12=head12, installation_id=self.caller['installation_id'])
+
     def run_cli(self, script, command, payload=None, ok=True):
         argv = [sys.executable, str(self.version / 'shared' / script), command,
                 '--state-root', str(self.state), '--job', 'bs-1']
@@ -264,43 +344,6 @@ class SyntheticJobTest(unittest.TestCase):
 
     def job(self, command, payload=None, ok=True):
         return self.run_cli('job_cli.py', command, payload, ok)
-
-    def contract(self, pr, head, endstate='merged'):
-        return {'pr': pr, 'head_sha': head, 'required_contexts': ['ci'], 'optional_contexts': [],
-                'allow_empty_required_contexts': False,
-                'authorized_endstate': {'requested': endstate, 'observed': endstate,
-                                        'authorization_ref': 'owner-invocation'}}
-
-    def stage(self, number, pr, head, **extra):
-        return {'id': f'pr-{number}', 'depends_on': [], 'requirements': [f'PR-{number}'], 'status': 'pending',
-                'validator_dependency': 'babysitter', 'revision': f'pr-{number}@{head[:12]}',
-                'validator_contract': self.contract(pr, head), **extra}
-
-    def plan(self, actions=('read', 'push', 'communicate', 'merge')):
-        scope = lambda task: {'mode': 'worker-evidence', 'path': f'artifacts/tasks/{task}'}
-        return {
-            'schema_version': 1, 'job_id': 'bs-1', 'installation_id': self.caller['installation_id'],
-            'workflow': 'babysitter/repo', 'owner': {'id': 'operator'},
-            'objective': 'Babysit the frozen fixture/widgets roster through merge.',
-            'requirements': {'PR-12': 'fixture/widgets#12 reaches merged at an observed head with every required check',
-                             'PR-13': 'fixture/widgets#13 reaches merged at an observed head with every required check'},
-            'authorization': {'actions': list(actions), 'prs': {PR12: list(actions), PR13: list(actions)}},
-            'constraints': ['Never force-push.', 'Push only to the PR head branch.'],
-            'dependencies': [{'key': 'babysitter', 'plugin': 'babysitter'}], 'pins': {},
-            'policy': {'max_repair_cycles': 3, 'max_artifact_bytes': 16 * 1024 * 1024},
-            'result_contract': {'schema_version': 1},
-            # PR 13 merged in the quick pass: a direct stage, no child.
-            'stages': [self.stage(12, PR12, H1), self.stage(13, PR13, H3, execution_mode='direct')],
-            'tasks': [
-                {'task_id': 'pr-12-maintain', 'stage_id': 'pr-12', 'logical_slot_id': 'maintain',
-                 'request_id': 'bs-1-pr-12-maintain', 'worker_id': 'babysitter/pr-maintainer',
-                 'dependency_key': 'babysitter', 'target': WORKHORSE, 'write_scope': scope('pr-12-maintain'),
-                 'review_required': True, 'review_task_ids': ['pr-12-review']},
-                {'task_id': 'pr-12-review', 'stage_id': 'pr-12', 'logical_slot_id': 'review',
-                 'request_id': 'bs-1-pr-12-review', 'worker_id': 'babysitter/pr-reviewer',
-                 'dependency_key': 'babysitter', 'target': REVIEWER, 'write_scope': scope('pr-12-review'),
-                 'role': 'review', 'reviewed_task_ids': ['pr-12-maintain']}],
-            'decisions': [], 'history': [], 'metrics': {}}
 
     def observe(self, task_id, kind, request, host):
         event = {'kind': kind, 'request_id': request, 'host_task_id': host, 'child_thread_id': 'thread-' + host,
@@ -333,27 +376,34 @@ class SyntheticJobTest(unittest.TestCase):
         self.observe(task_id, 'completion', brief['request_id'], host)
         return brief
 
-    def publish(self, number, pr, head, *, check_head=None, conclusion='success', endstate='merged'):
+    def stage_contract(self, stage_id):
+        return next(s for s in self.job('overview')['stages'] if s['id'] == stage_id)['validator_contract']
+
+    def publish(self, stage_id, *, head=None, check_head=None, conclusion='success', endstate=None):
         """A coordinator host read of the PR, content-bound as validate_pr.py requires."""
-        data = {**self.contract(pr, head),
+        contract = self.stage_contract(stage_id)
+        head = head or contract['head_sha']
+        data = {**contract, 'head_sha': head,
                 'required_checks': [{'context': 'ci', 'conclusion': conclusion, 'head_sha': check_head or head}],
                 'review_threads': [{'resolved': True, 'head_sha': head}]}
-        data['authorized_endstate'] = dict(data['authorized_endstate'], observed=endstate)
+        data['authorized_endstate'] = dict(data['authorized_endstate'],
+                                           observed=endstate or data['authorized_endstate']['requested'])
         content = {k: data[k] for k in ('pr', 'head_sha', 'required_contexts', 'required_checks', 'review_threads',
                                         'authorized_endstate', 'allow_empty_required_contexts', 'optional_contexts')}
         data['host_observations'] = [{'observer': 'coordinator', 'kind': 'pr-state', 'source': 'fixture host read',
                                       'content': content, 'sha256': hashlib.sha256(canonical(content)).hexdigest()}]
         self.counter += 1
-        path = self.base / f'pr-{number}-observation-{self.counter}.json'
+        path = self.base / f'{stage_id}-observation-{self.counter}.json'
         path.write_text(json.dumps(data))
-        return self.job('observation', {'caller': self.caller, 'stage_id': f'pr-{number}', 'input_file': str(path)})['path']
+        return self.job('observation', {'caller': self.caller, 'stage_id': stage_id, 'input_file': str(path)})['path']
 
-    def accept(self, number, pr, head, **observed):
-        published = self.publish(number, pr, head, **observed)
+    def accept(self, stage_id, **observed):
+        published = self.publish(stage_id, **observed)
         argv = [str(self.version / 'scripts' / 'validate_pr.py'), '--input', published]
+        revision = next(s for s in self.job('overview')['stages'] if s['id'] == stage_id).get('revision')
         proc = self.run_cli('job_acceptance_cli.py', 'accept-stage', {
-            'caller': self.caller, 'stage_id': f'pr-{number}', 'validator_argv': argv,
-            'input_file': published, 'revision': f'pr-{number}@{head[:12]}'}, ok=False)
+            'caller': self.caller, 'stage_id': stage_id, 'validator_argv': argv,
+            'input_file': published, 'revision': revision}, ok=False)
         return proc, argv, published
 
     def rebind_head(self, revision_id, head):
@@ -361,9 +411,8 @@ class SyntheticJobTest(unittest.TestCase):
         self.job('decision', {'caller': self.caller, 'decision': {
             'id': 'owner-' + revision_id, 'quote': self.request.read_text().strip(), 'source': str(self.request),
             'source_sha256': hashlib.sha256(self.request.read_bytes()).hexdigest(), 'scope': 'plan:' + revision_id}})
-        stages = self.plan()['stages']
-        stages[0] = self.stage(12, PR12, head)
-        return self.job('plan-revision', {'caller': self.caller, 'new_plan': {'stages': stages},
+        return self.job('plan-revision', {'caller': self.caller, 'new_plan': {'stages': [{k: v for k, v in stage.items() if k != 'status'}
+                                                                  for stage in self.plan(head)['stages']]},
                                           'revision': {'id': revision_id, 'owner_decision_id': 'owner-' + revision_id}})
 
     def statuses(self):
@@ -371,10 +420,21 @@ class SyntheticJobTest(unittest.TestCase):
         return ({s['id']: s['status'] for s in overview['stages']},
                 {h['task_id']: h['status'] for h in overview['handles']})
 
+    def merge_allowed(self, stage_id):
+        """The land stage's merge-capable step may run only once its review dependency holds current acceptance."""
+        stages = {s['id']: s for s in self.job('overview')['stages']}
+        return all(stages[dep]['status'] == 'accepted-at-snapshot' for dep in stages[stage_id]['depends_on'])
+
     # -- scenarios ---------------------------------------------------------------------------
-    def test_fix_review_rebind_and_final_acceptance_at_exact_heads(self):
+    def test_fix_review_gate_land_and_final_acceptance_at_exact_heads(self):
         self.job('create', self.plan())
-        self.assertEqual(self.statuses()[0], {'pr-12': 'pending', 'pr-13': 'pending'})
+        self.assertEqual(set(self.statuses()[0].values()), {'pending'})
+        self.assertFalse(self.merge_allowed('pr-12-land'))
+
+        # A merge observed before the review stage is accepted can never land the stage.
+        early, *_ = self.accept('pr-12-land')
+        self.assertNotEqual(early.returncode, 0)
+        self.assertIn('dependency lacks current authoritative acceptance', early.stderr + early.stdout)
 
         # The reviewer cannot be prepared before the maintainer's execution exists.
         self.assertNotEqual(self.job('prepare', {'caller': self.caller, 'task_id': 'pr-12-review'}, ok=False).returncode, 0)
@@ -382,23 +442,25 @@ class SyntheticJobTest(unittest.TestCase):
         # Pass 0: the maintainer fixes the failing check and pushes H2. Its brief carries the recorded actions.
         brief = self.dispatch('pr-12-maintain', changes=[{'path': 'src/widget.py', 'pushed_head': H2}])
         self.assertEqual(brief['authorization']['prs'][PR12], ['read', 'push', 'communicate', 'merge'])
-        self.assertEqual(brief['worker_id'], 'babysitter/pr-maintainer')
         self.assertIn('worker_id: babysitter/pr-maintainer', json.dumps(brief['effective_definition']))
 
         # The worker's claim is not acceptance: the stage still binds H1, so an H2 read is refused.
-        self.assertNotEqual(self.accept(12, PR12, H2)[0].returncode, 0)
+        self.assertNotEqual(self.accept('pr-12', head=H2)[0].returncode, 0)
 
-        # The coordinator verified the push, rebinds the head, and reruns the maintainer at H2 (pass 1).
+        # The coordinator verified the push, rebinds review and land stages, and reruns the maintainer (pass 1).
         self.rebind_head('head-h2', H2)
         self.assertEqual(self.statuses()[0]['pr-12'], 'stale')
+        self.assertEqual(self.stage_contract('pr-12-land')['head_sha'], H2)
         self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'head moved to the pushed fix'})
         self.dispatch('pr-12-maintain')
 
-        # An adverse independent review blocks acceptance until a fixer round disposes its finding.
+        # An adverse independent review blocks the review stage, so the land stage still cannot merge.
         finding = {'id': 'R1', 'severity': 'major', 'scenario': 'the fix drops input validation',
                    'source_evidence': ['src/widget.py at ' + H2]}
         self.dispatch('pr-12-review', verdict='adverse', findings=[finding])
-        self.assertNotEqual(self.accept(12, PR12, H2)[0].returncode, 0)
+        self.assertNotEqual(self.accept('pr-12')[0].returncode, 0)
+        self.assertFalse(self.merge_allowed('pr-12-land'))
+        self.assertNotEqual(self.accept('pr-12-land')[0].returncode, 0)
         self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'review finding R1'})
         self.dispatch('pr-12-maintain')
         evidence = self.base / 'owner' / 'r1-fixed.txt'
@@ -412,33 +474,50 @@ class SyntheticJobTest(unittest.TestCase):
         self.dispatch('pr-12-review', verdict='approve')
 
         # A check from the older head proves nothing; the refused pass stays charged.
-        refused, *_ = self.accept(12, PR12, H2, check_head=H1)
+        refused, *_ = self.accept('pr-12', check_head=H1)
         self.assertEqual(refused.returncode, 1, refused.stdout + refused.stderr)
-        self.assertNotEqual(self.accept(12, PR12, H2)[0].returncode, 0)  # next pass needs a charged repair
+        self.assertNotEqual(self.accept('pr-12')[0].returncode, 0)  # next pass needs a charged repair
         self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'checks rerun at head'})
         self.dispatch('pr-12-maintain')
         self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-review', 'reason': 'review the final head',
                            'category': 'review'})
         self.dispatch('pr-12-review', verdict='approve')
-        accepted, argv12, input12 = self.accept(12, PR12, H2)
-        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
 
-        # The quick-pass merge of PR 13 is accepted directly from the coordinator's read.
-        direct, argv13, input13 = self.accept(13, PR13, H3)
+        # The review stage is accepted as mergeable (not merged) at H2; only now may the land stage merge.
+        reviewed, argv12, input12 = self.accept('pr-12')
+        self.assertEqual(reviewed.returncode, 0, reviewed.stdout + reviewed.stderr)
+        self.assertTrue(self.merge_allowed('pr-12-land'))
+        landed, argv12l, input12l = self.accept('pr-12-land')
+        self.assertEqual(landed.returncode, 0, landed.stdout + landed.stderr)
+
+        # The quick-pass merge of PR 13 (no babysitter change, not review-gated) is accepted directly.
+        direct, argv13, input13 = self.accept('pr-13')
         self.assertEqual(direct.returncode, 0, direct.stdout + direct.stderr)
 
-        # The initial plan's final acceptance covers every PR requirement at fresh observations.
+        # The initial plan's final acceptance covers every requirement at fresh observations.
         final = self.run_cli('job_acceptance_cli.py', 'validate-final', {
-            'caller': self.caller, 'validator_argv_by_stage': {'pr-12': argv12, 'pr-13': argv13},
-            'input_file_by_stage': {'pr-12': input12, 'pr-13': input13}}, ok=False)
+            'caller': self.caller,
+            'validator_argv_by_stage': {'pr-12': argv12, 'pr-12-land': argv12l, 'pr-13': argv13},
+            'input_file_by_stage': {'pr-12': input12, 'pr-12-land': input12l, 'pr-13': input13}}, ok=False)
         self.assertEqual(final.returncode, 0, final.stdout + final.stderr)
         self.assertTrue(json.loads(final.stdout)['accepted'])
-        self.assertEqual(self.statuses()[0], {'pr-12': 'accepted-at-snapshot', 'pr-13': 'accepted-at-snapshot'})
+        self.assertEqual(set(self.statuses()[0].values()), {'accepted-at-snapshot'})
 
         # The stage repair budget (initial pass plus three) is now spent; no fifth pass.
         refused = self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'one more'}, ok=False)
         self.assertNotEqual(refused.returncode, 0)
         self.assertIn('budget exhausted', refused.stderr)
+
+    def test_head_moving_after_review_reopens_the_gate(self):
+        self.job('create', self.plan())
+        self.dispatch('pr-12-maintain')
+        self.dispatch('pr-12-review', verdict='approve')
+        self.assertEqual(self.accept('pr-12')[0].returncode, 0)
+        self.assertTrue(self.merge_allowed('pr-12-land'))
+        # The author pushes H2 after the review: rebinding stales the review stage and closes the gate again.
+        self.rebind_head('author-push', H2)
+        self.assertFalse(self.merge_allowed('pr-12-land'))
+        self.assertNotEqual(self.accept('pr-12-land')[0].returncode, 0)
 
     def test_failed_rounds_exhaust_the_budget_and_cannot_reset(self):
         self.job('create', self.plan())
@@ -451,6 +530,7 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertNotEqual(refused.returncode, 0)
         self.assertIn('budget exhausted', refused.stderr)
         self.assertEqual(self.statuses()[1]['pr-12-maintain'], 'failed')
+        self.assertFalse(self.merge_allowed('pr-12-land'))
 
     def test_reviewer_on_the_maintainers_lineage_is_refused(self):
         plan = self.plan()
@@ -462,7 +542,8 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertIn('lineage', refused.stderr)
 
     def test_read_only_triage_ends_with_named_blockers_not_acceptance(self):
-        plan = self.plan(actions=('read',))
+        plan = self.plan()
+        plan['authorization'] = {'actions': ['read'], 'prs': {PR12: ['read'], PR13: ['read']}}
         for stage in plan['stages']:
             stage['validator_contract']['authorized_endstate'] = {
                 'requested': 'open', 'observed': 'open', 'authorization_ref': 'owner-invocation'}
@@ -472,20 +553,15 @@ class SyntheticJobTest(unittest.TestCase):
         brief = self.dispatch('pr-12-maintain', status='blocked', verdict='adverse', findings=[blocker])
         self.assertEqual(brief['authorization']['prs'][PR12], ['read'])
         self.assertEqual(self.statuses()[1]['pr-12-maintain'], 'blocked')
-        published = self.publish(12, PR12, H1, conclusion='failure', endstate='open')
-        argv = [str(self.version / 'scripts' / 'validate_pr.py'), '--input', published]
-        proc = self.run_cli('job_acceptance_cli.py', 'accept-stage', {
-            'caller': self.caller, 'stage_id': 'pr-12', 'validator_argv': argv, 'input_file': published,
-            'revision': 'pr-12@' + H1[:12]}, ok=False)
+        proc, *_ = self.accept('pr-12', conclusion='failure')
         self.assertNotEqual(proc.returncode, 0)
         self.assertNotEqual(self.statuses()[0]['pr-12'], 'accepted-at-snapshot')
 
     def test_scope_widening_head_rebind_needs_recorded_owner_evidence(self):
         self.job('create', self.plan())
-        stages = self.plan()['stages']
-        stages[0] = self.stage(12, PR12, H2)
         refused = self.job('plan-revision', {'caller': self.caller, 'revision': {'id': 'no-owner'},
-                                             'new_plan': {'stages': stages}}, ok=False)
+                                             'new_plan': {'stages': [{k: v for k, v in stage.items() if k != 'status'}
+                                                                          for stage in self.plan(H2)['stages']]}}, ok=False)
         self.assertNotEqual(refused.returncode, 0)
         self.assertIn('undeclared_expansion', refused.stderr)
 
