@@ -46,7 +46,7 @@ class SetupTest(unittest.TestCase):
         first = self.call('setup')
         receipts = [json.loads(line) for line in first.stdout.splitlines()]
         install_receipts = [r for r in receipts if 'learnings_grant' not in r]
-        self.assertEqual(len(install_receipts), 20)
+        self.assertEqual(len(install_receipts), 24)
         grants = [r['learnings_grant'] for r in receipts if 'learnings_grant' in r]
         self.assertEqual(len(grants), 6)
         self.assertEqual({r['status'] for r in grants}, {'proposed', 'unavailable'})

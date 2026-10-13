@@ -6,9 +6,10 @@
 [![Documentation](https://github.com/seankoji-com/t3-plugins/actions/workflows/docs.yml/badge.svg)](https://seankoji-com.github.io/t3-plugins/)
 [![MIT license](https://img.shields.io/badge/license-MIT-2f6b4f)](LICENSE)
 
-Five workflows for [T3 Code](https://github.com/pingdotgg/t3code). Pick the job,
+Six workflows for [T3 Code](https://github.com/pingdotgg/t3code). Pick the job,
 give it to your agent, and get a result you can inspect: a verified change, a usable
-brief, cited research, a PR carried through CI, or a settings audit.
+brief, cited research, a PR carried through CI, a settings audit, or a PR opened
+after every feedback item is repaired.
 Switch models without rewriting the workflow.
 
 **[Get started](https://seankoji-com.github.io/t3-plugins/getting-started/)** ·
@@ -24,6 +25,7 @@ Switch models without rewriting the workflow.
 | Learn how another project solved a problem | [ape](docs/plugins/ape.md) | Source-pinned recommendations and small proposed experiments |
 | Get an authorized PR through review and CI | [babysitter](docs/plugins/babysitter.md) | Fixes, current-head check status and observed merge state |
 | Inspect your agent permissions | [agent-tuneup](docs/plugins/agent-tuneup.md) | A read-only findings report without exposing setting values |
+| Implement through repeated independent evaluation | [ralph](docs/plugins/ralph.md) | Fresh tasks repair every feedback item before opening a PR |
 
 ## Install and try it
 

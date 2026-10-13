@@ -35,6 +35,8 @@ class SkillAdapters(unittest.TestCase):
         adapter = self.skills / 't3-imps/SKILL.md'
         self.assertIn(json.dumps(str(entry)), adapter.read_text())
         self.assertIn('name: t3-imps', adapter.read_text())
+        self.assertIn('For imps, a task without an operation means `run <task>`.', adapter.read_text())
+        self.assertIn('do not switch to another imps installation', adapter.read_text())
         self.assertNotIn(str(ROOT), adapter.read_text())
         second = self.call('skills', 'install', 'imps', '--root', str(self.skills))
         self.assertEqual(first.stdout, second.stdout)
@@ -110,7 +112,7 @@ class SkillAdapters(unittest.TestCase):
     def test_all_catalog_adapters_and_invalid_receipt(self):
         self.call('install')
         result = self.call('skills', 'install', '--root', str(self.skills))
-        self.assertEqual(len(result.stdout.splitlines()), 5)
+        self.assertEqual(len(result.stdout.splitlines()), 6)
         marker = self.skills / 't3-imps/.t3-plugins-skill.json'
         marker.write_text('[]')
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)

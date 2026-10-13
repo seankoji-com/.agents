@@ -44,5 +44,5 @@ simulator.
 ## When a direct request is enough
 
 A one-line edit rarely needs saved run state or delegated review. Use the smallest
-workflow that earns its overhead. All five entries and their local helpers ship as
+workflow that earns its overhead. All entries and their local helpers ship as
 readable files; [architecture](architecture.md) explains their boundaries.

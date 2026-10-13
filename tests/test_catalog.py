@@ -26,9 +26,9 @@ class CatalogTest(unittest.TestCase):
 
     def test_catalog_install_doctor_and_uninstall_preserve_neighbors(self):
         receipts = [json.loads(line)['data'] for line in self.call('install').stdout.splitlines()]
-        self.assertEqual(len(receipts), 5)
+        self.assertEqual(len(receipts), 6)
         self.assertEqual({r['plugin'] for r in receipts},
-                         {'imps', 'ape', 'babysitter', 'elephant-goldfish', 'agent-tuneup'})
+                         {'imps', 'ape', 'babysitter', 'elephant-goldfish', 'agent-tuneup', 'ralph'})
         for receipt in receipts:
             entry = Path(receipt['entry'])
             self.assertTrue(entry.is_file())

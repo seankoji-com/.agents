@@ -1,0 +1,28 @@
+{
+  "_comment": "Mode and delegation fields observed through live orchestrator_capabilities on 13 October 2026. Model lists are intentionally excluded; tests supply synthetic models. This is catalog evidence, not provider execution or lineage acceptance.",
+  "runtimeMode": "full-access",
+  "inheritedProviderInstanceId": "codex",
+  "features": {
+    "appOwnedSubagents": true
+  },
+  "providers": [
+    {
+      "providerInstanceId": "codex",
+      "driverKind": "codex",
+      "canRunChildTask": true,
+      "canRunCrossProviderChildTask": true
+    },
+    {
+      "providerInstanceId": "opencode",
+      "driverKind": "opencode",
+      "runtimeModes": [
+        "approval-required",
+        "auto-accept-edits",
+        "auto",
+        "full-access"
+      ],
+      "canRunChildTask": true,
+      "canRunCrossProviderChildTask": true
+    }
+  ]
+}

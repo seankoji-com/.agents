@@ -223,7 +223,7 @@ class LearningsTest(unittest.TestCase):
 
     def test_every_installed_plugin_loads_maintains_writes_and_handles_unavailable(self):
         prefix = self.base / 'prefix'
-        for plugin in ('imps', 'babysitter', 'elephant-goldfish', 'ape', 'agent-tuneup'):
+        for plugin in ('imps', 'babysitter', 'elephant-goldfish', 'ape', 'agent-tuneup', 'ralph'):
             installed = subprocess.run([sys.executable, str(ROOT / 'scripts/install.py'), '--plugin', plugin,
                                         '--prefix', str(prefix)], env=self.env, capture_output=True, text=True, timeout=30)
             self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)

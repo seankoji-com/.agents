@@ -5,6 +5,44 @@ from core import snapshot
 
 
 class SnapshotTest(CoreTestCase):
+    def test_changed_since_tracks_index_content_and_preserves_existing_staged_work(self):
+        repo = self.make_repo()
+        source = repo / 'wordstat.py'
+        original = source.read_bytes()
+        baseline = snapshot.baseline(repo)
+        source.write_text('first staged content\n')
+        git(repo, 'add', 'wordstat.py')
+        source.write_bytes(original)
+        self.assertEqual(snapshot.changed_since(repo, baseline), {'wordstat.py'})
+        existing = snapshot.baseline(repo)
+        self.assertEqual(snapshot.changed_since(repo, existing), set())
+        source.write_text('second staged content\n')
+        git(repo, 'add', 'wordstat.py')
+        source.write_bytes(original)
+        self.assertEqual(snapshot.changed_since(repo, existing), {'wordstat.py'})
+        # Previously saved baselines conservatively report staged candidates.
+        legacy = dict(existing)
+        legacy.pop('index')
+        self.assertEqual(snapshot.changed_since(repo, legacy), {'wordstat.py'})
+
+    def test_changed_since_tracks_staged_add_delete_and_mode_changes(self):
+        repo = self.make_repo()
+        baseline = snapshot.baseline(repo)
+        source = repo / 'wordstat.py'
+        original = source.read_bytes()
+        git(repo, 'rm', '--cached', 'wordstat.py')
+        self.assertEqual(source.read_bytes(), original)
+        self.assertEqual(snapshot.changed_since(repo, baseline), {'wordstat.py'})
+        git(repo, 'add', 'wordstat.py')
+        git(repo, 'update-index', '--chmod=+x', 'wordstat.py')
+        self.assertEqual(snapshot.changed_since(repo, baseline), {'wordstat.py'})
+        git(repo, 'update-index', '--chmod=-x', 'wordstat.py')
+        added = repo / 'new staged.txt'
+        added.write_text('staged addition\n')
+        git(repo, 'add', added.name)
+        added.unlink()
+        self.assertEqual(snapshot.changed_since(repo, baseline), {added.name})
+
     def test_executable_bit_change_invalidates_even_with_same_porcelain(self):
         repo = self.make_repo()
         run = self.init(self.plan(repo, policy={'checks': [], 'review': {'required': False}}))

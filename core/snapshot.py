@@ -147,16 +147,31 @@ def _blob(root: Path, path: str) -> str | None:
     return git(root, 'hash-object', '--', path).strip()
 
 
+def _index(root: Path) -> dict:
+    """Modes, object IDs and merge stages, keyed by literal index paths."""
+    result = subprocess.run(['git', '-C', str(root), 'ls-files', '-s', '-z'], capture_output=True)
+    if result.returncode != 0:
+        raise Environment('git_failed', 'git ls-files failed',
+                          {'stderr': result.stderr.decode(errors='replace')[-400:]})
+    entries = {}
+    for entry in result.stdout.decode(errors='surrogateescape').split('\0'):
+        if entry:
+            metadata, rel = entry.split('\t', 1)
+            entries.setdefault(rel, []).append(metadata)
+    return entries
+
+
 def baseline(worktree) -> dict:
-    """HEAD plus the content of every dirty path, so later changes can be told
+    """HEAD, index entries and the content of every dirty path, so later changes can be told
     apart from work that was already there."""
     root = toplevel(worktree)
     head = git(root, 'rev-parse', '--verify', '-q', 'HEAD', check=False).strip() or None
-    return {'head': head, 'dirty': {rel: _blob(root, rel) for _status, rel in _porcelain(root)}}
+    return {'head': head, 'dirty': {rel: _blob(root, rel) for _status, rel in _porcelain(root)},
+            'index': _index(root)}
 
 
 def changed_since(worktree, base: dict) -> set:
-    """Paths whose content differs from a `baseline`: committed or not."""
+    """Paths whose working content or index entries differ from a `baseline`."""
     root = toplevel(worktree)
     candidates = set(base.get('dirty') or {})
     if base.get('head'):
@@ -164,6 +179,17 @@ def changed_since(worktree, base: dict) -> set:
                        if line}
     candidates |= {rel for _status, rel in _porcelain(root)}
     changed = set()
+    if 'index' in base:
+        before_index, current_index = base['index'], _index(root)
+        changed |= {rel for rel in before_index.keys() | current_index.keys()
+                    if before_index.get(rel) != current_index.get(rel)}
+    else:
+        # Older baselines lack staged provenance. Report staged candidates
+        # conservatively; the caller still verifies ownership before publication.
+        args = ['diff', '--cached', '--name-only', '-z']
+        if base.get('head'):
+            args.append(base['head'])
+        changed |= {rel for rel in git(root, *args).split('\0') if rel}
     for rel in candidates:
         if rel in (base.get('dirty') or {}):
             before = base['dirty'][rel]
