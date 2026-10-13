@@ -16,13 +16,13 @@
           },
           {
             "selector": "test_elephant_goldfish_workflow.ThinkingHandoffJobTests",
-            "tests": 1,
+            "tests": 2,
             "coverage": ["REQ-COMPAT", "REQ-EVIDENCE", "REQ-BOUNDARIES", "REQ-JOB", "G-EG-DISCOVERY", "G-EG-HANDOFF"],
             "survives": true
           },
           {
             "selector": "test_elephant_goldfish_workflow.ElephantDocumentJobTests",
-            "tests": 5,
+            "tests": 6,
             "coverage": ["REQ-COMPAT", "REQ-HANDOFF", "REQ-EVIDENCE", "REQ-REPAIR", "REQ-BOUNDARIES", "REQ-JOB", "G-EG-SEPARATION"],
             "survives": true
           }

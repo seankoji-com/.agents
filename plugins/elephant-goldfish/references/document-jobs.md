@@ -33,7 +33,9 @@ Never let one stage cover both.
 
 - **Factual slot.** Worker `elephant-goldfish/factual-checker`, write scope
   `coordinator-only` (inline result). Its brief carries the document path and hash,
-  the checked revision, the claims to verify and read-only authority.
+  the checked revision, the claims to verify and read-only authority. Its
+  `review_verdict` is null, or `adverse` beside any blocker or major finding; such a
+  result is ingested, its findings are retained, and the stage stays unaccepted.
 - **Cold-read slot.** Worker `elephant-goldfish/cold-reader` with `role: review`,
   `context_policy: document-only`, `document: {path, sha256}`, `reviewed_documents`
   naming exactly that same `{path, sha256}`, and write scope `coordinator-only`. Its
@@ -90,6 +92,12 @@ document has a new hash, so:
    Then `retry` the cold-read slot and dispatch a fresh reader. Each retry charges its
    stage budget. The previous findings stay in job history; the new reader never
    sees them.
+
+A `thinking` job has no factual slot. Repair through discovery or spec, re-render the
+handoff with `render_handoff.py` and pass `thinking_state.py gate`. The old `handoff`
+receipt no longer matches the new bytes, so run `accept-stage` on the `handoff` stage
+again (a charged direct pass). Then run `document-revision` with the new `handoff.md`
+hash and `retry` the cold-read slot.
 
 When the budget is spent, `document-revision` refuses with `attempt_budget_exhausted`
 and `owner_decision_required`. Another round then needs the owner, asked through the

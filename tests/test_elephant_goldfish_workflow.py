@@ -154,6 +154,9 @@ class InstructionContractTests(unittest.TestCase):
         self.assertIn('never\n  READY', cold)
         factual = (PLUGIN / 'agents/factual-checker.md').read_text()
         self.assertIn('Set `review_verdict` to null', factual)
+        # Blocker/major findings force adverse in the result parser, for every role.
+        self.assertIn('`major` finding, set it to `adverse`', ' '.join(factual.split()))
+        self.assertIn('Never use `approve`', factual)
         self.assertIn('Never edit the\ndocument', factual)
         for status in ('ready-for-acceptance', 'needs-followup', 'blocked', 'failed'):
             self.assertIn(status, factual)
@@ -357,6 +360,68 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         overview = self.ok(self.run_helper('job_cli.py', 'overview', job_id))
         self.assertNotEqual(next(s for s in overview['stages'] if s['id'] == 'handoff')['status'], 'accepted-at-snapshot')
 
+    def test_thinking_cold_read_repair_rerenders_and_revalidates_the_handoff_without_a_factual_slot(self):
+        root, slug = self.base / 'thinking', 'cold-handoff'
+        topic = root / slug
+        self.assertEqual(self.thinking_state(root, 'init', slug, '--output-type', 'implementation').returncode, 0)
+        discovery = '# Discovery\n\nRetries must never double-charge.\n'
+        (topic / 'discovery.md').write_text(discovery)
+        (topic / 'spec.md').write_text('# Spec\n\n[REQ-RETRY] Retry a timed-out charge once.\n')
+        self.assertEqual(self.thinking_state(root, 'review', slug, '--decision', 'accepted', '--scope', 'finalise-brief',
+                                             '--discovery-sha256', sha(discovery.encode()), '--evidence-ref', 'msg:1',
+                                             '--operator-statement-file',
+                                             self.write_statement(topic, 'I accept this discovery.')).returncode, 0)
+        render = lambda: self.assertEqual(subprocess.run(
+            [sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root)],
+            capture_output=True, text=True, env=self.env).returncode, 0)
+        render()
+        handoff = topic / 'handoff.md'
+        job_id, workflow = 'thinking-cold-handoff', 'elephant-goldfish/thinking'
+        caller = self.caller(workflow)
+        contract = {'root': str(root), 'slug': slug, 'mode': 'handoff'}
+        cold_contract = {**contract, 'mode': 'cold-read', 'document_path': str(handoff),
+                         'document_sha256': sha(handoff.read_bytes())}
+        subject = {'path': str(handoff), 'sha256': sha(handoff.read_bytes())}
+        self.create(self.base_job(job_id, workflow, {'R-HANDOFF': 'reviewed, provenance-checked handoff',
+                                                     'R-COLD': 'a fresh reader finds no blocking gap'},
+                                  [{'id': 'handoff', 'depends_on': [], 'requirements': ['R-HANDOFF'], 'status': 'pending',
+                                    'execution_mode': 'direct', 'validator_dependency': 'eg', 'revision': 'handoff-r1',
+                                    'validator_contract': contract},
+                                   {'id': 'cold-read', 'depends_on': ['handoff'], 'requirements': ['R-COLD'],
+                                    'status': 'pending', 'validator_dependency': 'eg', 'validator_contract': cold_contract}],
+                                  [{'task_id': 'c0', 'stage_id': 'cold-read', 'logical_slot_id': 'cold-read',
+                                    'request_id': 'req-c0', 'worker_id': 'elephant-goldfish/cold-reader',
+                                    'dependency_key': 'eg', 'context_policy': 'document-only', 'role': 'review',
+                                    'document': subject, 'reviewed_documents': [dict(subject)],
+                                    'write_scope': {'mode': 'coordinator-only'}}]))
+        descriptor = self.publish(job_id, caller, 'handoff', contract)
+        self.ok(self.accept(job_id, caller, 'handoff', self.doc_argv(root, slug, 'handoff'), descriptor, 'handoff-r1'))
+        gap = [{'id': 'GAP-1', 'severity': 'blocker', 'scenario': 'A newcomer cannot tell what "once" bounds.',
+                'source_evidence': 'quoted: "Retry a timed-out charge once."'}]
+        self.dispatch(job_id, caller, 'c0', verdict='adverse', status='failed', requirement='failed',
+                      findings=gap, conclusion='VERDICT: NOT READY')
+        # Repair through the spec, re-render, and revalidate the handoff stage (no factual slot exists).
+        (topic / 'spec.md').write_text('# Spec\n\n[REQ-RETRY] Retry a timed-out charge exactly once per request ID.\n')
+        render()
+        self.assertEqual(self.thinking_state(root, 'gate', slug, '--require', 'discovery,spec,handoff').returncode, 0)
+        # The old handoff receipt no longer matches the re-rendered bytes; a fresh direct pass accepts them.
+        stale = self.run_helper('job_acceptance_cli.py', 'validate', job_id, {'caller': caller, 'stage_id': 'handoff'})
+        self.assertEqual(stale.returncode, 1, stale.stdout + stale.stderr)
+        descriptor = self.publish(job_id, caller, 'handoff', contract)
+        self.ok(self.accept(job_id, caller, 'handoff', self.doc_argv(root, slug, 'handoff'), descriptor, 'handoff-r1'))
+        new_sha = sha(handoff.read_bytes())
+        record = self.ok(self.run_helper('job_cli.py', 'document-revision', job_id, {
+            'caller': caller, 'task_id': 'c0', 'reason': 'spec repaired', 'document': {'path': str(handoff), 'sha256': new_sha}}))
+        self.assertEqual(record['stale_stages'], ['cold-read'])
+        state = self.job_state(job_id)
+        self.assertEqual(state['decisions'], [])
+        self.assertEqual(next(s for s in state['stages'] if s['id'] == 'handoff')['status'], 'accepted-at-snapshot')
+        self.ok(self.run_helper('job_cli.py', 'retry', job_id, {'caller': caller, 'task_id': 'c0', 'reason': 'NOT READY'}))
+        brief, raw = self.dispatch(job_id, caller, 'c0', verdict='approve', conclusion='VERDICT: READY')
+        self.assertEqual(brief['document']['sha256'], new_sha)
+        self.assertNotIn('GAP-1', raw.decode())
+        self.assertEqual(next(s for s in self.job_state(job_id)['stages'] if s['id'] == 'cold-read')['cycle'], 1)
+
 
 class ElephantDocumentJobTests(InstalledJobFixture):
     """G-EG-SEPARATION, cold-reader isolation and coordinator-owned repair rounds."""
@@ -455,6 +520,33 @@ class ElephantDocumentJobTests(InstalledJobFixture):
             'caller': caller, 'validator_argv_by_stage': {'factual': factual_argv, 'cold-read': cold_argv(cold_input)},
             'input_file_by_stage': {'factual': factual_input, 'cold-read': cold_input}})
         self.assertEqual(final.returncode, 1, final.stdout + final.stderr)
+
+    REFUTED = [{'id': 'CLAIM-C1', 'severity': 'major', 'scenario': 'The plan says `make test` runs in `ci/`; a newcomer gets "No rule to make target".',
+                'source_evidence': 'ci/Makefile:1-12 declares no test target'}]
+
+    def test_factual_checker_major_finding_is_ingested_and_retained_for_disposition(self):
+        document = self.document()
+        caller = self.caller(self.WORKFLOW)
+        # The old instruction (null verdict beside a major finding) is malformed and drops the finding.
+        self.create(self.elephant_job('factual-null', document))
+        self.dispatch('factual-null', caller, 'f0', verdict=None, status='failed', requirement='failed', findings=self.REFUTED)
+        task = next(t for t in self.job_state('factual-null')['tasks'] if t['task_id'] == 'f0')
+        self.assertTrue(task['execution_history'][-1].get('malformed'))
+        self.assertEqual(task.get('finding_dispositions', []), [])
+        # The corrected definition: adverse beside a blocker/major finding parses and retains it.
+        self.create(self.elephant_job('factual-major', document))
+        self.dispatch('factual-major', caller, 'f0', verdict='adverse', status='failed', requirement='failed',
+                      findings=self.REFUTED, conclusion='Claim C1 refuted.')
+        task = next(t for t in self.job_state('factual-major')['tasks'] if t['task_id'] == 'f0')
+        self.assertFalse(task['execution_history'][-1].get('malformed'))
+        self.assertEqual(task['execution_history'][-1]['result']['review_verdict'], 'adverse')
+        self.assertEqual([(d['finding_id'], d['disposition']) for d in task['finding_dispositions']], [('CLAIM-C1', None)])
+        self.assertEqual(task['status'], 'failed')
+        # The adverse factual result never accepts the stage.
+        path = self.publish('factual-major', caller, 'factual', self.factual_observation(document))
+        refused = self.accept('factual-major', caller, 'factual',
+                              self.doc_argv(document.parent.parent, document.parent.name, 'factual', path), path, 'doc-r1')
+        self.assertNotEqual(refused.returncode, 0)
 
     def revise(self, job_id, caller, document, task_id='c0', digest=None):
         return self.run_helper('job_cli.py', 'document-revision', job_id, {

@@ -34,9 +34,12 @@ children or start follow-up work; put any need for more work in
 Return exactly one JSON object that matches `shared/agents/worker-result.schema.json`
 v1, or the artifact envelope when the brief authorises an artifact. No prose or code
 fences around it. Use status `ready-for-acceptance`, `needs-followup`, `blocked` or
-`failed`. Set `review_verdict` to null. Record every refuted or unknown claim as a
-finding with an ID, severity (`blocker`, `major`, `minor` or `note`), a concrete
-scenario and source evidence. List the exact commands you ran.
+`failed`. Set `review_verdict` to null, except: when you report any `blocker` or
+`major` finding, set it to `adverse`, because the result parser rejects any other
+verdict beside one. Never use `approve`; you are not a review slot. Record every
+refuted or unknown claim as a finding with an ID, severity (`blocker`, `major`,
+`minor` or `note`), a concrete scenario and source evidence. List the exact commands
+you ran.
 
 Redact credentials, tokens, private hostnames and personal paths from evidence.
 
