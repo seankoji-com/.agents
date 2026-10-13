@@ -41,7 +41,8 @@ only, after `task_status` has been read and recorded: reading a direct child's
 untruncated terminal result acknowledges its completion delivery. Bind the read to
 the recorded task: locate the terminal assistant item of the run `task_status`
 reported as `childRunId`, continuing with `afterPosition` set to `nextPosition` until
-that item is found or the timeline ends. A later turn's result (`latestTerminal*`)
+that item is found or the timeline ends. The item's `runId` must equal that
+`childRunId`. A later turn's result (`latestTerminal*`)
 belongs to that turn, never to the original task. Then follow that item's `itemId`
 and `textOffset` until `nextTextOffset` is null and pass the whole message on. A
 missing item or partial read is a result gap, never a result; do not truncate or
@@ -62,12 +63,18 @@ integration order. When you cannot establish that isolation (for example, a chil
 cannot write outside your checkout), run writers one at a time in your checkout.
 Readers may still run in parallel.
 
-A dependent slot consumes earlier source-worktree changes only as a commit or branch
-at an observed SHA: inspect it with `git diff` or `git log`, or merge it into the
-dependent worktree. Accepted artifacts, such as reports under the job directory named
-in `consumed_outputs`, are handed off by path and recorded hash instead; they need no
-commit. Never read from or write into a worktree whose writer is still active, and
-never re-run a completed task to recover its output. T3's per-turn checkpoints are host
+A dependent slot consumes earlier source-worktree changes only from a finished writer,
+at a recorded revision. Committed changes, where the job authorizes commits, arrive as
+a commit or branch at an observed SHA: inspect it with `git diff` or `git log`, or
+merge it into the dependent worktree. Uncommitted local work, as on an edit-only job,
+arrives as the accepted stage's snapshot (`head` and `content_hash`): the dependent
+slot continues in that worktree, or applies a `git diff --binary` patch saved with its
+recorded hash, and confirms the snapshot or hash before it starts. Never commit only to
+hand work on; that needs the job's commit authority. Accepted artifacts, such as
+reports under the job directory named in `consumed_outputs`, are handed off by path
+and recorded hash instead; they need no commit. Never read from or write into a
+worktree whose writer is still active, and never re-run a completed task to recover
+its output. T3's per-turn checkpoints are host
 state: do not fetch, reset to or depend on their refs unless the host documents them.
 
 ## Task hygiene

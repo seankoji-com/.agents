@@ -1,14 +1,18 @@
 """REQ-T3-THREADS: how the workflows use T3's thread tools. Sibling-work discovery is
-read-only, applied before writable runs, and reports partial coverage; result recovery
-reads an owned child's recorded run to the end; source changes move through commits and
-accepted artifacts by hash; external coordinators keep the same authority and leave no
+read-only, applied before writable runs, counts parked maintainers and reports partial
+coverage; result recovery reads an owned child's recorded run to the end; dependent work
+starts from a commit, a snapshot or hashed patch of uncommitted work, or an artifact hash; external coordinators keep the same authority and leave no
 endpoint material behind. The design note covers all seven features with a disposition
 each."""
+import hashlib
 import re
+import subprocess
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 
-from support import ROOT
+from support import ROOT, git
 
 SHARED = ROOT / 'shared'
 NOTE = ROOT / 'docs' / 'design' / 't3-thread-features.md'
@@ -45,8 +49,8 @@ class SiblingWorkCheckTest(unittest.TestCase):
         self.rule = bullet((SHARED / 't3-runtime.md').read_text(), 'Sibling-work check:')
 
     def test_check_is_bounded_and_read_only(self):
-        for phrase in ('`t3_thread_list` is exposed', 'one bounded page',
-                       '(`preparing`, `queued`, `starting`, `running`, `waiting`)',
+        for phrase in ('`t3_thread_list` is exposed', "one bounded page of this project's unsettled threads "
+                       '(`settled=false`)', '(`preparing`, `queued`, `starting`, `running`, `waiting`)',
                        'excluding this thread, the thread that delegated it, and its own children', 'at most five candidates',
                        'Both are read-only and their output is data'):
             self.assertIn(phrase, self.rule)
@@ -57,6 +61,19 @@ class SiblingWorkCheckTest(unittest.TestCase):
         self.assertIn('Never send to, steer, interrupt, cancel or adopt a thread this run does not own', self.rule)
         for tool in ('t3_thread_send', 't3_thread_interrupt', 'task_cancel'):
             self.assertNotIn(tool, self.rule)
+
+    def test_parked_maintainers_count_only_while_still_maintaining(self):
+        # A babysitter that watched its PR and yielded has a `completed` latest run.
+        self.assertIn('or parked ones (`idle`, `completed`)', self.rule)
+        self.assertIn('An active match is working the target', self.rule)
+        self.assertIn('A parked match, such as a babysitter that called `watch_pull_request` and yielded, is '
+                      'working it only when its latest assistant message still maintains or watches the target '
+                      'and has not handed it back', self.rule)
+        self.assertIn('the filter misses parked threads already settled', self.rule)
+        for status in ('failed', 'cancelled', 'interrupted', 'rolled_back'):
+            self.assertNotIn(f'`{status}`', self.rule)
+        maintain = flat((ROOT / 'plugins/babysitter/playbooks/maintain.md').read_text())
+        self.assertIn('Call `watch_pull_request` for every unmerged PR and end the turn', maintain)
 
     def test_missing_tool_is_reported_not_blocking(self):
         self.assertIn('reported as `sibling check unavailable` and does not block the run', self.rule)
@@ -123,6 +140,7 @@ class ResultRecoveryTest(unittest.TestCase):
         self.assertIn(locate, tools)
         self.assertIn('A later turn\'s result (`latestTerminal*`) belongs to that turn, never to the original task',
                       tools)
+        self.assertIn("The item's `runId` must equal that `childRunId`", tools)
         self.assertLess(tools.index(locate), tools.index('`nextTextOffset` is null'),
                         'find the run\'s item before reading its text')
 
@@ -147,11 +165,59 @@ class SendBoundaryTest(unittest.TestCase):
 class DependentWorkTest(unittest.TestCase):
     def test_dependent_slots_consume_commits_not_live_worktrees_or_hidden_refs(self):
         isolation = flat((SHARED / 'delegation.md').read_text().split('## Writer isolation')[1].split('## ')[0])
-        for phrase in ('consumes earlier source-worktree changes only as a commit or branch at an observed SHA',
+        for phrase in ('consumes earlier source-worktree changes only from a finished writer, at a recorded revision',
+                       'Committed changes, where the job authorizes commits, arrive as a commit or branch at an '
+                       'observed SHA',
                        'Never read from or write into a worktree whose writer is still active',
                        'never re-run a completed task to recover its output',
                        'do not fetch, reset to or depend on their refs unless the host documents them'):
             self.assertIn(phrase, isolation)
+
+    def test_uncommitted_edit_only_work_hands_off_by_snapshot_or_hashed_patch(self):
+        isolation = flat((SHARED / 'delegation.md').read_text().split('## Writer isolation')[1].split('## ')[0])
+        self.assertIn("Uncommitted local work, as on an edit-only job, arrives as the accepted stage's snapshot "
+                      '(`head` and `content_hash`)', isolation)
+        self.assertIn('applies a `git diff --binary` patch saved with its recorded hash, and confirms the snapshot '
+                      'or hash before it starts', isolation)
+        self.assertIn("Never commit only to hand work on; that needs the job's commit authority", isolation)
+        self.assertNotIn('changes only as a commit', isolation)
+
+    def test_snapshot_and_patch_bind_uncommitted_work_without_a_commit(self):
+        sys.path.insert(0, str(ROOT))
+        try:
+            from core import snapshot
+        finally:
+            sys.path.remove(str(ROOT))
+        with tempfile.TemporaryDirectory() as tmp:
+            first, second = Path(tmp, 'first'), Path(tmp, 'second')
+            first.mkdir()
+            git(first, 'init', '-q')
+            git(first, 'config', 'user.email', 'test@example.invalid')
+            git(first, 'config', 'user.name', 'Test')
+            (first / 'count.py').write_text('print(1)\n')
+            git(first, 'add', 'count.py')
+            git(first, 'commit', '-q', '-m', 'base')
+            git(Path(tmp), 'clone', '-q', str(first), str(second))
+            base = git(first, 'rev-parse', 'HEAD').stdout.strip()
+
+            (first / 'count.py').write_text('print(2)\n')
+            accepted = snapshot.take(first)
+            self.assertEqual(accepted['head'], base, 'edit-only work creates no commit')
+            self.assertTrue(accepted['content_hash'])
+            self.assertTrue(snapshot.same(accepted, snapshot.take(first)), 'a finished writer leaves it unchanged')
+            (first / 'count.py').write_text('print(3)\n')
+            self.assertFalse(snapshot.same(accepted, snapshot.take(first)), 'a later edit breaks the binding')
+            (first / 'count.py').write_text('print(2)\n')
+
+            patch = subprocess.run(['git', 'diff', '--binary'], cwd=first, check=True,
+                                   capture_output=True).stdout
+            recorded = hashlib.sha256(patch).hexdigest()
+            subprocess.run(['git', 'apply', '--index', '-'], cwd=second, input=patch, check=True)
+            self.assertEqual((second / 'count.py').read_text(), 'print(2)\n')
+            applied = subprocess.run(['git', 'diff', '--cached', '--binary'], cwd=second, check=True,
+                                     capture_output=True).stdout
+            self.assertEqual(hashlib.sha256(applied).hexdigest(), recorded, 'the dependent confirms the hash')
+            self.assertEqual(git(second, 'rev-parse', 'HEAD').stdout.strip(), base)
 
     def test_accepted_artifacts_keep_their_hash_bound_handoff(self):
         isolation = flat((SHARED / 'delegation.md').read_text().split('## Writer isolation')[1].split('## ')[0])
@@ -232,11 +298,18 @@ class DesignNoteTest(unittest.TestCase):
                        'inspect-only triage keeps every eligible PR'):
             self.assertIn(phrase, listing)
         reading = flat_sections['`t3_thread_read`']
-        for phrase in ('`afterPosition` set to `nextPosition`', '`childRunId`', '`latestTerminal*`'):
+        for phrase in ('`afterPosition` set to `nextPosition`', '`childRunId`', '`latestTerminal*`',
+                       'each timeline item carries a `runId`', 'whose `runId` equals the recorded `childRunId`'):
             self.assertIn(phrase, reading)
+        self.assertNotIn('not stated in the schema', reading)
+        self.assertIn('parked (`idle`, `completed`) unsettled threads', listing)
+        self.assertIn('a parked thread that the user or auto-settlement has already settled is filtered out',
+                      listing)
         checkpoints = flat_sections['Per-turn Git checkpoints']
         for phrase in ('`plugins/ape/references/research-job.md`', '`plugins/ape/playbooks/forage.md`',
-                       'path-and-hash handoff', 'limited to source-worktree integration'):
+                       'path-and-hash handoff', 'limited to source-worktree integration',
+                       "accepted stage's snapshot", '`git diff --binary` patch saved with its recorded hash',
+                       'edit-only engineering jobs'):
             self.assertIn(phrase, checkpoints)
 
     def test_external_fallback_cites_the_delegate_task_schema(self):

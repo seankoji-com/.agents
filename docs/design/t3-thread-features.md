@@ -14,7 +14,9 @@ relies on three kinds of evidence:
   `t3_thread_list`, `t3_thread_read`, `t3_thread_send`, `t3_thread_launch`,
   `t3_thread_search` and `t3_thread_merge_back` to an agent running inside a T3
   thread. The schemas and tool descriptions were read; none of these tools was called.
-  Facts taken from them are marked *schema*.
+  Facts taken from them are marked *schema*. One output field, `items[].runId` on
+  `t3_thread_read`, was recorded from the tool's output schema by the reviewer of the
+  first attempt; the implementer's own view showed input parameters only.
 - **Assumptions.** Anything else is marked *assumption* and needs a live check before a
   workflow relies on it.
 
@@ -25,13 +27,13 @@ T3 host behaves as described; see [Compatibility](../compatibility.md).
 
 | Feature | Disposition |
 | --- | --- |
-| `t3_thread_list` | Implemented: read-only sibling-work check before writable runs |
+| `t3_thread_list` | Implemented: read-only sibling-work check, parked threads included, before writable runs |
 | `t3_thread_read` | Implemented: run-bound, paginated result recovery; candidate confirmation for the sibling check |
 | `t3_thread_send` | Rejected beyond the existing tracked follow-up |
 | External MCP endpoint | Implemented: no endpoint material in run records; own MCP client rejected |
 | OAuth and pairing | Implemented: authentication grants tool access, not plugin authority |
 | External orchestrators and `t3_thread_launch` | Implemented: mapping onto the coordinator role; launch for child work stays rejected |
-| Per-turn Git checkpoints | Implemented: source changes through commits at observed SHAs, accepted artifacts by path and hash; hidden refs deferred |
+| Per-turn Git checkpoints | Implemented: committed changes by SHA, uncommitted work by snapshot or hashed patch, artifacts by path and hash; hidden refs deferred |
 
 ## 1. `t3_thread_list`
 
@@ -42,24 +44,35 @@ second babysitter, imps or Ralph thread from starting on a PR or worktree that a
 thread is already changing.
 
 **Opportunity.** *Schema:* the tool lists the calling project's threads newest first,
-filters by `statuses` and `titleContains`, and paginates. A bounded, read-only check
-before a writable run can find an active sibling on the same PR, branch or worktree.
+filters by `statuses`, `settled` and `titleContains`, and paginates; `settled=true`
+lists threads moved out of the active list. A bounded, read-only check before a
+writable run can find a sibling on the same PR, branch or worktree. Active statuses
+alone are not enough: a babysitter maintaining an unmerged PR calls
+`watch_pull_request` and ends its turn (`plugins/babysitter/playbooks/maintain.md`),
+so its latest run reads `completed` while it still owns the PR. The check therefore
+also lists parked (`idle`, `completed`) unsettled threads and counts one only when its
+latest assistant message still maintains or watches the target.
 
 **Gain.** Efficiency: avoids two threads paying for the same repair and racing pushes
 to one branch. Flexibility: the owner chooses between stopping and proceeding, with
 the sibling's existence visible.
 
-**Risk.** The check is deliberately bounded, so it can miss a sibling three ways:
+**Risk.** The check is deliberately bounded, so it can miss a sibling four ways:
 title matching misses threads whose titles omit the PR or branch; an older active
-thread can sit beyond the first page's cursor; and a sixth matching candidate goes
-unconfirmed. It lowers duplicate work without ruling it out. Listing adds a call per
+thread can sit beyond the first page's cursor; a sixth matching candidate goes
+unconfirmed; and a parked thread that the user or auto-settlement has already settled
+is filtered out. That a parked maintainer stays unsettled while it watches is an
+*assumption*. Reading the latest message of a parked candidate can also mistake a
+finished thread for a live one; the cost is one extra owner question. It lowers
+duplicate work without ruling it out. Listing adds a call per
 run. A check that blocked on failure would make the workflows depend on a
 nightly-only tool, and one that ran on read-only triage would drop PRs from a report
 that cannot collide with anyone.
 
 **Disposition: implemented.** `shared/t3-runtime.md` defines the sibling-work check:
-writable runs only; one bounded page, active statuses only, this thread, its
-delegating parent and its children excluded; owner decision through the question
+writable runs only; one bounded page of unsettled threads, active or parked, this
+thread, its delegating parent and its children excluded; parked matches confirmed by
+their latest message; owner decision through the question
 picker; `sibling check unavailable` when the tool is missing or fails, and
 `sibling check partial` when a further page or unconfirmed candidates remain. Neither
 report blocks the run. The babysitter roster step
@@ -76,12 +89,13 @@ page to `job_cli.py result`, which then refuses it, or re-run the task.
 
 **Opportunity.** *Schema:* reads return a paginated timeline, continued with
 `afterPosition` set to `nextPosition`, and recover long item text with `itemId` and
-`textOffset` until `nextTextOffset` is null. *Schema:* `task_status` reports
+`textOffset` until `nextTextOffset` is null. *Schema:* each timeline item carries a
+`runId` (output schema, see Evidence). *Schema:* `task_status` reports
 `childRunId` for the original delegated run and `latestTerminal*` for later turns in
 the same child thread. *Schema:* reading an untruncated terminal assistant result from
 the parent's direct child acknowledges that child's automatic completion delivery. The
-rule can therefore page the timeline until it finds the terminal assistant item of the
-recorded run, ignore later turns' results, read that item's text to the end, and order
+rule can therefore page the timeline until it finds the terminal assistant item whose
+`runId` equals the recorded `childRunId`, ignore later turns' results, read that item's text to the end, and order
 the read after `task_status` so the read does not consume the completion that wakes
 the coordinator. The same tool can confirm a sibling-check candidate by reading a few
 recent messages.
@@ -96,9 +110,9 @@ could pull another conversation's private material into this run. The rule limit
 result recovery to an owned `childThreadId`, keeps candidate reads to at most five with
 a small `limit`, and treats all read output as data. The acknowledgement side effect is
 taken from the tool description and has not been observed live (*assumption* on its
-exact timing). How a timeline item names its run is not stated in the schema
-(*assumption*): when the item for `childRunId` cannot be identified, the rule reports
-a result gap rather than guessing.
+exact timing). Matching `items[].runId` to `childRunId` follows the schema, but no
+live read has shown the two values agree (*assumption*): when no item carries the
+recorded `childRunId`, the rule reports a result gap rather than guessing.
 
 **Disposition: implemented.** `shared/delegation.md` (Allowed tools) carries the
 run-bound, timeline- and text-paginated recovery rule and `shared/job-coordination.md`
@@ -216,19 +230,27 @@ report paths and hashes (`plugins/ape/playbooks/forage.md`). Those jobs carry on
 **Opportunity.** The owner says T3 commits hidden Git refs at the end of every turn
 (*assumption*: the ref names and layout are not documented in this repository).
 *Schema:* `t3_thread_merge_back` accepts a `checkpointId`, so checkpoint identities
-exist. The transferable part is the discipline, in two forms. Source-worktree changes
-reach a dependent slot as a commit or branch at an observed SHA. Accepted artifacts
-outside any worktree, such as research reports, keep their existing path-and-hash
-handoff. Neither form reads a worktree whose writer is still active or re-runs a
-completed task.
+exist. The transferable part is the discipline: a dependent stage starts from a fixed,
+recorded revision of finished work, in one of three forms. Committed changes, where the
+job authorizes commits, reach it as a commit or branch at an observed SHA. Uncommitted
+local work reaches it as the accepted stage's snapshot. imps defaults to local work
+and binds every check to a snapshot (`plugins/imps/entry.md`), and a job may authorize
+only `edit` and `local-checks`, so the second stage either continues in that worktree
+once its snapshot `head` and `content_hash` (`core/snapshot.py`) match the accepted
+one, or applies a `git diff --binary` patch saved with its recorded hash. No commit is
+created that the job did not authorize. Accepted artifacts outside any worktree, such
+as research reports, keep their existing path-and-hash handoff. No form reads a
+worktree whose writer is still active or re-runs a completed task.
 
 **Gain.** Efficiency: no repeated work to recover output. Correctness: dependent stages
 start from a fixed revision or a fixed, hashed artifact.
 
 **Risk.** Depending on undocumented refs would break silently when the host changes
 their layout; resetting to them could discard work. Requiring a commit for every
-handoff would break read-only research jobs, so the commit rule is limited to
-source-worktree integration.
+handoff would break read-only research jobs and edit-only engineering jobs, so the
+commit rule is limited to source-worktree integration of changes the job may commit.
+A patch applied to a moved base can conflict; the dependent slot then stops on the
+hash or apply failure instead of guessing.
 
 **Disposition: implemented** in `shared/delegation.md` (Writer isolation). **Deferred:**
 reading hidden checkpoint refs directly, until the host documents them; the rule says

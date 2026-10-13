@@ -7,7 +7,7 @@
         "path": "tests/test_t3_thread_features.py",
         "disposition": "keep",
         "stage": 5,
-        "reason": "T3 thread-feature contracts added after issue 28: sibling-work check, paginated result recovery, commit-based dependent work, external coordinators, and the design note.",
+        "reason": "T3 thread-feature contracts added after issue 28: sibling-work check, run-bound result recovery, revision-bound dependent work (commit, snapshot, patch or artifact hash), external coordinators, and the design note.",
         "assertions": [
           {
             "selector": "test_t3_thread_features.SiblingWorkCheckTest",
