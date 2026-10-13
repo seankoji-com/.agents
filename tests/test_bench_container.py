@@ -4370,9 +4370,6 @@ class Pass19ContainerRepairTest(unittest.TestCase):
                 self.assertFalse(audit['verified'], (target, resumed))
 
 
-if __name__ == '__main__':
-    unittest.main()
-
 
 class HeaderSplittingTest(unittest.TestCase):
     """CodeQL response-splitting alerts: upstream header text never reaches a header line raw."""
@@ -4382,3 +4379,8 @@ class HeaderSplittingTest(unittest.TestCase):
             with self.subTest(value=bad):
                 self.assertIsNone(gateway.header_safe(bad))
         self.assertEqual(gateway.header_safe('application/json; charset=utf-8'), 'application/json; charset=utf-8')
+
+
+if __name__ == '__main__':
+    unittest.main()
+
