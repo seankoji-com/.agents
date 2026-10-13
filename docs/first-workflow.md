@@ -1,71 +1,76 @@
-# Your first workflow
+# Your first imps run
 
-Get a useful result before trusting a workflow with changes. Start in a T3 thread
-attached to the repository you want to work on.
+This page takes one real bug from task to evidence. You need the catalog
+[installed](getting-started.md) and a T3 thread attached to the repository with the bug.
 
 ## 1. Check readiness
 
-After [installation](getting-started.md), run this in your terminal:
-
-```sh
-t3-plugins prompt imps doctor
+```text
+$t3-imps doctor
 ```
 
-Copy the printed line into T3 and send it. This command prints instructions; it does
-not call a model. The agent checks Python, Git, state storage and T3 capabilities,
-and tells you what is available or missing. It changes no project files.
-
-If you installed skills, you can instead select **t3-imps** from the `/` menu and
-append `doctor`. See [slash commands](slash-commands.md).
+The agent checks Python, Git, its state directory and T3's live provider list, then
+says what it can and can't run. It changes no files. If `/` doesn't list `t3-imps`,
+run `t3-plugins prompt imps doctor` in a terminal and paste the line it prints. See
+[slash commands](slash-commands.md) for provider-specific skill folders.
 
 ## 2. Give it one bounded job
 
-Run this in your terminal, replacing the task with a real failure in your project:
+Name the failure, the expected behaviour, and how far the agent may go:
+
+```text
+$t3-imps run Fix the word counter: a file containing "one two" on line 1 and "three" on line 2 returns 2; it should return 3. Verify locally. Do not commit, push or open a PR.
+```
+
+The last sentence sets the endstate. imps defaults to local work, and it won't commit
+or open a PR unless you say so. For a feature, describe the interaction and how you'll
+know it works. If you can't write that sentence yet, run
+[elephant-goldfish](plugins/elephant-goldfish.md) first.
+
+Without the slash menu, generate the same prompt in a terminal:
 
 ```sh
 t3-plugins prompt imps run 'Fix the word counter: a file containing "one two" on line 1 and "three" on line 2 returns 2; it should return 3. Verify locally. Do not commit, push or open a PR.'
 ```
 
-Paste the output into the same T3 thread. The generated prompt uses your installed
-path, including a custom prefix. You do not need to type a path from this guide.
-
-A useful task names the failure, expected behavior, and how far the agent may go.
-For a feature, name the interaction and its acceptance condition. If you cannot yet
-do that, start with [elephant-goldfish](plugins/elephant-goldfish.md).
-
 ## 3. Read the evidence
 
-imps records a plan, makes the change, verifies it, and obtains the required review.
-Its report gives you a run ID, artifacts, current readiness and remaining blockers.
-An edit after verification makes that evidence stale. If an independent reviewer
-cannot run, the agent reports the missing review; a plausible patch is not a pass.
+imps writes a plan with numbered requirements, makes the change, runs the checks it
+planned, and gets an independent review. Its report gives you:
 
-Check the actual diff and result. Local completion does not imply that a PR was
-created, CI passed, or a deployment works. These need separate authorization and
-observations.
+- a run ID and the state directory, so you can resume later;
+- each requirement with the check or review that covered it, and the revision it ran on;
+- paths to the saved check output;
+- anything still blocked, and why.
+
+Any edit after a check makes that check stale, and the report says so. If no reviewer
+from another model lineage is available, the report lists the review as missing. A
+plausible patch is not a pass.
+
+Read the diff yourself as well. A local pass says nothing about CI, a merge or a
+deployment; each needs its own authorization and its own observation.
 
 ## Resume, inspect or stop
 
-Keep the run ID and any custom state root from the report. Replace `RUN_ID` below:
+Keep the run ID from the report. In the same thread:
 
-```sh
-t3-plugins prompt imps status RUN_ID
-t3-plugins prompt imps resume RUN_ID
-t3-plugins prompt imps cancel RUN_ID
+```text
+$t3-imps status RUN_ID
+$t3-imps resume RUN_ID
+$t3-imps cancel RUN_ID
 ```
 
-Paste the appropriate prompt into the same T3 thread. `status` inspects the run;
-`resume` finishes missing work; `cancel` confirms owned children and processes have
-stopped. Run state defaults to `~/.local/state/t3-plugins/imps/runs/`.
+`status` shows the run without changing it. `resume` finishes missing work. `cancel`
+confirms that the run's child tasks and processes have stopped. Run state lives in
+`~/.local/state/t3-plugins/imps/runs/` unless the report names another state root.
 
 Larger work runs as a job, and the report gives a job ID instead. The same three
-operations take it. `status` shows the job overview: each stage's state, the current
-stage, open decisions, blockers and any `fallback: direct` marker. `resume` starts from
-that overview and checks every recorded task before starting anything new; see
+operations take it. `status` shows each stage, the current stage, open decisions,
+blockers and any `fallback: direct` marker. `resume` reads that overview and checks
+every recorded task before starting anything new; see
 [resume a job](troubleshooting.md#resume-a-job-after-an-interruption).
 
 ## Try a helper without a model
 
 [agent-tuneup](plugins/agent-tuneup.md#run-without-a-model) can audit a synthetic
-settings file locally. This exercises an installed helper without consuming model
-resources or changing provider settings.
+settings file locally. It uses no model and changes no provider settings.

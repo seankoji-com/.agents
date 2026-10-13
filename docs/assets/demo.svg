@@ -1,17 +1,146 @@
-<svg xmlns="http://www.w3.org/2000/svg" class="demo-rec" viewBox="0 0 1244 368" role="img" aria-label="Terminal recording: installing imps, running doctor, and pasting the generated prompt into a T3 thread. Total length 8.7 seconds.">
-<style>.demo-rec text{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;fill:var(--sp-ink,#1f2a24);white-space:pre}.demo-rec .prompt{fill:var(--sp-ink-soft,#55615a)}.demo-rec .out{fill:var(--sp-ink-soft,#55615a)}.demo-rec .note{fill:var(--sp-ochre-text,#80601a);font-style:italic}.demo-rec .cmd{clip-path:inset(0 100% 0 0)}@keyframes demo-reveal{to{clip-path:inset(0 -2% 0 0)}}@keyframes demo-appear{from{opacity:0}to{opacity:1}}@media(prefers-reduced-motion:reduce){.demo-rec text{animation:none!important;clip-path:none!important;opacity:1!important}}#demo-l0{animation:demo-reveal 1.03s steps(23,end) 0.40s both}#demo-l1{animation:demo-appear 0.01s linear 2.03s both}#demo-l2{animation:demo-reveal 0.99s steps(22,end) 2.38s both}#demo-l3{animation:demo-appear 0.01s linear 3.97s both}#demo-l4{animation:demo-reveal 1.3s steps(29,end) 4.32s both}#demo-l5{animation:demo-appear 0.01s linear 6.22s both}#demo-l7{animation:demo-appear 0.01s linear 6.57s both}#demo-l8{animation:demo-appear 0.01s linear 6.92s both}#demo-l9{animation:demo-appear 0.01s linear 7.27s both}#demo-l10{animation:demo-appear 0.01s linear 7.62s both}#demo-l11{animation:demo-appear 0.01s linear 7.97s both}#demo-l12{animation:demo-appear 0.01s linear 8.32s both}</style>
-<rect width="1244" height="368" fill="var(--sp-paper,#eef0e8)"/>
-<text x="28" y="18" style="font-size:11px;letter-spacing:.04em;fill:var(--sp-ink-soft,#55615a)">scripted recording · 8.7s · no live model call</text>
-<text id="demo-l0" x="28" y="34" class="cmd"><tspan class="prompt">$ </tspan>t3-plugins install imps</text>
-<text id="demo-l1" x="28" y="58" class="out">{"ok": true, "data": {"action": "install", "plugin": "imps", "version": "1.0.0+content.664ed9e9b003", "files": 62}}</text>
-<text id="demo-l2" x="28" y="82" class="cmd"><tspan class="prompt">$ </tspan>t3-plugins doctor imps</text>
-<text id="demo-l3" x="28" y="106" class="out">{"plugin": "imps", "ok": true, "errors": [], "scope": "installed file integrity and package currency; provider behavior not tested"}</text>
-<text id="demo-l4" x="28" y="130" class="cmd"><tspan class="prompt">$ </tspan>t3-plugins prompt imps doctor</text>
-<text id="demo-l5" x="28" y="154" class="out">Read ~/.local/share/t3-plugins/imps/current/entry.md and run: doctor</text>
-<text id="demo-l7" x="28" y="202" class="note">pasted into a T3 thread, on whichever provider is selected</text>
-<text id="demo-l8" x="28" y="226" class="out">imps doctor</text>
-<text id="demo-l9" x="28" y="250" class="out">  python3 3.12.6 · git 2.46.0 · state root writable</text>
-<text id="demo-l10" x="28" y="274" class="out">  T3 tools: orchestrator_capabilities responded</text>
-<text id="demo-l11" x="28" y="298" class="out">  child-capable providers: codex, claudeAgent, antigravity</text>
-<text id="demo-l12" x="28" y="322" class="out">  operations here: doctor run resume status cancel verification-init</text>
+<svg xmlns="http://www.w3.org/2000/svg" class="demo-rec" viewBox="0 0 662 488" width="662" height="488" role="img" aria-label="Terminal recording, 13 seconds: t3-plugins list, setup, doctor, the installed slash-command skills, and the prompt for T3. Real output recorded 2026-10-13.">
+<style>.demo-rec text{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;fill:var(--sp-ink,#1f2a24);white-space:pre}.demo-rec .prompt{fill:var(--sp-fern,#2f6b4f)}.demo-rec .out{fill:var(--sp-ink-soft,#55615a)}.demo-rec .ok{fill:var(--sp-fern,#2f6b4f)}.demo-rec .cap{font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12px;fill:var(--sp-ink-soft,#55615a)}.demo-rec .bg{fill:var(--sp-paper,#eef0e8)}.demo-rec .rule{stroke:var(--sp-rule,#c6cdbf);stroke-width:1}@keyframes demo-reveal{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 -2% 0 0)}}@keyframes demo-appear{from{opacity:0}to{opacity:1}}@media(prefers-reduced-motion:reduce){.demo-rec text{animation:none!important;clip-path:none!important;opacity:1!important}.demo-rec .demo-scroll{animation:none!important;transform:translateY(-2320px)}}#demo-l0{animation:demo-reveal 0.6s steps(15,end) 0.40s both}#demo-p0{animation:demo-appear .01s linear 0.40s both}#demo-l1{animation:demo-appear .01s linear 1.34s both}#demo-l2{animation:demo-appear .01s linear 1.34s both}#demo-l3{animation:demo-appear .01s linear 1.34s both}#demo-l4{animation:demo-appear .01s linear 1.34s both}#demo-l5{animation:demo-appear .01s linear 1.34s both}#demo-l6{animation:demo-appear .01s linear 1.34s both}#demo-l7{animation:demo-appear .01s linear 1.34s both}#demo-l8{animation:demo-appear .01s linear 1.34s both}#demo-l9{animation:demo-appear .01s linear 1.34s both}#demo-l10{animation:demo-appear .01s linear 1.34s both}#demo-l11{animation:demo-appear .01s linear 1.34s both}#demo-l12{animation:demo-appear .01s linear 1.34s both}#demo-l13{animation:demo-reveal 0.64s steps(16,end) 2.04s both}#demo-p13{animation:demo-appear .01s linear 2.04s both}#demo-l14{animation:demo-appear .01s linear 3.57s both}#demo-l15{animation:demo-appear .01s linear 3.57s both}#demo-l16{animation:demo-appear .01s linear 3.57s both}#demo-l17{animation:demo-appear .01s linear 3.57s both}#demo-l18{animation:demo-appear .01s linear 3.57s both}#demo-l19{animation:demo-appear .01s linear 3.57s both}#demo-l20{animation:demo-appear .01s linear 3.58s both}#demo-l21{animation:demo-appear .01s linear 3.58s both}#demo-l22{animation:demo-appear .01s linear 3.58s both}#demo-l23{animation:demo-appear .01s linear 3.58s both}#demo-l24{animation:demo-appear .01s linear 3.58s both}#demo-l25{animation:demo-appear .01s linear 3.58s both}#demo-l26{animation:demo-appear .01s linear 3.59s both}#demo-l27{animation:demo-appear .01s linear 3.59s both}#demo-l28{animation:demo-appear .01s linear 3.59s both}#demo-l29{animation:demo-appear .01s linear 4.16s both}#demo-l30{animation:demo-appear .01s linear 4.16s both}#demo-l31{animation:demo-appear .01s linear 4.16s both}#demo-l32{animation:demo-appear .01s linear 4.16s both}#demo-l33{animation:demo-appear .01s linear 4.16s both}#demo-l34{animation:demo-appear .01s linear 4.16s both}#demo-l35{animation:demo-appear .01s linear 4.17s both}#demo-l36{animation:demo-appear .01s linear 4.17s both}#demo-l37{animation:demo-appear .01s linear 4.18s both}#demo-l38{animation:demo-appear .01s linear 4.18s both}#demo-l39{animation:demo-appear .01s linear 4.19s both}#demo-l40{animation:demo-appear .01s linear 4.19s both}#demo-l41{animation:demo-appear .01s linear 4.70s both}#demo-l42{animation:demo-appear .01s linear 4.70s both}#demo-l43{animation:demo-appear .01s linear 4.70s both}#demo-l44{animation:demo-appear .01s linear 4.70s both}#demo-l45{animation:demo-appear .01s linear 4.70s both}#demo-l46{animation:demo-appear .01s linear 4.70s both}#demo-l47{animation:demo-appear .01s linear 4.71s both}#demo-l48{animation:demo-appear .01s linear 4.71s both}#demo-l49{animation:demo-appear .01s linear 4.72s both}#demo-l50{animation:demo-appear .01s linear 4.72s both}#demo-l51{animation:demo-appear .01s linear 4.73s both}#demo-l52{animation:demo-appear .01s linear 4.73s both}#demo-l53{animation:demo-appear .01s linear 4.73s both}#demo-l54{animation:demo-appear .01s linear 5.30s both}#demo-l55{animation:demo-appear .01s linear 5.30s both}#demo-l56{animation:demo-appear .01s linear 5.30s both}#demo-l57{animation:demo-appear .01s linear 5.30s both}#demo-l58{animation:demo-appear .01s linear 5.30s both}#demo-l59{animation:demo-appear .01s linear 5.30s both}#demo-l60{animation:demo-appear .01s linear 5.30s both}#demo-l61{animation:demo-appear .01s linear 5.31s both}#demo-l62{animation:demo-appear .01s linear 5.31s both}#demo-l63{animation:demo-appear .01s linear 5.31s both}#demo-l64{animation:demo-appear .01s linear 5.32s both}#demo-l65{animation:demo-appear .01s linear 5.32s both}#demo-l66{animation:demo-appear .01s linear 5.32s both}#demo-l67{animation:demo-appear .01s linear 5.33s both}#demo-l68{animation:demo-appear .01s linear 5.33s both}#demo-l69{animation:demo-appear .01s linear 5.33s both}#demo-l70{animation:demo-appear .01s linear 5.96s both}#demo-l71{animation:demo-appear .01s linear 5.96s both}#demo-l72{animation:demo-appear .01s linear 5.96s both}#demo-l73{animation:demo-appear .01s linear 5.96s both}#demo-l74{animation:demo-appear .01s linear 5.96s both}#demo-l75{animation:demo-appear .01s linear 5.96s both}#demo-l76{animation:demo-appear .01s linear 5.97s both}#demo-l77{animation:demo-appear .01s linear 5.97s both}#demo-l78{animation:demo-appear .01s linear 5.99s both}#demo-l79{animation:demo-appear .01s linear 5.99s both}#demo-l80{animation:demo-appear .01s linear 6.00s both}#demo-l81{animation:demo-appear .01s linear 6.00s both}#demo-l82{animation:demo-appear .01s linear 6.48s both}#demo-l83{animation:demo-appear .01s linear 6.48s both}#demo-l84{animation:demo-appear .01s linear 6.48s both}#demo-l85{animation:demo-appear .01s linear 6.48s both}#demo-l86{animation:demo-appear .01s linear 6.48s both}#demo-l87{animation:demo-appear .01s linear 6.48s both}#demo-l88{animation:demo-appear .01s linear 6.49s both}#demo-l89{animation:demo-appear .01s linear 6.49s both}#demo-l90{animation:demo-appear .01s linear 6.49s both}#demo-l91{animation:demo-appear .01s linear 6.49s both}#demo-l92{animation:demo-appear .01s linear 6.50s both}#demo-l93{animation:demo-appear .01s linear 6.50s both}#demo-l94{animation:demo-appear .01s linear 6.50s both}#demo-l95{animation:demo-appear .01s linear 6.50s both}#demo-l96{animation:demo-appear .01s linear 6.50s both}#demo-l97{animation:demo-appear .01s linear 6.50s both}#demo-l98{animation:demo-appear .01s linear 6.50s both}#demo-l99{animation:demo-appear .01s linear 6.50s both}#demo-l100{animation:demo-appear .01s linear 6.50s both}#demo-l101{animation:demo-appear .01s linear 6.50s both}#demo-l102{animation:demo-appear .01s linear 6.50s both}#demo-l103{animation:demo-appear .01s linear 6.50s both}#demo-l104{animation:demo-appear .01s linear 6.50s both}#demo-l105{animation:demo-appear .01s linear 6.50s both}#demo-l106{animation:demo-appear .01s linear 6.50s both}#demo-l107{animation:demo-appear .01s linear 6.50s both}#demo-l108{animation:demo-appear .01s linear 6.50s both}#demo-l109{animation:demo-appear .01s linear 6.50s both}#demo-l110{animation:demo-appear .01s linear 6.50s both}#demo-l111{animation:demo-appear .01s linear 6.50s both}#demo-l112{animation:demo-appear .01s linear 6.50s both}#demo-l113{animation:demo-appear .01s linear 6.50s both}#demo-l114{animation:demo-appear .01s linear 6.50s both}#demo-l115{animation:demo-reveal 0.68s steps(17,end) 7.21s both}#demo-p115{animation:demo-appear .01s linear 7.21s both}#demo-l116{animation:demo-appear .01s linear 8.25s both}#demo-l117{animation:demo-appear .01s linear 8.25s both}#demo-l118{animation:demo-appear .01s linear 8.27s both}#demo-l119{animation:demo-appear .01s linear 8.27s both}#demo-l120{animation:demo-appear .01s linear 8.30s both}#demo-l121{animation:demo-appear .01s linear 8.30s both}#demo-l122{animation:demo-appear .01s linear 8.32s both}#demo-l123{animation:demo-appear .01s linear 8.32s both}#demo-l124{animation:demo-appear .01s linear 8.32s both}#demo-l125{animation:demo-appear .01s linear 8.35s both}#demo-l126{animation:demo-appear .01s linear 8.35s both}#demo-l127{animation:demo-appear .01s linear 8.37s both}#demo-l128{animation:demo-appear .01s linear 8.37s both}#demo-l129{animation:demo-reveal 0.76s steps(19,end) 9.07s both}#demo-p129{animation:demo-appear .01s linear 9.07s both}#demo-l130{animation:demo-appear .01s linear 10.13s both}#demo-l131{animation:demo-appear .01s linear 10.13s both}#demo-l132{animation:demo-appear .01s linear 10.13s both}#demo-l133{animation:demo-appear .01s linear 10.13s both}#demo-l134{animation:demo-appear .01s linear 10.13s both}#demo-l135{animation:demo-appear .01s linear 10.13s both}#demo-l136{animation:demo-reveal 1.1s steps(29,end) 10.83s both}#demo-p136{animation:demo-appear .01s linear 10.83s both}#demo-l137{animation:demo-appear .01s linear 12.27s both}@keyframes demo-scroll{0%{transform:translateY(0)}27.500%{transform:translateY(-20px)}27.577%{transform:translateY(-80px)}27.646%{transform:translateY(-140px)}32.008%{transform:translateY(-260px)}32.085%{transform:translateY(-300px)}32.162%{transform:translateY(-340px)}32.238%{transform:translateY(-380px)}36.185%{transform:translateY(-500px)}36.254%{transform:translateY(-540px)}36.323%{transform:translateY(-580px)}36.400%{transform:translateY(-640px)}40.769%{transform:translateY(-780px)}40.854%{transform:translateY(-840px)}40.923%{transform:translateY(-900px)}41.000%{transform:translateY(-960px)}45.877%{transform:translateY(-1080px)}45.962%{transform:translateY(-1120px)}46.054%{transform:translateY(-1160px)}46.138%{transform:translateY(-1200px)}49.823%{transform:translateY(-1320px)}49.892%{transform:translateY(-1360px)}49.954%{transform:translateY(-1400px)}50.015%{transform:translateY(-1440px)}50.023%{transform:translateY(-1860px)}55.454%{transform:translateY(-1880px)}63.454%{transform:translateY(-1920px)}63.646%{transform:translateY(-1960px)}63.823%{transform:translateY(-2000px)}64.015%{transform:translateY(-2060px)}64.223%{transform:translateY(-2100px)}64.369%{transform:translateY(-2140px)}69.800%{transform:translateY(-2160px)}77.962%{transform:translateY(-2280px)}83.346%{transform:translateY(-2300px)}94.392%{transform:translateY(-2320px)}100%{transform:translateY(-2320px)}}.demo-rec .demo-scroll{animation:demo-scroll 13.0s step-end both}</style>
+<rect class="bg" width="662" height="488"/>
+<text class="cap" x="20" y="21">recorded 13 Oct 2026 · c93f8a7 · Linux x86_64 · empty HOME · real output, simulated typing · 13.0s</text>
+<line class="rule" x1="0" y1="30" x2="662" y2="30"/>
+<svg x="0" y="34" width="662" height="450"><g class="demo-scroll">
+<text id="demo-p0" x="20" y="15" class="prompt">$</text><text id="demo-l0" x="36.8" y="15">t3-plugins list</text>
+<text id="demo-l1" x="20" y="35" class="out">agent-tuneup         Audit and align provider permissions, MCPs and plug</text>
+<text id="demo-l2" x="20" y="55" class="out">ins with approved native changes.</text>
+<text id="demo-l3" x="20" y="75" class="out">ape                  Research transferable patterns in open-source repos</text>
+<text id="demo-l4" x="20" y="95" class="out">itories.</text>
+<text id="demo-l5" x="20" y="115" class="out">babysitter           Maintain pull requests through review, CI, and auth</text>
+<text id="demo-l6" x="20" y="135" class="out">orized merge.</text>
+<text id="demo-l7" x="20" y="155" class="out">elephant-goldfish    Discover problems, write testable briefs, and verif</text>
+<text id="demo-l8" x="20" y="175" class="out">y design documents.</text>
+<text id="demo-l9" x="20" y="195" class="out">imps                 Bounded engineering work on any T3 provider: implem</text>
+<text id="demo-l10" x="20" y="215" class="out">ent, investigate, audit, and review with revision-bound evidence.</text>
+<text id="demo-l11" x="20" y="235" class="out">ralph                Implement a goal with fresh T3 tasks, evaluate with</text>
+<text id="demo-l12" x="20" y="255" class="out"> another lineage, and retry every feedback item before opening a PR.</text>
+<text id="demo-p13" x="20" y="275" class="prompt">$</text><text id="demo-l13" x="36.8" y="275">t3-plugins setup</text>
+<text id="demo-l14" x="20" y="295" class="out">{<tspan class="ok">"ok": true</tspan>, "data": {"action": "install", "plugin": "agent-tuneup", "ve</text>
+<text id="demo-l15" x="20" y="315" class="out">rsion": "1.1.2+gc93f8a7d6b0c", "source_commit": "c93f8a7d6b0c6e4aeb5ae63</text>
+<text id="demo-l16" x="20" y="335" class="out">81158fce36dcfb0bb", "version_dir": "~/.local/share/t3-plugins/agent-tune</text>
+<text id="demo-l17" x="20" y="355" class="out">up/1.1.2+gc93f8a7d6b0c", "entry": "~/.local/share/t3-plugins/agent-tuneu</text>
+<text id="demo-l18" x="20" y="375" class="out">p/current/entry.md", "paste": "Read ~/.local/share/t3-plugins/agent-tune</text>
+<text id="demo-l19" x="20" y="395" class="out">up/current/entry.md and run: doctor", "dry_run": false, "files": 73}}</text>
+<text id="demo-l20" x="20" y="415" class="out">{"name": "t3-agent-tuneup", "path": "~/.agents/skills/t3-agent-tuneup/SK</text>
+<text id="demo-l21" x="20" y="435" class="out">ILL.md", "entry": "~/.local/share/t3-plugins/agent-tuneup/current/entry.</text>
+<text id="demo-l22" x="20" y="455" class="out">md"}</text>
+<text id="demo-l23" x="20" y="475" class="out">{"name": "t3-agent-tuneup", "path": "~/.claude/skills/t3-agent-tuneup/SK</text>
+<text id="demo-l24" x="20" y="495" class="out">ILL.md", "entry": "~/.local/share/t3-plugins/agent-tuneup/current/entry.</text>
+<text id="demo-l25" x="20" y="515" class="out">md"}</text>
+<text id="demo-l26" x="20" y="535" class="out">{"name": "t3-agent-tuneup", "path": "~/.gemini/config/skills/t3-agent-tu</text>
+<text id="demo-l27" x="20" y="555" class="out">neup/SKILL.md", "entry": "~/.local/share/t3-plugins/agent-tuneup/current</text>
+<text id="demo-l28" x="20" y="575" class="out">/entry.md"}</text>
+<text id="demo-l29" x="20" y="595" class="out">{<tspan class="ok">"ok": true</tspan>, "data": {"action": "install", "plugin": "ape", "version": "</text>
+<text id="demo-l30" x="20" y="615" class="out">1.0.3+gc93f8a7d6b0c", "source_commit": "c93f8a7d6b0c6e4aeb5ae6381158fce3</text>
+<text id="demo-l31" x="20" y="635" class="out">6dcfb0bb", "version_dir": "~/.local/share/t3-plugins/ape/1.0.3+gc93f8a7d</text>
+<text id="demo-l32" x="20" y="655" class="out">6b0c", "entry": "~/.local/share/t3-plugins/ape/current/entry.md", "paste</text>
+<text id="demo-l33" x="20" y="675" class="out">": "Read ~/.local/share/t3-plugins/ape/current/entry.md and run: doctor"</text>
+<text id="demo-l34" x="20" y="695" class="out">, "dry_run": false, "files": 81}}</text>
+<text id="demo-l35" x="20" y="715" class="out">{"name": "t3-ape", "path": "~/.agents/skills/t3-ape/SKILL.md", "entry": </text>
+<text id="demo-l36" x="20" y="735" class="out">"~/.local/share/t3-plugins/ape/current/entry.md"}</text>
+<text id="demo-l37" x="20" y="755" class="out">{"name": "t3-ape", "path": "~/.claude/skills/t3-ape/SKILL.md", "entry": </text>
+<text id="demo-l38" x="20" y="775" class="out">"~/.local/share/t3-plugins/ape/current/entry.md"}</text>
+<text id="demo-l39" x="20" y="795" class="out">{"name": "t3-ape", "path": "~/.gemini/config/skills/t3-ape/SKILL.md", "e</text>
+<text id="demo-l40" x="20" y="815" class="out">ntry": "~/.local/share/t3-plugins/ape/current/entry.md"}</text>
+<text id="demo-l41" x="20" y="835" class="out">{<tspan class="ok">"ok": true</tspan>, "data": {"action": "install", "plugin": "babysitter", "vers</text>
+<text id="demo-l42" x="20" y="855" class="out">ion": "1.1.2+gc93f8a7d6b0c", "source_commit": "c93f8a7d6b0c6e4aeb5ae6381</text>
+<text id="demo-l43" x="20" y="875" class="out">158fce36dcfb0bb", "version_dir": "~/.local/share/t3-plugins/babysitter/1</text>
+<text id="demo-l44" x="20" y="895" class="out">.1.2+gc93f8a7d6b0c", "entry": "~/.local/share/t3-plugins/babysitter/curr</text>
+<text id="demo-l45" x="20" y="915" class="out">ent/entry.md", "paste": "Read ~/.local/share/t3-plugins/babysitter/curre</text>
+<text id="demo-l46" x="20" y="935" class="out">nt/entry.md and run: doctor", "dry_run": false, "files": 73}}</text>
+<text id="demo-l47" x="20" y="955" class="out">{"name": "t3-babysitter", "path": "~/.agents/skills/t3-babysitter/SKILL.</text>
+<text id="demo-l48" x="20" y="975" class="out">md", "entry": "~/.local/share/t3-plugins/babysitter/current/entry.md"}</text>
+<text id="demo-l49" x="20" y="995" class="out">{"name": "t3-babysitter", "path": "~/.claude/skills/t3-babysitter/SKILL.</text>
+<text id="demo-l50" x="20" y="1015" class="out">md", "entry": "~/.local/share/t3-plugins/babysitter/current/entry.md"}</text>
+<text id="demo-l51" x="20" y="1035" class="out">{"name": "t3-babysitter", "path": "~/.gemini/config/skills/t3-babysitter</text>
+<text id="demo-l52" x="20" y="1055" class="out">/SKILL.md", "entry": "~/.local/share/t3-plugins/babysitter/current/entry</text>
+<text id="demo-l53" x="20" y="1075" class="out">.md"}</text>
+<text id="demo-l54" x="20" y="1095" class="out">{<tspan class="ok">"ok": true</tspan>, "data": {"action": "install", "plugin": "elephant-goldfish"</text>
+<text id="demo-l55" x="20" y="1115" class="out">, "version": "1.0.4+gc93f8a7d6b0c", "source_commit": "c93f8a7d6b0c6e4aeb</text>
+<text id="demo-l56" x="20" y="1135" class="out">5ae6381158fce36dcfb0bb", "version_dir": "~/.local/share/t3-plugins/eleph</text>
+<text id="demo-l57" x="20" y="1155" class="out">ant-goldfish/1.0.4+gc93f8a7d6b0c", "entry": "~/.local/share/t3-plugins/e</text>
+<text id="demo-l58" x="20" y="1175" class="out">lephant-goldfish/current/entry.md", "paste": "Read ~/.local/share/t3-plu</text>
+<text id="demo-l59" x="20" y="1195" class="out">gins/elephant-goldfish/current/entry.md and run: doctor", "dry_run": fal</text>
+<text id="demo-l60" x="20" y="1215" class="out">se, "files": 79}}</text>
+<text id="demo-l61" x="20" y="1235" class="out">{"name": "t3-elephant-goldfish", "path": "~/.agents/skills/t3-elephant-g</text>
+<text id="demo-l62" x="20" y="1255" class="out">oldfish/SKILL.md", "entry": "~/.local/share/t3-plugins/elephant-goldfish</text>
+<text id="demo-l63" x="20" y="1275" class="out">/current/entry.md"}</text>
+<text id="demo-l64" x="20" y="1295" class="out">{"name": "t3-elephant-goldfish", "path": "~/.claude/skills/t3-elephant-g</text>
+<text id="demo-l65" x="20" y="1315" class="out">oldfish/SKILL.md", "entry": "~/.local/share/t3-plugins/elephant-goldfish</text>
+<text id="demo-l66" x="20" y="1335" class="out">/current/entry.md"}</text>
+<text id="demo-l67" x="20" y="1355" class="out">{"name": "t3-elephant-goldfish", "path": "~/.gemini/config/skills/t3-ele</text>
+<text id="demo-l68" x="20" y="1375" class="out">phant-goldfish/SKILL.md", "entry": "~/.local/share/t3-plugins/elephant-g</text>
+<text id="demo-l69" x="20" y="1395" class="out">oldfish/current/entry.md"}</text>
+<text id="demo-l70" x="20" y="1415" class="out">{<tspan class="ok">"ok": true</tspan>, "data": {"action": "install", "plugin": "imps", "version": </text>
+<text id="demo-l71" x="20" y="1435" class="out">"1.0.3+gc93f8a7d6b0c", "source_commit": "c93f8a7d6b0c6e4aeb5ae6381158fce</text>
+<text id="demo-l72" x="20" y="1455" class="out">36dcfb0bb", "version_dir": "~/.local/share/t3-plugins/imps/1.0.3+gc93f8a</text>
+<text id="demo-l73" x="20" y="1475" class="out">7d6b0c", "entry": "~/.local/share/t3-plugins/imps/current/entry.md", "pa</text>
+<text id="demo-l74" x="20" y="1495" class="out">ste": "Read ~/.local/share/t3-plugins/imps/current/entry.md and run: doc</text>
+<text id="demo-l75" x="20" y="1515" class="out">tor", "dry_run": false, "files": 90}}</text>
+<text id="demo-l76" x="20" y="1535" class="out">{"name": "t3-imps", "path": "~/.agents/skills/t3-imps/SKILL.md", "entry"</text>
+<text id="demo-l77" x="20" y="1555" class="out">: "~/.local/share/t3-plugins/imps/current/entry.md"}</text>
+<text id="demo-l78" x="20" y="1575" class="out">{"name": "t3-imps", "path": "~/.claude/skills/t3-imps/SKILL.md", "entry"</text>
+<text id="demo-l79" x="20" y="1595" class="out">: "~/.local/share/t3-plugins/imps/current/entry.md"}</text>
+<text id="demo-l80" x="20" y="1615" class="out">{"name": "t3-imps", "path": "~/.gemini/config/skills/t3-imps/SKILL.md", </text>
+<text id="demo-l81" x="20" y="1635" class="out">"entry": "~/.local/share/t3-plugins/imps/current/entry.md"}</text>
+<text id="demo-l82" x="20" y="1655" class="out">{<tspan class="ok">"ok": true</tspan>, "data": {"action": "install", "plugin": "ralph", "version":</text>
+<text id="demo-l83" x="20" y="1675" class="out"> "0.1.15+gc93f8a7d6b0c", "source_commit": "c93f8a7d6b0c6e4aeb5ae6381158f</text>
+<text id="demo-l84" x="20" y="1695" class="out">ce36dcfb0bb", "version_dir": "~/.local/share/t3-plugins/ralph/0.1.15+gc9</text>
+<text id="demo-l85" x="20" y="1715" class="out">3f8a7d6b0c", "entry": "~/.local/share/t3-plugins/ralph/current/entry.md"</text>
+<text id="demo-l86" x="20" y="1735" class="out">, "paste": "Read ~/.local/share/t3-plugins/ralph/current/entry.md and ru</text>
+<text id="demo-l87" x="20" y="1755" class="out">n: doctor", "dry_run": false, "files": 66}}</text>
+<text id="demo-l88" x="20" y="1775" class="out">{"name": "t3-ralph", "path": "~/.agents/skills/t3-ralph/SKILL.md", "entr</text>
+<text id="demo-l89" x="20" y="1795" class="out">y": "~/.local/share/t3-plugins/ralph/current/entry.md"}</text>
+<text id="demo-l90" x="20" y="1815" class="out">{"name": "t3-ralph", "path": "~/.claude/skills/t3-ralph/SKILL.md", "entr</text>
+<text id="demo-l91" x="20" y="1835" class="out">y": "~/.local/share/t3-plugins/ralph/current/entry.md"}</text>
+<text id="demo-l92" x="20" y="1855" class="out">{"name": "t3-ralph", "path": "~/.gemini/config/skills/t3-ralph/SKILL.md"</text>
+<text id="demo-l93" x="20" y="1875" class="out">, "entry": "~/.local/share/t3-plugins/ralph/current/entry.md"}</text>
+<text id="demo-l94" x="20" y="1895" class="out">{"learnings_grant": {"provider": "claudeAgent", "status": "proposed", "c</text>
+<text id="demo-l95" x="20" y="1915" class="out">onfig": "~/.claude/settings.json", "grant": {"sandbox": {"filesystem": {</text>
+<text id="demo-l96" x="20" y="1935" class="out">"allowWrite": ["~/.local/state/t3-plugins/learnings"]}}}, "source": "htt</text>
+<text id="demo-l97" x="20" y="1955" class="out">ps://code.claude.com/docs/en/sandboxing", "scope": "configuration only; </text>
+<text id="demo-l98" x="20" y="1975" class="out">live access must be checked"}}</text>
+<text id="demo-l99" x="20" y="1995" class="out">{"learnings_grant": {"provider": "codex", "status": "proposed", "config"</text>
+<text id="demo-l100" x="20" y="2015" class="out">: "~/.codex/config.toml", "grant": {"sandbox_workspace_write": {"writabl</text>
+<text id="demo-l101" x="20" y="2035" class="out">e_roots": ["~/.local/state/t3-plugins/learnings"]}}, "source": "https://</text>
+<text id="demo-l102" x="20" y="2055" class="out">developers.openai.com/codex/config-reference/", "scope": "configuration </text>
+<text id="demo-l103" x="20" y="2075" class="out">only; live access must be checked"}}</text>
+<text id="demo-l104" x="20" y="2095" class="out">{"learnings_grant": {"provider": "opencode", "status": "proposed", "conf</text>
+<text id="demo-l105" x="20" y="2115" class="out">ig": "~/.config/opencode/opencode.json", "grant": {"permission": {"exter</text>
+<text id="demo-l106" x="20" y="2135" class="out">nal_directory": {"~/.local/state/t3-plugins/learnings/**": "allow"}}}, "</text>
+<text id="demo-l107" x="20" y="2155" class="out">source": "https://opencode.ai/docs/permissions/", "scope": "configuratio</text>
+<text id="demo-l108" x="20" y="2175" class="out">n only; live access must be checked"}}</text>
+<text id="demo-l109" x="20" y="2195" class="out">{"learnings_grant": {"provider": "antigravity", "status": "unavailable",</text>
+<text id="demo-l110" x="20" y="2215" class="out"> "reason": "no documented subtree grant adapter"}}</text>
+<text id="demo-l111" x="20" y="2235" class="out">{"learnings_grant": {"provider": "cursor", "status": "unavailable", "rea</text>
+<text id="demo-l112" x="20" y="2255" class="out">son": "no documented subtree grant adapter"}}</text>
+<text id="demo-l113" x="20" y="2275" class="out">{"learnings_grant": {"provider": "grok", "status": "unavailable", "reaso</text>
+<text id="demo-l114" x="20" y="2295" class="out">n": "no documented subtree grant adapter"}}</text>
+<text id="demo-p115" x="20" y="2315" class="prompt">$</text><text id="demo-l115" x="36.8" y="2315">t3-plugins doctor</text>
+<text id="demo-l116" x="20" y="2335" class="out">{"plugin": "agent-tuneup", <tspan class="ok">"ok": true</tspan>, "errors": [], "scope": "installed</text>
+<text id="demo-l117" x="20" y="2355" class="out"> file integrity and package currency; provider behavior not tested"}</text>
+<text id="demo-l118" x="20" y="2375" class="out">{"plugin": "ape", <tspan class="ok">"ok": true</tspan>, "errors": [], "scope": "installed file int</text>
+<text id="demo-l119" x="20" y="2395" class="out">egrity and package currency; provider behavior not tested"}</text>
+<text id="demo-l120" x="20" y="2415" class="out">{"plugin": "babysitter", <tspan class="ok">"ok": true</tspan>, "errors": [], "scope": "installed f</text>
+<text id="demo-l121" x="20" y="2435" class="out">ile integrity and package currency; provider behavior not tested"}</text>
+<text id="demo-l122" x="20" y="2455" class="out">{"plugin": "elephant-goldfish", <tspan class="ok">"ok": true</tspan>, "errors": [], "scope": "inst</text>
+<text id="demo-l123" x="20" y="2475" class="out">alled file integrity and package currency; provider behavior not tested"</text>
+<text id="demo-l124" x="20" y="2495" class="out">}</text>
+<text id="demo-l125" x="20" y="2515" class="out">{"plugin": "imps", <tspan class="ok">"ok": true</tspan>, "errors": [], "scope": "installed file in</text>
+<text id="demo-l126" x="20" y="2535" class="out">tegrity and package currency; provider behavior not tested"}</text>
+<text id="demo-l127" x="20" y="2555" class="out">{"plugin": "ralph", <tspan class="ok">"ok": true</tspan>, "errors": [], "scope": "installed file i</text>
+<text id="demo-l128" x="20" y="2575" class="out">ntegrity and package currency; provider behavior not tested"}</text>
+<text id="demo-p129" x="20" y="2595" class="prompt">$</text><text id="demo-l129" x="36.8" y="2595">ls ~/.claude/skills</text>
+<text id="demo-l130" x="20" y="2615" class="out">t3-agent-tuneup</text>
+<text id="demo-l131" x="20" y="2635" class="out">t3-ape</text>
+<text id="demo-l132" x="20" y="2655" class="out">t3-babysitter</text>
+<text id="demo-l133" x="20" y="2675" class="out">t3-elephant-goldfish</text>
+<text id="demo-l134" x="20" y="2695" class="out">t3-imps</text>
+<text id="demo-l135" x="20" y="2715" class="out">t3-ralph</text>
+<text id="demo-p136" x="20" y="2735" class="prompt">$</text><text id="demo-l136" x="36.8" y="2735">t3-plugins prompt imps doctor</text>
+<text id="demo-l137" x="20" y="2755" class="out">Read ~/.local/share/t3-plugins/imps/current/entry.md and run: doctor</text>
+</g></svg>
 </svg>

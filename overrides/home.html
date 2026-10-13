@@ -1,38 +1,44 @@
 {% extends "main.html" %}
 
-{#- The homepage. Specimens come from config.extra.field_guide, which the
-    scripts/field_guide.py hook assembles from plugins/*/plugin.json and
-    docs/field-guide.json at build time. The hook fails the build on an empty
-    catalog and refuses any mark that is not a self-contained SVG, which is why
-    mark_svg can be inlined with | safe. -#}
+{#- The homepage. Specimens and the recording come from config.extra.field_guide,
+    which the scripts/field_guide.py hook assembles from plugins/*/plugin.json,
+    docs/field-guide.json and docs/assets/demo.svg at build time. The hook fails the
+    build on an empty catalog and refuses any mark or recording that is not a
+    self-contained SVG, which is why both can be inlined with | safe. -#}
 {% block tabs %}
   {{ super() }}
   {% set guide = config.extra.field_guide %}
-  {% set first = guide.specimens[0] %}
+  {% set count = guide.specimens | length %}
+  {% set words = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'] %}
   <section class="fg-hero">
     <div class="fg-wrap fg-hero__grid">
       <div class="fg-hero__text">
         <h1>Fix the bug.<br>Finish the PR.</h1>
-        <p class="fg-lead">Give your T3 agent a repeatable way to implement changes, plan work, research code and finish pull requests. Get evidence you can inspect. Keep the workflow when you switch models.</p>
+        <p class="fg-lead">{{ words[count] if count < 11 else count }} workflows for coding agents in T3 Code. Each ends in something you can check: a diff with the test run that passed on it, a brief, cited research, a merged PR.</p>
+        <div class="fg-install" aria-labelledby="fg-install-title">
+          <p id="fg-install-title" class="fg-install__title">Install on macOS or Linux</p>
+          <pre><code>brew install seankoji-com/tap/t3-plugins
+t3-plugins setup
+t3-plugins doctor</code></pre>
+          <p class="fg-install__next">Then turn on <b>Show skills in slash menu</b> in T3, restart the agent session, and send <code>$t3-imps doctor</code> in a thread. ralph needs catalog v0.5.0 or later: if <code>t3-plugins list</code> doesn't show it, <a href="{{ 'getting-started/#homebrew-release-channel' | url }}">install HEAD or from source</a>.</p>
+        </div>
         <p class="fg-actions">
-          <a class="fg-primary" href="{{ 'getting-started/' | url }}">Get started</a>
-          <a href="{{ 'first-workflow/' | url }}">Try your first workflow</a>
+          <a class="fg-primary" href="{{ 'getting-started/' | url }}">First ten minutes</a>
+          <a href="{{ 'plugins/' | url }}">Choose a workflow</a>
         </p>
       </div>
-      <figure class="fg-plate" aria-labelledby="plate-caption">
-        <span class="fg-plate__no">Plate {{ first.plate }}</span>
-        {{ first.mark_svg | safe }}
-        <figcaption id="plate-caption">
-          <b>{{ first.name }}</b><i>{{ first.binomial }}</i>
-          <span>{{ first.summary }}</span>
-        </figcaption>
+      <figure class="fg-rec" aria-labelledby="fg-rec-caption">
+        <div class="fg-rec__screen">{{ guide.recording | safe }}</div>
+        <figcaption id="fg-rec-caption"><i>Fig. 1</i> <code>setup</code> and <code>doctor</code> from the current source in an empty home directory. Output and timing are real; the typing is simulated.
+          <a href="{{ 'assets/quickstart.mp4' | url }}">Video</a> ·
+          <a href="{{ 'assets/recordings/quickstart.txt' | url }}">transcript</a></figcaption>
       </figure>
     </div>
   </section>
   <section class="fg-key" aria-labelledby="fg-key-title">
     <div class="fg-wrap">
-      <h2 id="fg-key-title">{{ guide.specimens | length }} workflows</h2>
-      <p class="fg-key__intro">Choose the job you want to finish. Each guide has a prompt you can copy into T3.</p>
+      <h2 id="fg-key-title">{{ words[count] if count < 11 else count }} workflows</h2>
+      <p class="fg-key__intro">Pick the job. Type <code>/</code> in T3, choose the skill, and add the task.</p>
       <ol class="fg-key__list">
         {% for s in guide.specimens %}
         <li class="fg-row">
@@ -42,7 +48,10 @@
             <a href="{{ s.url | url }}">{{ s.name }}</a>
             <i>{{ s.binomial }}</i>
           </div>
-          <p class="fg-row__summary">{{ s.summary }}</p>
+          <div class="fg-row__body">
+            <p class="fg-row__summary">{{ s.summary }}</p>
+            <p class="fg-row__try"><code>{{ s.try }}</code></p>
+          </div>
         </li>
         {% endfor %}
       </ol>

@@ -1,38 +1,31 @@
 # babysitter
 
-Carry pull requests through review and CI.
-
-## When to use it
-
-A PR needs fixes and follow-up through review, CI or conflicts. Start with one
-named PR; repository and organization scopes can involve many branches and costs.
+A pull request is stuck: review comments, a red check, a conflict with the base
+branch. babysitter fixes what you authorize, pushes to the PR branch, asks T3 to wake
+it when something new happens, and keeps going until each PR merges or needs a person.
+It reports a merge only after GitHub shows one.
 
 ## Try it
 
-After [installation](../getting-started.md), run in your terminal:
+Start read-only, with one PR:
 
-```sh
-t3-plugins prompt babysitter doctor
+```text
+$t3-babysitter pr https://github.com/OWNER/REPO/pull/NUMBER Inspect reviews and CI only. Report blockers; do not edit, post, push or merge.
 ```
 
-Paste the printed line into a T3 thread attached to your project. Once readiness is
-clear, generate a task prompt:
+When you want it landed, send the same URL without the restriction:
 
-```sh
-t3-plugins prompt babysitter pr https://github.com/OWNER/REPO/pull/NUMBER 'Inspect reviews and CI only. Report blockers; do not edit, post, push or merge.'
+```text
+$t3-babysitter pr https://github.com/OWNER/REPO/pull/NUMBER Babysit through merge.
 ```
 
-Paste that output into T3. Replace the sample task or path with your own.
-If you installed [skill adapters](../slash-commands.md), select **t3-babysitter**
-from `/` and append the same request instead.
-
-## Operations
-
-`doctor`, `pr`, `repo`, `org`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/babysitter/entry.md) names the file to load for each operation.
+`repo OWNER/REPO` and `org OWNER` widen the scope to every open PR there, which can
+mean many branches and model calls. Send `$t3-babysitter doctor` first on a new
+machine or provider.
 
 ## What you get
 
-A babysitting run works in three steps:
+A run has three steps:
 
 1. **Quick pass.** The thread merges every targeted PR that GitHub reports ready at
    its current head and tries to arm auto-merge on the rest, including PRs with open
@@ -49,15 +42,22 @@ A babysitting run works in three steps:
    comment or conflict, it sends the next fixer round, until each PR merges or needs
    a person.
 
-The thread keeps one table of the targeted PRs and posts it again whenever one merges:
+The thread keeps one table of the targeted PRs and posts it again whenever one merges.
+Its shape, with made-up PRs:
 
 | PR | Description | Not merged because |
 |---|---|---|
 | [owner/repo#12](https://github.com/owner/repo/pull/12) | Fix login redirect | failing check `lint`; auto-merge armed; fixer round 1 |
 | [owner/repo#9](https://github.com/owner/repo/pull/9) | Bump parser | merged |
 
-A green local test, armed auto-merge and an actual merge are different outcomes; the
-table reports only merges it has observed.
+A green local test, armed auto-merge and an actual merge are three different things.
+The table reports only merges it has seen.
+
+## Operations
+
+`doctor`, `pr`, `repo`, `org`. The
+[entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/babysitter/entry.md)
+names the file the agent loads for each one.
 
 ## Jobs and workers
 
@@ -76,20 +76,15 @@ actions or more repairs than the plan allows are asked through the question pick
 
 ## Authorize the finish line
 
-Invoking `pr`, `repo` or `org` authorizes babysitting through merge within that
-scope. The [Try it](#try-it) example asks for inspection only, which keeps the run
-read-only. To land the PR, drop that restriction:
-
-```sh
-t3-plugins prompt babysitter pr https://github.com/OWNER/REPO/pull/NUMBER 'Babysit through merge.'
-```
-
-The quick pass tries to arm auto-merge even while review threads are open. Where
-GitHub accepts it and the repository has no conversation-resolution rule, a PR can
-land once its checks pass. Use `repo
-OWNER/REPO` or `org OWNER` only when you intend that wider scope. Protected branch
-rules remain required. Unknown or unsafe changes stay blocked.
+Invoking `pr`, `repo` or `org` authorizes babysitting through merge within that scope.
+The read-only example in [Try it](#try-it) narrows that to inspection. The quick pass
+tries to arm auto-merge even while review threads are open, so on a repository
+without a conversation-resolution rule a PR can land as soon as its checks pass. Use
+`repo` or `org` only when you mean that wider scope. Protected-branch rules still
+apply, and unknown or unsafe changes stay blocked.
 
 ## Limits
 
-T3 watches existing PRs. Discovering future PRs across a repository or organization requires a separately authorized scheduled sweep. See [compatibility](../compatibility.md) for the distinction between deterministic tests and live provider results.
+T3 watches PRs that already exist. Picking up future PRs across a repository or
+organization needs a separately authorized scheduled sweep. Unit tests don't show how a
+given model behaves; see [compatibility](../compatibility.md).

@@ -76,6 +76,33 @@ class RepositoryGuideTest(unittest.TestCase):
             self.assertLess(title_at, header_at, s['name'])
             self.assertIn(s['binomial'], out)
             self.assertIn('<dt>Habitat</dt>', out)
+            self.assertIn('Use it when', out)
+            # The use-when line and the invocation come before the field notes.
+            self.assertLess(out.index('specimen__use'), out.index('<dt>Habitat</dt>'))
+            self.assertLess(out.index('specimen__try'), out.index('<dt>Habitat</dt>'))
+
+    def test_every_try_line_is_a_skill_mention_for_a_real_operation(self):
+        for s in field_guide.load_guide(ROOT):
+            self.assertTrue(s['try'].startswith(f'$t3-{s["name"]} '), s['name'])
+            words = s['try'].split()
+            first = words[1]
+            if first in s['operations']:
+                continue
+            # Free text is accepted only by plugins whose entry routes it to run.
+            self.assertIn('run', s['operations'], (s['name'], first))
+
+    def test_recording_is_inlined_on_the_homepage_and_is_safe(self):
+        svg = field_guide.load_recording(ROOT)
+        self.assertIn('class="demo-rec"', svg)
+        template = (ROOT / 'overrides' / 'home.html').read_text()
+        self.assertIn('guide.recording | safe', template)
+        self.assertIn('brew install seankoji-com/tap/t3-plugins', template)
+        for bad in ('<svg><script>x</script></svg>', '<svg><a href="https://e.invalid/">x</a></svg>',
+                    '<svg><style>@import "x.css";</style></svg>', '<svg onload="x()"></svg>',
+                    '<svg><rect style="fill:url(https://e.invalid/p#x)"/></svg>', '<p>no</p>'):
+            with self.assertRaises(field_guide.FieldGuideError, msg=bad):
+                field_guide.check_recording(bad)
+        self.assertTrue(field_guide.check_recording('<svg><style>.demo-rec text{fill:red}</style></svg>'))
 
     def test_other_pages_are_untouched(self):
         guide = field_guide.load_guide(ROOT)
@@ -93,8 +120,8 @@ class SyntheticRootTest(unittest.TestCase):
             'name': 'alpha', 'version': '1.0.0', 'description': 'd', 'entry': 'entry.md',
             'operations': ['doctor'], 'kind': 'workflow', 'compatibility': 'experimental'}))
         (self.tmp / 'docs/assets/specimens/alpha.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
-        self.guide = {'alpha': {'plate': 'I', 'binomial': 'A b', 'summary': 's', 'habitat': 'h',
-                                'diet': 'd', 'field_marks': 'f'}}
+        self.guide = {'alpha': {'plate': 'I', 'binomial': 'A b', 'summary': 's', 'use_when': 'u',
+                                'try': '$t3-alpha doctor', 'habitat': 'h', 'diet': 'd', 'field_marks': 'f'}}
         self.write_guide()
 
     def write_guide(self):
@@ -133,6 +160,24 @@ class SyntheticRootTest(unittest.TestCase):
             '<svg><defs><g id="a"/></defs><use href="#a"/><rect fill="url(#a)"/></svg>')
         self.assertEqual(len(field_guide.load_guide(self.tmp)), 1)
 
+    def test_missing_use_when_or_try_fails_the_build(self):
+        for field in ('use_when', 'try'):
+            entry = dict(self.guide['alpha'])
+            entry[field] = ''
+            (self.tmp / 'docs/field-guide.json').write_text(json.dumps({'alpha': entry}))
+            with self.assertRaisesRegex(field_guide.FieldGuideError, f'missing .*{field}'):
+                field_guide.load_guide(self.tmp)
+
+    def test_try_must_mention_its_own_skill(self):
+        self.guide['alpha']['try'] = '$t3-beta doctor'
+        self.write_guide()
+        with self.assertRaisesRegex(field_guide.FieldGuideError, r'\$t3-alpha'):
+            field_guide.load_guide(self.tmp)
+
+    def test_missing_recording_fails_the_build(self):
+        with self.assertRaisesRegex(field_guide.FieldGuideError, 'render_demo'):
+            field_guide.load_recording(self.tmp)
+
     def test_empty_catalog_fails_the_build(self):
         shutil.rmtree(self.tmp / 'plugins/alpha')
         self.guide = {}
@@ -168,10 +213,12 @@ class SyntheticRootTest(unittest.TestCase):
 
     def test_html_in_data_is_escaped(self):
         self.guide['alpha']['binomial'] = '<b>x</b>'
+        self.guide['alpha']['try'] = '$t3-alpha run <i>y</i>'
         self.write_guide()
         header = field_guide.render_specimen_header(field_guide.load_guide(self.tmp)[0])
         self.assertIn('&lt;b&gt;x&lt;/b&gt;', header)
         self.assertNotIn('<b>x</b>', header)
+        self.assertIn('&lt;i&gt;y&lt;/i&gt;', header)
 
 
 if __name__ == '__main__':

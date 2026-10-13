@@ -1,42 +1,39 @@
 # ape
 
-Find ideas that transfer to your project.
-
-## When to use it
-
-You have a specific local gap and want to compare an approach with working source.
-Use `study` for one named GitHub repository; use `forage` to discover candidates.
+You have a specific gap and a hunch that someone else has solved it. ape reads their
+source, compares it with yours, and writes a report where every recommendation cites
+lines at a pinned commit and comes with one small experiment to try. It never runs the
+other project's code and never edits yours.
 
 ## Try it
 
-After [installation](../getting-started.md), run in your terminal:
+Study one repository you already have in mind:
 
-```sh
-t3-plugins prompt ape doctor
+```text
+$t3-ape study https://github.com/python/cpython How are parser error cases tested? Compare with this project and propose a small experiment.
 ```
 
-Paste the printed line into a T3 thread attached to your project. Once readiness is
-clear, generate a task prompt:
-
-```sh
-t3-plugins prompt ape study https://github.com/python/cpython 'How are parser error cases tested? Compare with this project and propose a small experiment.'
-```
-
-Paste that output into T3. Replace the sample task or path with your own.
-If you installed [skill adapters](../slash-commands.md), select **t3-ape**
-from `/` and append the same request instead.
-
-## Operations
-
-`doctor`, `forage`, `study`, `clean`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/ape/entry.md) names the file to load for each operation.
+Or let it find candidates: `$t3-ape forage` followed by the gap you want to close.
+`study` reads one named GitHub repository; `forage` searches GitHub and compares up to
+five. Send `$t3-ape doctor` first on a new machine or provider.
 
 ## What you get
 
-A report pinned to the source commit, with Provenance, Overlap, Adopt, Adapt, Reject
-and Command case sections. Each recommendation names local target files, effort,
-tradeoffs and a bounded experiment. An empty Adopt section is a valid result.
-The agent returns the source revision and report path; proposed experiments are
-not measured improvements.
+A report pinned to the source commit, with these sections: Provenance, Overlap, Adopt,
+Adapt, Reject and Command case. Each recommendation names the local files it would
+touch, its effort and tradeoffs, and a bounded experiment with conditions for keeping
+or abandoning it. An empty Adopt section is a valid answer. The agent returns the
+source revision and the report path. A proposed experiment is a suggestion, not a
+measured improvement.
+
+Research happens in a workspace of cloned repositories outside your project.
+`$t3-ape clean` removes it.
+
+## Operations
+
+`doctor`, `forage`, `study`, `clean`. The
+[entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/ape/entry.md)
+names the file the agent loads for each one.
 
 ## Jobs and workers
 
@@ -58,8 +55,11 @@ implementation or running the experiment; that needs a separate request.
 
 ## Limits
 
-Cleanup accepts only workspaces carrying a matching `.ape-workspace.json` marker
-from the initializer. Unmarked legacy folders are left untouched; inspect and archive
-them manually before creating a new workspace. Initialization does not adopt existing data.
+`clean` removes only workspaces that carry the `.ape-workspace.json` marker written
+when the workspace was created. Older unmarked folders are left alone; inspect and
+archive them yourself before creating a new workspace. Creating one never adopts
+existing data.
 
-Research stays read-only in the current project. It never executes third-party code or silently starts implementing recommendations. See [compatibility](../compatibility.md) for the distinction between deterministic tests and live provider results.
+ape stays read-only in your project. It never executes third-party code, and it never
+starts implementing a recommendation without a separate request. Unit tests don't show
+how a given model behaves; see [compatibility](../compatibility.md).

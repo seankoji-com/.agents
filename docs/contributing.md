@@ -58,16 +58,27 @@ python3 scripts/check_docs.py
 
 Check navigation, search, code copying and diagrams at 390px, 768px and 1280px,
 in light and dark mode, with keyboard focus, reduced motion and 200% zoom.
-Tables and diagrams may scroll inside their frames; the page itself must not overflow. Screenshots
-should show the actual rendered artifact, use synthetic data, and state what they
-demonstrate. Never substitute an illustration for live acceptance evidence.
+Tables and diagrams may scroll inside their frames; the page itself must not overflow.
+`python3 scripts/capture_site.py --site site --out /tmp/shots` screenshots the key
+pages at 1440px and 390px in both schemes with headless Chrome, and exits 1 if any
+page overflows horizontally. Screenshots should show the actual rendered artifact,
+use synthetic data, and state what they demonstrate. Never substitute an
+illustration for live acceptance evidence.
 
 The homepage, the plugin pages, and the sightings table are generated at build time
 by the `scripts/field_guide.py` hook from `plugins/*/plugin.json`, `docs/field-guide.json`,
 and `conformance/compatibility.json`. Adding a plugin means adding its entry to
 `docs/field-guide.json` and a mark under `docs/assets/specimens/`; the build fails
-if either is missing. The optional scripted terminal recording is `docs/assets/demo.svg`, written by
-`python3 scripts/render_demo.py`; a test fails when the committed file is stale.
+if either is missing.
+
+The terminal recording comes from real runs. `python3 scripts/capture_terminal.py`
+runs the quickstart commands in an empty temporary home directory, replaces machine
+paths with `~` and `<checkout>`, refuses to write if anything private survives, and
+saves `docs/assets/recordings/*.json` and `*.txt`. `python3 scripts/render_demo.py`
+turns the quickstart transcript into `docs/assets/demo.svg`; add `--video` (needs
+headless Chrome and ffmpeg) to refresh `quickstart.mp4`, `quickstart.webm` and the
+poster `quickstart-terminal.png`. A test fails when the committed SVG is stale. Never
+hand-edit a transcript.
 Fonts are bundled under `docs/assets/fonts/` (SIL OFL 1.1) so pages make no
 third-party requests. Theme overrides live in `overrides/`.
 

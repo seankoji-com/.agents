@@ -1,37 +1,43 @@
 # Troubleshooting
 
+Find the symptom, run the check, apply the fix. If nothing here matches,
+[report a bug](#report-a-bug) with the exact output.
+
 ## The agent cannot read the entry
 
-Run `t3-plugins path PLUGIN` on the same machine as the provider. Check that the path
-is inside its readable roots. Use a custom installation prefix if needed. A local
-desktop install does not populate a remote provider's filesystem.
+Run `t3-plugins path PLUGIN` on the machine where the provider runs tools, and check
+that the path is inside the folders it can read. If not, install under a
+[custom prefix](getting-started.md#paths-and-remote-environments) it can reach. An
+install on your laptop doesn't put files on a remote provider's machine.
 
 ## `doctor` reports an outdated snapshot
 
-Homebrew upgrades the package; `t3-plugins setup` updates user snapshots and skills. Run that
-command after an upgrade. `doctor` compares snapshot contents with the bundled
-package and reports `snapshot_outdated` when they differ, including intentional
-rollbacks. The packaged `imps` command warns too, without changing installed files.
+`brew upgrade` updates the package but not your installed snapshots or skills. Run
+`t3-plugins setup` after every upgrade. `doctor` compares each snapshot with the
+bundled package and reports `snapshot_outdated` when they differ, including after an
+intentional rollback. The packaged `imps` command warns too, without changing files.
 
 ## `doctor` reports modified or missing files
 
-The shell command checks installation integrity. Inspect the named files before
-reinstalling. Preserve your edits elsewhere, or deliberately use `install PLUGIN
---force` to overwrite the affected snapshot. The agent's `doctor` operation separately
-checks workflow prerequisites and T3 capabilities.
+The terminal `doctor` checks the installed files. Look at the files it names before
+reinstalling. Copy any edits you want to keep, then run `t3-plugins install PLUGIN
+--force` to overwrite that snapshot. The agent's `$t3-PLUGIN doctor` is a different
+check: it covers workflow prerequisites and T3 capabilities.
 
 ## The skill is missing from the slash menu
 
-Install the adapter into the selected provider's skill root, enable **Show skills in
-slash menu**, and restart the agent session. Check custom provider homes and skill
-permissions. See [slash commands](slash-commands.md). Use `t3-plugins prompt PLUGIN OPERATION` as the direct-entry fallback.
+Check three things: the skill is in the folder your provider reads (see
+[slash commands](slash-commands.md)), **Show skills in slash menu** is on, and you
+restarted the agent session after `setup`. Custom provider homes use their own
+folders. Meanwhile, `t3-plugins prompt PLUGIN OPERATION` prints a line you can paste
+instead.
 
 ## A T3 task or watch tool is missing
 
-Record the exact T3 build and missing tool. Discover the live host capabilities.
-Do direct work when the playbook allows it; an independent-review requirement cannot
-be satisfied by reviewing your own output. Do not launch another provider CLI to
-pretend a missing T3 task API exists.
+Note the T3 build and the missing tool, and have the agent list T3's live
+capabilities. Work the playbook allows to run directly can continue. A required
+independent review can't be replaced by the agent reviewing its own output, and the
+agent must not start another provider's CLI to stand in for a missing T3 task tool.
 
 ## imps is blocked after interruption
 
@@ -46,13 +52,12 @@ Do not change the state version or try to convert it by editing JSON.
 
 ## Homebrew has an older catalog
 
-These guides describe catalog v0.5.0 and later. If `brew list --versions t3-plugins`
-reports an earlier version, upgrade or use the
-[source installation path](getting-started.md#from-source).
-
-Run `brew update`, `brew upgrade t3-plugins`, then `t3-plugins setup`. A GitHub release
-and its tap formula update are separate steps. Check the release notes and tap PR if
-the expected version has not reached the formula yet.
+These guides describe catalog v0.5.0 and later. Check with `t3-plugins list`: no
+`ralph` means an older formula. Run `brew update`, `brew upgrade t3-plugins`, then
+`t3-plugins setup`. If the tap still has an older release, install
+[HEAD or from source](getting-started.md#homebrew-release-channel). A GitHub release
+and its tap formula update are separate steps, so a new release can take a while to
+reach `brew`.
 
 ## Setup stopped partway through
 
