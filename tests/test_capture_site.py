@@ -71,9 +71,16 @@ class CaptureSiteTest(unittest.TestCase):
         self.assertFalse((plain / 'Default' / 'Preferences').exists())
         with self.assertRaisesRegex(capture_site.CaptureError, 'positive'):
             capture_site.set_zoom(plain, 0)
-        capture_site.check_zoom('p', 200, 2.0)
+        capture_site.check_zoom('p', 200, 2.0, 1440, 720)
+        capture_site.check_zoom('p', 100, 1.0, 1440, 1440)
         with self.assertRaisesRegex(capture_site.CaptureError, 'ignored the zoom'):
-            capture_site.check_zoom('p', 200, 1.0)
+            capture_site.check_zoom('p', 200, 1.0, 1440, 720)
+        # The right pixel ratio with an unzoomed viewport is a device-scale change, not zoom.
+        with self.assertRaisesRegex(capture_site.CaptureError, '720px CSS viewport.*reports 1440px'):
+            capture_site.check_zoom('p', 200, 2.0, 1440, 1440)
+        with self.assertRaisesRegex(capture_site.CaptureError, 'at least 500px'):
+            capture_site.capture(self.site, Path(self.tmp.name) / 'out', ['index.html'], [390],
+                                 ['light'], None, 'chrome', zoom=200)
         args = capture_site.chrome_args('chrome', profile, 1440, 900, 'light', None)
         self.assertFalse(any(a.startswith('--virtual-time-budget') for a in args))
         self.assertIn('--force-device-scale-factor=1', args)  # zoom, not device scale, sets the ratio

@@ -168,10 +168,15 @@ def set_zoom(profile: Path, percent: int) -> None:
         prefs.write_text(json.dumps({'partition': {'default_zoom_level': {'x': level}}}))
 
 
-def check_zoom(page: str, percent: int, ratio: float) -> None:
+def check_zoom(page: str, percent: int, ratio: float, width: int, inner: int) -> None:
+    """Fail unless the page reports both the zoomed pixel ratio and the narrower CSS viewport."""
     if abs(ratio - percent / 100) > .01:
         raise CaptureError(f'{page}: asked for {percent}% zoom but the page reports '
                            f'devicePixelRatio {ratio}; Chrome ignored the zoom setting')
+    expected = width * 100 / percent
+    if abs(inner - expected) > 1:
+        raise CaptureError(f'{page}: at {percent}% zoom a {width}px window should give a '
+                           f'{expected:g}px CSS viewport, but the page reports {inner}px')
 
 
 def run_chrome(args: list[str], env: dict, attempts: int = 2) -> subprocess.CompletedProcess:
@@ -192,6 +197,9 @@ def capture(site: Path, out: Path, pages, widths, schemes, height: int | None, c
             full: bool = False, virtual_ms: int = 4000, zoom: int = 100) -> list[dict]:
     if not (site / 'index.html').is_file():
         raise CaptureError(f'{site} has no index.html; build the site first')
+    if zoom != 100 and any(w < MIN_WINDOW for w in widths):
+        raise CaptureError(f'--zoom needs widths of at least {MIN_WINDOW}px; narrower widths load '
+                           'in a fixed-width frame that page zoom does not narrow')
     out.mkdir(parents=True, exist_ok=True)
     results = []
     with tempfile.TemporaryDirectory(prefix='capture-site-') as tmp:
@@ -209,7 +217,7 @@ def capture(site: Path, out: Path, pages, widths, schemes, height: int | None, c
                         if not probe:
                             raise CaptureError(f'{page}: layout probe did not report')
                         scroll, inner = int(probe.group(1)), int(probe.group(2))
-                        check_zoom(page, zoom, float(probe.group(3)))
+                        check_zoom(page, zoom, float(probe.group(3)), width, inner)
                         target = out / shot_name(page, width, scheme, zoom)
                         shot_h = h if not full else max(h, 6000)
                         raw = target if width >= MIN_WINDOW else Path(tmp) / target.name
@@ -369,7 +377,7 @@ def check_controls(site: Path, out: Path, page: str, width: int, height: int, sc
 
             tab.open(url)
             inner, ratio = tab.js('[innerWidth, devicePixelRatio]')
-            check_zoom(page, zoom, ratio)
+            check_zoom(page, zoom, ratio, width, inner)
             result = {'page': page, 'width': width, 'scheme': scheme, 'zoom': zoom,
                       'viewport_width': inner, 'device_pixel_ratio': ratio}
 

@@ -175,7 +175,7 @@ frame of exactly that width and are cropped with ffmpeg.
 For the 200 percent check, add `--zoom 200 --controls --width 1440`. `--zoom` sets
 Chrome's own page zoom in the temporary profile and fails unless the page reports
 `devicePixelRatio` 2 and a 720px CSS viewport; resizing the window or forcing a device
-scale does not count. `--controls` then uses each page with real mouse and keyboard
+scale does not count. It refuses widths under 500px, which load in a fixed-width frame. `--controls` then uses each page with real mouse and keyboard
 input over Chrome's DevTools pipe: it opens the navigation drawer and follows a link,
 searches for `brew` and opens the first result, and presses a code-copy button and
 compares the clipboard with the block. It saves a screenshot of each state.
