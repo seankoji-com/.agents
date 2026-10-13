@@ -7,7 +7,7 @@
         "path": "tests/test_t3_thread_features.py",
         "disposition": "keep",
         "stage": 5,
-        "reason": "T3 thread-feature contracts added after issue 28: sibling-work check, run-bound result recovery, revision-bound dependent work (commit at a recorded SHA, edit-only continuation in the writer worktree at a matching snapshot, or artifact hash; cross-worktree transfer of uncommitted work deferred), external coordinators, and the design note.",
+        "reason": "T3 thread-feature contracts added after issue 28: sibling-work check, run-bound result recovery, revision-bound dependent work (commit at a recorded SHA, edit-only continuation in the writer worktree at a matching snapshot, refused where the snapshot cannot see a change, or artifact hash; cross-worktree transfer of uncommitted work deferred), external coordinators, and the design note.",
         "assertions": [
           {
             "selector": "test_t3_thread_features.SiblingWorkCheckTest",

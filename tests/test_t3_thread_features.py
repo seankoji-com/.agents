@@ -2,9 +2,9 @@
 read-only, applied before writable runs, counts parked maintainers and reports partial
 coverage; result recovery reads an owned child's recorded run to the end; dependent work
 starts from a commit at a recorded SHA, from the finished writer's own worktree at a
-matching snapshot, or from an artifact hash, and cross-worktree transfer of uncommitted
-work stays deferred; external coordinators keep the same authority and leave no
-endpoint material behind. The design note covers all seven features with a disposition
+matching snapshot (refused where the snapshot cannot see a change), or from an artifact
+hash, and cross-worktree transfer of uncommitted work stays deferred; external
+coordinators keep the same authority and leave no endpoint material behind. The design note covers all seven features with a disposition
 each."""
 import re
 import sys
@@ -232,6 +232,7 @@ class DependentWorkTest(unittest.TestCase):
         git(writer, 'init', '-q')
         (writer / 'src' / 'count.py').write_text('print(1)\n')
         (writer / 'src' / 'tool.sh').write_text('echo hi\n')
+        (writer / 'src' / 'run.sh').write_text('echo run\n')  # stays clean in the accepted work
         git(writer, 'add', 'src')
         git(writer, 'commit', '-q', '-m', 'base')
         return writer
@@ -271,6 +272,51 @@ class DependentWorkTest(unittest.TestCase):
                     edit(writer)
                     self.assertFalse(snapshot.same(accepted, snapshot.take(writer)),
                                      'the dependent slot stops on the drift')
+
+    def test_continuation_refuses_where_the_snapshot_cannot_see_a_change(self):
+        isolation = isolation_rule()
+        for phrase in ("The snapshot sees only what `git status` reports, so the slot also stops, reporting that "
+                       "continuation cannot be verified, when `git config --type=bool core.filemode` prints "
+                       "`false`",
+                       '`git ls-files -v` shows a lower-case or `S` tag',
+                       'Paths Git ignores are outside the snapshot and are not handed on'):
+            self.assertIn(phrase, isolation)
+
+        snapshot = self._snapshot()
+
+        def continuation_allowed(writer, accepted):
+            # The documented check, command for command.
+            filemode = git(writer, 'config', '--type=bool', 'core.filemode', check=False).stdout.strip()
+            tags = [line[:1] for line in git(writer, 'ls-files', '-v').stdout.splitlines()]
+            hidden = any(tag.islower() or tag == 'S' for tag in tags)
+            return filemode != 'false' and not hidden and snapshot.same(accepted, snapshot.take(writer))
+
+        blind = {
+            'executable bit on a clean script, filemode off': (
+                lambda w: git(w, 'config', 'core.filemode', 'false'),
+                lambda w: (w / 'src' / 'run.sh').chmod(0o755)),
+            'edit to an assume-unchanged file': (
+                lambda w: git(w, 'update-index', '--assume-unchanged', 'src/run.sh'),
+                lambda w: (w / 'src' / 'run.sh').write_text('echo changed\n')),
+            'edit to a skip-worktree file': (
+                lambda w: git(w, 'update-index', '--skip-worktree', 'src/run.sh'),
+                lambda w: (w / 'src' / 'run.sh').write_text('echo changed\n')),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            for index, (label, (setting, edit)) in enumerate(blind.items()):
+                with self.subTest(case=label):
+                    writer, _ = self._accepted_edit_only_work(tmp, f'blind{index}')
+                    setting(writer)
+                    accepted = snapshot.take(writer)
+                    edit(writer)
+                    self.assertTrue(snapshot.same(accepted, snapshot.take(writer)), 'the snapshot alone misses it')
+                    self.assertFalse(continuation_allowed(writer, accepted), 'the slot refuses instead')
+
+            # With filemode on, the same executable-bit change is ordinary, detected drift.
+            writer, accepted = self._accepted_edit_only_work(tmp, 'filemode-on')
+            self.assertTrue(continuation_allowed(writer, accepted))
+            (writer / 'src' / 'run.sh').chmod(0o755)
+            self.assertFalse(snapshot.same(accepted, snapshot.take(writer)))
 
     def test_continuation_detects_drift_a_transfer_missed(self):
         # The run-2 failure modes are visible to the snapshot in the writer's own worktree.
@@ -385,7 +431,11 @@ class DesignNoteTest(unittest.TestCase):
         for phrase in ('`plugins/ape/references/research-job.md`', '`plugins/ape/playbooks/forage.md`',
                        'path-and-hash handoff', 'limited to source-worktree integration', 'in one of two forms',
                        'edit-only engineering jobs', "continues in the accepted writer's own worktree",
-                       "still match the accepted stage's snapshot", 'stops on the drift'):
+                       "still match the accepted stage's snapshot", 'stops on the drift',
+                       'a later executable-bit change to a clean tracked file leaves `content_hash` unchanged',
+                       'assume-unchanged or skip-worktree entries hide edits',
+                       'the dependent stage refuses to continue and reports that continuation cannot be verified',
+                       'or a sparse checkout'):
             self.assertIn(phrase, checkpoints)
 
     def test_note_defers_cross_worktree_transfer_with_the_observed_failures(self):

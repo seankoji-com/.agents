@@ -239,7 +239,12 @@ check to a snapshot (`plugins/imps/entry.md`), and a job may authorize only `edi
 worktree once that writer has finished, after confirming that a new snapshot's `head`
 and `content_hash` (`core/snapshot.py`) still match the accepted stage's snapshot. A
 later edit changes `content_hash`, so the dependent stage stops on the drift instead of
-building on unaccepted content. No commit is created that the job did not authorize.
+building on unaccepted content. The snapshot sees only what `git status` reports. With
+`core.filemode=false`, a later executable-bit change to a clean tracked file leaves
+`content_hash` unchanged, and assume-unchanged or skip-worktree entries hide edits the
+same way, so in either case the dependent stage refuses to continue and reports that
+continuation cannot be verified. Paths Git ignores are outside the snapshot and are not
+handed on. No commit is created that the job did not authorize.
 Accepted artifacts outside any worktree, such as research reports, keep their existing
 path-and-hash handoff. No form reads a worktree whose writer is still active or re-runs
 a completed task.
@@ -253,7 +258,10 @@ handoff would break read-only research jobs and edit-only engineering jobs, so t
 commit rule is limited to source-worktree integration of changes the job may commit.
 Continuing in the writer's worktree runs dependent edit-only stages one at a time there,
 as Writer isolation already does when separate worktrees cannot be established. Without
-commit authority, edit-only writers in separate worktrees cannot be combined.
+commit authority, edit-only writers in separate worktrees cannot be combined. The
+refusal is conservative: a worktree with `core.filemode=false`, or a sparse checkout
+(which marks paths outside its cone skip-worktree), cannot continue edit-only work at
+all and needs commit authority instead.
 
 **Disposition: implemented** in `shared/delegation.md` (Writer isolation).
 

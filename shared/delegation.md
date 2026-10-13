@@ -70,7 +70,12 @@ commits, arrive as a commit or branch at an observed SHA: inspect it with `git d
 the accepted writer's own worktree: once that writer is finished, the dependent slot
 continues there, and before starting it takes a new snapshot and confirms that its
 `head` and `content_hash` still match the accepted stage's snapshot. On a mismatch it
-stops and reports the drift. Never move uncommitted work to another worktree; plain
+stops and reports the drift. The snapshot sees only what `git status` reports, so the
+slot also stops, reporting that continuation cannot be verified, when
+`git config --type=bool core.filemode` prints `false` (an executable-bit change to a
+clean tracked file would not show) or `git ls-files -v` shows a lower-case or `S` tag
+(assume-unchanged and skip-worktree entries hide edits). Paths Git ignores are outside
+the snapshot and are not handed on. Never move uncommitted work to another worktree; plain
 `git diff --binary` omits staged and untracked work and is not a transfer. Never commit
 only to hand work on; that needs the job's commit authority. Accepted artifacts, such as
 reports under the job directory named in `consumed_outputs`, are handed off by path
