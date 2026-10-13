@@ -345,3 +345,46 @@ Pass 19 (13 October 2026) changes:
 - Live risk: the start record is written while the mutex is held, so a stalled
   log consumer delays lock writers as it already delays every log line.
   Offline synthetic barrier tests prove the ordering only.
+
+## Quality starts (Stage 6 runner)
+
+Build each package arm once, before the first start of that arm. The arm is made
+read-only and later mounted into every start's agent at the same absolute path, so the
+rebuilt arm's recorded bundle paths stay valid:
+
+```sh
+python3 bench/container/packages.py build --arm baseline --out "$BENCH_PACKAGES/baseline"
+python3 bench/container/packages.py build --arm rebuilt --out "$BENCH_PACKAGES/rebuilt"
+```
+
+The baseline build installs commit `3cb0d11` with its own installer and fails unless every
+digest equals `migration/rebuild/baseline.json`. The rebuilt build refuses uncommitted
+changes under `plugins/`, `core/`, `shared/` or `scripts/`. `startctl.py list` prints
+the command for all 24 planned starts. One start is:
+
+```sh
+python3 bench/container/startctl.py run --scenario engineering-five-stage --arm rebuilt \
+    --provider codex --repetition 3 --env-file "$BENCH_ENV_FILE" --results "$BENCH_RESULTS" \
+    --packages "$BENCH_PACKAGES/rebuilt" --canary-run "$BENCH_CANARY_RUN_CODEX"
+```
+
+Each start gets its own `up`, and `down` always runs. Smoke, preflight and catalog must
+pass before launch. Canary evidence is reused only when the linked run has a verified
+canary for the provider and the same pinned sources, programs, frozen targets and response
+IDs. The parent launches with model-policy role `parent`. For repetition 3 the runner
+polls stage-3 commits (baseline) or the job's third stage reaching `accepted` (rebuilt),
+interrupts, records whether later work had already landed, and sends `resume` with role
+`resume`. The wait has a deadline (default 4 hours). Graders run in a separate
+`--network none`, read-only container with `T3_BENCH_ISOLATED_GRADER=1` over copies that
+were exported out of the agent. Workflow and negative scenarios need the
+`stage_fixtures` adapter; missing delegation also needs `mcp_shim`. Without them the start
+is blocked before `up`.
+
+Private evidence stays under `<results>/<start>/attempt-<n>/private`. `summary.json` and
+`attempt-record.json` beside it hold no absolute paths. A second attempt needs
+`--retry-infrastructure-invalid REASON` and an attempt 1 marked as an
+infrastructure-invalid candidate; the owner still decides whether it qualifies.
+
+Unverified until a live run: T3's `t3_thread_interrupt` and `t3_thread_send` schemas,
+the job-state path and stage status names, provider session IDs in projected thread rows
+(used to attribute transcripts), and grader access to exported files.

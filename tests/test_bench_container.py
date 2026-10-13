@@ -3962,11 +3962,10 @@ class Pass16ContainerRepairTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             path = benchctl.write_canary_prompt(Path(temp), 'codex', CANARY_TARGET)
             text = path.read_text(encoding='utf-8')
-        for name, literal in templates.items():
-            with self.subTest(role=name):
-                self.assertIn(literal, text, name)
-        self.assertIn('byte for byte', text)
-        self.assertIn('no added, removed, reordered, quoted, indented', text)
+        # Each literal is shown once as a JSON string whose decoded value is the matcher's bytes.
+        self.assertEqual(benchctl.canary_prompt_literals(text), templates)
+        self.assertIn('Any byte of difference fails the run', text)
+        self.assertIn('the final "\\n" is part of the value', text)
 
 
 class GatedReader:

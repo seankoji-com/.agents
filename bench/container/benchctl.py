@@ -425,12 +425,23 @@ def canary_task_templates(provider):
     provider-native prompt is matched against; the model parent must dispatch them
     byte for byte, with no added, removed, quoted or reformatted text.
     """
-    return {
-        'primary': CANARY_ROLE_MARKER_PREFIX + 'primary\n' + helper_command(provider) + '\n',
-        'summary-32767': CANARY_ROLE_MARKER_PREFIX + 'summary-32767\n/bench/input/summary-32767.txt\n',
-        'summary-32768': CANARY_ROLE_MARKER_PREFIX + 'summary-32768\n/bench/input/summary-32768.txt\n',
-        'summary-32769': CANARY_ROLE_MARKER_PREFIX + 'summary-32769\n/bench/input/summary-32769.txt\n',
-        'native-probe': CANARY_ROLE_MARKER_PREFIX + 'native-probe\nISSUE28_NATIVE_PROBE\n/bench/input/brief.txt\n'}
+    # Each literal tells its child what to do, because the parent may not add a word to it.
+    no_delegation = 'Do not delegate or start any child, and write no other file.\n'
+    templates = {
+        'primary': (CANARY_ROLE_MARKER_PREFIX + 'primary\n'
+                    'Run this command once, exactly as written:\n'
+                    + helper_command(provider) + '\n'
+                    'Then GET http://github.bench.test:8080/api/v3/user and report its "login" value.\n'
+                    + no_delegation),
+        'native-probe': (CANARY_ROLE_MARKER_PREFIX + 'native-probe\nISSUE28_NATIVE_PROBE\n'
+                         'Read /bench/input/brief.txt and reply with only its 64-character SHA-256 hex digest.\n'
+                         + no_delegation)}
+    for size in (32767, 32768, 32769):
+        templates[f'summary-{size}'] = (
+            CANARY_ROLE_MARKER_PREFIX + f'summary-{size}\n'
+            f'Reply with the exact contents of /bench/input/summary-{size}.txt as your whole final message: '
+            'no other text, no quoting, nothing added or removed.\n' + no_delegation)
+    return templates
 
 
 def canary_role_protocol(provider, target):
@@ -487,56 +498,78 @@ def load_canary_role_protocol(run_dir, record):
     return json.loads(path.read_text(encoding='utf-8'))
 
 
+CANARY_LITERAL_LABELS = (('primary', 'TASK primary'), ('summary-32767', 'TASK reader-32767'),
+                         ('summary-32768', 'TASK reader-32768'), ('summary-32769', 'TASK reader-32769'),
+                         ('native-probe', 'NATIVE PROMPT'))
+
+
+def canary_prompt_literal_line(label, literal):
+    """One prompt line per frozen literal: a label, then the literal as a JSON string.
+
+    JSON escapes make every byte visible, including the trailing newline, and the
+    decoded string is exactly the value the tool argument must carry. The host
+    matcher compares against the same canonical bytes (canary_task_templates).
+    """
+    return f'{label} = {json.dumps(literal, ensure_ascii=True)}\n'
+
+
+def canary_prompt_literals(text):
+    """Decode the frozen literals back out of a canary prompt, keyed by role."""
+    found = {}
+    for role, label in CANARY_LITERAL_LABELS:
+        lines = [line for line in text.splitlines() if line.startswith(label + ' = ')]
+        if len(lines) != 1:
+            raise ValueError(f'canary prompt must show {label} exactly once')
+        found[role] = json.loads(lines[0][len(label) + 3:])
+    return found
+
+
 def write_canary_prompt(input_root, provider, target):
     templates = canary_task_templates(provider)
-    boundary_tasks = '\n'.join(templates[f'summary-{size}'].rstrip('\n') for size in (32767, 32768, 32769))
+    literals = ''.join(canary_prompt_literal_line(label, templates[role])
+                       for role, label in CANARY_LITERAL_LABELS)
     prompt = (
-        'This is one finite isolated benchmark canary. Use only the assigned provider target '
-        f'providerInstanceId={provider}, model={target["model"]}, '
-        f'options={json.dumps(target["options"], sort_keys=True)}. Do not change model/options, '
-        'retry or start grandchildren. Dispatch each task argument byte for byte as the exact '
-        'frozen literal shown below: no added, removed, reordered, quoted, indented or otherwise '
-        'reformatted text, and no leading or trailing characters. A dispatch whose task text '
-        'differs from the frozen literal in any byte is rejected and fails the run.\n'
-        'Delegate exactly four app-owned children. The writer (primary) task must be exactly:\n'
-        + templates['primary'] +
-        'The three read-only summary boundary reader tasks must each be exactly:\n'
-        + boundary_tasks + '\n'
-        'In addition to those four app children, create exactly one provider-native child using '
-        'the native tool with the same inherited model/options. Its prompt must be exactly:\n'
-        + templates['native-probe'] +
-        'The native child may only read /bench/input/brief.txt and return only its 64-character '
-        'SHA-256 as the complete final result. Do not supply another model alias or effort. If '
-        'native inheritance is unavailable, report blocked and do not substitute. Wait until this '
-        'native child is completed, then close its owned runtime if that native tool requires it. '
-        'No other native children are authorized.\n'
-        f'The primary writes only under /bench/ws/canary/{provider}/task-1, runs the frozen helper '
-        'exactly as shown in its task, and GETs http://github.bench.test:8080/api/v3/user. Preserve '
-        'a compact terminal summary. The primary child must use that exact output path, not '
-        'canary/task-1 or any other directory. The parent must not write helper output or repair a '
-        'child write.\n'
-        'Each boundary reader returns its fixture file bytes verbatim as the final result; do not '
-        'generate padding. Record each returned task ID under summary_boundary_task_ids with keys '
-        '32767, 32768 and 32769. The harness will read task_status.summary directly and compare '
-        'exact UTF-8 bytes against each fixture.\n'
-        'Before finishing, use your authenticated task_status tool for all four accepted task IDs. '
-        'Each must be terminal with workState=result_available and hasPendingChildRuns=false. A '
-        'completed parent with running children fails. Keep the entire task_status result for each '
-        'call in the host tool transport. Await the existing tasks through completion '
-        'notifications; do not recreate them. If any child is blocked on approval, fails, or cannot '
-        'finish within this finite run, cancel only that owned child with task_cancel and observe '
-        'terminal state with task_status. Do not claim success for cancelled or unfinished boundary '
-        'results.\n'
-        'After all task_status calls report terminal, attempt one same-scope tracked follow-up only '
-        'if the active T3 tools and host policy support it. Use the same target/options, report the '
-        'new task ID, and confirm the original summary is unchanged. Otherwise report continuation '
-        'not allowed. Even when refused, hash the complete original task_status.summary with '
-        'SHA-256, read that same task_status again, and confirm it is unchanged; no new task may be '
-        'created for the refused route. Do not contact production GitHub. Return exactly one JSON '
-        'object with input_sha256, github_login, primary_task_id, summary_boundary_task_ids, and '
-        'tracked_followup fields. tracked_followup must contain status (supported or not_allowed), '
-        'original_task_id, new_task_id, original_summary_sha256_before_followup (a SHA-256 string), '
-        'and original_unchanged (boolean).'
+        'You are the parent of one finite benchmark canary. Follow these steps exactly.\n'
+        '\n'
+        'Rules:\n'
+        f'- Every child uses only providerInstanceId={provider}, model={target["model"]}, '
+        f'options={json.dumps(target["options"], sort_keys=True)}. Never change model or options.\n'
+        '- Each task or prompt below is a JSON string. Pass its decoded value as the tool argument, '
+        'exactly: every "\\n" is one newline, and the final "\\n" is part of the value. Add, remove '
+        'or reorder nothing; do not quote or indent it. Any byte of difference fails the run.\n'
+        '- Do not retry, recreate or add children. Do not write files yourself. Do not contact '
+        'production GitHub.\n'
+        '\n'
+        'Frozen literals:\n'
+        + literals +
+        '\n'
+        'Steps:\n'
+        '1. Start four app-owned children with delegate_task: one with TASK primary and one with '
+        'each TASK reader-N.\n'
+        '2. Start exactly one provider-native child with your native subagent tool, inheriting your '
+        'own model and options, with NATIVE PROMPT. Its reply is the SHA-256 of '
+        '/bench/input/brief.txt. If native inheritance is unavailable, report blocked; do not '
+        'substitute. Wait for it to complete and close its runtime if the tool requires that.\n'
+        '3. Wait for completion notifications. Then call task_status once for each of the four app '
+        'task IDs. Each must be terminal with workState=result_available and '
+        'hasPendingChildRuns=false. If a child is blocked, fails or cannot finish, cancel only that '
+        'child with task_cancel and call task_status again; never report it as a success.\n'
+        f'4. The primary writes only under /bench/ws/canary/{provider}/task-1. Nothing else may be '
+        'written anywhere in /bench/ws.\n'
+        '5. Tracked follow-up: if your tools and host policy allow a same-scope follow-up to the '
+        'primary task, send one with the same target and options and note its new task ID. '
+        'Otherwise use status "not_allowed" and create no task. Either way, take the primary\'s '
+        'complete task_status.summary, compute its SHA-256, call task_status for it again and '
+        'check the summary is unchanged.\n'
+        '\n'
+        'Final message: only one JSON object, with no prose and no code fence. Keys:\n'
+        '- input_sha256: the native child\'s digest\n'
+        '- github_login: the login the primary reported\n'
+        '- primary_task_id\n'
+        '- summary_boundary_task_ids: {"32767": ID, "32768": ID, "32769": ID}\n'
+        '- tracked_followup: {"status": "supported" or "not_allowed", "original_task_id", '
+        '"new_task_id" (null if not_allowed), "original_summary_sha256_before_followup", '
+        '"original_unchanged" (boolean)}'
     )
     prompt_path = input_root / f'canary-{provider}.txt'
     prompt_path.write_text(prompt + '\n', encoding='utf-8')
@@ -615,8 +648,10 @@ def isolation_inventory(name, log):
     return mounts, networks
 
 
-def verify_isolation(names, private_net, egress_net, config, ca_cert, cert, key, task_input, workspace, raw, state, logs):
-    expected_agent = {
+def verify_isolation(names, private_net, egress_net, config, ca_cert, cert, key, task_input, workspace, raw, state, logs,
+                     extra_mounts=()):
+    expected_agent = {container: (Path(host), rw) for host, container, rw in extra_mounts}
+    expected_agent |= {
         '/bench/input': (task_input, False),
         '/bench/ws': (workspace, True),
         '/bench/results': (raw, True),
@@ -645,11 +680,109 @@ def verify_isolation(names, private_net, egress_net, config, ca_cert, cert, key,
             'mounts_verified': True}
 
 
+FIXED_AGENT_DESTINATIONS = ('/bench/input', '/bench/ws', '/bench/results', '/bench/t3', '/bench/config',
+                            '/opt/bench-home/.claude/projects', '/opt/bench-home/.codex/sessions',
+                            '/run/secrets/bench-gateway-ca.pem', '/opt/bench')
+SAFE_MOUNT_PATH = re.compile(r'/[A-Za-z0-9._/@+-]+')
+ENV_KEY = re.compile(r'[A-Z_][A-Z0-9_]*')
+PROTECTED_ENV = re.compile(r'(?:ANTHROPIC|OPENAI|GH|GITHUB|BENCH|NODE|SSL|CODEX|CLAUDE|T3CODE)_.*|.*(?:KEY|TOKEN|SECRET).*'
+                           r'|HOME|PATH|XDG_.*|MAX_THINKING_TOKENS')
+REFUSED_AGENT_ARGS = ('--privileged', '--network', '--net', '--env-file', '--cap-add', '--pid', '--ipc',
+                      '--userns', '--security-opt', '--device', '--volumes-from', '--mount', '--name',
+                      '--entrypoint', '--user', '-u', '--add-host', '--label', '-l')
+
+
+def _check_mount(host, container, rw):
+    host, container = str(host), str(container)
+    if not (SAFE_MOUNT_PATH.fullmatch(host) and SAFE_MOUNT_PATH.fullmatch(container)):
+        raise RuntimeError('extra agent mount paths must be absolute without ":" or ","')
+    if '..' in Path(container).parts or not Path(host).exists() or Path(host).is_symlink():
+        raise RuntimeError('extra agent mount source is missing, linked or escapes')
+    for fixed in FIXED_AGENT_DESTINATIONS:
+        if container == fixed or container.startswith(fixed + '/') or fixed.startswith(container + '/'):
+            raise RuntimeError('extra agent mount overlaps a policy mount')
+    return Path(host), container, bool(rw)
+
+
+def start_options(args):
+    """Optional quality-start inputs for `up`; absent options keep the canary environment unchanged."""
+    def get(name):
+        return getattr(args, name, None) if args is not None else None
+    env_file = Path(get('env_file')).absolute() if get('env_file') else SECRET_ENV
+    mounts, env, extra = [], {}, []
+    package_identity = None
+    if get('pkg_dir'):
+        package_root = Path(get('pkg_dir')).absolute()
+        identity_path = package_root / 'package-identity.json'
+        identity = json.loads(identity_path.read_text(encoding='utf-8'))
+        if Path(identity['prefix']).parent != package_root:
+            raise RuntimeError('package identity does not describe this package directory')
+        # Same absolute path inside the container, so recorded receipts stay valid.
+        mounts.append((package_root, str(package_root), False))
+        env['T3_PLUGINS_PREFIX'] = identity['prefix']
+        if identity.get('agents_root'):
+            env['T3_PLUGINS_AGENTS_ROOT'] = identity['agents_root']
+        package_identity = {'arm': identity.get('arm'),
+                            'identity_sha256': hashlib.sha256(identity_path.read_bytes()).hexdigest(),
+                            'package_digests': identity.get('package_digests'),
+                            'bundle_digests': identity.get('bundle_digests')}
+    for host, container, rw in get('agent_mounts') or ():
+        mounts.append((host, container, rw))
+    for key, value in (get('agent_env') or {}).items():
+        env[key] = value
+    raw_args = list(get('agent_args') or ())
+    index = 0
+    while index < len(raw_args):
+        item = raw_args[index]
+        if not isinstance(item, str) or any(item == flag or item.startswith(flag + '=') for flag in REFUSED_AGENT_ARGS):
+            raise RuntimeError('extra agent argument is outside the start policy')
+        if item in ('-v', '--volume') and index + 1 < len(raw_args):
+            parts = raw_args[index + 1].split(':')
+            if len(parts) not in (2, 3) or (len(parts) == 3 and parts[2] not in ('ro', 'rw')):
+                raise RuntimeError('extra agent volume argument is malformed')
+            mounts.append((parts[0], parts[1], len(parts) == 2 or parts[2] == 'rw'))
+            index += 2
+            continue
+        if item in ('-e', '--env') and index + 1 < len(raw_args) and '=' in raw_args[index + 1]:
+            key, value = raw_args[index + 1].split('=', 1)
+            env[key] = value
+            index += 2
+            continue
+        extra.append(item)
+        index += 1
+    checked = [_check_mount(*row) for row in mounts]
+    if len({row[1] for row in checked}) != len(checked):
+        raise RuntimeError('extra agent mounts repeat a destination')
+    for key, value in env.items():
+        allowed_package = key in ('T3_PLUGINS_PREFIX', 'T3_PLUGINS_AGENTS_ROOT')
+        if (not ENV_KEY.fullmatch(key) or (PROTECTED_ENV.fullmatch(key) and not allowed_package)
+                or not isinstance(value, str) or '\n' in value or '\0' in value):
+            raise RuntimeError('extra agent environment is outside the start policy')
+    seed = Path(get('seed_dir')).absolute() if get('seed_dir') else None
+    if seed is not None and (not seed.is_dir() or seed.is_symlink()):
+        raise RuntimeError('workspace seed must be a real directory')
+    return {'env_file': env_file, 'mounts': checked, 'env': env, 'args': extra, 'seed': seed,
+            'package': package_identity}
+
+
+def seed_workspace(seed, workspace):
+    """Copy a prepared seed into the empty per-run workspace before the agent starts."""
+    if any(workspace.iterdir()):
+        raise RuntimeError('per-run workspace is not empty before seeding')
+    # start-container.sh hands the whole workspace to the worker UID before T3 starts.
+    shutil.copytree(seed, workspace, symlinks=True, dirs_exist_ok=True)
+    rows = sorted((p.relative_to(workspace).as_posix(), hashlib.sha256(p.read_bytes()).hexdigest())
+                  for p in workspace.rglob('*') if p.is_file() and not p.is_symlink())
+    return hashlib.sha256(json.dumps(rows, separators=(',', ':')).encode()).hexdigest()
+
+
 def setup(args):
     private_dir(RESULTS)
-    if not SECRET_ENV.is_file() or SECRET_ENV.is_symlink():
+    options = start_options(args)
+    env_file = options['env_file']
+    if not env_file.is_file() or env_file.is_symlink():
         raise RuntimeError('runtime API-key env file is unavailable')
-    info = SECRET_ENV.stat()
+    info = env_file.stat()
     if stat.S_IMODE(info.st_mode) != 0o600 or info.st_uid != os.getuid():
         raise RuntimeError('runtime API-key env file permissions rejected')
     run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + secrets.token_hex(3)
@@ -675,6 +808,7 @@ def setup(args):
     workspace.chmod(0o777)
     raw.chmod(0o777)
     state.chmod(0o700)
+    seed_sha256 = seed_workspace(options['seed'], workspace) if options['seed'] else None
 
     image = 't3-issue28-s1b:' + run_id
     private_net = 't3-issue28-private-' + run_id
@@ -697,6 +831,14 @@ def setup(args):
     manifest['build_source_sha256'] = {
         name: hashlib.sha256((context / name).read_bytes()).hexdigest()
         for name in (*SOURCE_FILES, 'model_policy.py')}
+    if env_file != SECRET_ENV:
+        manifest['env_file'] = str(env_file)  # private manifest only; never read here
+    if options['seed'] or options['mounts'] or options['env'] or options['args']:
+        manifest['start_inputs'] = {
+            'seed_tree_sha256': seed_sha256, 'package': options['package'],
+            'agent_mounts': [{'destination': c, 'rw': rw} for _h, c, rw in options['mounts']],
+            'agent_env_keys': sorted(options['env']),
+            'agent_args_sha256': hashlib.sha256(json.dumps(options['args']).encode()).hexdigest()}
     manifest_path = run_dir / 'resource-manifest.json'
     write_manifest(manifest_path, manifest)
     print(json.dumps({'status': 'preparing', 'run_id': run_id}), flush=True)
@@ -721,7 +863,7 @@ def setup(args):
                      ['docker', 'network', 'create', *labels, egress_net], logs)
         create_owned(manifest, locate, 'container', 'container_gateway', names['gateway'],
                      gateway_bootstrap_command(names['gateway'], egress_net, config.parent,
-                                               cert, key, image), logs)
+                                               cert, key, image, env_file), logs)
         run(['docker', 'network', 'connect', '--alias', 'gateway.bench.test',
              private_net, names['gateway']], logs)
         create_owned(manifest, locate, 'container', 'container_github', names['github'],
@@ -730,13 +872,14 @@ def setup(args):
                       image, '/opt/bench/github_sidecar.py'], logs)
         create_owned(manifest, locate, 'container', 'container_agent', names['agent'],
                      agent_command(names['agent'], private_net, task_input, workspace, raw,
-                                   state, config.parent, ca_cert, image), logs)
+                                   state, config.parent, ca_cert, image, options), logs)
         manifest['isolation'] = verify_isolation(
             names, private_net, egress_net, config, ca_cert, cert, key, task_input,
-            workspace, raw, state, logs)
+            workspace, raw, state, logs, options['mounts'])
         manifest['status'] = 'running'
         write_manifest(manifest_path, manifest)
         print(json.dumps({'status': 'running', 'run_id': run_id, 'resources_recorded': True}))
+        return run_id
     except Exception:
         manifest['status'] = 'partial-failure'
         try:
@@ -1251,10 +1394,14 @@ def preflight_profile_verified(observed):
 def driver(manifest, arguments, logs):
     command = ['docker', 'exec', manifest['containers']['agent'], 'python3',
                '/opt/bench/driver.py', *arguments]
+    timeout = 2850 if '--wait-thread' in arguments else 900
+    if '--deadline-seconds' in arguments:
+        # The driver's own wait bound plus room for paged thread reads.
+        timeout = int(arguments[arguments.index('--deadline-seconds') + 1]) + 900
     with logs.open('ab') as stream:
         try:
             result = subprocess.run(command, stdout=subprocess.PIPE, stderr=stream,
-                                    check=False, text=True, timeout=2850 if '--wait-thread' in arguments else 900)
+                                    check=False, text=True, timeout=timeout)
         except subprocess.TimeoutExpired:
             raise RuntimeError('container driver timed out; inspect retained accepted identity; wait/read only, never relaunch') from None
     if result.returncode:
@@ -1335,7 +1482,7 @@ def configure_gateway(manifest, runtime_policy, logs):
     argv = ['docker', 'run', '-d', '--name', old, '--network', manifest['networks'][1],
             '--label', 'io.t3.issue28.stage=s1b', '--label', f'io.t3.issue28.run={run_id}',
             '-e', 'BENCH_MODEL_POLICY=/bench/config/runtime-targets.json',
-            '--env-file', str(SECRET_ENV),
+            '--env-file', str(manifest.get('env_file') or SECRET_ENV),
             '-v', f'{runtime_policy}:/bench/config/runtime-targets.json:ro',
             '-v', f'{runtime_policy.parent.parent / "tls" / "gateway.crt"}:/run/secrets/gateway.crt:ro',
             '-v', f'{runtime_policy.parent.parent / "tls" / "gateway.key"}:/run/secrets/gateway.key:ro',
@@ -1378,8 +1525,14 @@ def record_replacement_gateway(manifest, run_id, name, logs, attempts=3):
 
 
 def agent_command(name, private_net, task_input, workspace, raw, state,
-                  config_dir, ca_cert, image):
+                  config_dir, ca_cert, image, options=None):
     run_id = re.search(r'\d{8}T\d{6}Z-[0-9a-f]{6}$', name).group(0)
+    extra = []
+    for host, container, rw in (options or {}).get('mounts', ()):
+        extra += ['-v', f'{host}:{container}:{"rw" if rw else "ro"}']
+    for key, value in sorted((options or {}).get('env', {}).items()):
+        extra += ['-e', f'{key}={value}']
+    extra += list((options or {}).get('args', ()))
     return ['docker', 'run', '-d', '--name', name, '--network', private_net,
             '--label', 'io.t3.issue28.stage=s1b', '--label', f'io.t3.issue28.run={run_id}',
             '--add-host', 'host.docker.internal:host-gateway',
@@ -1392,15 +1545,15 @@ def agent_command(name, private_net, task_input, workspace, raw, state,
             '-v', f'{raw / "claude-projects"}:/opt/bench-home/.claude/projects:rw',
             '-v', f'{raw / "codex-sessions"}:/opt/bench-home/.codex/sessions:rw',
             '-v', f'{config_dir}:/bench/config:ro',
-            '-v', f'{ca_cert}:/run/secrets/bench-gateway-ca.pem:ro', image]
+            '-v', f'{ca_cert}:/run/secrets/bench-gateway-ca.pem:ro', *extra, image]
 
 
-def gateway_bootstrap_command(name, egress_net, config_dir, cert, key, image):
+def gateway_bootstrap_command(name, egress_net, config_dir, cert, key, image, env_file=None):
     run_id = re.search(r'\d{8}T\d{6}Z-[0-9a-f]{6}$', name).group(0)
     return ['docker', 'run', '-d', '--name', name, '--network', egress_net,
             '--label', 'io.t3.issue28.stage=s1b', '--label', f'io.t3.issue28.run={run_id}',
             '-e', 'BENCH_MODEL_POLICY=/bench/config/bootstrap.json',
-            '--env-file', str(SECRET_ENV),
+            '--env-file', str(env_file or SECRET_ENV),
             '-v', f'{config_dir}:/bench/config:ro',
             '-v', f'{cert}:/run/secrets/gateway.crt:ro',
             '-v', f'{key}:/run/secrets/gateway.key:ro',
@@ -1925,7 +2078,10 @@ def workspace_changes_since(root, before):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
-    sub.add_parser('up', help='build and start one fresh isolated container set')
+    up = sub.add_parser('up', help='build and start one fresh isolated container set')
+    up.add_argument('--env-file', type=Path, help='runtime API-key env file (path only; never read)')
+    up.add_argument('--pkg-dir', type=Path, help='read-only package arm built by packages.py')
+    up.add_argument('--seed-dir', type=Path, help='prepared workspace copied in before the agent starts')
     for action in ('smoke', 'preflight', 'catalog', 'canary', 'down'):
         command = sub.add_parser(action)
         command.add_argument('run_id')

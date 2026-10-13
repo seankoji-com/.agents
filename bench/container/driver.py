@@ -622,6 +622,78 @@ def verify_tracked_followup(client, tools, canary_result, results_root=Path('/be
         return {'recorded': False, 'supported': True, 'verified': False, 'reason': type(exc).__name__}
 
 
+ACTIVE_THREAD_STATUSES = frozenset({'preparing', 'queued', 'starting', 'running', 'waiting'})
+DEFAULT_WAIT_SECONDS = 2700
+WAIT_SLICE_SECONDS = 900
+
+
+def wait_for_thread(client, tools, thread_id, deadline_seconds=DEFAULT_WAIT_SECONDS, clock=None, sleep=None):
+    """Wait in bounded slices until the thread leaves an active status or the deadline passes.
+
+    Returns (last wait result, deadline_exceeded). A deadline is a wait bound only: the
+    accepted thread keeps running and may be waited on or read again; it is never relaunched.
+    """
+    import time
+    clock = clock or time.monotonic
+    pause = sleep or time.sleep
+    if not isinstance(deadline_seconds, int) or isinstance(deadline_seconds, bool) or deadline_seconds <= 0:
+        raise RuntimeError('wait deadline must be a positive whole number of seconds')
+    deadline = clock() + deadline_seconds
+    result = None
+    while True:
+        remaining = deadline - clock()
+        if remaining <= 0:
+            return (result or {}), True
+        slice_ms = int(min(WAIT_SLICE_SECONDS, max(1, remaining)) * 1000)
+        started = clock()
+        result = unpack(call_tool(client, tools, 't3_thread_wait', {'threadId': thread_id, 'timeoutMs': slice_ms}))
+        if result.get('status') not in ACTIVE_THREAD_STATUSES:
+            return result, False
+        if clock() - started < 1:
+            pause(1)  # A wait that returns at once must not become a busy loop.
+
+
+def _structured_or_empty(result):
+    try:
+        return unpack(result)
+    except RuntimeError:
+        return {}
+
+
+def interrupt_thread(client, tools, thread_id):
+    """Interrupt the owned parent thread through the live schema; no other field is sent."""
+    name = 't3_thread_interrupt'
+    schema = schema_for(tools, name)
+    arguments = only_required_fields(schema, {'threadId': thread_id})
+    validate_arguments(schema, arguments)
+    return _structured_or_empty(client.call(name, arguments))
+
+
+def resume_thread(client, tools, catalog, frozen, provider, thread_id, message):
+    """Send the resume turn to the same thread with the frozen target, validated as role=resume.
+
+    A live send schema that cannot carry the thread and message, or that requires a field this
+    driver does not set, blocks before dispatch. Where the schema exposes modelSelection, the
+    exact frozen target is sent so a resume can never change model or options.
+    """
+    selected = frozen[provider]
+    model_policy.validate_target(catalog, {'providerInstanceId': provider, 'model': selected['model'],
+                                           'options': selected['options']}, frozen, role='resume')
+    name = 't3_thread_send'
+    schema = schema_for(tools, name)
+    props = schema.get('properties', {})
+    supplied = {'threadId': thread_id, 'message': message}
+    if 'modelSelection' in props:
+        supplied['modelSelection'] = {'instanceId': provider, 'provider': provider,
+                                      'model': selected['model'], 'options': selected['options']}
+    for key, value in (('runtimeMode', 'auto'), ('interactionMode', 'default')):
+        if key in props:
+            supplied[key] = value
+    arguments = only_required_fields(schema, supplied)
+    validate_arguments(schema, arguments)
+    return _structured_or_empty(client.call(name, arguments))
+
+
 def discover_targets(catalog):
     patterns = {'codex': r'gpt-[0-9]+(?:\.[0-9]+)?-luna',
                 'claudeAgent': r'claude-haiku-[0-9]+(?:-[0-9]+)*'}
@@ -676,6 +748,15 @@ def main():
     parser.add_argument('--title', default='Issue 28 S1b model policy canary')
     parser.add_argument('--find-launch', metavar='TITLE',
                         help='after an uncertain launch, list threads with this exact title; never relaunch')
+    parser.add_argument('--role', choices=('canary', 'parent'), default='canary',
+                        help='model-policy role of a top-level launch')
+    parser.add_argument('--deadline-seconds', type=int,
+                        help='with --wait-thread: total wait bound in seconds (default 2700)')
+    parser.add_argument('--thread-status', metavar='THREAD', help='report a thread status after a 1 s wait')
+    parser.add_argument('--interrupt-thread', metavar='THREAD', help='interrupt an owned parent thread')
+    parser.add_argument('--send-thread', metavar='THREAD',
+                        help='send --message-file to an owned thread as a resume turn (role=resume)')
+    parser.add_argument('--message-file', type=Path)
     args = parser.parse_args()
 
     Path('/bench/t3/observations').mkdir(mode=0o700, exist_ok=True)
@@ -705,6 +786,27 @@ def main():
                           'workspace_path_matches': True,
                           'created_with_isolated_full_access_client': created}, sort_keys=True))
         return 0
+    if args.thread_status or args.interrupt_thread:
+        thread_id = args.thread_status or args.interrupt_thread
+        if not opaque_thread_id(thread_id):
+            raise RuntimeError('thread ID rejected by safe transport constraints')
+        interrupted = interrupt_thread(client, tools, thread_id) if args.interrupt_thread else None
+        state, _late = wait_for_thread(client, tools, thread_id, 60 if args.interrupt_thread else 1)
+        print(json.dumps({'threadId': thread_id, 'status': state.get('status'),
+                          'interrupt_requested': args.interrupt_thread is not None,
+                          'interrupt_result_status': (interrupted or {}).get('status')}, sort_keys=True))
+        return 0
+    if args.send_thread:
+        thread_id = args.send_thread
+        if not opaque_thread_id(thread_id):
+            raise RuntimeError('thread ID rejected by safe transport constraints')
+        if not args.launch_provider or not args.message_file:
+            raise RuntimeError('--send-thread needs --launch-provider and --message-file')
+        sent = resume_thread(client, tools, catalog, frozen, args.launch_provider, thread_id,
+                             args.message_file.read_text(encoding='utf-8'))
+        print(json.dumps({'resume_sent': True, 'threadId': thread_id,
+                          'status': sent.get('status')}, sort_keys=True))
+        return 0
     if args.wait_thread:
         thread_id = args.wait_thread
         if not opaque_thread_id(thread_id):
@@ -712,12 +814,10 @@ def main():
         wait_name, read_name = 't3_thread_wait', 't3_thread_read'
         schema_for(tools, wait_name)
         schema_for(tools, read_name)
-        wait_result = None
-        for _ in range(3):
-            wait_result = unpack(call_tool(client, tools, wait_name,
-                                           {'threadId': thread_id, 'timeoutMs': 900000}))
-            if wait_result.get('status') not in {'preparing', 'queued', 'starting', 'running', 'waiting'}:
-                break
+        wait_result, deadline_exceeded = wait_for_thread(
+            client, tools, thread_id, args.deadline_seconds or DEFAULT_WAIT_SECONDS)
+        if deadline_exceeded:
+            wait_result = dict(wait_result, timedOut=True)
         read_result = paged_thread_read(client, tools, thread_id)
         raw_path = thread_artifact_path('/bench/t3/observations', thread_id)
         raw_path.write_text(json.dumps(read_result, ensure_ascii=False) + '\n', encoding='utf-8')
@@ -774,7 +874,7 @@ def main():
                 'workspaceStrategy': {'type': 'root'}}
     # Validate immediately before dispatch, regardless of caller/resume/retry path.
     model_policy.validate_target(catalog, {'providerInstanceId': provider, 'model': selected['model'],
-                                           'options': selected['options']}, frozen, role='canary')
+                                           'options': selected['options']}, frozen, role=args.role)
     result = unpack(dispatch_with_schema(client, launch_name, launch_schema, supplied))
     thread_id = result.get('threadId')
     if not opaque_thread_id(thread_id):
