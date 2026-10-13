@@ -70,6 +70,15 @@
             "survives": true
           },
           {
+            "selector": "test_ape_validate_report.BlockGrammarTests",
+            "tests": 3,
+            "coverage": [
+              "REQ-EVIDENCE",
+              "G-APE-PROVENANCE"
+            ],
+            "survives": true
+          },
+          {
             "selector": "test_ape_validate_report.SnapshotCitationTests",
             "tests": 4,
             "coverage": [
@@ -80,7 +89,7 @@
           },
           {
             "selector": "test_ape_validate_report.SnapshotSourceTests",
-            "tests": 5,
+            "tests": 7,
             "coverage": [
               "REQ-EVIDENCE",
               "REQ-BOUNDARIES",

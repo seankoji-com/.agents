@@ -5,15 +5,18 @@ Every verdict is derived from actual bytes: the report, the current-project fing
 each pinned source snapshot, each consumed accepted report and each coordinator
 inspection receipt is re-read and re-hashed. The checks are operation-specific
 structure, revision/provenance, requirement and candidate coverage, and coordinator
-inspection receipts. They establish provenance, coverage and declared criteria, not
-the truth of the report's prose. Exit 0 accepted, 1 rejected, 2 usage.
+inspection receipts. Sources are `ape-source-snapshot/1` JSON documents whose framing
+file content cannot forge; consequential sections follow a strict finding-block grammar
+so every claim maps to one descriptor finding and receipt. These checks establish
+provenance, coverage and declared criteria, not the truth of the report's prose.
+Exit 0 accepted, 1 rejected, 2 usage.
 """
 import argparse, hashlib, json, re, sys
 from pathlib import Path
 from urllib.parse import unquote
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from shared.validator_observations import read_object
-from core.jobs.store import _regular
+from core.jobs.store import _regular, strict_load
 
 MAX_BYTES = 16 * 1024 * 1024
 MAX_CANDIDATES = 5
@@ -23,8 +26,10 @@ HEX_TOKEN = re.compile(r'(?<![0-9A-Za-z])[0-9A-Fa-f]{40,}(?![0-9A-Za-z])')
 URL = re.compile(r'https?://[^\s<>()\[\]"\'`]+')
 CITATION = re.compile(r'(https?://[^/\s]+/[^/\s]+/[^/\s]+)/(blob|tree)/([^/#?\s]+)(\S*)')
 LINE_RANGE = re.compile(r'L(\d+)(?:-L(\d+))?')
-SNAPSHOT_HEADER = re.compile(r'==> (.+) <==')
-EMPTY = re.compile(r'(?:none|n/a|nothing)?\.?', re.I)  # an empty consequential section
+SNAPSHOT_FORMAT = 'ape-source-snapshot/1'
+BLOCK_ID = r'[A-Za-z0-9][A-Za-z0-9._-]*'
+BLOCK_CITATION = re.compile(r'Citation: (\S+)')
+PROPOSAL = re.compile(r'Proposal: \S.*')
 FENCE = re.compile(r'^\s{0,3}(`{3,}|~{3,})')
 HEADING = re.compile(r'^\s{0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$')
 RESEARCH = {'sections': ('provenance', 'overlap', 'adopt', 'adapt', 'reject', 'command case'),
@@ -87,7 +92,7 @@ def sections(text, names):
         match = None if fenced else HEADING.match(line)
         if match:
             heads.append((number, len(match.group(1)), heading(match.group(2))))
-    bodies, top, inside = {}, min((lvl for _, lvl, name in heads if name in names), default=1), None
+    bodies, levels, top, inside = {}, {}, min((lvl for _, lvl, name in heads if name in names), default=1), None
     for index, (number, level, name) in enumerate(heads):
         if name not in names:
             # Only a title above the sections, or a subheading inside one, may stand outside the
@@ -100,10 +105,11 @@ def sections(text, names):
             raise Reject('structure', f'report repeats the {name!r} section')
         end = next((n for n, lvl, _ in heads[index + 1:] if lvl <= level), len(lines))
         bodies[name] = '\n'.join(lines[number + 1:end])
+        levels[name] = level
     missing = [name for name in names if name not in bodies]
     if missing:
         raise Reject('structure', f'report lacks required section(s): {", ".join(missing)}')
-    return bodies
+    return bodies, levels
 
 
 def check_sources(data, spec):
@@ -123,24 +129,89 @@ def check_sources(data, spec):
         match = CITATION.fullmatch(url) if isinstance(url, str) else None
         if not match or not url.startswith('https://') or match.group(3) != revision:
             raise Reject('provenance', f'source {sid} url must be an https tree/blob URL pinned at {revision}')
-        texts[sid] = snapshot_files(pinned_text('provenance', source, f'source snapshot {sid}'))
+        texts[sid] = snapshot_files(sid, revision, pinned_text('provenance', source, f'source snapshot {sid}'))
         bases[sid] = match.group(1)
     return sources, texts, bases
 
 
-def snapshot_files(text):
-    """Lines of each `==> path <==` file in a snapshot (the format snapshot_source.py writes)."""
-    files, current = {}, None
-    for line in text.split('\n'):
-        header = SNAPSHOT_HEADER.fullmatch(line)
-        if header:
-            current = files.setdefault(header.group(1), [])
-        elif current is not None:
-            current.append(line)
-    for lines in files.values():
-        while lines and not lines[-1]:
-            lines.pop()  # the separator before the next header, not cited content
+def snapshot_files(sid, revision, text):
+    """Lines of each file in an `ape-source-snapshot/1` JSON snapshot (snapshot_source.py).
+
+    JSON string framing cannot be forged by file content, and every entry's own hash and
+    size are verified, so a source file that contains snapshot-like text stays one file."""
+    try:
+        snapshot = strict_load(text.encode('utf-8'))
+    except ValueError as exc:
+        raise Reject('provenance', f'source snapshot {sid} is not an {SNAPSHOT_FORMAT} JSON document: {exc}') from None
+    if not isinstance(snapshot, dict) or set(snapshot) != {'format', 'revision', 'files'} \
+            or snapshot['format'] != SNAPSHOT_FORMAT or not isinstance(snapshot['files'], list):
+        raise Reject('provenance', f'source snapshot {sid} is not an {SNAPSHOT_FORMAT} document')
+    if snapshot['revision'] != revision:
+        raise Reject('provenance', f'source snapshot {sid} was taken at {snapshot["revision"]}, not {revision}')
+    files = {}
+    for entry in snapshot['files']:
+        path = entry.get('path') if isinstance(entry, dict) else None
+        if not isinstance(path, str) or not path or path.startswith('/') or '..' in path.split('/') \
+                or path in files or set(entry) != {'path', 'sha256', 'bytes', 'text'} or not isinstance(entry['text'], str):
+            raise Reject('provenance', f'source snapshot {sid} has a malformed or duplicate file entry')
+        raw = entry['text'].encode('utf-8')
+        if hashlib.sha256(raw).hexdigest() != entry['sha256'] or len(raw) != entry['bytes']:
+            raise Reject('provenance', f'source snapshot {sid} file {path} differs from its own hash or size')
+        lines = entry['text'].split('\n')
+        if entry['text'].endswith('\n'):
+            lines.pop()
+        files[path] = lines
     return files
+
+
+def finding_blocks(name, level, body):
+    """The strict grammar of a consequential section: exactly `None.`, or only finding blocks of
+    `<level+1 #> <id>: <title>`, one `Citation: <blob URL>#Lx[-Ly]` line, one `> quote` block and
+    one `Proposal:` line. Anything else could carry an uninspected claim, so it rejects."""
+    lines = body.split('\n')
+    if [line.strip() for line in lines if line.strip()] == ['None.']:
+        return {}
+    head = re.compile(rf'#{{{level + 1}}} ({BLOCK_ID}): (\S.*)')
+
+    def bad(why):
+        raise Reject('structure', f'report {name!r} section may hold only `None.` or finding blocks '
+                     f'(heading `<id>: <title>`, Citation:, > quote, Proposal:); {why}')
+
+    def skip(i):
+        while i < len(lines) and not lines[i].strip():
+            i += 1
+        return i
+
+    blocks, i = {}, skip(0)
+    if i == len(lines):
+        bad('it is empty')
+    while i < len(lines):
+        match = head.fullmatch(lines[i].strip())
+        if not match:
+            bad(f'unexpected line {lines[i].strip()[:80]!r}')
+        bid = match.group(1)
+        if bid in blocks:
+            bad(f'block {bid} repeats')
+        i = skip(i + 1)
+        citation = BLOCK_CITATION.fullmatch(lines[i].strip()) if i < len(lines) else None
+        if not citation:
+            raise Reject('coverage', f'report {name!r} section makes claims without a line-numbered citation: '
+                         f'block {bid} needs exactly one Citation: line after its heading')
+        i = skip(i + 1)
+        quote = []
+        while i < len(lines) and lines[i].lstrip().startswith('>'):
+            quote.append(lines[i].lstrip()[1:].strip())
+            i += 1
+        if not ' '.join(quote).strip():
+            bad(f'block {bid} needs one > quote after its Citation line')
+        i = skip(i)
+        if i < len(lines) and lines[i].lstrip().startswith('>'):
+            bad(f'block {bid} has a second quote')
+        if i >= len(lines) or not PROPOSAL.fullmatch(lines[i].strip()):
+            bad(f'block {bid} needs one Proposal: line after its quote')
+        blocks[bid] = {'citation': citation.group(1), 'quote': '\n'.join(quote)}
+        i = skip(i + 1)
+    return blocks
 
 
 def resolve(url, sources, bases, files):
@@ -201,7 +272,7 @@ def check_report(data, spec, sources, bases, files, consumed):
     text = pinned_text('structure', data.get('report'), 'report')
     if spec['max_words'] is not None and len(text.split()) > spec['max_words']:
         raise Reject('structure', f'report exceeds {spec["max_words"]} words')
-    bodies = sections(text, spec['sections'])
+    bodies, levels = sections(text, spec['sections'])
     provenance = bodies['provenance']
     declared = {s['revision'] for s in sources} | {s['sha256'] for s in sources} | \
         {r['sha256'] for r in consumed.values()}
@@ -224,14 +295,18 @@ def check_report(data, spec, sources, bases, files, consumed):
         for source in sources:
             if source['id'] not in {sid for sid, _ in resolved.values()}:
                 raise Reject('coverage', f'report has no line-numbered citation of {source["id"]} at its pinned revision')
-    # Consequential claims come from the report text itself: every citation in such a section
-    # is a claim the descriptor must list (and the coordinator must inspect).
+    # Consequential claims come from the report text itself, in a strict block grammar: every
+    # block is a claim the descriptor must list and the coordinator must inspect.
     claims = {}
     for name in spec['inspect']:
-        body = bodies[name]
-        claims[name] = {url for url in citations(body) if url in resolved}
-        if not claims[name] and not EMPTY.fullmatch(norm(re.sub(r'(?m)^\s*#+.*$', '', body))):
-            raise Reject('coverage', f'report {name!r} section makes claims without a line-numbered citation')
+        claims[name] = finding_blocks(name, levels[name], bodies[name])
+        for bid, block in claims[name].items():
+            if block['citation'] not in resolved:
+                raise Reject('provenance', f'report {name} block {bid} Citation must be one bare line-numbered '
+                             'blob URL at a pinned revision')
+            if norm(block['quote']) not in norm(resolved[block['citation']][1]):
+                raise Reject('provenance', f'report {name} block {bid} quote is not in its own cited lines '
+                             f'{block["citation"]}')
     return bodies, resolved, claims
 
 
@@ -268,12 +343,18 @@ def check_findings(data, spec, bodies, resolved, claims, consumed):
                 raise Reject('provenance', f'finding {fid} quote and citation are not ones accepted report {rid} cited')
         elif rid is not None:
             raise Reject('structure', f'finding {fid} names a consumed report outside synthesis')
+        if section in claims:
+            block = claims[section].get(fid)
+            if block is None:
+                raise Reject('coverage', f'finding {fid} has no `{fid}:` block in the report {section!r} section')
+            if block['citation'] != url or norm(block['quote']) != norm(quote):
+                raise Reject('provenance', f'finding {fid} citation or quote differs from its report block')
         rows[fid] = {**finding, 'section': section}
-    for name, urls in claims.items():
-        listed = {f['citation'] for f in rows.values() if f['section'] == name}
-        for url in sorted(urls - listed):
-            raise Reject('coverage', f'report {name} claim citing {url} has no descriptor finding (and so no '
-                         'inspection receipt)')
+    for name, blocks in claims.items():
+        for bid, block in blocks.items():
+            if bid not in rows:
+                raise Reject('coverage', f'report {name} claim citing {block["citation"]} has no descriptor finding '
+                             f'(block {bid}, and so no inspection receipt)')
     return rows
 
 

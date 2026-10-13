@@ -22,10 +22,13 @@ from tests.support import git  # noqa: E402
 INSTALL = {}  # the installed, pinned package under test; see setUpModule
 CRITERIA = [{'id': 'provenance', 'kind': 'source-provenance'},
             {'id': 'coverage', 'kind': 'finding-source-coverage', 'minimum_findings': 1}]
-SOURCE_TEXT = '==> lib/retry.py <==\ndef retry(call):\n    """Bounded retry with jitter."""\n    return call()\n'
+RETRY_TEXT = 'def retry(call):\n    """Bounded retry with jitter."""\n    return call()\n'
 OVERLAP_QUOTE = 'def retry(call):'
 ADOPT_QUOTE = 'Bounded retry with jitter.'
 INSPECTED = {'adopt', 'adapt', 'conflicts', 'recommended experiment'}
+PROPOSAL = ('Proposal: target `core/net.py`; effort small; tradeoff added latency; counterargument: callers '
+            'already retry; simpler alternative: document the limit; experiment baseline 3 flaky failures, '
+            'success 0, abandon after 2 runs.')
 
 
 def sha(data):
@@ -44,22 +47,32 @@ def write_pin(path, text):
     return {'path': str(path), 'sha256': sha(path.read_bytes())}
 
 
-def pin_source(base, sid, text=SOURCE_TEXT):
+def snapshot_text(rev, files):
+    """An `ape-source-snapshot/1` document, as snapshot_source.py writes it."""
+    return json.dumps({'format': 'ape-source-snapshot/1', 'revision': rev, 'files': [
+        {'path': path, 'sha256': sha(text), 'bytes': len(text.encode()), 'text': text}
+        for path, text in sorted(files.items())]}, ensure_ascii=False, sort_keys=True)
+
+
+def pin_source(base, sid, files=None):
     rev = revision(sid)
+    text = snapshot_text(rev, files or {'lib/retry.py': RETRY_TEXT})
     return {'id': sid, 'url': f'https://github.com/example/{sid}/tree/{rev}', 'revision': rev,
-            **write_pin(Path(base) / 'workspace' / 'sources' / f'{sid}.txt', text)}
+            **write_pin(Path(base) / 'workspace' / 'sources' / f'{sid}.json', text)}
 
 
-def blob(pin, line):
-    return pin['url'].replace('/tree/', '/blob/', 1) + f'/lib/retry.py#L{line}'
+def blob(pin, line, path='lib/retry.py'):
+    return pin['url'].replace('/tree/', '/blob/', 1) + f'/{path}#L{line}'
+
+
+def block(fid, title, citation, quote, proposal=PROPOSAL):
+    """One finding block in the strict consequential-section grammar."""
+    return f'### {fid}: {title}\n\nCitation: {citation}\n\n> {quote}\n\n{proposal}\n'
 
 
 def research_markdown(pin, adopt=True):
     """A research report with every required section; Adapt and Reject are empty."""
-    adopt_body = (f'### Bounded retry\n\n> {ADOPT_QUOTE}\n\nCited at {blob(pin, 2)}. Targets `core/net.py`; '
-                  'effort small; tradeoff added latency; counterargument: callers already retry; simpler '
-                  'alternative: document the limit; experiment baseline 3 flaky failures, success 0, abandon '
-                  'after 2 runs.\n') if adopt else 'None.\n'
+    adopt_body = block(f'{pin["id"]}-adopt', 'Bounded retry', blob(pin, 2), ADOPT_QUOTE) if adopt else 'None.\n'
     return (f'# Study of example/{pin["id"]}\n\n## Provenance\n\n- {pin["id"]}: {pin["url"]} at revision '
             f'{pin["revision"]}, snapshot sha256 {pin["sha256"]}\n\n## Overlap\n\nBoth define '
             f'`{OVERLAP_QUOTE}` ([source]({blob(pin, 1)})).\n\n## Adopt\n\n{adopt_body}\n## Adapt\n\nNone.\n\n'
@@ -80,11 +93,12 @@ def synthesis_markdown(pins, consumed):
     sources = '\n'.join(f'- {p["id"]}: {p["url"]} at {p["revision"]}, snapshot sha256 {p["sha256"]}' for p in pins)
     overlap = ', '.join(blob(p, 1) for p in pins)
     first = pins[0]
+    conflict = block(f'{first["id"]}-conflict', 'Only one candidate bounds retries', blob(first, 2), ADOPT_QUOTE,
+                     f'Proposal: {consumed[0]["id"]} bounds retries; the others never do.')
+    experiment = block(f'{first["id"]}-experiment', 'Bounded retry trial', blob(first, 2), ADOPT_QUOTE)
     return (f'# Synthesis\n\n## Provenance\n\n{sources}\n- accepted reports: {reports}\n\n## Overlap\n\n'
-            f'Every candidate defines `{OVERLAP_QUOTE}` ({overlap}).\n\n## Conflicts\n\n{consumed[0]["id"]} quotes '
-            f'"{ADOPT_QUOTE}" ({blob(first, 2)}); the others never bound retries.\n\n## Recommended experiment\n\n'
-            f'Adopt "{ADOPT_QUOTE}" ({blob(first, 2)}) in `core/net.py`; baseline 3 flaky failures, success 0, '
-            'abandon after 2 runs.\n\n## Rejected\n\nNone.\n')
+            f'Every candidate defines `{OVERLAP_QUOTE}` ({overlap}).\n\n## Conflicts\n\n{conflict}\n'
+            f'## Recommended experiment\n\n{experiment}\n## Rejected\n\nNone.\n')
 
 
 def synthesis_findings(pins, consumed):
@@ -468,13 +482,13 @@ class ReportDerivedClaimTests(ValidatorCase):
         data = research_descriptor(self.base)
         pin = data['sources'][0]
         text = Path(data['report']['path']).read_text()
-        self.rewrite(data, 'report', text.replace('## Adapt\n\nNone.', f'## Adapt\n\nWrap it: {blob(pin, 3)}.'))
+        adapt = block('src-1-adapt', 'Wrap it', blob(pin, 3), 'return call()')
+        self.rewrite(data, 'report', text.replace('## Adapt\n\nNone.\n', f'## Adapt\n\n{adapt}'))
         self.rejects(data, 'coverage', f'report adapt claim citing {blob(pin, 3)} has no descriptor finding')
         data['findings'].append({'id': 'src-1-adapt', 'section': 'Adapt', 'source_id': 'src-1',
-                                 'quote': 'return call()', 'citation': blob(pin, 3)})
-        self.rejects(data, 'structure', "src-1-adapt quote does not appear in the report 'adapt' section")
-        self.rewrite(data, 'report', text.replace('## Adapt\n\nNone.',
-                                                  f'## Adapt\n\n`return call()` {blob(pin, 3)}.'))
+                                 'quote': 'call()', 'citation': blob(pin, 3)})
+        self.rejects(data, 'provenance', 'finding src-1-adapt citation or quote differs from its report block')
+        data['findings'][-1]['quote'] = 'return call()'
         self.rejects(data, 'inspection', 'missing coordinator inspection receipt for adapt finding src-1-adapt')
         data['inspections'] = receipts_for(data['report'], data['sources'], data['findings'])
         self.accepts(data)  # positive control: listed and inspected
@@ -489,9 +503,55 @@ class ReportDerivedClaimTests(ValidatorCase):
         data = research_descriptor(self.base)
         pin = data['sources'][0]
         text = Path(data['report']['path']).read_text()
-        self.rewrite(data, 'report', text.replace(f'Cited at {blob(pin, 2)}.', 'Trust me.'))
+        self.rewrite(data, 'report', text.replace(f'Citation: {blob(pin, 2)}\n\n', ''))
         self.drop(data, 'src-1-adopt')
         self.rejects(data, 'coverage', "'adopt' section makes claims without a line-numbered citation")
+
+
+class BlockGrammarTests(ValidatorCase):
+    """RC-ape-01: consequential sections hold only `None.` or disclosed finding blocks."""
+
+    def with_adopt(self, data, extra):
+        text = Path(data['report']['path']).read_text()
+        self.rewrite(data, 'report', text.replace('## Adapt\n', extra + '## Adapt\n'))
+
+    def test_uncited_proposal_heading_rejects(self):
+        data = research_descriptor(self.base)
+        self.with_adopt(data, '### Another proposal\n\n> return call()\n\n'
+                              'Proposal: remove the retry guard in core/unsafe.py.\n\n')
+        self.rejects(data, 'structure', "unexpected line '### Another proposal'")
+
+    def test_reused_citation_whose_lines_lack_the_quote_rejects(self):
+        data = research_descriptor(self.base)
+        pin = data['sources'][0]
+        self.with_adopt(data, block('src-1-guard', 'Remove the guard', blob(pin, 2), 'return call()') + '\n')
+        data['findings'].append({'id': 'src-1-guard', 'section': 'Adopt', 'source_id': 'src-1',
+                                 'quote': 'return call()', 'citation': blob(pin, 2)})
+        data['inspections'] = receipts_for(data['report'], data['sources'], data['findings'])
+        self.rejects(data, 'provenance', f'adopt block src-1-guard quote is not in its own cited lines {blob(pin, 2)}')
+        positive = research_descriptor(self.base / 'positive')
+        pin = positive['sources'][0]
+        self.with_adopt(positive, block('src-1-guard', 'Remove the guard', blob(pin, 3), 'return call()') + '\n')
+        positive['findings'].append({'id': 'src-1-guard', 'section': 'Adopt', 'source_id': 'src-1',
+                                     'quote': 'return call()', 'citation': blob(pin, 3)})
+        positive['inspections'] = receipts_for(positive['report'], positive['sources'], positive['findings'])
+        self.accepts(positive)
+
+    def test_extra_content_in_a_block_rejects(self):
+        data = research_descriptor(self.base)
+        pin = data['sources'][0]
+        text = Path(data['report']['path']).read_text()
+        self.rewrite(data, 'report', text.replace(f'> {ADOPT_QUOTE}\n\n', f'> {ADOPT_QUOTE}\n\n> again\n\n'))
+        self.rejects(data, 'structure', 'block src-1-adopt has a second quote')
+        self.rewrite(data, 'report', text.replace('## Adapt\n', 'Also delete core/unsafe.py.\n\n## Adapt\n'))
+        self.rejects(data, 'structure', "unexpected line 'Also delete core/unsafe.py.'")
+        self.rewrite(data, 'report', text.replace(PROPOSAL + '\n', ''))
+        self.rejects(data, 'structure', 'block src-1-adopt needs one Proposal: line')
+        self.rewrite(data, 'report', text.replace(f'Citation: {blob(pin, 2)}',
+                                                  f'Citation: {blob(pin, 2)}\nCitation: {blob(pin, 1)}'))
+        self.rejects(data, 'structure', 'block src-1-adopt needs one > quote')
+        self.rewrite(data, 'report', text.replace('## Adapt\n\nNone.', '## Adapt\n\nNothing to adapt here.'))
+        self.rejects(data, 'structure', "unexpected line 'Nothing to adapt here.'")
 
 
 class SnapshotCitationTests(ValidatorCase):
@@ -514,8 +574,7 @@ class SnapshotCitationTests(ValidatorCase):
         self.rejects(data, 'provenance', 'names lines outside lib/retry.py (3 lines)')
 
     def test_quote_from_another_file_rejects(self):
-        text = SOURCE_TEXT + '\n==> lib/other.py <==\ndef unrelated():\n'
-        pin = pin_source(self.base, 'src-1', text)
+        pin = pin_source(self.base, 'src-1', {'lib/retry.py': RETRY_TEXT, 'lib/other.py': 'def unrelated():\n'})
         report = write_pin(self.base / 'report.md', research_markdown(pin).replace(
             'Both define', 'Both define `def unrelated():` and'))
         findings = research_findings(pin)
@@ -580,10 +639,15 @@ class SnapshotSourceTests(unittest.TestCase):
         raw = Path(pin['path']).read_bytes()
         self.assertEqual(pin['sha256'], sha(raw))
         text = raw.decode('utf-8')
-        self.assertIn('==> pkg/retry.py <==\ndef retry(call):', text)
-        self.assertIn('==> README.md <==', text)
+        snapshot = json.loads(text)
+        self.assertEqual((snapshot['format'], snapshot['revision']), ('ape-source-snapshot/1', head))
+        files = {entry['path']: entry for entry in snapshot['files']}
+        self.assertTrue(files['pkg/retry.py']['text'].startswith('def retry(call):'))
+        self.assertIn('README.md', files)
+        for entry in files.values():
+            self.assertEqual((entry['sha256'], entry['bytes']), (sha(entry['text']), len(entry['text'].encode())))
         for excluded in ('blob.bin', 'empty.py', 'latin.txt'):
-            self.assertNotIn(f'==> pkg/{excluded} <==', text)
+            self.assertNotIn(f'pkg/{excluded}', files)
         self.assertEqual(out['skipped'], [{'path': 'pkg/latin.txt', 'reason': 'not UTF-8'}])
         self.assertEqual(out['files'], 2)
         self.assertFalse(os.stat(pin['path']).st_mode & 0o222, 'snapshot is read-only')
@@ -592,7 +656,7 @@ class SnapshotSourceTests(unittest.TestCase):
     def test_scope_narrows_and_is_recorded_in_the_url(self):
         pin = self.snap('--scope', 'pkg')['pin']
         self.assertTrue(pin['url'].endswith('/pkg'))
-        self.assertNotIn('README.md', Path(pin['path']).read_text())
+        self.assertNotIn('README.md', {entry['path'] for entry in json.loads(Path(pin['path']).read_text())['files']})
 
     def test_snapshot_feeds_an_accepted_study_report(self):
         pin = self.snap()['pin']
@@ -606,6 +670,54 @@ class SnapshotSourceTests(unittest.TestCase):
         path.write_text(json.dumps(data))
         code, verdict, err = run_validator(path)
         self.assertEqual((code, verdict['accepted']), (0, True), (verdict, err))
+
+    def test_readme_cannot_forge_a_snapshot_file(self):
+        (self.clone / 'README.md').write_text('# Example\n==> fake.py <==\nimport os\n')
+        git(self.clone, 'commit', '-q', '-am', 'inject')
+        pin = self.snap()['pin']
+        base = self.base / 'report'
+
+        def run(path, line):
+            cite = blob(pin, line, path)
+            report = write_pin(base / f'{path}.md', research_markdown(pin, adopt=False).replace(
+                blob(pin, 1), cite).replace(f'`{OVERLAP_QUOTE}`', '`import os`'))
+            findings = [dict(research_findings(pin, adopt=False)[0], quote='import os', citation=cite)]
+            data = descriptor('study', [pin], [{'id': 'R-SRC-1', 'source_ids': ['src-1']}], fingerprint(base),
+                              report, findings)
+            target = base / f'{path}.json'
+            target.write_text(json.dumps(data))
+            return run_validator(target)
+
+        code, verdict, _ = run('fake.py', 1)
+        self.assertEqual(code, 1)
+        self.assertIn('names fake.py, which is not in the pinned snapshot',
+                      verdict['requirement_outcomes']['report-acceptance']['evidence']['reason'])
+        code, verdict, err = run('README.md', 3)  # positive control: the text is README content
+        self.assertEqual((code, verdict['accepted']), (0, True), (verdict, err))
+
+    def test_snapshot_entries_and_revision_are_verified(self):
+        pin = self.snap()['pin']
+        snapshot = json.loads(Path(pin['path']).read_text())
+        for name, change in (('entry', lambda s: s['files'][0].update(text=s['files'][0]['text'] + 'x')),
+                             ('revision', lambda s: s.update(revision='e' * 40))):
+            forged = json.loads(json.dumps(snapshot))
+            change(forged)
+            path = self.sources / f'forged-{name}.json'
+            path.write_text(json.dumps(forged))
+            forged_pin = dict(pin, path=str(path), sha256=sha(path.read_bytes()))
+            base = self.base / name
+            report = write_pin(base / 'report.md', research_markdown(forged_pin, adopt=False).replace(
+                '/lib/retry.py#', '/pkg/retry.py#'))
+            findings = [dict(f, citation=f['citation'].replace('/lib/retry.py#', '/pkg/retry.py#'))
+                        for f in research_findings(forged_pin, adopt=False)]
+            data = descriptor('study', [forged_pin], [{'id': 'R-SRC-1', 'source_ids': ['src-1']}],
+                              fingerprint(base), report, findings)
+            target = base / 'descriptor.json'
+            target.write_text(json.dumps(data))
+            code, verdict, _ = run_validator(target)
+            self.assertEqual(code, 1, name)
+            self.assertRegex(verdict['requirement_outcomes']['report-acceptance']['evidence']['reason'],
+                             'differs from its own hash or size|was taken at')
 
     def test_refusals(self):
         self.snap()
