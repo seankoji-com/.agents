@@ -1224,10 +1224,16 @@ print(json.dumps(checks))
                                                   and wait.get('readback_provider') == args.provider)
         audit_result['original_message_exact'] = wait.get('original_message_exact') is True
         audit_result['final_message_retrieval_exact'] = wait.get('final_message_retrieval_exact') is True
-        canary_result = wait.get('canary_result')
+        # Only a settled thread's latest terminal run carries the final report; an
+        # unsettled thread's interim output is never audited.
+        settled = wait.get('settled') is True
+        audit_result['thread_settled'] = settled
+        canary_result = wait.get('canary_result') if settled else None
         owned = {}
         try:
             captured = capture_parent_observations(manifest, thread_id, path.parent, logs)
+            if not settled:
+                raise ValueError('parent thread did not settle; no final report to audit')
             ids = ([canary_result['primary_task_id']]
                    + list(canary_result['summary_boundary_task_ids'].values()))
             followup_id = canary_result.get('tracked_followup', {}).get('new_task_id')
@@ -1280,7 +1286,8 @@ print(json.dumps(checks))
             (path.parent / 'input' / 'brief.sha256').read_text(encoding='ascii').strip())
         audit_result['github_login_reported'] = (
             isinstance(canary_result, dict) and canary_result.get('github_login') == 'bench-user')
-        audit_result['thread_completed'] = wait.get('status') == 'completed' and not wait.get('timed_out')
+        audit_result['thread_completed'] = (settled and wait.get('status') == 'completed'
+                                            and not wait.get('timed_out'))
         # An unavailable log after the run is missing evidence, never a pass.
         github_delta = count_delta(github_event_count(manifest['containers']['github'], logs), github_before)
         audit_result['synthetic_github_reached'] = github_delta is not None and github_delta > 0

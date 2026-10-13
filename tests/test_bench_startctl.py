@@ -160,10 +160,26 @@ class FakeClient:
 
     def call(self, name, arguments):
         self.calls.append((name, arguments))
+        if name == 't3_thread_read':
+            return {'structuredContent': settled_read()}
         if self.clock is not None:
             self.clock.now += arguments.get('timeoutMs', 0) / 1000
         status = self.statuses.pop(0) if self.statuses else 'completed'
         return {'structuredContent': {'status': status}}
+
+
+def settled_read(runs=((1, 'completed'),), pending=0, items=(), active_run=None):
+    """Live T3 thread-read shape: the thread row, recentRuns (newest first) and run-tagged items."""
+    rows = [{'runId': f'run:{ordinal}', 'ordinal': ordinal, 'status': status,
+             'providerInstanceId': 'codex', 'model': 'gpt-0-luna'}
+            for ordinal, status in sorted(runs, reverse=True)]
+    latest = rows[0]
+    thread_status = latest['status'] if latest['status'] in driver.ACTIVE_THREAD_STATUSES else 'idle'
+    return {'thread': {'threadId': 't1', 'status': thread_status, 'latestRunId': latest['runId'],
+                       'activeRunId': active_run, 'runCount': latest['ordinal'],
+                       'pendingRequestCount': pending, 'providerInstanceId': 'codex',
+                       'model': 'gpt-0-luna', 'settled': False},
+            'recentRuns': rows, 'items': list(items), 'nextPosition': len(items), 'hasMore': False}
 
 
 class Clock:
@@ -181,7 +197,15 @@ TOOLS = [{'name': 't3_thread_wait', 'inputSchema': {'type': 'object', 'propertie
          {'name': 't3_thread_send', 'inputSchema': {'type': 'object', 'properties': {
              'threadId': {'type': 'string'}, 'message': {'type': 'string'},
              'modelSelection': {'type': 'object', 'properties': {'instanceId': {}, 'model': {}, 'options': {}}}},
-             'required': ['threadId', 'message']}}]
+             'required': ['threadId', 'message']}},
+         {'name': 't3_thread_read', 'inputSchema': {'type': 'object', 'properties': {
+             'threadId': {'type': 'string'}, 'view': {'type': 'string', 'enum': ['messages', 'activity']},
+             'limit': {'type': 'integer', 'minimum': 1, 'maximum': 100},
+             'maxCharsPerItem': {'type': 'integer', 'minimum': 1, 'maximum': 50000},
+             'runLimit': {'type': 'integer', 'minimum': 1, 'maximum': 50},
+             'afterPosition': {'type': 'integer', 'minimum': 0}, 'itemId': {'type': 'string'},
+             'textOffset': {'type': 'integer', 'minimum': 0}},
+             'required': ['threadId'], 'additionalProperties': False}}]
 
 
 class DriverResumeTest(unittest.TestCase):
@@ -227,6 +251,164 @@ class DriverResumeTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'unsupported required'):
             driver.resume_thread(client, tools, CATALOG, FROZEN, 'codex', 'thread-1', 'resume')
         self.assertEqual(client.calls, [])
+
+
+def message(position, kind, run, text):
+    return {'position': position, 'itemId': f'item-{position}', 'runId': f'run:{run}',
+            'type': kind, 'status': 'completed', 'text': text, 'textTruncated': False}
+
+
+PROMPT = 'canary prompt'
+INTERIM = '{"interim": "parent progress note"}'
+FINAL = '{"final": "report from run 2"}'
+QUEUED = {'wait': {'status': 'completed', 'runId': 'run:1'},
+          'read': settled_read(((1, 'completed'), (2, 'queued')), items=[
+              message(0, 'user_message', 1, PROMPT), message(1, 'assistant_message', 1, INTERIM)])}
+RUNNING = {'wait': {'status': 'running', 'runId': 'run:2'},
+           'read': settled_read(((1, 'completed'), (2, 'running')), active_run='run:2', items=QUEUED['read']['items'])}
+DONE = {'wait': {'status': 'completed', 'runId': 'run:2'},
+        'read': settled_read(((1, 'completed'), (2, 'completed')), items=QUEUED['read']['items'] + [
+            message(2, 'assistant_message', 2, FINAL)])}
+
+
+class SettlingThread:
+    """Fake MCP thread: each wait advances one scripted state; reads return the current one.
+
+    Mirrors the live defect: t3_thread_wait reported run 1 completed while T3 had
+    already queued run 2 on the same thread.
+    """
+
+    def __init__(self, states, clock):
+        self.states = list(states)
+        self.index = -1
+        self.clock = clock
+        self.calls = []
+
+    def call(self, name, arguments):
+        self.calls.append((name, dict(arguments)))
+        if name == 't3_thread_wait':
+            self.index = min(self.index + 1, len(self.states) - 1)
+            result = dict(self.states[self.index]['wait'])
+            # A wait on a terminal run returns at once; an active one returns when the
+            # next scripted state arrives (30 s later) or at the end of its slice.
+            self.clock.now += (min(30, arguments['timeoutMs'] / 1000)
+                               if result['status'] in driver.ACTIVE_THREAD_STATUSES else 1)
+            return {'structuredContent': result}
+        state = self.states[max(self.index, 0)]
+        return {'structuredContent': copy.deepcopy(state['read'])}
+
+
+class ThreadSettlementTest(unittest.TestCase):
+    def wait_and_read(self, states, deadline=600):
+        clock = Clock()
+        client = SettlingThread(states, clock)
+
+        def sleep(seconds):
+            clock.now += seconds
+        with tempfile.TemporaryDirectory() as temp:
+            report = driver.wait_and_read(client, TOOLS, 't1', deadline, PROMPT, Path(temp),
+                                          clock=clock, sleep=sleep)
+        return report, client
+
+    def test_completed_run_with_a_queued_run_is_not_settled(self):
+        settled, run_id, reasons = driver.thread_settlement(QUEUED['wait'], QUEUED['read'])
+        self.assertFalse(settled)
+        self.assertIsNone(run_id)
+        self.assertIn('run 2 is queued', reasons)
+        clock = Clock()
+        result, late = driver.wait_for_thread(SettlingThread([QUEUED], clock), TOOLS, 't1', 30,
+                                              clock=clock, sleep=lambda s: setattr(clock, 'now', clock.now + s))
+        self.assertTrue(late)
+        self.assertEqual(result['status'], 'not settled')
+        self.assertIs(result['settled'], False)
+
+    def test_settles_when_run_two_completes_and_reads_the_report_from_run_two(self):
+        report, client = self.wait_and_read([QUEUED, RUNNING, DONE])
+        self.assertIs(report['settled'], True)
+        self.assertEqual(report['status'], 'completed')
+        self.assertFalse(report['timed_out'])
+        self.assertEqual(report['latest_run_id'], 'run:2')
+        self.assertEqual(report['canary_result'], {'final': 'report from run 2'})
+        self.assertIs(report['final_message_retrieval_exact'], True)
+        self.assertTrue(report['original_message_exact'])
+        self.assertEqual([c[0] for c in client.calls].count('t3_thread_wait'), 3)
+        snapshots = [c[1] for c in client.calls if c[0] == 't3_thread_read' and c[1].get('limit') == 1]
+        self.assertTrue(snapshots and all(c['runLimit'] == 50 for c in snapshots))
+
+    def test_run_scoped_final_text_ignores_the_interim_message(self):
+        self.assertEqual(driver.final_assistant_text(DONE['read'], 'run:2'), FINAL)
+        self.assertIsNone(driver.final_assistant_text(QUEUED['read'], 'run:2'))
+        self.assertEqual(driver.final_assistant_text(QUEUED['read'], 'run:1'), INTERIM)
+
+    def test_pending_child_runs_or_requests_are_not_settled(self):
+        children = {'wait': dict(DONE['wait'], hasPendingChildRuns=True), 'read': DONE['read']}
+        settled, _run, reasons = driver.thread_settlement(children['wait'], children['read'])
+        self.assertFalse(settled)
+        self.assertIn('child runs are pending', reasons)
+        waiting = {'wait': dict(DONE['wait'], workState='waiting_for_children'), 'read': DONE['read']}
+        self.assertFalse(driver.thread_settlement(waiting['wait'], waiting['read'])[0])
+        requests = {'wait': DONE['wait'], 'read': copy.deepcopy(DONE['read'])}
+        requests['read']['thread']['pendingRequestCount'] = 1
+        self.assertFalse(driver.thread_settlement(requests['wait'], requests['read'])[0])
+        pointer = copy.deepcopy(DONE['read'])
+        pointer['thread']['activeRunId'] = 'run:2'  # names a listed terminal run
+        self.assertTrue(driver.thread_settlement(DONE['wait'], pointer)[0])
+        pointer['thread']['activeRunId'] = 'run:3'  # names a run the read does not list
+        self.assertFalse(driver.thread_settlement(DONE['wait'], pointer)[0])
+        missing = copy.deepcopy(DONE['read'])
+        del missing['recentRuns']
+        self.assertFalse(driver.thread_settlement(DONE['wait'], missing)[0])
+        report, _client = self.wait_and_read([children], deadline=60)
+        self.assertIs(report['settled'], False)
+        self.assertEqual(report['status'], 'not settled')
+        self.assertIsNone(report['canary_result'])
+
+    def test_deadline_while_queued_reports_not_settled_without_reading_interim_output(self):
+        report, client = self.wait_and_read([QUEUED], deadline=60)
+        self.assertIs(report['settled'], False)
+        self.assertTrue(report['timed_out'])
+        self.assertEqual(report['status'], 'not settled')
+        self.assertNotEqual(report['status'], 'completed')
+        self.assertIsNone(report['canary_result'])
+        self.assertIsNone(report['final_message_utf8_bytes'])
+        self.assertIs(report['final_message_retrieval_exact'], False)
+        self.assertIn('run 2 is queued', report['unsettled_reasons'])
+        # The poll is bounded: an idle-returning wait does not spin once per second.
+        self.assertLessEqual([c[0] for c in client.calls].count('t3_thread_wait'), 7)
+
+    def test_a_run_queued_after_settlement_makes_the_read_interim(self):
+        class LateQueue(SettlingThread):
+            def call(self, name, arguments):
+                if name == 't3_thread_read' and arguments.get('limit') != 1:
+                    return {'structuredContent': copy.deepcopy(QUEUED['read'])}
+                return super().call(name, arguments)
+        clock = Clock()
+        with tempfile.TemporaryDirectory() as temp:
+            report = driver.wait_and_read(LateQueue([DONE], clock), TOOLS, 't1', 60, None, Path(temp),
+                                          clock=clock, sleep=lambda _s: None)
+        self.assertIs(report['settled'], False)
+        self.assertIsNone(report['canary_result'])
+
+    def test_startctl_boundary_wait_only_ends_on_a_settled_thread(self):
+        class Harness:
+            def __init__(self, states):
+                self.states = list(states)
+
+            def probe(self, _run_id):
+                return {'commits': [1]}
+
+            def driver(self, _run_id, _args):
+                return self.states.pop(0)
+        clock = Clock()
+
+        def sleep(seconds):
+            clock.now += seconds
+        unsettled = [{'status': 'not settled', 'settled': False}] * 3
+        harness = Harness(unsettled + [{'status': 'completed', 'settled': True}])
+        polls = startctl.STATUS_EVERY_POLLS * startctl.BOUNDARY_POLL_SECONDS
+        self.assertIsNone(startctl.await_boundary(harness, 'r', 'baseline', 't1', polls * 10, clock, sleep))
+        self.assertEqual(harness.states, [])
+        self.assertGreaterEqual(clock.now, polls * 4 - startctl.BOUNDARY_POLL_SECONDS)
 
 
 class CanaryPromptLiteralTest(unittest.TestCase):
@@ -541,7 +723,7 @@ class FakeHarness:
         if args[0] == '--launch-provider':
             return {'threadId': 'thread-1', 'status': 'running'}
         if args[0] == '--wait-thread':
-            return {'status': 'completed', 'timed_out': False, 'readback_model': 'gpt-0-luna',
+            return {'status': 'completed', 'settled': True, 'timed_out': False, 'readback_model': 'gpt-0-luna',
                     'readback_provider': 'codex', 'original_message_exact': True}
         return {'status': 'interrupted' if args[0] == '--interrupt-thread' else 'running'}
 

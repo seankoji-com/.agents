@@ -18,9 +18,14 @@ fi
 # Turn off the paid features that `codex features list` reports as default-on
 # in 0.162.1, and live web search, so a normal turn sends no server-side tool
 # that the gateway would reject.
+# This file is written inside the bench agent container only. Rootless Docker
+# gives Codex's nested bwrap sandbox no namespaces, so every shell command would
+# fail until escalated. The container's mount namespace is the confinement
+# boundary; host observations still enforce write scope.
 cat >"$CODEX_HOME/config.toml" <<'TOML'
 openai_base_url = "https://gateway.bench.test:8443/v1"
 web_search = "disabled"
+sandbox_mode = "danger-full-access"
 
 [features]
 image_generation = false

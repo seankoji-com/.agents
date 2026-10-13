@@ -480,12 +480,14 @@ def ensure_single_workspace_project(client, tools):
     return project_id, created
 
 
-def final_assistant_text(result):
+def final_assistant_text(result, run_id=None):
+    """Return the last completed assistant message, limited to run_id when one is given."""
     items = result.get('items') if isinstance(result, dict) else None
     if not isinstance(items, list):
         return None
     for item in reversed(items):
         if (isinstance(item, dict) and item.get('type') == 'assistant_message'
+                and (run_id is None or item.get('runId') == run_id)
                 and item.get('status') == 'completed' and isinstance(item.get('text'), str)):
             return item['text']
     return None
@@ -623,15 +625,76 @@ def verify_tracked_followup(client, tools, canary_result, results_root=Path('/be
 
 
 ACTIVE_THREAD_STATUSES = frozenset({'preparing', 'queued', 'starting', 'running', 'waiting'})
+TERMINAL_RUN_STATUSES = frozenset({'completed', 'failed', 'interrupted', 'cancelled'})
 DEFAULT_WAIT_SECONDS = 2700
 WAIT_SLICE_SECONDS = 900
+UNSETTLED_POLL_SECONDS = 10
+NOT_SETTLED = 'not settled'
+
+
+def thread_snapshot(client, tools, thread_id):
+    """One small thread-read for durable thread state: the thread row and its recent runs."""
+    name = 't3_thread_read'
+    props = schema_for(tools, name).get('properties', {})
+    supplied = {'threadId': thread_id, 'view': 'messages', 'limit': 1, 'maxCharsPerItem': 1}
+    if 'runLimit' in props:
+        supplied['runLimit'] = min(50, schema_integer_maximum(props['runLimit']) or 50)
+    arguments = {key: value for key, value in supplied.items() if key == 'threadId' or key in props}
+    return unpack(call_tool(client, tools, name, arguments))
+
+
+def thread_settlement(wait_result, snapshot):
+    """Return (settled, latest_run_id, reasons) from the live wait and thread-read shapes.
+
+    A thread is settled only when its latest run is terminal, no recent run is queued,
+    starting, running or pending, no request is pending, and no child run is pending.
+    A completed wait on one run says nothing about a later run T3 already queued.
+    """
+    reasons = []
+    wait_result = wait_result if isinstance(wait_result, dict) else {}
+    snapshot = snapshot if isinstance(snapshot, dict) else {}
+    thread = snapshot.get('thread') if isinstance(snapshot.get('thread'), dict) else {}
+    if wait_result.get('status') in ACTIVE_THREAD_STATUSES:
+        reasons.append('wait status is ' + str(wait_result.get('status')))
+    if thread.get('status') in ACTIVE_THREAD_STATUSES or 'status' not in thread:
+        reasons.append('thread status is ' + str(thread.get('status')))
+    pending = thread.get('pendingRequestCount')
+    if type(pending) is not int or pending != 0:
+        reasons.append('thread has pending requests or no pending-request count')
+    for source in (wait_result, thread):
+        if 'hasPendingChildRuns' in source and source['hasPendingChildRuns'] is not False:
+            reasons.append('child runs are pending')
+        if source.get('workState') == 'waiting_for_children':
+            reasons.append('thread is waiting for children')
+    runs = snapshot.get('recentRuns')
+    if not isinstance(runs, list) or not runs or not all(
+            isinstance(run, dict) and type(run.get('ordinal')) is int and isinstance(run.get('runId'), str)
+            for run in runs):
+        return False, None, reasons + ['thread read returned no usable recent runs']
+    latest = max(runs, key=lambda run: run['ordinal'])
+    if thread.get('latestRunId') != latest['runId']:
+        reasons.append('latest run is missing from the recent runs')
+    run_count = thread.get('runCount')
+    if type(run_count) is int and run_count != latest['ordinal']:
+        reasons.append('latest run ordinal differs from the thread run count')
+    for run in sorted(runs, key=lambda row: row['ordinal']):
+        if run.get('status') not in TERMINAL_RUN_STATUSES:
+            reasons.append(f"run {run['ordinal']} is {run.get('status')}")
+    # An active-run pointer must name a listed terminal run; anything else is live work.
+    active = thread.get('activeRunId')
+    if active is not None and not any(run['runId'] == active and run.get('status') in TERMINAL_RUN_STATUSES
+                                      for run in runs):
+        reasons.append('thread has an active run')
+    return not reasons, (latest['runId'] if not reasons else None), reasons
 
 
 def wait_for_thread(client, tools, thread_id, deadline_seconds=DEFAULT_WAIT_SECONDS, clock=None, sleep=None):
-    """Wait in bounded slices until the thread leaves an active status or the deadline passes.
+    """Wait in bounded slices until the thread settles or the deadline passes.
 
-    Returns (last wait result, deadline_exceeded). A deadline is a wait bound only: the
-    accepted thread keeps running and may be waited on or read again; it is never relaunched.
+    Returns (last wait result, deadline_exceeded). The result carries settled=True and
+    latestRunId only when thread_settlement accepts a fresh thread read; otherwise it
+    carries settled=False, status 'not settled' and the reasons. A deadline is a wait
+    bound only: the accepted thread keeps running and is never relaunched.
     """
     import time
     clock = clock or time.monotonic
@@ -639,18 +702,87 @@ def wait_for_thread(client, tools, thread_id, deadline_seconds=DEFAULT_WAIT_SECO
     if not isinstance(deadline_seconds, int) or isinstance(deadline_seconds, bool) or deadline_seconds <= 0:
         raise RuntimeError('wait deadline must be a positive whole number of seconds')
     deadline = clock() + deadline_seconds
-    result = None
+    result = {'status': NOT_SETTLED, 'settled': False, 'unsettled': ['no wait completed']}
     while True:
         remaining = deadline - clock()
         if remaining <= 0:
-            return (result or {}), True
+            return result, True
         slice_ms = int(min(WAIT_SLICE_SECONDS, max(1, remaining)) * 1000)
         started = clock()
-        result = unpack(call_tool(client, tools, 't3_thread_wait', {'threadId': thread_id, 'timeoutMs': slice_ms}))
-        if result.get('status') not in ACTIVE_THREAD_STATUSES:
-            return result, False
-        if clock() - started < 1:
+        waited = unpack(call_tool(client, tools, 't3_thread_wait', {'threadId': thread_id, 'timeoutMs': slice_ms}))
+        reasons = ['wait status is ' + str(waited.get('status'))]
+        if waited.get('status') not in ACTIVE_THREAD_STATUSES:
+            settled, latest_run_id, reasons = thread_settlement(
+                waited, thread_snapshot(client, tools, thread_id))
+            if settled:
+                return dict(waited, settled=True, latestRunId=latest_run_id), False
+            # A terminal earlier run while another is queued, or pending work: keep waiting.
+            # Idle threads return at once, so poll at a modest bounded rate.
+            remaining = deadline - clock()
+            if remaining > 0:
+                pause(min(UNSETTLED_POLL_SECONDS, remaining))
+        elif clock() - started < 1:
             pause(1)  # A wait that returns at once must not become a busy loop.
+        result = dict(waited, status=NOT_SETTLED, observedStatus=waited.get('status'),
+                      settled=False, unsettled=reasons)
+
+
+def wait_and_read(client, tools, thread_id, deadline_seconds=DEFAULT_WAIT_SECONDS,
+                  expected_message=None, results_root=Path('/bench/t3/observations'),
+                  clock=None, sleep=None):
+    """Wait for settlement, then read the final report from the latest terminal run only.
+
+    An unsettled thread (deadline, queued run, pending request or child) reports status
+    'not settled' and no final report: interim assistant output is never parsed or audited.
+    """
+    schema_for(tools, 't3_thread_wait')
+    schema_for(tools, 't3_thread_read')
+    wait_result, deadline_exceeded = wait_for_thread(client, tools, thread_id, deadline_seconds,
+                                                     clock=clock, sleep=sleep)
+    read_result = paged_thread_read(client, tools, thread_id)
+    raw_path = thread_artifact_path(results_root, thread_id)
+    raw_path.write_text(json.dumps(read_result, ensure_ascii=False) + '\n', encoding='utf-8')
+    raw_path.chmod(0o600)
+    exact_message = None
+    if expected_message is not None:
+        exact_message = any(item.get('type') == 'user_message' and item.get('text') == expected_message
+                            for item in read_result.get('items', []))
+    run_id = wait_result.get('latestRunId') if wait_result.get('settled') is True else None
+    settled = run_id is not None and not deadline_exceeded
+    if settled:
+        # The final read must still describe the same settled run; a run queued since the
+        # wait returned makes the read interim.
+        still, latest, reasons = thread_settlement(wait_result, read_result)
+        settled = still and latest == run_id
+        if not settled:
+            wait_result = dict(wait_result, settled=False, unsettled=reasons or ['latest run changed'])
+    final_text = final_exact = canary_result = None
+    if settled:
+        final_text = final_assistant_text(read_result, run_id)
+        reread = paged_thread_read(client, tools, thread_id)
+        final_exact = final_text is not None and final_text.encode('utf-8') == (
+            final_assistant_text(reread, run_id) or '').encode('utf-8')
+        canary_result = parse_canary_result(final_text)
+    thread = read_result.get('thread', {})
+    # This OAuth client has no agent thread credential. Child observations
+    # are exported from the authenticated parent's host-owned tool records
+    # by benchctl, never obtained by expanding this client's authority.
+    return {'threadId': thread_id,
+            'status': wait_result.get('status') if settled else NOT_SETTLED,
+            'settled': settled, 'latest_run_id': run_id if settled else None,
+            'unsettled_reasons': [] if settled else wait_result.get('unsettled', []),
+            'timed_out': deadline_exceeded,
+            'readback_model': thread.get('model'),
+            'readback_provider': thread.get('providerInstanceId'),
+            'original_message_exact': exact_message,
+            'final_message_retrieval_exact': final_exact is True,
+            'final_message_utf8_bytes': len(final_text.encode('utf-8')) if final_text else None,
+            'canary_result': canary_result,
+            'summary_boundary_audit': {'verified': False,
+                                       'reason': 'awaiting authenticated parent observations'},
+            'tracked_followup_audit': {'recorded': False,
+                                       'reason': 'awaiting authenticated parent observations'},
+            'message_count': len(read_result.get('items', []))}
 
 
 def _structured_or_empty(result):
@@ -793,6 +925,7 @@ def main():
         interrupted = interrupt_thread(client, tools, thread_id) if args.interrupt_thread else None
         state, _late = wait_for_thread(client, tools, thread_id, 60 if args.interrupt_thread else 1)
         print(json.dumps({'threadId': thread_id, 'status': state.get('status'),
+                          'settled': state.get('settled') is True,
                           'interrupt_requested': args.interrupt_thread is not None,
                           'interrupt_result_status': (interrupted or {}).get('status')}, sort_keys=True))
         return 0
@@ -811,45 +944,12 @@ def main():
         thread_id = args.wait_thread
         if not opaque_thread_id(thread_id):
             raise RuntimeError('thread ID rejected by safe transport constraints')
-        wait_name, read_name = 't3_thread_wait', 't3_thread_read'
-        schema_for(tools, wait_name)
-        schema_for(tools, read_name)
-        wait_result, deadline_exceeded = wait_for_thread(
-            client, tools, thread_id, args.deadline_seconds or DEFAULT_WAIT_SECONDS)
-        if deadline_exceeded:
-            wait_result = dict(wait_result, timedOut=True)
-        read_result = paged_thread_read(client, tools, thread_id)
-        raw_path = thread_artifact_path('/bench/t3/observations', thread_id)
-        raw_path.write_text(json.dumps(read_result, ensure_ascii=False) + '\n', encoding='utf-8')
-        raw_path.chmod(0o600)
-        exact_message = None
-        if args.expected_message:
-            expected = args.expected_message.read_text(encoding='utf-8')
-            exact_message = any(item.get('type') == 'user_message' and item.get('text') == expected
-                                for item in read_result.get('items', []))
-        thread = read_result.get('thread', {})
-        final_text = final_assistant_text(read_result)
-        reread = paged_thread_read(client, tools, thread_id)
-        final_exact = final_text is not None and final_text.encode('utf-8') == (
-            final_assistant_text(reread) or '').encode('utf-8')
-        canary_result = parse_canary_result(final_text)
-        # This OAuth client has no agent thread credential. Child observations
-        # are exported from the authenticated parent's host-owned tool records
-        # by benchctl, never obtained by expanding this client's authority.
-        boundary_result = {'verified': False, 'reason': 'awaiting authenticated parent observations'}
-        followup_result = {'recorded': False, 'reason': 'awaiting authenticated parent observations'}
-        print(json.dumps({'threadId': thread_id, 'status': wait_result.get('status'),
-                          'timed_out': wait_result.get('timedOut', False),
-                          'readback_model': thread.get('model'),
-                          'readback_provider': thread.get('providerInstanceId'),
-                          'original_message_exact': exact_message,
-                          'final_message_retrieval_exact': final_exact,
-                          'final_message_utf8_bytes': len(final_text.encode('utf-8')) if final_text else None,
-                          'canary_result': canary_result,
-                          'summary_boundary_audit': boundary_result,
-                          'tracked_followup_audit': followup_result,
-                          'message_count': len(read_result.get('items', []))}, sort_keys=True))
-        return 0 if not wait_result.get('timedOut') else 2
+        expected = (args.expected_message.read_text(encoding='utf-8')
+                    if args.expected_message else None)
+        report = wait_and_read(client, tools, thread_id, args.deadline_seconds or DEFAULT_WAIT_SECONDS,
+                               expected)
+        print(json.dumps(report, sort_keys=True))
+        return 0 if report['settled'] else 2
     if args.find_launch:
         matches = find_launched_threads(client, tools, args.find_launch)
         print(json.dumps({'launch_lookup': True, 'thread_ids': matches}, sort_keys=True))

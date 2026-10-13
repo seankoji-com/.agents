@@ -374,7 +374,11 @@ canary for the provider and the same pinned sources, programs, frozen targets an
 IDs. The parent launches with model-policy role `parent`. For repetition 3 the runner
 polls stage-3 commits (baseline) or the job's third stage reaching `accepted` (rebuilt),
 interrupts, records whether later work had already landed, and sends `resume` with role
-`resume`. The wait has a deadline (default 4 hours). Graders run in a separate
+`resume`. The wait has a deadline (default 4 hours) and ends only when the parent thread
+has settled: its latest run is terminal, no run is queued, starting or running, and no
+request or child run is pending. A completed run with another run already queued is not
+settled. At the deadline the status is `not settled`, never `completed`, and the canary
+audit reads its final report only from the settled thread's latest run. Graders run in a separate
 `--network none`, read-only container with `T3_BENCH_ISOLATED_GRADER=1` over copies that
 were exported out of the agent. Workflow and negative scenarios need the
 `stage_fixtures` adapter; missing delegation also needs `mcp_shim`. Without them the start
@@ -388,6 +392,13 @@ verified `mcp_shim.audit_log`; otherwise the attempt is an infrastructure-invali
 Babysitter starts keep `GH_HOST=github.com`, which only the agent resolves to the sidecar;
 `verify_isolation` checks the agent's `ExtraHosts` and that no alias reaches the gateway or
 sidecar.
+
+Codex inside the bench agent container runs with `sandbox_mode = "danger-full-access"`.
+The container is the confinement boundary: its mount namespace is the primary guarantee,
+and rootless Docker gives Codex's nested `bwrap` no namespaces, so every shell command
+would otherwise fail until escalated. Host observations still enforce write scope. The
+setting lives only in the config that `start-container.sh` writes inside the container;
+host-side and plugin behaviour is unchanged.
 
 Canary follow-up (owner-delegated Stage 6 amendment): a refusal with host evidence and a
 matching `not_allowed` report is recorded as "continuation unsupported (host-reported),

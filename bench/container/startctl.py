@@ -420,8 +420,9 @@ def await_boundary(harness, run_id, arm, thread_id, deadline, clock=time.monoton
             return probe
         polls += 1
         if polls % STATUS_EVERY_POLLS == 0:
-            status = harness.driver(run_id, ['--thread-status', thread_id]).get('status')
-            if status not in {'preparing', 'queued', 'starting', 'running', 'waiting'}:
+            # Only a settled thread has ended: a completed run with another run queued,
+            # or with pending requests or child runs, is still working.
+            if harness.driver(run_id, ['--thread-status', thread_id]).get('settled') is True:
                 return None
         sleep(BOUNDARY_POLL_SECONDS)
     return None
@@ -701,7 +702,9 @@ def run_start(cfg, harness, *, fixtures=None, shim=None, clock=time.monotonic, s
                                        '--expected-message', prompt_name])
         ctx['wait'] = wait
         ctx['wall_seconds'] = round(clock() - started, 1)
-        summary.update(run_status=wait.get('status'), timed_out=bool(wait.get('timed_out')),
+        settled = wait.get('settled') is True
+        summary.update(run_status=wait.get('status') if settled else 'not settled',
+                       settled=settled, timed_out=bool(wait.get('timed_out')),
                        readback={'provider': wait.get('readback_provider'), 'model': wait.get('readback_model')},
                        original_message_exact=wait.get('original_message_exact'))
         target = summary.get('parent_target') or {}
@@ -709,6 +712,8 @@ def run_start(cfg, harness, *, fixtures=None, shim=None, clock=time.monotonic, s
             summary['failures'].append('thread readback differs from the frozen parent target')
         if wait.get('timed_out'):
             summary['failures'].append('run did not finish before the deadline')
+        elif not settled:
+            summary['failures'].append('thread did not settle: a run, request or child run was still pending')
         collect(cfg, harness, start, staged, run_id, thread_id, private, prelaunch_path, ctx, summary)
         required = [c for c in ctx.get('checks', []) if c['required']]
         passed = bool(required) and all(c['passed'] for c in required) and not summary['failures']
