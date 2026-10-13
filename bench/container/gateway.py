@@ -465,9 +465,9 @@ class GatewayHandler(BaseHTTPRequestHandler):
             response = conn.getresponse()
             status = response.status
             # Upstream values reach our own header lines: drop any that could split the response.
-            response_headers = [(k, header_safe(v)) for k, v in response.getheaders()
-                                if k.lower() in {'content-type', 'cache-control', 'request-id'}
-                                and header_safe(v) is not None]
+            names = {'content-type': 'Content-Type', 'cache-control': 'Cache-Control', 'request-id': 'Request-Id'}
+            response_headers = [(names[k.lower()], header_safe(v)) for k, v in response.getheaders()
+                                if k.lower() in names and header_safe(v) is not None]
             content_type = next((v for k, v in response_headers if k.lower() == 'content-type'), '')
             if not 200 <= status < 300:
                 self._record_lock()
