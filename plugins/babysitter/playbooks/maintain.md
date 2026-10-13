@@ -10,9 +10,10 @@
 2. Quick pass, in this thread, before any child: for every roster PR run
    `bash PKG/scripts/merge-pr.sh --repo <owner/name> --pr <N> --arm-always`.
    It merges a PR whose current head is CLEAN with green checks and resolved threads,
-   and otherwise arms GitHub auto-merge, including on PRs with open threads or
-   conflicts; the operator accepted that auto-merge may land those once GitHub's own
-   requirements pass. Record each `MERGED` or `BLOCKED reason=... automerge=...` line.
+   and otherwise attempts to arm GitHub auto-merge, including on PRs with open threads
+   or conflicts; the operator accepted that auto-merge may land those once GitHub's own
+   requirements pass. Record each `MERGED` or `BLOCKED reason=... automerge=...` line;
+   `automerge=unavailable` means GitHub refused, so this thread must merge it later.
    Inspect its help first. Never use admin bypass, dismiss reviews, or weaken checks.
 3. Keep the PR table in this thread and post it after the quick pass:
 
@@ -26,10 +27,13 @@
 4. Dispatch one fixer per PR that has work a child can do: conflicts, a behind branch
    the helper could not update, failing checks, unresolved threads, or requested
    changes. A PR waiting only on running checks or a required human review gets no
-   child; watch it. Pick the model with `t3-plugins resolve workhorse --capabilities FILE`,
-   take the first candidate, and pass its `runtimeMode`. Report each `unavailable`
-   entry once, such as a provider that needs a broader mode than this thread.
-   Children write in separate worktrees from `bash PKG/scripts/pr-workspace.sh`.
+   child; watch it. Prepare each PR's worktree with `bash PKG/scripts/pr-workspace.sh`,
+   then run `t3-plugins resolve workhorse --capabilities FILE --repo <that worktree>`
+   so the target repository's routing policy applies. Start with the first candidate
+   on the cheapest configured tier and pass its `runtimeMode`; later candidates are for
+   escalation. Report each `unavailable` entry once, such as a provider that needs a
+   broader mode than this thread. Without routing, or with no cheapest-tier candidate,
+   report that and ask the operator before fanning out. Give each child its worktree.
 5. Each brief follows `PKG/shared/delegation.md` and adds: the PR URL, the head SHA
    at dispatch, the blocker, and earlier rounds' findings. Pre-authorize: edit and
    test in its worktree; push to that PR's head branch only, never forced; reply to
@@ -41,9 +45,11 @@
    decisions, secrets, or human approval. Rejected findings need a reason.
 6. Call `watch_pull_request` for every unmerged PR and end the turn. Children cannot
    watch; this thread owns every watch. On a wake, read that PR's live state at its
-   current head; a check from an older SHA proves nothing. When it merged, update the
-   table and unwatch it. On a new failure, comment, or conflict with no child in
-   flight, dispatch the next round as a new `delegate_task` with the prior findings.
+   current head; a check from an older SHA proves nothing. Rerun step 2's helper first:
+   green checks or a new approval may make the PR mergeable now. When it merged,
+   update the table and unwatch it. On a new failure, comment, or conflict with no
+   child in flight, dispatch the next round as a new `delegate_task` with the prior
+   findings.
    On a child result, verify the claimed push against the PR head before relying on it.
 7. Escalate when a child returns `blocked` or a blocker survives its round: use the
    next `resolve` candidate. After two rounds on the last candidate, or when a human

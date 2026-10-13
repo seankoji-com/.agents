@@ -35,13 +35,16 @@ from `/` and append the same request instead.
 A babysitting run works in three steps:
 
 1. **Quick pass.** The thread merges every targeted PR that GitHub reports ready at
-   its current head and arms auto-merge on the rest, including PRs with open threads
-   or conflicts.
+   its current head and tries to arm auto-merge on the rest, including PRs with open
+   threads or conflicts. Where GitHub refuses, the thread merges the PR itself once it
+   is ready.
 2. **Fixers.** Each PR with work left (conflicts, failing checks, review comments)
    gets its own low-cost T3 child in a separate worktree. The child fixes the
    branch, replies to and resolves the threads it handled, and pushes. The model
    comes from the `workhorse` role in your [routing config](../getting-started.md#model-routing),
-   cheapest first. A child that gets stuck hands off to the next candidate.
+   cheapest tier first. A child that gets stuck hands off to the next candidate.
+   `setup` makes the session model the only workhorse, so add cheaper models
+   to that role before a large run.
 3. **Watch.** The thread watches every open PR. When T3 wakes it for a new failure,
    comment or conflict, it sends the next fixer round, until each PR merges or needs
    a person.

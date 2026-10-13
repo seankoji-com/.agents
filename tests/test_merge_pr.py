@@ -308,6 +308,13 @@ print(code, end="")
                 result = self.run_helper("success", flags)[0]
                 self.assertEqual(result.returncode, 2)
 
+    def test_resolution_works_after_quick_pass_armed_automerge(self):
+        result, calls = self.run_helper("already-auto", ["--resolve-thread", "T1", "--verified-head", HEAD])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("RESOLVED", result.stdout)
+        self.assertIn("resolveReviewThread", calls[-1]["query"])
+        self.assertFalse(any("merge_method" in c for c in calls))
+
     def test_explicit_resolution_checks_owner_and_head_without_merging(self):
         args = ["--resolve-thread", "T1", "--verified-head", HEAD]
         result, calls = self.run_helper("resolve", args)

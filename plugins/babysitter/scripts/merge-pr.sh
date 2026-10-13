@@ -417,11 +417,7 @@ try_merge() {
 state="$(fetch_state)" || die "could not read PR state" 3
 handle_terminal_state
 expected_head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
-if jq -e '.data.repository.pullRequest.autoMergeRequest.enabledAt' >/dev/null <<<"$state"; then
-  if [ "$AUTO_MERGE" = 0 ] || { [ "$ARM_ALWAYS" = 0 ] && ! jq -e '.data.repository.pullRequest.reviewThreads | .pageInfo.hasNextPage == false and all(.nodes[]; .isResolved == true)' >/dev/null <<<"$state"; }; then
-    blocked "automerge_already_enabled" "auto-merge may land independently; disable the existing request before continuing this verification flow"
-  fi
-fi
+# Resolution never merges, so an existing auto-merge request does not block it.
 if [ -n "$RESOLVE_THREAD" ]; then
   [ "$VERIFIED_HEAD" = "$expected_head" ] || blocked "verified_head_changed" "re-verify the finding against the new head before resolving"
   # Query the node directly so resolution works beyond the first 100 threads too.
@@ -434,6 +430,11 @@ if [ -n "$RESOLVE_THREAD" ]; then
   jq -e '.errors == null and .data.resolveReviewThread.thread.isResolved == true' >/dev/null <<<"$resolution" || die "thread resolution failed" 3
   echo "RESOLVED ${REPO}#${PR_NUMBER} thread=${RESOLVE_THREAD} head=${VERIFIED_HEAD}"
   exit 0
+fi
+if jq -e '.data.repository.pullRequest.autoMergeRequest.enabledAt' >/dev/null <<<"$state"; then
+  if [ "$AUTO_MERGE" = 0 ] || { [ "$ARM_ALWAYS" = 0 ] && ! jq -e '.data.repository.pullRequest.reviewThreads | .pageInfo.hasNextPage == false and all(.nodes[]; .isResolved == true)' >/dev/null <<<"$state"; }; then
+    blocked "automerge_already_enabled" "auto-merge may land independently; disable the existing request before continuing this verification flow"
+  fi
 fi
 mergeable="$(jq -r '.data.repository.pullRequest.mergeable' <<<"$state")"
 merge_state="$(jq -r '.data.repository.pullRequest.mergeStateStatus' <<<"$state")"

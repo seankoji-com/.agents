@@ -167,7 +167,7 @@ order, and lists each configured entry it could not use with the reason. It neve
 substitutes a different model. When a child's mode is broader than the parent
 thread's, T3 refuses it, so `resolve` lowers the mode to the parent's and adds an
 `owner_action` saying which mode to switch the child to. A provider with
-`requireRuntimeMode` is listed as unavailable instead. With `--implementer-lineage
+`requireRuntimeMode` (OpenCode, unless set to `false`) is listed as unavailable instead. With `--implementer-lineage
 LINEAGE`, each candidate is marked `independent`: `true` for another known lineage,
 `null` when either lineage is `unknown`, `false` for the same lineage. They print in
 that order. A repository can override

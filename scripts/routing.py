@@ -241,7 +241,7 @@ def resolve(role: str, capabilities: dict, config: dict, implementer_lineage: st
         mode = settings['runtimeMode']
         candidate = dict(item, runtimeMode=mode)
         if parent_mode in RUNTIME_MODES and RUNTIME_MODES.index(mode) > RUNTIME_MODES.index(parent_mode):
-            if settings.get('requireRuntimeMode'):
+            if settings.get('requireRuntimeMode', provider.get('driverKind') in DEFAULT_REQUIRED_MODES):
                 unavailable.append(dict(candidate, reason=f'runtime_mode_above_parent: needs {mode}, parent runs {parent_mode}'))
                 continue
             # T3 refuses a child broader than its parent. Launch at the parent's mode

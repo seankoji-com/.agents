@@ -273,7 +273,8 @@ class RoutingCli(unittest.TestCase):
         self.assertEqual(modes, ['full-access', 'auto'])
 
     def test_child_mode_broader_than_parent_is_lowered_visibly(self):
-        self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {'opencode': {'runtimeMode': 'full-access'},
+        self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {'opencode': {'runtimeMode': 'full-access',
+                                                                                      'requireRuntimeMode': False},
                                                                          'codex': {'runtimeMode': 'auto'}},
                     'roles': {'workhorse': [entry('opencode', 'gateway/glm-9', 'low', 'glm'),
                                             entry('codex', 'model-x1', 'low', 'openai')]}})
@@ -302,6 +303,16 @@ class RoutingCli(unittest.TestCase):
         result = self.resolve('workhorse', code=1)
         self.assertEqual(result['candidates'], [])
         self.assertTrue(result['unavailable'][0]['reason'].startswith('runtime_mode_above_parent'))
+        # A config written before the flag existed, or a repository policy that omits
+        # it, keeps OpenCode's requirement.
+        self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {'opencode': {'runtimeMode': 'full-access'}},
+                    'roles': {'workhorse': [entry('opencode', 'gateway/glm-9', 'low', 'glm'),
+                                            entry('codex', 'model-x1', 'low', 'openai')]}})
+        self.assertEqual([c['providerInstanceId'] for c in self.resolve('workhorse')['candidates']], ['codex'])
+        policy = self.repo / '.t3-plugins/routing.json'
+        self.write({'providers': {'opencode': {'runtimeMode': 'full-access'}}}, policy)
+        self.assertEqual([c['providerInstanceId'] for c in self.resolve('workhorse')['candidates']], ['codex'])
+        policy.unlink()
         # A non-boolean flag is a config error.
         self.write({'schema_version': 1, 'tiers': ['low'],
                     'providers': {'opencode': {'runtimeMode': 'full-access', 'requireRuntimeMode': 'yes'}},
