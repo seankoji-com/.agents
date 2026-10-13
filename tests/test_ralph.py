@@ -19,7 +19,7 @@ class RalphTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.repo = self.base / 'work tree'
         self.repo.mkdir()
         self.git('init', '-q')
