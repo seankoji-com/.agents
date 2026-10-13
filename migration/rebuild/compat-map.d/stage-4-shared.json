@@ -1,0 +1,43 @@
+{
+  "stage": 4,
+  "inventory": {
+    "instructions": [
+      {
+        "path": "shared/job-coordination.md",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "New shared whole-job coordination protocol for all five coordinators: direct cheap operations, pinned job plan, coordinator-only dispatch, lifecycle, validator acceptance, bounded repair, direct fallback, milestone checklists and picker-routed owner decisions. Installed as PKG/shared/job-coordination.md; linked from t3-runtime.md and delegation.md."
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_contract.py",
+        "assertions": [
+          {
+            "selector": "test_contract.ApprovalPickerTest",
+            "tests": 4,
+            "coverage": [
+              "REQ-APPROVAL-PICKER",
+              "G-APPROVAL-PICKER",
+              "REQ-LIFECYCLE",
+              "REQ-JOB"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_contract.JobCoordinationTest",
+            "tests": 4,
+            "coverage": [
+              "REQ-COMPAT",
+              "REQ-DISPATCH",
+              "REQ-VISIBILITY",
+              "REQ-REGISTRY",
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      }
+    ]
+  }
+}
