@@ -25,32 +25,46 @@ machine or provider.
 
 ## What you get
 
-A run has three steps:
+A run has four steps:
 
-1. **Quick pass.** The thread merges every targeted PR that GitHub reports ready at
-   its current head and tries to arm auto-merge on the rest, including PRs with open
-   threads or conflicts. Where GitHub refuses, the thread merges the PR itself once it
-   is ready.
+1. **Quick pass.** Before any child starts, the thread merges each targeted PR whose
+   current head is already clean: green checks, resolved threads, no conflicts. It
+   arms nothing. An armed auto-merge would land a later fixer push before anyone
+   reviewed it. If you asked for review before landing, it skips this pass.
 2. **Fixers.** Each PR with work left (conflicts, failing checks, review comments)
-   gets its own low-cost T3 child in a separate worktree. The child fixes the
-   branch, replies to and resolves the threads it handled, and pushes. The model
-   comes from the `workhorse` role in your [routing config](../getting-started.md#model-routing),
-   cheapest tier first. A child that gets stuck hands off to the next candidate.
-   `setup` makes the session model the only workhorse, so add cheaper models
-   to that role before a large run.
-3. **Watch.** The thread watches every open PR. When T3 wakes it for a new failure,
-   comment or conflict, it sends the next fixer round, until each PR merges or needs
-   a person.
+   gets its own T3 child in a separate worktree. The child fixes the branch, replies to
+   and resolves the threads it handled, and pushes. It never merges. The model comes
+   from the `workhorse` role in your [routing config](../getting-started.md#model-routing),
+   cheapest tier first; a child that gets stuck hands off to the next candidate.
+3. **Review, then land.** After the last push, `babysitter/pr-reviewer` reviews the
+   combined change at that exact head, on a different model lineage from the fixer.
+   Only an approval at that head lets the thread merge, and the merge call names the
+   head, so a later push can't slip through. Findings go back to the next fixer round.
+4. **Watch.** The thread watches every open PR. When T3 wakes it for a new failure,
+   comment or conflict, it starts the next round, until each PR merges or needs a
+   person.
 
-The thread keeps one table of the targeted PRs and posts it again whenever one merges.
-Its shape, with made-up PRs:
+Two things stop it from fanning out:
+
+- **No routing config.** Plain `t3-plugins setup` writes none. Without one, the thread
+  asks you through the question picker before it starts any fixer. To create one, have
+  the agent save T3's capabilities response to a file and run
+  `t3-plugins setup --capabilities caps.json`. The starting config makes the session
+  model the only workhorse, so add cheaper models to that role before a large run.
+  An existing config is never replaced.
+- **Auto-merge someone else armed.** A PR that already has auto-merge queued gets no
+  fixer that pushes, because GitHub would land the push before review. The thread
+  asks you to disable it first.
+
+The thread keeps one table of the targeted PRs and posts it again whenever one merges
+or a blocker changes. Its shape, with made-up PRs:
 
 | PR | Description | Not merged because |
 |---|---|---|
-| [owner/repo#12](https://github.com/owner/repo/pull/12) | Fix login redirect | failing check `lint`; auto-merge armed; fixer round 1 |
+| [owner/repo#12](https://github.com/owner/repo/pull/12) | Fix login redirect | failing check `lint`; awaiting review gate; fixer round 1 |
 | [owner/repo#9](https://github.com/owner/repo/pull/9) | Bump parser | merged |
 
-A green local test, armed auto-merge and an actual merge are three different things.
+A green local test, an approved review and an actual merge are three different things.
 The table reports only merges it has seen.
 
 ## Operations
@@ -76,12 +90,13 @@ actions or more repairs than the plan allows are asked through the question pick
 
 ## Authorize the finish line
 
-Invoking `pr`, `repo` or `org` authorizes babysitting through merge within that scope.
-The read-only example in [Try it](#try-it) narrows that to inspection. The quick pass
-tries to arm auto-merge even while review threads are open, so on a repository
-without a conversation-resolution rule a PR can land as soon as its checks pass. Use
-`repo` or `org` only when you mean that wider scope. Protected-branch rules still
-apply, and unknown or unsafe changes stay blocked.
+Invoking `pr`, `repo` or `org` authorizes babysitting through merge within that scope:
+fixing and pushing to the targeted PR branches, replying on them, and merging them once
+the review gate passes. The read-only example in [Try it](#try-it) narrows that to
+inspection. A clean PR can still merge in the quick pass without a fixer or reviewer,
+so use `repo` or `org` only when you mean every eligible PR there. Drafts, forks and
+other authors' PRs are left alone unless you name them. Protected-branch rules still
+apply; babysitter never uses admin bypass, dismisses reviews or force-pushes.
 
 ## Limits
 

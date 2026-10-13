@@ -9,23 +9,23 @@ Each one ends in something you can check.**
 
 Ask an agent to "fix the bug" and you usually get a confident summary. With imps you
 get a run ID and a report showing which checks passed on the exact files you were
-handed. Edit a file afterwards and the report says the evidence is stale. The other
-five leave similar records for briefs, research, pull requests, provider settings and
-implement-then-grade loops. Each is a Markdown entry plus small standard-library Python
-helpers, so any T3 provider with file and shell access can run it.
-
-<p align="center">
-  <img src="docs/assets/demo.svg" alt="Terminal recording: t3-plugins list, setup, doctor, the installed skills, and the prompt for T3. Real output in an empty home directory." width="760">
-</p>
-<p align="center"><sub>Real output from an empty home directory, recorded 13 Oct 2026 (<a href="docs/assets/quickstart.mp4">MP4</a>, <a href="docs/assets/recordings/quickstart.txt">transcript</a>). Only the typing is simulated.</sub></p>
+handed; edit a file afterwards and the report says the evidence is stale. The other
+five workflows leave similar records for briefs, research, pull requests, provider
+settings and implement-then-grade loops.
 
 ## Install (macOS or Linux)
 
+The tap's stable formula is still v0.4.0, which predates ralph and several commands
+in these docs. Until the next release, install the HEAD build from `master`:
+
 ```sh
-brew install seankoji-com/tap/t3-plugins
+brew install --HEAD seankoji-com/tap/t3-plugins
 t3-plugins setup      # installs the workflows and their slash-menu skills
 t3-plugins doctor     # checks the installed files; expect "ok": true per plugin
 ```
+
+Update a HEAD install with `brew upgrade --fetch-HEAD t3-plugins`, then run
+`t3-plugins setup` again.
 
 In T3, open **Settings > General**, turn on **Show skills in slash menu**, and restart
 the agent session. Then send this in a thread attached to your repository:
@@ -38,10 +38,14 @@ Type `/` and pick **t3-imps** to insert the `$t3-imps` mention. The agent checks
 Python, Git, its state directory and T3's live provider list, then reports what it
 can run. It changes no files.
 
+<p align="center">
+  <img src="docs/assets/demo.svg" alt="Terminal recording: t3-plugins list, setup, doctor, the installed skills, and the prompt for T3. Real output in an empty home directory." width="760">
+</p>
+<p align="center"><sub>Real output from an empty home directory, recorded 13 Oct 2026 (<a href="docs/assets/quickstart.mp4">MP4</a>, <a href="docs/assets/recordings/quickstart.txt">transcript</a>). Only the typing is simulated.</sub></p>
+
 Homebrew on Linux installs and runs the formula (checked on x86_64), and the tap's CI
-installs and tests it on macOS. ralph and the commands in these docs need catalog
-v0.5.0 or later. If `t3-plugins list` doesn't show `ralph`, install
-[the HEAD build](docs/getting-started.md#homebrew-release-channel) or from source:
+installs and tests it on macOS. Without Homebrew, install from source with Python
+3.10+:
 
 ```sh
 git clone https://github.com/seankoji-com/t3-plugins.git && cd t3-plugins
@@ -55,7 +59,7 @@ python3 bin/t3-plugins setup && python3 bin/t3-plugins doctor
 | Fix a bug you can describe | `$t3-imps run fix the date parser: reject 31 April` | The diff, a run ID, and checks and review tied to that revision |
 | Turn a vague idea into a task | `$t3-elephant-goldfish thinking retry-policy` | `discovery.md`, `spec.md` with acceptance criteria, and `handoff.md` |
 | See how another repo solved it | `$t3-ape study https://github.com/python/cpython how are parser errors tested?` | A report pinned to a commit, with line citations and one small experiment |
-| Get a PR through review and CI | `$t3-babysitter pr https://github.com/OWNER/REPO/pull/12` | Fixes pushed to the PR branch, a merge once GitHub allows it, and a table of what still blocks it |
+| Get a PR through review and CI | `$t3-babysitter pr https://github.com/OWNER/REPO/pull/12` | Fixes pushed to the PR branch, an independent review at the final head, then a merge, plus a table of what still blocks each PR |
 | Check provider permissions and MCPs | `$t3-agent-tuneup audit --provider claude --settings .claude/settings.json` | Finding codes and locations, never the setting values |
 | Have one model build and another grade | `$t3-ralph fix the parser and add regression coverage` | Fresh attempts until the grader has no feedback (five by default), then a PR |
 

@@ -1,15 +1,6 @@
 {
   "schema_version": 1,
   "stage": 6,
-  "updates": {
-    "helpers": [
-      {
-        "path": "scripts/render_demo.py",
-        "replace": true,
-        "reason": "Homepage recording generator: renders the real quickstart transcript from scripts/capture_terminal.py as a scoped animated SVG, and with --video as MP4, WebM and a poster through headless Chrome and ffmpeg."
-      }
-    ]
-  },
   "added": [
     {
       "path": "scripts/capture_terminal.py",

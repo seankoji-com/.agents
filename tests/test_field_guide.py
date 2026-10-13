@@ -96,7 +96,10 @@ class RepositoryGuideTest(unittest.TestCase):
         self.assertIn('class="demo-rec"', svg)
         template = (ROOT / 'overrides' / 'home.html').read_text()
         self.assertIn('guide.recording | safe', template)
-        self.assertIn('brew install seankoji-com/tap/t3-plugins', template)
+        # The tap's stable formula predates these docs, so the hero installs HEAD and
+        # says why before the command, not after it.
+        self.assertIn('brew install --HEAD seankoji-com/tap/t3-plugins', template)
+        self.assertLess(template.index('fg-install__note'), template.index('brew install --HEAD'))
         for bad in ('<svg><script>x</script></svg>', '<svg><a href="https://e.invalid/">x</a></svg>',
                     '<svg><style>@import "x.css";</style></svg>', '<svg onload="x()"></svg>',
                     '<svg><rect style="fill:url(https://e.invalid/p#x)"/></svg>', '<p>no</p>'):

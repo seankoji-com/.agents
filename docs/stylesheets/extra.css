@@ -166,10 +166,11 @@
 .fg-install pre { margin: 0; background: var(--paper-deep); border-radius: 4px; padding: .65rem .8rem; overflow-x: auto; }
 .fg-install pre code { font-family: var(--mono); font-size: .72rem; line-height: 1.7; color: var(--ink); background: none; padding: 0; }
 .fg-install__next { font-size: .68rem; line-height: 1.55; color: var(--ink-soft); margin: .55rem 0 0; max-width: 34rem; }
+.fg-install__note { font-size: .68rem; line-height: 1.55; color: var(--ink-soft); margin: 0 0 .45rem; max-width: 34rem; }
 .fg-install__next b { color: var(--ink); font-weight: 600; }
-.fg-install__next code, .fg-key__intro code, .fg-rec figcaption code { font-family: var(--mono); font-size: .92em; background: var(--paper-deep); color: var(--ink); border-radius: 3px; padding: .05em .3em; }
-.fg-install__next a, .fg-rec figcaption a { color: var(--fern); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .18em; text-decoration-color: color-mix(in srgb, var(--fern) 45%, transparent); }
-.fg-install__next a:hover, .fg-rec figcaption a:hover { color: var(--fern-deep); text-decoration-color: currentColor; }
+.fg-install__note code, .fg-install__next code, .fg-key__intro code, .fg-rec figcaption code { font-family: var(--mono); font-size: .92em; background: var(--paper-deep); color: var(--ink); border-radius: 3px; padding: .05em .3em; }
+.fg-install__note a, .fg-install__next a, .fg-rec figcaption a { color: var(--fern); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .18em; text-decoration-color: color-mix(in srgb, var(--fern) 45%, transparent); }
+.fg-install__note a:hover, .fg-install__next a:hover, .fg-rec figcaption a:hover { color: var(--fern-deep); text-decoration-color: currentColor; }
 
 /* the recorded terminal session, framed like a plate */
 .fg-rec { position: relative; margin: 0; border: 1px solid var(--ink); padding: 6px; background: var(--paper); }

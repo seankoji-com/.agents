@@ -11,10 +11,12 @@ the machine where you install. Homebrew brings Python 3.12; from source you need
 
 ## 1. Install with Homebrew
 
-On macOS or Linux:
+On macOS or Linux. The tap's stable formula is still v0.4.0, which predates ralph and
+several commands on this page, so install the HEAD build until the next release
+([why](#homebrew-release-channel)):
 
 ```sh
-brew install seankoji-com/tap/t3-plugins
+brew install --HEAD seankoji-com/tap/t3-plugins
 t3-plugins setup
 t3-plugins doctor
 ```
@@ -85,7 +87,7 @@ Pick the row that matches something you need today. Each starts from a T3 thread
 | [imps](plugins/imps.md) | `$t3-imps run fix the date parser: reject 31 April with a clear error, add a regression test, do not commit` | The change, a run ID, and a report mapping each requirement to the check that covered it at this revision. Anything unverified is listed as blocked. |
 | [elephant-goldfish](plugins/elephant-goldfish.md) | `$t3-elephant-goldfish thinking retry-policy` | An interview, then `thinking/retry-policy/discovery.md`, `spec.md` with numbered acceptance criteria, and `handoff.md` for a fresh thread. |
 | [ape](plugins/ape.md) | `$t3-ape study https://github.com/python/cpython how are parser error cases tested?` | A report pinned to the commit it read, with Adopt, Adapt and Reject sections, line citations, and one small experiment for your repository. |
-| [babysitter](plugins/babysitter.md) | `$t3-babysitter pr https://github.com/OWNER/REPO/pull/12 inspect reviews and CI only` | Read-only: the blocking reviews and checks at the current head. Drop "inspect only" to let it fix, push and merge. |
+| [babysitter](plugins/babysitter.md) | `$t3-babysitter pr https://github.com/OWNER/REPO/pull/12 inspect reviews and CI only` | Read-only: the blocking reviews and checks at the current head. Drop "inspect only" to let it fix and push, get the head reviewed by a second model, then merge. |
 | [agent-tuneup](plugins/agent-tuneup.md) | `$t3-agent-tuneup audit --provider claude --settings .claude/settings.json` | Finding codes and locations in that file. Setting values never appear. |
 | [ralph](plugins/ralph.md) | `$t3-ralph fix the parser and add regression coverage` | It asks you to choose an implementer and a grader from different model lineages, retries until the grader has no feedback, then opens a PR. |
 
@@ -104,24 +106,26 @@ $ python3 "$(dirname "$(t3-plugins path agent-tuneup)")/scripts/audit.py" --prov
 ## Homebrew release channel
 
 The tap installs a `t3-plugins` command and an `imps` command, with Python 3.12 as a
-dependency. The formula installs on Linux through Homebrew on Linux; the tap's CI
-installs and tests it on macOS.
+dependency. Homebrew on Linux installs and runs the stable formula (checked on x86_64);
+the tap's CI installs and tests it on macOS.
 
-These docs describe catalog v0.5.0 and later. Run `t3-plugins list`: if `ralph` is
-missing, your formula is older. v0.4.0 already has `setup`, `doctor` and `prompt`, but
-not ralph, `agents`, `resolve` or `adopt`, and it still ships two retired plugins. Until
-the tap carries v0.5.0, install the development version, which builds from the
-default branch:
+The stable formula is v0.4.0. It has `setup`, `doctor` and `prompt`, but not ralph,
+`agents`, `resolve` or `adopt`, and it still ships two retired plugins. These docs
+describe the current `master`, which `--HEAD` builds:
 
 ```sh
-brew uninstall t3-plugins                        # only if a release is installed
+brew uninstall t3-plugins                        # only if v0.4.0 is installed
 brew install --HEAD seankoji-com/tap/t3-plugins
 t3-plugins setup
 ```
 
-Already installed? `brew upgrade seankoji-com/tap/t3-plugins`, then `t3-plugins setup`
-again. Homebrew's own formula test runs in a temporary home, so it never populates
-your skills; run `setup` yourself.
+Plain `brew upgrade` checks a HEAD install for new commits only when a new stable
+version appears. To update it now, run `brew upgrade --fetch-HEAD t3-plugins`, then
+`t3-plugins setup` again. After the next
+release reaches the tap, you can switch back to stable with `brew uninstall t3-plugins`
+and `brew install seankoji-com/tap/t3-plugins`; `t3-plugins list` shows `ralph` on
+either build that has it. Homebrew's own formula test runs in a temporary home, so it
+never populates your skills; run `setup` yourself.
 
 ## From source
 
@@ -168,8 +172,9 @@ python3 bin/t3-plugins setup
 python3 bin/t3-plugins doctor
 ```
 
-Run these in your source checkout. With Homebrew, run `brew upgrade t3-plugins`, then
-`t3-plugins setup` and `t3-plugins doctor`. Reinstalling identical files changes nothing. A changed package gets a new snapshot. Local edits
+Run these in your source checkout. With Homebrew, run
+`brew upgrade --fetch-HEAD t3-plugins` for a HEAD install (or `brew upgrade t3-plugins`
+for a stable one), then `t3-plugins setup` and `t3-plugins doctor`. Reinstalling identical files changes nothing. A changed package gets a new snapshot. Local edits
 to that same snapshot cause refusal; `--force` is an explicit overwrite. Older
 snapshots remain available, including any edits you made there.
 

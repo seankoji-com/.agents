@@ -48,11 +48,11 @@ Scale, in Material's rem where `1rem = 20px`:
 
 | Role | Size | Weight | Tracking | Line height |
 |---|---:|---:|---:|---:|
-| Hero headline | `clamp(2.2rem, 4.6vw, 3.3rem)`; `clamp(1.9rem, 10.5vw, 2.3rem)` below 45em | 600 | `-0.025em` | 1.02 |
+| Hero headline | `clamp(2.2rem, 4.2vw, 3rem)`; `clamp(1.9rem, 10.5vw, 2.3rem)` below 45em | 600 | `-0.025em` | 1.02 |
 | h1 | `2.1rem` | 600 | `-0.02em` | 1.1 |
 | h2 | `1.4rem`, hairline rule above | 500 | `-0.01em` | 1.2 |
 | h3 | `0.95rem` Plex Sans | 600 | `-0.005em` | default |
-| Lead | `0.92rem` | 400 | 0 | 1.55 |
+| Lead | `0.88rem` | 400 | 0 | 1.55 |
 | Body | `0.8rem` | 400 | 0 | 1.65 |
 | Code | `0.78em` inline, `0.74em` in blocks | 400 | 0 | 1.7 |
 | Plate number, binomial | Fraunces italic `0.72rem` to `1rem` | 500 | 0 | default |
@@ -100,7 +100,7 @@ never used for text smaller than 1rem; use `--ochre-text`.
 - Sightings table: full width, hairline rows, ink rule under the header, row headings top-aligned with their cells, model names wrapping only at hyphens, caption below in ink-soft; horizontal scroll inside its own container below 45em with a `40rem` minimum.
 - Tables elsewhere: no zebra, no box shadow, ink rule under headers, hairline rows. Inline commands may wrap at spaces so a command column does not squeeze the explanation into single-word lines.
 - Admonitions: a 2px fern left rule, no background.
-- Spacing is in Material rem; hero `2rem` top and bottom on desktop, `1.6rem` on mobile; key rows `1rem` vertical.
+- Spacing is in Material rem; hero `2rem` top and bottom on desktop, `1.6rem` below 60em, where the hero stacks into one column; key rows `1rem` vertical.
 
 Verify at 390px, 768px, 1280px, and 200 percent zoom. No page-level horizontal
 overflow at 390px; wide code blocks scroll inside their own containers.
@@ -110,7 +110,7 @@ overflow at 390px; wide code blocks scroll inside their own containers.
 - **Buttons.** 1px ink border, 4px radius, Plex Sans 500 at `0.74rem`. Primary is ink fill with paper text, hovering to fern-deep with paper text (never a fixed white, which fails on dark mode's pale fern). Focus is a 2px `--ochre-text` outline. Secondary is transparent, hovering to paper-deep. One primary per section.
 - **Specimen marks.** 96 by 96 viewBox, `role="img"` with an `aria-label`, no scripts, no external references. Tests enforce this.
 - **Sightings marks.** Filled and empty circles followed by `passed/repeats`, with an `aria-label` carrying the same numbers. States: clean (fern), mixed (ochre-text), failed (madder), not run (ink-soft italic).
-- **Install block.** In the hero: a `0.7rem` semibold title under a 1.5px ink rule, the commands in a paper-deep `pre` with a 4px radius, then one ink-soft line naming the first message to send in T3. Inline code in that line uses paper-deep with ink text. One per page.
+- **Install block.** In the hero: a `0.7rem` semibold title under a 1.5px ink rule, an optional ink-soft `0.68rem` note for anything the reader must know before running the commands (today, the release channel), the commands in a paper-deep `pre` with a 4px radius, then one ink-soft line naming the first message to send in T3. Inline code in that line uses paper-deep with ink text. One per page.
 - **Recording.** `docs/assets/demo.svg` is rendered by `scripts/render_demo.py` from a real transcript that `scripts/capture_terminal.py` records in an empty home directory (`docs/assets/recordings/`). It is a 72-column, 22-row terminal on paper: commands in ink after a fern `$`, output in ink-soft, and the literal `"ok": true` in fern. Long lines wrap as a terminal would; the view scrolls to keep the newest rows. Output appears at its recorded offset; only the typing is simulated, and the caption band says so along with the date, commit, platform and length. Styles and animation names are scoped to `.demo-rec`; `prefers-reduced-motion` shows the final frame. On the homepage it sits in a plate frame (`.fg-rec`: ink border, hairline inner frame) with a `Fig. 1` caption in ochre-text italic and links to the video and transcript; below 45em it keeps a `34rem` minimum width and scrolls sideways. `--video` renders the same frames to MP4 and WebM with a poster PNG, used on the install page. Never hand-edit a transcript or the rendered assets; recapture instead.
 - **Diagrams.** Inline SVG through the hook's `<!-- inline-svg: -->` marker so page fonts and tokens apply. 1.3px ink strokes, no fills, `Fig.` label in ochre-text italic, text in Plex Sans at 15 to 17px, a `<title>` and `<desc>`. The hook wraps each one in a `.diagram-frame`; below 45em the diagram keeps a `40rem` minimum and scrolls sideways, like the tables, rather than shrinking its labels.
 

@@ -26,8 +26,17 @@ or abandoning it. An empty Adopt section is a valid answer. The agent returns th
 source revision and the report path. A proposed experiment is a suggestion, not a
 measured improvement.
 
-Research happens in a workspace of cloned repositories outside your project.
-`$t3-ape clean` removes it.
+Research happens in a workspace of cloned repositories outside your project. To
+reclaim the disk space, name that workspace:
+
+```text
+$t3-ape clean WORKSPACE
+```
+
+That deletes the clones and keeps the reports. `$t3-ape clean WORKSPACE --all` also
+deletes the reports and the workspace itself. Either way the agent first lists what
+it would remove and asks you to confirm; a `study` or `forage` request never counts as
+permission to delete.
 
 ## Operations
 

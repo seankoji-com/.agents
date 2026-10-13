@@ -17,10 +17,11 @@
         <p class="fg-lead">{{ words[count] if count < 11 else count }} workflows for coding agents in T3 Code. Each ends in something you can check: a diff with the test run that passed on it, a brief, cited research, a merged PR.</p>
         <div class="fg-install" aria-labelledby="fg-install-title">
           <p id="fg-install-title" class="fg-install__title">Install on macOS or Linux</p>
-          <pre><code>brew install seankoji-com/tap/t3-plugins
+          <p class="fg-install__note">The stable formula is still v0.4.0, from before ralph. Until the next release, <a href="{{ 'getting-started/#homebrew-release-channel' | url }}">install the HEAD build</a>:</p>
+          <pre><code>brew install --HEAD seankoji-com/tap/t3-plugins
 t3-plugins setup
 t3-plugins doctor</code></pre>
-          <p class="fg-install__next">Then turn on <b>Show skills in slash menu</b> in T3, restart the agent session, and send <code>$t3-imps doctor</code> in a thread. ralph needs catalog v0.5.0 or later: if <code>t3-plugins list</code> doesn't show it, <a href="{{ 'getting-started/#homebrew-release-channel' | url }}">install HEAD or from source</a>.</p>
+          <p class="fg-install__next">Then turn on <b>Show skills in slash menu</b> in T3, restart the agent session, and send <code>$t3-imps doctor</code> in a thread.</p>
         </div>
         <p class="fg-actions">
           <a class="fg-primary" href="{{ 'getting-started/' | url }}">First ten minutes</a>

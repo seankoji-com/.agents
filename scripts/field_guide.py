@@ -196,12 +196,13 @@ def render_specimen_header(specimen: dict) -> str:
         f'<p class="specimen__plate">Plate {specimen["plate"]} '
         f'<span class="specimen__binomial">{html.escape(specimen["binomial"])}</span></p>'
         f'<p class="specimen__use"><b>Use it when</b> {html.escape(specimen["use_when"])}</p>'
-        f'<p class="specimen__try"><span>In a T3 thread</span><code>{html.escape(specimen["try"])}</code></p>'
+        f'<p class="specimen__try"><span>In a T3 thread</span>\n<code>{html.escape(specimen["try"])}</code></p>'
         '</div>'
-        '<dl class="specimen__facts">'
-        f'<div><dt>Habitat</dt><dd>{html.escape(specimen["habitat"])}</dd></div>'
-        f'<div><dt>Diet</dt><dd>{html.escape(specimen["diet"])}</dd></div>'
-        f'<div><dt>Field marks</dt><dd>{html.escape(specimen["field_marks"])}</dd></div>'
+        # The newlines keep search excerpts from running "Habitat" into its value.
+        '<dl class="specimen__facts">\n'
+        f'<div><dt>Habitat</dt>\n<dd>{html.escape(specimen["habitat"])}</dd></div>\n'
+        f'<div><dt>Diet</dt>\n<dd>{html.escape(specimen["diet"])}</dd></div>\n'
+        f'<div><dt>Field marks</dt>\n<dd>{html.escape(specimen["field_marks"])}</dd></div>\n'
         '</dl></div>\n\n'
     )
 
