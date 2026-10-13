@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # gh and curl then trust only the per-run bundle mounted at the gateway CA path,
 # which holds the gateway CA plus the synthetic GitHub CA (github_sidecar.trust_bundle).
 ARG GH_VERSION=2.23.0+dfsg1-1
-ARG JQ_VERSION=1.6-2.1
+ARG JQ_VERSION=1.6-2.1+deb12u2
 RUN apt-get update && apt-get install -y --no-install-recommends "gh=${GH_VERSION}" "jq=${JQ_VERSION}" \
     && rm -rf /var/lib/apt/lists/* \
     && gh --version && jq --version
