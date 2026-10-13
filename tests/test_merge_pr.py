@@ -100,7 +100,7 @@ print(code, end="")
                                         env=env, capture_output=True, text=True, timeout=20)
                 results.append(result)
 
-            calls = [json.loads(line) for line in log.read_text().splitlines()]
+            calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
             return (results if followups else result), calls
 
     def test_blocked_resolve_merge_flow_exposes_usable_thread_id(self):
@@ -277,6 +277,43 @@ print(code, end="")
         self.assertIn("reason=closed", result.stdout)
         self.assertIn("prior_blocker=failing_checks", result.stdout)
         self.assertEqual(len(calls), 2)
+
+    def test_arm_always_arms_open_threads_and_conflicts_without_merging(self):
+        for mode, reason in (("marker", "unanswered_threads"), ("conflict", "conflict"),
+                             ("truncated", "incomplete_review_state")):
+            with self.subTest(mode=mode):
+                result, calls = self.run_helper(mode, ["--arm-always"])
+                self.assertEqual(result.returncode, 4, result.stderr)
+                self.assertIn("reason=" + reason, result.stdout)
+                self.assertIn("automerge=armed", result.stdout)
+                self.assertFalse(any("merge_method" in c for c in calls))
+                self.assertEqual(calls[-1]["variables"]["sha"], HEAD)
+
+    def test_arm_always_reports_threads_behind_existing_automerge(self):
+        result, calls = self.run_helper("preexisting-unresolved", ["--arm-always"])
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("reason=unanswered_threads", result.stdout)
+        self.assertIn("automerge=preexisting", result.stdout)
+        self.assertFalse(any("enablePullRequestAutoMerge" in c.get("query", "") for c in calls))
+
+    def test_arm_always_keeps_terminal_guards_and_direct_merge_gate(self):
+        result, calls = self.run_helper("race", ["--arm-always"])
+        self.assertIn("reason=head_changed", result.stdout)
+        self.assertIn("automerge=unavailable", result.stdout)
+        result, calls = self.run_helper("success", ["--arm-always"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("MERGED", result.stdout)
+        for flags in (["--arm-always", "--no-auto"], ["--arm-always", "--resolve-thread", "T1", "--verified-head", HEAD]):
+            with self.subTest(flags=flags):
+                result = self.run_helper("success", flags)[0]
+                self.assertEqual(result.returncode, 2)
+
+    def test_resolution_works_after_quick_pass_armed_automerge(self):
+        result, calls = self.run_helper("preexisting-unresolved", ["--resolve-thread", "T1", "--verified-head", HEAD])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("RESOLVED", result.stdout)
+        self.assertIn("resolveReviewThread", calls[-1]["query"])
+        self.assertFalse(any("merge_method" in c for c in calls))
 
     def test_explicit_resolution_checks_owner_and_head_without_merging(self):
         args = ["--resolve-thread", "T1", "--verified-head", HEAD]

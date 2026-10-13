@@ -14,8 +14,14 @@
 # handshake cleanly. `gh` is used only for `gh auth token`, a local credential read.
 #
 # Usage:
-#   merge-pr.sh --repo <owner/name> --pr <N> [--method squash|merge|rebase] [--no-auto]
+#   merge-pr.sh --repo <owner/name> --pr <N> [--method squash|merge|rebase] [--no-auto | --arm-always]
 #   merge-pr.sh --repo <owner/name> --pr <N> --resolve-thread <ID> --verified-head <SHA>
+#
+# --arm-always is the babysitter quick pass: when the operator has accepted that
+# auto-merge may land a PR whose review threads or conflicts are still open, it also
+# arms auto-merge for conflict, behind, unanswered_threads and incomplete_review_state
+# outcomes, and an existing auto-merge request no longer blocks unresolved threads.
+# It never relaxes the direct-merge gate: only CLEAN + SUCCESS + resolved threads merge.
 #
 # The resolution mode is a separate, explicit action after the agent verifies the
 # finding and posts its evidence. It checks thread ownership and the verified head,
@@ -89,6 +95,7 @@ METHOD=""
 RESOLVE_THREAD=""
 VERIFIED_HEAD=""
 AUTO_MERGE=1
+ARM_ALWAYS=0
 
 die() {
   echo "merge-pr.sh: $1" >&2
@@ -145,6 +152,10 @@ while [ $# -gt 0 ]; do
     AUTO_MERGE=0
     shift
     ;;
+  --arm-always)
+    ARM_ALWAYS=1
+    shift
+    ;;
   -h | --help)
     usage
     exit 0
@@ -181,7 +192,9 @@ if [ -n "$RESOLVE_THREAD" ] || [ -n "$VERIFIED_HEAD" ]; then
   [ -n "$RESOLVE_THREAD" ] && [ -n "$VERIFIED_HEAD" ] || die "resolution requires both --resolve-thread and --verified-head"
   [[ "$VERIFIED_HEAD" =~ ^[0-9a-f]{40}$ ]] || die "--verified-head must be a full lowercase commit SHA"
   [ -z "$METHOD" ] || die "resolution mode cannot also select a merge method"
+  [ "$ARM_ALWAYS" = 0 ] || die "resolution mode cannot also arm auto-merge"
 fi
+[ "$ARM_ALWAYS" = 0 ] || [ "$AUTO_MERGE" = 1 ] || die "--arm-always and --no-auto are mutually exclusive"
 
 OWNER="${REPO%%/*}"
 NAME="${REPO#*/}"
@@ -333,7 +346,7 @@ enable_automerge() {
   state="$(fetch_state)" || return 1
   handle_terminal_state "${1:-}"
   expected_head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
-  jq -e '.data.repository.pullRequest.reviewThreads | .pageInfo.hasNextPage == false and all(.nodes[]; .isResolved == true)' >/dev/null <<<"$state" || return 1
+  [ "$ARM_ALWAYS" = 1 ] || jq -e '.data.repository.pullRequest.reviewThreads | .pageInfo.hasNextPage == false and all(.nodes[]; .isResolved == true)' >/dev/null <<<"$state" || return 1
   pr_id="$(jq -r '.data.repository.pullRequest.id // empty' <<<"$state")"
   [ -n "$pr_id" ] || return 1
   already="$(jq -r '.data.repository.pullRequest.autoMergeRequest.enabledAt // empty' <<<"$state")"
@@ -358,22 +371,21 @@ enable_automerge() {
 # needed — resolves on its own without another call to this script. Exit code and
 # reason are the same whether or not auto-merge could be armed.
 blocked() {
-  local reason="$1" detail="$2" automerge="unavailable" arm_rc
+  local reason="$1" detail="$2" automerge="unavailable" arm_rc armable="$AUTO_MERGE"
   if jq -e '.data.repository.pullRequest.autoMergeRequest.enabledAt' >/dev/null 2>&1 <<<"${state:-}"; then
     automerge="preexisting"
   fi
-  if [ "$AUTO_MERGE" = 1 ]; then
-    case "$reason" in
-    head_changed | conflict | behind | incomplete_review_state | unanswered_threads | closed | automerge_already_enabled | verified_head_changed | thread_not_on_pr | permission_denied | validation_failed) ;;
-    *)
-      if enable_automerge "$reason"; then
-        automerge="armed"
-      else
-        arm_rc=$?
-        [ "$arm_rc" != 2 ] || automerge="preexisting"
-      fi
-      ;;
-    esac
+  case "$reason" in
+  head_changed | closed | automerge_already_enabled | verified_head_changed | thread_not_on_pr | permission_denied | validation_failed) armable=0 ;;
+  conflict | behind | incomplete_review_state | unanswered_threads) [ "$ARM_ALWAYS" = 1 ] || armable=0 ;;
+  esac
+  if [ "$armable" = 1 ]; then
+    if enable_automerge "$reason"; then
+      automerge="armed"
+    else
+      arm_rc=$?
+      [ "$arm_rc" != 2 ] || automerge="preexisting"
+    fi
   fi
   echo "BLOCKED ${REPO}#${PR_NUMBER} reason=${reason} detail=${detail} automerge=${automerge}"
   exit 4
@@ -405,11 +417,7 @@ try_merge() {
 state="$(fetch_state)" || die "could not read PR state" 3
 handle_terminal_state
 expected_head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
-if jq -e '.data.repository.pullRequest.autoMergeRequest.enabledAt' >/dev/null <<<"$state"; then
-  if [ "$AUTO_MERGE" = 0 ] || ! jq -e '.data.repository.pullRequest.reviewThreads | .pageInfo.hasNextPage == false and all(.nodes[]; .isResolved == true)' >/dev/null <<<"$state"; then
-    blocked "automerge_already_enabled" "auto-merge may land independently; disable the existing request before continuing this verification flow"
-  fi
-fi
+# Resolution never merges, so an existing auto-merge request does not block it.
 if [ -n "$RESOLVE_THREAD" ]; then
   [ "$VERIFIED_HEAD" = "$expected_head" ] || blocked "verified_head_changed" "re-verify the finding against the new head before resolving"
   # Query the node directly so resolution works beyond the first 100 threads too.
@@ -422,6 +430,11 @@ if [ -n "$RESOLVE_THREAD" ]; then
   jq -e '.errors == null and .data.resolveReviewThread.thread.isResolved == true' >/dev/null <<<"$resolution" || die "thread resolution failed" 3
   echo "RESOLVED ${REPO}#${PR_NUMBER} thread=${RESOLVE_THREAD} head=${VERIFIED_HEAD}"
   exit 0
+fi
+if jq -e '.data.repository.pullRequest.autoMergeRequest.enabledAt' >/dev/null <<<"$state"; then
+  if [ "$AUTO_MERGE" = 0 ] || { [ "$ARM_ALWAYS" = 0 ] && ! jq -e '.data.repository.pullRequest.reviewThreads | .pageInfo.hasNextPage == false and all(.nodes[]; .isResolved == true)' >/dev/null <<<"$state"; }; then
+    blocked "automerge_already_enabled" "auto-merge may land independently; disable the existing request before continuing this verification flow"
+  fi
 fi
 mergeable="$(jq -r '.data.repository.pullRequest.mergeable' <<<"$state")"
 merge_state="$(jq -r '.data.repository.pullRequest.mergeStateStatus' <<<"$state")"

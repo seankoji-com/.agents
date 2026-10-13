@@ -9,6 +9,8 @@ then `PKG/playbooks/maintain.md`. Delegation follows `PKG/shared/delegation.md`.
 - `org <owner>`: eligible open PRs across an organization.
 - `doctor`: inspect Git, Bash, `gh`, `jq`, GitHub authentication, and T3 watch capability.
 
-Resolve authorization before edits, messages, pushes, or merges. "Review" alone
-authorizes inspection; "babysit through merge" includes fixing and landing eligible
-PRs within the stated scope. Never bypass protected branch requirements.
+Invoking `pr`, `repo`, or `org` authorizes babysitting through merge within that
+scope: arming auto-merge on every targeted PR, merging PRs that are ready now, and
+fixing, pushing to, and replying on the targeted PR branches until they merge. A
+request that says "inspect", "review only", or "do not merge" authorizes inspection
+alone. Never bypass protected branch requirements.
