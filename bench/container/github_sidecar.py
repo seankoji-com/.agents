@@ -60,7 +60,13 @@ GIT_IDENTITY = {'GIT_AUTHOR_NAME': 'bench fixture', 'GIT_AUTHOR_EMAIL': 'fixture
 GIT_ROUTE = re.compile(r'/([^/]+)/([^/]+?)(?:\.git)?/(info/refs|git-upload-pack|git-receive-pack|HEAD|objects/.+)')
 
 
+def no_crlf(value):
+    """Header text with line breaks removed, so it can never start another header line."""
+    return str(value).replace('\r', '').replace('\n', '')
+
+
 # ---- scenario ---------------------------------------------------------------
+
 
 def canary_scenario() -> dict:
     """The Stage 1b canary data, served when no scenario is configured."""
@@ -705,7 +711,7 @@ def make_handler(model: Model, log: EventLog, protocol: str):
             for name, value_text in headers:
                 if any(c in f'{name}{value_text}' for c in '\r\n\x00'):
                     raise ValueError('refusing a header that could split the response')
-                self.send_header(name, value_text)
+                self.send_header(no_crlf(name), no_crlf(value_text))
             self.end_headers()
             self.wfile.write(body)
 
@@ -769,7 +775,7 @@ def make_handler(model: Model, log: EventLog, protocol: str):
             self.send_response(status)
             for key, value in headers:
                 if key.lower() not in ('content-length', 'connection', 'transfer-encoding'):
-                    self.send_header(key, value)
+                    self.send_header(no_crlf(key), no_crlf(value))
             self.send_header('Content-Length', str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)

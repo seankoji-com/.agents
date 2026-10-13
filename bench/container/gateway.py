@@ -130,7 +130,9 @@ def response_metadata(body, content_type):
 def header_safe(value):
     """Return the text if it is safe to emit in an HTTP header line, else None (no CR, LF or NUL)."""
     text = str(value)
-    return None if any(c in text for c in '\r\n\x00') else text
+    if any(c in text for c in '\r\n\x00'):
+        return None
+    return text.replace('\r', '').replace('\n', '')
 
 
 class PolicyError(ValueError):
@@ -466,13 +468,12 @@ class GatewayHandler(BaseHTTPRequestHandler):
             response_headers = [(k, header_safe(v)) for k, v in response.getheaders()
                                 if k.lower() in {'content-type', 'cache-control', 'request-id'}
                                 and header_safe(v) is not None]
-            reason = header_safe(response.reason) or ''
             content_type = next((v for k, v in response_headers if k.lower() == 'content-type'), '')
             if not 200 <= status < 300:
                 self._record_lock()
             if 'text/event-stream' in content_type:
                 failure_phase = 'downstream-cancellation'
-                self.send_response(status, reason)
+                self.send_response(status)  # standard phrase, never the upstream text
                 for key, value in response_headers:
                     self.send_header(key, value)
                 self.send_header('Connection', 'close')
@@ -485,7 +486,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 if len(result) > MAX_REPLY:
                     raise OversizeReply('upstream response too large')
                 failure_phase = 'downstream-cancellation'
-                self.send_response(status, reason)
+                self.send_response(status)  # standard phrase, never the upstream text
                 for key, value in response_headers:
                     self.send_header(key, value)
                 self.send_header('Content-Length', str(len(result)))

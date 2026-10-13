@@ -65,7 +65,7 @@ def run(args, log, check=True, timeout=None):
             code = result.returncode
         except subprocess.TimeoutExpired:
             # A hung daemon is a failed command, never a successful cleanup.
-            stream.write(f'timed out after {timeout}s: {args[0]}\n'.encode())
+            stream.write(f'timed out after {timeout}s\n'.encode())
             code = 124
     if check and code:
         raise RuntimeError(f'command failed ({code}): {args[0]}')
