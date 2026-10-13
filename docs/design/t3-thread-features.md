@@ -33,7 +33,7 @@ T3 host behaves as described; see [Compatibility](../compatibility.md).
 | External MCP endpoint | Implemented: no endpoint material in run records; own MCP client rejected |
 | OAuth and pairing | Implemented: authentication grants tool access, not plugin authority |
 | External orchestrators and `t3_thread_launch` | Implemented: mapping onto the coordinator role; launch for child work stays rejected |
-| Per-turn Git checkpoints | Implemented: committed changes by SHA, edit-only work by continuing in the writer's worktree at a matching snapshot, artifacts by path and hash; cross-worktree transfer and hidden refs deferred |
+| Per-turn Git checkpoints | Deferred: hidden checkpoint refs and dependent-stage source handoff; three plain prohibitions added |
 
 ## 1. `t3_thread_list`
 
@@ -219,73 +219,52 @@ callers, until a live check shows how such callers are woken.
 **Today.** Ralph's "checkpoint" is its own state file outside the worktree
 (`plugins/ralph/cli.py`), unrelated to T3's checkpoints. Ralph records a content baseline
 and reports `changedPaths`. Jobs end with an integration stage
-(`shared/job-coordination.md`), and parallel writers get their own worktrees
-(`shared/delegation.md`, Writer isolation). Research jobs hand accepted reports to
-later stages by path and hash, with no commit: ape's research stages list their report
-as an output that reaches the synthesis brief as `consumed_outputs`
-(`plugins/ape/references/research-job.md`), and synthesis builds on the accepted
-report paths and hashes (`plugins/ape/playbooks/forage.md`). Those jobs carry only the
-`read` action, so they could not commit even if asked.
+(`shared/job-coordination.md`). Parallel writers get their own worktrees, and when that
+isolation cannot be established they run one at a time in one checkout
+(`shared/delegation.md`, Writer isolation). Research jobs already hand accepted reports
+to later stages by path and hash (`plugins/ape/references/research-job.md`,
+`plugins/ape/playbooks/forage.md`); that handoff covers artifacts, not source changes,
+and this change leaves it alone.
 
 **Opportunity.** The owner says T3 commits hidden Git refs at the end of every turn
 (*assumption*: the ref names and layout are not documented in this repository).
 *Schema:* `t3_thread_merge_back` accepts a `checkpointId`, so checkpoint identities
-exist. The transferable part is the discipline: a dependent stage starts from a fixed,
-recorded revision of finished work, in one of two forms. Committed changes, where the
-job authorizes commits, reach it as a commit or branch at an observed SHA. Uncommitted,
-edit-only work stays where it was made. imps defaults to local work and binds every
-check to a snapshot (`plugins/imps/entry.md`), and a job may authorize only `edit` and
-`local-checks`. The dependent stage therefore continues in the accepted writer's own
-worktree once that writer has finished, after confirming that a new snapshot's `head`
-and `content_hash` (`core/snapshot.py`) still match the accepted stage's snapshot. A
-later edit changes `content_hash`, so the dependent stage stops on the drift instead of
-building on unaccepted content. The snapshot sees only what `git status` reports. With
-`core.filemode=false`, a later executable-bit change to a clean tracked file leaves
-`content_hash` unchanged, and assume-unchanged or skip-worktree entries hide edits the
-same way, so in either case the dependent stage refuses to continue and reports that
-continuation cannot be verified. Paths Git ignores are outside the snapshot and are not
-handed on. No commit is created that the job did not authorize.
-Accepted artifacts outside any worktree, such as research reports, keep their existing
-path-and-hash handoff. No form reads a worktree whose writer is still active or re-runs
-a completed task.
+exist. Two uses were considered: read a finished task's output from its checkpoint ref
+instead of re-running it, and let a dependent stage consume an earlier writer's
+uncommitted source changes at a recorded, checked revision.
 
-**Gain.** Efficiency: no repeated work to recover output. Correctness: dependent stages
-start from a fixed revision, a confirmed snapshot or a fixed, hashed artifact.
+**Gain.** Efficiency: no repeated work to recover output, and dependent stages could
+run without waiting for commit authority. Correctness: a dependent stage would start
+from a fixed revision instead of a worktree that may still change.
 
 **Risk.** Depending on undocumented refs would break silently when the host changes
-their layout; resetting to them could discard work. Requiring a commit for every
-handoff would break read-only research jobs and edit-only engineering jobs, so the
-commit rule is limited to source-worktree integration of changes the job may commit.
-Continuing in the writer's worktree runs dependent edit-only stages one at a time there,
-as Writer isolation already does when separate worktrees cannot be established. Without
-commit authority, edit-only writers in separate worktrees cannot be combined. The
-refusal is conservative: a worktree with `core.filemode=false`, or a sparse checkout
-(which marks paths outside its cone skip-worktree), cannot continue edit-only work at
-all and needs commit authority instead.
+their layout, and resetting to them could discard work. Earlier revisions of this change
+tried a source handoff, first as a cross-worktree transfer and then as a snapshot-checked
+continuation in the writer's own worktree. Each review round found a change the check
+could not see:
 
-**Disposition: implemented** in `shared/delegation.md` (Writer isolation).
+- A plain `git diff --binary` leaves out staged changes and untracked files.
+- A tree records a dirty submodule only as its commit, so edits inside it went unseen.
+- Clean and smudge filters mean a matching tree or hash does not prove the working
+  bytes arrived.
+- With `core.filemode=false`, executable-bit changes produce no mismatch.
+- Assume-unchanged and skip-worktree flags hide edits from `git status`, and so from the
+  snapshot.
+- Per-submodule Git config can set any of the above inside a submodule, out of sight of
+  the superproject's checks.
+- An adversarial clean filter can hide byte changes from every Git-based comparison.
 
-**Deferred: cross-worktree transfer of uncommitted work.** An earlier revision of this
-change moved edit-only work into a dependent's own worktree, first as a plain patch,
-then with a temporary-index tree-ID check, then with a refusal for submodules. Each
-round of review found a Git case the check could not see:
+`core/snapshot.py` sees only what `git status` reports, so it cannot be made
+tamper-proof within this change.
 
-- A plain `git diff --binary` leaves out staged changes and untracked files, so a
-  dependent could apply it cleanly and still lack an accepted new file.
-- A tree records a submodule only as its commit, so edits inside a dirty owned
-  submodule were invisible to the tree ID while the accepted snapshot hashed them.
-- `git add` applies clean filters and `git apply` does not run smudge filters, so a
-  matching tree ID did not prove the working bytes arrived.
-- With `core.filemode=false`, executable-bit changes were lost without a mismatch.
-- Refusing any patch containing the text `Subproject commit` also refused ordinary
-  files that happen to contain it.
-
-Until a transfer can verify the actual working bytes and modes of the owned paths, the
-contract keeps edit-only work in the writer's worktree and says that a plain diff is not
-a transfer.
-
-**Deferred: hidden checkpoint refs.** Reading them directly waits until the host
-documents them; the rule says not to fetch, reset to or depend on them before then.
+**Disposition: deferred** for both hidden checkpoint refs and any dependent-stage source
+handoff beyond the existing sequential-writer rule. A future change would need snapshot
+and handoff support in `core/` that compares the actual working bytes and modes of owned
+paths, and checkpoint refs need host documentation first. Until then
+`shared/delegation.md` (Writer isolation) keeps only three plain prohibitions, with no
+claim to detect their breach: never read from or write into a worktree whose writer is
+still active; never re-run a completed task to recover its output; do not fetch, reset
+to or depend on T3's per-turn checkpoint refs unless the host documents them.
 
 ## Not changed
 

@@ -63,26 +63,9 @@ integration order. When you cannot establish that isolation (for example, a chil
 cannot write outside your checkout), run writers one at a time in your checkout.
 Readers may still run in parallel.
 
-A dependent slot consumes earlier source-worktree changes only from a finished writer,
-at a recorded revision, in one of two forms. Committed changes, where the job authorizes
-commits, arrive as a commit or branch at an observed SHA: inspect it with `git diff` or
-`git log`, or merge it into the dependent worktree. Uncommitted, edit-only work stays in
-the accepted writer's own worktree: once that writer is finished, the dependent slot
-continues there, and before starting it takes a new snapshot and confirms that its
-`head` and `content_hash` still match the accepted stage's snapshot. On a mismatch it
-stops and reports the drift. The snapshot sees only what `git status` reports, so the
-slot also stops, reporting that continuation cannot be verified, when
-`git config --type=bool core.filemode` prints `false` (an executable-bit change to a
-clean tracked file would not show) or `git ls-files -v` shows a lower-case or `S` tag
-(assume-unchanged and skip-worktree entries hide edits). Paths Git ignores are outside
-the snapshot and are not handed on. Never move uncommitted work to another worktree; plain
-`git diff --binary` omits staged and untracked work and is not a transfer. Never commit
-only to hand work on; that needs the job's commit authority. Accepted artifacts, such as
-reports under the job directory named in `consumed_outputs`, are handed off by path
-and recorded hash instead; they need no commit. Never read from or write into a
-worktree whose writer is still active, and never re-run a completed task to recover
-its output. T3's per-turn checkpoints are host
-state: do not fetch, reset to or depend on their refs unless the host documents them.
+Never read from or write into a worktree whose writer is still active, and never re-run
+a completed task to recover its output. T3's per-turn checkpoints are host state: do
+not fetch, reset to or depend on their refs unless the host documents them.
 
 ## Task hygiene
 

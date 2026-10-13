@@ -1,18 +1,14 @@
 """REQ-T3-THREADS: how the workflows use T3's thread tools. Sibling-work discovery is
 read-only, applied before writable runs, counts parked maintainers and reports partial
-coverage; result recovery reads an owned child's recorded run to the end; dependent work
-starts from a commit at a recorded SHA, from the finished writer's own worktree at a
-matching snapshot (refused where the snapshot cannot see a change), or from an artifact
-hash, and cross-worktree transfer of uncommitted work stays deferred; external
-coordinators keep the same authority and leave no endpoint material behind. The design note covers all seven features with a disposition
-each."""
+coverage; result recovery reads an owned child's recorded run to the end; dependent-stage
+source handoff and hidden checkpoint refs stay deferred, leaving three plain prohibitions;
+external coordinators keep the same authority and leave no endpoint material behind. The
+design note covers all seven features with a disposition each."""
 import re
 import sys
-import tempfile
 import unittest
-from pathlib import Path
 
-from support import ROOT, git
+from support import ROOT
 
 SHARED = ROOT / 'shared'
 NOTE = ROOT / 'docs' / 'design' / 't3-thread-features.md'
@@ -160,198 +156,46 @@ class SendBoundaryTest(unittest.TestCase):
         self.assertEqual(naming, allowed)
         self.assertIn('never `childThreadId` continuation, `t3_thread_send`',
                       flat((ROOT / 'plugins/ralph/playbooks/loop.md').read_text()))
+        # The new discovery tools add no send path: a sibling they find stays untouched.
+        self.assertIn('Never send to, steer, interrupt, cancel or adopt a thread this run does not own',
+                      bullet((SHARED / 't3-runtime.md').read_text(), 'Sibling-work check:'))
 
 
 def isolation_rule():
     return flat((SHARED / 'delegation.md').read_text().split('## Writer isolation')[1].split('## ')[0])
 
 
-# The withdrawn cross-worktree transfer procedure; no contract may describe it again.
-TRANSFER_STEPS = ('GIT_INDEX_FILE', 'read-tree', 'write-tree', 'git apply', 'diff --cached',
-                  'Subproject commit', '--ignore-submodules', 'takes a transfer', 'tree matches')
+KEPT_PROHIBITIONS = ('Never read from or write into a worktree whose writer is still active, and never re-run a '
+                     'completed task to recover its output. T3\'s per-turn checkpoints are host state: do not fetch, '
+                     'reset to or depend on their refs unless the host documents them.')
+# The withdrawn dependent-stage source handoff: its two forms, snapshot continuation check,
+# refusal checks and transfer procedure. No contract may describe any of it again.
+WITHDRAWN_HANDOFF = (
+    'consumes earlier source-worktree changes', 'in one of two forms', 'arrive as a commit or branch at an observed SHA',
+    "stays in the accepted writer's own worktree", 'the dependent slot continues there', 'content_hash',
+    "accepted stage's snapshot", 'reports the drift', 'continuation cannot be verified', 'core.filemode',
+    'git ls-files -v', 'skip-worktree', 'assume-unchanged', 'outside the snapshot', 'git diff --binary',
+    'is not a transfer', 'Never move uncommitted work', 'Never commit only to hand work on',
+    'are handed off by path and recorded hash instead', 'GIT_INDEX_FILE', 'read-tree', 'write-tree',
+    'git apply', 'diff --cached', 'Subproject commit', '--ignore-submodules', 'takes a transfer', 'tree matches')
 
 
 class DependentWorkTest(unittest.TestCase):
-    def test_dependent_slots_consume_commits_not_live_worktrees_or_hidden_refs(self):
+    def test_writer_isolation_keeps_only_plain_prohibitions(self):
         isolation = isolation_rule()
-        for phrase in ('consumes earlier source-worktree changes only from a finished writer, at a recorded '
-                       'revision, in one of two forms',
-                       'Committed changes, where the job authorizes commits, arrive as a commit or branch at an '
-                       'observed SHA',
-                       'Never read from or write into a worktree whose writer is still active',
-                       'never re-run a completed task to recover its output',
-                       'do not fetch, reset to or depend on their refs unless the host documents them'):
-            self.assertIn(phrase, isolation)
+        self.assertIn('run writers one at a time in your checkout', isolation)
+        tail = isolation.split('Readers may still run in parallel.')[1].strip()
+        self.assertEqual(tail, KEPT_PROHIBITIONS, 'no handoff rule or detection claim follows the base rule')
 
-    def test_edit_only_work_continues_in_the_writer_worktree_at_a_matching_snapshot(self):
-        isolation = isolation_rule()
-        for phrase in ("Uncommitted, edit-only work stays in the accepted writer's own worktree",
-                       'once that writer is finished, the dependent slot continues there',
-                       "takes a new snapshot and confirms that its `head` and `content_hash` still match the "
-                       "accepted stage's snapshot",
-                       'On a mismatch it stops and reports the drift',
-                       "Never commit only to hand work on; that needs the job's commit authority"):
-            self.assertIn(phrase, isolation)
-        self.assertLess(isolation.index('takes a new snapshot'), isolation.index('On a mismatch'))
-
-    def test_cross_worktree_transfer_is_withdrawn_and_a_plain_diff_is_not_one(self):
-        isolation = isolation_rule()
-        self.assertIn('Never move uncommitted work to another worktree; plain `git diff --binary` omits staged '
-                      'and untracked work and is not a transfer', isolation)
+    def test_withdrawn_handoff_text_is_absent_from_every_contract(self):
+        self.assertIn(KEPT_PROHIBITIONS, isolation_rule())
         contracts = [*SHARED.glob('*.md'), *(ROOT / 'plugins').rglob('*.md')]
+        self.assertGreater(len(contracts), 10)
         for path in contracts:
             text = flat(path.read_text())
-            for step in TRANSFER_STEPS:
-                with self.subTest(path=path.relative_to(ROOT).as_posix(), step=step):
-                    self.assertNotIn(step, text)
-
-    def test_plain_diff_drops_staged_and_untracked_work(self):
-        # Why the warning stays: a plain diff of edit-only work is silently incomplete.
-        with tempfile.TemporaryDirectory() as tmp:
-            writer = self._writer(tmp)
-            (writer / 'src' / 'count.py').write_text('print(2)\n')
-            git(writer, 'add', 'src/count.py')
-            (writer / 'src' / 'new.py').write_text('print("new")\n')
-            plain = git(writer, 'diff', '--binary').stdout
-            self.assertNotIn('count.py', plain, 'staged-only change')
-            self.assertNotIn('new.py', plain, 'untracked file')
-
-    @staticmethod
-    def _snapshot():
-        sys.path.insert(0, str(ROOT))
-        try:
-            from core import snapshot
-        finally:
-            sys.path.remove(str(ROOT))
-        return snapshot
-
-    @staticmethod
-    def _writer(tmp, name='writer'):
-        writer = Path(tmp, name)
-        (writer / 'src').mkdir(parents=True)
-        git(writer, 'init', '-q')
-        (writer / 'src' / 'count.py').write_text('print(1)\n')
-        (writer / 'src' / 'tool.sh').write_text('echo hi\n')
-        (writer / 'src' / 'run.sh').write_text('echo run\n')  # stays clean in the accepted work
-        git(writer, 'add', 'src')
-        git(writer, 'commit', '-q', '-m', 'base')
-        return writer
-
-    def _accepted_edit_only_work(self, tmp, name='writer'):
-        """A finished writer's uncommitted work, staged, unstaged and untracked, and its accepted snapshot."""
-        writer = self._writer(tmp, name)
-        head = git(writer, 'rev-parse', 'HEAD').stdout.strip()
-        (writer / 'src' / 'count.py').write_text('print(2)\n')
-        git(writer, 'add', 'src/count.py')
-        (writer / 'src' / 'count.py').write_text('print(3)\n')
-        (writer / 'src' / 'tool.sh').write_text('echo bye\n')
-        (writer / 'src' / 'new.py').write_text('print("new")\n')
-        accepted = self._snapshot().take(writer)
-        self.assertEqual(accepted['head'], head, 'edit-only work creates no commit')
-        return writer, accepted
-
-    def test_continuation_starts_when_the_accepted_snapshot_still_matches(self):
-        snapshot = self._snapshot()
-        with tempfile.TemporaryDirectory() as tmp:
-            writer, accepted = self._accepted_edit_only_work(tmp)
-            self.assertTrue(snapshot.same(accepted, snapshot.take(writer)))
-
-    def test_continuation_detects_a_later_edit(self):
-        snapshot = self._snapshot()
-        later_edits = {
-            'unstaged edit': lambda w: (w / 'src' / 'count.py').write_text('print(4)\n'),
-            'staged-only edit': lambda w: git(w, 'add', 'src/count.py'),
-            'new untracked file': lambda w: (w / 'src' / 'extra.py').write_text('x = 1\n'),
-            'deleted file': lambda w: (w / 'src' / 'new.py').unlink(),
-            'commit': lambda w: (git(w, 'add', '-A'), git(w, 'commit', '-q', '-m', 'later')),
-        }
-        with tempfile.TemporaryDirectory() as tmp:
-            for index, (label, edit) in enumerate(later_edits.items()):
-                with self.subTest(edit=label):
-                    writer, accepted = self._accepted_edit_only_work(tmp, f'writer{index}')
-                    edit(writer)
-                    self.assertFalse(snapshot.same(accepted, snapshot.take(writer)),
-                                     'the dependent slot stops on the drift')
-
-    def test_continuation_refuses_where_the_snapshot_cannot_see_a_change(self):
-        isolation = isolation_rule()
-        for phrase in ("The snapshot sees only what `git status` reports, so the slot also stops, reporting that "
-                       "continuation cannot be verified, when `git config --type=bool core.filemode` prints "
-                       "`false`",
-                       '`git ls-files -v` shows a lower-case or `S` tag',
-                       'Paths Git ignores are outside the snapshot and are not handed on'):
-            self.assertIn(phrase, isolation)
-
-        snapshot = self._snapshot()
-
-        def continuation_allowed(writer, accepted):
-            # The documented check, command for command.
-            filemode = git(writer, 'config', '--type=bool', 'core.filemode', check=False).stdout.strip()
-            tags = [line[:1] for line in git(writer, 'ls-files', '-v').stdout.splitlines()]
-            hidden = any(tag.islower() or tag == 'S' for tag in tags)
-            return filemode != 'false' and not hidden and snapshot.same(accepted, snapshot.take(writer))
-
-        blind = {
-            'executable bit on a clean script, filemode off': (
-                lambda w: git(w, 'config', 'core.filemode', 'false'),
-                lambda w: (w / 'src' / 'run.sh').chmod(0o755)),
-            'edit to an assume-unchanged file': (
-                lambda w: git(w, 'update-index', '--assume-unchanged', 'src/run.sh'),
-                lambda w: (w / 'src' / 'run.sh').write_text('echo changed\n')),
-            'edit to a skip-worktree file': (
-                lambda w: git(w, 'update-index', '--skip-worktree', 'src/run.sh'),
-                lambda w: (w / 'src' / 'run.sh').write_text('echo changed\n')),
-        }
-        with tempfile.TemporaryDirectory() as tmp:
-            for index, (label, (setting, edit)) in enumerate(blind.items()):
-                with self.subTest(case=label):
-                    writer, _ = self._accepted_edit_only_work(tmp, f'blind{index}')
-                    setting(writer)
-                    accepted = snapshot.take(writer)
-                    edit(writer)
-                    self.assertTrue(snapshot.same(accepted, snapshot.take(writer)), 'the snapshot alone misses it')
-                    self.assertFalse(continuation_allowed(writer, accepted), 'the slot refuses instead')
-
-            # With filemode on, the same executable-bit change is ordinary, detected drift.
-            writer, accepted = self._accepted_edit_only_work(tmp, 'filemode-on')
-            self.assertTrue(continuation_allowed(writer, accepted))
-            (writer / 'src' / 'run.sh').chmod(0o755)
-            self.assertFalse(snapshot.same(accepted, snapshot.take(writer)))
-
-    def test_continuation_detects_drift_a_transfer_missed(self):
-        # The run-2 failure modes are visible to the snapshot in the writer's own worktree.
-        snapshot = self._snapshot()
-        with tempfile.TemporaryDirectory() as tmp:
-            writer, accepted = self._accepted_edit_only_work(tmp, 'modes')
-            git(writer, 'config', 'core.filemode', 'false')
-            (writer / 'src' / 'tool.sh').chmod(0o755)
-            self.assertFalse(snapshot.same(accepted, snapshot.take(writer)), 'executable bit, filemode off')
-
-            lib = Path(tmp, 'lib')
-            lib.mkdir()
-            git(lib, 'init', '-q')
-            (lib / 'core.py').write_text('old\n')
-            git(lib, 'add', '.')
-            git(lib, 'commit', '-q', '-m', 'lib')
-            writer = self._writer(tmp, 'with-submodule')
-            git(writer, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', str(lib), 'src/lib')
-            git(writer, 'commit', '-q', '-m', 'submodule')
-            (writer / 'src' / 'lib' / 'core.py').write_text('new\n')
-            accepted = snapshot.take(writer)
-            (writer / 'src' / 'lib' / 'core.py').write_text('newer\n')
-            self.assertFalse(snapshot.same(accepted, snapshot.take(writer)), 'edit inside an owned submodule')
-
-    def test_accepted_artifacts_keep_their_hash_bound_handoff(self):
-        isolation = isolation_rule()
-        self.assertIn('Accepted artifacts, such as reports under the job directory named in `consumed_outputs`, '
-                      'are handed off by path and recorded hash instead; they need no commit', isolation)
-        self.assertNotIn('consumes earlier work only as a commit', isolation)
-        # The research workflows that rely on that form still describe it.
-        job = flat((ROOT / 'plugins/ape/references/research-job.md').read_text())
-        self.assertIn('`authorization.actions`: `["read"]`', job)
-        self.assertIn("(dependents' `consumed_outputs`)", job)
-        self.assertIn('prepare the synthesis brief with the accepted report paths and hashes',
-                      flat((ROOT / 'plugins/ape/playbooks/forage.md').read_text()))
+            for phrase in WITHDRAWN_HANDOFF:
+                with self.subTest(path=path.relative_to(ROOT).as_posix(), phrase=phrase):
+                    self.assertNotIn(phrase, text)
 
 
 class ExternalCoordinatorTest(unittest.TestCase):
@@ -412,7 +256,7 @@ class DesignNoteTest(unittest.TestCase):
         self.assertGreaterEqual(self.text.count('*assumption'), 4)
         self.assertIn('*Schema:*', self.text)
 
-    def test_note_records_the_limits_and_both_handoff_forms(self):
+    def test_note_records_the_sibling_check_limits_and_run_bound_reads(self):
         flat_sections = {k: flat(v) for k, v in self.sections.items()}
         listing = flat_sections['`t3_thread_list`']
         for phrase in ('an older active thread can sit beyond the first page\'s cursor',
@@ -427,31 +271,30 @@ class DesignNoteTest(unittest.TestCase):
         self.assertIn('parked (`idle`, `completed`) unsettled threads', listing)
         self.assertIn('a parked thread that the user or auto-settlement has already settled is filtered out',
                       listing)
-        checkpoints = flat_sections['Per-turn Git checkpoints']
-        for phrase in ('`plugins/ape/references/research-job.md`', '`plugins/ape/playbooks/forage.md`',
-                       'path-and-hash handoff', 'limited to source-worktree integration', 'in one of two forms',
-                       'edit-only engineering jobs', "continues in the accepted writer's own worktree",
-                       "still match the accepted stage's snapshot", 'stops on the drift',
-                       'a later executable-bit change to a clean tracked file leaves `content_hash` unchanged',
-                       'assume-unchanged or skip-worktree entries hide edits',
-                       'the dependent stage refuses to continue and reports that continuation cannot be verified',
-                       'or a sparse checkout'):
-            self.assertIn(phrase, checkpoints)
 
-    def test_note_defers_cross_worktree_transfer_with_the_observed_failures(self):
+    def test_note_defers_checkpoints_and_source_handoff_with_the_failure_modes(self):
         checkpoints = flat(self.sections['Per-turn Git checkpoints'])
-        deferral = checkpoints.split('**Deferred: cross-worktree transfer of uncommitted work.**')[1]
-        deferral = deferral.split('**Deferred: hidden checkpoint refs.**')[0]
-        for phrase in ('leaves out staged changes and untracked files',
-                       'A tree records a submodule only as its commit', 'clean filters', 'smudge filters',
-                       '`core.filemode=false`', 'executable-bit changes were lost',
-                       'Refusing any patch containing the text `Subproject commit`',
-                       'says that a plain diff is not a transfer'):
-            self.assertIn(phrase, deferral)
-        self.assertIn('cross-worktree transfer and hidden refs deferred',
-                      flat(self.text.split('## 1.')[0]))
-        for step in ('GIT_INDEX_FILE', 'git apply` at', 'takes a transfer', 'rebuilds the tree'):
-            self.assertNotIn(step, checkpoints, 'the note describes no transfer procedure')
+        self.assertIn('**Disposition: deferred** for both hidden checkpoint refs and any dependent-stage source '
+                      'handoff beyond the existing sequential-writer rule', checkpoints)
+        self.assertNotIn('**Disposition: implemented', checkpoints)
+        self.assertIn('A future change would need snapshot and handoff support in `core/`', checkpoints)
+        risk = checkpoints.split('**Risk.**')[1].split('**Disposition')[0]
+        for failure in ('leaves out staged changes and untracked files', 'dirty submodule',
+                        'Clean and smudge filters', '`core.filemode=false`', 'executable-bit changes',
+                        'Assume-unchanged and skip-worktree flags', 'Per-submodule Git config',
+                        'An adversarial clean filter can hide byte changes'):
+            self.assertIn(failure, risk)
+        disposition = checkpoints.split('**Disposition: deferred**')[1]
+        for rule in ('never read from or write into a worktree whose writer is still active',
+                     'never re-run a completed task to recover its output',
+                     "do not fetch, reset to or depend on T3's per-turn checkpoint refs unless the host documents "
+                     'them', 'with no claim to detect their breach'):
+            self.assertIn(rule, disposition)
+        row = next(line for line in self.text.splitlines() if line.startswith('| Per-turn Git checkpoints'))
+        self.assertIn('Deferred: hidden checkpoint refs and dependent-stage source handoff', row)
+        self.assertNotIn('Implemented', row)
+        for step in ('GIT_INDEX_FILE', 'git apply', 'takes a transfer', 'rebuilds the tree', 'content_hash'):
+            self.assertNotIn(step, checkpoints, 'the note describes no handoff procedure')
 
     def test_external_fallback_cites_the_delegate_task_schema(self):
         external = flat(self.sections['External orchestrators'])
