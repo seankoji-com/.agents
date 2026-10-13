@@ -243,8 +243,14 @@ owned paths with `git add -A`, and records `head`, the `git write-tree` ID and t
 `head`, rebuilds the tree the same way and starts only on a match. A plain
 `git diff --binary` would not do: it leaves out staged changes and untracked files, so a
 dependent could apply it cleanly, match its hash and still lack an accepted new file.
-The tree ID compares contents, not the patch. No commit is created that the job did
-not authorize. Accepted artifacts outside any worktree, such
+The tree ID compares contents, not the patch. It does not see inside a submodule: a
+tree records only the submodule's commit, so a dependent could match the tree while
+lacking edits made inside an owned submodule, which the accepted snapshot does hash
+(`core/snapshot.py`). When `git status --porcelain=v2 --ignore-submodules=none` shows
+an `S` submodule field among the owned paths, or the patch contains
+`Subproject commit` (a moved or newly embedded repository), the writer does not
+transfer and the dependent continues in that worktree. No commit is created that the
+job did not authorize. Accepted artifacts outside any worktree, such
 as research reports, keep their existing path-and-hash handoff. No form reads a
 worktree whose writer is still active or re-runs a completed task.
 
@@ -257,7 +263,9 @@ handoff would break read-only research jobs and edit-only engineering jobs, so t
 commit rule is limited to source-worktree integration of changes the job may commit.
 A transfer applied to a moved base can conflict; the dependent slot then stops on the
 apply failure or tree mismatch instead of guessing. A transfer carries contents, not
-staging, and writes unreferenced Git objects that `git gc` later prunes.
+staging, and writes unreferenced Git objects that `git gc` later prunes. Work inside an
+owned submodule cannot be transferred at all; the dependent slot continues in the
+writer's worktree once the writer has finished.
 
 **Disposition: implemented** in `shared/delegation.md` (Writer isolation). **Deferred:**
 reading hidden checkpoint refs directly, until the host documents them; the rule says

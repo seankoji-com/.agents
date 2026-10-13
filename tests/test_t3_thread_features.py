@@ -1,7 +1,8 @@
 """REQ-T3-THREADS: how the workflows use T3's thread tools. Sibling-work discovery is
 read-only, applied before writable runs, counts parked maintainers and reports partial
 coverage; result recovery reads an owned child's recorded run to the end; dependent work
-starts from a commit, a snapshot or tree-checked transfer of uncommitted work, or an artifact
+starts from a commit, a snapshot or tree-checked transfer of uncommitted work (refused for
+work inside owned submodules), or an artifact
 hash; external coordinators keep the same authority and leave no
 endpoint material behind. The design note covers all seven features with a disposition
 each."""
@@ -184,7 +185,11 @@ class DependentWorkTest(unittest.TestCase):
                        'covers staged, unstaged, untracked and deleted owned paths',
                        'plain `git diff --binary` omits staged and untracked work and is not a transfer',
                        'applies the patch with `git apply` at the same `head`',
-                       'starts only if its tree matches'):
+                       'starts only if its tree matches',
+                       'A tree records a submodule only as its commit, so refuse the transfer, and continue in '
+                       'that worktree instead',
+                       '`git status --porcelain=v2 --ignore-submodules=none -- <owned paths>` shows an `S` '
+                       'submodule field or the patch contains `Subproject commit`'):
             self.assertIn(phrase, isolation)
         self.assertNotIn('patch saved with its recorded hash', isolation)
         self.assertIn("Never commit only to hand work on; that needs the job's commit authority", isolation)
@@ -201,6 +206,13 @@ class DependentWorkTest(unittest.TestCase):
         run('add', '-A', '--', *paths)
         return (run('rev-parse', 'HEAD').strip(), run('write-tree').strip(),
                 run('diff', '--cached', '--binary', 'HEAD'))
+
+    @staticmethod
+    def _refused(worktree, paths, patch):
+        """The documented submodule refusal: an `S` status field or a gitlink in the patch."""
+        status = git(worktree, 'status', '--porcelain=v2', '--ignore-submodules=none', '--', *paths).stdout
+        changed = [line.split(' ') for line in status.splitlines() if line[:2] in ('1 ', '2 ')]
+        return any(fields[2].startswith('S') for fields in changed) or b'Subproject commit' in patch
 
     def _pair(self, tmp):
         first, second = Path(tmp, 'first'), Path(tmp, 'second')
@@ -280,6 +292,78 @@ class DependentWorkTest(unittest.TestCase):
             subprocess.run(['git', 'apply', '-'], cwd=second, input=plain, check=True, capture_output=True)
             _, received, _ = self._transfer(second, ('src',), Path(tmp, 'dependent.index'))
             self.assertNotEqual(received, tree, 'a plain diff applies cleanly yet lacks the new file')
+
+    def _with_submodule(self, tmp):
+        lib = Path(tmp, 'lib')
+        lib.mkdir()
+        git(lib, 'init', '-q')
+        (lib / 'core.py').write_text('old\n')
+        git(lib, 'add', '.')
+        git(lib, 'commit', '-q', '-m', 'lib')
+        first, second = self._pair(tmp)
+        git(first, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', str(lib), 'src/lib')
+        git(first, 'commit', '-q', '-m', 'submodule')
+        git(second, 'checkout', '-q', '--detach', git(first, 'rev-parse', 'HEAD').stdout.strip())
+        git(second, '-c', 'protocol.file.allow=always', 'submodule', 'update', '-q', '--init')
+        return first, second
+
+    def test_tree_check_cannot_see_dirty_owned_submodules_so_the_transfer_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first, second = self._with_submodule(tmp)
+            (first / 'src' / 'count.py').write_text('print(2)\n')
+            (first / 'src' / 'lib' / 'core.py').write_text('new\n')
+            sys.path.insert(0, str(ROOT))
+            try:
+                from core import snapshot
+            finally:
+                sys.path.remove(str(ROOT))
+            self.assertEqual(snapshot.take(first)['dirty_paths'], 2, 'the accepted snapshot hashes the submodule edit')
+            head, tree, patch = self._transfer(first, ('src',), Path(tmp, 'writer.index'))
+            self.assertTrue(self._refused(first, ('src',), patch), 'a dirty owned submodule refuses the transfer')
+            # Why: applied anyway, the transfer passes both checks yet drops the submodule edit.
+            self.assertEqual(git(second, 'rev-parse', 'HEAD').stdout.strip().encode(), head)
+            subprocess.run(['git', 'apply', '-'], cwd=second, input=patch, check=True, capture_output=True)
+            _, received, _ = self._transfer(second, ('src',), Path(tmp, 'dependent.index'))
+            self.assertEqual(received, tree)
+            self.assertEqual((second / 'src' / 'count.py').read_text(), 'print(2)\n')
+            self.assertEqual((second / 'src' / 'lib' / 'core.py').read_text(), 'old\n')
+
+    def test_refusal_catches_moved_and_newly_embedded_repositories(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first, _ = self._with_submodule(tmp)
+            (first / 'src' / 'lib' / 'core.py').write_text('new\n')
+            git(first / 'src' / 'lib', 'commit', '-q', '-am', 'moved')
+            _, _, patch = self._transfer(first, ('src',), Path(tmp, 'moved.index'))
+            self.assertTrue(self._refused(first, ('src',), patch), 'a moved submodule commit')
+            git(first / 'src' / 'lib', 'reset', '-q', '--hard', 'HEAD~1')
+            embedded = first / 'src' / 'vendor'
+            embedded.mkdir()
+            git(embedded, 'init', '-q')
+            (embedded / 'x.py').write_text('x\n')
+            git(embedded, 'add', '.')
+            git(embedded, 'commit', '-q', '-m', 'embedded')
+            _, _, patch = self._transfer(first, ('src',), Path(tmp, 'embedded.index'))
+            self.assertIn(b'Subproject commit', patch)
+            self.assertTrue(self._refused(first, ('src',), patch), 'a newly embedded repository')
+
+    def test_clean_submodules_do_not_block_a_transfer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first, second = self._with_submodule(tmp)
+            (first / 'src' / 'count.py').write_text('print(2)\n')
+            head, tree, patch = self._transfer(first, ('src',), Path(tmp, 'writer.index'))
+            self.assertFalse(self._refused(first, ('src',), patch))
+            subprocess.run(['git', 'apply', '-'], cwd=second, input=patch, check=True, capture_output=True)
+            _, received, _ = self._transfer(second, ('src',), Path(tmp, 'dependent.index'))
+            self.assertEqual(received, tree)
+            self.assertEqual((second / 'src' / 'count.py').read_text(), 'print(2)\n')
+
+    def test_ordinary_transfers_are_not_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first, second = self._pair(tmp)
+            (first / 'src' / 'count.py').write_text('print(2)\n')
+            (first / 'src' / 'new.py').write_text('print("new")\n')
+            _, patch = self._hand_off(tmp, first, second)
+            self.assertFalse(self._refused(first, ('src',), patch))
 
     def test_accepted_artifacts_keep_their_hash_bound_handoff(self):
         isolation = flat((SHARED / 'delegation.md').read_text().split('## Writer isolation')[1].split('## ')[0])
@@ -371,7 +455,9 @@ class DesignNoteTest(unittest.TestCase):
         for phrase in ('`plugins/ape/references/research-job.md`', '`plugins/ape/playbooks/forage.md`',
                        'path-and-hash handoff', 'limited to source-worktree integration',
                        "accepted stage's snapshot", '`git diff --cached --binary HEAD` patch', 'leaves out staged changes and untracked files', 'The tree ID compares contents, not the patch',
-                       'edit-only engineering jobs'):
+                       'edit-only engineering jobs', 'It does not see inside a submodule',
+                       '`git status --porcelain=v2 --ignore-submodules=none`', '`Subproject commit`',
+                       'Work inside an owned submodule cannot be transferred at all'):
             self.assertIn(phrase, checkpoints)
 
     def test_external_fallback_cites_the_delegate_task_schema(self):

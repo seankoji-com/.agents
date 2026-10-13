@@ -75,8 +75,11 @@ worktree, run `git read-tree HEAD` and `git add -A -- <owned paths>`, then recor
 covers staged, unstaged, untracked and deleted owned paths; plain `git diff --binary`
 omits staged and untracked work and is not a transfer. The dependent applies the patch
 with `git apply` at the same `head`, repeats those steps for the same paths, and starts
-only if its tree matches. Staging is not carried, and only unreferenced Git objects are
-written. Never commit only to hand work on; that needs the job's commit authority. Accepted artifacts, such as
+only if its tree matches. A tree records a submodule only as its commit, so refuse the
+transfer, and continue in that worktree instead, when
+`git status --porcelain=v2 --ignore-submodules=none -- <owned paths>` shows an `S`
+submodule field or the patch contains `Subproject commit`. Staging is not carried, and
+only unreferenced Git objects are written. Never commit only to hand work on; that needs the job's commit authority. Accepted artifacts, such as
 reports under the job directory named in `consumed_outputs`, are handed off by path
 and recorded hash instead; they need no commit. Never read from or write into a
 worktree whose writer is still active, and never re-run a completed task to recover
