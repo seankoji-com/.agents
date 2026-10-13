@@ -69,8 +69,9 @@ read-only. To land the PR, drop that restriction:
 t3-plugins prompt babysitter pr https://github.com/OWNER/REPO/pull/NUMBER 'Babysit through merge.'
 ```
 
-Auto-merge is armed even while review threads are open, so in a repository without
-a conversation-resolution rule a PR can land once its checks pass. Use `repo
+The quick pass tries to arm auto-merge even while review threads are open. Where
+GitHub accepts it and the repository has no conversation-resolution rule, a PR can
+land once its checks pass. Use `repo
 OWNER/REPO` or `org OWNER` only when you intend that wider scope. Protected branch
 rules remain required. Unknown or unsafe changes stay blocked.
 

@@ -309,7 +309,7 @@ print(code, end="")
                 self.assertEqual(result.returncode, 2)
 
     def test_resolution_works_after_quick_pass_armed_automerge(self):
-        result, calls = self.run_helper("already-auto", ["--resolve-thread", "T1", "--verified-head", HEAD])
+        result, calls = self.run_helper("preexisting-unresolved", ["--resolve-thread", "T1", "--verified-head", HEAD])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("RESOLVED", result.stdout)
         self.assertIn("resolveReviewThread", calls[-1]["query"])
