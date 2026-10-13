@@ -169,7 +169,7 @@ class Stage3Repair5Tests(unittest.TestCase):
                     if state.exists(): self.assertIn(state.read_text().split()[2], ('Z', 'X'))
                 finally:
                     try: os.killpg(owned['group'], signal.SIGKILL)
-                    except ProcessLookupError: pass
+                    except (ProcessLookupError, PermissionError): pass  # macOS answers EPERM for a reaped group
 
     def test_r3_06_execution_mode_change_stales_prior_acceptance(self):
         with tempfile.TemporaryDirectory() as td:

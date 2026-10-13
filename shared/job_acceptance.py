@@ -7,7 +7,7 @@ import os, selectors, signal, time
 from core.jobs.results import parse_result
 from pathlib import Path
 
-from core.jobs.store import JobError, _regular, _retain, canonical, digest, strict_load, _authorize
+from core.jobs.store import JobError, _regular, _retain, canonical, digest, strict_load, _authorize, trusted_link
 from shared.job_coordinator import verify_all_pins
 from shared.error_codes import code_of
 from core.jobs import _owner_current, _live_handles, _open_dispatch, _uningested
@@ -207,7 +207,7 @@ def reviewed_document_bytes(store, job, path):
     if path is None or not path.is_absolute() or '..' in path.parts:
         raise AcceptanceError('reviewed document path must be absolute without parent traversal')
     for part in [path, *path.parents]:
-        if part.is_symlink():
+        if part.is_symlink() and not trusted_link(part):
             raise AcceptanceError('reviewed document path crosses a symlink')
     if Path(os.path.realpath(path)).is_relative_to(Path(os.path.realpath(store.path))):
         raise AcceptanceError('reviewed document cannot be job state or worker evidence')

@@ -1151,7 +1151,9 @@ class FixtureWiringTest(unittest.TestCase):
         class Exec(Exception):
             pass
         for config, expected in (({'scenario': 'negative-missing-delegation'}, 'shim'), (None, 'exec')):
+            # The launcher only runs inside the Linux image; pin the platform so macOS hosts test it too.
             with self.subTest(expected=expected), patch.object(sys, 'argv', ['claude', '--print']), \
+                    patch.object(native_exec.sys, 'platform', 'linux'), \
                     patch.object(native_exec.os, 'geteuid', return_value=0), \
                     patch.object(native_exec.os, 'open', side_effect=open_redirect), \
                     patch.object(native_exec.os, 'execv', side_effect=Exec), \

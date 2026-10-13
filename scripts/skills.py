@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 
 import install as installer
+from core.jobs.store import trusted_link  # importing install puts the repository root on sys.path
 
 MARKER = '.t3-plugins-skill.json'
 
@@ -15,7 +16,7 @@ MARKER = '.t3-plugins-skill.json'
 def safe_path(path):
     path = Path(path).expanduser().absolute()
     for part in [*reversed(path.parents), path]:
-        if part.is_symlink():
+        if part.is_symlink() and not trusted_link(part):
             raise ValueError(f'skill path contains a symlink: {part}')
     return path
 

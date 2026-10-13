@@ -18,6 +18,8 @@ from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
 
+from core.jobs.store import trusted_link
+
 try:
     import fcntl
 except ImportError:  # pragma: no cover - unsupported platform is reported on use
@@ -140,7 +142,7 @@ def ensure_no_symlink_path(path: Path, stop: Path):
     current = Path(path.anchor)
     for part in path.parts[1:]:
         current = current / part
-        if current.is_symlink(): raise RegistryError(f'registry path crosses symlink: {current}')
+        if current.is_symlink() and not trusted_link(current): raise RegistryError(f'registry path crosses symlink: {current}')
 
 
 def installation_id(prefix: Path, create: bool = True) -> str:

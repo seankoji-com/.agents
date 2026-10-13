@@ -853,6 +853,41 @@
             "survives": true
           }
         ]
+      },
+      {
+        "path": "tests/test_system_symlinks.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "macOS and Python 3.14 CI repairs: every no-symlink-component check (job store lock and descriptor walk, artifact reads, registry walk, pin probe, reviewed documents, learning store, skill adapters, agent-tuneup) accepts a root-owned link whose ancestors are root-owned and not group/other-writable, such as macOS /var, and still refuses user-owned links, links in writable or user-owned parents and links below a user-controlled directory, shown on a synthetic macOS layout with reported ownership; strict JSON loaders reject nesting beyond an explicit 512 levels on every interpreter, and quoted brackets neither hide nor fake depth.",
+        "assertions": [
+          {
+            "selector": "test_system_symlinks.TrustedLinkRuleTests",
+            "tests": 2,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_system_symlinks.CheckSiteTests",
+            "tests": 8,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_system_symlinks.JsonDepthTests",
+            "tests": 3,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          }
+        ]
       }
     ]
   }

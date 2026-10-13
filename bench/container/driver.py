@@ -5,7 +5,9 @@ import json
 import os
 import base64
 import hashlib
+import itertools
 import math
+import re
 import secrets
 import subprocess
 import sys
@@ -570,8 +572,17 @@ def _finite_float(token):
     return value
 
 
+MAX_JSON_DEPTH = 512  # core.jobs.store's limit: Python 3.14+ may parse deeper without RecursionError
+
+
+def json_depth(text):
+    """Container nesting depth of already-parsed JSON text; quoted brackets are stripped first."""
+    stripped = re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"|[^\][{}"]+', '', text)
+    return max(itertools.accumulate(1 if c in '[{' else -1 for c in stripped), default=0)
+
+
 def parse_canary_result(text):
-    """Parse the parent's final JSON object strictly: no duplicate keys, NaN or Infinity."""
+    """Parse the parent's final JSON object strictly: no duplicate keys, NaN, Infinity or deep nesting."""
     if not isinstance(text, str):
         return None
     try:
@@ -579,7 +590,7 @@ def parse_canary_result(text):
                            parse_float=_finite_float)
     except (ValueError, RecursionError):
         return None
-    return value if isinstance(value, dict) else None
+    return value if isinstance(value, dict) and json_depth(text) <= MAX_JSON_DEPTH else None
 
 
 def verify_tracked_followup(client, tools, canary_result, results_root=Path('/bench/t3/observations')):
