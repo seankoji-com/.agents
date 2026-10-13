@@ -35,7 +35,7 @@ INSTALL = ROOT / 'scripts' / 'install.py'
 FIVE = ('imps', 'ape', 'elephant-goldfish', 'babysitter', 'agent-tuneup')
 # Plugins whose Stage 4 coordinator entry is merged. ape joins when its rebuild names the
 # contract; until then its entry is checked for routing only.
-COORDINATED = {'imps', 'elephant-goldfish', 'babysitter', 'agent-tuneup'}
+COORDINATED = set(FIVE)
 TIMEOUT = 120
 
 
