@@ -82,9 +82,10 @@ merge-capable call until its review stage is accepted at the exact current head.
 10. Accept each stage from a fresh coordinator observation: publish it with
     `job_cli.py observation`, then run `job_acceptance_cli.py accept-stage` with the
     pinned `validate_pr.py`. Only after a review stage is accepted, and only with
-    `merge` recorded, does its land stage reread the head and, if it still equals the
-    accepted head, run `merge-pr.sh --no-auto`; a moved head goes back through step 7's
-    rebind and a fresh review. Accept the land stage from the observed merge, update
+    `merge` recorded, does its land stage run `merge-pr.sh --no-auto --expected-head
+    <accepted head>`, always passing the head the review stage was accepted at. A
+    `reason=expected_head_mismatch` or a moved head goes back through step 7's rebind
+    and a fresh review. Accept the land stage from the observed merge, update
     the table and use `unwatch_pull_request`. Report a merge as pending until it is
     observed.
 11. If `delegate_task` or a suitable target is unavailable, record the discovery and

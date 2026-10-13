@@ -301,6 +301,42 @@ def _bounded_run(argv, cwd, limits):
             stream.close()
 
 
+def _babysitter_merge_gate(job, stage):
+    """A `merged` stage of a review-gated PR needs that PR's review stage upstream at the same head.
+
+    A review stage holds a `role: review` slot. A PR is review-gated when it has one or when a
+    fixer may push to it. The review stage's own current acceptance is checked through the
+    dependency chain by accept_stage and validate_stage.
+    """
+    contract = stage.get('validator_contract', {})
+    if not isinstance(contract.get('authorized_endstate'), dict) or contract['authorized_endstate'].get('requested') != 'merged':
+        return
+    pr, head = contract.get('pr'), contract.get('head_sha')
+    review_ids = {task['stage_id'] for task in job['tasks'] if task.get('role') == 'review'}
+    if stage['id'] in review_ids:
+        raise AcceptanceError('review_gate: a stage holding a review slot cannot request merged')
+    reviews = [other for other in job['stages'] if other['id'] in review_ids
+               and other.get('validator_dependency') == stage.get('validator_dependency')
+               and other.get('validator_contract', {}).get('pr') == pr]
+    prs = job.get('authorization', {}).get('prs', {})
+    pushable = isinstance(prs, dict) and 'push' in (prs.get(pr) or [])
+    if not reviews:
+        if pushable:
+            raise AcceptanceError('review_gate: a push-authorized PR cannot reach merged without a review stage')
+        return
+    by_id = {other['id']: other for other in job['stages']}
+    ancestors, frontier = set(), list(stage.get('depends_on', []))
+    while frontier:
+        current = frontier.pop()
+        if current not in ancestors and current in by_id:
+            ancestors.add(current)
+            frontier.extend(by_id[current].get('depends_on', []))
+    for review in reviews:
+        if review['id'] not in ancestors:
+            raise AcceptanceError('review_gate: merged stage does not depend on review stage ' + review['id'])
+        if review.get('validator_contract', {}).get('head_sha') != head:
+            raise AcceptanceError('review_gate: review stage ' + review['id'] + ' is bound to a different head')
+
 def _adapter(job, stage, argv, input_file):
     if not isinstance(argv, list) or not argv or any(not isinstance(arg, str) for arg in argv):
         raise AcceptanceError('validator argv must be a nonempty string array')
@@ -345,6 +381,8 @@ def _adapter(job, stage, argv, input_file):
         required = ({'pr', 'head_sha', 'required_contexts', 'allow_empty_required_contexts', 'optional_contexts', 'authorized_endstate'} if dep['plugin'] == 'babysitter' else {'criteria'})
         if not required <= set(contract) or any(data.get(key) != value for key, value in contract.items()):
             raise AcceptanceError('workflow criteria differ from the complete declared stage contract')
+    if dep['plugin'] == 'babysitter':
+        _babysitter_merge_gate(job, stage)
     # Bind the inputs the executable actually consumes, rather than a decoy file.
     args = argv[1:]
     if len(args) % 2 or len(set(args[::2])) != len(args[::2]):

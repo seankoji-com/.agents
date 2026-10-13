@@ -293,6 +293,11 @@ class MergeGatePlanTest(unittest.TestCase):
         self.assertIn('A review-gated PR gets no helper run on a wake until its review stage is accepted',
                       steps('playbooks/maintain.md')[7])
         self.assertIn('Only after a review stage is accepted', steps('playbooks/maintain.md')[10])
+        # The land stage pins the review-accepted head, so an author push after review cannot land.
+        self.assertIn('`merge-pr.sh --no-auto --expected-head <accepted head>`', steps('playbooks/maintain.md')[10])
+        self.assertIn('always passing the head the review stage was accepted at', steps('playbooks/maintain.md')[10])
+        self.assertIn('`merge-pr.sh --no-auto --expected-head <accepted head>`', gate)
+        self.assertIn('always with `--expected-head <head_sha>`', sections('references/job-plan.md')['Stages'])
         self.assertIn('No stage that holds a `review` slot may request `merged`', sections('references/job-plan.md')['Stages'])
 
 
@@ -518,6 +523,44 @@ class SyntheticJobTest(unittest.TestCase):
         self.rebind_head('author-push', H2)
         self.assertFalse(self.merge_allowed('pr-12-land'))
         self.assertNotEqual(self.accept('pr-12-land')[0].returncode, 0)
+
+    def test_merged_acceptance_requires_the_review_stage_upstream_at_the_same_head(self):
+        def land_without_review_dependency(plan):
+            plan['stages'][1]['depends_on'] = []
+        def land_at_another_head(plan):
+            plan['stages'][1]['validator_contract']['head_sha'] = H2
+            plan['stages'][1]['revision'] = 'pr-12-land@' + H2[:12]
+        for name, mutate, reason in (('no dependency', land_without_review_dependency, 'does not depend on review stage'),
+                                     ('other head', land_at_another_head, 'bound to a different head')):
+            with self.subTest(name):
+                self.state = self.base / ('state-' + name.replace(' ', '-'))
+                plan = self.plan()
+                mutate(plan)
+                self.job('create', plan)
+                self.dispatch('pr-12-maintain')
+                self.dispatch('pr-12-review', verdict='approve')
+                reviewed, *_ = self.accept('pr-12')
+                self.assertEqual(reviewed.returncode, 0, reviewed.stdout + reviewed.stderr)
+                refused, *_ = self.accept('pr-12-land')
+                self.assertNotEqual(refused.returncode, 0)
+                self.assertIn('review_gate', refused.stdout + refused.stderr)
+                self.assertIn(reason, refused.stdout + refused.stderr)
+                self.assertNotEqual(self.statuses()[0]['pr-12-land'], 'accepted-at-snapshot')
+
+    def test_merged_acceptance_refuses_review_stages_and_unreviewed_pushable_prs(self):
+        plan = self.plan()
+        plan['authorization']['prs'][PR13] = ['read', 'push', 'merge']
+        plan['authorization']['actions'] = sorted(set(plan['authorization']['actions']) | {'push'})
+        plan['stages'][0]['validator_contract']['authorized_endstate'].update(requested='merged', observed='merged')
+        self.job('create', plan)
+        pushable, *_ = self.accept('pr-13')
+        self.assertNotEqual(pushable.returncode, 0)
+        self.assertIn('push-authorized PR cannot reach merged without a review stage', pushable.stdout + pushable.stderr)
+        self.dispatch('pr-12-maintain')
+        self.dispatch('pr-12-review', verdict='approve')
+        review, *_ = self.accept('pr-12')
+        self.assertNotEqual(review.returncode, 0)
+        self.assertIn('a stage holding a review slot cannot request merged', review.stdout + review.stderr)
 
     def test_failed_rounds_exhaust_the_budget_and_cannot_reset(self):
         self.job('create', self.plan())

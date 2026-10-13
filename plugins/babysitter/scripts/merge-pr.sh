@@ -15,6 +15,7 @@
 #
 # Usage:
 #   merge-pr.sh --repo <owner/name> --pr <N> [--method squash|merge|rebase] [--no-auto | --arm-always]
+#               [--expected-head <SHA>]
 #   merge-pr.sh --repo <owner/name> --pr <N> --resolve-thread <ID> --verified-head <SHA>
 #
 # --arm-always is the babysitter quick pass: when the operator has accepted that
@@ -22,6 +23,14 @@
 # arms auto-merge for conflict, behind, unanswered_threads and incomplete_review_state
 # outcomes, and an existing auto-merge request no longer blocks unresolved threads.
 # It never relaxes the direct-merge gate: only CLEAN + SUCCESS + resolved threads merge.
+#
+# --expected-head pins merge mode to a head the caller already accepted (the
+# babysitter land stage passes its reviewed head). The PR head is reread before every
+# merge or auto-merge mutation; any other head stops with
+# reason=expected_head_mismatch and no mutation. A BEHIND PR is not updated, because
+# update-branch would land a head nobody reviewed. The same SHA goes to GitHub as the
+# REST merge `sha` and GraphQL `expectedHeadOid`, so the server enforces it too.
+# Without the flag the checked head is pinned the same way, but any head is accepted.
 #
 # The resolution mode is a separate, explicit action after the agent verifies the
 # finding and posts its evidence. It checks thread ownership and the verified head,
@@ -56,7 +65,7 @@
 #   4 — blocked on something this script will not act on unasked: a required human
 #       approval, a code-scanning threshold, a check still running, a merge state
 #       other than CLEAN, an unresolved thread with no
-#       verified resolution yet, or a merge conflict. Never retried, never
+#       verified resolution yet, a head other than --expected-head, or a merge conflict. Never retried, never
 #       overridden with admin/force. (stdout: "BLOCKED <repo>#<pr> reason=<category>
 #       detail=<...> automerge=<armed|unavailable>")
 #
@@ -94,6 +103,7 @@ PR_NUMBER=""
 METHOD=""
 RESOLVE_THREAD=""
 VERIFIED_HEAD=""
+EXPECTED_HEAD=""
 AUTO_MERGE=1
 ARM_ALWAYS=0
 
@@ -148,6 +158,11 @@ while [ $# -gt 0 ]; do
     VERIFIED_HEAD="$2"
     shift 2
     ;;
+  --expected-head)
+    [ $# -ge 2 ] || die "--expected-head requires a value"
+    EXPECTED_HEAD="$2"
+    shift 2
+    ;;
   --no-auto)
     AUTO_MERGE=0
     shift
@@ -195,6 +210,10 @@ if [ -n "$RESOLVE_THREAD" ] || [ -n "$VERIFIED_HEAD" ]; then
   [ "$ARM_ALWAYS" = 0 ] || die "resolution mode cannot also arm auto-merge"
 fi
 [ "$ARM_ALWAYS" = 0 ] || [ "$AUTO_MERGE" = 1 ] || die "--arm-always and --no-auto are mutually exclusive"
+if [ -n "$EXPECTED_HEAD" ]; then
+  [[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]] || die "--expected-head must be a full lowercase commit SHA"
+  [ -z "$RESOLVE_THREAD" ] || die "--expected-head applies to merge mode; resolution uses --verified-head"
+fi
 
 OWNER="${REPO%%/*}"
 NAME="${REPO#*/}"
@@ -346,6 +365,7 @@ enable_automerge() {
   state="$(fetch_state)" || return 1
   handle_terminal_state "${1:-}"
   expected_head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
+  [ -z "$EXPECTED_HEAD" ] || [ "$expected_head" = "$EXPECTED_HEAD" ] || return 1
   [ "$ARM_ALWAYS" = 1 ] || jq -e '.data.repository.pullRequest.reviewThreads | .pageInfo.hasNextPage == false and all(.nodes[]; .isResolved == true)' >/dev/null <<<"$state" || return 1
   pr_id="$(jq -r '.data.repository.pullRequest.id // empty' <<<"$state")"
   [ -n "$pr_id" ] || return 1
@@ -376,7 +396,7 @@ blocked() {
     automerge="preexisting"
   fi
   case "$reason" in
-  head_changed | closed | automerge_already_enabled | verified_head_changed | thread_not_on_pr | permission_denied | validation_failed) armable=0 ;;
+  head_changed | expected_head_mismatch | closed | automerge_already_enabled | verified_head_changed | thread_not_on_pr | permission_denied | validation_failed) armable=0 ;;
   conflict | behind | incomplete_review_state | unanswered_threads) [ "$ARM_ALWAYS" = 1 ] || armable=0 ;;
   esac
   if [ "$armable" = 1 ]; then
@@ -398,6 +418,15 @@ handle_terminal_state() {
   esac
 }
 
+# With --expected-head, refuses (exit 4, nothing armed or merged) unless the head in
+# $state is the caller's accepted head.
+require_expected_head() {
+  local head
+  [ -n "$EXPECTED_HEAD" ] || return 0
+  head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
+  [ "$head" = "$EXPECTED_HEAD" ] || blocked "expected_head_mismatch" "PR head ${head} is not the expected head ${EXPECTED_HEAD}; rebind and re-review before merging"
+}
+
 try_merge() {
   local method="$1" resp code body
   resp="$(curl_rest PUT "/repos/${REPO}/pulls/${PR_NUMBER}/merge" "$(jq -n --arg m "$method" --arg sha "$expected_head" '{merge_method:$m,sha:$sha}')")" || return 2
@@ -417,6 +446,7 @@ try_merge() {
 state="$(fetch_state)" || die "could not read PR state" 3
 handle_terminal_state
 expected_head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
+[ -n "$RESOLVE_THREAD" ] || require_expected_head
 # Resolution never merges, so an existing auto-merge request does not block it.
 if [ -n "$RESOLVE_THREAD" ]; then
   [ "$VERIFIED_HEAD" = "$expected_head" ] || blocked "verified_head_changed" "re-verify the finding against the new head before resolving"
@@ -444,6 +474,9 @@ if [ "$mergeable" = "CONFLICTING" ]; then
 fi
 
 if [ "$merge_state" = "BEHIND" ]; then
+  if [ -n "$EXPECTED_HEAD" ]; then
+    blocked "behind" "branch is behind its base; update-branch would replace the expected head, so update and re-review it first"
+  fi
   if ! sync_behind_branch; then
     blocked "behind" "update-branch did not clear BEHIND in time"
   fi
@@ -502,6 +535,14 @@ if [ "$merge_state" = "BLOCKED" ]; then
 fi
 if [ "$merge_state" != "CLEAN" ]; then
   blocked "not_clean" "mergeStateStatus=${merge_state} (rollup=${checks_state}); merging now could apply a ruleset bypass, so only CLEAN is merged directly"
+fi
+
+# Reread the head right before the merge PUT: the gates above used an earlier read.
+if [ -n "$EXPECTED_HEAD" ]; then
+  state="$(fetch_state)" || die "could not re-read PR state before merging" 3
+  handle_terminal_state
+  require_expected_head
+  expected_head="$EXPECTED_HEAD"
 fi
 
 methods=("$METHOD")

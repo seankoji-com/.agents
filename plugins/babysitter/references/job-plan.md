@@ -55,8 +55,9 @@ for a child is review-gated and gets two stages:
   [maintain]`, a reviewer target on a different known lineage).
 - Land stage `pr-<number>-land`, `execution_mode: "direct"`, endstate `merged`,
   `depends_on: ["pr-<number>"]`, the same `head_sha`. It is the only stage whose
-  work may call `merge-pr.sh`, and the helpers refuse its acceptance until the
-  review stage holds current acceptance.
+  work may call `merge-pr.sh`, always with `--expected-head <head_sha>`, and the
+  helpers refuse its acceptance until the review stage holds current acceptance at
+  that same head.
 
 No stage that holds a `review` slot may request `merged`, and every `merged` stage of
 a review-gated PR depends on its review stage. When the operator asked for review

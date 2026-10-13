@@ -53,9 +53,9 @@ accepted by `validate_pr.py` at the exact current head, with an `approve` verdic
 from the reviewer. Merge-capable means `merge-pr.sh` in any merge mode, including
 `--no-auto` (it still merges a CLEAN PR) and `--arm-always`, arming auto-merge any
 other way, and the quick-pass merge. `merge-pr.sh --resolve-thread` is not
-merge-capable. After that acceptance, the PR's land stage rereads the head and runs
-`merge-pr.sh --no-auto` only if it still equals the accepted head; it never arms
-auto-merge. A push-authorized fixer is never dispatched while the PR has an
+merge-capable. After that acceptance, the PR's land stage runs `merge-pr.sh --no-auto
+--expected-head <accepted head>`, which refuses any other head before it mutates
+anything and pins that head on GitHub's merge call; it never arms auto-merge. A push-authorized fixer is never dispatched while the PR has an
 auto-merge request, because GitHub would land its push before review.
 
 ## Workers
