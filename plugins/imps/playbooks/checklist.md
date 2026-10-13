@@ -19,6 +19,9 @@ path and source content hash in run notes. Use read-only verification,
 `authorization.endstate: local`, and checks as literal argv arrays. A command needing
 shell syntax must be reviewed as code before using an explicit shell argv. Follow the
 entry's evidence procedure; collect actual output and current-revision acceptance for every item.
+With many independent claims, run a job under `PKG/references/jobs.md` whose
+stage-executor verification slots each check one claim group with the same
+read-only authorization. The stage gate still decides every item.
 
 Report passed, failed, unverified, already checked, and skipped items separately.
 A failed check is a finding, not permission to remediate. If remediation was requested,

@@ -1,6 +1,6 @@
 {
   "name": "agent-tuneup",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Audit and align provider permissions, MCPs and plugins with approved native changes.",
   "argument_hint": "doctor | audit --provider NAME --settings PATH | align | apply --plan PATH | scan --provider claude",
   "entry": "entry.md",
@@ -23,7 +23,8 @@
       "id": "agent-tuneup/config-researcher",
       "path": "agents/config-researcher.md",
       "operations": [
-        "audit"
+        "audit",
+        "align"
       ],
       "role": "workhorse",
       "responsibility": "Research exact provider configuration format and scope semantics with authoritative source citations."
@@ -32,7 +33,8 @@
       "id": "agent-tuneup/config-verifier",
       "path": "agents/config-verifier.md",
       "operations": [
-        "audit"
+        "audit",
+        "apply"
       ],
       "role": "reviewer",
       "responsibility": "Verify only explicitly authorized proposed or applied changes. Separate parse, load, and live enforcement evidence."

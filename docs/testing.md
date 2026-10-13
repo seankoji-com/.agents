@@ -33,6 +33,10 @@ The suite tests behavior across boundaries, not just successful return values:
 | The compatibility page drifts from its ledger | `conformance.py compile` output is compared with the committed page |
 | A publish to GitHub half-succeeds | Scripted `gh` tests: URL parsing, category choice, GraphQL errors behind a zero exit, no metadata on failure |
 | The homepage recording goes stale or unsafe | Recording generator tests: committed SVG matches the generator, no scripts or external references |
+| A worker bundle, override or job pin drifts | Registry tests with isolated agent roots, two prefixes, corrupt, symlinked and stale files |
+| A worker result is half-read or accepts itself | Strict result parser, hostile result fixtures, and validator receipts that ignore worker readiness claims |
+| Resume or retry resets a repair budget | Job counter, follow-up and reconciliation tests |
+| A workflow loses its boundary or skips the picker | Per-plugin coordinator workflow tests run through installed helpers |
 
 External model calls are mocked. Shell helpers use synthetic fixtures and stubbed
 GitHub/Git responses. The suite needs a local loopback socket for its HTTP product
@@ -49,6 +53,8 @@ Coverage is useful when it identifies a missing failure scenario. A percentage a
 does not establish that a workflow works. The [test map](https://github.com/seankoji-com/t3-plugins/blob/master/tests/README.md)
 links the current evidence boundaries to tests; the newer suites name their boundary
 and failure mode directly.
+The [issue #28 test map](stage4-test-map.md) lists which suites prove each
+whole-job requirement.
 
 ## Live provider conformance
 
@@ -56,6 +62,11 @@ The major-version-1 [conformance procedure](https://github.com/seankoji-com/t3-p
 and its collector describe the previous gate. Activate that package to reproduce those dated results. New-gate live compatibility is unverified. Record exact T3/provider/model versions,
 repetitions, artifacts, interventions, and failures. Keep credentials out of commits.
 No unit-test result upgrades a provider's compatibility status automatically.
+
+The rebuilt whole-job workflows have their own frozen
+[benchmark protocol v2](https://github.com/seankoji-com/t3-plugins/blob/master/bench/v2/protocol.md).
+`tests/test_bench_v2.py` checks its graders and frozen files offline; it is not a
+live run. See [measurement limits](compatibility.md#measurement-limits).
 
 Live runs consume model resources and may create host tasks. Run them only within
 the operator's authorization, with bounded retries and task cleanup.

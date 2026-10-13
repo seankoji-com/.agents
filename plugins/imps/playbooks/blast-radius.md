@@ -1,6 +1,8 @@
 # Trace a change beyond its diff
 
 Read `PKG/shared/t3-runtime.md`. This operation is read-only; do not fix findings.
+Delegate it as one read-only `imps/investigator` stage under
+`PKG/references/jobs.md`; a small diff may stay direct.
 
 Resolve the target as a PR, exact commit range, file paths, or working-tree/index diff
 against HEAD. State the base/head and changed-file count. Infer intent and the most

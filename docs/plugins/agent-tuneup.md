@@ -44,6 +44,21 @@ returns finding codes and locations. A finding
 is a known pattern worth inspecting, not proof that a tool is allowed after every
 policy layer has been applied.
 
+## Jobs and workers
+
+`doctor`, `scan` and a single-file audit with no open question stay direct.
+Audits that compare several files or need provider semantics, alignment across
+providers, and every `apply` run as one [job](../architecture.md#whole-jobs).
+
+- `agent-tuneup/config-researcher` reports provider format, scope and precedence with
+  primary sources.
+- `agent-tuneup/config-verifier` checks only the listed changes and reports parse,
+  load and live enforcement separately.
+
+Neither worker can edit settings. `scripts/validate_audit.py` decides acceptance: an
+audit that reports its findings and exits `1` can pass, and an apply needs your
+recorded approval, an exact backup and passing parse and load observations.
+
 ## Align all T3 providers
 
 ```sh

@@ -14,7 +14,9 @@
           "plugins/agent-tuneup/entry.md",
           "plugins/agent-tuneup/playbooks/align.md"
         ],
-        "workers": [],
+        "workers": [
+          "agent-tuneup/config-researcher"
+        ],
         "guarantees": []
       },
       {
@@ -28,7 +30,9 @@
           "plugins/agent-tuneup/entry.md",
           "plugins/agent-tuneup/playbooks/align.md"
         ],
-        "workers": [],
+        "workers": [
+          "agent-tuneup/config-verifier"
+        ],
         "guarantees": []
       },
       {

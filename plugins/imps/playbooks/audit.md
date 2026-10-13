@@ -8,8 +8,11 @@ maintainability, accessibility, and user experience; skip dimensions with no sur
 Each finding needs file/line evidence, a concrete failure scenario, impact, existing
 mitigations, and a bounded verification. Separate confirmed defects from hypotheses
 and preferences. Record coverage gaps instead of inflating them into bugs.
-Use T3 preview for actual UI observations when available. Fan out independent
-dimensions under `PKG/shared/delegation.md`.
+Use T3 preview for actual UI observations when available. For more than one
+dimension group, run the audit as a job under `PKG/references/jobs.md`: one
+`imps/auditor` slot per dimension group, plus reviewer slots that try to refute
+each blocker or major. Authorization stays read-only; workers write only their
+declared artifacts. You integrate the report.
 
 Save the audit at an operator-approved path. Group fixes by dependency and ownership,
 with acceptance criteria suitable for `run` or `issues`. Auditing does not authorize

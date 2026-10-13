@@ -82,8 +82,11 @@ or `review`). Resume, escalation and replacement never reset counters. A bounded
 same-scope follow-up uses `job_cli.py followup-prepare` (`{caller, task_id,
 request_id}`), then `t3_thread_send` with `mode=queue` to the owned `childThreadId` only
 when the host supports it as a new tracked task, recorded as a `followup` observation.
-Otherwise launch a fresh child and show the reuse-fallback reason. Exhausted budgets
-block for an owner decision.
+Otherwise launch a fresh child and show the reuse-fallback reason. When the coordinator
+repairs a reviewed document, `job_cli.py document-revision` (`{caller, task_id,
+document: {path, sha256}, reason}`) rebinds the new hash within the budget, without an
+owner decision, and stales the affected stages; then `retry` each executed slot.
+Exhausted budgets block for an owner decision (`attempt_budget_exhausted`).
 
 ## 7. Fallback
 

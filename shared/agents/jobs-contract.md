@@ -32,7 +32,7 @@ fail before writes. Shared library callers supply the stored-pin verifier throug
 record declared ownership; they are not cryptographic proof of operator intent.
 
 Commands are `create`, `overview`, `status`, `prepare`, `result`,
-`task-observation`, `followup-prepare`, `observation`, `finding-disposition`, `decision`, `plan-revision`, `retry`, `cancel`, `discard`.
+`task-observation`, `followup-prepare`, `observation`, `finding-disposition`, `decision`, `plan-revision`, `document-revision`, `retry`, `cancel`, `discard`.
 A decision needs a stable ID, literal quote, absolute source-file path, matching
 source SHA-256 and scope. The quote must occur in the actual UTF-8 source bytes.
 Its source must lie outside this job directory and all declared worker write scopes.
@@ -226,7 +226,26 @@ known `providerInstanceId`, `model` and routing `lineage` on the declared target
 and the owned handle; a follow-up handle inherits its parent's target. Review
 preparation and acceptance refuse a reviewer on the same provider/model, on the
 same lineage, or with unknown lineage. The target is the coordinator's record,
-not host proof of the model that ran. A second host ID for an already owned
+not host proof of the model that ran.
+
+A review slot (`role: review`) names exactly one subject form. `reviewed_task_ids`
+lists distinct worker tasks in its stage and needs the lineage checks above.
+`reviewed_documents` lists distinct `{path, sha256}` records: absolute regular files
+with no parent traversal or symlink component, outside the job state. A document-only
+review names exactly its supplied `document`. Both forms, or neither, are refused.
+Preparation and acceptance re-hash each document; changed bytes make the review
+stale. Lineage independence does not apply to a document subject, but approval still
+needs the reviewer's completed owned host execution and the `approve` verdict.
+
+`document-revision` takes caller, task_id, `document: {path, sha256}` and reason. The
+task must name that path, have an ingested execution and be settled; the new hash must
+differ and match the current bytes. Within the persisted repair budget it needs no
+owner decision: it rewrites the hash in every stage contract and slot naming the path,
+stales those stages and successors, and records history. Each executed slot then needs
+a charged `retry`. A spent budget refuses with `attempt_budget_exhausted` and
+`owner_decision_required`; raising it is a plan revision with an owner decision.
+
+A second host ID for an already owned
 original or follow-up request is refused; `task-observation` retains it in the
 task's `host_conflicts` and the job `blockers`. Until a `reconciled`
 `task-observation` for that host ID and request reports a terminal status, no pending

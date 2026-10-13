@@ -59,6 +59,21 @@ The thread keeps one table of the targeted PRs and posts it again whenever one m
 A green local test, armed auto-merge and an actual merge are different outcomes; the
 table reports only merges it has observed.
 
+## Jobs and workers
+
+Multi-PR and repair work runs as one [job](../architecture.md#whole-jobs) with one
+stage per PR. Roster listing, the quick pass and the PR table stay in your thread.
+
+- `babysitter/pr-maintainer` triages or repairs one PR in its own worktree, within the
+  actions you authorized for that PR.
+- `babysitter/pr-reviewer` reviews the final combined change at the pushed head, on a
+  different known lineage from the fixer.
+
+`scripts/validate_pr.py` accepts a PR only from your thread's own observation of its
+current head, required checks, resolved threads and the authorized endstate. A
+worker reporting "pushed" or a queued auto-merge is not acceptance. More PRs, more
+actions or more repairs than the plan allows are asked through the question picker.
+
 ## Authorize the finish line
 
 Invoking `pr`, `repo` or `org` authorizes babysitting through merge within that

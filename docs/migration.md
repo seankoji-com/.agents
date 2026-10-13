@@ -1,5 +1,51 @@
 # Upgrading to plugin 1.0
 
+## Whole-job coordination
+
+The five workflow plugins now hand whole stages to managed workers and accept each
+stage through a validator. The commands you type keep their names and meanings:
+
+| Plugin | Operations |
+| --- | --- |
+| imps | `doctor`, `run`, `resume`, `status`, `cancel`, `verification-init`, `blast-radius`, `audit`, `issues`, `prs`, `checklist`, `discussion` |
+| ape | `doctor`, `forage`, `study`, `clean` |
+| elephant-goldfish | `doctor`, `thinking`, `elephant`, `check` |
+| babysitter | `doctor`, `pr`, `repo`, `org` |
+| agent-tuneup | `doctor`, `audit`, `align`, `apply`, `scan` |
+
+Skill adapters still point at the same entries. Routing config, learnings, thinking
+topics and imps major-version-2 runs stay where they are and remain readable.
+ralph is unchanged.
+
+What changes:
+
+- `install` and `setup` also write worker bundles under the agents root. Run
+  `t3-plugins setup` after upgrading; `doctor` reports `worker_bundle_missing` for a
+  package installed without one.
+- Substantive multi-stage work creates a job under `$XDG_STATE_HOME/t3-plugins/jobs`.
+  Job metadata sits beside, not inside, existing plugin state. imps gate runs keep
+  their format, and `validate` stays their authority.
+- Each stage gets an initial attempt and three repairs unless
+  [`workers.json`](cli.md#overrides-and-limits) sets another limit.
+- Every approval and owner decision uses the host's native question picker.
+- New elephant-goldfish topics allow four cold-read rounds in total. Existing topics
+  keep their recorded limit. A topic with no recorded limit keeps the earlier
+  five-round policy, minus the rounds already performed.
+
+Unfinished work:
+
+- An imps run without a job keeps the entry's legacy `status`, `resume` and
+  `cancel` paths.
+- A package installed before worker bundles existed still runs its own operations,
+  but it cannot create or resume a job.
+- `t3-plugins activate PLUGIN VERSION` selects a package and its bundle together.
+  A running job keeps its pins whatever `current` points to; resume it through
+  [`--job JOB path PLUGIN`](cli.md#pinned-job-paths).
+- No migration converts old state or records acceptance on its behalf.
+
+The maintainer ledger of every kept, changed and removed surface is the
+[compatibility map](https://github.com/seankoji-com/t3-plugins/blob/master/migration/rebuild/compat-map.md).
+
 ## Plugin version 1.0.0
 
 Version 1.0 keeps revision-bound evidence, locking and atomic storage while

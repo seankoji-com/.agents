@@ -154,6 +154,8 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
                 assigned = strict_load(_regular(Path(task['brief']['path']), max_bytes=job['policy']['max_artifact_bytes']))
                 if assigned.get('review_inputs') != review_inputs(store, job, task):
                     raise AcceptanceError('review approval is not bound to the current reviewed executions')
+                if 'reviewed_documents' in task:
+                    review_handle(task)  # the reviewer's own completed owned host execution
             if task.get('review_required'):
                 reviewers = task.get('review_task_ids', [])
                 if not reviewers:
@@ -198,9 +200,46 @@ def review_handle(task):
     return handles[0]
 
 
+def reviewed_document_bytes(store, job, path):
+    """Read a declared document subject: absolute, no traversal or symlinks, outside job state."""
+    path = Path(path) if isinstance(path, str) and path else None
+    if path is None or not path.is_absolute() or '..' in path.parts:
+        raise AcceptanceError('reviewed document path must be absolute without parent traversal')
+    for part in [path, *path.parents]:
+        if part.is_symlink():
+            raise AcceptanceError('reviewed document path crosses a symlink')
+    if Path(os.path.realpath(path)).is_relative_to(Path(os.path.realpath(store.path))):
+        raise AcceptanceError('reviewed document cannot be job state or worker evidence')
+    try:
+        return _regular(path, max_bytes=job['policy']['max_artifact_bytes'])
+    except (OSError, JobError) as exc:
+        raise AcceptanceError('reviewed document must be a readable regular file') from exc
+
+
+def _document_inputs(store, job, reviewer):
+    """Bind a document-subject review to the current bytes; a changed document is stale."""
+    documents = reviewer['reviewed_documents']
+    if not isinstance(documents, list) or not documents or any(
+            not isinstance(d, dict) or set(d) != {'path', 'sha256'} for d in documents):
+        raise AcceptanceError('reviewed_documents must be a non-empty list of {path, sha256}')
+    if len({d['path'] for d in documents}) != len(documents):
+        raise AcceptanceError('reviewed documents must be distinct')
+    if reviewer.get('context_policy') == 'document-only' and documents != [reviewer.get('document')]:
+        raise AcceptanceError('a document-only review names exactly its supplied document')
+    for document in documents:
+        if digest(reviewed_document_bytes(store, job, document['path'])) != document['sha256']:
+            raise AcceptanceError('reviewed document bytes differ from the declared SHA-256; the review is stale')
+    return {'documents': [dict(d) for d in documents]}
+
+
 def review_inputs(store, job, reviewer):
+    """Bind exactly one subject form: worker task IDs or declared documents."""
+    if reviewer.get('role') != 'review' or ('reviewed_task_ids' in reviewer) == ('reviewed_documents' in reviewer):
+        raise AcceptanceError('a review slot needs exactly one subject form: reviewed_task_ids or reviewed_documents')
+    if 'reviewed_documents' in reviewer:
+        return _document_inputs(store, job, reviewer)
     ids = reviewer.get('reviewed_task_ids', [])
-    if reviewer.get('role') != 'review' or not ids or len(set(ids)) != len(ids) or reviewer['task_id'] in ids:
+    if not ids or len(set(ids)) != len(ids) or reviewer['task_id'] in ids:
         raise AcceptanceError('review subjects must be explicit distinct worker task IDs')
     stage = _stage(job, reviewer['stage_id'])
     inputs = {}

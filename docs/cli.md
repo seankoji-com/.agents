@@ -12,16 +12,22 @@ Run `t3-plugins --help` or `t3-plugins COMMAND --help` for all options.
 | Command | Result |
 | --- | --- |
 | `list` | Print bundled plugin names and descriptions; does not list installed versions |
-| `setup [PLUGIN]` | Install snapshots and skill adapters; omit the name for all plugins |
-| `install [PLUGIN]` | Install snapshots only |
+| `setup [PLUGIN]` | Install snapshots, worker bundles and skill adapters; omit the name for all plugins |
+| `install [PLUGIN]` | Install snapshots and worker bundles, without skill adapters |
 | `path PLUGIN` | Print the active installed entry path |
 | `prompt PLUGIN [REQUEST…]` | Print a prompt to paste into T3; defaults to `doctor` |
 | `doctor [PLUGIN]` | Check installed files and package currency; omit the name for all plugins |
 | `activate PLUGIN VERSION` | Select an existing snapshot without migrating run state |
-| `uninstall PLUGIN [--version VERSION]` | Remove owned snapshot files, preserving local edits and run state |
+| `uninstall PLUGIN [--version VERSION]` | Remove owned snapshot and bundle files, preserving local edits, overrides and state; refuses a version a live job pins |
 | `skills install [PLUGIN] --root PATH` | Install an adapter into one provider skill root |
 | `skills uninstall [PLUGIN] --root PATH` | Remove an unchanged owned adapter |
 | `resolve ROLE --capabilities FILE` | List available configured child-model candidates |
+| `agents list [PLUGIN]` | List installed workers with version, role, override status and integrity |
+| `agents show PLUGIN WORKER` | Print one worker's effective definition and provenance |
+| `agents enable-override WORKER_ID --base-digest DIGEST` | Turn on one worker override |
+| `agents disable-override WORKER_ID --base-digest DIGEST` | Turn it off again |
+| `--job JOB.json path PLUGIN` | Print the entry pinned by a job, not the active one |
+| `adopt --from-prefix OLD` | Keep a moved installation's identity after verifying its receipt |
 
 Omit the plugin from a `skills` command to act on all bundled plugins.
 
@@ -44,6 +50,83 @@ t3-plugins --prefix /tmp/example-t3-plugins prompt imps doctor
 Use a persistent writable directory for a permanent installation. State uses
 `XDG_STATE_HOME` separately; changing the package prefix does not move existing runs.
 
+Worker bundles go under the agents root, `~/.agents/agents/t3-plugins` by default.
+Change it with `--agents-root PATH` before the command or `T3_PLUGINS_AGENTS_ROOT`.
+Keep one agents root per prefix: installing into a prefix whose versions use another
+root fails with `agents_root_conflict`.
+
+## Managed workers
+
+These two commands are read-only:
+
+```sh
+t3-plugins agents list babysitter
+t3-plugins agents show babysitter pr-maintainer
+```
+
+`list` prints one JSON line per worker: `id`, `version`, `role`, `override_status`
+(`disabled`, `enabled` or `stale`), `integrity` and `bundle_digest`. `show` adds the
+bundle and file paths, their hashes and the composed effective text.
+
+### Overrides and limits
+
+Worker limits and overrides live in `$XDG_CONFIG_HOME/t3-plugins/workers.json`, or
+`~/.config/t3-plugins/workers.json` when `XDG_CONFIG_HOME` is unset. A missing file
+means the defaults below. Routing stays in [`routing.json`](getting-started.md#model-routing).
+
+```json
+{
+  "schema_version": 1,
+  "max_live_workers": null,
+  "max_repair_cycles": 3,
+  "overrides": []
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `max_live_workers` | `null` for no plugin cap, or a positive integer. T3 capacity still applies |
+| `max_repair_cycles` | Repairs after the initial attempt, a nonnegative integer; default `3` |
+| `overrides` | Records written by `enable-override` and `disable-override` |
+
+Booleans, fractions and unknown fields are rejected. To customize a worker:
+
+1. Write `<agents-root>/overrides/<plugin>/<worker>.md`. It must be a regular UTF-8
+   file, not a symlink, and contain the line `worker_id: <plugin>/<worker>`.
+2. Copy `bundle_digest` from `agents list` for the active version.
+3. Run `t3-plugins agents enable-override <plugin>/<worker> --base-digest DIGEST`.
+
+A file on disk does nothing until it is enabled. An enabled override that is missing
+or malformed fails rather than falling back to the default. After an upgrade the
+override shows `stale` and stays inactive until you enable it against the new
+digest. Overrides change wording only; they cannot grant authority or change
+runtime mode.
+
+A job snapshots these limits and the exact definition and override bytes when it
+is created. Later edits affect new jobs only. Bringing a change into an existing
+job needs a recorded plan revision, new briefs, and stales the affected acceptance.
+
+## Pinned job paths
+
+Inside a job, resolve every plugin through its pin:
+
+```sh
+t3-plugins --job ~/.local/state/t3-plugins/jobs/JOB_ID/job.json path babysitter
+```
+
+This prints the entry inside the pinned version directory after checking the
+package and bundle digests. It refuses a plugin the job did not declare and a
+package that changed. Plain `path` still prints the active `current` entry.
+A job helper run from another package refuses with `wrong executing package`; each
+pin in `job.json` stores the recovery command as `compatible_pinned_invocation`.
+
+The coordinator drives jobs with `shared/job_cli.py` and
+`shared/job_acceptance_cli.py` inside the pinned package. Like the imps CLI, they
+store and validate data; they never call a model or dispatch work. See
+[architecture](architecture.md#whole-jobs) for the model and the
+[jobs contract](https://github.com/seankoji-com/t3-plugins/blob/master/shared/agents/jobs-contract.md)
+for inputs.
+
 ## Receipts and exit codes
 
 Installation, setup, removal and integrity checks print JSON receipts. Setup prints
@@ -55,7 +138,7 @@ read earlier receipts when a later step fails, resolve the conflict and retry.
 | --- | --- |
 | `0` | Command succeeded |
 | `1` | Integrity check failed, routing has no candidates, or setup retained an invalid routing config |
-| `2` | Invalid arguments, unreadable input or configuration error |
+| `2` | Invalid arguments, unreadable input, configuration error, a refused pin, or a version a live job still pins |
 | `4` | Installation refused because owned files were modified locally; back up edits before using `--force` |
 | `5` | Installation I/O error |
 

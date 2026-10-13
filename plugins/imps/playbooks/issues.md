@@ -12,9 +12,12 @@ history before resuming. Never reset an existing branch or reuse another run's s
 
 Build a dependency map. Record each issue's observable criteria, affected files,
 required checks, and authorized endstate. Surface contradictory criteria before edits.
-Use one core run plan with stable requirement IDs. Follow `PKG/entry.md`'s `run`
-procedure; the evidence gate validates revision-bound evidence.
-For independent work use `PKG/references/delegation.md` and isolated T3 tasks.
+Keep stable requirement IDs. Run the batch as a job under `PKG/references/jobs.md`:
+one stage per dependency-ordered issue group, each with its own gate run following
+`PKG/entry.md`'s `run` procedure and executor and reviewer slots. Parallel writers
+need verified owned worktrees and a declared integration order; otherwise
+serialize. Declare the final integration stage in the initial plan. If PRs will go
+to babysitter, declare it as a job dependency at creation.
 
 Integrate in dependency order, verify the combined tree, and obtain required independent
 review at that revision. Re-test after changes. Relevant review perspectives can cover

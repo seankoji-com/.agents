@@ -1,6 +1,6 @@
 {
   "name": "ape",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Research transferable patterns in open-source repositories.",
   "argument_hint": "doctor | forage [focus] | study <GitHub URL> [focus] | clean <workspace> [--all]",
   "entry": "entry.md",
@@ -32,7 +32,7 @@
       "id": "ape/synthesizer",
       "path": "agents/synthesizer.md",
       "operations": [
-        "study"
+        "forage"
       ],
       "role": "judgement",
       "responsibility": "Compare accepted research reports, identify conflicts, and propose bounded experiments without implementing them."

@@ -26,6 +26,10 @@ the evidence is stale. Its report names missing checks and blockers, with a run 
 for resuming after an interruption. A local pass does not stand in for CI, merge or
 live deployment.
 
+Long jobs split into stages. Your thread keeps the plan and decisions and accepts
+each stage through a validator, while fresh T3 tasks do the stage work. One overview
+shows every stage after an interruption.
+
 [See how imps works](plugins/imps.md) · [Safety and data](safety.md)
 
 ## Use the model you choose

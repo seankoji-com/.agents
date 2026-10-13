@@ -1,0 +1,64 @@
+{
+  "stage": 4,
+  "inventory": {
+    "tests": [
+      {
+        "path": "tests/test_elephant_goldfish_workflow.py",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "New Stage 4 elephant-goldfish adapter module. Instruction contract (operation names, meanings and routes; shared job-coordination reference; direct cheap operations; coordinator-only discovery; distinct acceptance authorities; #25 boundaries; question-picker approvals; worker-definition contract; word budgets) plus synthetic jobs through an isolated installed package: content-bound handoff acceptance and its invalidation, factual/cold-read separation, document-only cold-reader briefs, declared document-revision repair rounds without owner decisions inside the budget, four-round/legacy cold-read budgets with attempt_budget_exhausted beyond them, READY -> approve acceptance from a document-subject review slot, and refusal of ambiguous, empty, changed, symlinked, traversing or job-state review subjects. Synthetic data only; no live models, no GitHub.",
+        "assertions": [
+          {
+            "selector": "test_elephant_goldfish_workflow.InstructionContractTests",
+            "tests": 8,
+            "coverage": ["REQ-COMPAT", "REQ-BOUNDARIES", "REQ-APPROVAL-PICKER", "REQ-REGISTRY", "G-EG-DISCOVERY", "G-EG-SEPARATION", "G-EG-HANDOFF"],
+            "survives": true
+          },
+          {
+            "selector": "test_elephant_goldfish_workflow.ThinkingHandoffJobTests",
+            "tests": 1,
+            "coverage": ["REQ-COMPAT", "REQ-EVIDENCE", "REQ-BOUNDARIES", "REQ-JOB", "G-EG-DISCOVERY", "G-EG-HANDOFF"],
+            "survives": true
+          },
+          {
+            "selector": "test_elephant_goldfish_workflow.ElephantDocumentJobTests",
+            "tests": 5,
+            "coverage": ["REQ-COMPAT", "REQ-HANDOFF", "REQ-EVIDENCE", "REQ-REPAIR", "REQ-BOUNDARIES", "REQ-JOB", "G-EG-SEPARATION"],
+            "survives": true
+          }
+        ]
+      }
+    ]
+  },
+  "added": [
+    {
+      "path": "plugins/elephant-goldfish/references/document-jobs.md",
+      "stage": 4,
+      "kind": "instruction reference",
+      "coverage": ["REQ-BOUNDARIES", "REQ-REPAIR", "REQ-HANDOFF", "REQ-FALLBACK", "G-EG-SEPARATION", "G-EG-HANDOFF"],
+      "reason": "Loaded only before delegation: document job plan, factual and document-only cold-read slots, READY/NOT READY to approve/adverse mapping, coordinator observations, document-subject review slots, document-revision repair rounds within the budget (owner decision only beyond it), four-round default and legacy five-round budget, and fallback."
+    }
+  ],
+  "updates": {
+    "operations": [
+      {
+        "id": "elephant-goldfish:thinking",
+        "replace": true,
+        "reason": "Interactive discovery, discovery acceptance and readiness stay with the coordinator and the content-bound thinking_state.py gate plus render_handoff.py --check; an optional, separately authorised cold read of handoff.md runs in a fresh document-only child and never replaces readiness.",
+        "files": ["plugins/elephant-goldfish/playbooks/thinking.md", "plugins/elephant-goldfish/references/document-jobs.md"]
+      },
+      {
+        "id": "elephant-goldfish:elephant",
+        "replace": true,
+        "reason": "Coordinator drafts and repairs elephant.md; factual-checker and document-only cold-reader stages are accepted separately by validate_document.py; cold-read rounds default to four, legacy loops keep their remaining five.",
+        "files": ["plugins/elephant-goldfish/playbooks/elephant.md", "plugins/elephant-goldfish/references/document-jobs.md"]
+      },
+      {
+        "id": "elephant-goldfish:check",
+        "replace": true,
+        "reason": "Factual drift pass only, run directly or as one factual-checker stage; never starts a cold read.",
+        "files": ["plugins/elephant-goldfish/playbooks/elephant.md", "plugins/elephant-goldfish/references/document-jobs.md"]
+      }
+    ]
+  }
+}

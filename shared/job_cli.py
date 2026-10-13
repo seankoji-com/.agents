@@ -3,12 +3,12 @@ import argparse,json,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from core.jobs import prepare,record_result,decision,cancel,discard,record_dispatch,retry_task,revise_plan
-from shared.job_coordinator import create_pinned_job,verify_pinned_dependency,verify_all_pins,adopt_pins,pinned_store,prepare_task,prepare_followup,publish_observation,dispose_finding,record_observation
+from shared.job_coordinator import create_pinned_job,verify_pinned_dependency,verify_all_pins,adopt_pins,pinned_store,prepare_task,prepare_followup,publish_observation,dispose_finding,record_observation,revise_document
 from shared.job_acceptance import validate_stage
 from core.jobs.store import Store,JobError,strict_load
 
 def main(argv=None):
- p=argparse.ArgumentParser();p.add_argument('command',choices=['create','overview','status','prepare','result','task-observation','followup-prepare','observation','finding-disposition','decision','plan-revision','retry','cancel','discard']);p.add_argument('--state-root',required=True);p.add_argument('--job',required=True);p.add_argument('--input');p.add_argument('--prefix');p.add_argument('--agents-root');p.add_argument('--config')
+ p=argparse.ArgumentParser();p.add_argument('command',choices=['create','overview','status','prepare','result','task-observation','followup-prepare','observation','finding-disposition','decision','plan-revision','document-revision','retry','cancel','discard']);p.add_argument('--state-root',required=True);p.add_argument('--job',required=True);p.add_argument('--input');p.add_argument('--prefix');p.add_argument('--agents-root');p.add_argument('--config')
  a=p.parse_args(argv)
  try:
   store=pinned_store(a.state_root,a.job)  # unsafe job IDs are invalid input, refused before any state access
@@ -53,6 +53,7 @@ def main(argv=None):
   elif a.command=='retry':out=retry_task(store,data['caller'],data['task_id'],data['reason'],data.get('category','primary'))
   elif a.command=='plan-revision':
    out=revise_plan(store,data['caller'],data['revision'],data['new_plan'],lambda job,deps: adopt_pins(job,deps,a.state_root,a.prefix or '',a.agents_root or '',a.config,data['revision'].get('adopt_keys',[])))
+  elif a.command=='document-revision':out=revise_document(store,data['caller'],data['task_id'],data['document'],data['reason'])
   elif a.command=='decision':out=decision(store,data['caller'],data['decision'])
   elif a.command=='cancel':out=cancel(store,data['caller'],data['reason'])
   else:out=discard(store,data['caller'],data['reason'])

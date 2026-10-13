@@ -360,5 +360,68 @@ class TestListAndLegacy(unittest.TestCase):
             self.assertIn("not valid JSON", out["error"])
 
 
+class TestColdReadBudget(unittest.TestCase):
+    """Per-topic cold-read round limit and performed rounds; never readiness or authority."""
+
+    def test_new_topic_records_four_rounds_and_counts_performed_rounds(self):
+        with sandbox():
+            _, out = run(["init", "t", "--output-type", "research"])
+            self.assertEqual(out["meta"]["cold_read"], {"max_rounds": 4, "rounds_performed": 0,
+                                                        "limit_source": "new-topic-default"})
+            self.assertEqual(out["cold_read"]["remaining"], 4)
+            for performed in (1, 2, 3, 4):
+                code, out = run(["set", "t", f"cold_read.rounds_performed={performed}"])
+                self.assertEqual(code, 0, out)
+            self.assertEqual((out["cold_read"]["remaining"], out["cold_read"]["exhausted"]), (0, True))
+            self.assertIs(out["execution_authorized"], False)
+            self.assertEqual(out["next_phase"], "discovery")
+            # A fifth round exceeds the recorded limit; resume cannot reset the count.
+            code, out = run(["set", "t", "cold_read.rounds_performed=5"])
+            self.assertEqual(code, 1)
+            self.assertIn("attempt_budget_exhausted", out["error"])
+            self.assertIn("owner_decision_required", out["error"])
+            code, out = run(["set", "t", "cold_read.rounds_performed=0"])
+            self.assertEqual(code, 1)
+            self.assertIn("cannot decrease", out["error"])
+            self.assertEqual(run(["set", "t", "cold_read=null"])[0], 1)
+            self.assertEqual(run(["resolve", "t"])[1]["meta"]["cold_read"]["rounds_performed"], 4)
+
+    def test_legacy_topic_records_the_five_round_policy_and_prior_rounds(self):
+        with sandbox():
+            os.makedirs("thinking/legacy")
+            write("thinking/legacy/meta.json", json.dumps({"slug": "legacy", "output_type": "research",
+                                                           "published": {}}))
+            out = run(["resolve", "legacy"])[1]
+            self.assertFalse(out["cold_read"]["recorded"])
+            self.assertEqual(out["cold_read"]["legacy_max_rounds"], 5)
+            # The legacy policy is exactly five rounds; partial or wrong records are refused.
+            self.assertEqual(run(["set", "legacy", "cold_read.rounds_performed=2"])[0], 1)
+            self.assertEqual(run(["set", "legacy", "cold_read.max_rounds=4", "cold_read.rounds_performed=2",
+                                  "cold_read.limit_source=legacy-five-round-policy"])[0], 1)
+            code, out = run(["set", "legacy", "cold_read.max_rounds=5", "cold_read.rounds_performed=2",
+                             "cold_read.limit_source=legacy-five-round-policy"])
+            self.assertEqual(code, 0, out)
+            self.assertEqual((out["cold_read"]["remaining"], out["cold_read"]["limit_source"]),
+                             (3, "legacy-five-round-policy"))
+
+    def test_recorded_limits_are_kept_and_raising_one_needs_an_owner_decision(self):
+        with sandbox():
+            run(["init", "t", "--output-type", "research"])
+            code, out = run(["set", "t", "cold_read.max_rounds=6", "cold_read.limit_source=recorded"])
+            self.assertEqual(code, 1)
+            self.assertIn("owner_decision_required", out["error"])
+            code, out = run(["set", "t", "cold_read.max_rounds=3", "cold_read.limit_source=recorded"])
+            self.assertEqual(code, 0, out)  # narrowing keeps performed rounds
+            self.assertEqual(run(["set", "t", "cold_read.max_rounds=6",
+                                  "cold_read.limit_source=owner-decision"])[0], 1)  # needs decision_ref
+            code, out = run(["set", "t", "cold_read.max_rounds=6", "cold_read.limit_source=owner-decision",
+                             "cold_read.decision_ref=picker:owner-answer-1"])
+            self.assertEqual(code, 0, out)
+            self.assertEqual(out["cold_read"]["max_rounds"], 6)
+            for bad in ("cold_read.max_rounds=true", "cold_read.rounds_performed=-1",
+                        "cold_read.limit_source=guess", "cold_read.extra=1"):
+                self.assertEqual(run(["set", "t", bad])[0], 1, bad)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -34,13 +34,13 @@ WORKER_CATALOG = {
         'reviewer': ('independent exact-snapshot change review', ['run', 'prs']),
     },
     'ape': {'source-researcher': ('pinned source comparison and transferable proposals', ['forage', 'study']),
-           'synthesizer': ('accepted report comparison and bounded experiment proposals', ['study'])},
-    'elephant-goldfish': {'factual-checker': ('repository and command claim verification', ['check']),
-                          'cold-reader': ('document-only usability and evidence verdict', ['thinking', 'check'])},
-    'babysitter': {'pr-maintainer': ('one scoped PR triage and authorized repair', ['pr']),
-                   'pr-reviewer': ('independent final combined PR review', ['pr'])},
-    'agent-tuneup': {'config-researcher': ('provider-format and scope research with sources', ['audit']),
-                     'config-verifier': ('authorized configuration change verification', ['audit'])},
+           'synthesizer': ('accepted report comparison and bounded experiment proposals', ['forage'])},
+    'elephant-goldfish': {'factual-checker': ('repository and command claim verification', ['elephant', 'check']),
+                          'cold-reader': ('document-only usability and evidence verdict', ['thinking', 'elephant'])},
+    'babysitter': {'pr-maintainer': ('one scoped PR triage and authorized repair', ['pr', 'repo', 'org']),
+                   'pr-reviewer': ('independent final combined PR review', ['pr', 'repo', 'org'])},
+    'agent-tuneup': {'config-researcher': ('provider-format and scope research with sources', ['audit', 'align']),
+                     'config-verifier': ('authorized configuration change verification', ['audit', 'apply'])},
 }
 
 

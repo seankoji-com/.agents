@@ -41,6 +41,15 @@ rules in explicitly supplied settings. It emits finding codes and locations rath
 than values. The report is a starting point for inspection, not a complete permission
 simulator.
 
+## Keep long jobs readable
+
+A multi-stage job keeps its plan, requirements and decisions in one overview. Fresh
+T3 tasks do each stage and return a structured result, so their exploration and logs
+stay in files rather than in your thread. A stage counts as done only when its
+validator accepts it, and the final check covers every requirement again. Whether
+this reduces context in practice has not been measured yet; see
+[measurement limits](compatibility.md#measurement-limits).
+
 ## When a direct request is enough
 
 A one-line edit rarely needs saved run state or delegated review. Use the smallest
