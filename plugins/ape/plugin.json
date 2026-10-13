@@ -41,6 +41,13 @@
   "worker_shared": [
     "boundaries.md",
     "manifest.schema.json",
-    "workers-config.schema.json"
+    "workers-config.schema.json",
+    "job.schema.json",
+    "stage.schema.json",
+    "worker-brief.schema.json",
+    "worker-result.schema.json",
+    "result-envelope.schema.json",
+    "acceptance.schema.json",
+    "jobs-contract.md"
   ]
 }

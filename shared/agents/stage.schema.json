@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Finite job stage",
+  "type": "object",
+  "required": [
+    "id",
+    "depends_on",
+    "requirements",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "depends_on": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "running",
+        "awaiting-followup",
+        "awaiting-acceptance",
+        "accepted-at-snapshot",
+        "blocked",
+        "failed",
+        "cancelled",
+        "stale"
+      ]
+    },
+    "criteria": {
+      "type": "array"
+    },
+    "resources": {
+      "type": "object"
+    },
+    "validator_dependency": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attempts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "acceptance": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "revision": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "outputs": {
+      "type": "array"
+    },
+    "stop_conditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "acceptance_history": {
+      "type": "array"
+    },
+    "acceptance_runs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cycle": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "execution_mode": {
+      "enum": [
+        "direct",
+        "workers"
+      ]
+    },
+    "observation_ref": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "workerId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+    }
+  }
+}
