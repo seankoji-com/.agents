@@ -88,13 +88,29 @@ class RenderDemoTest(unittest.TestCase):
         self.assertEqual(times, sorted(times))
         self.assertGreater(total, times[-1])
 
-    def test_long_lines_wrap_like_a_terminal_and_keep_every_character(self):
+    def test_long_words_hard_break_and_keep_every_character(self):
         long = 'x' * 200
         rows, _ = render_demo.timeline(session([('cmd', 0.1, [[0.0, long]])]))
         out = [r['text'] for r in rows if r['kind'] == 'out']
-        self.assertEqual(len(out), math.ceil(200 / render_demo.COLS))
-        self.assertEqual(''.join(out), long)
+        self.assertEqual(out[0], 'x' * render_demo.COLS)
+        self.assertTrue(all(row.startswith('  x') for row in out[1:]))
+        self.assertTrue(all(len(row) <= render_demo.COLS for row in out))
+        self.assertEqual(out[0] + ''.join(row[2:] for row in out[1:]), long)
+        self.assertEqual(len(out), 1 + math.ceil((200 - render_demo.COLS) / (render_demo.COLS - 2)))
         self.assertEqual(render_demo.wrap(''), [''])
+        self.assertEqual(render_demo.wrap('short line'), ['short line'])
+
+    def test_wraps_at_spaces_and_hangs_under_the_description_column(self):
+        line = 'imps                 ' + ' '.join(['evidence'] * 20)
+        rows = render_demo.wrap(line, cols=50)
+        self.assertTrue(all(len(row) <= 50 for row in rows))
+        self.assertTrue(all(row.startswith(' ' * 21 + 'evidence') for row in rows[1:]))
+        self.assertTrue(all(row.rstrip().endswith('evidence') for row in rows))
+        self.assertEqual(rows[0] + ''.join(row[21:] for row in rows[1:]), line)
+        json_line = '{"ok": true, "data": {"plugin": "imps", "files": 73}}'
+        rows = render_demo.wrap(json_line, cols=24)
+        self.assertTrue(all(row.startswith('  ') for row in rows[1:]))
+        self.assertEqual(rows[0] + ''.join(row[2:] for row in rows[1:]), json_line)
 
     def test_canvas_has_a_fixed_terminal_size(self):
         long = session([('cmd', 0.1, [[0.0, 'y' * 500]] * 40)])

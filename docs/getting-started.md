@@ -106,8 +106,16 @@ $ python3 "$(dirname "$(t3-plugins path agent-tuneup)")/scripts/audit.py" --prov
 ## Homebrew release channel
 
 The tap installs a `t3-plugins` command and an `imps` command, with Python 3.12 as a
-dependency. Homebrew on Linux installs and runs the stable formula (checked on x86_64);
-the tap's CI installs and tests it on macOS.
+dependency. What has been checked, as of 14 Oct 2026:
+
+- Linux x86_64: Homebrew installs and runs the stable formula. For the HEAD build, the
+  formula's install steps were replayed by hand (same directories, same wrapper, same
+  Homebrew Python 3.12), and `setup`, `doctor` and `list` passed. `brew install
+  --HEAD` itself was not run on Linux.
+- macOS: the tap's CI installs and tests the stable formula on macOS 15.
+
+On a HEAD install, `brew test t3-plugins` fails: the tap's test still expects the
+retired prompt-builder plugin in `t3-plugins list`. Use `t3-plugins doctor` instead.
 
 The stable formula is v0.4.0. It has `setup`, `doctor` and `prompt`, but not ralph,
 `agents`, `resolve` or `adopt`, and it still ships two retired plugins. These docs

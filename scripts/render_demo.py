@@ -4,8 +4,9 @@
 The input is a transcript written by ``scripts/capture_terminal.py``: real commands,
 real output, and the time each output line arrived. Nothing here invents output.
 Commands are typed at a fixed speed (the only simulated part, and the caption says
-so); output lines appear at their recorded offsets. Long lines wrap at the terminal
-width as they would in a terminal, and the view scrolls to keep the newest rows.
+so); output lines appear at their recorded offsets. Long lines wrap at a space within
+the terminal width, with continuation rows indented under the text they continue;
+no character is dropped or changed. The view scrolls to keep the newest rows.
 
     python3 scripts/render_demo.py            # writes docs/assets/demo.svg
     python3 scripts/render_demo.py --check    # exit 1 if the committed SVG is stale
@@ -23,6 +24,7 @@ import datetime as dt
 import html
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -66,8 +68,23 @@ def load(path: Path = TRANSCRIPT) -> dict:
 
 
 def wrap(text: str, cols: int = COLS) -> list[str]:
-    """Hard-wrap at the terminal width, as a terminal does; an empty line keeps one row."""
-    return [text[i:i + cols] for i in range(0, len(text), cols)] or ['']
+    """Wrap at the last space that fits, or hard-break a word longer than the row.
+
+    Continuation rows are indented to the second column of a ``name   description``
+    line, or by two spaces otherwise; removing that indent and joining the rows gives
+    back the original text. An empty line keeps one row."""
+    if len(text) <= cols:
+        return [text]
+    column = re.match(r'\S+ {2,}', text)
+    indent = len(column.group()) if column and len(column.group()) <= cols // 2 else 2
+    rows, rest, prefix = [], text, ''
+    while len(prefix) + len(rest) > cols:
+        width = cols - len(prefix)
+        cut = rest.rfind(' ', 1, width)
+        cut = cut + 1 if cut > 0 else width
+        rows.append(prefix + rest[:cut])
+        rest, prefix = rest[cut:], ' ' * indent
+    return rows + [prefix + rest]
 
 
 def timeline(session: dict, cols: int = COLS) -> tuple[list[dict], float]:

@@ -43,9 +43,9 @@ can run. It changes no files.
 </p>
 <p align="center"><sub>Real output from an empty home directory, recorded 13 Oct 2026 (<a href="docs/assets/quickstart.mp4">MP4</a>, <a href="docs/assets/recordings/quickstart.txt">transcript</a>). Only the typing is simulated.</sub></p>
 
-Homebrew on Linux installs and runs the formula (checked on x86_64), and the tap's CI
-installs and tests it on macOS. Without Homebrew, install from source with Python
-3.10+:
+Checked on Linux x86_64 and in the tap's macOS CI;
+[what was checked](docs/getting-started.md#homebrew-release-channel). Without
+Homebrew, install from source with Python 3.10+:
 
 ```sh
 git clone https://github.com/seankoji-com/t3-plugins.git && cd t3-plugins
