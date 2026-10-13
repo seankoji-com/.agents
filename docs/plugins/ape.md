@@ -32,11 +32,29 @@ from `/` and append the same request instead.
 
 ## What you get
 
-A report pinned to the source commit, with Overlap, Adopt, Adapt, Reject and
-Command case sections. Each recommendation names local target files, effort,
+A report pinned to the source commit, with Provenance, Overlap, Adopt, Adapt, Reject
+and Command case sections. Each recommendation names local target files, effort,
 tradeoffs and a bounded experiment. An empty Adopt section is a valid result.
 The agent returns the source revision and report path; proposed experiments are
 not measured improvements.
+
+## Jobs and workers
+
+`study` and `forage` run as one [job](../architecture.md#whole-jobs); `doctor` and
+`clean` stay direct. Before the job starts, the agent pins each candidate's source
+text at its resolved commit with `scripts/snapshot_source.py`.
+
+- `ape/source-researcher` compares one pinned candidate with your project: one slot
+  for `study`, up to five for `forage`. A `study` slot may use one follow-up on the
+  same source and focus.
+- `ape/synthesizer` compares the accepted `forage` reports and proposes bounded
+  experiments.
+
+A report is accepted only when `scripts/validate_report.py` finds its sections, pinned
+revisions and snapshot hashes, line-numbered citations, coverage of every candidate
+and the coordinator's inspection receipts in the actual files. That proves the
+evidence trail, not that a recommendation is right. A proposal never authorizes
+implementation or running the experiment; that needs a separate request.
 
 ## Limits
 

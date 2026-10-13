@@ -17,6 +17,12 @@ conflict rather than dropping repository-required perspectives.
 }
 ```
 
+Pin each selected perspective's full text before any review starts. The gate plan
+stores it in `policy.review.perspectives`; in a job, the stage's
+`resources.perspectives` also records its ID, text and SHA-256 (see
+`PKG/references/jobs.md`). Review briefs carry that pinned text. Record results
+against the pinned text, never against this file's current contents.
+
 Keep the default independent review and start one fresh read-only T3 review per
 additional perspective through the shared delegation contract. Retain every task
 ID and submit each child observation and review with its original binding. Keep

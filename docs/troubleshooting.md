@@ -62,6 +62,64 @@ symlinked root can cause refusal. Preserve the conflicting files and follow the
 [adapter recovery steps](slash-commands.md#ownership-and-removal), then retry.
 Do not delete a whole skill root or use snapshot `--force` to solve a skill conflict.
 
+## Resume a job after an interruption
+
+Ask the same workflow to `resume` with the job ID, in the same thread when you can.
+The agent first resolves the pinned entry with
+`t3-plugins --job ~/.local/state/t3-plugins/jobs/JOB_ID/job.json path PLUGIN` and loads
+that one, even if `current` has moved. It then reads the job overview, checks every
+recorded task handle with `task_status`, and only then acts. A missing reply is never
+a reason to start the same work again. `status` prints the overview without changing
+anything.
+
+The overview lists every stage, requirement coverage, the current stage, open
+decisions, blockers, task handles and `fallback: direct (<reason>)` markers. It does
+not read worker transcripts.
+
+## A job is blocked
+
+| Report | Meaning | Next step |
+| --- | --- | --- |
+| `uncertain_dispatch` | A launch had no clear answer after two same-ID retries | Find the task in T3. Nothing replaces it until it is proven absent or stopped |
+| `capacity_deferred` | T3 refused the launch while this job had live tasks | Wait; the retry follows the next completion notification from a task this job owns |
+| `attempt_budget_exhausted` | The stage used its initial attempt and every repair | Choose in the picker: raise the limit, narrow the work or stop |
+| `undeclared_expansion` | The change adds work, widens authority or weakens a requirement | Answer the picker question; the agent records your exact words |
+| `required_review_unavailable`, or an adverse review | No approving reviewer on another known lineage | Configure a reviewer in routing; self-review cannot replace it |
+| `stale_evidence` or `dependency_stale` | Inputs, pins or an earlier stage changed after acceptance | Let the agent repair and accept the stage again |
+| `pin_mismatch` (`wrong executing package` or a changed pin) | A helper ran from a package the job did not pin | Load the entry printed by `--job JOB path PLUGIN` |
+| `pin_mismatch: legacy package has no worker bundle` | The active package predates worker bundles | Activate a listed version that has bundles, or run `t3-plugins setup PLUGIN` |
+| a rejected result | The worker returned prose, a partial object or oversize output | It counts as a failed attempt; results are never truncated or guessed |
+
+Blocked stages keep their counters. Resume, a new model or a replacement task never
+resets them.
+
+## Uninstall says a version is still in use
+
+`version_referenced` means a live or resumable job pins that package or worker
+bundle. Uninstall checks `$XDG_STATE_HOME/t3-plugins/jobs` and every state root
+recorded in `<agents-root>/job-index.json` when a job was created, including custom
+`--state-root` paths. Finish, cancel or discard the job first; both keep its artifacts.
+
+Uninstall also refuses when that index is corrupt, or when a recorded job's state is
+missing or unreadable and the job was never cancelled or discarded. Restore the state
+root, or repair the index entry if you deleted that job deliberately.
+
+## `doctor` reports a worker bundle or job pin problem
+
+`worker_bundle_missing` means the package was installed before bundles existed: run
+`t3-plugins setup PLUGIN`. `worker_bundle_digest_mismatch` and other bundle errors mean
+the bundle no longer matches its receipt; reinstall rather than editing it.
+`job_*` errors name a live job whose pinned package or bundle is missing, changed or
+corrupt. Restore that version, or cancel the job. An identity conflict after moving a
+prefix needs `t3-plugins adopt --from-prefix OLD`.
+
+## A worker override is ignored
+
+`agents list` shows `stale` after an upgrade: the override was enabled against the
+previous bundle digest. Review your file against the new definition from
+`agents show`, then enable it again with the new `bundle_digest`. Running jobs keep
+the override text they started with. See [overrides and limits](cli.md#overrides-and-limits).
+
 ## The CLI succeeded but imps is not complete
 
 `imps validate` exits 0 when validation succeeds, even if requirements remain open.

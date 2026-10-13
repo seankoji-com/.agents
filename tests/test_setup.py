@@ -25,6 +25,7 @@ class SetupTest(unittest.TestCase):
             shutil.copytree(ROOT / name, self.package / name,
                             ignore=shutil.ignore_patterns('__pycache__'))
         self.prefix = self.home / 'snapshots'
+        self.agents = self.base / 'managed-agents'
         self.project = self.base / 'project'
         self.project.mkdir()
         self.env = {**os.environ, 'HOME': str(self.home),
@@ -35,7 +36,7 @@ class SetupTest(unittest.TestCase):
 
     def call(self, *args, code=0):
         result = subprocess.run([sys.executable, str(self.package / 'scripts/catalog.py'),
-                                 '--prefix', str(self.prefix), *args], cwd=self.project,
+                                 '--prefix', str(self.prefix), '--agents-root', str(self.agents), *args], cwd=self.project,
                                 env=self.env,
                                 capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, code, result.stdout + result.stderr)

@@ -2,7 +2,9 @@
 
 The one place the delegation rules live. Plugins link here instead of restating them.
 The rules are tuned for Opus 5.5 as the orchestrator and apply to whichever model is
-orchestrating. Never switch the user's session model.
+orchestrating. Never switch the user's session model. Multi-stage jobs also follow
+`PKG/shared/job-coordination.md`, which owns job state, dispatch records, repair
+budgets, acceptance and fallback; where the two differ, that file wins.
 
 ## When to delegate
 
@@ -10,7 +12,8 @@ Delegate whenever it pays off. Weigh wallclock time, the main thread's context, 
 capability the child has and you lack, and cost. Delegation is the default for audits,
 reviews that span several PRs or files, and independent slices that can run in
 parallel. Permission to delegate is not by itself a reason to. There is no size
-floor: a small task is worth handing off when it saves context or time.
+floor: a small task is worth handing off when it saves context or time. Cheap
+deterministic operations such as doctor, status and list stay direct.
 
 ## Choosing a model
 
@@ -34,7 +37,10 @@ context it lacked), write the observed failure as a learning through
 
 Child work goes only through T3 `delegate_task`, `task_status` and `task_cancel`.
 `t3_thread_read` may fetch a result those tools omit.
-Never use it or `t3_thread_send` to continue or relaunch a child.
+Never use it or `t3_thread_send` to relaunch a child. The only continuation is a tracked
+same-scope follow-up prepared with `job_cli.py followup-prepare` and sent with
+`t3_thread_send` `mode=queue`, when the host records it as a new task
+(`PKG/shared/job-coordination.md`).
 Never use `create_threads` or `t3_thread_launch` for child work; they create top-level threads.
 Native `Agent`, `Task` and `Workflow` tools are banned for child work, and so are
 provider CLIs such as `codex exec`, `claude -p` and `opencode run`. Match tools by base
@@ -50,7 +56,8 @@ Readers may still run in parallel.
 ## Task hygiene
 
 - Keep each `taskId` for the life of the run.
-- Use one `clientRequestId` per task or round, reused unchanged when retrying it.
+- Use one `clientRequestId` per task or round, reused unchanged when retrying it. In a
+  job it is the slot's `request_id`; a charged `retry` issues a new one.
 - A review round is a new `delegate_task` carrying the original brief, the previous
   findings and any unresolved objections.
 - A stop is real only once `task_status` confirms it. `cancel_requested` is not a stop.
@@ -58,6 +65,7 @@ Readers may still run in parallel.
 - Cancel only tasks this run created.
 - After dispatching, end the turn unless other work is ready. T3 wakes the thread when
   a child finishes. Do not poll in a loop or start watcher processes.
+- Only the coordinator dispatches. Workers never launch children or accept their own work.
 
 ## Review independence
 
@@ -94,4 +102,5 @@ changed file before relying on it.
 
 A plugin's own instructions keep their finish lines, stop conditions and authorisation
 boundaries. They link here for delegation and do not repeat the worker-brief text.
-A child's summary or a `completed` status is a report, not acceptance.
+A child's summary or a `completed` status is a report, not acceptance; acceptance is the
+pinned validator run described in `PKG/shared/job-coordination.md`.

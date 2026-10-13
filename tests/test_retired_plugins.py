@@ -51,11 +51,13 @@ class RetiredAdapters(unittest.TestCase):
         self.home = self.base / 'home'
         self.home.mkdir()
         self.prefix = self.base / 'prefix'
+        self.agents = self.base / 'managed-agents'
         self.env = {**os.environ, 'HOME': str(self.home), 'XDG_CONFIG_HOME': str(self.base / 'config'),
                     'XDG_STATE_HOME': str(self.base / 'state')}
 
     def call(self, *args, code=0):
-        result = subprocess.run([sys.executable, str(ROOT / 'scripts/catalog.py'), '--prefix', str(self.prefix), *args],
+        result = subprocess.run([sys.executable, str(ROOT / 'scripts/catalog.py'), '--prefix', str(self.prefix),
+                                 '--agents-root', str(self.agents), *args],
                                 env=self.env, cwd=self.base, capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, code, result.stdout + result.stderr)
         self.assertNotIn('Traceback', result.stderr)
@@ -205,9 +207,11 @@ class RetiredUninstall(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.base = Path(temp.name).resolve()
         self.prefix = self.base / 'prefix'
+        self.agents = self.base / 'managed-agents'
 
     def call(self, *args, code=0):
-        result = subprocess.run([sys.executable, str(ROOT / 'scripts/catalog.py'), '--prefix', str(self.prefix), *args],
+        result = subprocess.run([sys.executable, str(ROOT / 'scripts/catalog.py'), '--prefix', str(self.prefix),
+                                 '--agents-root', str(self.agents), *args],
                                 capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, code, result.stdout + result.stderr)
         return result
@@ -222,7 +226,7 @@ class RetiredUninstall(unittest.TestCase):
         for name in ('core', 'shared'):
             (source / name).mkdir(exist_ok=True)
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/install.py'), '--plugin', plugin,
-                                 '--prefix', str(self.prefix), '--source', str(source)],
+                                 '--prefix', str(self.prefix), '--agents-root', str(self.agents), '--source', str(source)],
                                 capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         version_dir = Path(json.loads(result.stdout)['data']['version_dir'])

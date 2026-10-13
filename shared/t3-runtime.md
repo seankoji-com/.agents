@@ -4,7 +4,9 @@ Read once per run. The plugin entry defines the task; this file defines how it u
 
 - Inherit the active provider and model, and respect the operator's choices.
 - Delegation follows `PKG/shared/delegation.md`: when to hand off, which model, which
-  tools, and what a child brief contains.
+  tools, and what a child brief contains. Substantive multi-stage work follows
+  `PKG/shared/job-coordination.md`: one pinned job, coordinator-only dispatch, tracked
+  handles, validator acceptance, bounded repair and visible fallback.
 - Tool prefixes vary by harness. Match exposed tools by name and description. If an
   expected tool is absent, attempt bounded discovery. Report the missing capability
   rather than inventing a substitute. Do not change provider configuration to unblock it.
@@ -15,6 +17,12 @@ Read once per run. The plugin entry defines the task; this file defines how it u
 - Keep inspection, edits, commits, pushes, PRs, merge, and release as distinct actions.
   Continue work already authorized; ask only when an action exceeds that scope.
   Preserve unrelated changes and stop on permission denial instead of bypassing it.
+- Ask for approvals and owner decisions through the host's native question picker:
+  the tool that presents choices to the user, such as Claude Code's `AskUserQuestion`,
+  matched by name and description. Ask one question per decision, put the recommended
+  option first, and batch related questions. Never bury an approval in a prose status
+  update. Without a picker, ask in a separate, clearly marked question block. Until
+  answered, the action stays unapproved; silence is not approval.
 - Inspect current-head review and CI evidence. Link every PR with `link_pull_request`
   when exposed. For an older host, discover its documented PR-link operation first.
   When asked to monitor, call `watch_pull_request` and yield; T3 wakes this thread.

@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sanitized bench-v2 attempt record",
+  "type": "object",
+  "required": [
+    "schema_version", "start_id", "attempt", "arm", "provider_instance_id",
+    "model_as_read_back", "model_options", "runtime_mode", "os", "t3_build",
+    "package_digests", "bundle_digests", "job_id", "thread_id", "task_ids",
+    "check_results", "parser_summary", "interventions", "failures",
+    "private_raw_sha256", "metrics", "unknown_reasons", "metrics_unknown_reasons"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "start_id": {"type": "string", "minLength": 1},
+    "attempt": {"type": "integer", "minimum": 1},
+    "arm": {"enum": ["baseline", "rebuilt"]},
+    "provider_instance_id": {"type": ["string", "null"], "minLength": 1},
+    "model_as_read_back": {
+      "type": ["object", "null"],
+      "properties": {
+        "provider_instance_id": {"type": "string", "minLength": 1},
+        "model_id": {"type": "string", "minLength": 1}
+      },
+      "required": ["provider_instance_id", "model_id"],
+      "additionalProperties": false
+    },
+    "model_options": {
+      "type": "object",
+      "additionalProperties": {"type": ["string", "number", "boolean"]}
+    },
+    "runtime_mode": {"type": ["string", "null"], "minLength": 1},
+    "os": {"type": ["string", "null"], "minLength": 1},
+    "t3_build": {"type": ["string", "null"], "minLength": 1},
+    "package_digests": {
+      "type": "object", "minProperties": 1,
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    },
+    "bundle_digests": {
+      "type": "object", "minProperties": 1,
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    },
+    "job_id": {"type": ["string", "null"], "minLength": 1},
+    "thread_id": {"type": ["string", "null"], "minLength": 1},
+    "task_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "check_results": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["id", "required", "passed"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "required": {"type": "boolean"},
+          "passed": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "parser_summary": {
+      "type": ["object", "null"],
+      "required": ["schema_version", "protocol", "sources", "parent", "workers", "sidechain", "unattributed_sources", "aggregate", "gaps"],
+      "properties": {
+        "schema_version": {"type": "integer", "const": 1},
+        "protocol": {"type": "string", "const": "bench-v2"},
+        "sources": {"type": "array", "items": {"type": "object"}},
+        "parent": {"type": "object"},
+        "workers": {"type": "array", "items": {"type": "object"}},
+        "sidechain": {"type": "object"},
+        "unattributed_sources": {"type": "array", "items": {"type": "string"}},
+        "aggregate": {"type": "object"},
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["source", "kind", "detail"],
+            "properties": {
+              "source": {"type": "string", "minLength": 1},
+              "first_source": {"type": "string", "minLength": 1},
+              "kind": {"type": "string", "minLength": 1},
+              "detail": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "interventions": {"type": "array", "items": {"type": "string"}},
+    "failures": {"type": "array", "items": {"type": "string"}},
+    "private_raw_sha256": {
+      "type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "wall_seconds", "repair_count", "task_count", "compaction_count", "fallback_count",
+        "repeated_setup", "parent_peak_context", "worker_usage", "attribution_gaps", "retained_plan_correct"
+      ],
+      "properties": {
+        "wall_seconds": {"type": ["number", "null"], "minimum": 0},
+        "repair_count": {"type": ["integer", "null"], "minimum": 0},
+        "task_count": {"type": ["integer", "null"], "minimum": 0},
+        "compaction_count": {"type": ["integer", "null"], "minimum": 0},
+        "fallback_count": {"type": ["integer", "null"], "minimum": 0},
+        "repeated_setup": {"type": ["integer", "null"], "minimum": 0},
+        "parent_peak_context": {"type": ["integer", "null"], "minimum": 0},
+        "worker_usage": {
+          "type": ["object", "null"],
+          "additionalProperties": {
+            "type": "object",
+            "required": ["inferences", "input", "cache_read", "cache_write", "output", "context", "unknown"],
+            "properties": {
+              "inferences": {"type": "integer", "minimum": 0},
+              "input": {"type": ["integer", "null"], "minimum": 0},
+              "cache_read": {"type": ["integer", "null"], "minimum": 0},
+              "cache_write": {"type": ["integer", "null"], "minimum": 0},
+              "output": {"type": ["integer", "null"], "minimum": 0},
+              "context": {"type": ["integer", "null"], "minimum": 0},
+              "unknown": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}}
+            },
+            "additionalProperties": false
+          }
+        },
+        "attribution_gaps": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object", "required": ["source", "kind", "detail"],
+            "properties": {
+              "source": {"type": "string", "minLength": 1},
+              "first_source": {"type": "string", "minLength": 1},
+              "kind": {"type": "string", "minLength": 1},
+              "detail": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+          }
+        },
+        "retained_plan_correct": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "unknown_reasons": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
+    "metrics_unknown_reasons": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}}
+  },
+  "additionalProperties": false
+}

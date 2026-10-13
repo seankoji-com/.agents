@@ -1,5 +1,8 @@
 # Search broadly
 
+Discovery runs directly in the coordinator because the plan's slot count depends on it.
+Comparison and synthesis run as delegated stages. Job shape: `PKG/references/research-job.md`.
+
 1. Inspect the current project and write a short fingerprint of its stack, relevant
    weaknesses, and techniques it already uses. Resolve the focus from the request.
 2. Run `bash PKG/scripts/init-workspace.sh` from the project. Use the returned workspace
@@ -10,8 +13,17 @@
 4. Select at most five candidates. Explain why each can address a named local gap.
    Clone through `scripts/clone-candidates.sh <workspace> <url> <name> <sparse:0|1>`;
    repeat triples for multiple candidates. Never reinterpret rejected URLs as shell code.
-5. Apply the comparison and reporting rules in `PKG/playbooks/study.md` to each clone.
-   Independent comparisons are delegation candidates under `PKG/shared/delegation.md`.
-   Give each child the fingerprint, exact scope, source revision, and report path.
-6. Synthesize overlap and conflicting recommendations. Recommend the smallest useful
-   experiment, with evidence against it. Save reports; do not modify the target project.
+   Pin each clone's source snapshot with `PKG/scripts/snapshot_source.py`.
+5. Create the job: one independent `research-<n>` stage per clone with one
+   `ape/source-researcher` slot, then one `synthesis` stage that depends on all of them,
+   with one `ape/synthesizer` slot. The research stages are parallel readers; dispatch
+   them together. Each applies the comparison and report rules in
+   `PKG/playbooks/study.md` steps 4–6 to its own clone.
+6. Accept each research stage on its own report descriptor. Then prepare the synthesis
+   brief with the accepted report paths and hashes. The synthesizer compares overlap and
+   conflicting recommendations and proposes the smallest useful experiment with the
+   evidence against it. It builds on the accepted reports, not fresh source research;
+   its descriptor pins every candidate snapshot and accepted report, quotes the text
+   those reports cited, and carries your receipts for Conflicts and the experiment.
+7. Accept synthesis, run `validate-final` over every stage, and save the reports in the
+   workspace. Do not modify the target project or start any experiment.

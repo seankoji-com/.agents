@@ -58,6 +58,12 @@ Paste the appropriate prompt into the same T3 thread. `status` inspects the run;
 `resume` finishes missing work; `cancel` confirms owned children and processes have
 stopped. Run state defaults to `~/.local/state/t3-plugins/imps/runs/`.
 
+Larger work runs as a job, and the report gives a job ID instead. The same three
+operations take it. `status` shows the job overview: each stage's state, the current
+stage, open decisions, blockers and any `fallback: direct` marker. `resume` starts from
+that overview and checks every recorded task before starting anything new; see
+[resume a job](troubleshooting.md#resume-a-job-after-an-interruption).
+
 ## Try a helper without a model
 
 [agent-tuneup](plugins/agent-tuneup.md#run-without-a-model) can audit a synthetic

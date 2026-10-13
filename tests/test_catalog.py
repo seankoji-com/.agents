@@ -3,6 +3,7 @@ import json
 import hashlib
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,10 +18,14 @@ class CatalogTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.prefix = Path(self.tmp.name) / 'path with spaces'
+        self.agents = Path(self.tmp.name) / 'managed agents'
+        self.env = {**os.environ, 'HOME': self.tmp.name,
+                    'XDG_CONFIG_HOME': str(Path(self.tmp.name) / 'config'),
+                    'XDG_STATE_HOME': str(Path(self.tmp.name) / 'state')}
 
     def call(self, *args, expected=0):
-        result = subprocess.run([sys.executable, str(CLI), '--prefix', str(self.prefix), *args],
-                                capture_output=True, text=True, timeout=30)
+        result = subprocess.run([sys.executable, str(CLI), '--prefix', str(self.prefix), '--agents-root', str(self.agents), *args],
+                                capture_output=True, text=True, timeout=30, env=self.env)
         self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
         return result
 
@@ -182,6 +187,64 @@ class CatalogTest(unittest.TestCase):
             text = path.read_text()
             for forbidden in ('/imps:imps', 'haiku', 'CLAUDE_PLUGIN_ROOT'):
                 self.assertNotIn(forbidden, text, path)
+
+    def test_agents_inspection_and_explicit_override_enablement(self):
+        self.call('install', 'imps')
+        items = [json.loads(line) for line in self.call('agents', 'list', 'imps').stdout.splitlines()]
+        self.assertEqual(len(items), 4)
+        self.assertTrue(all(item['integrity'] == 'ok' and item['override_status'] == 'disabled' for item in items))
+        shown = json.loads(self.call('agents', 'show', 'imps', 'stage-executor').stdout)
+        self.assertIn('Complete one assigned engineering stage', shown['definition'])
+        override = self.agents / 'overrides/imps/stage-executor.md'
+        override.parent.mkdir(parents=True)
+        override.write_text('---\nworker_id: imps/stage-executor\n---\n\nKeep evidence compact.\n')
+        self.call('agents', 'enable-override', 'imps/stage-executor', '--base-digest', shown['worker']['bundle_digest'])
+        shown = json.loads(self.call('agents', 'show', 'imps', 'stage-executor').stdout)
+        self.assertIn('Keep evidence compact.', shown['definition'])
+        self.call('agents', 'disable-override', 'imps/stage-executor', '--base-digest', shown['worker']['bundle_digest'])
+        self.assertNotIn('Keep evidence compact.', json.loads(self.call('agents', 'show', 'imps', 'stage-executor').stdout)['definition'])
+
+    def test_job_path_uses_only_verified_declared_dependency(self):
+        self.call('install', 'imps')
+        version_dir = self.prefix / 'imps' / os.readlink(self.prefix / 'imps/current')
+        manifest = json.loads((version_dir / 'install-manifest.json').read_text())
+        job = Path(self.tmp.name) / 'job.json'
+        job.write_text(json.dumps({'schema_version': 1, 'dependencies': [{'key': 'workflow', 'plugin': 'imps'}],
+                                   'pins': {'workflow': {'package_dir': str(version_dir),
+                                   'installation_id': manifest['installation_id'],
+                                   'package_digest': manifest['package_digest'], 'bundle_dir': manifest['bundle_dir'],
+                                   'bundle_digest': manifest['bundle_digest']}}}))
+        self.assertEqual(self.call('--job', str(job), 'path', 'imps').stdout.strip(), str(version_dir / 'entry.md'))
+        self.call('--job', str(job), 'path', 'ape', expected=2)
+        bad = Path(self.tmp.name) / 'bad-job.json'
+        bad.write_text('{"schema_version": 99}')
+        self.call('--job', str(bad), 'path', 'imps', expected=2)
+        extra = version_dir / 'unlisted-user-file.txt'
+        extra.write_text('preserve this unlisted file')
+        self.call('--job', str(job), 'path', 'imps', expected=2)
+        self.assertEqual(extra.read_text(), 'preserve this unlisted file')
+        extra.unlink()
+        fifo = Path(self.tmp.name) / 'fifo-job.json'
+        os.mkfifo(fifo)
+        self.call('--job', str(fifo), 'path', 'imps', expected=2)
+        self.assertTrue(fifo.exists())
+
+    def test_explicit_relocation_adoption_requires_verified_copy(self):
+        self.call('install', 'ape')
+        relocated = Path(self.tmp.name) / 'relocated'
+        shutil.copytree(self.prefix, relocated, symlinks=True)
+        result = self.call('--prefix', str(relocated), 'adopt', '--from-prefix', str(self.prefix))
+        self.assertIn('"verified": true', result.stdout)
+        claims = json.loads((self.agents / 'claims.json').read_text())
+        identity = json.loads((relocated / 'ape' / os.readlink(relocated / 'ape/current') / 'install-manifest.json').read_text())['installation_id']
+        self.assertEqual(claims[identity]['locators'], [str(self.prefix), str(relocated)])
+        self.call('--prefix', str(relocated), 'agents', 'list', 'ape')
+        self.call('agents', 'list', 'ape', expected=2)
+        old_remove = subprocess.run([sys.executable, str(ROOT / 'scripts/install.py'), '--plugin', 'ape',
+                                     '--prefix', str(self.prefix), '--agents-root', str(self.agents), '--uninstall'],
+                                    capture_output=True, text=True, env=self.env)
+        self.assertEqual(old_remove.returncode, 2)
+        self.assertIn('identity conflict', old_remove.stdout + old_remove.stderr)
 
 
 if __name__ == '__main__':

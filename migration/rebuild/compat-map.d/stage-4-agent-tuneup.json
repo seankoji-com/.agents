@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "stage": 4,
+  "inventory": {
+    "tests": [
+      {
+        "path": "tests/test_agent_tuneup_workflow.py",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "New Stage 4 coordinator workflow tests: operation routing, direct cheap operations, stated boundaries, worker-definition contract, and synthetic audit/apply jobs through the installed job_cli.py and pinned validate_audit.py in isolated temporary homes.",
+        "assertions": [
+          {"selector": "test_agent_tuneup_workflow.RoutingAndBoundaryTest", "tests": 6, "coverage": ["REQ-COMPAT", "REQ-BOUNDARIES", "REQ-APPROVAL-PICKER", "G-TU-FORMAT", "G-TU-SCAN", "G-TU-REPORT", "G-APPROVAL-PICKER"], "survives": true},
+          {"selector": "test_agent_tuneup_workflow.WorkerDefinitionTest", "tests": 3, "coverage": ["REQ-REGISTRY", "REQ-BOUNDARIES", "REQ-DISPATCH", "REQ-HANDOFF"], "survives": true},
+          {"selector": "test_agent_tuneup_workflow.SyntheticJobTest", "tests": 2, "coverage": ["REQ-JOB", "REQ-EVIDENCE", "REQ-LIFECYCLE", "REQ-BOUNDARIES", "REQ-VISIBILITY", "G-TU-REPORT"], "survives": true}
+        ]
+      }
+    ]
+  },
+  "updates": {
+    "instructions": [
+      {"path": "plugins/agent-tuneup/entry.md", "replace": true, "disposition": "change", "stage": 4, "reason": "Coordinator entry under 1,500 words: doctor/scan stay direct, audit/align/apply route to their playbook and the job-plan reference, workers and boundaries stated, PKG/shared/job-coordination.md referenced, validate_audit.py named as acceptance authority."},
+      {"path": "plugins/agent-tuneup/playbooks/audit.md", "replace": true, "disposition": "change", "stage": 4, "reason": "Direct single-file audit kept; multi-file or semantic audits run as an inspect/semantics(/proposal) job with config-researcher and config-verifier slots, report-first and no settings writes."}
+    ]
+  },
+  "added": [
+    {"path": "plugins/agent-tuneup/references/job-plan.md", "stage": 4, "kind": "workflow reference", "coverage": ["REQ-JOB", "REQ-EVIDENCE", "REQ-BOUNDARIES", "REQ-APPROVAL-PICKER", "G-TU-REPORT"], "reason": "Tuneup job stages, validator_contract criteria, observation input shapes and the picker-approved, backed-up apply sequence. Loaded only when a job is created or resumed."}
+  ]
+}

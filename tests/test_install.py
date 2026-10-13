@@ -24,7 +24,7 @@ class InstallTest(CoreTestCase):
         self.home = self.tmp / 'home'
         self.home.mkdir()
         self.source = self.tmp / 'src'
-        for part in ('core', 'plugins', 'scripts'):
+        for part in ('core', 'plugins', 'scripts', 'shared'):
             shutil.copytree(ROOT / part, self.source / part, ignore=shutil.ignore_patterns('__pycache__'))
         self.env = dict(os.environ, HOME=str(self.home))
         self.env.pop('T3_PLUGINS_PREFIX', None)
@@ -161,7 +161,9 @@ class InstallTest(CoreTestCase):
 
     def test_git_vanishing_between_log_and_status_still_falls_back(self):
         import importlib.util
+        import sys
         from unittest import mock
+        sys.path.insert(0, str(ROOT / 'scripts'))
         spec = importlib.util.spec_from_file_location('install_under_test', ROOT / 'scripts' / 'install.py')
         install = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(install)
@@ -179,6 +181,60 @@ class InstallTest(CoreTestCase):
         self.assertTrue(mine.is_dir(), 'an empty directory the installer never owned survives')
         self.assertFalse((version_dir / 'references').exists(), 'owned directories emptied by the uninstall go')
         self.assertFalse((version_dir / 'install-manifest.json').exists())
+
+    def test_registry_bundle_identity_activation_and_owned_removal(self):
+        first = self.installer()['data']
+        receipt = json.loads((Path(first['version_dir']) / 'install-manifest.json').read_text())
+        from core import schema
+        self.assertEqual(schema.errors(receipt, schema.load_schema_file(ROOT / 'core/schemas/install-manifest.schema.json')), [])
+        self.assertRegex(receipt['installation_id'], r'^[0-9a-f-]{36}$')
+        bundle = Path(receipt['bundle_dir'])
+        self.assertTrue((bundle / 'workers/stage-executor.md').is_file())
+        self.assertTrue((bundle / 'shared/boundaries.md').is_file())
+        original = (bundle / 'workers/stage-executor.md').read_bytes()
+        self.assertEqual(hashlib.sha256(original).hexdigest(), next(a['sha256'] for a in json.loads((bundle / 'manifest.json').read_text())['assets'] if a['path'] == 'workers/stage-executor.md'))
+        (self.source / 'plugins/imps/references/registry-change.md').write_text('new version\n')
+        second = self.installer()['data']
+        self.assertNotEqual(first['version'], second['version'])
+        self.installer('--activate', first['version'])
+        self.assertEqual(os.readlink(self.prefix / 'imps/current'), first['version'])
+        second_receipt = json.loads((Path(second['version_dir']) / 'install-manifest.json').read_text())
+        second_bundle = Path(second_receipt['bundle_dir'])
+        self.installer('--uninstall', '--version', second['version'])
+        self.assertFalse(second_bundle.exists())
+
+    def test_registry_detects_bundle_mutation_and_copied_identity(self):
+        first = self.installer()['data']
+        receipt_path = Path(first['version_dir']) / 'install-manifest.json'
+        receipt = json.loads(receipt_path.read_text())
+        worker = Path(receipt['bundle_dir']) / 'workers/stage-executor.md'
+        worker.chmod(0o644); worker.write_text('tampered')
+        result = subprocess.run([sys.executable, str(self.source / 'scripts/catalog.py'), '--prefix', str(self.prefix),
+                                 '--agents-root', str(self.home / '.agents/agents/t3-plugins'), 'doctor', 'imps'],
+                                capture_output=True, text=True, env=self.env)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('integrity failure', result.stdout)
+        second_prefix = self.home / 'copied-prefix'
+        shutil.copytree(self.prefix, second_prefix)
+        result = subprocess.run([sys.executable, str(self.source / 'scripts/install.py'), '--prefix', str(second_prefix),
+                                 '--agents-root', str(self.home / '.agents/agents/t3-plugins')],
+                                capture_output=True, text=True, env=self.env)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('identity conflict', result.stdout + result.stderr)
+
+    def test_live_job_pin_blocks_bundle_removal(self):
+        first = self.installer()['data']
+        receipt = json.loads((Path(first['version_dir']) / 'install-manifest.json').read_text())
+        state = self.home / '.local/state/t3-plugins/jobs/job-one'
+        state.mkdir(parents=True)
+        (state / 'job.json').write_text(json.dumps({'schema_version': 1, 'status': 'running',
+                          'dependencies': [{'key': 'imps', 'plugin': 'imps'}],
+                          'pins': {'imps': {'package_dir': first['version_dir'], 'package_digest': receipt['package_digest'],
+                                            'installation_id': receipt['installation_id'],
+                                            'bundle_dir': receipt['bundle_dir'], 'bundle_digest': receipt['bundle_digest']}}}))
+        result = self.installer('--uninstall', expect=2)
+        self.assertEqual(result['error']['code'], 'version_referenced')
+        self.assertTrue(Path(receipt['bundle_dir']).exists())
 
     def test_relative_prefix_yields_absolute_receipt_paths(self):
         script = self.source / 'scripts' / 'install.py'

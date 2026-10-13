@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "stage": 4,
+  "added": [
+    {
+      "path": "plugins/ape/scripts/snapshot_source.py",
+      "stage": 4,
+      "kind": "helper",
+      "coverage": [
+        "REQ-EVIDENCE",
+        "REQ-BOUNDARIES",
+        "G-APE-READONLY",
+        "G-APE-PROVENANCE"
+      ],
+      "reason": "Pins one UTF-8 source snapshot per clean clone at its resolved commit, outside the clone and every job artifacts directory, and prints the validator_contract source pin. Replaces the git grep | tail recipe."
+    }
+  ],
+  "inventory": {
+    "tests": [
+      {
+        "path": "tests/test_ape_validate_report.py",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Installed validate_report.py as the ape acceptance authority: operation-specific structure (study, forage research, forage synthesis), revision/provenance, requirement and candidate coverage, and coordinator inspection receipts; plus snapshot_source.py pinning and refusals. Synthetic files only; no network, model or GitHub.",
+        "assertions": [
+          {
+            "selector": "test_ape_validate_report.OperationStructureTests",
+            "tests": 13,
+            "coverage": [
+              "REQ-EVIDENCE",
+              "REQ-COMPAT",
+              "G-APE-PROVENANCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_ape_validate_report.RevisionProvenanceTests",
+            "tests": 7,
+            "coverage": [
+              "REQ-EVIDENCE",
+              "G-APE-PROVENANCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_ape_validate_report.CoverageTests",
+            "tests": 5,
+            "coverage": [
+              "REQ-EVIDENCE",
+              "G-APE-PROVENANCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_ape_validate_report.InspectionReceiptTests",
+            "tests": 5,
+            "coverage": [
+              "REQ-EVIDENCE",
+              "G-APE-PROVENANCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_ape_validate_report.ReportDerivedClaimTests",
+            "tests": 4,
+            "coverage": [
+              "REQ-EVIDENCE",
+              "G-APE-PROVENANCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_ape_validate_report.BlockGrammarTests",
+            "tests": 3,
+            "coverage": [
+              "REQ-EVIDENCE",
+              "G-APE-PROVENANCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_ape_validate_report.SnapshotCitationTests",
+            "tests": 4,
+            "coverage": [
+              "REQ-EVIDENCE",
+              "G-APE-PROVENANCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_ape_validate_report.SnapshotSourceTests",
+            "tests": 7,
+            "coverage": [
+              "REQ-EVIDENCE",
+              "REQ-BOUNDARIES",
+              "G-APE-READONLY",
+              "G-APE-PROVENANCE"
+            ],
+            "survives": true
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -33,6 +33,9 @@ Use the title and body as the task seed, adding relevant comment requirements. R
 `PKG/references/brief-probes.md`, then use the normal `run` plan and evidence procedure. A request
 to investigate a discussion uses the investigation playbook; a request to implement
 uses the authorized implementation scope. A URL alone does not authorize publication.
+In a job (`PKG/references/jobs.md`), the source stage uses a read-only
+`imps/investigator` slot and the saved source hash; implementation stages follow
+the `run` shape only when implementation is authorized.
 
 Keep the source artifact for resume. Draft a summary linking the observed outcome and
 any PR. Post a reply only if the operator authorized it. Retain the actual reply URL

@@ -17,12 +17,13 @@ Load this when a T3 tool is missing, errors, or behaves unexpectedly.
 | `t3_thread_read` | doc | fetch a result omitted from the summary |
 | `link_pull_request` | confirmed live | Register an authorised PR with this thread |
 | `watch_pull_request` / `unwatch_pull_request` | confirmed live | Start monitoring and yield; stop monitoring before handing work back |
-| `create_threads`, `t3_thread_launch`, `t3_thread_send` | doc | never used for child work (`PKG/shared/delegation.md`) |
+| `create_threads`, `t3_thread_launch` | doc | never used for child work (`PKG/shared/delegation.md`) |
+| `t3_thread_send` | doc | only a job's tracked same-scope follow-up, when `PKG/shared/job-coordination.md` and the active harness permit it; never to relaunch a child |
 
 ## Observed behaviour at the tested version
 
 - `delegate_task` returns `taskId`, `childThreadId`, `status` (`running`, `completed`, `interrupted`), `workState` (`working`, `waiting_for_children`, `result_available`), `hasPendingChildRuns`, `summary` and `waitTimedOut`. The same `clientRequestId` returns the same task.
-- `summary` holds the child's final message, so the fenced result block normally arrives with the observation. When it does not, read the child result once with `t3_thread_read`.
+- `summary` holds the child's final message. In a job, that message is one complete worker-result JSON object or artifact envelope; pass it whole to `job_cli.py result`, which refuses prose, fences and truncation. Summary fidelity at the size limit is a live-canary question, not an assumption. When the summary is unusable, use the declared result file or read the recorded run once with `t3_thread_read`, as the shared result protocol allows.
 - `task_cancel` answers `cancel_requested`. That is not a confirmed stop. A later `task_status` showing `interrupted` with `result_available` and no pending child runs is a confirmed stop.
 - `mode: wait` with `timeoutMs` ends only the parent's wait. The child keeps running; retain its task ID and inspect that same task.
 - `task_status` is scoped to the parent: another thread cannot read or cancel these tasks. A run resumed from a different thread blocks with a handoff instead.

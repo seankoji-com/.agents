@@ -1,6 +1,6 @@
 {
   "name": "imps",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Bounded engineering work on any T3 provider: implement, investigate, audit, and review with revision-bound evidence.",
   "argument_hint": "doctor | run <task> | resume <run-id> | status <run-id> | cancel <run-id> | verification-init | blast-radius [PR/range/paths] | audit [--focus <dimensions>] [--out <path>] | issues <number> [<number> ...] | prs pr <URL> | prs repo <owner/name> | prs org <owner> | checklist <path> | discussion <number or URL>; add --personas before or after any request",
   "entry": "entry.md",
@@ -21,5 +21,58 @@
     "discussion"
   ],
   "kind": "workflow",
-  "compatibility": "partial"
+  "compatibility": "partial",
+  "workers": [
+    {
+      "id": "imps/stage-executor",
+      "path": "agents/stage-executor.md",
+      "operations": [
+        "run"
+      ],
+      "role": "workhorse",
+      "responsibility": "Complete one assigned engineering stage, prepare verification, and report evidence without accepting your own work."
+    },
+    {
+      "id": "imps/investigator",
+      "path": "agents/investigator.md",
+      "operations": [
+        "issues",
+        "discussion"
+      ],
+      "role": "judgement",
+      "responsibility": "Investigate the assigned question read-only. Cite exact paths, commands, and evidence; do not modify files."
+    },
+    {
+      "id": "imps/auditor",
+      "path": "agents/auditor.md",
+      "operations": [
+        "audit",
+        "blast-radius"
+      ],
+      "role": "judgement",
+      "responsibility": "Audit assigned dimensions. Separate confirmed findings, hypotheses, refutations, and evidence."
+    },
+    {
+      "id": "imps/reviewer",
+      "path": "agents/reviewer.md",
+      "operations": [
+        "run",
+        "prs"
+      ],
+      "role": "reviewer",
+      "responsibility": "Review the exact supplied change snapshot independently. Report actionable findings with path, line, scenario, and evidence."
+    }
+  ],
+  "worker_shared": [
+    "boundaries.md",
+    "manifest.schema.json",
+    "workers-config.schema.json",
+    "job.schema.json",
+    "stage.schema.json",
+    "worker-brief.schema.json",
+    "worker-result.schema.json",
+    "result-envelope.schema.json",
+    "acceptance.schema.json",
+    "jobs-contract.md"
+  ]
 }

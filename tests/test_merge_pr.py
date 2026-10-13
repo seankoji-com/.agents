@@ -69,6 +69,20 @@ elif query.startswith("query"):
     if mode in ("merged-after-block", "closed-after-block"):
         if state_file.exists(): pr = {"state":"CLOSED" if mode.startswith("closed") else "MERGED"}
         state_file.write_text("queried")
+    if mode == "author-pushed": pr["headRefOid"] = "b"*40
+    if mode == "moves-before-merge":
+        # A push lands between the gate read and the pre-merge reread.
+        if state_file.exists(): pr["headRefOid"] = "b"*40
+        state_file.write_text("queried")
+    if mode in ("fails-before-merge", "blocked-before-merge"):
+        # Same head, but the pre-merge reread shows a new failure or review blocker.
+        if state_file.exists():
+            if mode == "fails-before-merge":
+                pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["state"] = "FAILURE"
+            else:
+                pr["mergeStateStatus"] = "BLOCKED"
+                pr["reviewDecision"] = "CHANGES_REQUESTED"
+        state_file.write_text("queried")
     payload = {"data":{"repository":{"pullRequest":pr}}}
 elif "resolveReviewThread" in query:
     if mode == "flow": state_file.write_text("resolved")
@@ -330,6 +344,76 @@ print(code, end="")
         self.assertEqual(result.returncode, 4, result.stderr)
         self.assertEqual(len(calls), 1)
         self.assertIn("reason=verified_head_changed", result.stdout)
+
+    def test_expected_head_merges_only_that_head_and_pins_it_server_side(self):
+        result, calls = self.run_helper("success", ["--no-auto", "--expected-head", HEAD])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("MERGED fixture/repo#1 via squash", result.stdout)
+        self.assertEqual(len(calls), 3)  # gate read, pre-merge reread, merge PUT
+        self.assertTrue(all(c["query"].startswith("query") for c in calls[:2]))
+        self.assertEqual(calls[-1], {"merge_method": "squash", "sha": HEAD})
+
+    def test_land_stage_race_author_push_after_review_is_not_merged(self):
+        # Review approved head A and the coordinator reread A; the author pushed B before
+        # the helper's own read. Without the pin the helper would merge B.
+        unpinned, calls = self.run_helper("author-pushed", ["--no-auto"])
+        self.assertEqual(unpinned.returncode, 0, unpinned.stderr)
+        self.assertEqual(calls[-1], {"merge_method": "squash", "sha": "b" * 40})
+        result, calls = self.run_helper("author-pushed", ["--no-auto", "--expected-head", HEAD])
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("reason=expected_head_mismatch", result.stdout)
+        self.assertIn("b" * 40, result.stdout)
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(any("merge_method" in c or "enablePullRequestAutoMerge" in c.get("query", "") for c in calls))
+
+    def test_expected_head_mismatch_refuses_before_any_mutation(self):
+        other = "b" * 40
+        for mode, flags in (("success", ["--no-auto"]), ("success", []), ("pending", []),
+                            ("conflict", ["--arm-always"]), ("behind", [])):
+            with self.subTest(mode=mode, flags=flags):
+                result, calls = self.run_helper(mode, [*flags, "--expected-head", other])
+                self.assertEqual(result.returncode, 4, result.stderr)
+                self.assertIn("reason=expected_head_mismatch", result.stdout)
+                self.assertIn("automerge=unavailable", result.stdout)
+                self.assertEqual(len(calls), 1)
+                self.assertTrue(calls[0]["query"].startswith("query"))
+
+    def test_expected_head_moving_before_the_merge_is_refused(self):
+        result, calls = self.run_helper("moves-before-merge", ["--no-auto", "--expected-head", HEAD])
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("reason=expected_head_mismatch", result.stdout)
+        self.assertEqual(len(calls), 2)
+        self.assertFalse(any("merge_method" in c for c in calls))
+
+    def test_pre_merge_reread_reapplies_every_gate_at_the_same_head(self):
+        """RC2-babysitter-tuneup-01: a fresh failure or review blocker stops the merge."""
+        for mode, reason in (("fails-before-merge", "reason=failing_checks"),
+                             ("blocked-before-merge", "reason=branch_protection")):
+            with self.subTest(mode=mode):
+                result, calls = self.run_helper(mode, ["--no-auto", "--expected-head", HEAD])
+                self.assertEqual(result.returncode, 4, result.stderr)
+                self.assertIn(reason, result.stdout)
+                self.assertFalse(any("merge_method" in c for c in calls))
+
+    def test_expected_head_never_updates_a_behind_branch(self):
+        result, calls = self.run_helper("behind", ["--expected-head", HEAD])
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("reason=behind", result.stdout)
+        self.assertEqual(len(calls), 1)  # no update-branch PUT, no arming
+
+    def test_expected_head_arms_automerge_only_at_that_head(self):
+        result, calls = self.run_helper("pending", ["--expected-head", HEAD])
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("automerge=armed", result.stdout)
+        self.assertEqual(calls[-1]["variables"]["sha"], HEAD)
+
+    def test_expected_head_argument_validation(self):
+        for flags in (["--expected-head", "abc"], ["--expected-head", HEAD.upper()],
+                      ["--expected-head", HEAD, "--resolve-thread", "T1", "--verified-head", HEAD]):
+            with self.subTest(flags=flags):
+                result, calls = self.run_helper("success", flags)
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(calls, [])
 
 
 if __name__ == "__main__":

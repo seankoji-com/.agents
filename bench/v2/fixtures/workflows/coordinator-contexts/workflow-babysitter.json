@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "scenario": "workflow-babysitter",
+  "observed_ids": {
+    "head_sha": "1e9721ca7f65fcb51d67f3329e4761da261d563a"
+  },
+  "host_observations": {
+    "post_calls": [],
+    "merge_calls": [],
+    "observed_head_sha": "1e9721ca7f65fcb51d67f3329e4761da261d563a",
+    "trace_coverage": [
+      "sidecar_post_calls",
+      "sidecar_merge_calls",
+      "head_readback",
+      "check_readback",
+      "comment_readback",
+      "dispatch_calls"
+    ],
+    "observed_check_sha": "1e9721ca7f65fcb51d67f3329e4761da261d563a",
+    "observed_comment_id": "thread-1",
+    "dispatch_calls": [
+      {
+        "operation": "pr_maintenance",
+        "worker": "babysitter/pr-maintainer",
+        "task_id": "task-maintainer-1"
+      },
+      {
+        "operation": "pr_review",
+        "worker": "babysitter/pr-reviewer",
+        "task_id": "task-reviewer-1"
+      }
+    ]
+  }
+}

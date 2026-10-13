@@ -18,9 +18,11 @@ import json
 import os
 import re
 import subprocess
+import stat
 import sys
 import tempfile
 from pathlib import Path
+import registry
 
 SOURCE = Path(__file__).resolve().parent.parent
 MANIFEST = 'install-manifest.json'
@@ -157,6 +159,12 @@ def local_modifications(version_dir: Path, manifest: dict) -> list:
     return changed
 
 
+def require_snapshot_identity(manifest: dict, plugin: str, version_dir: Path):
+    if manifest.get('plugin') != plugin or manifest.get('version') != version_dir.name:
+        raise InstallError('manifest_corrupt', 'install receipt plugin/version does not match its directory',
+                           {'path': str(version_dir / MANIFEST)})
+
+
 def prefix_path(args) -> Path:
     return Path(args.prefix).expanduser().absolute()
 
@@ -166,10 +174,14 @@ def active_version(plugin_root: Path) -> str | None:
     return os.readlink(link) if link.is_symlink() else None
 
 
+@registry.serialized_registry
 def install(args) -> dict:
     prefix = prefix_path(args)
     planned = plan_install(SOURCE if not args.source else Path(args.source), args.plugin)
     manifest = planned['manifest']
+    plugin_source = (SOURCE if not args.source else Path(args.source)) / 'plugins' / args.plugin
+    registry_meta, worker_assets = registry.declared_assets(plugin_source, (SOURCE if not args.source else Path(args.source)) / 'shared')
+    package_hash = registry.package_digest(manifest)
     plugin_root = prefix / args.plugin
     version_dir = plugin_root / manifest['version']
     entry = plugin_root / 'current' / planned['entry']
@@ -177,11 +189,12 @@ def install(args) -> dict:
     action = 'install'
     if existing.is_file() and not (args.force and load_manifest(existing, strict=False) is None):
         old = load_manifest(existing)
+        require_snapshot_identity(old, args.plugin, version_dir)
         modified = local_modifications(version_dir, old)
         if modified and not args.force:
             raise InstallError('locally_modified', 'installed files were modified locally; rerun with --force to overwrite',
                                {'files': modified, 'version_dir': str(version_dir)})
-        if old == manifest and not modified:
+        if old.get('files') == manifest.get('files') and not modified:
             # Identical snapshot already on disk; only `current` may still need repointing.
             action = 'already_installed' if active_version(plugin_root) == manifest['version'] else 'reactivated'
     result = {'action': action, 'plugin': args.plugin, 'version': manifest['version'],
@@ -191,23 +204,58 @@ def install(args) -> dict:
     if args.dry_run:
         return result
     refuse_symlinks(plugin_root, version_dir)
+    agents_root = registry.registry_root(args.agents_root)
+    identity = None
+    if worker_assets:
+        identity = registry.installation_id(prefix)
+        for _, previous in snapshot_manifests(plugin_root):
+            if previous and previous.get('bundle_dir'):
+                recorded_root = Path(previous.get('agents_root', '')).expanduser().absolute()
+                if recorded_root != agents_root:
+                    raise InstallError('agents_root_conflict', 'installed versions use a different agents root; retain that root for upgrade/rollback')
+        registry.claim_installation(agents_root, identity, prefix)
     for item in manifest['files']:
         source = planned['mapping'][item['path']]
         target = owned_path(version_dir, item['path'])
         if target.is_file() and sha256(target) == item['sha256'] and (target.stat().st_mode & 0o777) == item['mode']:
             continue
         write_atomic(target, source.read_bytes(), item['mode'])
+    if worker_assets:
+        manifest.update({'package_digest': package_hash, 'installation_id': identity,
+                         'agents_root': str(agents_root)})
+        bundle = registry.create_bundle(agents_root, identity, args.plugin, manifest['version'], worker_assets,
+                                        package_hash)
+        manifest.update({'bundle_dir': bundle['bundle_dir'], 'bundle_digest': bundle['bundle_digest']})
     write_atomic(existing, (json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode(), 0o644)
     repoint(plugin_root, manifest['version'])
     return result
 
 
+@registry.serialized_registry
 def activate(args) -> dict:
     plugin_root = prefix_path(args) / args.plugin
     if args.activate not in installed_versions(plugin_root):
         raise InstallError('unknown_version', f'no installed version {args.activate}',
                            {'installed': installed_versions(plugin_root),
                             'preserved_modified': preserved_versions(plugin_root)})
+    mf = load_manifest(plugin_root / args.activate / MANIFEST)
+    require_snapshot_identity(mf, args.plugin, plugin_root / args.activate)
+    if mf.get('bundle_dir'):
+        agents_root = registry.registry_root(args.agents_root)
+        registry.assert_owned_locator(agents_root, mf.get('installation_id'), prefix_path(args))
+        expected_bundle = registry.bundle_dir(agents_root, mf.get('installation_id'), args.plugin, args.activate)
+        if os.path.realpath(mf['bundle_dir']) != os.path.realpath(expected_bundle):
+            raise InstallError('bundle_invalid', 'selected package belongs to a different agents root')
+        if registry.package_digest(mf) != mf.get('package_digest'):
+            raise InstallError('bundle_invalid', 'selected package manifest digest is invalid')
+        for item in mf.get('files', []):
+            file = owned_path(plugin_root / args.activate, item.get('path', ''))
+            if not file.is_file() or sha256(file) != item.get('sha256'):
+                raise InstallError('package_invalid', f'selected package file failed integrity: {item.get("path")}')
+        checked = registry.verify_bundle(Path(mf['bundle_dir']), mf.get('installation_id'), args.plugin,
+                                         args.activate, mf.get('package_digest'))
+        if checked['bundle_digest'] != mf.get('bundle_digest'):
+            raise InstallError('bundle_invalid', 'worker bundle does not match the selected package')
     if not args.dry_run:
         repoint(plugin_root, args.activate)
     return {'action': 'activate', 'version': args.activate, 'dry_run': bool(args.dry_run),
@@ -217,7 +265,7 @@ def activate(args) -> dict:
 def snapshot_entry(version_dir: Path) -> str:
     """The entry file a snapshot declares in its own plugin.json."""
     try:
-        entry = json.loads((version_dir / 'plugin.json').read_text()).get('entry')
+        entry = json.loads(registry.read_regular(version_dir / 'plugin.json', 'installed plugin manifest').decode('utf-8')).get('entry')
     except (OSError, ValueError, AttributeError):
         entry = None
     return entry if isinstance(entry, str) and entry else 'entry.md'
@@ -226,12 +274,39 @@ def snapshot_entry(version_dir: Path) -> str:
 def load_manifest(path: Path, strict=True) -> dict | None:
     """The parsed manifest; a corrupt one raises manifest_corrupt (or is None when not strict)."""
     try:
-        manifest = json.loads(path.read_text())
-    except (json.JSONDecodeError, UnicodeDecodeError):
+        manifest = json.loads(registry.read_regular(path, 'install receipt').decode('utf-8'))
+    except (OSError, ValueError, UnicodeError, registry.RegistryError):
         manifest = None
-    if not isinstance(manifest, dict) or not isinstance(manifest.get('files'), list) or not all(
-            isinstance(e, dict) and isinstance(e.get('path'), str) and isinstance(e.get('sha256'), str)
-            for e in manifest['files']):
+    valid = (isinstance(manifest, dict) and manifest.get('schema_version') == 1 and
+             isinstance(manifest.get('plugin'), str) and isinstance(manifest.get('version'), str) and
+             isinstance(manifest.get('files'), list))
+    seen = set()
+    if valid:
+        for entry in manifest['files']:
+            if (not isinstance(entry, dict) or not isinstance(entry.get('path'), str) or
+                    not isinstance(entry.get('sha256'), str) or not re.fullmatch(r'[0-9a-f]{64}', entry['sha256']) or
+                    type(entry.get('mode')) is not int or entry['mode'] not in (0o644, 0o755)):
+                valid = False; break
+            rel = entry['path']
+            if not rel or rel in seen:
+                valid = False; break
+            seen.add(rel)
+        if 'package_digest' in manifest and not re.fullmatch(r'[0-9a-f]{64}', str(manifest['package_digest'])):
+            valid = False
+        if 'bundle_digest' in manifest and not re.fullmatch(r'[0-9a-f]{64}', str(manifest['bundle_digest'])):
+            valid = False
+        if 'installation_id' in manifest and (not isinstance(manifest['installation_id'], str) or
+                not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', manifest['installation_id'])):
+            valid = False
+        if 'bundle_dir' in manifest and not isinstance(manifest['bundle_dir'], str):
+            valid = False
+        if bool(manifest.get('bundle_dir')) != bool(manifest.get('bundle_digest')):
+            valid = False
+        if manifest.get('bundle_dir') and (not isinstance(manifest.get('installation_id'), str) or
+                                           not isinstance(manifest.get('agents_root'), str) or
+                                           'package_digest' not in manifest):
+            valid = False
+    if not valid:
         if not strict:
             return None
         raise InstallError('manifest_corrupt', f'{path} is not a valid install manifest; reinstall with --force to replace it',
@@ -265,6 +340,7 @@ def refuse_symlinks(*paths: Path) -> None:
             raise InstallError('manifest_path_escape', f'{path} is a symlink; refusing to work through it')
 
 
+@registry.serialized_registry
 def uninstall(args) -> dict:
     plugin_root = prefix_path(args) / args.plugin
     refuse_symlinks(plugin_root)
@@ -283,6 +359,27 @@ def uninstall(args) -> dict:
         if not manifest_path.is_file():
             raise InstallError('unknown_version', f'no installed version {version}')
         manifest = load_manifest(manifest_path)
+        require_snapshot_identity(manifest, args.plugin, version_dir)
+        bundle_path = Path(manifest['bundle_dir']) if manifest.get('bundle_dir') else None
+        agents_root = registry.registry_root(args.agents_root)
+        recorded_root = Path(manifest.get('agents_root', agents_root)).expanduser().absolute()
+        if bundle_path and recorded_root != agents_root:
+            raise InstallError('bundle_invalid', 'selected package belongs to a different agents root')
+        refs = registry.referenced_versions(recorded_root,
+                                            bundle_path, package_dir=version_dir)
+        if refs:
+            raise InstallError('version_referenced', 'a live or resumable job pins this package or worker bundle', {'jobs': refs})
+        if bundle_path:
+            expected_root = recorded_root
+            registry.assert_owned_locator(expected_root, manifest.get('installation_id'), prefix_path(args))
+            expected_bundle = registry.bundle_dir(expected_root, manifest.get('installation_id'), args.plugin,
+                                                  manifest.get('version'))
+            if os.path.realpath(bundle_path) != os.path.realpath(expected_bundle):
+                raise InstallError('bundle_invalid', 'receipt bundle path is outside its owned registry location')
+            checked = registry.verify_bundle(bundle_path, manifest.get('installation_id'), args.plugin,
+                                             manifest.get('version'), manifest.get('package_digest'))
+            if checked['bundle_digest'] != manifest.get('bundle_digest'):
+                raise InstallError('bundle_invalid', 'refusing to remove a modified bundle')
         paths = [(entry, owned_path(version_dir, entry['path'])) for entry in manifest['files']]
         owned_modules = {(path.parent, path.stem) for entry, path in paths if entry['path'].endswith('.py')}
         owned_dirs = {parent for _, path in paths for parent in path.parents if version_dir in parent.parents}
@@ -306,6 +403,35 @@ def uninstall(args) -> dict:
                 write_atomic(manifest_path, (json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode(), 0o644)
             else:
                 manifest_path.unlink()
+                if bundle_path and bundle_path.exists():
+                    # Remove only files verified against the immutable bundle manifest.
+                    # A new or modified user file is never part of a recursive cleanup.
+                    if not args.dry_run:
+                        for asset in checked['manifest']['assets']:
+                            owned = registry.package_file(bundle_path, asset['path'])
+                            try:
+                                mode = owned.lstat().st_mode
+                            except FileNotFoundError:
+                                continue
+                            if not stat.S_ISREG(mode) or registry.digest(owned.read_bytes()) != asset['sha256']:
+                                kept.append(str(owned))
+                                continue
+                            owned.unlink()
+                        manifest_file = bundle_path / 'manifest.json'
+                        try:
+                            if (stat.S_ISREG(manifest_file.lstat().st_mode) and
+                                    registry.digest(manifest_file.read_bytes()) == registry.digest(registry.canonical(checked['manifest']))):
+                                manifest_file.unlink()
+                        except FileNotFoundError:
+                            pass
+                        for directory in sorted((p for p in bundle_path.rglob('*') if p.is_dir() and not p.is_symlink()),
+                                                key=lambda p: len(p.parts), reverse=True):
+                            try: directory.rmdir()
+                            except OSError: pass
+                        if bundle_path.exists():
+                            kept.extend(str(p) for p in bundle_path.rglob('*') if not p.is_dir())
+                        try: bundle_path.rmdir()
+                        except OSError: pass
             for cache in sorted(version_dir.rglob('__pycache__')):
                 if cache.is_symlink() or not cache.is_dir():
                     continue
@@ -336,6 +462,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--plugin', default='imps')
     parser.add_argument('--prefix', default=os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins'))
+    parser.add_argument('--agents-root', default=os.environ.get('T3_PLUGINS_AGENTS_ROOT', registry.DEFAULT_AGENTS_ROOT))
     parser.add_argument('--source', help=argparse.SUPPRESS)
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--force', action='store_true', help='overwrite or remove locally modified owned files')
@@ -360,6 +487,10 @@ def main(argv=None) -> int:
         print(json.dumps({'ok': False, 'error': {'code': exc.code, 'message': exc.message, 'details': exc.details}}))
         print(f'{exc.code}: {exc.message}', file=sys.stderr)
         return 4 if exc.code == 'locally_modified' else 2
+    except registry.RegistryError as exc:
+        print(json.dumps({'ok': False, 'error': {'code': 'registry_error', 'message': str(exc), 'details': {}}}))
+        print(f'registry_error: {exc}', file=sys.stderr)
+        return 2
     except OSError as exc:
         print(json.dumps({'ok': False, 'error': {'code': 'io_error', 'message': str(exc), 'details': {}}}))
         return 5

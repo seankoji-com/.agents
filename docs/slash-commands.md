@@ -27,6 +27,11 @@ install adapters for the entire catalog after `t3-plugins install`. It stops at 
 first missing installation. An all-catalog operation can
 partially succeed; each output line is a receipt and retries are safe.
 
+Worker definitions are not skills. Installation writes them under the
+[agents root](cli.md#custom-locations), never into a skill root, and only a plugin's
+own coordinator loads them into a task brief. The agents root is a plugin
+convention, not a native agent directory for any provider.
+
 ## Discovery roots
 
 | T3 provider | User skill directory | Notes |
@@ -86,6 +91,8 @@ Adapters follow the plugin's `current` link, so upgrades and activation switches
 use the selected snapshot. Reinstall adapters if the prefix moves. They do not
 change provider settings or permissions. Existing skill folders, edited adapters,
 and symlinked skill paths are refused. For a symlinked root, pass its real directory.
+The one exception is a root-owned system link that no other user can replace, such
+as macOS `/var` or `/tmp`.
 For `setup`, custom roots replace all defaults: repeat `--root` for each real
 provider directory you want to populate. Setup also removes unchanged adapters for
 [retired plugins](getting-started.md#retired-plugins) from the same roots.

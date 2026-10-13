@@ -1,0 +1,903 @@
+{
+  "stage": 3,
+  "inventory": {
+    "helpers": [
+      {
+        "path": "core/jobs/store.py",
+        "stage": 3,
+        "reason": "Stage 3 generic job/result/acceptance interface.",
+        "disposition": "change"
+      },
+      {
+        "path": "core/jobs/__init__.py",
+        "stage": 3,
+        "reason": "Adds immutable attempt briefs, bounded retries, lifecycle reconciliation, scoped writes and owner-evidenced plan revisions.",
+        "disposition": "change"
+      },
+      {
+        "path": "shared/worker_result.py",
+        "stage": 3,
+        "reason": "Stage 3 generic job/result/acceptance interface.",
+        "disposition": "change"
+      },
+      {
+        "path": "shared/job_acceptance.py",
+        "stage": 3,
+        "reason": "Stage 3 generic job/result/acceptance interface.",
+        "disposition": "change"
+      },
+      {
+        "path": "shared/job_acceptance_cli.py",
+        "stage": 3,
+        "reason": "Stage 3 generic job/result/acceptance interface.",
+        "disposition": "change"
+      },
+      {
+        "path": "shared/agents/jobs-contract.md",
+        "stage": 3,
+        "reason": "Stage 3 generic job/result/acceptance interface.",
+        "disposition": "change"
+      },
+      {
+        "path": "plugins/ape/scripts/validate_report.py",
+        "stage": 3,
+        "reason": "Stage 3 generic job/result/acceptance interface.",
+        "disposition": "change"
+      },
+      {
+        "path": "plugins/babysitter/scripts/validate_pr.py",
+        "stage": 3,
+        "reason": "Stage 3 generic job/result/acceptance interface.",
+        "disposition": "change"
+      },
+      {
+        "path": "plugins/elephant-goldfish/scripts/validate_document.py",
+        "stage": 3,
+        "reason": "Stage 3 generic job/result/acceptance interface.",
+        "disposition": "change"
+      },
+      {
+        "path": "plugins/agent-tuneup/scripts/validate_audit.py",
+        "stage": 3,
+        "reason": "Stage 3 generic job/result/acceptance interface.",
+        "disposition": "change"
+      },
+      {
+        "path": "shared/job_cli.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Shared adapter CLI keeps pin registry logic out of generic core."
+      },
+      {
+        "path": "shared/job_coordinator.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Adapter creates and verifies the exact Stage 2 dependency pin snapshot outside core."
+      },
+      {
+        "path": "plugins/imps/scripts/validate_stage.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Runs the existing imps stage-local core validate gate against a fresh pre-check binding."
+      },
+      {
+        "path": "core/jobs/results.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Generic stdlib full-result parser, consumed through published shared adapter without core imports outside stdlib."
+      },
+      {
+        "path": "shared/validator_observations.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Strict regular input and content-bound coordinator observation validation for workflow adapters."
+      }
+    ],
+    "schemas": [
+      {
+        "path": "shared/agents/job.schema.json",
+        "stage": 3,
+        "reason": "Versioned Stage 3 data contract.",
+        "disposition": "change"
+      },
+      {
+        "path": "shared/agents/stage.schema.json",
+        "stage": 3,
+        "reason": "Versioned Stage 3 data contract.",
+        "disposition": "change"
+      },
+      {
+        "path": "shared/agents/worker-brief.schema.json",
+        "stage": 3,
+        "reason": "Versioned Stage 3 data contract.",
+        "disposition": "change"
+      },
+      {
+        "path": "shared/agents/worker-result.schema.json",
+        "stage": 3,
+        "reason": "Versioned Stage 3 data contract.",
+        "disposition": "change"
+      },
+      {
+        "path": "shared/agents/result-envelope.schema.json",
+        "stage": 3,
+        "reason": "Versioned Stage 3 data contract.",
+        "disposition": "change"
+      },
+      {
+        "path": "shared/agents/acceptance.schema.json",
+        "stage": 3,
+        "reason": "Versioned Stage 3 data contract.",
+        "disposition": "change"
+      }
+    ],
+    "cli_subcommands": [
+      {
+        "id": "shared.job_cli:create",
+        "stage": 3,
+        "reason": "Explicit file-based generic job CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_cli:overview",
+        "stage": 3,
+        "reason": "Explicit file-based generic job CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_cli:status",
+        "stage": 3,
+        "reason": "Explicit file-based generic job CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_cli:prepare",
+        "stage": 3,
+        "reason": "Explicit file-based generic job CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_cli:result",
+        "stage": 3,
+        "reason": "Explicit file-based generic job CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_cli:task-observation",
+        "stage": 3,
+        "reason": "Explicit file-based generic job CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_cli:decision",
+        "stage": 3,
+        "reason": "Explicit file-based generic job CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_cli:plan-revision",
+        "stage": 3,
+        "reason": "Explicit file-based generic job CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_cli:cancel",
+        "stage": 3,
+        "reason": "Explicit file-based generic job CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_cli:discard",
+        "stage": 3,
+        "reason": "Explicit file-based generic job CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_acceptance_cli:accept-stage",
+        "stage": 3,
+        "reason": "Pinned authoritative acceptance CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_acceptance_cli.py"
+      },
+      {
+        "id": "shared.job_acceptance_cli:validate",
+        "stage": 3,
+        "reason": "Pinned authoritative acceptance CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_acceptance_cli.py"
+      },
+      {
+        "id": "shared.job_acceptance_cli:validate-final",
+        "stage": 3,
+        "reason": "Pinned authoritative acceptance CLI operation.",
+        "disposition": "change",
+        "path": "shared/job_acceptance_cli.py"
+      },
+      {
+        "id": "shared.job_cli:retry",
+        "path": "shared/job_cli.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Reopens failed tasks within persistent repair budgets."
+      },
+      {
+        "id": "shared.job_cli:followup-prepare",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Prepares a bounded immutable follow-up brief before host launch.",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_cli:observation",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Explicit coordinator evidence operation; never edits raw job state.",
+        "path": "shared/job_cli.py"
+      },
+      {
+        "id": "shared.job_cli:finding-disposition",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Explicit coordinator evidence operation; never edits raw job state.",
+        "path": "shared/job_cli.py"
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_jobs_stage3.py",
+        "disposition": "change",
+        "stage": 3,
+        "reason": "Adds whole-plan, schema and mutation coverage.",
+        "assertions": [
+          {
+            "selector": "test_jobs_stage3.JobStateTests",
+            "tests": 20,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-VISIBILITY",
+              "REQ-EVIDENCE",
+              "REQ-REGISTRY",
+              "REQ-HANDOFF"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_worker_result.py",
+        "disposition": "change",
+        "stage": 3,
+        "reason": "Adds strict complete inline/artifact transport coverage.",
+        "assertions": [
+          {
+            "selector": "test_worker_result.WorkerResultTests",
+            "tests": 5,
+            "coverage": [
+              "REQ-HANDOFF",
+              "REQ-JOB",
+              "REQ-VISIBILITY",
+              "REQ-EVIDENCE",
+              "REQ-REGISTRY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_job_acceptance.py",
+        "disposition": "change",
+        "stage": 3,
+        "reason": "Exercises actual validator from a real pinned isolated installation.",
+        "assertions": [
+          {
+            "selector": "test_job_acceptance.PinnedAcceptanceTests",
+            "tests": 7,
+            "coverage": [
+              "REQ-EVIDENCE",
+              "REQ-REGISTRY",
+              "REQ-JOB",
+              "REQ-VISIBILITY",
+              "REQ-HANDOFF"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_jobs_review.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Adversarial regressions for acceptance, lifecycle, authority and bounded helper execution.",
+        "assertions": [
+          {
+            "selector": "test_jobs_review.JobReviewTests",
+            "tests": 15,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-VISIBILITY",
+              "REQ-EVIDENCE",
+              "REQ-REGISTRY",
+              "REQ-HANDOFF"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_jobs_review_r2.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Executable fresh-review regressions with real source bytes, public observations and strong positive controls.",
+        "assertions": [
+          {
+            "selector": "test_jobs_review_r2.R2ReviewSupportTests",
+            "tests": 19,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-VISIBILITY",
+              "REQ-EVIDENCE",
+              "REQ-REGISTRY",
+              "REQ-HANDOFF"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_jobs_review_r3.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Repair5 public lifecycle, owner-source, timeout receipt/process cleanup and finite state regressions.",
+        "assertions": [
+          {
+            "selector": "test_jobs_review_r3.Stage3Repair5Tests",
+            "tests": 11,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE",
+              "REQ-HANDOFF",
+              "REQ-REPAIR"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass8.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized repair8 synthetic job, grader and transport regressions; no live acceptance claimed. Pass22 (R21-container-fresh-01, test only): the cancelled-child regression now has a fully valid completed-child positive control and cancellation-only negatives that fail only all_children_successful, and an in-memory mutant without that guard makes it fail.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass8.Pass8JobsTests",
+            "tests": 9,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-EVIDENCE",
+              "REQ-LIFECYCLE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass8.Pass8BenchTests",
+            "tests": 4,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-EVIDENCE",
+              "REQ-LIFECYCLE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass8.Pass8ContainerTests",
+            "tests": 7,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-EVIDENCE",
+              "REQ-LIFECYCLE"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass9.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass9 regressions for confirmed pass8 lifecycle, review, owner-decision and option-type findings; synthetic data, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass9.Pass9JobsTests",
+            "tests": 3,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass9.Pass9PolicyTests",
+            "tests": 2,
+            "coverage": [
+              "REQ-ROUTING",
+              "REQ-EVIDENCE",
+              "REQ-LIFECYCLE"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass10.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass10 regressions for accepted pass9 Stage 3 review lineage, host-handle, uncertain-dispatch, follow-up, owner-source, bounded-read, nesting and schema findings; synthetic data, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass10.Pass10JobsTests",
+            "tests": 8,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE",
+              "REQ-ROUTING"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass10.Pass10InputTests",
+            "tests": 3,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass11.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass11 regressions for accepted pass10 Stage 3 review conflicting-host, follow-up uncertainty, work-state and reused-finding findings; synthetic data, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass11.Pass11JobsTests",
+            "tests": 5,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE",
+              "REQ-ROUTING"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass12.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass12 regressions for accepted pass11 Stage 3 review plan-removal and validation-race findings; synthetic data and local validators, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass12.Pass12PlanRemovalTests",
+            "tests": 5,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE",
+              "REQ-ROUTING"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass12.Pass12ValidationRaceTests",
+            "tests": 4,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass13.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass13 regressions for the accepted pass12 Stage 3 review request-identity finding (retained request/task ID reuse and result transport replacement); synthetic data, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass13.Pass13RequestIdentityTests",
+            "tests": 9,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass14.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass14 regressions for the accepted pass13 Stage 3 review findings (historical stage ID reuse, completion IDs of removed tasks, follow-up brief path aliasing) and the identity sweep (host IDs, capacity notifications, slot follow-up budget, stale staged follow-ups, removal of unresolved findings); synthetic data, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass14.Pass14StageIdentityTests",
+            "tests": 1,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass14.Pass14CompletionIdentityTests",
+            "tests": 3,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass14.Pass14BriefPathTests",
+            "tests": 2,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass14.Pass14IdentitySweepTests",
+            "tests": 5,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass15.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass15 regressions for the accepted pass14 Stage 3 review findings (a slot first executed in a later stage pass retrying inside an exhausted pass; a stale task reopening acceptance or preparing and adopting a follow-up under withdrawn authority), the budget-charging and staleness sweeps (validated passes, capacity deferral, follow-up budgets, replaced worker pins, upstream observation and final reopen invalidation) and the observation-order fix (a pending late terminal observation cannot overwrite the ingested failed, blocked, needs-followup or malformed status); synthetic data, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass15.Pass15ObservationOrderTests",
+            "tests": 1,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass15.Pass15StageCycleTests",
+            "tests": 4,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass15.Pass15ValidatedPassTests",
+            "tests": 5,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass15.Pass15StaleAuthorityTests",
+            "tests": 5,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass15.Pass15StalenessSweepTests",
+            "tests": 4,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass16.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass16 regressions for the accepted pass15 Stage 3 review findings (an already-launched pre-prepared uncertain follow-up refused once its stage is invalidated, and an accepted terminal task with no ingested result removable to reset the slot) plus the uncertain-recovery, slot-replacement, execution-budget and late-adverse-result sweeps; synthetic data, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass16.Pass16UncertainFollowupRecoveryTests",
+            "tests": 8,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass16.Pass16UningestedTerminalTests",
+            "tests": 4,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass18.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass18 regressions for the accepted pass16 Stage 3 lifecycle findings (an unread terminal result must block acceptance and every fresh supersession while late import of already-owned accepted work stays permitted; a policy-only budget narrowing or exhaustion must not strand an already-launched uncertain follow-up; and cancellation or discard must still permit a strictly correlated recovery of pre-existing original or follow-up uncertainty) with the fresh- versus recovery-launch and live-discovery sweeps; synthetic data, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass18.Pass18UningestedResultTests",
+            "tests": 6,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass18.Pass18PolicyNarrowingRecoveryTests",
+            "tests": 4,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass18.Pass18CancelDiscardRecoveryTests",
+            "tests": 7,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass19.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass19 regressions completing the accepted pass16 Stage 3 lifecycle findings through the public plan-revision API: an unread terminal result also blocks fresh preparation after a policy-only revision invalidates its stage (re-preparing the launched request would clear its stale inputs), while the late result stays importable, charged, stale and keeps its finding; a public policy narrowing still lets already-launched uncertain original or follow-up work be recovered and reconciled while fresh or uncorrelated work is refused; synthetic data, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass19.Pass19UnreadResultFreshPreparationTests",
+            "tests": 3,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass19.Pass19PublicPolicyNarrowingTests",
+            "tests": 3,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-REPAIR",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass21.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass21 Stage 3 regressions: an imps final plan whose stage rows repeat, omit or misname a gate, or whose later row escapes its state root, package or run binding, is refused before any snapshot or stage validator runs, while every gate of a valid plan is observed in both result orders (R20-stage3-shard-4-01); the generic adapter independently refuses duplicate or invalid declared final-plan stage identities; the installed job CLI rejects unsafe job IDs with exit 2, no traceback and no state change, with safe-ID controls (R20-stage3-shard-2-01); synthetic data, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass21.Pass21FinalPlanIdentityTests",
+            "tests": 4,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE",
+              "REQ-HANDOFF",
+              "REQ-VISIBILITY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass21.Pass21AdapterFinalPlanTests",
+            "tests": 1,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE",
+              "REQ-HANDOFF",
+              "REQ-VISIBILITY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass21.Pass21JobCliUnsafeIdTests",
+            "tests": 1,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE",
+              "REQ-VISIBILITY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass22.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass22 Stage 3 regressions for one case reported as R21-stage3-shard-2-01, R21-stage3-shard-3-01 and R21-stage3-shard-4-01: the imps final gate reserves every declared stage binding before any gate, runs each gate at its reservation and rechecks the whole set after the last gate, refusing an earlier stage changed during a later gate in either order, a shared change between stage windows, a change during its own gate, changed validator bytes and a missing, malformed or unavailable snapshot, naming the affected stage; duplicate identities still launch nothing; the generic adapter running the installed final gate over real imps runs refuses a mid-gate edit of an earlier run and accepts the stable and restored controls; synthetic data, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass22.Pass22FinalFreshnessTests",
+            "tests": 8,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE",
+              "REQ-HANDOFF",
+              "REQ-VISIBILITY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass22.Pass22AdapterToPinnedFinalGateTests",
+            "tests": 1,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE",
+              "REQ-HANDOFF",
+              "REQ-VISIBILITY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_issue28_pass23.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Owner-authorized pass23 regressions for R22-stage3-shard-1-01 and R22-container-shard-1-01: accept_stage compares the commit-time adapter reading (program, pin, run/plan bytes and criterion IDs) with the binding reserved before the validator ran, so a pinned direct imps run updated, removed or made malformed after the real installed gate returns, or final-plan bytes rewritten in that window, stale the stage with the charged receipt retained and no current acceptance, while the stable and restored controls accept; the container test module run directly as a script reaches its single unittest entrypoint after every test class and runs the same tests module discovery counts; synthetic data, no Docker, no live acceptance claimed.",
+        "assertions": [
+          {
+            "selector": "test_issue28_pass23.Pass23AcceptanceCommitBindingTests",
+            "tests": 1,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE",
+              "REQ-HANDOFF",
+              "REQ-VISIBILITY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_issue28_pass23.Pass23ContainerDirectRunTests",
+            "tests": 2,
+            "coverage": [
+              "REQ-EVIDENCE",
+              "REQ-VISIBILITY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_system_symlinks.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "macOS and Python 3.14 CI repairs: every no-symlink-component check (job store lock and descriptor walk, artifact reads, registry walk, pin probe, reviewed documents, learning store, skill adapters, agent-tuneup) accepts a root-owned link whose ancestors are root-owned and not group/other-writable, such as macOS /var, and still refuses user-owned links, links in writable or user-owned parents and links below a user-controlled directory, shown on a synthetic macOS layout with reported ownership; strict JSON loaders reject nesting beyond an explicit 512 levels on every interpreter, and quoted brackets neither hide nor fake depth.",
+        "assertions": [
+          {
+            "selector": "test_system_symlinks.TrustedLinkRuleTests",
+            "tests": 2,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_system_symlinks.CheckSiteTests",
+            "tests": 8,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_system_symlinks.JsonDepthTests",
+            "tests": 3,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_system_symlinks.PrefixSpellingTests",
+            "tests": 1,
+            "coverage": [
+              "REQ-REGISTRY",
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      }
+    ]
+  }
+}
