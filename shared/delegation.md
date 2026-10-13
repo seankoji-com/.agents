@@ -68,9 +68,15 @@ at a recorded revision. Committed changes, where the job authorizes commits, arr
 a commit or branch at an observed SHA: inspect it with `git diff` or `git log`, or
 merge it into the dependent worktree. Uncommitted local work, as on an edit-only job,
 arrives as the accepted stage's snapshot (`head` and `content_hash`): the dependent
-slot continues in that worktree, or applies a `git diff --binary` patch saved with its
-recorded hash, and confirms the snapshot or hash before it starts. Never commit only to
-hand work on; that needs the job's commit authority. Accepted artifacts, such as
+slot continues in that worktree once its snapshot matches, or takes a transfer. While
+the writer's snapshot still matches, point `GIT_INDEX_FILE` at a new file outside the
+worktree, run `git read-tree HEAD` and `git add -A -- <owned paths>`, then record
+`head`, `git write-tree` and the patch from `git diff --cached --binary HEAD`. That
+covers staged, unstaged, untracked and deleted owned paths; plain `git diff --binary`
+omits staged and untracked work and is not a transfer. The dependent applies the patch
+with `git apply` at the same `head`, repeats those steps for the same paths, and starts
+only if its tree matches. Staging is not carried, and only unreferenced Git objects are
+written. Never commit only to hand work on; that needs the job's commit authority. Accepted artifacts, such as
 reports under the job directory named in `consumed_outputs`, are handed off by path
 and recorded hash instead; they need no commit. Never read from or write into a
 worktree whose writer is still active, and never re-run a completed task to recover

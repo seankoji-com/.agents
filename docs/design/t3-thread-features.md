@@ -33,7 +33,7 @@ T3 host behaves as described; see [Compatibility](../compatibility.md).
 | External MCP endpoint | Implemented: no endpoint material in run records; own MCP client rejected |
 | OAuth and pairing | Implemented: authentication grants tool access, not plugin authority |
 | External orchestrators and `t3_thread_launch` | Implemented: mapping onto the coordinator role; launch for child work stays rejected |
-| Per-turn Git checkpoints | Implemented: committed changes by SHA, uncommitted work by snapshot or hashed patch, artifacts by path and hash; hidden refs deferred |
+| Per-turn Git checkpoints | Implemented: committed changes by SHA, uncommitted work by snapshot or tree-checked transfer, artifacts by path and hash; hidden refs deferred |
 
 ## 1. `t3_thread_list`
 
@@ -237,8 +237,14 @@ local work reaches it as the accepted stage's snapshot. imps defaults to local w
 and binds every check to a snapshot (`plugins/imps/entry.md`), and a job may authorize
 only `edit` and `local-checks`, so the second stage either continues in that worktree
 once its snapshot `head` and `content_hash` (`core/snapshot.py`) match the accepted
-one, or applies a `git diff --binary` patch saved with its recorded hash. No commit is
-created that the job did not authorize. Accepted artifacts outside any worktree, such
+one, or takes a transfer. The writer builds a temporary index from `HEAD`, adds its
+owned paths with `git add -A`, and records `head`, the `git write-tree` ID and the
+`git diff --cached --binary HEAD` patch. The dependent applies the patch at the same
+`head`, rebuilds the tree the same way and starts only on a match. A plain
+`git diff --binary` would not do: it leaves out staged changes and untracked files, so a
+dependent could apply it cleanly, match its hash and still lack an accepted new file.
+The tree ID compares contents, not the patch. No commit is created that the job did
+not authorize. Accepted artifacts outside any worktree, such
 as research reports, keep their existing path-and-hash handoff. No form reads a
 worktree whose writer is still active or re-runs a completed task.
 
@@ -249,8 +255,9 @@ start from a fixed revision or a fixed, hashed artifact.
 their layout; resetting to them could discard work. Requiring a commit for every
 handoff would break read-only research jobs and edit-only engineering jobs, so the
 commit rule is limited to source-worktree integration of changes the job may commit.
-A patch applied to a moved base can conflict; the dependent slot then stops on the
-hash or apply failure instead of guessing.
+A transfer applied to a moved base can conflict; the dependent slot then stops on the
+apply failure or tree mismatch instead of guessing. A transfer carries contents, not
+staging, and writes unreferenced Git objects that `git gc` later prunes.
 
 **Disposition: implemented** in `shared/delegation.md` (Writer isolation). **Deferred:**
 reading hidden checkpoint refs directly, until the host documents them; the rule says

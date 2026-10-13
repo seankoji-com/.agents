@@ -1,10 +1,11 @@
 """REQ-T3-THREADS: how the workflows use T3's thread tools. Sibling-work discovery is
 read-only, applied before writable runs, counts parked maintainers and reports partial
 coverage; result recovery reads an owned child's recorded run to the end; dependent work
-starts from a commit, a snapshot or hashed patch of uncommitted work, or an artifact hash; external coordinators keep the same authority and leave no
+starts from a commit, a snapshot or tree-checked transfer of uncommitted work, or an artifact
+hash; external coordinators keep the same authority and leave no
 endpoint material behind. The design note covers all seven features with a disposition
 each."""
-import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -12,7 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from support import ROOT, git
+from support import GIT_ENV, ROOT, git
 
 SHARED = ROOT / 'shared'
 NOTE = ROOT / 'docs' / 'design' / 't3-thread-features.md'
@@ -173,51 +174,112 @@ class DependentWorkTest(unittest.TestCase):
                        'do not fetch, reset to or depend on their refs unless the host documents them'):
             self.assertIn(phrase, isolation)
 
-    def test_uncommitted_edit_only_work_hands_off_by_snapshot_or_hashed_patch(self):
+    def test_uncommitted_edit_only_work_hands_off_by_snapshot_or_complete_transfer(self):
         isolation = flat((SHARED / 'delegation.md').read_text().split('## Writer isolation')[1].split('## ')[0])
         self.assertIn("Uncommitted local work, as on an edit-only job, arrives as the accepted stage's snapshot "
                       '(`head` and `content_hash`)', isolation)
-        self.assertIn('applies a `git diff --binary` patch saved with its recorded hash, and confirms the snapshot '
-                      'or hash before it starts', isolation)
+        for phrase in ('point `GIT_INDEX_FILE` at a new file outside the worktree',
+                       'run `git read-tree HEAD` and `git add -A -- <owned paths>`',
+                       'record `head`, `git write-tree` and the patch from `git diff --cached --binary HEAD`',
+                       'covers staged, unstaged, untracked and deleted owned paths',
+                       'plain `git diff --binary` omits staged and untracked work and is not a transfer',
+                       'applies the patch with `git apply` at the same `head`',
+                       'starts only if its tree matches'):
+            self.assertIn(phrase, isolation)
+        self.assertNotIn('patch saved with its recorded hash', isolation)
         self.assertIn("Never commit only to hand work on; that needs the job's commit authority", isolation)
         self.assertNotIn('changes only as a commit', isolation)
 
-    def test_snapshot_and_patch_bind_uncommitted_work_without_a_commit(self):
+    @staticmethod
+    def _transfer(worktree, paths, index):
+        """The documented steps: a temporary index from HEAD plus the owned paths."""
+        env = dict(os.environ, **GIT_ENV, GIT_INDEX_FILE=str(index))
+        def run(*args):
+            return subprocess.run(['git', '-C', str(worktree), *args], env=env, check=True,
+                                  capture_output=True).stdout
+        run('read-tree', 'HEAD')
+        run('add', '-A', '--', *paths)
+        return (run('rev-parse', 'HEAD').strip(), run('write-tree').strip(),
+                run('diff', '--cached', '--binary', 'HEAD'))
+
+    def _pair(self, tmp):
+        first, second = Path(tmp, 'first'), Path(tmp, 'second')
+        first.mkdir()
+        git(first, 'init', '-q')
+        (first / 'src').mkdir()
+        (first / 'src' / 'count.py').write_text('print(1)\n')
+        (first / 'src' / 'old.py').write_text('gone\n')
+        git(first, 'add', 'src')
+        git(first, 'commit', '-q', '-m', 'base')
+        git(first, 'worktree', 'add', '-q', '--detach', str(second))
+        return first, second
+
+    def _hand_off(self, tmp, first, second, owned=('src',)):
         sys.path.insert(0, str(ROOT))
         try:
             from core import snapshot
         finally:
             sys.path.remove(str(ROOT))
+        accepted = snapshot.take(first)
+        before = git(first, 'status', '--porcelain=v1', '--untracked-files=all').stdout
+        refs = git(first, 'for-each-ref').stdout
+        head, tree, patch = self._transfer(first, owned, Path(tmp, 'writer.index'))
+        self.assertEqual(head, accepted['head'].encode(), 'edit-only work creates no commit')
+        self.assertTrue(snapshot.same(accepted, snapshot.take(first)), 'building the transfer leaves the writer as accepted')
+        self.assertEqual(git(first, 'status', '--porcelain=v1', '--untracked-files=all').stdout, before)
+        self.assertEqual(git(first, 'for-each-ref').stdout, refs, 'no ref is written')
+        plain = subprocess.run(['git', 'diff', '--binary'], cwd=first, check=True, capture_output=True).stdout
+        self.assertEqual(git(second, 'rev-parse', 'HEAD').stdout.strip().encode(), head)
+        subprocess.run(['git', 'apply', '-'], cwd=second, input=patch, check=True, capture_output=True)
+        _, received, _ = self._transfer(second, owned, Path(tmp, 'dependent.index'))
+        self.assertEqual(received, tree, 'the dependent starts only on a matching tree')
+        return plain, patch
+
+    def test_transfer_carries_staged_only_work_that_a_plain_diff_drops(self):
         with tempfile.TemporaryDirectory() as tmp:
-            first, second = Path(tmp, 'first'), Path(tmp, 'second')
-            first.mkdir()
-            git(first, 'init', '-q')
-            git(first, 'config', 'user.email', 'test@example.invalid')
-            git(first, 'config', 'user.name', 'Test')
-            (first / 'count.py').write_text('print(1)\n')
-            git(first, 'add', 'count.py')
-            git(first, 'commit', '-q', '-m', 'base')
-            git(Path(tmp), 'clone', '-q', str(first), str(second))
-            base = git(first, 'rev-parse', 'HEAD').stdout.strip()
+            first, second = self._pair(tmp)
+            (first / 'src' / 'count.py').write_text('print(2)\n')
+            git(first, 'add', 'src/count.py')
+            plain, patch = self._hand_off(tmp, first, second)
+            self.assertEqual(plain, b'', 'plain git diff --binary is empty for staged-only work')
+            self.assertTrue(patch)
+            self.assertEqual((second / 'src' / 'count.py').read_text(), 'print(2)\n')
 
-            (first / 'count.py').write_text('print(2)\n')
-            accepted = snapshot.take(first)
-            self.assertEqual(accepted['head'], base, 'edit-only work creates no commit')
-            self.assertTrue(accepted['content_hash'])
-            self.assertTrue(snapshot.same(accepted, snapshot.take(first)), 'a finished writer leaves it unchanged')
-            (first / 'count.py').write_text('print(3)\n')
-            self.assertFalse(snapshot.same(accepted, snapshot.take(first)), 'a later edit breaks the binding')
-            (first / 'count.py').write_text('print(2)\n')
+    def test_transfer_carries_untracked_source_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first, second = self._pair(tmp)
+            (first / 'src' / 'new.py').write_text('print("new")\n')
+            plain, _ = self._hand_off(tmp, first, second)
+            self.assertNotIn(b'new.py', plain, 'plain git diff --binary omits untracked files')
+            self.assertEqual((second / 'src' / 'new.py').read_text(), 'print("new")\n')
 
-            patch = subprocess.run(['git', 'diff', '--binary'], cwd=first, check=True,
-                                   capture_output=True).stdout
-            recorded = hashlib.sha256(patch).hexdigest()
-            subprocess.run(['git', 'apply', '--index', '-'], cwd=second, input=patch, check=True)
-            self.assertEqual((second / 'count.py').read_text(), 'print(2)\n')
-            applied = subprocess.run(['git', 'diff', '--cached', '--binary'], cwd=second, check=True,
-                                     capture_output=True).stdout
-            self.assertEqual(hashlib.sha256(applied).hexdigest(), recorded, 'the dependent confirms the hash')
-            self.assertEqual(git(second, 'rev-parse', 'HEAD').stdout.strip(), base)
+    def test_transfer_carries_mixed_work_and_stays_inside_owned_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first, second = self._pair(tmp)
+            (first / 'src' / 'count.py').write_text('print(2)\n')
+            git(first, 'add', 'src/count.py')
+            (first / 'src' / 'count.py').write_text('print(3)\n')
+            (first / 'src' / 'new.py').write_text('print("new")\n')
+            (first / 'src' / 'blob.bin').write_bytes(bytes(range(256)))
+            (first / 'src' / 'old.py').unlink()
+            (first / 'notes.txt').write_text('not owned\n')
+            self._hand_off(tmp, first, second)
+            self.assertEqual((second / 'src' / 'count.py').read_text(), 'print(3)\n', 'working content, not staged')
+            self.assertEqual((second / 'src' / 'new.py').read_text(), 'print("new")\n')
+            self.assertEqual((second / 'src' / 'blob.bin').read_bytes(), bytes(range(256)))
+            self.assertFalse((second / 'src' / 'old.py').exists())
+            self.assertFalse((second / 'notes.txt').exists(), 'unowned paths are not carried')
+
+    def test_incomplete_transfer_fails_the_tree_check(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first, second = self._pair(tmp)
+            (first / 'src' / 'count.py').write_text('print(2)\n')
+            (first / 'src' / 'new.py').write_text('print("new")\n')
+            _, tree, _ = self._transfer(first, ('src',), Path(tmp, 'writer.index'))
+            plain = subprocess.run(['git', 'diff', '--binary'], cwd=first, check=True, capture_output=True).stdout
+            subprocess.run(['git', 'apply', '-'], cwd=second, input=plain, check=True, capture_output=True)
+            _, received, _ = self._transfer(second, ('src',), Path(tmp, 'dependent.index'))
+            self.assertNotEqual(received, tree, 'a plain diff applies cleanly yet lacks the new file')
 
     def test_accepted_artifacts_keep_their_hash_bound_handoff(self):
         isolation = flat((SHARED / 'delegation.md').read_text().split('## Writer isolation')[1].split('## ')[0])
@@ -308,7 +370,7 @@ class DesignNoteTest(unittest.TestCase):
         checkpoints = flat_sections['Per-turn Git checkpoints']
         for phrase in ('`plugins/ape/references/research-job.md`', '`plugins/ape/playbooks/forage.md`',
                        'path-and-hash handoff', 'limited to source-worktree integration',
-                       "accepted stage's snapshot", '`git diff --binary` patch saved with its recorded hash',
+                       "accepted stage's snapshot", '`git diff --cached --binary HEAD` patch', 'leaves out staged changes and untracked files', 'The tree ID compares contents, not the patch',
                        'edit-only engineering jobs'):
             self.assertIn(phrase, checkpoints)
 
