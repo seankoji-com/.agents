@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "stage": 4,
+  "added": [
+    {
+      "path": "plugins/babysitter/references/job-plan.md",
+      "stage": 4,
+      "kind": "instruction reference",
+      "coverage": ["REQ-JOB", "REQ-EVIDENCE", "REQ-BOUNDARIES", "G-BS-EXACT-HEAD", "G-BS-SCOPE", "G-APPROVAL-PICKER"],
+      "reason": "Babysitter job shape loaded only at job creation: per-PR stages bound to validate_pr.py contracts, per-PR recorded actions, maintainer/reviewer slots, owner-sourced head rebinding and coordinator-built acceptance input."
+    }
+  ],
+  "inventory": {
+    "tests": [
+      {
+        "path": "tests/test_babysitter_workflow.py",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "New Stage 4 behavioural coverage for the babysitter coordinator entry, playbook, job-plan reference, worker definitions and a synthetic installed-helper job.",
+        "assertions": [
+          {"selector": "test_babysitter_workflow.EntryRoutingTest", "tests": 4, "coverage": ["REQ-COMPAT", "G-ADAPTERS", "G-LEARNINGS"], "survives": true},
+          {"selector": "test_babysitter_workflow.BoundaryTest", "tests": 11, "coverage": ["REQ-BOUNDARIES", "REQ-FALLBACK", "REQ-APPROVAL-PICKER", "G-BS-ROSTER", "G-BS-WORKSPACE", "G-BS-EXACT-HEAD", "G-BS-SCOPE", "G-APPROVAL-PICKER"], "survives": true},
+          {"selector": "test_babysitter_workflow.WorkerDefinitionTest", "tests": 3, "coverage": ["REQ-BOUNDARIES", "REQ-HANDOFF", "REQ-REGISTRY"], "survives": true},
+          {"selector": "test_babysitter_workflow.SyntheticJobTest", "tests": 6, "coverage": ["REQ-JOB", "REQ-DISPATCH", "REQ-REPAIR", "REQ-EVIDENCE", "REQ-LIFECYCLE", "REQ-ROUTING", "REQ-BOUNDARIES", "G-BS-EXACT-HEAD", "G-BS-SCOPE"], "survives": true}
+        ]
+      }
+    ]
+  },
+  "updates": {
+    "instructions": [
+      {
+        "path": "plugins/babysitter/entry.md",
+        "replace": true,
+        "reason": "Stage 4 coordinator entry: preserves doctor/pr/repo/org meanings and through-merge authorization, references PKG/shared/job-coordination.md, keeps doctor/roster/quick pass/table direct, records per-PR read/push/communicate/merge actions, names validate_pr.py as acceptance authority and routes approvals through the picker."
+      },
+      {
+        "path": "plugins/babysitter/playbooks/maintain.md",
+        "replace": true,
+        "reason": "Stage 4 playbook: keeps master's quick merge pass, live PR table, cheapest-tier per-PR fixers and escalation, adds one job per run, prepare/task-observation dispatch, independent pr-reviewer at the final head, exact-head observation acceptance, budgeted repair, visible fallback, links/watches without polling and separately authorized sweeps."
+      }
+    ],
+    "operations": [
+      {
+        "id": "babysitter:doctor",
+        "replace": true,
+        "reason": "Direct deterministic check in the coordinator thread; adds agents list integrity reporting; never launches an agent.",
+        "files": ["plugins/babysitter/entry.md"]
+      },
+      {
+        "id": "babysitter:pr",
+        "replace": true,
+        "reason": "One PR is one job stage: babysitter/pr-maintainer repairs in its isolated workspace under recorded per-PR actions, babysitter/pr-reviewer reviews the final combined change on a different lineage, validate_pr.py accepts at the coordinator-observed head; head moves rebind through owner-sourced plan revisions.",
+        "files": ["plugins/babysitter/entry.md", "plugins/babysitter/playbooks/maintain.md", "plugins/babysitter/references/job-plan.md"]
+      },
+      {
+        "id": "babysitter:repo",
+        "replace": true,
+        "reason": "Roster from list-prs.sh with pagination warnings; quick pass and table stay direct; one stage per eligible PR (direct when no child work); validate-final over all PR stages; future-PR sweeps stay separately authorized.",
+        "files": ["plugins/babysitter/entry.md", "plugins/babysitter/playbooks/maintain.md", "plugins/babysitter/references/job-plan.md"]
+      },
+      {
+        "id": "babysitter:org",
+        "replace": true,
+        "reason": "As repo, across the paginated org roster with repository-prefixed stage IDs.",
+        "files": ["plugins/babysitter/entry.md", "plugins/babysitter/playbooks/maintain.md", "plugins/babysitter/references/job-plan.md"]
+      }
+    ]
+  }
+}
