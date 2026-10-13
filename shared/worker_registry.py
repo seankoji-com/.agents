@@ -40,7 +40,7 @@ WORKER_CATALOG = {
     'babysitter': {'pr-maintainer': ('one scoped PR triage and authorized repair', ['pr', 'repo', 'org']),
                    'pr-reviewer': ('independent final combined PR review', ['pr', 'repo', 'org'])},
     'agent-tuneup': {'config-researcher': ('provider-format and scope research with sources', ['audit', 'align']),
-                     'config-verifier': ('authorized configuration change verification', ['audit', 'apply'])},
+                     'config-verifier': ('authorized configuration change verification', ['audit', 'align', 'apply'])},
 }
 
 
