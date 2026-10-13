@@ -159,7 +159,7 @@ def normalise_stage(result):
     aliases = list(result.get('host_aliases') or ((sidecar or {}).get('agent_add_hosts') or {}).get('names') or [])
     if sidecar and sidecar.get('host'):
         # With agent-only aliases the scripts' own github.com names reach the sidecar.
-        values['GITHUB_URL'] = 'https://' + ('github.com' if 'github.com' in aliases else sidecar['host'])
+        values['GITHUB_URL'] = 'https://' + ('github.com' if any(name == 'github.com' for name in aliases) else sidecar['host'])
     values.update(result.get('prompt_values') or {})
     return {'mounts': [_mount_row(row) for row in result.get('mounts', []) or []],
             'env': dict(result.get('agent_env') or result.get('env') or {}), 'outcome_dir': scenario_dir,

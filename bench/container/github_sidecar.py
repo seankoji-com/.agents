@@ -703,6 +703,8 @@ def make_handler(model: Model, log: EventLog, protocol: str):
             self.send_header('X-OAuth-Scopes', 'repo, read:org')
             self.send_header('X-GitHub-Media-Type', 'github.v3; format=json')
             for name, value_text in headers:
+                if any(c in f'{name}{value_text}' for c in '\r\n\x00'):
+                    raise ValueError('refusing a header that could split the response')
                 self.send_header(name, value_text)
             self.end_headers()
             self.wfile.write(body)

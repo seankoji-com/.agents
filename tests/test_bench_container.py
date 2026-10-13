@@ -1,4 +1,5 @@
 """Offline tests for the issue 28 S1b isolation and model egress boundary."""
+import inspect
 import contextlib
 import errno
 import hashlib
@@ -4365,3 +4366,13 @@ class Pass19ContainerRepairTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class HeaderSplittingTest(unittest.TestCase):
+    """CodeQL response-splitting alerts: upstream header text never reaches a header line raw."""
+
+    def test_header_safe_rejects_line_breaks_and_nul(self):
+        for bad in ('text/plain\r\nSet-Cookie: x=1', 'a\nb', 'a\rb', 'a\x00b'):
+            with self.subTest(value=bad):
+                self.assertIsNone(gateway.header_safe(bad))
+        self.assertEqual(gateway.header_safe('application/json; charset=utf-8'), 'application/json; charset=utf-8')
