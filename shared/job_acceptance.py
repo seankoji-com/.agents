@@ -326,8 +326,9 @@ def _adapter(job, stage, argv, input_file):
         if not isinstance(data.get('criteria'), list) or sorted(data['criteria'],key=canonical) != sorted(criteria,key=canonical) or not contract.get('sources') or data.get('sources') != contract['sources']:
             raise AcceptanceError('report source pins or criteria differ from the declared stage')
         # The validator checks coverage of what the report declares; bind that declaration to the stage.
+        # A research stage may be ordered after another; only synthesis needs (and consumes) dependencies.
         synthesis = bool(stage.get('depends_on'))
-        operations = {'ape/study': {'study'}, 'ape/forage': {'forage-synthesis' if synthesis else 'forage-research'}}
+        operations = {'ape/study': {'study'}, 'ape/forage': {'forage-research', 'forage-synthesis'} if synthesis else {'forage-research'}}
         if job['workflow'] in operations and data.get('operation') not in operations[job['workflow']]:
             raise AcceptanceError('ape report operation differs from the job workflow and stage')
         declared = data.get('requirements')

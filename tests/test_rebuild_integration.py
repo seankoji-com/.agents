@@ -20,38 +20,39 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from tests.test_rebuild_installed import Sandbox, sha, worker_result  # noqa: E402
+from tests.test_ape_validate_report import (descriptor, fingerprint, pin_source,  # noqa: E402
+                                             research_findings, research_markdown, synthesis_findings,
+                                             synthesis_markdown, write_pin)
+from tests.test_rebuild_installed import Sandbox, worker_result  # noqa: E402
 
 CRITERIA = [{'id': 'C-PROVENANCE', 'kind': 'source-provenance'}]
 TRANSCRIPT_MARKER = 'RAW-WORKER-TRANSCRIPT-7f3a'
 
 
 class ApeJob:
-    """A five-stage ape research job: four worker stages and one direct integration stage."""
+    """A five-stage ape forage job: four ordered research stages, each pinning one candidate
+    snapshot, then one direct synthesis stage that consumes every accepted research report."""
 
     STAGES = ('s1', 's2', 's3', 's4', 'final')
 
     def __init__(self, case, box: Sandbox, job_id: str):
         self.case, self.box, self.job_id = case, box, job_id
         self.pkg, self.manifest = box.install('ape')
-        self.caller = box.caller(self.manifest, 'ape/study')
+        self.caller = box.caller(self.manifest, 'ape/forage')
         self.validator = self.pkg / 'scripts' / 'validate_report.py'
-        self.sources = {}
-        for i in range(1, 5):
-            path = box.base / 'sources' / f'repo-{i}.txt'
-            path.parent.mkdir(exist_ok=True)
-            path.write_text(f'pinned source {i}: retry loop with bounded backoff\n')
-            self.sources[f's{i}'] = {'id': f'src-{i}', 'url': f'https://example.invalid/repo-{i}',
-                                     'revision': f'rev-{i}', 'path': str(path), 'sha256': sha(path.read_bytes())}
+        # Coordinator-owned snapshots and reports, outside job state (snapshot_source.py's layout).
+        self.sources = {f's{i}': pin_source(box.private, f'src-{i}') for i in range(1, 5)}
+        self.outputs = {s: box.private / 'reports' / f'{s}.md' for s in self.STAGES}
 
     def stage(self, stage_id):
         sources = list(self.sources.values()) if stage_id == 'final' else [self.sources[stage_id]]
         index = self.STAGES.index(stage_id)
-        return {'id': stage_id, 'depends_on': [self.STAGES[index - 1]] if index else [],
+        return {'id': stage_id, 'depends_on': list(self.STAGES[:4]) if stage_id == 'final' else
+                [self.STAGES[index - 1]] if index else [],
                 'requirements': [f'R{i}' for i in range(1, 5)] if stage_id == 'final' else ['R' + stage_id[1]],
                 'status': 'pending', 'execution_mode': 'direct' if stage_id == 'final' else 'workers',
                 'validator_dependency': 'ape', 'revision': stage_id + '-r1', 'criteria': CRITERIA,
-                'validator_contract': {'sources': sources}}
+                'outputs': [str(self.outputs[stage_id])], 'validator_contract': {'sources': sources}}
 
     def plan(self):
         tasks = [{'task_id': f'{s}-research', 'stage_id': s, 'logical_slot_id': 'primary',
@@ -61,7 +62,7 @@ class ApeJob:
                   'write_scope': {'mode': 'worker-evidence', 'path': f'artifacts/tasks/{s}-research'}}
                  for s in self.STAGES[:4]]
         return {'schema_version': 1, 'job_id': self.job_id, 'installation_id': self.manifest['installation_id'],
-                'workflow': 'ape/study', 'owner': {'id': 'owner'}, 'objective': 'compare four pinned sources',
+                'workflow': 'ape/forage', 'owner': {'id': 'owner'}, 'objective': 'compare four pinned sources',
                 'requirements': {f'R{i}': f'source {i} provenance is pinned and reported' for i in range(1, 5)},
                 'authorization': {'actions': ['read']}, 'constraints': ['Research is read-only in the target.'],
                 'dependencies': [{'key': 'ape', 'plugin': 'ape'}], 'pins': {},
@@ -73,7 +74,20 @@ class ApeJob:
         self.box.create(self.pkg, self.plan())
 
     def report(self, stage_id):
-        return {'sources': self.stage(stage_id)['validator_contract']['sources'], 'findings': [], 'criteria': CRITERIA}
+        """A complete descriptor under the current ape contract: sections, Provenance, pinned
+        revisions and hashes, line citations, coverage and coordinator inspection receipts."""
+        finger = fingerprint(self.box.private)
+        if stage_id != 'final':
+            pin = self.sources[stage_id]
+            report = write_pin(self.outputs[stage_id], research_markdown(pin))
+            return descriptor('forage-research', [pin], [{'id': 'R' + stage_id[1], 'source_ids': [pin['id']]}],
+                              finger, report, research_findings(pin), criteria=CRITERIA)
+        pins = list(self.sources.values())
+        consumed = [{'id': f'rep-{s}', 'source_id': self.sources[s]['id'],
+                     **write_pin(self.outputs[s], research_markdown(self.sources[s]))} for s in self.STAGES[:4]]
+        report = write_pin(self.outputs['final'], synthesis_markdown(pins, consumed))
+        return descriptor('forage-synthesis', pins, [{'id': f'R{i}', 'source_ids': [f'src-{i}']} for i in range(1, 5)],
+                          finger, report, synthesis_findings(pins, consumed), consumed, criteria=CRITERIA)
 
     def finish_worker(self, stage_id, brief, pkg=None, host=None):
         task = f'{stage_id}-research'

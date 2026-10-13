@@ -65,7 +65,8 @@ absolute; hashes are of current bytes:
  "fingerprint": {"path": "/workspace/fingerprint.md", "sha256": "HEX"},
  "report": {"path": "/job/artifacts/tasks/TASK/report.md", "sha256": "HEX"},
  "findings": [{"id": "F1", "section": "Adopt", "source_id": "src-1",
-   "quote": "exact source text, also in that section"}],
+   "quote": "source text, also in that section",
+   "citation": "https://github.com/OWNER/REPO/blob/REV/a.py#L10-L24"}],
  "inspections": [
    {"category": "report", "path": "<report>", "sha256": "HEX", "inspected": "sections"},
    {"category": "adopt", "path": "<source>", "sha256": "HEX", "finding_ids": ["F1"],
@@ -76,20 +77,21 @@ absolute; hashes are of current bytes:
 
 - `operation`: `study` or `forage-research` (one source), `forage-synthesis` (one to
   five). Sources, criteria and requirement IDs equal the stage contract.
-- `REV` is the resolved commit. The report's `## Provenance` names each source's
-  revision and snapshot SHA-256 (synthesis: each accepted report's too) and no other
-  hash. Blob citations use a pinned revision and `#L` lines, and cite no other repository.
+- `REV` is the resolved commit. `## Provenance` names each source's revision and
+  snapshot SHA-256 (synthesis: each accepted report's too) and no other hash. Every
+  blob citation names existing lines of a file in its pinned snapshot.
 - Research reports have Provenance, Overlap, Adopt, Adapt, Reject and Command case
   sections (900 words at most) and cite every source; synthesis has Provenance, Overlap,
-  Conflicts, Recommended experiment and Rejected. A quote appears in its source and its
-  report section. Every requirement and source has a finding.
+  Conflicts, Recommended experiment and Rejected. Each quote lies in its cited lines and
+  its report section. Every requirement and source has a finding.
 - Synthesis adds `consumed_reports: [{id, source_id, path, sha256}]`: the dependency
   `outputs`, one per candidate. Each finding names its `report_id` and quotes text that
   report cited.
-- Receipts: one `report` receipt, plus one naming each Adopt and Adapt finding
-  (synthesis: Conflicts, Recommended experiment) at its cited source or accepted report.
+- Every citation in Adopt and Adapt (synthesis: Conflicts, Recommended experiment) is
+  a finding with a receipt at its source or accepted report; uncited claims reject.
+  Add one `report` receipt.
 
-Exit 0 means these hold for those bytes, not that the conclusions are right.
+Exit 0 proves these for those bytes, not that conclusions are right.
 
 ## Acceptance input
 

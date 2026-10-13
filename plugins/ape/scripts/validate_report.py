@@ -10,6 +10,7 @@ the truth of the report's prose. Exit 0 accepted, 1 rejected, 2 usage.
 """
 import argparse, hashlib, json, re, sys
 from pathlib import Path
+from urllib.parse import unquote
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from shared.validator_observations import read_object
 from core.jobs.store import _regular
@@ -21,6 +22,9 @@ REVISION = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')  # a resolved commit, never 
 HEX_TOKEN = re.compile(r'(?<![0-9A-Za-z])[0-9A-Fa-f]{40,}(?![0-9A-Za-z])')
 URL = re.compile(r'https?://[^\s<>()\[\]"\'`]+')
 CITATION = re.compile(r'(https?://[^/\s]+/[^/\s]+/[^/\s]+)/(blob|tree)/([^/#?\s]+)(\S*)')
+LINE_RANGE = re.compile(r'L(\d+)(?:-L(\d+))?')
+SNAPSHOT_HEADER = re.compile(r'==> (.+) <==')
+EMPTY = re.compile(r'(?:none|n/a|nothing)?\.?', re.I)  # an empty consequential section
 FENCE = re.compile(r'^\s{0,3}(`{3,}|~{3,})')
 HEADING = re.compile(r'^\s{0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$')
 RESEARCH = {'sections': ('provenance', 'overlap', 'adopt', 'adapt', 'reject', 'command case'),
@@ -83,10 +87,15 @@ def sections(text, names):
         match = None if fenced else HEADING.match(line)
         if match:
             heads.append((number, len(match.group(1)), heading(match.group(2))))
-    bodies = {}
+    bodies, top, inside = {}, min((lvl for _, lvl, name in heads if name in names), default=1), None
     for index, (number, level, name) in enumerate(heads):
         if name not in names:
+            # Only a title above the sections, or a subheading inside one, may stand outside the
+            # required set; otherwise a claim could hide in a section no receipt rule covers.
+            if not (inside is None and level < top or inside is not None and level > inside):
+                raise Reject('structure', f'report has unexpected section {name!r}; nest it inside a required one')
             continue
+        inside = level
         if name in bodies:
             raise Reject('structure', f'report repeats the {name!r} section')
         end = next((n for n, lvl, _ in heads[index + 1:] if lvl <= level), len(lines))
@@ -114,9 +123,54 @@ def check_sources(data, spec):
         match = CITATION.fullmatch(url) if isinstance(url, str) else None
         if not match or not url.startswith('https://') or match.group(3) != revision:
             raise Reject('provenance', f'source {sid} url must be an https tree/blob URL pinned at {revision}')
-        texts[sid] = pinned_text('provenance', source, f'source snapshot {sid}')
+        texts[sid] = snapshot_files(pinned_text('provenance', source, f'source snapshot {sid}'))
         bases[sid] = match.group(1)
     return sources, texts, bases
+
+
+def snapshot_files(text):
+    """Lines of each `==> path <==` file in a snapshot (the format snapshot_source.py writes)."""
+    files, current = {}, None
+    for line in text.split('\n'):
+        header = SNAPSHOT_HEADER.fullmatch(line)
+        if header:
+            current = files.setdefault(header.group(1), [])
+        elif current is not None:
+            current.append(line)
+    for lines in files.values():
+        while lines and not lines[-1]:
+            lines.pop()  # the separator before the next header, not cited content
+    return files
+
+
+def resolve(url, sources, bases, files):
+    """Source id and cited text of one blob citation, which must name real lines of the pinned snapshot."""
+    base, kind, ref, rest = CITATION.match(url).groups()
+    pins = [s for s in sources if bases[s['id']] == base]
+    if not pins:
+        raise Reject('coverage', f'report cites {base}, which is not an assigned pinned source')
+    pins = [s for s in pins if s['revision'] == ref]
+    if not pins:
+        raise Reject('provenance', f'report cites {base} at {ref}, not at its pinned revision')
+    if kind != 'blob':
+        return None, None
+    path, _, fragment = rest.lstrip('/').partition('#')
+    lines = LINE_RANGE.fullmatch(fragment)
+    if not lines:
+        raise Reject('provenance', f'citation {url} lacks line numbers')
+    start, end = int(lines.group(1)), int(lines.group(2) or lines.group(1))
+    for pin in pins:
+        content = files[pin['id']].get(unquote(path))
+        if content is not None:
+            if not 1 <= start <= end <= len(content):
+                raise Reject('provenance', f'citation {url} names lines outside {path} ({len(content)} lines) '
+                             f'in snapshot {pin["id"]}')
+            return pin['id'], '\n'.join(content[start - 1:end])
+    raise Reject('provenance', f'citation {url} names {path}, which is not in the pinned snapshot')
+
+
+def citations(text):
+    return [url.rstrip('.,;:') for url in URL.findall(text) if CITATION.match(url.rstrip('.,;:'))]
 
 
 def check_consumed(data, spec, sources):
@@ -143,7 +197,7 @@ def check_consumed(data, spec, sources):
     return reports
 
 
-def check_report(data, spec, sources, bases, consumed):
+def check_report(data, spec, sources, bases, files, consumed):
     text = pinned_text('structure', data.get('report'), 'report')
     if spec['max_words'] is not None and len(text.split()) > spec['max_words']:
         raise Reject('structure', f'report exceeds {spec["max_words"]} words')
@@ -161,57 +215,65 @@ def check_report(data, spec, sources, bases, consumed):
     for rid, row in consumed.items():
         if row['sha256'] not in provenance:
             raise Reject('provenance', f'report Provenance omits the SHA-256 of accepted report {rid}')
-    cited = set()
-    for url in URL.findall(text):
-        match = CITATION.match(url.rstrip('.,;:'))
-        if not match:
-            continue
-        base, kind, ref, rest = match.groups()
-        pins = [s for s in sources if bases[s['id']] == base]
-        if not pins:
-            raise Reject('coverage', f'report cites {base}, which is not an assigned pinned source')
-        if ref not in {s['revision'] for s in pins}:
-            raise Reject('provenance', f'report cites {base} at {ref}, not at its pinned revision')
-        if kind == 'blob':
-            if not re.search(r'#L\d+', rest):
-                raise Reject('provenance', f'citation {url} lacks line numbers')
-            cited.update(s['id'] for s in pins if s['revision'] == ref)
+    resolved = {}
+    for url in citations(text):
+        sid, cited_text = resolve(url, sources, bases, files)
+        if sid is not None:
+            resolved[url] = (sid, cited_text)
     if spec['cites']:
         for source in sources:
-            if source['id'] not in cited:
+            if source['id'] not in {sid for sid, _ in resolved.values()}:
                 raise Reject('coverage', f'report has no line-numbered citation of {source["id"]} at its pinned revision')
-    return text, bodies
+    # Consequential claims come from the report text itself: every citation in such a section
+    # is a claim the descriptor must list (and the coordinator must inspect).
+    claims = {}
+    for name in spec['inspect']:
+        body = bodies[name]
+        claims[name] = {url for url in citations(body) if url in resolved}
+        if not claims[name] and not EMPTY.fullmatch(norm(re.sub(r'(?m)^\s*#+.*$', '', body))):
+            raise Reject('coverage', f'report {name!r} section makes claims without a line-numbered citation')
+    return bodies, resolved, claims
 
 
-def check_findings(data, spec, texts, bodies, consumed):
+def check_findings(data, spec, bodies, resolved, claims, consumed):
     findings = data.get('findings')
     if not isinstance(findings, list):
         raise Reject('structure', 'findings must be a list')
-    claims = [name for name in spec['sections'] if name != 'provenance']
+    allowed = [name for name in spec['sections'] if name != 'provenance']
     rows = {}
     for finding in findings:
         fid = finding.get('id') if isinstance(finding, dict) else None
         if not isinstance(fid, str) or not fid or fid in rows:
             raise Reject('structure', 'every finding needs a unique non-empty id')
         section = heading(finding['section']) if isinstance(finding.get('section'), str) else None
-        if section not in claims:
-            raise Reject('structure', f'finding {fid} section must be one of: {", ".join(claims)}')
-        sid, quote = finding.get('source_id'), finding.get('quote')
-        if sid not in texts or not isinstance(quote, str) or not quote.strip():
-            raise Reject('provenance', f'finding {fid} needs a pinned source_id and a quote')
-        if quote not in texts[sid]:
-            raise Reject('provenance', f'finding {fid} quote is not in the actual bytes of source {sid}')
+        if section not in allowed:
+            raise Reject('structure', f'finding {fid} section must be one of: {", ".join(allowed)}')
+        sid, quote, url = finding.get('source_id'), finding.get('quote'), finding.get('citation')
+        if not isinstance(quote, str) or not quote.strip() or not isinstance(url, str):
+            raise Reject('provenance', f'finding {fid} needs a quote and a blob citation')
+        if url not in citations(bodies[section]) or url not in resolved:
+            raise Reject('structure', f'finding {fid} citation is not a line-numbered citation in the report '
+                         f'{section!r} section')
+        if resolved[url][0] != sid:
+            raise Reject('provenance', f'finding {fid} citation is not of its source {sid}')
+        if norm(quote) not in norm(resolved[url][1]):
+            raise Reject('provenance', f'finding {fid} quote is not in the cited lines {url}')
         if norm(quote) not in norm(bodies[section]):
             raise Reject('structure', f'finding {fid} quote does not appear in the report {section!r} section')
         rid = finding.get('report_id')
         if spec['consumes']:
             if rid not in consumed or consumed[rid]['source_id'] != sid:
                 raise Reject('provenance', f'finding {fid} must rest on the accepted report for {sid}')
-            if norm(quote) not in norm(consumed[rid]['text']):
-                raise Reject('provenance', f'finding {fid} quote is not text accepted report {rid} cited')
+            if url not in consumed[rid]['text'] or norm(quote) not in norm(consumed[rid]['text']):
+                raise Reject('provenance', f'finding {fid} quote and citation are not ones accepted report {rid} cited')
         elif rid is not None:
             raise Reject('structure', f'finding {fid} names a consumed report outside synthesis')
         rows[fid] = {**finding, 'section': section}
+    for name, urls in claims.items():
+        listed = {f['citation'] for f in rows.values() if f['section'] == name}
+        for url in sorted(urls - listed):
+            raise Reject('coverage', f'report {name} claim citing {url} has no descriptor finding (and so no '
+                         'inspection receipt)')
     return rows
 
 
@@ -317,8 +379,8 @@ def evaluate(path):
     if 'fingerprint_words' in spec and len(fingerprint.split()) > spec['fingerprint_words']:
         raise Reject('structure', f'project fingerprint exceeds {spec["fingerprint_words"]} words')
     consumed = check_consumed(data, spec, sources)
-    _, bodies = check_report(data, spec, sources, bases, consumed)
-    findings = check_findings(data, spec, texts, bodies, consumed)
+    bodies, resolved, claims = check_report(data, spec, sources, bases, texts, consumed)
+    findings = check_findings(data, spec, bodies, resolved, claims, consumed)
     requirements = check_coverage(data, sources, findings)
     receipts = check_receipts(data, spec, sources, findings, consumed)
     outcomes = {}
@@ -340,7 +402,7 @@ def main():
     args = parser.parse_args()
     try:
         result = evaluate(args.input)
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+    except Exception as exc:  # any malformed input is a rejection with a reason, never a crash
         check = getattr(exc, 'check', 'input')
         result = {'accepted': False, 'requirement_outcomes': {'report-acceptance': {
             'status': 'failed', 'evidence': {'check': check, 'reason': str(exc)}}}}
