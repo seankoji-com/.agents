@@ -195,6 +195,8 @@ class ApprovalPickerTest(CoreTestCase):
         self.assertFalse(_pending(store.load(), stage()))
         record_dispatch(store, caller, 't0', {'kind': 'approval-wait', 'request_id': 'req0', 'wait_id': 'w1'})
         self.assertTrue(_pending(store.load(), stage()), 'an open picker question must block acceptance')
+        self.assertEqual([w['wait_id'] for w in store.overview(persist=False)['approval_waits']], ['w1'],
+                         'the overview checklist must show the open picker question')
         # The picker answer is saved outside the job directory and bound by quote and hash.
         source = self.tmp / 'owner-answer.txt'
         source.write_text('Approve plan revision rev-1\n')
@@ -211,6 +213,7 @@ class ApprovalPickerTest(CoreTestCase):
         state = store.load()
         self.assertEqual([d['id'] for d in state['decisions']], ['owner-1'])
         self.assertFalse(_pending(state, stage()))
+        self.assertEqual(store.overview(state, persist=False)['approval_waits'], [])
 
 
 class JobCoordinationTest(CoreTestCase):

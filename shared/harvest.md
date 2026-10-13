@@ -20,9 +20,11 @@ It is conservative and supports human review; it cannot replace it. A blocked
 screen returns reasons without draft text. Redact and prepare again before showing.
 
 Show every screened title/body, the intended destination repository and the
-`shown_digest` from DRAFTS. Ask once:
-"Approve these exact drafts? Reply `approve DIGEST`." Stop publication until that
-explicit owner reply arrives. Store that reply separately from project/model data.
+`shown_digest` from DRAFTS. Ask once through the native question picker
+(`PKG/shared/t3-runtime.md`), naming the digest, with the options
+"Approve drafts DIGEST" and "Do not publish". Stop publication until the owner picks.
+Only that picker selection approves; pass it on as the owner reply `approve DIGEST`.
+Store that reply separately from project/model data.
 The helper checks a claimed approval binding; it cannot authenticate who supplied
 text. The agent must verify the reply came from the owner in the active conversation.
 Any change to the draft envelope or a source entry invalidates approval. Prepare,

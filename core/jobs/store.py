@@ -169,6 +169,6 @@ class Store:
   for s in j['stages']:
    for r in s.get('requirements',[]):covered[r].append({'stage':s['id'],'status':s['status']})
   pending=[s for s in j['stages'] if s['status'] not in ('accepted-at-snapshot','cancelled')]
-  view={'schema_version':1,'job_id':j['job_id'],'workflow':j['workflow'],'status':j.get('status','running'),'stages':j['stages'],'requirement_coverage':covered,'current_stage':pending[0]['id'] if pending else None,'decisions':j['decisions'],'blockers':j.get('blockers',[]),'handles':[{'task_id':t['task_id'],'status':t.get('status','pending'),'handles':t.get('handles',[]),'followups':t.get('followups',[]),'uncertain_calls':t.get('uncertain_calls',0),'blocked_reason':t.get('blocked_reason')} for t in j['tasks']],'evidence':j.get('evidence',[]),'gaps':j.get('gaps',[]),'fallbacks':j.get('fallbacks',[])}
+  view={'schema_version':1,'job_id':j['job_id'],'workflow':j['workflow'],'status':j.get('status','running'),'stages':j['stages'],'requirement_coverage':covered,'current_stage':pending[0]['id'] if pending else None,'decisions':j['decisions'],'blockers':j.get('blockers',[]),'handles':[{'task_id':t['task_id'],'status':t.get('status','pending'),'handles':t.get('handles',[]),'followups':t.get('followups',[]),'uncertain_calls':t.get('uncertain_calls',0),'blocked_reason':t.get('blocked_reason')} for t in j['tasks']],'evidence':j.get('evidence',[]),'gaps':j.get('gaps',[]),'fallbacks':j.get('fallbacks',[]),'approval_waits':j.get('approval_waits',[])}
   if persist:_atomic(self.path/'overview.json',canonical(view))
   return view
