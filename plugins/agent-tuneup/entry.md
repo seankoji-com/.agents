@@ -35,7 +35,8 @@ for `audit`, `PKG/playbooks/align.md` for `align` or `apply`, and
 
 Any T3 provider can run this audit. The target settings format is separate from the
 calling provider. Supported structured audits: Claude JSON, OpenCode JSON/JSONC,
-Codex TOML (Python 3.11+). The alignment helper also supports Antigravity MCP JSON/JSONC.
+Codex TOML (Python 3.11+) and Muse JSON (named permission profiles under
+`permissions.profiles`). The alignment helper also supports Antigravity MCP JSON/JSONC.
 Other settings get manual inspection only. Alignment uses explicit capability
 mappings, never translates permission syntax by analogy, and retains unsupported or
 intentional differences.

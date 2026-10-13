@@ -44,9 +44,11 @@
 }
 ```
 
-Use `claude`, `codex`, `opencode`, or `antigravity` adapters independent of instance
+Use `claude`, `codex`, `opencode`, `antigravity`, or `muse` adapters independent of instance
 IDs. Claude JSON supports `mcpServers` and `enabledPlugins`; OpenCode JSON/JSONC
-supports `mcp` and `plugin`; Codex TOML supports `mcp_servers`. Codex plugin identity
+supports `mcp` and `plugin`; Codex TOML supports `mcp_servers`. Muse JSON supports
+permission profiles only: its MCP servers and plugins live outside `settings.json`
+(`muse mcp`, `muse plugins`), so their state stays unknown here. Codex plugin identity
 policy tables are not installed-plugin evidence. For Claude, include `.mcp.json`,
 user/local MCPs in `~/.claude.json`, and settings that contain approval/disable lists.
 Approval-list entries without a supplied server definition remain unknown.

@@ -28,8 +28,10 @@ DEFAULT_RUNTIME_MODES = {'opencode': 'full-access'}  # by driverKind
 DEFAULT_REQUIRED_MODES = {'opencode'}  # by driverKind
 # Default lineage labels for a new config. A provider can serve several lineages,
 # so multi-model gateways are labelled from the model's family instead.
-DRIVER_LINEAGE = {'claudeAgent': 'anthropic', 'codex': 'openai', 'antigravity': 'google', 'grok': 'xai'}
-FAMILY_LINEAGE = {'claude': 'anthropic', 'gpt': 'openai', 'o': 'openai', 'gemini': 'google', 'grok': 'xai'}
+DRIVER_LINEAGE = {'claudeAgent': 'anthropic', 'codex': 'openai', 'antigravity': 'google', 'grok': 'xai',
+                  'muse': 'meta'}
+FAMILY_LINEAGE = {'claude': 'anthropic', 'gpt': 'openai', 'o': 'openai', 'gemini': 'google', 'grok': 'xai',
+                  'muse': 'meta'}
 MULTI_LINEAGE_DRIVERS = {'opencode', 'cursor', 'pi'}
 
 
@@ -78,8 +80,29 @@ def _models(provider: dict) -> list:
     return [m['id'] for m in provider.get('models') or [] if isinstance(m, dict) and isinstance(m.get('id'), str)]
 
 
-def _provider_defaults(driver: str) -> dict:
-    settings = {'runtimeMode': DEFAULT_RUNTIME_MODES.get(driver, DEFAULT_RUNTIME_MODE)}
+def _offered_modes(provider: dict) -> list:
+    """Modes the catalog says this provider can run, broadest ordering kept.
+    Absent or malformed catalog data means no constraint is known."""
+    modes = provider.get('runtimeModes')
+    if not isinstance(modes, list):
+        return []
+    return [m for m in RUNTIME_MODES if m in modes]
+
+
+def _default_mode(driver: str, offered=()) -> str:
+    wanted = DEFAULT_RUNTIME_MODES.get(driver, DEFAULT_RUNTIME_MODE)
+    if not offered or wanted in offered:
+        return wanted
+    # Never write a mode the provider cannot run (T3's Muse driver, for
+    # example, offers no auto variant). Take the broadest offered mode at or
+    # below the default; only when every offered mode is broader, take the
+    # narrowest offered mode so the default stays launchable and visible.
+    at_or_below = [m for m in offered if RUNTIME_MODES.index(m) <= RUNTIME_MODES.index(wanted)]
+    return at_or_below[-1] if at_or_below else offered[0]
+
+
+def _provider_defaults(driver: str, offered=()) -> dict:
+    settings = {'runtimeMode': _default_mode(driver, offered)}
     if driver in DEFAULT_REQUIRED_MODES:
         settings['requireRuntimeMode'] = True
     return settings
@@ -94,6 +117,7 @@ def default_config(capabilities: dict) -> dict:
     if not providers:
         raise RoutingError('no_runnable_providers', 'the capabilities list no provider that can run child tasks')
     drivers = {p['providerInstanceId']: p.get('driverKind', '') for p in providers}
+    offered = {p['providerInstanceId']: _offered_modes(p) for p in providers}
     home_id = capabilities.get('inheritedProviderInstanceId')
     home_model = capabilities.get('inheritedModel')
     home = next((p for p in providers if p['providerInstanceId'] == home_id and home_model in _models(p)), None)
@@ -117,7 +141,7 @@ def default_config(capabilities: dict) -> dict:
     return {
         'schema_version': SCHEMA_VERSION,
         'tiers': list(TIERS),
-        'providers': {pid: _provider_defaults(driver) for pid, driver in sorted(drivers.items())},
+        'providers': {pid: _provider_defaults(driver, offered[pid]) for pid, driver in sorted(drivers.items())},
         'roles': {'workhorse': [session], 'reviewer': reviewers, 'judgement': [session]},
     }
 
@@ -237,7 +261,7 @@ def resolve(role: str, capabilities: dict, config: dict, implementer_lineage: st
             continue
         # A provider the config does not list gets the same owner defaults setup would write.
         settings = config.get('providers', {}).get(item['providerInstanceId']) \
-            or _provider_defaults(provider.get('driverKind', ''))
+            or _provider_defaults(provider.get('driverKind', ''), _offered_modes(provider))
         mode = settings['runtimeMode']
         candidate = dict(item, runtimeMode=mode)
         if parent_mode in RUNTIME_MODES and RUNTIME_MODES.index(mode) > RUNTIME_MODES.index(parent_mode):
@@ -248,6 +272,14 @@ def resolve(role: str, capabilities: dict, config: dict, implementer_lineage: st
             # and tell the owner; never lower it silently.
             candidate['runtimeMode'] = parent_mode
             candidate['owner_action'] = f'switch this child to {mode} in T3; it was launched in {parent_mode}'
+        offered = _offered_modes(provider)
+        if offered and candidate['runtimeMode'] not in offered:
+            # The driver cannot run this mode at all (Muse offers no auto
+            # variant). Substituting another mode would hide a config error.
+            unavailable.append(dict(candidate, reason=(
+                f"runtime_mode_unsupported: {candidate['runtimeMode']} not offered; "
+                f"provider offers {', '.join(offered)}")))
+            continue
         candidates.append(candidate)
     if implementer_lineage:
         rank = {True: 0, None: 1, False: 2}

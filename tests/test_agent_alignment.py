@@ -354,6 +354,20 @@ class AlignmentTest(unittest.TestCase):
         result = align.compare({'providers': [{'providerInstanceId': 'claude'}]}, inventory)
         self.assertEqual(result['providers'][0]['sources'][0]['status'], 'unreadable_or_invalid')
 
+    def test_muse_tightening_plans_and_loosening_is_refused(self):
+        safe = ('{"permissions":{"schema_version":1,"profiles":{"work":{"approval":"on_request",'
+                '"network":{"mode":"proxy_only"}}}}}')
+        risky = ('{"permissions":{"schema_version":1,"profiles":{"work":{"approval":"allow_all",'
+                 '"network":{"mode":"enabled"}}}}}')
+        keys = ['/permissions/profiles/work/approval', '/permissions/profiles/work/network/mode']
+        plan = self.proposal('muse', risky, safe, keys)
+        self.assertEqual(plan['risk_patterns_after'], {})
+        with self.assertRaises(ValueError):
+            self.proposal('muse', safe, risky, keys)
+        # Removing a stated protective dimension is a weakening, not a no-op.
+        with self.assertRaises(ValueError):
+            self.proposal('muse', safe, '{"permissions":{"schema_version":1}}', ['/permissions/profiles'])
+
     def test_cli_plan_is_private_and_failures_never_echo_parser_values(self):
         plan = self.proposal()
         out = self.root / 'plan.json'

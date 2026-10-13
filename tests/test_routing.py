@@ -319,6 +319,43 @@ class RoutingCli(unittest.TestCase):
                     'roles': {'workhorse': [entry('opencode', 'gateway/glm-9', 'low', 'glm')]}})
         self.assertIn('requireRuntimeMode must be true or false', self.resolve('workhorse', code=2).stderr)
 
+    def muse_caps(self, parent='full-access'):
+        muse = provider('muse', 'muse', ['muse-wonder-9'])
+        # T3's Muse driver advertises only these modes (no auto variants).
+        muse['runtimeModes'] = ['approval-required', 'full-access']
+        return {'inheritedProviderInstanceId': 'muse', 'inheritedModel': 'muse-wonder-9',
+                'runtimeMode': parent, 'providers': [muse, provider('codex', 'codex', ['model-x1'])]}
+
+    def test_muse_lineage_and_default_mode_come_from_the_catalog(self):
+        self.assertEqual(routing.lineage('muse', 'muse-wonder-9'), 'meta')
+        self.assertEqual(routing.lineage('opencode', 'gateway/muse-wonder-9'), 'meta')
+        config = routing.default_config(self.muse_caps())
+        # The advertised list has no auto: setup writes the broadest offered mode
+        # at or below the default, never an unoffered mode.
+        self.assertEqual(config['providers']['muse'], {'runtimeMode': 'approval-required'})
+        self.assertEqual(config['roles']['judgement'], [entry('muse', 'muse-wonder-9', 'high', 'meta')])
+
+    def test_resolve_refuses_modes_the_provider_does_not_offer(self):
+        caps_path = self.base / 'muse-caps.json'
+        caps_path.write_text(json.dumps(self.muse_caps()))
+        self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {'muse': {'runtimeMode': 'auto'}},
+                    'roles': {'workhorse': [entry('muse', 'muse-wonder-9', 'low', 'meta')]}})
+        result = self.resolve('workhorse', code=1, caps=caps_path)
+        self.assertEqual(result['candidates'], [])
+        self.assertEqual(result['unavailable'][0]['reason'],
+                         'runtime_mode_unsupported: auto not offered; provider offers approval-required, full-access')
+        # Lowering to an unoffered parent mode is refused the same way.
+        caps_path.write_text(json.dumps(self.muse_caps(parent='auto')))
+        self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {'muse': {'runtimeMode': 'full-access'}},
+                    'roles': {'workhorse': [entry('muse', 'muse-wonder-9', 'low', 'meta')]}})
+        result = self.resolve('workhorse', code=1, caps=caps_path)
+        self.assertEqual(result['candidates'], [])
+        self.assertTrue(result['unavailable'][0]['reason'].startswith('runtime_mode_unsupported'))
+        # An offered mode resolves normally.
+        caps_path.write_text(json.dumps(self.muse_caps()))
+        result = self.resolve('workhorse', caps=caps_path)
+        self.assertEqual(result['candidates'][0]['runtimeMode'], 'full-access')
+
 
 if __name__ == '__main__':
     unittest.main()

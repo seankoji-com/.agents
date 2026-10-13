@@ -24,7 +24,8 @@ python3 bin/t3-plugins prompt imps doctor
 Use `python3 bin/t3-plugins` wherever the guides say `t3-plugins`.
 `setup`
 creates your user-owned snapshots and managed [skill adapters](slash-commands.md)
-in `~/.agents/skills`, `~/.claude/skills`, and `~/.gemini/config/skills`.
+in `~/.agents/skills`, `~/.claude/skills`, `~/.gemini/config/skills`, and
+`~/.config/muse/skills`.
 Enable **Show skills in slash menu** in T3's General settings and restart the agent
 session.
 Paste the final prompt command's output when a provider lacks skill discovery.
@@ -39,7 +40,7 @@ paste that whole line into T3 for the workflow readiness check. Then follow
 
 To install just one plugin's snapshot, use `t3-plugins install ape`.
 Use `t3-plugins setup imps` for one plugin plus its adapters, or repeat
-`--root PATH` to choose custom skill roots instead of the three defaults.
+`--root PATH` to choose custom skill roots instead of the four defaults.
 `t3-plugins list` shows the bundled catalog.
 
 ## Homebrew release channel
@@ -147,7 +148,9 @@ t3-plugins resolve reviewer --capabilities caps.json
 The config lists tiers from cheapest to most capable, a T3 `runtimeMode` per provider,
 and the `workhorse`, `reviewer` and `judgement` roles. Each role entry names a provider
 instance, a model, its tier and its `lineage`. Setup's tiers and lineage labels are
-guesses: edit them. Providers default to `auto`, except OpenCode, which defaults to
+guesses: edit them. Providers default to `auto` — or to the broadest mode at or
+below `auto` that the provider's catalog entry offers, since some drivers (Muse)
+run no auto variant — except OpenCode, which defaults to
 `full-access` with `"requireRuntimeMode": true` because its children otherwise stall
 on permission prompts.
 
@@ -170,7 +173,9 @@ on permission prompts.
 
 `resolve` prints the role's candidates that the capabilities file can run, in tier
 order, and lists each configured entry it could not use with the reason. It never
-substitutes a different model. When a child's mode is broader than the parent
+substitutes a different model. A candidate whose effective `runtimeMode` is not
+in the provider's advertised `runtimeModes` is unavailable
+(`runtime_mode_unsupported`); fix the config instead of launching it blind. When a child's mode is broader than the parent
 thread's, T3 refuses it, so `resolve` lowers the mode to the parent's and adds an
 `owner_action` saying which mode to switch the child to. A provider with
 `requireRuntimeMode` (OpenCode, unless set to `false`) is listed as unavailable instead. With `--implementer-lineage

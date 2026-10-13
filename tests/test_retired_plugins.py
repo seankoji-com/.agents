@@ -13,7 +13,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 RETIRED = ('offload-sidecar', 'prompt-builder')
 MARKER = '.t3-plugins-skill.json'
-DEFAULT_ROOTS = ('.agents/skills', '.claude/skills', '.gemini/config/skills')
+DEFAULT_ROOTS = ('.agents/skills', '.claude/skills', '.gemini/config/skills', '.config/muse/skills')
 
 
 def owned_adapter(root, plugin, text=None):

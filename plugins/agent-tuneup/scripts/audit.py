@@ -8,7 +8,7 @@ import re
 import sys
 from pathlib import Path
 
-ADAPTERS = {"claude": "JSON", "opencode": "JSON or JSONC", "codex": "TOML (Python 3.11+)"}
+ADAPTERS = {"claude": "JSON", "opencode": "JSON or JSONC", "codex": "TOML (Python 3.11+)", "muse": "JSON"}
 
 
 def jsonc(text):
@@ -73,6 +73,37 @@ def inspect(provider, data):
                     add("broad_tool_allow", f"permission.{key}")
         elif permission not in ("ask", "deny"):
             raise ValueError("permission must be an object or allow/ask/deny")
+    elif provider == "muse":
+        # Muse's flat settings.json carries named permission profiles under
+        # `permissions.profiles`; each profile states approval, filesystem,
+        # network and reviewer dimensions (verified against Muse 1.4.7).
+        # Profile names are operator-chosen: locations use the index only.
+        permissions = data.get("permissions", {})
+        if not isinstance(permissions, dict):
+            raise ValueError("permissions must be an object")
+        profiles = permissions.get("profiles", {})
+        if not isinstance(profiles, dict):
+            raise ValueError("permissions.profiles must be an object")
+        for index, profile in enumerate(profiles.values()):
+            if not isinstance(profile, dict):
+                raise ValueError("permission profile must be an object")
+            base = f"permissions.profiles[{index}]"
+            for key in ("approval", "reviewer", "extends"):
+                if key in profile and not isinstance(profile[key], str):
+                    raise ValueError(f"{key} must be a string")
+            if "filesystem" in profile and not isinstance(profile["filesystem"], (str, dict)):
+                raise ValueError("filesystem must be a string or an object")
+            if "network" in profile and not isinstance(profile["network"], dict):
+                raise ValueError("network must be an object")
+            if profile.get("approval") == "allow_all":
+                add("approvals_disabled", f"{base}.approval")
+            if profile.get("filesystem") == "unrestricted":
+                add("sandbox_disabled", f"{base}.filesystem")
+            network = profile.get("network", {})
+            if "mode" in network and not isinstance(network["mode"], str):
+                raise ValueError("network.mode must be a string")
+            if network.get("mode") == "enabled":
+                add("network_unrestricted", f"{base}.network.mode")
     else:
         raise ValueError("unsupported adapter")
     return findings

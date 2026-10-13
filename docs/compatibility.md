@@ -13,7 +13,8 @@ Only a live workflow run answers the third.
 | imps 1.0 evidence gate | Deterministic tests; live provider matrix pending | `tests/test_snapshot.py`, `tests/test_review.py`, `tests/test_readiness.py`, `tests/test_gate_boundaries.py` |
 | Previous imps gate | Historical partial live conformance for `0.1.0+ga50f506cd178` | [Recorded matrix](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/compatibility.md) |
 | Whole-job coordination and managed workers | Deterministic and installed-helper tests; no live run recorded. Codex and Claude acceptance pending; OpenCode and Antigravity unverified | [Issue #28 test map](stage4-test-map.md) |
-| agent-tuneup | Audit, alignment inventory and approved native settings writes | Claude JSON, OpenCode JSON/JSONC, Codex TOML; Antigravity MCP JSON/JSONC fixtures. Effective policy and live loading need separate checks. |
+| agent-tuneup | Audit, alignment inventory and approved native settings writes | Claude JSON, OpenCode JSON/JSONC, Codex TOML, Muse JSON (permission profiles; shapes verified against Muse 1.4.7); Antigravity MCP JSON/JSONC fixtures. Effective policy and live loading need separate checks. |
+| Muse provider | Skill adapters discovered and validated by the Muse 1.4.7 CLI; no T3 composer picker; routing refuses modes the driver does not offer | `muse skills list`/`validate` on generated adapters; `tests/test_routing.py`. No live workflow run recorded. |
 | ralph | Deterministic lifecycle, recovery and installed-artifact tests; live goal loop pending | `tests/test_ralph.py`, `tests/test_learnings.py`; see [Ralph's verification limits](plugins/ralph.md#compatibility). |
 
 The historical imps ledger covers plugin `0.1.0+ga50f506cd178` and records T3 `0.0.46-nightly.20261008.2849`, exact model IDs, repeat

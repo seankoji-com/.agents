@@ -8,7 +8,7 @@ Skill names use the `t3-` prefix: `t3-imps`, `t3-ape`, `t3-babysitter`,
 For one-step user setup after installation, use `t3-plugins setup`
 (`python3 bin/t3-plugins setup` from source). For Homebrew, use
 [catalog v0.5.0 or later](getting-started.md#homebrew-release-channel).
-It installs the full catalog and adapters into the three default roots below.
+It installs the full catalog and adapters into the four default roots below.
 Use `t3-plugins setup imps` for just imps, or repeat `--root PATH` for custom roots.
 Setup preserves unowned or edited adapters and stops on a conflict. Earlier receipts
 remain valid; resolve the conflict and retry. Run setup again after updating the installed package.
@@ -41,6 +41,7 @@ convention, not a native agent directory for any provider.
 | OpenCode | `~/.agents/skills` or `~/.config/opencode/skills` | Custom configuration can change discovery. |
 | Cursor | `~/.agents/skills` | T3 also discovers provider-specific roots. |
 | Antigravity | `~/.gemini/config/skills` | Its global discovery does not read `~/.agents/skills`. |
+| Muse | `~/.config/muse/skills` | Muse's own managed root; it also reads `~/.agents/skills`. No T3 composer picker (below). |
 
 Discovery is provider-owned. See
 [Claude discovery](https://github.com/pingdotgg/t3code/blob/main/apps/server/src/provider/Drivers/ClaudeSkills.ts),
@@ -49,9 +50,17 @@ Discovery is provider-owned. See
 and [OpenCode's skills guide](https://opencode.ai/docs/skills/).
 Check custom instances and older versions rather than assuming one shared root.
 [Pi uses native skill discovery](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-pi.md).
-[Muse currently does not expose skills in T3's composer](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-muse.md).
-The installer cannot add a picker to a provider integration that does not expose
-skills. Use `t3-plugins prompt imps OPERATION` and paste its output there.
+[Muse skills do not appear in T3's composer `$` menu, but Muse still loads
+them itself](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-muse.md).
+Setup therefore installs adapters into Muse's managed root
+(`~/.config/muse/skills`, honoring `XDG_CONFIG_HOME` only when you pass that root
+explicitly), where `muse skills list` shows them and `muse skills validate`
+accepts the generated adapter. In a Muse thread, name the skill in your message
+(for example `use t3-imps to run doctor`), or use
+`t3-plugins prompt imps OPERATION` and paste its output. The installer cannot add
+a picker to a provider integration that does not expose one. Muse also discovers
+`~/.agents/skills`, so the same adapter can appear twice in `muse skills list`
+diagnostics as shadowed; both copies read the same installed entry.
 
 ## Invoke and refresh
 
