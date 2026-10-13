@@ -22,7 +22,8 @@ stage, then inspects and accepts it. Job shape: `PKG/references/research-job.md`
    names local target files, effort, tradeoff, strongest counterargument, simpler
    alternative, and a bounded experiment with baseline, success criterion, and abandon
    condition. Empty Adopt/Adapt sections are valid. Claims cite blob URLs at the
-   resolved commit with line numbers.
+   resolved commit with line numbers; Adopt and Adapt use only the finding-block
+   grammar in `PKG/references/research-job.md`, or `None.`.
 6. Ingest the result. Read the report, open the cited lines for every Adopt and Adapt
    proposal, and record an inspection receipt for each. Use the follow-up slot for a
    same-scope gap; otherwise repair with `retry`. Freeze the report descriptor with

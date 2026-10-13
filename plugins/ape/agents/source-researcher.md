@@ -34,9 +34,10 @@ the brief and no other hash. Each proposal names local target files, effort, tra
 counterargument, simpler alternative, and a bounded experiment with baseline, success
 criterion and abandon condition. Cite blob URLs at the resolved commit with line numbers,
 and quote the exact cited text in the section that relies on it so the coordinator can
-pin it. Every Adopt and Adapt claim carries its own line citation; write `None.` for an
-empty section. Empty Adopt and Adapt
-sections are valid. Proposals are not authorization: do not implement or run them.
+pin it. Adopt and Adapt hold exactly `None.` or only proposal blocks, each a
+`### <id>: <title>` heading, one `Citation: <blob URL>#L<a>[-L<b>]` line, one `> quote`
+taken from those lines, and one `Proposal:` line carrying the fields above. Any other
+text there rejects the report. Proposals are not authorization: do not implement or run them.
 
 ## Result
 

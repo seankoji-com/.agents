@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Pin one UTF-8 source snapshot of a clean clone at its resolved commit.
 
-Writes every tracked, non-empty text file under --scope into one new file, each headed
-`==> path <==` so a quote still locates its file, and prints the source pin the stage
-contract and report descriptor use. The clone is only read. The snapshot is created
-exclusively (never overwritten) outside the clone and outside any job's artifacts.
+Writes every tracked, non-empty UTF-8 text file under --scope into one new JSON file:
+{"format": "ape-source-snapshot/1", "revision": REV, "files": [{"path", "sha256",
+"bytes", "text"}]}. JSON string framing means no file content can forge another file,
+and each entry carries its own hash. Prints the source pin the stage contract and
+report descriptor use. The clone is only read. The snapshot is created exclusively
+(never overwritten) outside the clone and outside any job's artifacts.
 Exit 0 pinned, 1 refused, 2 usage.
 """
 import argparse, hashlib, json, os, re, stat, subprocess, sys, tempfile
 from pathlib import Path
 
 MAX_BYTES = 16 * 1024 * 1024
+FORMAT = 'ape-source-snapshot/1'
 REVISION = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')
 REPO_URL = re.compile(r'https://[^/\s]+/[^/\s]+/[^/\s]+')
 SOURCE_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,63}')
@@ -45,8 +48,13 @@ def snapshot(clone, scope, output, max_bytes):
     if git(clone, 'status', '--porcelain', '--untracked-files=no', '--', scope).stdout.strip():
         raise Refused('clone has local changes in scope; the snapshot would not match its commit')
     listed = git(clone, 'grep', '-I', '-z', '-l', '-e', '', '--', scope).stdout.split(b'\0')
-    parts, skipped, size = [], [], 0
-    for name in sorted(item.decode('utf-8', 'surrogateescape') for item in listed if item):
+    entries, skipped, size = [], [], 0
+    for raw_name in sorted(item for item in listed if item):
+        try:
+            name = raw_name.decode('utf-8')
+        except UnicodeDecodeError:
+            skipped.append({'path': raw_name.decode('utf-8', 'replace'), 'reason': 'path is not UTF-8'})
+            continue
         path = clone / name
         try:
             info = os.lstat(path)
@@ -56,19 +64,22 @@ def snapshot(clone, scope, output, max_bytes):
         if not stat.S_ISREG(info.st_mode) or not inside(Path(os.path.realpath(path)), clone):
             skipped.append({'path': name, 'reason': 'not a regular file in the clone'})
             continue
+        raw = path.read_bytes()
         try:
-            text = path.read_bytes().decode('utf-8')
+            text = raw.decode('utf-8')
         except UnicodeDecodeError:
             skipped.append({'path': name, 'reason': 'not UTF-8'})
             continue
-        part = f'==> {name} <==\n{text}' + ('' if text.endswith('\n') else '\n')
-        size += len(part.encode()) + 1
+        size += len(raw)
         if size > max_bytes:
             raise Refused(f'snapshot exceeds {max_bytes} bytes; narrow --scope')
-        parts.append(part)
-    if not parts:
+        entries.append({'path': name, 'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw), 'text': text})
+    if not entries:
         raise Refused('scope holds no tracked UTF-8 text files')
-    data = '\n'.join(parts).encode()
+    data = json.dumps({'format': FORMAT, 'revision': revision, 'files': entries}, ensure_ascii=False,
+                      sort_keys=True).encode('utf-8')
+    if len(data) > max_bytes:
+        raise Refused(f'snapshot exceeds {max_bytes} bytes; narrow --scope')
     out = Path(output)
     if not out.is_absolute():
         raise Refused('--output must be an absolute path')
@@ -93,7 +104,7 @@ def snapshot(clone, scope, output, max_bytes):
         raise Refused('--output already exists; a pinned snapshot is immutable, choose a new name') from None
     finally:
         os.unlink(temp)
-    return revision, data, len(parts), skipped, target
+    return revision, data, len(entries), skipped, target
 
 
 def main():
