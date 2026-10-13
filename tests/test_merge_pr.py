@@ -74,6 +74,15 @@ elif query.startswith("query"):
         # A push lands between the gate read and the pre-merge reread.
         if state_file.exists(): pr["headRefOid"] = "b"*40
         state_file.write_text("queried")
+    if mode in ("fails-before-merge", "blocked-before-merge"):
+        # Same head, but the pre-merge reread shows a new failure or review blocker.
+        if state_file.exists():
+            if mode == "fails-before-merge":
+                pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["state"] = "FAILURE"
+            else:
+                pr["mergeStateStatus"] = "BLOCKED"
+                pr["reviewDecision"] = "CHANGES_REQUESTED"
+        state_file.write_text("queried")
     payload = {"data":{"repository":{"pullRequest":pr}}}
 elif "resolveReviewThread" in query:
     if mode == "flow": state_file.write_text("resolved")
@@ -375,6 +384,16 @@ print(code, end="")
         self.assertIn("reason=expected_head_mismatch", result.stdout)
         self.assertEqual(len(calls), 2)
         self.assertFalse(any("merge_method" in c for c in calls))
+
+    def test_pre_merge_reread_reapplies_every_gate_at_the_same_head(self):
+        """RC2-babysitter-tuneup-01: a fresh failure or review blocker stops the merge."""
+        for mode, reason in (("fails-before-merge", "reason=failing_checks"),
+                             ("blocked-before-merge", "reason=branch_protection")):
+            with self.subTest(mode=mode):
+                result, calls = self.run_helper(mode, ["--no-auto", "--expected-head", HEAD])
+                self.assertEqual(result.returncode, 4, result.stderr)
+                self.assertIn(reason, result.stdout)
+                self.assertFalse(any("merge_method" in c for c in calls))
 
     def test_expected_head_never_updates_a_behind_branch(self):
         result, calls = self.run_helper("behind", ["--expected-head", HEAD])

@@ -484,64 +484,71 @@ if [ "$merge_state" = "BEHIND" ]; then
   handle_terminal_state
 fi
 
-# A bounded query must not silently certify a partial review snapshot.
-if jq -e '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' >/dev/null <<<"$state"; then
-  blocked "incomplete_review_state" "more than 100 review threads; inspect all pages and merge through the host's verified PR flow"
-fi
-unanswered_count="$(jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved != true)] | length' <<<"$state")"
+# Every direct-merge gate, applied to the current $state snapshot.
+apply_merge_gates() {
+  # A bounded query must not silently certify a partial review snapshot.
+  if jq -e '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' >/dev/null <<<"$state"; then
+    blocked "incomplete_review_state" "more than 100 review threads; inspect all pages and merge through the host's verified PR flow"
+  fi
+  unanswered_count="$(jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved != true)] | length' <<<"$state")"
 
-if [ "$unanswered_count" -gt 0 ]; then
-  thread_ids="$(jq -r '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved != true) | .id] | join(",")' <<<"$state")"
-  blocked "unanswered_threads" "${unanswered_count} unresolved review thread(s); threads=${thread_ids}; verify each finding and explicitly resolve it before merging"
-fi
+  if [ "$unanswered_count" -gt 0 ]; then
+    thread_ids="$(jq -r '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved != true) | .id] | join(",")' <<<"$state")"
+    blocked "unanswered_threads" "${unanswered_count} unresolved review thread(s); threads=${thread_ids}; verify each finding and explicitly resolve it before merging"
+  fi
 
-expected_head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
+  expected_head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
 
-# Checked here, after fixing what could be fixed, rather than at the very top: base
-# drift or an unanswered thread can be the reason a required check never ran at all
-# (queued behind the branch update), so re-reading it now — not the possibly-stale
-# copy from the very first fetch_state call — is what makes this an accurate report
-# instead of a guess.
-#
-# This is the gate that stops the implicit admin bypass (see the header): GitHub
-# would accept a merge here for a ruleset-bypass actor whatever the rollup says, so
-# nothing short of CLEAN + SUCCESS reaches try_merge. A null rollup is treated as
-# pending, not green: right after update-branch (or any push) the new head has no
-# check suites yet, and a bypass-capable token must not merge into that gap.
-checks_state="$(jq -r '.data.repository.pullRequest.commits.nodes[0].commit.statusCheckRollup.state // "NONE"' <<<"$state")"
-merge_state="$(jq -r '.data.repository.pullRequest.mergeStateStatus // "UNKNOWN"' <<<"$state")"
-if [ "$merge_state" = "DIRTY" ]; then
-  blocked "conflict" "mergeStateStatus=DIRTY; resolve in a worktree first, not here"
-fi
-case "$checks_state" in
-FAILURE | ERROR)
-  blocked "failing_checks" "required status checks are red (rollup=${checks_state}) — that is a code/CI fix, not something this script can resolve"
-  ;;
-PENDING | EXPECTED | NONE)
-  blocked "checks_pending" "checks have not finished (rollup=${checks_state}, mergeStateStatus=${merge_state}); not merging until they pass"
-  ;;
-SUCCESS) ;;
-*)
-  blocked "checks_pending" "unrecognised check rollup (rollup=${checks_state}, mergeStateStatus=${merge_state}); not merging until it reads SUCCESS"
-  ;;
-esac
-review_decision="$(jq -r '.data.repository.pullRequest.reviewDecision // "NONE"' <<<"$state")"
-if [ "$merge_state" = "BLOCKED" ]; then
-  case "$review_decision" in
-  REVIEW_REQUIRED | CHANGES_REQUESTED)
-    blocked "branch_protection" "mergeStateStatus=BLOCKED with reviewDecision=${review_decision}; a required human review is outstanding"
+  # Checked here, after fixing what could be fixed, rather than at the very top: base
+  # drift or an unanswered thread can be the reason a required check never ran at all
+  # (queued behind the branch update), so re-reading it now — not the possibly-stale
+  # copy from the very first fetch_state call — is what makes this an accurate report
+  # instead of a guess.
+  #
+  # This is the gate that stops the implicit admin bypass (see the header): GitHub
+  # would accept a merge here for a ruleset-bypass actor whatever the rollup says, so
+  # nothing short of CLEAN + SUCCESS reaches try_merge. A null rollup is treated as
+  # pending, not green: right after update-branch (or any push) the new head has no
+  # check suites yet, and a bypass-capable token must not merge into that gap.
+  checks_state="$(jq -r '.data.repository.pullRequest.commits.nodes[0].commit.statusCheckRollup.state // "NONE"' <<<"$state")"
+  merge_state="$(jq -r '.data.repository.pullRequest.mergeStateStatus // "UNKNOWN"' <<<"$state")"
+  if [ "$merge_state" = "DIRTY" ]; then
+    blocked "conflict" "mergeStateStatus=DIRTY; resolve in a worktree first, not here"
+  fi
+  case "$checks_state" in
+  FAILURE | ERROR)
+    blocked "failing_checks" "required status checks are red (rollup=${checks_state}) — that is a code/CI fix, not something this script can resolve"
+    ;;
+  PENDING | EXPECTED | NONE)
+    blocked "checks_pending" "checks have not finished (rollup=${checks_state}, mergeStateStatus=${merge_state}); not merging until they pass"
+    ;;
+  SUCCESS) ;;
+  *)
+    blocked "checks_pending" "unrecognised check rollup (rollup=${checks_state}, mergeStateStatus=${merge_state}); not merging until it reads SUCCESS"
     ;;
   esac
-fi
-if [ "$merge_state" != "CLEAN" ]; then
-  blocked "not_clean" "mergeStateStatus=${merge_state} (rollup=${checks_state}); merging now could apply a ruleset bypass, so only CLEAN is merged directly"
-fi
+  review_decision="$(jq -r '.data.repository.pullRequest.reviewDecision // "NONE"' <<<"$state")"
+  if [ "$merge_state" = "BLOCKED" ]; then
+    case "$review_decision" in
+    REVIEW_REQUIRED | CHANGES_REQUESTED)
+      blocked "branch_protection" "mergeStateStatus=BLOCKED with reviewDecision=${review_decision}; a required human review is outstanding"
+      ;;
+    esac
+  fi
+  if [ "$merge_state" != "CLEAN" ]; then
+    blocked "not_clean" "mergeStateStatus=${merge_state} (rollup=${checks_state}); merging now could apply a ruleset bypass, so only CLEAN is merged directly"
+  fi
+}
+
+apply_merge_gates
 
 # Reread the head right before the merge PUT: the gates above used an earlier read.
 if [ -n "$EXPECTED_HEAD" ]; then
   state="$(fetch_state)" || die "could not re-read PR state before merging" 3
   handle_terminal_state
   require_expected_head
+  # The fresh snapshot can show new failures or review blockers at the same head.
+  apply_merge_gates
   expected_head="$EXPECTED_HEAD"
 fi
 
