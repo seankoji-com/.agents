@@ -51,6 +51,20 @@ You receive a run ID, current validation report and paths to copied evidence.
 The report distinguishes local readiness from the authorized remote outcome.
 If a check or review is missing, failed or stale, it names the remaining work.
 Keep the run ID and state root to [resume later](../first-workflow.md#resume-inspect-or-stop).
+A job adds a job ID and an overview of every stage.
+
+## Jobs and workers
+
+Multi-stage work runs as one [job](../architecture.md#whole-jobs). Your thread stays
+the coordinator and fresh T3 tasks run the `imps/stage-executor`,
+`imps/investigator`, `imps/auditor` and `imps/reviewer` workers. Each engineering
+stage keeps its own gate run, and that run's `validate` decides acceptance; a
+worker's claim does not. `doctor`, `status` and `verification-init` stay direct. A
+single bounded change can stay one direct run.
+
+`prs` pins babysitter inside the same job and loads it through
+[`--job JOB path babysitter`](../cli.md#pinned-job-paths). For a job, `status` prints
+the overview and `resume` starts from it.
 
 ## Previous runs
 

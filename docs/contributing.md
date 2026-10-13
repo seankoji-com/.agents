@@ -27,6 +27,13 @@ instructions in `shared/t3-runtime.md`, not repeated paragraphs in every entry.
 Model and provider choices come from the live host catalog. Tests enforce the core's
 independence from plugin vocabulary and imports.
 
+A plugin that delegates whole stages declares its workers in the manifest's `workers`
+list and writes each definition to `agents/<worker>.md`, with no model IDs. Acceptance
+belongs in a deterministic `scripts/validate_*.py` that reads coordinator
+observations, never a worker's readiness claim. The entry adds only that plugin's
+policy to `shared/job-coordination.md`. Record kept, changed and removed surfaces in
+a stage shard under `migration/rebuild/compat-map.d/`.
+
 Add tests for observable behavior and plausible failures: interruption, stale
 evidence, missing files, malformed input, denied capabilities, and paths with spaces.
 Do not add a test that merely repeats a constant from the implementation.

@@ -1,4 +1,41 @@
-# Stage 4 test changes
+# Rebuild test maps
+
+## Issue #28: whole-job coordination
+
+These deterministic suites cover the issue #28 requirements. They use temporary
+homes, state roots, prefixes and agent roots, synthetic GitHub responses and no live
+model. Mocked commands show routing and boundaries; they do not show that a model
+writes good output or that a provider completes a job.
+
+| Requirement | What the tests exercise | Suites |
+| --- | --- | --- |
+| REQ-COMPAT | Every operation routes to its entry; the keep/change/remove ledger accounts for every file and test class | `test_rebuild_compat_map.py`, `test_catalog.py`, `test_*_workflow.py`, `test_contract.py` |
+| REQ-REGISTRY | Isolated agent roots, two prefixes, upgrade and rollback, relocation, corrupt, modified, symlinked and traversing files, interrupted installs, owned uninstall, pinned versions kept | `test_registry.py`, `test_install.py`, `test_catalog.py`, `test_setup.py` |
+| REQ-OVERRIDES | Explicit enable only, stale after upgrade, malformed or escaping files rejected, exact bytes kept for resume | `test_registry.py` |
+| REQ-JOB | Plan validation, restart, wrong owner or package, concurrent writes, overview without transcripts | `test_jobs_stage3.py`, `test_jobs_review*.py`, `test_issue28_pass*.py` |
+| REQ-HANDOFF | Strict result parsing, hostile and partial results, inline and artifact modes, oversize input | `test_worker_result.py`, `test_job_acceptance.py`, `test_jobs_review*.py` |
+| REQ-EVIDENCE | Pre-check bindings, stale inputs, hand-edited acceptance, final integrated gate | `test_job_acceptance.py`, `test_issue28_pass*.py`, core gate suites such as `test_snapshot.py` and `test_readiness.py` |
+| REQ-REPAIR | Initial attempt plus three repairs; no reset on resume, escalation or replacement | `test_jobs_review_r3.py`, `test_issue28_pass*.py`, `test_thinking_state.py` |
+| REQ-LIFECYCLE | Same-ID retries, uncertain launches, follow-ups, approval waits, capacity deferral | `test_jobs_review_r3.py`, `test_issue28_pass*.py`, `test_contract.py` |
+| REQ-ROUTING | Exact targets, tiers, lineage and runtime-mode ceilings | `test_issue28_pass9.py` to `test_issue28_pass12.py`, `test_routing.py`, `test_runtime_mode.py` |
+| REQ-DISPATCH, REQ-BOUNDARIES | Coordinator-only dispatch, declared slots, per-plugin boundaries, cold-reader isolation | `test_*_workflow.py`, `test_contract.py`, `test_skill_adapters.py` |
+| REQ-FALLBACK | Direct fallback under the same gate; missing review stays blocked | `test_*_workflow.py`, `test_bugfix_direct.py` |
+| REQ-VISIBILITY | Overview and milestone checklists after restart | `test_jobs_stage3.py`, `test_contract.py` |
+| REQ-APPROVAL-PICKER | Every plugin routes approvals through the native picker | `test_contract.py`, `test_*_workflow.py` |
+| REQ-METRICS | Offline graders, parsers and frozen protocol files | `test_bench_v2.py` |
+| REQ-DELIVERY | Docs links, site generator and the test runner | `test_check_docs.py`, `test_field_guide.py`, `test_run_tests.py` |
+
+`test_issue28_pass*.py` and `test_jobs_review*.py` hold regressions from successive
+review rounds. The per-assertion ledger, including removed and changed tests, is the
+[compatibility map](https://github.com/seankoji-com/t3-plugins/blob/master/migration/rebuild/compat-map.md).
+
+Tests cannot cover REQ-LIVE or the live half of REQ-METRICS. Those need the
+container canaries and the 24 starts in the
+[benchmark protocol](https://github.com/seankoji-com/t3-plugins/blob/master/bench/v2/protocol.md),
+recorded separately. Desktop and mobile inspection of changed pages is also a manual
+check. See [measurement limits](compatibility.md#measurement-limits).
+
+## Issue #15: learnings and harvest
 
 This is the historical Issue #15 stage 4 test map. Counts below describe that
 stage's five-plugin catalog, rather than the current suite. Ralph later increased
