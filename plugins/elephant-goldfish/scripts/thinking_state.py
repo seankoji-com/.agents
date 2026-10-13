@@ -60,6 +60,12 @@ DRAFT_MARKER = "<!-- thinking:draft -->"
 DRAFT_LABEL = "DRAFT. Non-executable."
 REVIEW_SCOPE = "finalise-brief"
 
+# Cold-read round budget per topic. New topics get four rounds (initial read plus three
+# repairs); legacy loops started under the older instruction record five plus the rounds
+# already performed. The budget never affects readiness and grants no execution authority.
+COLD_READ_FIXED_LIMITS = {"new-topic-default": 4, "legacy-five-round-policy": 5}
+COLD_READ_SOURCES = (*COLD_READ_FIXED_LIMITS, "recorded", "owner-decision")
+
 
 class StateError(Exception):
     """Anything the caller did wrong. Rendered as a JSON error object, exit 1."""
@@ -273,6 +279,51 @@ def phase_state(tdir: Path, meta: dict, artifacts: dict) -> dict:
             "has_execution_request": "execution_request" in meta}
 
 
+def check_cold_read(meta: dict, previous=None):
+    """Validate the recorded cold-read budget; `previous` is the record before this update."""
+    budget = meta.get("cold_read")
+    if budget is None:
+        if previous is not None:
+            raise StateError("a recorded cold-read budget cannot be removed")
+        return None
+    if not isinstance(budget, dict) or not {"max_rounds", "rounds_performed", "limit_source"} <= set(budget) \
+            or set(budget) - {"max_rounds", "rounds_performed", "limit_source", "decision_ref"}:
+        raise StateError("cold_read needs max_rounds, rounds_performed and limit_source (decision_ref optional)")
+    limit, performed, source = budget["max_rounds"], budget["rounds_performed"], budget["limit_source"]
+    if type(limit) is not int or type(performed) is not int or limit < 1 or performed < 0:
+        raise StateError("cold_read.max_rounds must be a positive integer and rounds_performed a nonnegative integer")
+    if source not in COLD_READ_SOURCES:
+        raise StateError(f"cold_read.limit_source must be one of {'|'.join(COLD_READ_SOURCES)}")
+    if COLD_READ_FIXED_LIMITS.get(source, limit) != limit:
+        raise StateError(f"{source} records exactly {COLD_READ_FIXED_LIMITS[source]} cold-read rounds")
+    if source == "owner-decision" and not (isinstance(budget.get("decision_ref"), str) and budget["decision_ref"].strip()):
+        raise StateError("an owner-decision cold-read limit needs decision_ref")
+    if performed > limit:
+        raise StateError(f"attempt_budget_exhausted: {limit} cold-read rounds recorded; "
+                         "owner_decision_required to raise the limit")
+    if isinstance(previous, dict):
+        if performed < previous.get("rounds_performed", 0):
+            raise StateError("cold_read.rounds_performed cannot decrease; resume never resets the budget")
+        if limit > previous.get("max_rounds", limit) and source != "owner-decision":
+            raise StateError("raising a recorded cold-read limit is an owner decision "
+                             "(owner_decision_required): set limit_source=owner-decision and decision_ref")
+    return budget
+
+
+def cold_read_state(meta: dict) -> dict:
+    """Derived budget view; informational only, never readiness or authority."""
+    try:
+        budget = check_cold_read(meta)
+    except StateError as exc:
+        return {"recorded": False, "reason": f"malformed cold-read budget: {exc}"}
+    if budget is None:
+        return {"recorded": False, "reason": "legacy topic: record the five-round policy and the rounds "
+                "already performed, or ask the owner when that count is unknown",
+                "legacy_max_rounds": COLD_READ_FIXED_LIMITS["legacy-five-round-policy"]}
+    remaining = budget["max_rounds"] - budget["rounds_performed"]
+    return {"recorded": True, **budget, "remaining": remaining, "exhausted": remaining == 0}
+
+
 def resolve(root: Path, slug: str) -> dict:
     tdir = topic_dir(root, slug)
     meta = read_meta(tdir)
@@ -284,6 +335,7 @@ def resolve(root: Path, slug: str) -> dict:
         "exists": tdir.is_dir(),
         "meta": meta,
         "artifacts": artifacts,
+        "cold_read": cold_read_state(meta),
         **phase_state(tdir, meta, artifacts),
     }
 
@@ -345,6 +397,8 @@ def cmd_init(args) -> dict:
         "created_at": utcnow(),
         "github": {"mode": args.github, "repo": None, "number": None, "url": None, "category": None},
         "published": {},
+        "cold_read": {"max_rounds": COLD_READ_FIXED_LIMITS["new-topic-default"], "rounds_performed": 0,
+                      "limit_source": "new-topic-default"},
     }
     write_meta(tdir, meta)
     return resolve(root, args.slug)
@@ -386,11 +440,14 @@ def cmd_set(args) -> dict:
     meta = read_meta(tdir)
     if not meta:
         raise StateError(f"no topic {args.slug!r} under {root} — run `init` first")
+    previous = json.loads(json.dumps(meta.get("cold_read")))
     for pair in args.pairs:
         if "=" not in pair:
             raise StateError(f"expected KEY=VALUE, got {pair!r}")
         key, raw = pair.split("=", 1)
         set_dotted(meta, key.strip(), coerce(raw))
+    if previous is not None or meta.get("cold_read") is not None:
+        check_cold_read(meta, previous)
     write_meta(tdir, meta)
     return resolve(root, args.slug)
 

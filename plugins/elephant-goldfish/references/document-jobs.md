@@ -35,9 +35,11 @@ Never let one stage cover both.
   `coordinator-only` (inline result). Its brief carries the document path and hash,
   the checked revision, the claims to verify and read-only authority.
 - **Cold-read slot.** Worker `elephant-goldfish/cold-reader` with `role: review`,
-  `context_policy: document-only`, `document: {path, sha256}` and write scope
-  `coordinator-only`. Its review subject is the declared document hash, not another
-  task. The helper strips the job objective, predecessor outputs,
+  `context_policy: document-only`, `document: {path, sha256}`, `reviewed_documents`
+  naming exactly that same `{path, sha256}`, and write scope `coordinator-only`. Its
+  review subject is the document, not another task: never add `reviewed_task_ids`.
+  `prepare` and acceptance both re-hash the document, so an edit after the read makes
+  the verdict stale. The helper strips the job objective, predecessor outputs,
   requirement statements, resources and task contract from this brief. Do not try to
   pass them another way. The dispatch message contains only the brief path, its
   SHA-256 and the instruction to read that brief and the document it names. Never
@@ -80,17 +82,20 @@ document has a new hash, so:
 
 1. Record each finding's disposition (`fixed`, `rejected` with evidence, or
    `deferred`). Deferred blockers keep the stage blocked.
-2. Ask the owner through the question picker to approve the revised document hash
-   for the next round, recommended option first. Record it with `decision` and scope
-   `plan:<revision-id>`.
-3. Apply `plan-revision` with the new `document_sha256` in both stage contracts and
-   the cold-read slot. Both stages become stale.
-4. `retry` the factual slot, run it, and accept the factual stage on the new hash.
+2. Run `document-revision` with `{caller, task_id: <cold-read slot>, document: {path,
+   sha256}, reason}`. Within the round budget this is a declared repair and needs no
+   owner decision. It rebinds every stage contract and slot that names the path to the
+   new hash and makes those stages and their successors stale.
+3. `retry` the factual slot, run it, and accept the factual stage on the new hash.
    Then `retry` the cold-read slot and dispatch a fresh reader. Each retry charges its
    stage budget. The previous findings stay in job history; the new reader never
    sees them.
 
-Do not seek another reviewer to overturn an adverse verdict.
+When the budget is spent, `document-revision` refuses with `attempt_budget_exhausted`
+and `owner_decision_required`. Another round then needs the owner, asked through the
+question picker with the recommended option first, recorded with `decision`, and a
+`plan-revision` that raises the limit. Do not seek another reviewer to overturn an
+adverse verdict.
 
 ## Round limits
 
@@ -107,28 +112,17 @@ document, not to a session, and resume never resets it.
   the performed count cannot be established, ask the owner through the picker
   instead of guessing.
 
-For thinking topics, record the budget in the topic itself:
-`thinking_state.py set <slug> cold_read.max_rounds=<n> cold_read.rounds_performed=<k>
-cold_read.limit_source=<new-topic-default|recorded|legacy-five-round-policy>`, and
-update `rounds_performed` after each round. For `elephant.md`, the job is the record;
-resume that job rather than creating a new one. These fields record the budget; they
-never affect readiness and grant no execution authority.
+For thinking topics the topic is the record. `init` records the four-round default;
+`resolve` reports `cold_read` with the remaining rounds. Record a legacy budget with
+`thinking_state.py set <slug> cold_read.max_rounds=5 cold_read.rounds_performed=<k>
+cold_read.limit_source=legacy-five-round-policy`, and update `rounds_performed` after
+each round. `set` refuses a decreasing count, a count above the limit, and a raised
+limit unless `limit_source=owner-decision` with a `decision_ref`. For `elephant.md`,
+the job is the record; resume that job rather than creating a new one. These fields
+record the budget; they never affect readiness and grant no execution authority.
 
 When the budget is spent, report the document as NOT READY with its unresolved gaps.
 Raising a limit is an owner decision through the picker, recorded with `decision`.
-
-## Known helper gap
-
-The pinned Stage 3 helpers accept `approve` only from a review slot that names worker
-task subjects, so `prepare` refuses a document-subject review slot. Until a package
-lifts that limit, a delegated cold read cannot reach stage acceptance. Do not
-redeclare the slot as an ordinary worker to get past the check: an `approve` from that
-slot is rejected as malformed and still charges a round. Run the factual stage as
-usual and keep `R-COLD` blocked with this reason. You may still dispatch the cold read
-in a fresh child given only the document path, its hash and the pinned cold-reader
-definition, with the same verdict mapping and round budget, recorded in the topic
-or job notes. Report that verdict as advisory and
-unaccepted, never as a passed requirement.
 
 ## Fallback
 

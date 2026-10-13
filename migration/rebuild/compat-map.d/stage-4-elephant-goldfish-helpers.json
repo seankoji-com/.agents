@@ -1,0 +1,18 @@
+{
+  "stage": 4,
+  "inventory": {
+    "tests": [
+      {
+        "path": "tests/test_thinking_state.py",
+        "assertions": [
+          {
+            "selector": "test_thinking_state.TestColdReadBudget",
+            "tests": 3,
+            "coverage": ["REQ-REPAIR", "G-EG-SEPARATION"],
+            "survives": true
+          }
+        ]
+      }
+    ]
+  }
+}
