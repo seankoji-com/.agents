@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Run the pinned imps core validate gate with a fresh pre-check binding."""
-import argparse,hashlib,json,subprocess,sys
+import argparse,hashlib,json,os,subprocess,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from core.jobs.store import _regular,strict_load
@@ -10,14 +10,14 @@ def validate_final(path, state_root):
   plan=strict_load(_regular(path))
   stages=plan['stages'];required=plan['required_stages'];base=Path(plan['state_root']).absolute();package=Path(__file__).resolve().parents[1]
   if base!=Path(state_root).absolute():raise ValueError('final invocation state root differs from the bound plan')
-  if Path(plan['package_root']).absolute()!=package:raise ValueError('final plan must use this pinned package')
+  if os.path.realpath(plan['package_root'])!=os.path.realpath(package):raise ValueError('final plan must use this pinned package')
   # Every declared row is a distinct valid gate and the required list names each exactly once, checked before any gate runs.
   if not isinstance(stages,list) or not all(isinstance(s,dict) for s in stages):raise ValueError('final plan stages must be declared gate objects')
   ids=[s.get('id') for s in stages]
   if not isinstance(required,list) or not required or any(not isinstance(sid,str) or not sid for sid in ids+required) or len(set(ids))!=len(ids) or len(set(required))!=len(required) or set(required)!=set(ids):raise ValueError('final gate must cover every declared current stage gate exactly once')
   if any(not isinstance(s.get('stage_sha256'),str) or len(s['stage_sha256'])!=64 for s in stages):raise ValueError('final plan must bind all five stage gate inputs')
   for s in stages:
-   if s.get('plugin_root',str(package))!=str(package):raise ValueError('a result cannot select an executable package')
+   if os.path.realpath(s.get('plugin_root',str(package)))!=os.path.realpath(package):raise ValueError('a result cannot select an executable package')
    if not isinstance(s.get('state_subdir'),str) or Path(s['state_subdir']).is_absolute() or '..' in Path(s['state_subdir']).parts:raise ValueError('stage state escapes final state root')
    if not isinstance(s.get('run_id'),str) or not s['run_id']:raise ValueError('final plan stage needs a run id')
   # Reserve every declared stage binding before any gate runs; each gate must run at its

@@ -1,5 +1,5 @@
 """JSON-file CLI: python -m shared.job_cli COMMAND --state-root ROOT --job ID ..."""
-import argparse,json,sys
+import argparse,json,os,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from core.jobs import prepare,record_result,decision,cancel,discard,record_dispatch,retry_task,revise_plan
@@ -16,7 +16,7 @@ def main(argv=None):
   if a.command=='create' and (not a.prefix or not a.agents_root):raise JobError('create requires --prefix and --agents-root')
   if a.command!='create':
    job=verify_all_pins(store)
-   if not any(Path(pin['package_dir']).absolute()==Path(__file__).resolve().parents[1] for pin in job['pins'].values()):raise JobError('pin_mismatch: wrong executing package; use the stored pinned package recovery argv')
+   if not any(os.path.realpath(pin['package_dir'])==os.path.realpath(Path(__file__).resolve().parents[1]) for pin in job['pins'].values()):raise JobError('pin_mismatch: wrong executing package; use the stored pinned package recovery argv')
   if a.input:
    from core.jobs.store import _regular
    data=strict_load(_regular(Path(a.input),max_bytes=16*1024*1024))

@@ -345,12 +345,12 @@ def _adapter(job, stage, argv, input_file):
         raise AcceptanceError('undeclared authoritative validator dependency')
     pin = job['pins'][dep['key']]
     program = Path(pin['package_dir']) / 'scripts' / ADAPTERS[dep['plugin']]
-    if argv[0] != str(program):
+    if os.path.realpath(argv[0]) != os.path.realpath(program):
         raise AcceptanceError('validator must be the exact adapter in the stored pinned package')
     program_raw = _regular(program)
     inp = Path(input_file)
     reference = stage.get('observation_ref', {})
-    if not inp.is_absolute() or str(inp) != reference.get('path') or inp.parent != Path(reference.get('root', '')) or inp.parent.name != 'observations' or inp.parent.parent.name != job['job_id']:
+    if not inp.is_absolute() or os.path.realpath(inp) != os.path.realpath(reference.get('path') or '/nonexistent') or os.path.realpath(inp.parent) != os.path.realpath(reference.get('root') or '/nonexistent') or inp.parent.name != 'observations' or inp.parent.parent.name != job['job_id']:
         raise AcceptanceError('validator input is not the published coordinator observation')
     raw = _regular(inp, max_bytes=job['policy']['max_artifact_bytes'])
     if digest(raw) != reference.get('sha256') or len(raw) != reference.get('bytes'):
@@ -441,7 +441,7 @@ def _adapter(job, stage, argv, input_file):
             required = {'root', 'slug', 'mode', 'document_path', 'document_sha256'}
             if not required <= set(contract) or not Path(contract['document_path']).is_absolute() or any(data.get(key) != value for key, value in contract.items() if key not in ('root', 'slug', 'mode')):
                 raise AcceptanceError('document criteria differ from the complete declared stage contract')
-            if flags.get('--input') != str(inp):
+            if os.path.realpath(flags.get('--input') or '/nonexistent') != os.path.realpath(inp):
                 raise AcceptanceError('observation input differs from the pre-check input')
         else:
             raise AcceptanceError('unsupported document validator mode')
