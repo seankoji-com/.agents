@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "stage": 5,
+  "inventory": {
+    "operations": [
+      {
+        "id": "agent-tuneup:align",
+        "plugin": "agent-tuneup",
+        "operation": "align",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Added on master (#29) after the issue-28 base; kept unchanged and routed by the Stage 4 coordinator entry.",
+        "files": [
+          "plugins/agent-tuneup/entry.md",
+          "plugins/agent-tuneup/playbooks/align.md"
+        ],
+        "workers": [],
+        "guarantees": []
+      },
+      {
+        "id": "agent-tuneup:apply",
+        "plugin": "agent-tuneup",
+        "operation": "apply",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Added on master (#29) after the issue-28 base; kept unchanged and routed by the Stage 4 coordinator entry.",
+        "files": [
+          "plugins/agent-tuneup/entry.md",
+          "plugins/agent-tuneup/playbooks/align.md"
+        ],
+        "workers": [],
+        "guarantees": []
+      },
+      {
+        "id": "ralph:cancel",
+        "plugin": "ralph",
+        "operation": "cancel",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "ralph plugin added on master (#34) after the issue-28 base; outside the five rebuilt plugins and kept unchanged.",
+        "files": [
+          "plugins/ralph/entry.md"
+        ],
+        "workers": [],
+        "guarantees": []
+      },
+      {
+        "id": "ralph:doctor",
+        "plugin": "ralph",
+        "operation": "doctor",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "ralph plugin added on master (#34) after the issue-28 base; outside the five rebuilt plugins and kept unchanged.",
+        "files": [
+          "plugins/ralph/entry.md"
+        ],
+        "workers": [],
+        "guarantees": []
+      },
+      {
+        "id": "ralph:resume",
+        "plugin": "ralph",
+        "operation": "resume",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "ralph plugin added on master (#34) after the issue-28 base; outside the five rebuilt plugins and kept unchanged.",
+        "files": [
+          "plugins/ralph/entry.md"
+        ],
+        "workers": [],
+        "guarantees": []
+      },
+      {
+        "id": "ralph:run",
+        "plugin": "ralph",
+        "operation": "run",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "ralph plugin added on master (#34) after the issue-28 base; outside the five rebuilt plugins and kept unchanged.",
+        "files": [
+          "plugins/ralph/entry.md"
+        ],
+        "workers": [],
+        "guarantees": []
+      },
+      {
+        "id": "ralph:status",
+        "plugin": "ralph",
+        "operation": "status",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "ralph plugin added on master (#34) after the issue-28 base; outside the five rebuilt plugins and kept unchanged.",
+        "files": [
+          "plugins/ralph/entry.md"
+        ],
+        "workers": [],
+        "guarantees": []
+      }
+    ],
+    "helpers": [
+      {
+        "path": "plugins/agent-tuneup/scripts/align.py",
+        "kind": "upstream",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Added on master after the issue-28 base; kept unchanged."
+      },
+      {
+        "path": "plugins/ralph/cli.py",
+        "kind": "upstream",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Added on master after the issue-28 base; kept unchanged."
+      },
+      {
+        "path": "scripts/test_durations.json",
+        "kind": "upstream",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Added on master after the issue-28 base; kept unchanged."
+      }
+    ],
+    "instructions": [
+      {
+        "path": "plugins/agent-tuneup/playbooks/align.md",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Added on master after the issue-28 base; kept unchanged."
+      },
+      {
+        "path": "plugins/ralph/entry.md",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Added on master after the issue-28 base; kept unchanged."
+      },
+      {
+        "path": "plugins/ralph/playbooks/loop.md",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Added on master after the issue-28 base; kept unchanged."
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_agent_alignment.py",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Added on master after the issue-28 base; kept unchanged.",
+        "assertions": [
+          {
+            "selector": "test_agent_alignment.AlignmentTest",
+            "coverage": [
+              "REQ-COMPAT"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_ralph.py",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Added on master after the issue-28 base; kept unchanged.",
+        "assertions": [
+          {
+            "selector": "test_ralph.RalphTest",
+            "coverage": [
+              "REQ-COMPAT"
+            ],
+            "survives": true
+          }
+        ]
+      }
+    ]
+  }
+}

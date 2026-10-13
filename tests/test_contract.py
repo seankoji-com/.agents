@@ -202,5 +202,6 @@ class MappingTest(CoreTestCase):
 
     def test_core_size_remains_within_stage_three_budget(self):
         count = sum(len(path.read_text().splitlines()) for path in (ROOT/'core').rglob('*.py'))
-        self.assertLessEqual(count, 2156)
+        # 2156 is the issue-28 budget; master's #34 later added 26 lines to core/snapshot.py.
+        self.assertLessEqual(count, 2156 + 26)
         self.assertFalse((ROOT/'core/engine.py').exists())
