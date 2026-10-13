@@ -34,7 +34,7 @@ WORKER_CATALOG = {
         'reviewer': ('independent exact-snapshot change review', ['run', 'prs']),
     },
     'ape': {'source-researcher': ('pinned source comparison and transferable proposals', ['forage', 'study']),
-           'synthesizer': ('accepted report comparison and bounded experiment proposals', ['study'])},
+           'synthesizer': ('accepted report comparison and bounded experiment proposals', ['forage'])},
     'elephant-goldfish': {'factual-checker': ('repository and command claim verification', ['elephant', 'check']),
                           'cold-reader': ('document-only usability and evidence verdict', ['thinking', 'elephant'])},
     'babysitter': {'pr-maintainer': ('one scoped PR triage and authorized repair', ['pr', 'repo', 'org']),

@@ -32,7 +32,7 @@
       "id": "ape/synthesizer",
       "path": "agents/synthesizer.md",
       "operations": [
-        "study"
+        "forage"
       ],
       "role": "judgement",
       "responsibility": "Compare accepted research reports, identify conflicts, and propose bounded experiments without implementing them."
