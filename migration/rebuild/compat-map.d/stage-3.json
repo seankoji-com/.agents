@@ -886,6 +886,15 @@
               "REQ-EVIDENCE"
             ],
             "survives": true
+          },
+          {
+            "selector": "test_system_symlinks.PrefixSpellingTests",
+            "tests": 1,
+            "coverage": [
+              "REQ-REGISTRY",
+              "REQ-DELIVERY"
+            ],
+            "survives": true
           }
         ]
       }
