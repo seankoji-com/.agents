@@ -19,6 +19,7 @@ class RalphTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
+        # Resolve macOS /var aliases before the skill installer's symlink checks.
         self.base = Path(self.temp.name).resolve()
         self.repo = self.base / 'work tree'
         self.repo.mkdir()
