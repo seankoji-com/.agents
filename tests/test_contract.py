@@ -94,7 +94,6 @@ class SurfaceTest(CoreTestCase):
 
 COORDINATORS = ('imps', 'ape', 'elephant-goldfish', 'babysitter', 'agent-tuneup')
 COORDINATION = ROOT / 'shared' / 'job-coordination.md'
-PENDING_ENTRY = 'pending Stage 4 plugin entry'
 # Approval channels that bypass the picker: "reply yes", "type approve", "approve in chat".
 PROSE_APPROVAL = re.compile(r'(?i)\b(?:reply|respond|answer|type)\b[^.\n]{0,20}\b(?:yes|approved?|approves)\b'
                             r'|\bapprov\w* (?:in|via|by) (?:chat|prose|a reply)\b')
@@ -159,8 +158,6 @@ class ApprovalPickerTest(CoreTestCase):
         for plugin in COORDINATORS:
             with self.subTest(plugin=plugin):
                 entry = (ROOT / 'plugins' / plugin / 'entry.md').read_text()
-                if 'job-coordination.md' not in entry:
-                    self.skipTest(PENDING_ENTRY)
                 self.assertIn('`PKG/shared/job-coordination.md`', entry)
                 self.assertIn('`PKG/shared/t3-runtime.md`', entry)
 
