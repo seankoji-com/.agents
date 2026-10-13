@@ -142,7 +142,8 @@ The config lists tiers from cheapest to most capable, a T3 `runtimeMode` per pro
 and the `workhorse`, `reviewer` and `judgement` roles. Each role entry names a provider
 instance, a model, its tier and its `lineage`. Setup's tiers and lineage labels are
 guesses: edit them. Providers default to `auto`, except OpenCode, which defaults to
-`full-access` because its children otherwise stall on permission prompts.
+`full-access` with `"requireRuntimeMode": true` because its children otherwise stall
+on permission prompts.
 
 ```json
 {
@@ -150,7 +151,7 @@ guesses: edit them. Providers default to `auto`, except OpenCode, which defaults
   "tiers": ["low", "medium", "high"],
   "providers": {
     "codex": {"runtimeMode": "auto"},
-    "opencode": {"runtimeMode": "full-access"}
+    "opencode": {"runtimeMode": "full-access", "requireRuntimeMode": true}
   },
   "roles": {
     "reviewer": [
@@ -165,7 +166,8 @@ guesses: edit them. Providers default to `auto`, except OpenCode, which defaults
 order, and lists each configured entry it could not use with the reason. It never
 substitutes a different model. When a child's mode is broader than the parent
 thread's, T3 refuses it, so `resolve` lowers the mode to the parent's and adds an
-`owner_action` saying which mode to switch the child to. With `--implementer-lineage
+`owner_action` saying which mode to switch the child to. A provider with
+`requireRuntimeMode` (OpenCode, unless set to `false`) is listed as unavailable instead. With `--implementer-lineage
 LINEAGE`, each candidate is marked `independent`: `true` for another known lineage,
 `null` when either lineage is `unknown`, `false` for the same lineage. They print in
 that order. A repository can override
