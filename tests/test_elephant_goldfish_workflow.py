@@ -370,20 +370,21 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         path.write_text(text)
         return path
 
-    def contract(self, document, mode):
+    def contract(self, document, mode, digest=None):
         return {'root': str(document.parent.parent), 'slug': document.parent.name, 'mode': mode,
-                'document_path': str(document), 'document_sha256': sha(document.read_bytes())}
+                'document_path': str(document), 'document_sha256': digest or sha(document.read_bytes())}
 
-    def cold_slot(self, document, task_id='c0', role=None):
+    def cold_slot(self, document, task_id='c0', role=None, digest=None):
+        subject = {'path': str(document), 'sha256': digest or sha(document.read_bytes())}
         slot = {'task_id': task_id, 'stage_id': 'cold-read', 'logical_slot_id': 'cold-read', 'request_id': 'req-' + task_id,
                 'worker_id': 'elephant-goldfish/cold-reader', 'dependency_key': 'eg', 'context_policy': 'document-only',
-                'document': {'path': str(document), 'sha256': sha(document.read_bytes())},
-                'write_scope': {'mode': 'coordinator-only'}}
+                'document': subject, 'write_scope': {'mode': 'coordinator-only'}}
         if role:
-            slot['role'] = role
+            # A cold reader reviews a document, not a worker task: the document-subject review form.
+            slot.update(role=role, reviewed_documents=[dict(subject)])
         return slot
 
-    def elephant_job(self, job_id, document, *, cold_role=None, factual=True, policy=None):
+    def elephant_job(self, job_id, document, *, cold_role=None, factual=True, policy=None, digest=None):
         stages, tasks, requirements = [], [], {}
         if factual:
             requirements['R-FACT'] = 'PRIVATE-REQUIREMENT-MARKER every cited claim is confirmed'
@@ -396,8 +397,8 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         requirements['R-COLD'] = 'a fresh reader finds no blocking gap'
         stages.append({'id': 'cold-read', 'depends_on': ['factual'] if factual else [], 'requirements': ['R-COLD'],
                        'status': 'pending', 'validator_dependency': 'eg',
-                       'validator_contract': self.contract(document, 'cold-read')})
-        tasks.append(self.cold_slot(document, role=cold_role))
+                       'validator_contract': self.contract(document, 'cold-read', digest)})
+        tasks.append(self.cold_slot(document, role=cold_role, digest=digest))
         return self.base_job(job_id, self.WORKFLOW, requirements, stages, tasks, policy)
 
     def accept_factual(self, job_id, caller, document, revision='doc-r1'):
@@ -455,34 +456,45 @@ class ElephantDocumentJobTests(InstalledJobFixture):
             'input_file_by_stage': {'factual': factual_input, 'cold-read': cold_input}})
         self.assertEqual(final.returncode, 1, final.stdout + final.stderr)
 
-    def test_repair_round_rebinds_the_document_only_through_an_owner_decision(self):
+    def revise(self, job_id, caller, document, task_id='c0', digest=None):
+        return self.run_helper('job_cli.py', 'document-revision', job_id, {
+            'caller': caller, 'task_id': task_id, 'reason': 'coordinator repaired NOT READY gaps',
+            'document': {'path': str(document), 'sha256': digest or sha(document.read_bytes())}})
+
+    def test_repair_round_rebinds_the_document_within_the_round_budget_without_an_owner_decision(self):
         document = self.document()
         job_id, caller = 'elephant-repair', self.caller(self.WORKFLOW)
         self.create(self.elephant_job(job_id, document))
         self.accept_factual(job_id, caller, document)
         self.dispatch(job_id, caller, 'c0', verdict='adverse', status='failed', requirement='failed',
                       findings=self.NOT_READY, conclusion='VERDICT: NOT READY')
+        old_sha = sha(document.read_bytes())
         # The coordinator, not a worker, repairs the document.
         document.write_text(document.read_text() + '\nDeploy from `main` only.\n')
+        new_sha = sha(document.read_bytes())
+        # A generic plan edit of the same contract is still an undeclared expansion.
         state = self.job_state(job_id)
         plan = {k: copy.deepcopy(state[k]) for k in ('requirements', 'dependencies', 'stages', 'tasks', 'constraints',
                                                        'authorization', 'policy')}
-        new_sha = sha(document.read_bytes())
         for stage in plan['stages']:
             stage['validator_contract']['document_sha256'] = new_sha
-        next(t for t in plan['tasks'] if t['task_id'] == 'c0')['document']['sha256'] = new_sha
-        revision = {'id': 'repair-round-2', 'owner_decision_id': 'owner-repair-2'}
-        undeclared = self.run_helper('job_cli.py', 'plan-revision', job_id, {'caller': caller, 'revision': revision, 'new_plan': plan})
+        undeclared = self.run_helper('job_cli.py', 'plan-revision', job_id, {
+            'caller': caller, 'revision': {'id': 'repair-round-2'}, 'new_plan': plan})
         self.assertEqual(undeclared.returncode, 2)
         self.assertIn('undeclared_expansion', undeclared.stderr)
-        source = self.base / 'owner-answer.txt'
-        source.write_text('Approve the repaired elephant.md for cold-read round 2.\n')
-        self.ok(self.run_helper('job_cli.py', 'decision', job_id, {'caller': caller, 'decision': {
-            'id': 'owner-repair-2', 'quote': 'Approve the repaired elephant.md for cold-read round 2.',
-            'source': str(source), 'source_sha256': sha(source.read_bytes()), 'scope': 'plan:repair-round-2'}}))
-        self.ok(self.run_helper('job_cli.py', 'plan-revision', job_id, {'caller': caller, 'revision': revision, 'new_plan': plan}))
-        stages = {s['id']: s['status'] for s in self.job_state(job_id)['stages']}
-        self.assertEqual(stages, {'factual': 'stale', 'cold-read': 'stale'})
+        # A declared repair needs the current bytes and a changed hash, but no owner decision.
+        for wrong in (old_sha, 'f' * 64):
+            refused = self.revise(job_id, caller, document, digest=wrong)
+            self.assertEqual(refused.returncode, 2, refused.stdout)
+        record = self.ok(self.revise(job_id, caller, document))
+        self.assertEqual((record['previous_sha256'], record['sha256']), (old_sha, new_sha))
+        self.assertEqual((record['rounds_performed'], record['max_rounds']), (1, 4))
+        state = self.job_state(job_id)
+        self.assertEqual(state['decisions'], [])
+        self.assertEqual({s['id']: s['status'] for s in state['stages']}, {'factual': 'stale', 'cold-read': 'stale'})
+        self.assertEqual({s['validator_contract']['document_sha256'] for s in state['stages']}, {new_sha})
+        cold = next(t for t in state['tasks'] if t['task_id'] == 'c0')
+        self.assertEqual(cold['document']['sha256'], new_sha)
         retry = lambda task_id: self.ok(self.run_helper('job_cli.py', 'retry', job_id, {
             'caller': caller, 'task_id': task_id, 'reason': 'document repaired'}))
         # Stale slots need a charged retry, and the cold read waits for a fresh factual
@@ -498,7 +510,7 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         self.assertEqual(next(s for s in self.job_state(job_id)['stages'] if s['id'] == 'cold-read')['cycle'], 1)
 
     def rounds(self, job_id, policy=None):
-        """Run NOT READY rounds until the persisted budget refuses another; return rounds executed."""
+        """Run NOT READY rounds with declared repairs until the persisted budget refuses one."""
         document = self.document()
         caller = self.caller(self.WORKFLOW)
         self.create(self.elephant_job(job_id, document, factual=False, policy=policy))
@@ -507,13 +519,20 @@ class ElephantDocumentJobTests(InstalledJobFixture):
             self.dispatch(job_id, caller, 'c0', verdict='adverse', status='failed', requirement='failed',
                           findings=self.NOT_READY, conclusion='VERDICT: NOT READY')
             executed += 1
-            retry = self.run_helper('job_cli.py', 'retry', job_id, {'caller': caller, 'task_id': 'c0', 'reason': 'NOT READY'})
-            if retry.returncode:
+            document.write_text(document.read_text() + f'\nRepair {executed}.\n')
+            revised = self.revise(job_id, caller, document)
+            if revised.returncode:
+                self.assertIn('attempt_budget_exhausted', revised.stderr)
+                self.assertIn('owner_decision_required', revised.stderr)
+                retry = self.run_helper('job_cli.py', 'retry', job_id, {'caller': caller, 'task_id': 'c0', 'reason': 'NOT READY'})
                 self.assertIn('budget exhausted', retry.stderr)
                 # Resume cannot reset the count: a fresh preparation is refused as well.
                 again = self.run_helper('job_cli.py', 'prepare', job_id, {'caller': caller, 'task_id': 'c0'})
                 self.assertNotEqual(again.returncode, 0)
+                self.assertEqual(self.job_state(job_id)['decisions'], [])
                 return executed
+            self.assertEqual(json.loads(revised.stdout)['rounds_performed'], executed)
+            self.ok(self.run_helper('job_cli.py', 'retry', job_id, {'caller': caller, 'task_id': 'c0', 'reason': 'NOT READY'}))
             self.assertLess(executed, 10, 'cold-read budget was not enforced')
 
     def test_new_documents_get_four_rounds_and_legacy_loops_keep_their_remaining_five(self):
@@ -524,22 +543,70 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         self.assertEqual(self.rounds('rounds-legacy', {'max_repair_cycles': 5 - 2 - 1,
                                                         'max_artifact_bytes': 16 * 1024 * 1024}), 3)
 
-    @unittest.expectedFailure
     def test_ready_cold_read_from_a_document_subject_review_slot_is_accepted(self):
-        """Known Stage 3 helper gap (reported as a request): READY -> approve needs a review slot,
-        and the pinned helpers accept review slots only with worker-task subjects. Flips to an
-        unexpected success once a package accepts a document-subject review slot."""
         document = self.document()
         job_id, caller = 'elephant-ready', self.caller(self.WORKFLOW)
         self.create(self.elephant_job(job_id, document, cold_role='review'))
         factual_argv, factual_input = self.accept_factual(job_id, caller, document)
-        self.dispatch(job_id, caller, 'c0', verdict='approve', conclusion='VERDICT: READY')
+        brief, _ = self.dispatch(job_id, caller, 'c0', verdict='approve', conclusion='VERDICT: READY')
+        subject = {'path': str(document), 'sha256': sha(document.read_bytes())}
+        self.assertEqual((brief['role'], brief['review_inputs']), ('review', {'documents': [subject]}))
         cold_input = self.publish(job_id, caller, 'cold-read', self.cold_observation(document))
         cold_argv = self.doc_argv(document.parent.parent, document.parent.name, 'cold-read', cold_input)
         self.ok(self.accept(job_id, caller, 'cold-read', cold_argv, cold_input))
-        self.ok(self.run_helper('job_acceptance_cli.py', 'validate-final', job_id, {
-            'caller': caller, 'validator_argv_by_stage': {'factual': factual_argv, 'cold-read': cold_argv},
-            'input_file_by_stage': {'factual': factual_input, 'cold-read': cold_input}}))
+        final = {'caller': caller, 'validator_argv_by_stage': {'factual': factual_argv, 'cold-read': cold_argv},
+                 'input_file_by_stage': {'factual': factual_input, 'cold-read': cold_input}}
+        self.ok(self.run_helper('job_acceptance_cli.py', 'validate-final', job_id, final))
+        # A document changed after its review makes the review stale: no current acceptance remains.
+        document.write_text(document.read_text() + 'Edited after the cold read.\n')
+        overview = self.ok(self.run_helper('job_cli.py', 'overview', job_id))
+        self.assertEqual(next(s for s in overview['stages'] if s['id'] == 'cold-read')['status'], 'stale')
+        again = self.accept(job_id, caller, 'cold-read', cold_argv, cold_input)
+        self.assertNotEqual(again.returncode, 0)
+        self.assertIn('the review is stale', again.stdout + again.stderr)
+        self.assertNotEqual(self.run_helper('job_acceptance_cli.py', 'validate-final', job_id, final).returncode, 0)
+
+    def refused_review(self, job_id, job, needle):
+        self.create(job)
+        proc = self.run_helper('job_cli.py', 'prepare', job_id, {'caller': self.caller(self.WORKFLOW), 'task_id': 'c0'})
+        self.assertEqual(proc.returncode, 2, proc.stdout)
+        self.assertIn(needle, proc.stderr)
+        briefs = self.state / job_id / 'briefs'
+        self.assertFalse(briefs.exists() and any(briefs.iterdir()))
+
+    def test_document_subject_review_slots_refuse_ambiguous_empty_changed_or_escaping_subjects(self):
+        document = self.document()
+        # Both subject forms at once.
+        job = self.elephant_job('review-both', document, cold_role='review')
+        job['tasks'][-1]['reviewed_task_ids'] = ['f0']
+        self.refused_review('review-both', job, 'exactly one subject form')
+        # An empty subject list is not a review.
+        job = self.elephant_job('review-empty', document, cold_role='review')
+        job['tasks'][-1]['reviewed_documents'] = []
+        self.assertNotEqual(self.run_helper('job_cli.py', 'create', 'review-empty', job, prefix=self.prefix,
+                                            agents_root=self.agents).returncode, 0)
+        # A subject other than the document-only slot's own document.
+        job = self.elephant_job('review-other', document, cold_role='review')
+        job['tasks'][-1]['reviewed_documents'] = [{'path': str(document), 'sha256': 'a' * 64}]
+        self.refused_review('review-other', job, 'names exactly its supplied document')
+        # The declared hash no longer matches the bytes at preparation.
+        job = self.elephant_job('review-changed', document, cold_role='review', factual=False)
+        document.write_text(document.read_text() + 'Changed before preparation.\n')
+        self.refused_review('review-changed', job, 'the review is stale')
+        # Symlinked, traversing and job-state subjects are refused.
+        link = document.parent / 'linked.md'
+        link.symlink_to(document)
+        self.refused_review('review-link', self.elephant_job('review-link', link, cold_role='review', factual=False,
+                                                             digest=sha(document.read_bytes())), 'crosses a symlink')
+        dotted = document.parent / '..' / document.parent.name / document.name
+        self.refused_review('review-dotdot', self.elephant_job('review-dotdot', dotted, cold_role='review', factual=False),
+                            'without parent traversal')
+        inside = self.state / 'review-inside' / 'evidence.md'
+        self.create(self.elephant_job('review-inside', inside, cold_role='review', factual=False, digest=sha(b'# Doc\n')))
+        inside.write_bytes(b'# Doc\n')
+        proc = self.run_helper('job_cli.py', 'prepare', 'review-inside', {'caller': self.caller(self.WORKFLOW), 'task_id': 'c0'})
+        self.assertEqual(proc.returncode, 2, proc.stdout)
+        self.assertIn('cannot be job state', proc.stderr)
 
 
 if __name__ == '__main__':

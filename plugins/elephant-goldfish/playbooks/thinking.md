@@ -87,7 +87,8 @@ next agent must inspect the actual user instruction and scope before acting.
 7. Optional cold read. Only when the user authorises one, check that a fresh reader
    can act on `handoff.md`. Follow `PKG/references/document-jobs.md`: a job with a
    direct `handoff` stage accepted by `validate_document.py --mode handoff`, then a
-   document-only `cold-read` stage. Record the topic's round budget with `set` first.
+   document-only `cold-read` stage. Check the topic's round budget with `resolve`
+   first; a legacy topic records its budget with `set`.
    Repairs go back through discovery or spec, so edited discovery reopens review and
    the handoff is re-rendered. The cold-read verdict is reported beside readiness. It
    never replaces the gate and never grants execution.

@@ -114,7 +114,8 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
             if _live_handles(task) or task.get('status') not in ('pending', 'stale', 'blocked'):
                 raise JobError('review inputs cannot be rebound after dispatch')
             task['review_inputs'] = review_inputs(store, job, task)
-            for subject in task['reviewed_task_ids']:
+            # Lineage independence compares worker executions; a document subject has none.
+            for subject in task.get('reviewed_task_ids', []):
                 try:
                     independent_lineage(next(t for t in job['tasks'] if t['task_id'] == subject), task)
                 except AcceptanceError as exc:
@@ -321,6 +322,77 @@ def publish_observation(store, caller, stage_id, input_file):
             job['history'].append({'kind': 'coordinator-observation', 'stage_id': stage_id, 'reference': reference})
         return reference
     return store.transact(caller, apply, 'observation')
+
+
+def _document_subjects(task):
+    return [d for d in [task.get('document'), *task.get('reviewed_documents', [])] if isinstance(d, dict)]
+
+
+def revise_document(store, caller, task_id, document, reason):
+    """Rebind a coordinator-repaired document to its new hash as a declared repair round.
+
+    Within the persisted repair budget no owner decision is needed: every stage contract and
+    slot naming the same path takes the new hash, and those stages and their successors go
+    stale, so each executed slot needs a charged `retry` before it runs again. A spent budget
+    refuses with attempt_budget_exhausted; raising it is an owner decision (plan-revision).
+    """
+    import re
+    from core.jobs import _unsettled
+    from core.jobs.store import digest
+    from shared.job_acceptance import AcceptanceError, _descendants, reviewed_document_bytes
+    if not isinstance(document, dict) or set(document) != {'path', 'sha256'} or not isinstance(reason, str) or not reason.strip():
+        raise JobError('document revision needs document {path, sha256} and a reason')
+    if store.verify_pins is None:
+        store.verify_pins = verify_job_pins
+    def apply(job):
+        task = next((t for t in job['tasks'] if t['task_id'] == task_id), None)
+        if task is None:
+            raise JobError('unknown task slot')
+        path, new = document['path'], document['sha256']
+        old = next((d['sha256'] for d in _document_subjects(task) if d.get('path') == path), None)
+        if old is None:
+            raise JobError('task does not declare this document subject')
+        if not re.fullmatch(r'[0-9a-f]{64}', str(new)) or new == old:
+            raise JobError('document revision needs a new SHA-256')
+        try:
+            if digest(reviewed_document_bytes(store, job, path)) != new:
+                raise JobError('document bytes differ from the revised SHA-256')
+        except AcceptanceError as exc:
+            raise JobError(str(exc)) from exc
+        if not task.get('execution_history') or task.get('status') not in ('failed', 'blocked', 'stale', 'awaiting-acceptance'):
+            raise JobError('a document revision follows an executed, ingested round; use plan-revision otherwise')
+        stages = {s['id'] for s in job['stages'] if (s.get('validator_contract') or {}).get('document_path') == path}
+        stages |= {t['stage_id'] for t in job['tasks'] if any(d.get('path') == path for d in _document_subjects(t))}
+        stages |= {d['id'] for sid in list(stages) for d in _descendants(job['stages'], sid)}
+        limit = job['policy']['max_repair_cycles']
+        for slot in (t for t in job['tasks'] if t['stage_id'] in stages):
+            if _unsettled(job, slot):
+                raise JobError('cannot revise a document under unreconciled work: ' + _unsettled(job, slot))
+            stage = next(s for s in job['stages'] if s['id'] == slot['stage_id'])
+            if slot.get('attempt', 0) and (stage.get('cycle', 0) >= limit or slot['attempt'] >= 1 + limit):
+                raise JobError(f'attempt_budget_exhausted: {slot["task_id"]} used {slot["attempt"]} of {1 + limit} rounds; '
+                               'owner_decision_required to raise the limit')
+        for stage in job['stages']:
+            contract = stage.get('validator_contract') or {}
+            if contract.get('document_path') == path:
+                contract['document_sha256'] = new
+            if stage['id'] in stages:
+                if stage.get('acceptance'):
+                    stage.setdefault('acceptance_history', []).append(stage['acceptance'])
+                stage.update(acceptance=None, status='stale')
+        for slot in job['tasks']:
+            for subject in _document_subjects(slot):
+                if subject.get('path') == path:
+                    subject['sha256'] = new
+            if slot['stage_id'] in stages:
+                slot['inputs_stale'] = True  # a charged retry, or fresh preparation of an unexecuted slot, clears it
+                slot['status'] = 'stale'
+        record = {'kind': 'document-revision', 'task_id': task_id, 'path': path, 'previous_sha256': old,
+                  'sha256': new, 'reason': reason, 'stale_stages': sorted(stages),
+                  'rounds_performed': task.get('attempt', 0), 'max_rounds': 1 + limit}
+        job['history'].append(record)
+        return record
+    return store.transact(caller, apply, 'document-revision')
 
 
 def dispose_finding(store, caller, task_id, finding_id, disposition, evidence, finding_sha256=None):
