@@ -84,8 +84,23 @@ next agent must inspect the actual user instruction and scope before acting.
    without valid evidence need review even when spec and handoff already exist.
    Changing a receipt, including acceptance to an owner override, requires re-rendering
    the final handoff even when discovery content is unchanged.
-7. Deliver `handoff.md`, its manifest, remaining unknowns, and the intended next step.
+7. Optional cold read. Only when the user authorises one, check that a fresh reader
+   can act on `handoff.md`. Follow `PKG/references/document-jobs.md`: a job with a
+   direct `handoff` stage accepted by `validate_document.py --mode handoff`, then a
+   document-only `cold-read` stage. Record the topic's round budget with `set` first.
+   Repairs go back through discovery or spec, so edited discovery reopens review and
+   the handoff is re-rendered. The cold-read verdict is reported beside readiness. It
+   never replaces the gate and never grants execution.
+8. Deliver `handoff.md`, its manifest, remaining unknowns, and the intended next step.
    The user can give it to a fresh T3 thread or imps. Do not start that work here.
+
+## Who runs each step
+
+You run steps 1 to 6 yourself. The interview needs the operator, and discovery
+acceptance needs their actual words, so a worker can never conduct discovery,
+summarise answers into acceptance, or record a review receipt. Only the optional cold
+read in step 7 runs in a child. A child result never reaches readiness except through
+the gate and `render_handoff.py --check`.
 
 ## Regression scenarios
 
