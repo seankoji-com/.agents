@@ -3,7 +3,7 @@
 Install a portable skill adapter for each plugin you want in T3's composer. The
 adapter reads the same installed entry file regardless of the selected provider.
 Skill names use the `t3-` prefix: `t3-imps`, `t3-ape`, `t3-babysitter`,
-`t3-elephant-goldfish` and `t3-agent-tuneup`.
+`t3-elephant-goldfish`, `t3-agent-tuneup` and `t3-ralph`.
 
 For one-step user setup after installation, use `t3-plugins setup`
 (`python3 bin/t3-plugins setup` from source). For Homebrew, use

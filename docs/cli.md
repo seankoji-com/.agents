@@ -12,11 +12,11 @@ Run `t3-plugins --help` or `t3-plugins COMMAND --help` for all options.
 | Command | Result |
 | --- | --- |
 | `list` | Print bundled plugin names and descriptions; does not list installed versions |
-| `setup [PLUGIN]` | Install snapshots and skill adapters; omit the name for all five |
+| `setup [PLUGIN]` | Install snapshots and skill adapters; omit the name for all plugins |
 | `install [PLUGIN]` | Install snapshots only |
 | `path PLUGIN` | Print the active installed entry path |
 | `prompt PLUGIN [REQUEST…]` | Print a prompt to paste into T3; defaults to `doctor` |
-| `doctor [PLUGIN]` | Check installed files and package currency; omit the name for all five |
+| `doctor [PLUGIN]` | Check installed files and package currency; omit the name for all plugins |
 | `activate PLUGIN VERSION` | Select an existing snapshot without migrating run state |
 | `uninstall PLUGIN [--version VERSION]` | Remove owned snapshot files, preserving local edits and run state |
 | `skills install [PLUGIN] --root PATH` | Install an adapter into one provider skill root |

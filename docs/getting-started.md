@@ -10,7 +10,7 @@ and `jq`; install those only if you use the relevant plugins.
 
 ## From source
 
-Source installation uses the current five-workflow catalog. For a packaged release,
+Source installation uses the current six-workflow catalog. For a packaged release,
 use Homebrew catalog v0.5.0 or later as described below.
 
 ```sh
@@ -44,8 +44,10 @@ Use `t3-plugins setup imps` for one plugin plus its adapters, or repeat
 
 ## Homebrew release channel
 
-Catalog v0.5.0 and later packages the five workflows in these guides. Earlier releases
-have different commands. Install the latest formula, then set up your user snapshots
+Catalog v0.5.0 and later uses the setup commands in these guides. Earlier releases
+have different commands. Ralph requires a catalog that lists it in `t3-plugins list`;
+use source installation until your packaged release includes it.
+Install the latest formula, then set up your user snapshots
 and skill adapters:
 
 ```sh

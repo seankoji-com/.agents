@@ -39,5 +39,13 @@
     "habitat": "A T3 thread with a live provider catalog and explicitly identified settings layers.",
     "diet": "An audit target, or an alignment request followed by approval of concrete changes.",
     "field_marks": "Read-only by default. Unknown capabilities stay visible. Native settings writes require a reviewed plan, unchanged file hashes and a private backup."
+  },
+  "ralph": {
+    "plate": "VI",
+    "binomial": "Helix iterans",
+    "summary": "Implement a goal, retry every independent evaluator finding in fresh tasks, then open a PR.",
+    "habitat": "One T3 parent thread and a retained worktree, with checkpoints outside the repository.",
+    "diet": "A goal, a chosen pair of different model lineages, and an attempt limit.",
+    "field_marks": "Fresh context for every task. All feedback triggers repair. Five attempts by default. Successful code changes finish with a normal PR."
   }
 }

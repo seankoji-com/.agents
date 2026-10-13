@@ -61,9 +61,10 @@ def render(meta, entry):
             'The package directory is the directory containing that entry file.\n'
             'Use the text after the skill mention as the operation and arguments. Operations: ' +
             ', '.join('`' + op + '`' for op in meta['operations']) + '.\n'
-            'With no arguments, run `doctor`. For imps, a task without an operation means `run <task>`.\n'
+            'With no arguments, run `doctor`.\n' +
+            ('For imps, a task without an operation means `run <task>`.\n' if meta['name'] == 'imps' else '') +
             'If the entry is missing, report that this adapter needs `t3-plugins install ' + meta['name'] +
-            '` using the same package prefix; do not switch to another imps installation.\n'
+            '` using the same package prefix; do not switch to another ' + meta['name'] + ' installation.\n'
             'This adapter grants no additional authorization. T3 owns delegation and watches.\n')
 
 

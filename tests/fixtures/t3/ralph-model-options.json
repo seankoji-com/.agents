@@ -1,0 +1,39 @@
+{
+  "_comment": "Model options captured from live orchestrator_capabilities on 13 October 2026 (Australia/Sydney). Provider/model identity redacted to synthetic fixture IDs; options retained verbatim. Catalog evidence only, not provider execution or lineage acceptance.",
+  "providerInstanceId": "fixture-opencode",
+  "driverKind": "opencode",
+  "runtimeModes": [
+    "approval-required",
+    "auto-accept-edits",
+    "auto",
+    "full-access"
+  ],
+  "canRunChildTask": true,
+  "canRunCrossProviderChildTask": true,
+  "models": [
+    {
+      "id": "fixture/catalog-model",
+      "options": [
+        {
+          "id": "variant",
+          "label": "Reasoning",
+          "type": "select",
+          "options": [
+            {
+              "id": "low",
+              "label": "Low"
+            },
+            {
+              "id": "medium",
+              "label": "Medium"
+            },
+            {
+              "id": "high",
+              "label": "High"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

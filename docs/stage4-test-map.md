@@ -1,5 +1,9 @@
 # Stage 4 test changes
 
+This is the historical Issue #15 stage 4 test map. Counts below describe that
+stage's five-plugin catalog, rather than the current suite. Ralph later increased
+the installation receipt count to 24 and installed-helper coverage to six plugins.
+
 Issue #15 stage 4 adds optional shared learning storage and harvest. No existing
 test is deleted. The existing setup installation count now counts installation
 receipts separately from the new grant receipts; all surviving installation,

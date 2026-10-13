@@ -1,5 +1,5 @@
 site_name: t3-plugins
-site_description: Fix bugs with current evidence, plan work a fresh thread can use, and finish PRs. Five workflows for T3 Code.
+site_description: Fix bugs with current evidence, plan work a fresh thread can use, and finish PRs. Six workflows for T3 Code.
 site_url: https://seankoji-com.github.io/t3-plugins/
 site_dir: !ENV [T3_DOCS_SITE_DIR, site]
 repo_url: https://github.com/seankoji-com/t3-plugins
@@ -71,6 +71,7 @@ nav:
       - ape: plugins/ape.md
       - babysitter: plugins/babysitter.md
       - agent-tuneup: plugins/agent-tuneup.md
+      - ralph: plugins/ralph.md
   - Engineering:
       - Architecture: architecture.md
       - Compatibility: compatibility.md

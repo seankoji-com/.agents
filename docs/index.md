@@ -1,7 +1,7 @@
 ---
 template: home.html
 title: Overview
-description: "Fix bugs with current evidence, plan work a fresh thread can use, and carry PRs through review and CI. Five installable workflows for T3 Code."
+description: "Fix bugs with current evidence, plan work a fresh thread can use, and carry PRs through review and CI. Six installable workflows for T3 Code."
 hide:
   - toc
   - navigation
