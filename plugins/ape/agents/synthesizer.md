@@ -28,7 +28,9 @@ missing or unreadable is `blocked`, not a reason to substitute another file.
 
 ## Work
 
-Write a synthesis with Overlap, Conflicts, Recommended experiment and Rejected sections.
+Write a synthesis with Provenance, Overlap, Conflicts, Recommended experiment and Rejected
+sections. Provenance names each source revision and snapshot SHA-256 from the brief and
+the SHA-256 of each accepted report you read, and no other hash.
 For every conflict, name both reports and quote the source text each one cites. The recommended
 experiment names local target files, baseline, success criterion, abandon condition and
 the strongest evidence against it. A recommendation is a proposal; it never authorizes

@@ -128,17 +128,17 @@ class Stage3Repair5Tests(unittest.TestCase):
             job["pins"] = {}; job["dependencies"] = [{"key": "ape", "plugin": "ape"}]
             job["tasks"] = []; job["stages"] = [job["stages"][0]]
             job["stages"][0].update(execution_mode="direct", validator_dependency="ape", revision="r1")
-            source = root / "source.txt"; source.write_text("synthetic source provenance\n")
-            job["stages"][0]["validator_contract"] = {"sources": [{"id": "src", "url": "https://example.invalid/source",
-                "revision": "fixture-1", "path": str(source), "sha256": digest(source.read_bytes())}]}
+            from tests.test_ape_validate_report import pin_source, study_descriptor
+            job["stages"][0]["validator_contract"] = {"sources": [pin_source(root, "src")]}
             from shared.job_coordinator import create_pinned_job, publish_observation
             from core.jobs.store import Store
             create_pinned_job(job, state_root, prefix, agents, root / "config/workers.json")
             store = Store(state_root, job["job_id"])
             caller = {"installation_id": manifest["installation_id"], "workflow": job["workflow"],
                 "package_digest": manifest["package_digest"], "actor": "coordinator"}
-            obs = root / "observation.json"; obs.write_text(json.dumps({"sources": job["stages"][0]["validator_contract"]["sources"],
-                "criteria": job["stages"][0]["criteria"], "findings": []}))
+            obs = root / "observation.json"; obs.write_text(json.dumps(study_descriptor(
+                root, job["stages"][0]["validator_contract"]["sources"][0], job["stages"][0]["requirements"],
+                job["stages"][0]["criteria"])))
             ref = publish_observation(store, caller, "s0", str(obs))
             validator = version / "scripts/validate_report.py"
             from shared import job_acceptance

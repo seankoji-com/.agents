@@ -6,10 +6,16 @@ from shared.job_coordinator import create_pinned_job,publish_observation
 from core.jobs.store import Store
 from shared.job_acceptance import accept_stage,validate_stage,validate_final
 from tests.support import Run
+def ape_report(base, pin, **finding):
+    """A complete valid study descriptor; `finding` overrides fields of its first finding."""
+    from tests.test_ape_validate_report import study_descriptor
+    data = study_descriptor(base, pin, ['R1'], [{'id':'C1','kind':'source-provenance'}])
+    data['findings'][0].update(finding)
+    return data
+
 def source_fixture(base, job):
-    import hashlib
-    source = base/'source.txt'; source.write_text('actual fixture research source\n')
-    pin = {'id':'src','url':'https://example.invalid/repo','revision':'fixture-1','path':str(source),'sha256':hashlib.sha256(source.read_bytes()).hexdigest()}
+    from tests.test_ape_validate_report import pin_source
+    pin = pin_source(base, 'src')
     job['stages'][0]['validator_contract'] = {'sources':[pin]}
     job['stages'][0]['criteria'] = [{'id':'C1','kind':'source-provenance'}]
     return pin
@@ -33,7 +39,7 @@ class PinnedAcceptanceTests(unittest.TestCase):
    job={'schema_version':1,'job_id':'accept-1','installation_id':manifest['installation_id'],'workflow':'ape/study','owner':'coordinator','objective':'research','requirements':{'R1':'retain provenance'},'authorization':{'actions':['read']},'constraints':['no target writes'],'snapshot':{'sha256':'a'*64},'dependencies':[{'key':'ape','plugin':'ape'}],'pins':{},'policy':{'max_repair_cycles':3,'max_artifact_bytes':16777216},'stages':[{'id':'research','depends_on':[],'requirements':['R1'],'status':'pending','execution_mode':'direct','validator_dependency':'ape','criteria':[{'id':'C1','kind':'source-provenance'}],'revision':'source-1'}],'tasks':[],'decisions':[],'history':[],'metrics':{},'result_contract':{'schema_version':1}}
    source_pin=source_fixture(base,job)
    created=create_pinned_job(job,state,prefix,agents,base/'config/workers.json');self.assertTrue(Path(created['job']).exists())
-   inp=base/'report.json';inp.write_text(json.dumps({'sources':[source_pin],'findings':[],'criteria':[{'id':'C1','kind':'source-provenance'}]}))
+   inp=base/'report.json';inp.write_text(json.dumps(ape_report(base,source_pin)))
    caller={'installation_id':manifest['installation_id'],'workflow':'ape/study','package_digest':manifest['package_digest'],'actor':'coordinator'}
    validator=version/'scripts/validate_report.py'
    inp=Path(publish_observation(Store(state,'accept-1'),caller,'research',str(inp))['path'])
@@ -157,7 +163,7 @@ class PinnedAcceptanceTests(unittest.TestCase):
    base=Path(td);version,manifest,prefix,agents,state,env=self._install(base,'ape')
    job={'schema_version':1,'job_id':'budget-1','installation_id':manifest['installation_id'],'workflow':'ape/study','owner':{'id':'owner'},'objective':'bounded audit','requirements':{'R1':'source provenance'},'authorization':{'actions':['read']},'constraints':['read only'],'dependencies':[{'key':'ape','plugin':'ape'}],'pins':{},'policy':{'max_repair_cycles':3,'max_artifact_bytes':16777216},'stages':[{'id':'research','depends_on':[],'requirements':['R1'],'status':'pending','execution_mode':'direct','validator_dependency':'ape','criteria':[],'attempts':{'primary':0,'support':0,'review':0,'final':0}}],'tasks':[],'decisions':[],'history':[],'metrics':{},'result_contract':{'schema_version':1}}
    source_pin=source_fixture(base,job)
-   create_pinned_job(job,state,prefix,agents,base/'config/workers.json');store=Store(state,'budget-1');caller={'installation_id':manifest['installation_id'],'workflow':'ape/study','package_digest':manifest['package_digest'],'actor':'coordinator'};validator=version/'scripts/validate_report.py';inp=base/'empty-report.json';inp.write_text(json.dumps({'sources':[source_pin],'findings':[{'source_id':'src','quote':'invented nonexistent quote'}],'criteria':[{'id':'C1','kind':'source-provenance'}]}));inp=Path(publish_observation(store,caller,'research',str(inp))['path']);argv=[str(validator),'--input',str(inp)]
+   create_pinned_job(job,state,prefix,agents,base/'config/workers.json');store=Store(state,'budget-1');caller={'installation_id':manifest['installation_id'],'workflow':'ape/study','package_digest':manifest['package_digest'],'actor':'coordinator'};validator=version/'scripts/validate_report.py';inp=base/'empty-report.json';inp.write_text(json.dumps(ape_report(base,source_pin,quote='invented nonexistent quote')));inp=Path(publish_observation(store,caller,'research',str(inp))['path']);argv=[str(validator),'--input',str(inp)]
    for _ in range(4):self.assertFalse(accept_stage(store,caller,'research',argv,str(inp))['accepted'])
    self.assertEqual(store.load()['stages'][0]['acceptance_runs'],4)
    with self.assertRaisesRegex(AcceptanceError,'budget exhausted'):accept_stage(store,caller,'research',argv,str(inp))

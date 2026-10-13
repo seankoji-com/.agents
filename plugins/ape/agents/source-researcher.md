@@ -28,11 +28,13 @@ brief names `followup_of` and a delta; answer only that delta.
 ## Work
 
 Read the README, directory tree and only the code needed to substantiate each idea.
-Write a report of at most 900 words with Overlap, Adopt, Adapt, Reject and Command case
-sections. Each proposal names local target files, effort, tradeoff, strongest
+Write a report of at most 900 words with Provenance, Overlap, Adopt, Adapt, Reject and
+Command case sections. Provenance names the source revision and snapshot SHA-256 from
+the brief and no other hash. Each proposal names local target files, effort, tradeoff, strongest
 counterargument, simpler alternative, and a bounded experiment with baseline, success
 criterion and abandon condition. Cite blob URLs at the resolved commit with line numbers,
-and quote the exact cited text so the coordinator can pin it. Empty Adopt and Adapt
+and quote the exact cited text in the section that relies on it so the coordinator can
+pin it. Empty Adopt and Adapt
 sections are valid. Proposals are not authorization: do not implement or run them.
 
 ## Result

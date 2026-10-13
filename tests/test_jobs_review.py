@@ -37,6 +37,7 @@ from core.jobs.store import Store, canonical, digest  # noqa: E402
 from shared.job_acceptance import AcceptanceError, accept_stage, validate_stage  # noqa: E402
 from shared.job_coordinator import create_pinned_job, verify_all_pins, verify_pinned_dependency, prepare_followup, publish_observation, dispose_finding  # noqa: E402
 from shared.worker_result import parse_result, ResultError  # noqa: E402
+from tests.test_ape_validate_report import pin_source, study_descriptor  # noqa: E402
 
 
 def fixture_decision(store, caller, value):
@@ -158,8 +159,7 @@ class JobReviewTests(unittest.TestCase):
         job = self.base_job("acceptance-review", two_tasks=two_tasks)
         job["installation_id"] = manifest["installation_id"]
         job["pins"] = {}
-        source = base / 'source.txt'; source.write_text('fixture source evidence\n')
-        source_pin = {'id': 'src', 'url': 'https://example.invalid/source', 'revision': 'r1', 'path': str(source), 'sha256': hashlib.sha256(source.read_bytes()).hexdigest()}
+        source_pin = pin_source(base, 'src')
         job['stages'][0]['validator_contract'] = {'sources': [source_pin]}
         create_pinned_job(job, state_root, prefix, agents, base / "config" / "workers.json")
         store = Store(state_root, job["job_id"])
@@ -170,11 +170,7 @@ class JobReviewTests(unittest.TestCase):
             "actor": "coordinator",
         }
         report = base / "report.json"
-        report.write_text(json.dumps({
-            "sources": [source_pin],
-            "findings": [],
-            "criteria": [{"id": "C1", "kind": "source-provenance"}],
-        }))
+        report.write_text(json.dumps(study_descriptor(base, source_pin, ["R1"], [{"id": "C1", "kind": "source-provenance"}])))
         self.ingest_ready(store, caller, "t0")
         report = Path(publish_observation(store, caller, "s0", str(report))["path"])
         argv = [str(version / "scripts" / "validate_report.py"), "--input", str(report)]
@@ -526,8 +522,7 @@ class JobReviewTests(unittest.TestCase):
             job = self.base_job("hang-review")
             job["tasks"] = []
             job["stages"][0]["execution_mode"] = "direct"
-            source = base/"source.txt"; source.write_text("fixture source\n")
-            source_pin = {"id":"src","url":"https://example.invalid","revision":"r1","path":str(source),"sha256":hashlib.sha256(source.read_bytes()).hexdigest()}
+            source_pin = pin_source(base, "src")
             job["stages"][0]["validator_contract"] = {"sources":[source_pin]}
             job["stages"][0].update(validator_limits={"timeout_seconds": 1, "max_output_bytes": 1024}, criteria=[{"id": "C1", "kind": "source-provenance"}])
             job["installation_id"] = manifest["installation_id"]
@@ -538,7 +533,7 @@ class JobReviewTests(unittest.TestCase):
             validator = version / "scripts" / "validate_report.py"
             original = validator.read_text()
             report = base / "report.json"
-            report.write_text(json.dumps({"sources": [source_pin], "findings": [], "criteria": [{"id": "C1", "kind": "source-provenance"}]}))
+            report.write_text(json.dumps(study_descriptor(base, source_pin, ["R1"], [{"id": "C1", "kind": "source-provenance"}])))
             report = Path(publish_observation(store, caller, "s0", str(report))["path"])
             argv = [str(validator), "--input", str(report)]
             hook = base / "sitecustomize.py"

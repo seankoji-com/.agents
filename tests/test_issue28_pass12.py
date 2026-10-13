@@ -15,6 +15,7 @@ from shared.job_coordinator import (create_pinned_job, prepare_followup, publish
 from tests.test_issue28_pass10 import Pass10Fixture
 from tests import test_jobs_review as review_fixtures
 from tests.test_jobs_review import fixture_decision
+from tests.test_ape_validate_report import pin_source, study_descriptor
 
 
 def ok(*_):
@@ -145,9 +146,7 @@ class Pass12ValidationRaceTests(unittest.TestCase):
         job['stages'] = job['stages'][:1]
         job['installation_id'] = self.manifest['installation_id']
         job['pins'] = {}
-        source = base / 'source.txt'; source.write_text('fixture source evidence\n')
-        pin = {'id': 'src', 'url': 'https://example.invalid/source', 'revision': 'r1', 'path': str(source),
-               'sha256': hashlib.sha256(source.read_bytes()).hexdigest()}
+        pin = pin_source(base, 'src')
         job['stages'][0]['validator_contract'] = {'sources': [pin]}
         create_pinned_job(job, self.state_root, self.prefix, self.agents, self.base / 'config' / 'workers.json')
         store = Store(self.state_root, job_id)
@@ -168,7 +167,7 @@ class Pass12ValidationRaceTests(unittest.TestCase):
         record_dispatch(store, caller, 't0', {**host, 'kind': 'completion', 'completion_id': 'host0-done',
                                               'status': 'completed', 'work_state': 'result_available'})
         report = base / 'report.json'
-        report.write_text(json.dumps({'sources': [pin], 'findings': [], 'criteria': [{'id': 'C1', 'kind': 'source-provenance'}]}))
+        report.write_text(json.dumps(study_descriptor(base, pin, ['R1'], [{'id': 'C1', 'kind': 'source-provenance'}])))
         report = Path(publish_observation(store, caller, 's0', str(report))['path'])
         argv = [str(self.version / 'scripts' / 'validate_report.py'), '--input', str(report)]
         self.assertTrue(accept_stage(store, caller, 's0', argv, str(report), 's0-r1')['accepted'])
