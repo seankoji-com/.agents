@@ -187,7 +187,7 @@ status. Optional minimum_findings is a nonnegative integer. The stage contract
 pins sources {id,url,revision,path,sha256} before work; validators read the actual
 absolute source bytes and check finding quotes against those sources. The adapter
 also binds the observation's operation to the workflow (ape/study: study; ape/forage:
-forage-research, or forage-synthesis when the stage has dependencies), its requirement
+forage-research, or forage-synthesis, which needs dependencies), its requirement
 IDs to the stage, and synthesis consumed_reports to the dependency outputs.
 validate_report.py then checks report sections, pinned revisions, citations, coverage
 and coordinator inspection receipts. These checks establish provenance/coverage, not

@@ -67,30 +67,34 @@ def research_markdown(pin, adopt=True):
 
 
 def research_findings(pin, adopt=True):
-    rows = [{'id': f'{pin["id"]}-overlap', 'section': 'Overlap', 'source_id': pin['id'], 'quote': OVERLAP_QUOTE}]
+    rows = [{'id': f'{pin["id"]}-overlap', 'section': 'Overlap', 'source_id': pin['id'], 'quote': OVERLAP_QUOTE,
+             'citation': blob(pin, 1)}]
     if adopt:
-        rows.append({'id': f'{pin["id"]}-adopt', 'section': 'Adopt', 'source_id': pin['id'], 'quote': ADOPT_QUOTE})
+        rows.append({'id': f'{pin["id"]}-adopt', 'section': 'Adopt', 'source_id': pin['id'], 'quote': ADOPT_QUOTE,
+                     'citation': blob(pin, 2)})
     return rows
 
 
 def synthesis_markdown(pins, consumed):
     reports = ', '.join(f'{row["id"]} sha256 {row["sha256"]}' for row in consumed)
     sources = '\n'.join(f'- {p["id"]}: {p["url"]} at {p["revision"]}, snapshot sha256 {p["sha256"]}' for p in pins)
+    overlap = ', '.join(blob(p, 1) for p in pins)
+    first = pins[0]
     return (f'# Synthesis\n\n## Provenance\n\n{sources}\n- accepted reports: {reports}\n\n## Overlap\n\n'
-            f'Every candidate defines `{OVERLAP_QUOTE}`.\n\n## Conflicts\n\n{consumed[0]["id"]} quotes '
-            f'"{ADOPT_QUOTE}"; the others never bound retries.\n\n## Recommended experiment\n\nAdopt '
-            f'"{ADOPT_QUOTE}" in `core/net.py`; baseline 3 flaky failures, success 0, abandon after 2 runs.\n\n'
-            '## Rejected\n\nNone.\n')
+            f'Every candidate defines `{OVERLAP_QUOTE}` ({overlap}).\n\n## Conflicts\n\n{consumed[0]["id"]} quotes '
+            f'"{ADOPT_QUOTE}" ({blob(first, 2)}); the others never bound retries.\n\n## Recommended experiment\n\n'
+            f'Adopt "{ADOPT_QUOTE}" ({blob(first, 2)}) in `core/net.py`; baseline 3 flaky failures, success 0, '
+            'abandon after 2 runs.\n\n## Rejected\n\nNone.\n')
 
 
 def synthesis_findings(pins, consumed):
     by_source = {row['source_id']: row['id'] for row in consumed}
     rows = [{'id': f'{p["id"]}-overlap', 'section': 'Overlap', 'source_id': p['id'], 'quote': OVERLAP_QUOTE,
-             'report_id': by_source[p['id']]} for p in pins]
+             'citation': blob(p, 1), 'report_id': by_source[p['id']]} for p in pins]
     first = pins[0]['id']
     for name, section in (('conflict', 'Conflicts'), ('experiment', 'Recommended experiment')):
         rows.append({'id': f'{first}-{name}', 'section': section, 'source_id': first, 'quote': ADOPT_QUOTE,
-                     'report_id': by_source[first]})
+                     'citation': blob(pins[0], 2), 'report_id': by_source[first]})
     return rows
 
 
@@ -235,14 +239,16 @@ class OperationStructureTests(ValidatorCase):
     def test_missing_or_repeated_sections_reject(self):
         data = research_descriptor(self.base)
         text = Path(data['report']['path']).read_text()
-        self.rewrite(data, 'report', text.replace('## Command case', '## Commands'))
+        self.rewrite(data, 'report', text.replace('## Command case\n', ''))
         self.rejects(data, 'structure', 'lacks required section(s): command case')
+        self.rewrite(data, 'report', text.replace('## Command case', '## Notes\n\n## Command case'))
+        self.rejects(data, 'structure', "unexpected section 'notes'")
         self.rewrite(data, 'report', text + '\n## Adapt\n\nAgain.\n')
         self.rejects(data, 'structure', "repeats the 'adapt' section")
 
     def test_synthesis_needs_its_own_sections(self):
         data = synthesis_descriptor(self.base)
-        self.rewrite(data, 'report', Path(data['report']['path']).read_text().replace('## Conflicts', '## Adapt'))
+        self.rewrite(data, 'report', Path(data['report']['path']).read_text().replace('## Conflicts\n', ''))
         self.rejects(data, 'structure', 'lacks required section(s): conflicts')
 
     def test_heading_inside_code_fence_is_not_a_section(self):
@@ -262,8 +268,12 @@ class OperationStructureTests(ValidatorCase):
 
     def test_finding_quote_must_appear_in_its_report_section(self):
         data = research_descriptor(self.base)
-        data['findings'][1]['section'] = 'Reject'
-        self.rejects(data, 'structure', "src-1-adopt quote does not appear in the report 'reject' section")
+        moved = copy.deepcopy(data)
+        moved['findings'][1]['section'] = 'Reject'
+        self.rejects(moved, 'structure', "src-1-adopt citation is not a line-numbered citation in the report 'reject'")
+        text = Path(data['report']['path']).read_text()
+        self.rewrite(data, 'report', text.replace(f'`{OVERLAP_QUOTE}`', 'the same entry point'))
+        self.rejects(data, 'structure', "src-1-overlap quote does not appear in the report 'overlap' section")
 
     def test_word_budgets(self):
         data = research_descriptor(self.base)
@@ -330,7 +340,7 @@ class RevisionProvenanceTests(ValidatorCase):
     def test_finding_quote_must_be_in_the_actual_source_bytes(self):
         data = research_descriptor(self.base)
         data['findings'][0]['quote'] = 'Both define'
-        self.rejects(data, 'provenance', 'src-1-overlap quote is not in the actual bytes of source src-1')
+        self.rejects(data, 'provenance', 'src-1-overlap quote is not in the cited lines')
 
     def test_synthesis_findings_rest_on_the_accepted_report_text(self):
         data = synthesis_descriptor(self.base)
@@ -342,7 +352,7 @@ class RevisionProvenanceTests(ValidatorCase):
         self.rewrite(data, 'report', text.replace(
             'accepted reports: rep-src-1 sha256 ' + text.split('rep-src-1 sha256 ')[1].split(',')[0],
             'accepted reports: rep-src-1 sha256 ' + data['consumed_reports'][0]['sha256']))
-        self.rejects(data, 'provenance', 'quote is not text accepted report rep-src-1 cited')
+        self.rejects(data, 'provenance', 'quote and citation are not ones accepted report rep-src-1 cited')
 
     def test_synthesis_provenance_lists_accepted_report_hashes(self):
         data = synthesis_descriptor(self.base)
@@ -441,6 +451,93 @@ class InspectionReceiptTests(ValidatorCase):
         self.rejects(report, 'inspection', 'does not name the pinned report bytes')
 
 
+class ReportDerivedClaimTests(ValidatorCase):
+    """FR-ape-01: consequential claims come from the report text, not from the descriptor."""
+
+    def drop(self, data, fid):
+        data['findings'] = [f for f in data['findings'] if f['id'] != fid]
+        data['inspections'] = [r for r in data['inspections'] if fid not in r.get('finding_ids', [])]
+
+    def test_omitting_an_adopt_finding_and_its_receipt_rejects(self):
+        data = research_descriptor(self.base)
+        self.drop(data, 'src-1-adopt')
+        self.rejects(data, 'coverage', f'report adopt claim citing {blob(data["sources"][0], 2)} has no descriptor '
+                                       'finding')
+
+    def test_adapt_claim_must_be_listed_and_inspected(self):
+        data = research_descriptor(self.base)
+        pin = data['sources'][0]
+        text = Path(data['report']['path']).read_text()
+        self.rewrite(data, 'report', text.replace('## Adapt\n\nNone.', f'## Adapt\n\nWrap it: {blob(pin, 3)}.'))
+        self.rejects(data, 'coverage', f'report adapt claim citing {blob(pin, 3)} has no descriptor finding')
+        data['findings'].append({'id': 'src-1-adapt', 'section': 'Adapt', 'source_id': 'src-1',
+                                 'quote': 'return call()', 'citation': blob(pin, 3)})
+        self.rejects(data, 'structure', "src-1-adapt quote does not appear in the report 'adapt' section")
+        self.rewrite(data, 'report', text.replace('## Adapt\n\nNone.',
+                                                  f'## Adapt\n\n`return call()` {blob(pin, 3)}.'))
+        self.rejects(data, 'inspection', 'missing coordinator inspection receipt for adapt finding src-1-adapt')
+        data['inspections'] = receipts_for(data['report'], data['sources'], data['findings'])
+        self.accepts(data)  # positive control: listed and inspected
+
+    def test_omitting_synthesis_conflict_or_experiment_rejects(self):
+        for fid, name in (('src-1-conflict', 'conflicts'), ('src-1-experiment', 'recommended experiment')):
+            data = synthesis_descriptor(self.base / fid)
+            self.drop(data, fid)
+            self.rejects(data, 'coverage', f'report {name} claim citing')
+
+    def test_uncited_consequential_claim_rejects(self):
+        data = research_descriptor(self.base)
+        pin = data['sources'][0]
+        text = Path(data['report']['path']).read_text()
+        self.rewrite(data, 'report', text.replace(f'Cited at {blob(pin, 2)}.', 'Trust me.'))
+        self.drop(data, 'src-1-adopt')
+        self.rejects(data, 'coverage', "'adopt' section makes claims without a line-numbered citation")
+
+
+class SnapshotCitationTests(ValidatorCase):
+    """FR-ape-02: every blob citation names real lines of the pinned snapshot holding the quote."""
+
+    def test_citation_of_a_missing_file_rejects(self):
+        data = research_descriptor(self.base)
+        pin = data['sources'][0]
+        fake = blob(pin, 1).replace('/lib/retry.py#L1', '/DOES-NOT-EXIST.py#L99999')
+        self.rewrite(data, 'report', Path(data['report']['path']).read_text().replace(blob(pin, 1), fake))
+        data['findings'][0]['citation'] = fake
+        self.rejects(data, 'provenance', 'names DOES-NOT-EXIST.py, which is not in the pinned snapshot')
+
+    def test_citation_beyond_the_file_rejects(self):
+        data = research_descriptor(self.base)
+        pin = data['sources'][0]
+        far = blob(pin, 1).replace('#L1', '#L99999')
+        self.rewrite(data, 'report', Path(data['report']['path']).read_text().replace(blob(pin, 1), far))
+        data['findings'][0]['citation'] = far
+        self.rejects(data, 'provenance', 'names lines outside lib/retry.py (3 lines)')
+
+    def test_quote_from_another_file_rejects(self):
+        text = SOURCE_TEXT + '\n==> lib/other.py <==\ndef unrelated():\n'
+        pin = pin_source(self.base, 'src-1', text)
+        report = write_pin(self.base / 'report.md', research_markdown(pin).replace(
+            'Both define', 'Both define `def unrelated():` and'))
+        findings = research_findings(pin)
+        findings[0]['quote'] = 'def unrelated():'  # real snapshot text, but not at the cited lib/retry.py#L1
+        requirements = [{'id': 'R-SRC-1', 'source_ids': ['src-1']}]
+        self.rejects(descriptor('study', [pin], requirements, fingerprint(self.base), report, findings),
+                     'provenance', 'src-1-overlap quote is not in the cited lines')
+        findings[0]['quote'] = OVERLAP_QUOTE
+        self.accepts(descriptor('study', [pin], requirements, fingerprint(self.base), report, findings))
+
+    def test_line_range_with_whitespace_normalisation_accepts(self):
+        data = research_descriptor(self.base)
+        pin = data['sources'][0]
+        span = blob(pin, 1).replace('#L1', '#L1-L2')
+        quote = 'def retry(call): """Bounded retry'
+        text = Path(data['report']['path']).read_text()
+        self.rewrite(data, 'report', text.replace(f'`{OVERLAP_QUOTE}` ([source]({blob(pin, 1)}))',
+                                                  f'`{quote}` ([source]({span}))'))
+        data['findings'][0].update(quote=quote, citation=span)
+        self.accepts(data)
+
+
 def make_clone(base):
     clone = base / 'clone'
     (clone / 'pkg').mkdir(parents=True)
@@ -501,8 +598,10 @@ class SnapshotSourceTests(unittest.TestCase):
         pin = self.snap()['pin']
         base = self.base / 'report'
         report = write_pin(base / 'report.md', research_markdown(pin).replace('/lib/retry.py#', '/pkg/retry.py#'))
+        findings = [dict(f, citation=f['citation'].replace('/lib/retry.py#', '/pkg/retry.py#'))
+                    for f in research_findings(pin)]
         data = descriptor('study', [pin], [{'id': 'R-SRC-1', 'source_ids': ['src-1']}], fingerprint(base), report,
-                          research_findings(pin))
+                          findings)
         path = base / 'descriptor.json'
         path.write_text(json.dumps(data))
         code, verdict, err = run_validator(path)

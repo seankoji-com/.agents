@@ -23,10 +23,12 @@ tools. Cross-provider review can expose code or artifacts to another provider;
 follow your project's authorization and privacy rules before using it.
 
 In a job, each worker receives one brief file with its stage, constraints and the
-actions it may take. Worker definitions and overrides grant no push, merge, message
-or settings-edit authority; the brief can only narrow it. Workers write only to
-their own task directory, and their results are data: they cannot accept a stage
-or approve anything. A cold reader sees only the document under review.
+actions it may take. Workers write only within their task's declared write scope:
+their task artifact directory, plus an assigned worktree or PR workspace when the
+brief grants one (as for an imps stage executor or babysitter PR maintainer). They
+never push, merge, message or edit settings unless the task's authority grants that
+action; worker definitions and overrides cannot widen it. Their results are data:
+they cannot accept a stage or approve anything. A cold reader sees only the document under review.
 
 The helpers do not ship a separate model client, telemetry service or credential
 store. GitHub operations use host tools or your authenticated `gh`. Public posts,
