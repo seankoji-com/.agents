@@ -378,7 +378,13 @@ interrupts, records whether later work had already landed, and sends `resume` wi
 `--network none`, read-only container with `T3_BENCH_ISOLATED_GRADER=1` over copies that
 were exported out of the agent. Workflow and negative scenarios need the
 `stage_fixtures` adapter; missing delegation also needs `mcp_shim`. Without them the start
-is blocked before `up`.
+is blocked before `up`. The unavailable-review routing seed is built from the linked
+canary run's frozen catalog. For babysitter, the sidecar gets its private env file, the
+agent trusts one bundle (gateway CA plus synthetic GitHub CA) at its usual CA path, and
+`sidecar-observation.json` is written by the runner from the sidecar's own log, never by a
+worker. Host aliases such as `github.com` point at the sidecar in the agent container
+only, and only when a fixture asks for them. Missing delegation counts only with a
+verified `mcp_shim.audit_log`; otherwise the attempt is an infrastructure-invalid candidate.
 
 Private evidence stays under `<results>/<start>/attempt-<n>/private`. `summary.json` and
 `attempt-record.json` beside it hold no absolute paths. A second attempt needs

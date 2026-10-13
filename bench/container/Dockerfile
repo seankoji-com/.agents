@@ -49,7 +49,7 @@ RUN ln -s /opt/t3-runtime/t3 /usr/local/bin/t3 \
     && codex --version | grep -F "${CODEX_VERSION}" \
     && t3 --version | grep -F "${T3_VERSION}"
 
-COPY audit_models.py driver.py gateway.py github_sidecar.py host_observations.py identity_metadata.py model_policy.py smoke.py smoke_helper.py start-container.sh /opt/bench/
+COPY audit_models.py driver.py gateway.py github_sidecar.py host_observations.py identity_metadata.py mcp_shim.py model_policy.py smoke.py smoke_helper.py start-container.sh /opt/bench/
 COPY native_exec.py /opt/bench/native_exec.py
 RUN mv /usr/local/bin/claude /usr/local/bin/claude-native \
     && mv /usr/local/bin/codex /usr/local/bin/codex-native \
@@ -58,7 +58,8 @@ RUN mv /usr/local/bin/claude /usr/local/bin/claude-native \
     && ln -s /opt/bench/native_exec.py /usr/local/bin/codex
 RUN chmod 0555 /opt/bench/start-container.sh /opt/bench/driver.py \
       /opt/bench/gateway.py /opt/bench/github_sidecar.py /opt/bench/model_policy.py \
-      /opt/bench/audit_models.py /opt/bench/smoke.py /opt/bench/smoke_helper.py
+      /opt/bench/audit_models.py /opt/bench/smoke.py /opt/bench/smoke_helper.py \
+      /opt/bench/mcp_shim.py
 
 EXPOSE 3773
 USER root

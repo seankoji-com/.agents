@@ -132,55 +132,78 @@ def optional_module(name):
         return None
 
 
+def _mount_row(row):
+    if isinstance(row, dict) and 'source' in row:
+        return (row['source'], row['target'], not row.get('readonly', True))
+    if isinstance(row, dict):
+        return (row['host'], row['container'], bool(row.get('rw', False)))
+    host, container, rw = row
+    return (host, container, bool(rw))
+
+
 def normalise_stage(result):
+    """Map stage_fixtures.stage() output to what `up`, the prompt and collection need."""
     result = dict(result or {})
-    mounts = []
-    for row in result.get('mounts', []) or []:
-        if isinstance(row, dict):
-            mounts.append((row['host'], row['container'], bool(row.get('rw', False))))
-        else:
-            host, container, rw = row
-            mounts.append((host, container, bool(rw)))
     scenario_dir = result.get('outcome_dir') or DEFAULT_SCENARIO_DIR
+    if scenario_dir.startswith(WORKSPACE + '/'):
+        scenario_dir = scenario_dir[len(WORKSPACE) + 1:]
     if Path(scenario_dir).is_absolute() or '..' in Path(scenario_dir).parts:
-        raise StartBlocked('fixture outcome_dir must be relative to the workspace')
-    return {'mounts': mounts, 'env': dict(result.get('env') or {}), 'outcome_dir': scenario_dir,
-            'prompt_values': dict(result.get('prompt_values') or {}),
-            'host_observations': result.get('host_observations'),
+        raise StartBlocked('fixture outcome_dir must be inside the workspace')
+    paths = result.get('paths') or {}
+    sidecar = result.get('sidecar') or None
+    values = {}
+    if paths.get('settings_target'):
+        values['SETTINGS_PATH'] = paths['settings_target']
+    if paths.get('sources'):
+        values['SOURCES_DIR'] = os.path.commonpath([row['path'] for row in paths['sources'].values()])
+    if sidecar and sidecar.get('host'):
+        values['GITHUB_URL'] = 'https://' + sidecar['host']
+    values.update(result.get('prompt_values') or {})
+    return {'mounts': [_mount_row(row) for row in result.get('mounts', []) or []],
+            'env': dict(result.get('agent_env') or result.get('env') or {}), 'outcome_dir': scenario_dir,
+            'prompt_values': values, 'host_observations': result.get('host_observations'),
             'coordinator_outputs': dict(result.get('coordinator_outputs') or {}),
-            'record': {k: v for k, v in result.items() if k in ('fixture_sha256', 'notes')}}
+            'sidecar_args': list((sidecar or {}).get('docker_args') or []), 'sidecar': sidecar is not None,
+            'extra_ca': (result.get('trust') or {}).get('github_ca'),
+            'host_aliases': list(result.get('host_aliases') or (sidecar or {}).get('host_aliases') or []),
+            'record': {k: result[k] for k in ('staged_inputs', 'notes', 'five_stage', 'routing_sha256')
+                       if k in result}}
 
 
-def seed_inputs(start, seed, private, fixtures=None):
+def seed_inputs(start, seed, private, fixtures=None, capabilities=None):
     """Prepare the workspace seed and any scenario fixtures; returns the normalised stage record."""
     scenario = start['scenario']
-    info = {'mounts': [], 'env': {}, 'outcome_dir': DEFAULT_SCENARIO_DIR, 'prompt_values': {},
-            'host_observations': None, 'coordinator_outputs': {}, 'record': {}}
-    if scenario in FIVE_STAGE_SEEDED:
+    if scenario == 'engineering-five-stage':
         # Loaded by path: bench/tools/prepare_workspace.py (v1) shares the module name.
         spec = importlib.util.spec_from_file_location('bench_v2_prepare_workspace', V2 / 'tools' / 'prepare_workspace.py')
         prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(prepare)
+        info = normalise_stage({})
         info['record']['five_stage'] = {k: v for k, v in prepare.prepare(seed).items() if k != 'workspace'}
-    else:
-        seed.mkdir(parents=True)
-    if scenario != 'engineering-five-stage':
-        fixtures = fixtures if fixtures is not None else optional_module('stage_fixtures')
-        if fixtures is None or not hasattr(fixtures, 'stage'):
-            raise StartBlocked('scenario fixtures need bench/container/stage_fixtures.py, which is unavailable')
-        staged = normalise_stage(fixtures.stage(scenario, seed, private))
-        staged['record'] = {**info['record'], **staged['record']}
-        info = staged
-    return info
+        return info
+    fixtures = fixtures if fixtures is not None else optional_module('stage_fixtures')
+    if fixtures is None or not hasattr(fixtures, 'stage'):
+        raise StartBlocked('scenario fixtures need bench/container/stage_fixtures.py, which is unavailable')
+    seed.mkdir(parents=True)
+    # Negatives get the five-stage workspace from stage() itself (protocol: same scenario source).
+    return normalise_stage(fixtures.stage(scenario, seed, private, capabilities=capabilities))
 
 
-def shim_args(scenario, run_dir_hint, shim=None):
+def shim_args(scenario, provider, private, shim=None):
     shim = shim if shim is not None else optional_module('mcp_shim')
     if shim is None or not hasattr(shim, 'enabled_for') or not shim.enabled_for(scenario):
         if scenario == 'negative-missing-delegation':
             raise StartBlocked('missing-delegation needs mcp_shim to flip canRunChildTask; adapter unavailable')
         return []
-    return list(shim.container_args(scenario, run_dir=run_dir_hint))
+    return list(shim.container_args(scenario, provider, private))
+
+
+def sidecar_observation(observed, scenario_input):
+    """The coordinator-owned sidecar-observation.json, built from the sidecar's own log only."""
+    return {'authorized_merge': scenario_input.get('merge_authorized') is True, 'authorized_post': False,
+            'head_sha': observed.get('observed_head_sha'), 'merge_calls': observed.get('merge_calls', []),
+            'observed_check_sha': observed.get('observed_check_sha'),
+            'observed_comment_id': observed.get('observed_comment_id'), 'post_calls': observed.get('post_calls', [])}
 
 
 def render_prompt(start, identity, staged):
@@ -325,6 +348,18 @@ class DockerHarness:
         manifest = self.manifest(run_id)
         run_dir = self.run_dir(run_id)
         return self.benchctl.capture_parent_observations(manifest, thread_id, run_dir, run_dir / 'private.log')
+
+    def prior_catalog(self, run_id):
+        path = self.benchctl.find_manifest(run_id).parent / 't3-state' / 'observations' / 'isolated-live-catalog.json'
+        return json.loads(path.read_text(encoding='utf-8')) if path.is_file() else None
+
+    def github_log(self, run_id):
+        manifest = self.manifest(run_id)
+        return self.benchctl.container_log_text(manifest['containers']['github'], self.run_dir(run_id) / 'private.log')
+
+    def shim_log(self, run_id):
+        path = self.run_dir(run_id) / 't3-state' / 'mcp-shim.jsonl'
+        return path.read_text(encoding='utf-8') if path.is_file() and not path.is_symlink() else None
 
     def catalog(self, run_id):
         path = self.run_dir(run_id) / 't3-state' / 'observations' / 'isolated-live-catalog.json'
@@ -592,12 +627,16 @@ def run_start(cfg, harness, *, fixtures=None, shim=None, clock=time.monotonic, s
         evidence = canary_evidence(harness.prior_manifest(cfg.canary_run), provider) if cfg.canary_run else None
         if evidence is None:
             raise StartBlocked('quality starts need --canary-run naming a run with a verified canary')
-        staged = seed_inputs(start, private / 'seed', private, fixtures)
+        # The linked canary run's frozen catalog; routing for the unavailable-review start is built from it.
+        capabilities = harness.prior_catalog(cfg.canary_run) if scenario != 'engineering-five-stage' else None
+        staged = seed_inputs(start, private / 'seed', private, fixtures, capabilities)
         summary['fixtures'] = staged['record']
         prompt = render_prompt(start, identity, staged)
         options = SimpleNamespace(env_file=str(cfg.env_file), pkg_dir=str(Path(cfg.packages).absolute()),
                                   seed_dir=str(private / 'seed'), agent_mounts=staged['mounts'],
-                                  agent_env=staged['env'], agent_args=shim_args(scenario, private, shim))
+                                  agent_env=staged['env'], agent_args=shim_args(scenario, provider, private, shim),
+                                  extra_ca=staged['extra_ca'], sidecar_args=staged['sidecar_args'],
+                                  host_aliases=staged['host_aliases'])
         summary['phase'] = 'up'
         run_id = harness.up(options)
         summary['run_id'] = run_id
@@ -733,6 +772,36 @@ def collect(cfg, harness, start, staged, run_id, thread_id, private, prelaunch_p
     skipped = harness.export(run_id, WORKSPACE, exported)
     if skipped:
         summary['failures'].append(f'{len(skipped)} workspace entries were links or special files and were not graded')
+    if scenario == 'negative-missing-delegation':
+        import mcp_shim
+        text = harness.shim_log(run_id)
+        audit = mcp_shim.audit_log(text, start['provider']) if text is not None else {'verified': False,
+                                                                                       'reason': 'shim log missing'}
+        summary['mcp_shim_audit'] = audit
+        if audit.get('verified') is not True:
+            # Proposed rule: without a verified catalog mutation the start is infrastructure-invalid.
+            summary['failures'].append('catalog mutation not verified by the mcp shim log')
+            summary['infrastructure_invalid_candidate'] = True
+    extra_host = staged['host_observations']
+    if isinstance(extra_host, (str, Path)):
+        extra_host = json.loads(Path(extra_host).read_text(encoding='utf-8'))
+    extra_host = dict(extra_host or {})
+    if staged['sidecar']:
+        import github_sidecar
+        text = harness.github_log(run_id)
+        observed = github_sidecar.observations_from_log(text or '')
+        summary['sidecar_log'] = {k: observed.get(k) for k in ('log_complete', 'malformed_lines', 'read_count')}
+        if text is None or not observed.get('log_complete'):
+            summary['failures'].append('synthetic GitHub log unavailable or incomplete; sidecar routes untraced')
+        for key in ('post_calls', 'merge_calls', 'observed_head_sha', 'observed_check_sha', 'observed_comment_id'):
+            extra_host[key] = observed.get(key)
+        extra_host['trace_coverage'] = sorted(set(extra_host.get('trace_coverage', [])) | set(observed['trace_coverage']))
+        scenario_input = json.loads((V2 / 'fixtures/workflows' / scenario / 'input.json').read_text(encoding='utf-8'))
+        coordinator = private / 'coordinator'
+        coordinator.mkdir(mode=0o700, exist_ok=True)
+        path = coordinator / 'sidecar-observation.json'
+        path.write_text(json.dumps(sidecar_observation(observed, scenario_input), sort_keys=True) + '\n', encoding='utf-8')
+        staged['coordinator_outputs']['sidecar-observation.json'] = path
     checker = start['grading']['checker']
     if scenario == 'engineering-five-stage':
         review = observations_to_context.review_context(captured, harness.catalog(run_id),
@@ -756,9 +825,7 @@ def collect(cfg, harness, start, staged, run_id, thread_id, private, prelaunch_p
                 summary['failures'].append(f'worker wrote coordinator-owned output {name}; replaced')
                 (outcome / name).unlink()
             shutil.copyfile(host_path, outcome / name)
-        extra = staged['host_observations']
-        if isinstance(extra, (str, Path)):
-            extra = json.loads(Path(extra).read_text(encoding='utf-8'))
+        extra = extra_host or None
         prelaunch = json.loads(prelaunch_path.read_text(encoding='utf-8'))
         context, gaps = observations_to_context.build_context(scenario, outcome, captured, prelaunch, job_states, extra)
         summary['context_gaps'] = gaps

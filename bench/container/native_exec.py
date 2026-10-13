@@ -105,6 +105,10 @@ def main():
         fd = os.open('/bench/t3/native-launches.jsonl', os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, 'w') as stream:
             stream.write(json.dumps(row, sort_keys=True) + '\n')
+        import mcp_shim  # Missing-delegation starts only: a mounted shim config routes T3's MCP endpoint.
+        config = mcp_shim.load_config()
+        if config is not None:
+            raise SystemExit(mcp_shim.run(program, sys.argv[1:], config, drop=DROP, real=real))
         os.execv(DROP[0], [*DROP, real, *sys.argv[1:]])
     if os.geteuid() != WORKER_UID:
         raise SystemExit('native launcher has an unexpected UID')

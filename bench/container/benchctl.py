@@ -33,7 +33,8 @@ CLAUDE_VERSION = STAGE_MAP['provider_programs']['claude_code']
 CODEX_VERSION = STAGE_MAP['provider_programs']['codex_cli']
 RUNTIME = Path.home() / '.t3' / 'runtime' / 'versions' / T3_VERSION
 SOURCE_FILES = ('audit_models.py', 'driver.py', 'gateway.py', 'github_sidecar.py', 'smoke.py',
-                'smoke_helper.py', 'start-container.sh', 'host_observations.py', 'identity_metadata.py', 'native_exec.py', 'Dockerfile')
+                'smoke_helper.py', 'start-container.sh', 'host_observations.py', 'identity_metadata.py', 'native_exec.py',
+                'mcp_shim.py', 'Dockerfile')
 NODE_EXECUTABLE = Path(shutil.which('node') or '').resolve()
 
 
@@ -687,6 +688,10 @@ SAFE_MOUNT_PATH = re.compile(r'/[A-Za-z0-9._/@+-]+')
 ENV_KEY = re.compile(r'[A-Z_][A-Z0-9_]*')
 PROTECTED_ENV = re.compile(r'(?:ANTHROPIC|OPENAI|GH|GITHUB|BENCH|NODE|SSL|CODEX|CLAUDE|T3CODE)_.*|.*(?:KEY|TOKEN|SECRET).*'
                            r'|HOME|PATH|XDG_.*|MAX_THINKING_TOKENS')
+SYNTHETIC_GITHUB_ENV = {'GH_HOST': r'[a-z0-9-]+\.bench\.test', 'GH_ENTERPRISE_TOKEN': 'bench-synthetic-token',
+                        'GITHUB_ENTERPRISE_TOKEN': 'bench-synthetic-token', 'GH_PROMPT_DISABLED': '1',
+                        'GH_NO_UPDATE_NOTIFIER': '1'}
+HOSTNAME = re.compile(r'[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?')
 REFUSED_AGENT_ARGS = ('--privileged', '--network', '--net', '--env-file', '--cap-add', '--pid', '--ipc',
                       '--userns', '--security-opt', '--device', '--volumes-from', '--mount', '--name',
                       '--entrypoint', '--user', '-u', '--add-host', '--label', '-l')
@@ -755,14 +760,44 @@ def start_options(args):
         raise RuntimeError('extra agent mounts repeat a destination')
     for key, value in env.items():
         allowed_package = key in ('T3_PLUGINS_PREFIX', 'T3_PLUGINS_AGENTS_ROOT')
+        synthetic = SYNTHETIC_GITHUB_ENV.get(key)
+        if synthetic is not None:
+            # Synthetic GitHub client settings only: the fixed fake token and a *.bench.test host.
+            if not re.fullmatch(synthetic, value if isinstance(value, str) else ''):
+                raise RuntimeError('synthetic GitHub environment must carry synthetic values')
+            continue
         if (not ENV_KEY.fullmatch(key) or (PROTECTED_ENV.fullmatch(key) and not allowed_package)
                 or not isinstance(value, str) or '\n' in value or '\0' in value):
             raise RuntimeError('extra agent environment is outside the start policy')
     seed = Path(get('seed_dir')).absolute() if get('seed_dir') else None
     if seed is not None and (not seed.is_dir() or seed.is_symlink()):
         raise RuntimeError('workspace seed must be a real directory')
+    extra_ca = Path(get('extra_ca')).absolute() if get('extra_ca') else None
+    if extra_ca is not None and (not extra_ca.is_file() or extra_ca.is_symlink()):
+        raise RuntimeError('extra agent CA must be a regular file')
+    sidecar_args = list(get('sidecar_args') or ())
+    if len(sidecar_args) % 2 or any(flag != '--env-file' for flag in sidecar_args[::2]):
+        raise RuntimeError('synthetic GitHub sidecar accepts only --env-file arguments')
+    for path in map(Path, sidecar_args[1::2]):
+        if (not path.is_file() or path.is_symlink() or stat.S_IMODE(path.stat().st_mode) != 0o600
+                or path.stat().st_uid != os.getuid()):
+            raise RuntimeError('sidecar env file must be a private regular file')
+    aliases = list(get('host_aliases') or ())
+    if any(not isinstance(name, str) or not HOSTNAME.fullmatch(name) for name in aliases):
+        raise RuntimeError('agent host aliases must be plain host names')
     return {'env_file': env_file, 'mounts': checked, 'env': env, 'args': extra, 'seed': seed,
-            'package': package_identity}
+            'package': package_identity, 'extra_ca': extra_ca, 'sidecar_args': sidecar_args,
+            'host_aliases': aliases}
+
+
+def sidecar_address(name, network):
+    """The synthetic GitHub sidecar's address on the private network, for agent-only host aliases."""
+    result = subprocess.run(['docker', 'inspect', '--format', '{{json .NetworkSettings.Networks}}', name],
+                            capture_output=True, text=True, check=True, timeout=20)
+    address = (json.loads(result.stdout).get(network) or {}).get('IPAddress')
+    if not isinstance(address, str) or not re.fullmatch(r'\d{1,3}(?:\.\d{1,3}){3}', address):
+        raise RuntimeError('synthetic GitHub sidecar address is unavailable')
+    return address
 
 
 def seed_workspace(seed, workspace):
@@ -795,6 +830,11 @@ def setup(args):
     config = write_policy(run_dir)
     task_input = make_input(run_dir)
     ca_cert, cert, key = certificate(run_dir, logs)
+    agent_ca = ca_cert
+    if options['extra_ca']:
+        # One bundle (gateway CA plus the synthetic GitHub CA) at the path the agent already trusts.
+        import github_sidecar
+        agent_ca = github_sidecar.trust_bundle([ca_cert, options['extra_ca']], ca_cert.parent / 'agent-trust-bundle.pem')
     workspace = run_dir / 'workspace'
     raw = run_dir / 'raw'
     state = run_dir / 't3-state'
@@ -833,12 +873,15 @@ def setup(args):
         for name in (*SOURCE_FILES, 'model_policy.py')}
     if env_file != SECRET_ENV:
         manifest['env_file'] = str(env_file)  # private manifest only; never read here
-    if options['seed'] or options['mounts'] or options['env'] or options['args']:
+    if any(options[key] for key in ('seed', 'mounts', 'env', 'args', 'extra_ca', 'sidecar_args', 'host_aliases')):
         manifest['start_inputs'] = {
             'seed_tree_sha256': seed_sha256, 'package': options['package'],
             'agent_mounts': [{'destination': c, 'rw': rw} for _h, c, rw in options['mounts']],
             'agent_env_keys': sorted(options['env']),
-            'agent_args_sha256': hashlib.sha256(json.dumps(options['args']).encode()).hexdigest()}
+            'agent_args_sha256': hashlib.sha256(json.dumps(options['args']).encode()).hexdigest(),
+            'agent_trust_bundle': options['extra_ca'] is not None,
+            'sidecar_args_sha256': hashlib.sha256(json.dumps(options['sidecar_args']).encode()).hexdigest(),
+            'agent_host_aliases': options['host_aliases']}
     manifest_path = run_dir / 'resource-manifest.json'
     write_manifest(manifest_path, manifest)
     print(json.dumps({'status': 'preparing', 'run_id': run_id}), flush=True)
@@ -868,13 +911,18 @@ def setup(args):
              private_net, names['gateway']], logs)
         create_owned(manifest, locate, 'container', 'container_github', names['github'],
                      ['docker', 'run', '-d', '--name', names['github'], '--network', private_net,
-                      *labels, '--network-alias', 'github.bench.test', '--entrypoint', 'python3',
-                      image, '/opt/bench/github_sidecar.py'], logs)
+                      *labels, '--network-alias', 'github.bench.test', *options['sidecar_args'],
+                      '--entrypoint', 'python3', image, '/opt/bench/github_sidecar.py'], logs)
+        if options['host_aliases']:
+            # Agent only: the gateway and sidecar keep their real resolution.
+            address = sidecar_address(names['github'], private_net)
+            options['args'] = [*options['args'], *(arg for name in options['host_aliases']
+                                                   for arg in ('--add-host', f'{name}:{address}'))]
         create_owned(manifest, locate, 'container', 'container_agent', names['agent'],
                      agent_command(names['agent'], private_net, task_input, workspace, raw,
-                                   state, config.parent, ca_cert, image, options), logs)
+                                   state, config.parent, agent_ca, image, options), logs)
         manifest['isolation'] = verify_isolation(
-            names, private_net, egress_net, config, ca_cert, cert, key, task_input,
+            names, private_net, egress_net, config, agent_ca, cert, key, task_input,
             workspace, raw, state, logs, options['mounts'])
         manifest['status'] = 'running'
         write_manifest(manifest_path, manifest)

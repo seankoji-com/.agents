@@ -502,6 +502,18 @@ class FakeHarness:
                                    'codex': {'response_model_id': 'gpt-0-luna'},
                                    'claudeAgent': {'response_model_id': 'claude-haiku-0'}}}}
 
+    sidecar_log = ''
+    shim_text = None
+
+    def prior_catalog(self, run_id):
+        return CATALOG
+
+    def github_log(self, run_id):
+        return self.sidecar_log
+
+    def shim_log(self, run_id):
+        return self.shim_text
+
     def prior_manifest(self, run_id):
         prior = copy.deepcopy(self.manifest_value)
         prior['run_id'] = run_id
@@ -510,6 +522,7 @@ class FakeHarness:
 
     def up(self, options):
         self.calls.append(('up', options))
+        self.seed = Path(options.seed_dir)
         return 'run-new'
 
     def step(self, command, run_id):
@@ -542,6 +555,8 @@ class FakeHarness:
     def export(self, run_id, path, destination):
         self.calls.append(('export', path))
         destination.mkdir(parents=True, exist_ok=True)
+        if path == startctl.WORKSPACE:
+            shutil.copytree(self.seed, destination, dirs_exist_ok=True)
         if path == startctl.TRANSCRIPTS['claude-jsonl']:
             shutil.copyfile(V2 / 'tools/fixtures/parent.jsonl', destination / 'session.jsonl')
         return []
@@ -675,10 +690,12 @@ class StartRunnerTest(unittest.TestCase):
             rebuilt = Path(temp) / 'arm'
             fake_arm(rebuilt, 'rebuilt')
             try:
-                for scenario in ('workflow-ape', 'negative-missing-delegation'):
+                absent = SimpleNamespace()  # an adapter without its entry point
+                staging = SimpleNamespace(stage=lambda *a, **k: {})
+                for scenario, fixtures in (('workflow-ape', absent), ('negative-missing-delegation', staging)):
                     harness = FakeHarness(self.root)
                     summary = startctl.run_start(self.cfg(scenario=scenario, arm='rebuilt', repetition=1,
-                                                          packages=rebuilt), harness, fixtures=None, shim=None)
+                                                          packages=rebuilt), harness, fixtures=fixtures, shim=absent)
                     self.assertEqual(summary['status'], 'blocked')
                     self.assertFalse(any(c[0] == 'up' for c in harness.calls), scenario)
                     if scenario == 'workflow-ape':
@@ -723,7 +740,7 @@ class StartRunnerTest(unittest.TestCase):
         identity = {'plugins': {name: {'entry': f'/pkg/{name}/1/entry.md'} for name, _op in startctl.PLUGIN_OF.values()}}
         plan = startctl.load_plan()
         for start in plan['starts']:
-            values = {'SETTINGS_PATH': '/opt/bench-home/.codex/config.toml'}
+            values = {'SETTINGS_PATH': '/bench/ws/agent-tuneup/target/settings.json', 'SOURCES_DIR': '/bench/sources'}
             staged = startctl.normalise_stage({'prompt_values': values})
             text = startctl.render_prompt(start, identity, staged)
             plugin, operation = startctl.PLUGIN_OF[start['scenario']]
@@ -777,6 +794,213 @@ class StartRunnerTest(unittest.TestCase):
             source = (CONTAINER / name).read_text(encoding='utf-8')
             self.assertNotIn('env_file).read', source)
             self.assertNotIn('bench.env', source)
+
+
+SIDECAR_LOG = '\n'.join(json.dumps(event) for event in (
+    {'event': 'ready'},
+    {'event': 'read', 'observed': {'head_sha': ['head-abc123'], 'check_sha': ['head-abc123'],
+                                   'comment_id': ['thread-1']}}))
+
+
+class FixtureWiringTest(unittest.TestCase):
+    """stage_fixtures, github_sidecar and mcp_shim reach `up`, the agent and the evidence."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+
+    def tearDown(self):
+        writable(self.root)
+        self.temp.cleanup()
+
+    def stage(self, scenario, **kwargs):
+        import stage_fixtures
+        seed = self.root / scenario / 'seed'
+        seed.mkdir(parents=True)
+        return stage_fixtures.stage(scenario, seed, self.root / scenario, **kwargs)
+
+    def test_stage_outputs_map_to_mounts_env_prompt_values_and_trust(self):
+        ape = startctl.normalise_stage(self.stage('workflow-ape'))
+        self.assertEqual(ape['outcome_dir'], 'ape')
+        self.assertEqual(ape['prompt_values']['SOURCES_DIR'], '/bench/sources')
+        self.assertEqual([(c, rw) for _h, c, rw in ape['mounts']], [('/bench/sources', False)])
+        self.assertEqual(ape['env']['GIT_CONFIG_KEY_0'], 'safe.directory')
+        tuneup = startctl.normalise_stage(self.stage('workflow-agent-tuneup'))
+        self.assertEqual(tuneup['prompt_values']['SETTINGS_PATH'], '/bench/ws/agent-tuneup/target/settings.json')
+        baby = startctl.normalise_stage(self.stage('workflow-babysitter'))
+        self.assertEqual(baby['prompt_values']['GITHUB_URL'], 'https://github.bench.test')
+        self.assertEqual(baby['sidecar_args'][0], '--env-file')
+        self.assertTrue(Path(baby['extra_ca']).is_file())
+        self.assertEqual(baby['env']['GH_HOST'], 'github.bench.test')
+        # benchctl accepts exactly these extras.
+        options = benchctl.start_options(SimpleNamespace(agent_mounts=ape['mounts'], agent_env=baby['env'],
+                                                         extra_ca=baby['extra_ca'], sidecar_args=baby['sidecar_args'],
+                                                         host_aliases=['github.com', 'api.github.com']))
+        self.assertEqual(options['sidecar_args'], baby['sidecar_args'])
+        for bad in ({'sidecar_args': ['-v', '/x:/y']}, {'host_aliases': ['github.com:1.2.3.4']},
+                    {'agent_env': {'GH_ENTERPRISE_TOKEN': 'ghp_real'}}, {'agent_env': {'GH_HOST': 'github.com'}},
+                    {'extra_ca': str(self.root / 'missing.pem')}):
+            with self.subTest(bad=bad), self.assertRaises(RuntimeError):
+                benchctl.start_options(SimpleNamespace(**bad))
+
+    def test_review_routing_uses_the_linked_catalog(self):
+        staged = startctl.normalise_stage(self.stage('negative-unavailable-required-review', capabilities=CATALOG))
+        self.assertEqual(staged['outcome_dir'], 'negative-unavailable-required-review')
+        self.assertIn('routing_sha256', staged['record'])
+        self.assertTrue((self.root / 'negative-unavailable-required-review/seed/.t3-plugins/routing.json').is_file())
+
+    def test_setup_mounts_the_trust_bundle_and_aliases_only_the_agent(self):
+        temp = self.root
+        env_file = temp / 'private.env'
+        env_file.write_text('X=1\n')
+        env_file.chmod(0o600)
+        sidecar_env = temp / 'sidecar.env'
+        sidecar_env.write_text('BENCH_GITHUB_SCENARIO_B64=e30=\n')
+        sidecar_env.chmod(0o600)
+        github_ca = temp / 'github-ca.pem'
+        github_ca.write_text('GITHUB CA\n')
+        created = {}
+
+        def create_owned(manifest, _locate, kind, role, name, argv, _logs, **_k):
+            created[role] = argv
+            manifest['created_resources'][role] = {'id': name + '-id'}
+
+        def make_context(run_dir, _log):
+            (run_dir / 'build-context').mkdir()
+            for name in (*benchctl.SOURCE_FILES, 'model_policy.py'):
+                (run_dir / 'build-context' / name).write_text(name)
+            return run_dir / 'build-context'
+
+        def certificate(run_dir, _log):
+            (run_dir / 'tls').mkdir()
+            paths = tuple(run_dir / 'tls' / n for n in ('ca.crt', 'gateway.crt', 'gateway.key'))
+            for path in paths:
+                path.write_text('GATEWAY CA\n')
+            return paths
+        node, runtime = temp / 'node', temp / 'runtime'
+        node.write_bytes(b'n')
+        runtime.mkdir()
+        (runtime / 't3').write_bytes(b't')
+        seen = {}
+        with patch.object(benchctl, 'RESULTS', temp / 'results'), patch.object(benchctl, 'NODE_EXECUTABLE', node), \
+                patch.object(benchctl, 'RUNTIME', runtime), \
+                patch.object(benchctl, 'docker_ok', return_value={'rootless': True}), \
+                patch.object(benchctl, 'make_context', side_effect=make_context), \
+                patch.object(benchctl, 'certificate', side_effect=certificate), \
+                patch.object(benchctl, 'image_provenance', return_value={}), \
+                patch.object(benchctl, 'create_owned', side_effect=create_owned), \
+                patch.object(benchctl, 'run', return_value=0), \
+                patch.object(benchctl, 'sidecar_address', return_value='172.30.0.5'), \
+                patch.object(benchctl, 'verify_isolation',
+                             side_effect=lambda *a: seen.setdefault('agent_ca', a[4]) and {'mounts_verified': True}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            benchctl.setup(SimpleNamespace(env_file=str(env_file), extra_ca=str(github_ca),
+                                           sidecar_args=['--env-file', str(sidecar_env)],
+                                           host_aliases=['github.com', 'api.github.com']))
+        bundle = seen['agent_ca']
+        self.assertEqual(bundle.read_text(), 'GATEWAY CA\nGITHUB CA\n')
+        agent = created['container_agent']
+        self.assertIn(f'{bundle}:/run/secrets/bench-gateway-ca.pem:ro', agent)
+        self.assertIn('github.com:172.30.0.5', agent)
+        self.assertIn('api.github.com:172.30.0.5', agent)
+        github = created['container_github']
+        self.assertEqual(github[github.index('--env-file') + 1], str(sidecar_env))
+        self.assertNotIn('172.30.0.5', ' '.join(created['container_github'] + created['container_gateway']))
+        self.assertNotIn(str(sidecar_env), ' '.join(agent))
+
+    def test_mcp_shim_is_in_the_image_and_hooked_into_the_root_launcher(self):
+        self.assertIn('mcp_shim.py', benchctl.SOURCE_FILES)
+        copy_line = next(line for line in (CONTAINER / 'Dockerfile').read_text().splitlines()
+                         if line.startswith('COPY ') and line.endswith('/opt/bench/'))
+        self.assertIn('mcp_shim.py', copy_line.split())
+        import mcp_shim
+        import native_exec
+        launches = self.root / 'launches.jsonl'
+        real_open = os.open
+
+        def open_redirect(path, flags, mode=0o777):
+            return real_open(launches, flags, mode)
+
+        class Exec(Exception):
+            pass
+        for config, expected in (({'scenario': 'negative-missing-delegation'}, 'shim'), (None, 'exec')):
+            with self.subTest(expected=expected), patch.object(sys, 'argv', ['claude', '--print']), \
+                    patch.object(native_exec.os, 'geteuid', return_value=0), \
+                    patch.object(native_exec.os, 'open', side_effect=open_redirect), \
+                    patch.object(native_exec.os, 'execv', side_effect=Exec), \
+                    patch.object(mcp_shim, 'load_config', return_value=config), \
+                    patch.object(mcp_shim, 'run', return_value=7) as run:
+                if expected == 'shim':
+                    with self.assertRaises(SystemExit) as stopped:
+                        native_exec.main()
+                    self.assertEqual(stopped.exception.code, 7)
+                    run.assert_called_once_with('claude', ['--print'], config, drop=native_exec.DROP,
+                                                real='/usr/local/bin/claude-native')
+                else:
+                    with self.assertRaises(Exec):
+                        native_exec.main()
+                    run.assert_not_called()
+        self.assertEqual(len(launches.read_text().splitlines()), 2)  # the launch record precedes the hook
+
+    def test_shim_args_name_the_parent_provider_and_results(self):
+        import mcp_shim
+        args = startctl.shim_args('negative-missing-delegation', 'codex', self.root)
+        self.assertEqual(args[0], '-v')
+        self.assertTrue(args[1].endswith(':' + mcp_shim.CONFIG_PATH + ':ro'))
+        self.assertEqual(json.loads(Path(args[1].split(':')[0]).read_text())['provider_instance_id'], 'codex')
+        self.assertEqual(startctl.shim_args('workflow-ape', 'codex', self.root), [])
+        options = benchctl.start_options(SimpleNamespace(agent_args=args))
+        self.assertIn(mcp_shim.CONFIG_PATH, [c for _h, c, _rw in options['mounts']])
+
+
+class FixtureStartTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.packages = self.root / 'arm'
+        fake_arm(self.packages, 'rebuilt')
+        self.env_file = self.root / 'bench.env'
+        self.env_file.write_text('X=1\n')
+        self.env_file.chmod(0o600)
+
+    def tearDown(self):
+        writable(self.root)
+        self.temp.cleanup()
+
+    def cfg(self, scenario):
+        return SimpleNamespace(plan=startctl.PLAN, scenario=scenario, arm='rebuilt', provider='codex', repetition=1,
+                               env_file=self.env_file, results=self.root / 'results', packages=self.packages,
+                               canary_run='run-canary', deadline_seconds=600, retry_reason=None)
+
+    def test_babysitter_start_turns_the_sidecar_log_into_coordinator_evidence(self):
+        harness = FakeHarness(self.root)
+        harness.sidecar_log = SIDECAR_LOG
+        summary = startctl.run_start(self.cfg('workflow-babysitter'), harness, clock=Clock(), sleep=lambda _s: None)
+        self.assertTrue(summary['sidecar_log']['log_complete'], summary)
+        up = harness.calls[0][1]
+        self.assertEqual(up.sidecar_args[0], '--env-file')
+        self.assertTrue(up.extra_ca)
+        self.assertIn('https://github.bench.test', harness.inputs['start-prompt.md'])
+        private = self.root / 'results' / 'babysitter-codex' / 'attempt-1' / 'private'
+        observed = json.loads((private / 'grade/outcome/sidecar-observation.json').read_text())
+        self.assertEqual(observed, {'authorized_merge': False, 'authorized_post': False, 'head_sha': 'head-abc123',
+                                    'merge_calls': [], 'observed_check_sha': 'head-abc123',
+                                    'observed_comment_id': 'thread-1', 'post_calls': []})
+        context = json.loads((private / 'grade/ctx/context.json').read_text())
+        self.assertIn('sidecar_post_calls', context['host_observations']['trace_coverage'])
+        self.assertEqual(context['observed_ids'], {'head_sha': 'head-abc123'})
+        grade = next(c[1] for c in harness.calls if c[0] == 'grade')
+        self.assertEqual(grade[:3], ('/opt/grader/v2/checks/workflow_contract.py', 'workflow-babysitter', '/grade/outcome'))
+
+    def test_missing_delegation_needs_a_verified_shim_log(self):
+        harness = FakeHarness(self.root)
+        summary = startctl.run_start(self.cfg('negative-missing-delegation'), harness, clock=Clock(),
+                                     sleep=lambda _s: None)
+        up = harness.calls[0][1]
+        self.assertTrue(any(arg.endswith('/run/bench-shim/mcp-shim.json:ro') for arg in up.agent_args))
+        self.assertFalse(summary['mcp_shim_audit']['verified'])
+        self.assertTrue(summary['infrastructure_invalid_candidate'])
+        self.assertEqual(summary['status'], 'failed')
 
 
 if __name__ == '__main__':
