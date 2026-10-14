@@ -158,8 +158,10 @@ class SendBoundaryTest(unittest.TestCase):
                   for p in [*SHARED.rglob('*.md'), *(ROOT / 'plugins').rglob('*.md')]
                   if 't3_thread_send' in p.read_text()}
         self.assertEqual(naming, allowed)
-        self.assertIn('never `childThreadId` continuation, `t3_thread_send`',
-                      flat((ROOT / 'plugins/ralph/playbooks/loop.md').read_text()))
+        # Ralph's only send is the helper's queued delta follow-up to an earlier review's thread.
+        loop = flat((ROOT / 'plugins/ralph/playbooks/loop.md').read_text())
+        self.assertIn('`mode: queue` to the `childThreadId` of the review that rejected', loop)
+        self.assertIn('never steer, restart or send to any other thread', loop)
         # The new discovery tools add no send path: a sibling they find stays untouched.
         self.assertIn('Never send to, steer, interrupt, cancel or adopt a thread this run does not own',
                       bullet((SHARED / 't3-runtime.md').read_text(), 'Sibling-work check:'))

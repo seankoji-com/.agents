@@ -1,7 +1,8 @@
 # Ralph for T3 Code
 Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
-Implement, evaluate, and retry in fresh T3 child tasks. Read
+Implement, evaluate, and retry in T3 child tasks. Implementations and full reviews
+are fresh; delta re-reviews may continue the rejecting reviewer's thread. Read
 `PKG/shared/t3-runtime.md` and `PKG/shared/delegation.md` once, then
 `PKG/playbooks/loop.md`. Ralph requires a verified different evaluator lineage;
 the shared contract's same-lineage fallback does not apply.
@@ -37,8 +38,8 @@ goal's approved material; ask if the repository's private-data boundary is uncle
 OpenCode tasks require explicit Full Access. If the parent is narrower, explain
 the requirement before starting; never silently broaden the parent.
 
-Finish only when the evaluator reports the goal achieved with an empty feedback
-list, the parent confirms the evidence is current, and the authorized PR outcome
+Finish only when a full-scope evaluation reports the goal achieved with an empty
+feedback list, the parent confirms the evidence is current, and the authorized PR outcome
 is observed. Every feedback item causes another implementation attempt, regardless
 of severity or a simultaneous success claim. A task's `completed` status alone is
 never a success verdict. Report exhausted attempts, unavailable evaluation, denied

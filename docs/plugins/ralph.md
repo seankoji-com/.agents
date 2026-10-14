@@ -56,13 +56,31 @@ asks you to switch the parent to Full Access.
 The default limit is five implementation attempts, including the first. Use
 `--max-attempts N` to change it. The evaluator reports whether the observable goal
 was achieved, every feedback item, and the evidence it inspected. Success requires
-both an achieved goal and no feedback. Even a minor suggestion triggers another
+both an achieved goal and no feedback in a full review. Even a minor suggestion triggers another
 attempt. A failure verdict without feedback also triggers another attempt.
 
 Children receive only the supplied brief. ralph carries the original goal,
-constraints, acceptance criteria, prior results, and all feedback into each new
-task. Code remains in the same worktree. It does not resume a child's conversation,
-discard previous attempts, or swap models after criticism.
+constraints, acceptance criteria, every earlier verdict and all feedback into each
+new task, plus the latest implementation and evaluation reports, failure details
+and recovery reasons. Earlier reports stay in the checkpoint, so the brief doesn't
+grow by a full report every round. Code remains in
+the same worktree. It does not discard previous attempts or swap models after
+criticism.
+
+The first evaluation is a full review of the goal and the whole change. After a
+rejection, the next evaluation is a narrower re-review that continues the
+rejecting evaluator's conversation, so it doesn't re-read the code from scratch. It
+checks each open feedback item and the files changed since the rejecting review. That
+re-review can send the work back, but it can't finish the run. When it finds nothing,
+a full fresh review of the same tree decides, and that extra review doesn't use up
+an attempt. Long runs spend most of their rounds on cheap re-reviews; a run that
+passes on its second evaluation pays for one extra narrow review.
+
+An evaluator that remembers its earlier verdict tends to stick to it, so only these
+re-reviews continue a conversation: they can send work back but never approve it.
+The final full review and every implementation attempt start fresh. T3's own
+guidance asks for each review round to be a new task; ralph departs from it for
+re-reviews only.
 
 A saved checkpoint keeps request IDs, task IDs, chosen targets, the worktree, and
 round results across completion notifications and parent turns. T3 runs the tasks;
@@ -104,8 +122,10 @@ Cancellation stops only this run's tracked children. ralph waits for T3 to confi
 they and their pending turns have stopped; requesting cancellation is not proof.
 Keep the checkpoint until you are finished with the run. It can contain private
 goal text and feedback, so store it outside the repository and do not commit it.
-Checkpoint format 2 is separate from the original experimental format. Resume
-older checkpoints using their original installed snapshot rather than rewriting them.
+Checkpoint format 3 records each evaluation's review scope. ralph upgrades a
+format 2 checkpoint the next time it saves one, and earlier ralph versions refuse
+format 3. The original experimental format is separate: resume those checkpoints
+using their original installed snapshot rather than rewriting them.
 
 ## Compatibility
 
