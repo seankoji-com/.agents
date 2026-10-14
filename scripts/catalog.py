@@ -226,7 +226,8 @@ def main(argv=None):
             return 0
         if args.command == 'setup':
             roots = args.root or [str(Path.home() / path) for path in
-                                  ('.agents/skills', '.claude/skills', '.gemini/config/skills')]
+                                  ('.agents/skills', '.claude/skills', '.gemini/config/skills',
+                                   '.config/muse/skills')]
             for meta in plugins:
                 code = installer.main(['--plugin', meta['name'], '--prefix', str(prefix), '--agents-root', str(agents_root)])
                 if code:

@@ -47,6 +47,46 @@ class AuditTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 audit.inspect('claude', data)
 
+    def test_muse_profiles_are_audited_without_exposing_names(self):
+        # Shapes and values verified against the Muse 1.4.7 binary: flat
+        # settings.json, permissions.profiles with approval/filesystem/
+        # network/reviewer dimensions.
+        findings = audit.inspect('muse', {'permissions': {'schema_version': 1, 'profiles': {
+            'private-profile': {'approval': 'allow_all', 'filesystem': 'unrestricted',
+                                'network': {'mode': 'enabled'}, 'reviewer': 'none'}}}})
+        self.assertEqual(findings, [
+            {'code': 'approvals_disabled', 'location': 'permissions.profiles[0].approval'},
+            {'code': 'sandbox_disabled', 'location': 'permissions.profiles[0].filesystem'},
+            {'code': 'network_unrestricted', 'location': 'permissions.profiles[0].network.mode'},
+        ])
+
+    def test_muse_restrictive_profile_and_absent_permissions_are_clean(self):
+        self.assertEqual(audit.inspect('muse', {'model': 'synthetic'}), [])
+        self.assertEqual(audit.inspect('muse', {'permissions': {'schema_version': 1, 'profiles': {
+            'safe': {'approval': 'on_request', 'filesystem': {'allow': []},
+                     'network': {'mode': 'proxy_only'}, 'reviewer': 'human'}}}}), [])
+
+    def test_muse_malformed_types_fail(self):
+        for data in ({'permissions': []}, {'permissions': {'profiles': []}},
+                     {'permissions': {'profiles': {'p': []}}},
+                     {'permissions': {'profiles': {'p': {'approval': 1}}}},
+                     {'permissions': {'profiles': {'p': {'network': {'mode': 1}}}}},
+                     {'permissions': {'profiles': {'p': {'filesystem': 1}}}}):
+            with self.assertRaises(ValueError):
+                audit.inspect('muse', data)
+
+    def test_muse_cli_exit_codes_and_adapter_listing(self):
+        listed = subprocess.run([sys.executable, str(SCRIPT), '--list-adapters'], capture_output=True, text=True)
+        self.assertEqual(json.loads(listed.stdout)['muse'], 'JSON')
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'settings.json'
+            path.write_text(json.dumps({'permissions': {'schema_version': 1, 'profiles': {
+                'p': {'approval': 'allow_all'}}}}))
+            result = subprocess.run([sys.executable, str(SCRIPT), '--provider', 'muse', '--settings', str(path)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(json.loads(result.stdout)['findings'][0]['code'], 'approvals_disabled')
+
 
 if __name__ == '__main__':
     unittest.main()

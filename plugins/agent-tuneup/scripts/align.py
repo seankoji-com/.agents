@@ -30,13 +30,16 @@ else:
     _spec.loader.exec_module(_core_store)
     trusted_link = _core_store.trusted_link
 
-ADAPTERS = {'claude', 'codex', 'opencode', 'antigravity'}
+ADAPTERS = {'claude', 'codex', 'opencode', 'antigravity', 'muse'}
 ROOTS = {
     'claude': {'permissions', 'mcpServers', 'enabledPlugins', 'enabledMcpjsonServers',
                'disabledMcpjsonServers', 'disabledMcpServers', 'enableAllProjectMcpServers', 'sandbox'},
     'codex': {'approval_policy', 'sandbox_mode', 'sandbox_workspace_write', 'mcp_servers', 'plugins'},
     'opencode': {'permission', 'mcp', 'plugin'},
     'antigravity': {'mcpServers'},
+    # Muse keeps MCP servers and plugins outside settings.json; only its
+    # permission profiles are a settings-owned policy surface.
+    'muse': {'permissions'},
 }
 KINDS = {'mcp', 'plugin'}
 SAFE_ERRORS = {
@@ -104,7 +107,9 @@ def resources(adapter, data):
             result['mcp'][name] = 'scope_conflict'
 
     key = {'codex': 'mcp_servers', 'opencode': 'mcp'}.get(adapter, 'mcpServers')
-    servers = data.get(key, {})
+    # Muse's settings.json defines no MCP servers; do not read another
+    # harness's key if an unrelated file happens to carry one.
+    servers = {} if adapter == 'muse' else data.get(key, {})
     if not isinstance(servers, dict):
         raise ValueError('invalid_mcp')
     if adapter == 'claude':
@@ -201,7 +206,8 @@ def compare(catalog, inventory):
                 status = 'unmapped'
             elif not isinstance(native, str):
                 raise ValueError('invalid_capability')
-            elif not observations[ident] or (kind == 'plugin' and indexed.get(ident, {}).get('adapter') in {'codex', 'antigravity'}):
+            elif (not observations[ident] or indexed.get(ident, {}).get('adapter') == 'muse'
+                  or (kind == 'plugin' and indexed.get(ident, {}).get('adapter') in {'codex', 'antigravity'})):
                 status = 'unknown'
             else:
                 states = {o[kind][native] for o in observations[ident] if native in o[kind]}
@@ -322,6 +328,34 @@ def protect_policy(adapter, old, new):
         protect_actions(old.get('permission', {}), new.get('permission', {}))
         for name, agent in old.get('agent', {}).items():
             protect_policy('opencode', agent, new.get('agent', {}).get(name, {}))
+    elif adapter == 'muse':
+        # Dimension ranks verified against Muse 1.4.7. A stated protective
+        # value may tighten or stay; loosening or deleting it is refused.
+        # Profiles inheriting through `extends` state partial dimensions, so
+        # only dimensions the old profile stated are compared.
+        network_rank = {'restricted': 0, 'proxy_only': 1, 'enabled': 2}
+        before_profiles = old.get('permissions', {}).get('profiles', {})
+        after_profiles = new.get('permissions', {}).get('profiles', {})
+        if not isinstance(before_profiles, dict) or not isinstance(after_profiles, dict):
+            raise ValueError('invalid_settings')
+        for name, before in before_profiles.items():
+            after = after_profiles.get(name)
+            if after is None:
+                if any(key in before for key in ('approval', 'filesystem', 'network', 'reviewer')):
+                    raise ValueError('protective_setting_weakened')
+                continue
+            if before.get('approval') == 'on_request' and after.get('approval') != 'on_request':
+                raise ValueError('protective_setting_weakened')
+            if before.get('reviewer') == 'human' and after.get('reviewer') != 'human':
+                raise ValueError('protective_setting_weakened')
+            if ('filesystem' in before and before['filesystem'] != 'unrestricted'
+                    and ('filesystem' not in after or after.get('filesystem') == 'unrestricted')):
+                raise ValueError('protective_setting_weakened')
+            before_mode = before.get('network', {}).get('mode') if isinstance(before.get('network'), dict) else None
+            after_mode = after.get('network', {}).get('mode') if isinstance(after.get('network'), dict) else None
+            if before_mode in network_rank and (after_mode not in network_rank
+                                                or network_rank[after_mode] > network_rank[before_mode]):
+                raise ValueError('protective_setting_weakened')
 
 
 def allowed_change(adapter, parts, old, new):

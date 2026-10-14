@@ -5,7 +5,7 @@ pick `t3-imps`, and add the task. Every provider reads the same installed entry 
 so the workflow is identical whichever model you choose. The skills are `t3-imps`,
 `t3-ape`, `t3-babysitter`, `t3-elephant-goldfish`, `t3-agent-tuneup` and `t3-ralph`.
 
-`setup` installs the whole catalog and writes skills into the three default folders
+`setup` installs the whole catalog and writes skills into the four default folders
 below. `t3-plugins setup imps` does one plugin; repeated `--root PATH` replaces the
 defaults. It won't overwrite a skill it didn't write or one you edited: it stops, and
 the receipts it already printed stay valid, so fix the conflict and run it again. Run
@@ -18,6 +18,7 @@ t3-plugins install imps
 t3-plugins skills install imps --root ~/.agents/skills
 t3-plugins skills install imps --root ~/.claude/skills
 t3-plugins skills install imps --root ~/.gemini/config/skills
+t3-plugins skills install imps --root ~/.config/muse/skills
 ```
 
 Run these on the machine where your T3 provider runs tools. With a custom prefix, pass
@@ -39,6 +40,7 @@ t3-plugins convention, not a native agent directory for any provider.
 | OpenCode | `~/.agents/skills` or `~/.config/opencode/skills` | Custom configuration can change discovery. |
 | Cursor | `~/.agents/skills` | T3 also discovers provider-specific roots. |
 | Antigravity | `~/.gemini/config/skills` | Its global discovery does not read `~/.agents/skills`. |
+| Muse | `~/.config/muse/skills` | Muse's own managed root; it also reads `~/.agents/skills`. No T3 composer picker (below). |
 
 Discovery is provider-owned. See
 [Claude discovery](https://github.com/pingdotgg/t3code/blob/main/apps/server/src/provider/Drivers/ClaudeSkills.ts),
@@ -47,9 +49,17 @@ Discovery is provider-owned. See
 and [OpenCode's skills guide](https://opencode.ai/docs/skills/).
 Check custom instances and older versions rather than assuming one shared root.
 [Pi uses native skill discovery](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-pi.md).
-[Muse currently does not expose skills in T3's composer](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-muse.md).
-The installer can't add a picker to a provider that doesn't expose skills. There, run
-`t3-plugins prompt imps OPERATION` and paste what it prints.
+[Muse skills do not appear in T3's composer `$` menu, but Muse still loads
+them itself](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-muse.md).
+Setup therefore installs adapters into Muse's managed root
+(`~/.config/muse/skills`, honoring `XDG_CONFIG_HOME` only when you pass that root
+explicitly), where `muse skills list` shows them and `muse skills validate`
+accepts the generated adapter. In a Muse thread, name the skill in your message
+(for example `use t3-imps to run doctor`), or use
+`t3-plugins prompt imps OPERATION` and paste its output. The installer cannot add
+a picker to a provider integration that does not expose one. Muse also discovers
+`~/.agents/skills`, so the same adapter can appear twice in `muse skills list`
+diagnostics as shadowed; both copies read the same installed entry.
 
 ## Invoke and refresh
 

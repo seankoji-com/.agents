@@ -44,9 +44,11 @@
 }
 ```
 
-Use `claude`, `codex`, `opencode`, or `antigravity` adapters independent of instance
+Use `claude`, `codex`, `opencode`, `antigravity`, or `muse` adapters independent of instance
 IDs. Claude JSON supports `mcpServers` and `enabledPlugins`; OpenCode JSON/JSONC
-supports `mcp` and `plugin`; Codex TOML supports `mcp_servers`. Codex plugin identity
+supports `mcp` and `plugin`; Codex TOML supports `mcp_servers`. Muse JSON supports
+permission profiles only: its MCP servers and plugins live outside `settings.json`
+(`muse mcp`, `muse plugins`), so their state stays unknown here. Codex plugin identity
 policy tables are not installed-plugin evidence. For Claude, include `.mcp.json`,
 user/local MCPs in `~/.claude.json`, and settings that contain approval/disable lists.
 Approval-list entries without a supplied server definition remain unknown.
@@ -91,7 +93,7 @@ python3 PKG/scripts/align.py plan --adapter claude \
 Supported roots: Claude `permissions`, `mcpServers`, MCP approval/disable settings,
 `sandbox`; Codex approval/sandbox/MCP/plugin settings, including those
 policy fields inside named `profiles`; OpenCode `permission`, `mcp`, `plugin` and
-agent-specific `permission`; Antigravity `mcpServers`. Profile/agent model changes
+agent-specific `permission`; Antigravity `mcpServers`; Muse `permissions` (`permissions.profiles`). Profile/agent model changes
 and Claude `projects`/`hooks` writes are excluded. Propose those edits separately when
 needed, with the same approval, backup and validation requirements.
 

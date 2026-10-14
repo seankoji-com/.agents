@@ -116,8 +116,8 @@ diff, every changed key, its access effect and the approval digest. Approving th
 skill extension or asking for alignment does not approve live configuration edits.
 Use `apply --plan <path>` only after approving that concrete plan.
 
-The helper supports existing Claude JSON, OpenCode JSON/JSONC, Codex TOML and
-Antigravity MCP JSON/JSONC files. It does not install plugins or edit instruction/skill
+The helper supports existing Claude JSON, OpenCode JSON/JSONC, Codex TOML,
+Antigravity MCP JSON/JSONC and Muse JSON files. It does not install plugins or edit instruction/skill
 files. Those changes require separate proposals. For one synthetic Claude change:
 
 ```sh
@@ -135,7 +135,9 @@ Scalar-to-object permission rewrites may be conservatively refused.
 Unrelated settings roots cannot change. Supported changes include Claude permissions,
 MCP settings and sandbox; Codex approval/sandbox/MCP/plugin settings and
 profile policy overrides; OpenCode permissions, MCPs, plugins and agent permission
-overrides; and Antigravity MCP definitions. Profile/agent model edits, hooks, and Claude
+overrides; Antigravity MCP definitions; and Muse permission profiles
+(`permissions.profiles` — MCP and plugin state lives outside its `settings.json`).
+Profile/agent model edits, hooks, and Claude
 project-keyed store writes need separate proposals. Risk code counts are retained
 in plans. Protection-deletion and broad-rule-substitution checks also apply.
 The receipt explicitly says permission semantics are not evaluated. Unlisted

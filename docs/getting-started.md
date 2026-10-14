@@ -28,7 +28,8 @@ t3-plugins doctor
 ```
 
 `setup` copies each workflow into `~/.local/share/t3-plugins/` and writes a slash-menu
-skill for it into `~/.agents/skills`, `~/.claude/skills` and `~/.gemini/config/skills`.
+skill for it into `~/.agents/skills`, `~/.claude/skills`, `~/.gemini/config/skills`
+and Muse's `~/.config/muse/skills`.
 It doesn't change provider settings or overwrite skills you edited. `doctor` should
 print one line per plugin with `"ok": true` and exit 0. It checks the installed files,
 not T3 or your model.
@@ -155,7 +156,7 @@ snapshots don't depend on the checkout staying where it is.
 
 Other setup forms: `t3-plugins setup imps` installs one plugin and its skills;
 `t3-plugins install ape` installs a snapshot without skills; repeated `--root PATH`
-replaces the three default skill folders.
+replaces the four default skill folders.
 
 ## Paths and remote environments
 
@@ -286,6 +287,7 @@ adapter cleanup performed by `setup`:
 t3-plugins skills uninstall --root ~/.agents/skills
 t3-plugins skills uninstall --root ~/.claude/skills
 t3-plugins skills uninstall --root ~/.gemini/config/skills
+t3-plugins skills uninstall --root ~/.config/muse/skills
 t3-plugins uninstall ape
 
 # For a Homebrew installation only:
