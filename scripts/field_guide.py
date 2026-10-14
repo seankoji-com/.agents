@@ -14,6 +14,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SIGHTINGS_MARKER = '<!-- sightings-matrix -->'
+RECORDING = Path('docs') / 'assets' / 'demo.svg'
+GUIDE_FIELDS = ('plate', 'binomial', 'summary', 'use_when', 'try', 'habitat', 'diet', 'field_marks')
 INLINE_SVG = re.compile(r'<!-- inline-svg: (assets/[A-Za-z0-9_./-]+\.svg) -->')
 ROMAN = {'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10}
 CASE_LABELS = {
@@ -43,6 +45,27 @@ def check_mark(name: str, svg: str) -> str:
     return svg
 
 
+# The recording carries its own scoped <style>, so it gets a narrower check than a
+# mark: still no script, event handler, embedded document, import or external reference.
+UNSAFE_RECORDING = re.compile(r'<script|<foreignObject|<iframe|@import|\son[a-z]+\s*=|javascript:'
+                              r'|(?:href|src)\s*=|url\(\s*(?!["\']?#)', re.IGNORECASE)
+
+
+def check_recording(svg: str) -> str:
+    """Return the terminal recording unchanged, or fail if it could run or fetch anything."""
+    if not svg.lstrip().startswith('<svg') or UNSAFE_RECORDING.search(svg):
+        raise FieldGuideError('docs/assets/demo.svg must be a self-contained SVG with no scripts, '
+                              'event handlers, or external references')
+    return svg
+
+
+def load_recording(root: Path = ROOT) -> str:
+    path = root / RECORDING
+    if not path.is_file():
+        raise FieldGuideError(f'missing {RECORDING}; run python3 scripts/render_demo.py')
+    return check_recording(path.read_text())
+
+
 def load_guide(root: Path = ROOT) -> list[dict]:
     """Merge each plugin manifest with its field-guide entry, ordered by plate number."""
     guide = json.loads((root / 'docs' / 'field-guide.json').read_text())
@@ -57,6 +80,11 @@ def load_guide(root: Path = ROOT) -> list[dict]:
         raise FieldGuideError(f'field guide out of sync: missing={missing} extra={extra}')
     specimens = []
     for name, entry in guide.items():
+        absent = [f for f in GUIDE_FIELDS if not str(entry.get(f, '')).strip()]
+        if absent:
+            raise FieldGuideError(f'{name}: field guide entry is missing {absent}')
+        if not entry['try'].startswith(f'$t3-{name} '):
+            raise FieldGuideError(f'{name}: try must start with the skill mention $t3-{name}')
         plate = entry['plate']
         if plate not in ROMAN:
             raise FieldGuideError(f'{name}: unknown plate numeral {plate!r}')
@@ -70,6 +98,8 @@ def load_guide(root: Path = ROOT) -> list[dict]:
             'order': ROMAN[plate],
             'binomial': entry['binomial'],
             'summary': entry['summary'],
+            'use_when': entry['use_when'],
+            'try': entry['try'],
             'habitat': entry['habitat'],
             'diet': entry['diet'],
             'field_marks': entry['field_marks'],
@@ -157,18 +187,23 @@ def render_sightings(sightings: dict) -> str:
 
 
 def render_specimen_header(specimen: dict) -> str:
-    """The plate that opens each plugin's guide page."""
+    """The plate that opens each plugin's guide page: when to reach for it, a line to
+    paste into T3, then the field notes."""
     return (
         '<div class="specimen specimen--page" markdown="0">'
         f'<div class="specimen__mark">{specimen["mark_svg"]}</div>'
         '<div class="specimen__text">'
-        f'<p class="specimen__plate">Plate {specimen["plate"]}</p>'
-        f'<p class="specimen__binomial">{html.escape(specimen["binomial"])}</p>'
-        '<dl class="specimen__facts">'
-        f'<dt>Habitat</dt><dd>{html.escape(specimen["habitat"])}</dd>'
-        f'<dt>Diet</dt><dd>{html.escape(specimen["diet"])}</dd>'
-        f'<dt>Field marks</dt><dd>{html.escape(specimen["field_marks"])}</dd>'
-        '</dl></div></div>\n\n'
+        f'<p class="specimen__plate">Plate {specimen["plate"]} '
+        f'<span class="specimen__binomial">{html.escape(specimen["binomial"])}</span></p>'
+        f'<p class="specimen__use"><b>Use it when</b> {html.escape(specimen["use_when"])}</p>'
+        f'<p class="specimen__try"><span>In a T3 thread</span>\n<code>{html.escape(specimen["try"])}</code></p>'
+        '</div>'
+        # The newlines keep search excerpts from running "Habitat" into its value.
+        '<dl class="specimen__facts">\n'
+        f'<div><dt>Habitat</dt>\n<dd>{html.escape(specimen["habitat"])}</dd></div>\n'
+        f'<div><dt>Diet</dt>\n<dd>{html.escape(specimen["diet"])}</dd></div>\n'
+        f'<div><dt>Field marks</dt>\n<dd>{html.escape(specimen["field_marks"])}</dd></div>\n'
+        '</dl></div>\n\n'
     )
 
 
@@ -213,7 +248,8 @@ def _insert_after_h1(markdown: str, block: str) -> str:
 
 def on_config(config):
     guide = load_guide()
-    config.extra['field_guide'] = {'specimens': guide, 'sightings': load_sightings()}
+    config.extra['field_guide'] = {'specimens': guide, 'sightings': load_sightings(),
+                                   'recording': load_recording()}
     return config
 
 
