@@ -37,8 +37,8 @@ goal's approved material; ask if the repository's private-data boundary is uncle
 OpenCode tasks require explicit Full Access. If the parent is narrower, explain
 the requirement before starting; never silently broaden the parent.
 
-Finish only when the evaluator reports the goal achieved with an empty feedback
-list, the parent confirms the evidence is current, and the authorized PR outcome
+Finish only when a full-scope evaluation reports the goal achieved with an empty
+feedback list, the parent confirms the evidence is current, and the authorized PR outcome
 is observed. Every feedback item causes another implementation attempt, regardless
 of severity or a simultaneous success claim. A task's `completed` status alone is
 never a success verdict. Report exhausted attempts, unavailable evaluation, denied

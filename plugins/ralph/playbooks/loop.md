@@ -77,9 +77,13 @@ Only the parent writes checkpoints; never delegate access to this directory.
 Call `next --state FILE`. Its `dispatch` object is the complete input for the live
 `delegate_task` schema. It pins `mode: async`, role, target and a stable
 `clientRequestId` before dispatch. The task brief includes the goal, contract,
-existing worktree, prior summaries, and ALL prior feedback without truncation.
+existing worktree, the latest implementation summary, and EVERY prior verdict,
+evaluation gap and invalidation without truncation. Older raw summaries stay in
+the checkpoint, so the brief does not grow by a full report each round.
 Every attempt and evaluation uses a NEW `delegate_task`, never `childThreadId`
 continuation, `t3_thread_send`, a native subagent, or a top-level thread.
+Continuing a reviewer's conversation would anchor it on its earlier verdict, and
+T3 directs each review round to a new task.
 
 Retain the returned `taskId` immediately: `attach --state FILE --input FILE`, where
 the JSON contains `clientRequestId` and the unmodified T3 response, including
@@ -124,7 +128,15 @@ handoff. Learning storage errors do not block engineering work.
 
 For a completed implementation, inspect actual changed files, claimed checks and
 artifacts. The next call captures the tree and dispatches the evaluator in fresh
-context with that binding and the implementation summary. Evaluation is read-only;
+context with that binding and the implementation summary.
+
+The helper sets each review's `reviewScope`. A `full` review covers the goal and
+the full task diff against the intended base. After a review rejects with
+feedback, the next review is `delta`: a fresh task checks each `openFeedback` item
+and every path in `changedPathsSinceReview` since that review's revision. A delta
+review cannot finish the run. When it passes, the helper issues a full review of
+the same tree without consuming an attempt. A failed verdict without feedback,
+an invalidated verdict, or tree drift after acceptance gets a full review. Evaluation is read-only;
 it may run suitable checks, inspect artifacts and report gaps, but cannot edit,
 commit, push, publish, delegate or change the goal. If required inspection cannot
 be performed, the evaluator must return a failure/gap, never infer success.
@@ -154,7 +166,8 @@ Before dispatching again, inspect the changed files and identify the cause of
 drift, including possible evaluator edits during its read-only task. Preserve the
 evidence and resolve unexpected writes before issuing another evaluation.
 
-`goalAchieved: true` AND `feedback: []` makes the loop `evaluated`. Otherwise the
+`goalAchieved: true` AND `feedback: []` from a full review makes the loop
+`evaluated`. Any feedback, or `goalAchieved: false`, from either scope means the
 next fresh implementer task uses the original pinned target and existing worktree.
 Even informational feedback triggers repair. If false has no feedback, the fresh
 brief still includes that verdict and asks the implementer to find the unmet goal.
@@ -194,5 +207,7 @@ is neither terminal nor an observable status. The saved stop flag prevents a lat
 another round. Unattached uncertain dispatch must be reconciled and stopped too.
 Never cancel unrelated tasks. Stop task-owned services at handoff.
 
-Checkpoint format 2 adds per-target modes, recovery and a content baseline. Older
+Checkpoint format 2 adds per-target modes, recovery and a content baseline.
+Review `scope` and `reviewBaseline` are optional format 2 fields; reviews without
+them count as full and never seed a delta review. Older
 checkpoints require their original installed snapshot; do not rewrite their state.
