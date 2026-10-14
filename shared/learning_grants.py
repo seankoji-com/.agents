@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import re
 
-from learning_store import Unavailable, atomic_file, directory, locked, read_file, state_root
+from learning_store import Unavailable, atomic_file, directory, locked, read_file, state_root, trusted_link
 
 
 SOURCES = {
@@ -14,6 +14,14 @@ SOURCES = {
     'codex': 'https://developers.openai.com/codex/config-reference/',
     'opencode': 'https://opencode.ai/docs/permissions/',
 }
+
+
+def snippet(driver, change):
+    """The exact text an operator merges into a config that setup will not edit."""
+    if driver == 'codex':
+        roots = change['sandbox_workspace_write']['writable_roots']
+        return '[sandbox_workspace_write]\nwritable_roots = ' + json.dumps(roots) + '\n'
+    return json.dumps(change, indent=2) + '\n'
 
 
 def codex_update(raw, subtree):
@@ -109,6 +117,14 @@ def grant(driver, project, apply=False, env=None):
             return {'provider': driver, 'status': 'unavailable', 'reason': 'no documented subtree grant adapter'}
         receipt = {'provider': driver, 'status': 'proposed', 'config': str(path), 'grant': change,
                    'source': SOURCES[driver], 'scope': 'configuration only; live access must be checked'}
+        # Dotfiles-managed configs: writing through the link would be lost on the next sync.
+        link = next((p for p in (path, *path.parents) if p.is_symlink() and not trusted_link(p)), None)
+        if link is not None:
+            target = path.resolve()
+            return dict(receipt, status='manual', target=str(target), snippet=snippet(driver, change),
+                        action=(f'{link} is a symlink and setup does not write through it. Merge the snippet '
+                                f'into {target} in its source repository, keeping existing entries, then '
+                                'sync and run t3-plugins doctor to confirm learnings_write is writable.'))
         if not apply:
             return receipt
         if project is not None and path.absolute().is_relative_to(Path(project).resolve()):

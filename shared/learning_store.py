@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import errno
 import hashlib
 import importlib.util
 import json
@@ -32,6 +33,17 @@ trusted_link = _core_trusted_link()
 
 class Unavailable(ValueError):
     pass
+
+
+# A sandbox or read-only mount refuses the write; the remedy is a subtree grant, not a fallback store.
+DENIED = (errno.EROFS, errno.EACCES, errno.EPERM)
+
+
+def denied_reason(subtree):
+    """Name the cause and the grant without echoing paths below the learnings root."""
+    return (f'the sandbox or filesystem denies writes under {subtree}; allow writes to {subtree} '
+            f'and {subtree}/** (for Claude, add {subtree} to sandbox.filesystem.allowWrite), '
+            'or run `t3-plugins setup --grant-learnings`')
 
 
 def digest(value):
@@ -103,8 +115,9 @@ def state_root(project, env=None):
 
 
 @contextlib.contextmanager
-def directory(path, create=False):
-    """Walk with directory descriptors, refusing symlinks even during concurrent renames."""
+def directory(path, create=False, created=None):
+    """Walk with directory descriptors, refusing symlinks even during concurrent renames.
+    When `created` is a list, record each directory this walk made."""
     path = Path(path)
     if not path.is_absolute() or '..' in path.parts:
         raise Unavailable('directory must be absolute and contained')
@@ -116,6 +129,8 @@ def directory(path, create=False):
             if create:
                 try:
                     os.mkdir(part, 0o700, dir_fd=fd)
+                    if created is not None:
+                        created.append(Path(*path.parts[:index]))
                 except FileExistsError:
                     pass
             follow = trusted_link(Path(*path.parts[:index]))
@@ -125,6 +140,33 @@ def directory(path, create=False):
         yield fd
     finally:
         os.close(fd)
+
+
+def probe_write(env=None):
+    """Doctor's check: create and remove one file under the learnings root from this process.
+    Directories the probe had to create are removed again, so nothing is left behind."""
+    try:
+        subtree = state_root(None, env) / 't3-plugins/learnings'
+    except (OSError, ValueError) as exc:
+        return {'status': 'unavailable', 'reason': str(exc)}
+    created = []
+    try:
+        try:
+            with directory(subtree, True, created) as fd:
+                name = '.probe-' + uuid.uuid4().hex
+                os.close(os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=fd))
+                os.unlink(name, dir_fd=fd)
+        finally:
+            for path in reversed(created):
+                with contextlib.suppress(OSError):
+                    os.rmdir(path)  # Only empty directories; a concurrent writer's folder stays.
+    except OSError as exc:
+        if exc.errno in DENIED:
+            return {'status': 'denied', 'root': str(subtree), 'reason': denied_reason(subtree)}
+        return {'status': 'unavailable', 'root': str(subtree), 'reason': str(exc)}
+    except ValueError as exc:
+        return {'status': 'unavailable', 'root': str(subtree), 'reason': str(exc)}
+    return {'status': 'writable', 'root': str(subtree)}
 
 
 def read_file(fd, name):
@@ -263,7 +305,10 @@ class Store:
         try:
             return self._operate(operation, proposal)
         except (OSError, ValueError, KeyError, TypeError, UnicodeError, AttributeError) as exc:
-            return {'status': 'unavailable', 'reason': str(exc), 'proposed_learning': proposal}
+            reason = str(exc)
+            if operation != 'load' and isinstance(exc, OSError) and exc.errno in DENIED:
+                reason = denied_reason(self.root / 't3-plugins/learnings')
+            return {'status': 'unavailable', 'reason': reason, 'proposed_learning': proposal}
 
     def _operate(self, operation, proposal):
         if operation not in ('load', 'write', 'maintain', 'harvest'):

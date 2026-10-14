@@ -65,10 +65,48 @@ These settings come from the [Claude sandbox docs](https://code.claude.com/docs/
 [official OpenAI documentation](https://developers.openai.com/codex/config-reference/),
 and [OpenCode permissions docs](https://opencode.ai/docs/permissions/).
 Python 3.10 supports the learning helpers and prints the Codex grant; applying
-Codex TOML grants on 3.10 explicitly reports unavailable. Unsupported config layouts,
-OpenCode JSONC/overrides and symlinks require manual configuration. Managed or
-host-level restrictions can still deny writes. A config receipt is not live provider
+Codex TOML grants on 3.10 explicitly reports unavailable. Unsupported config layouts
+and OpenCode JSONC/overrides require manual configuration. Managed or host-level
+restrictions can still deny writes. A config receipt is not live provider
 acceptance: check a real write in the provider before claiming it works.
+
+When a sandbox or read-only mount refuses a learnings write (`EROFS`, `EACCES` or
+`EPERM`), the receipt stays `unavailable` with the proposed lesson. Its reason names
+the cause and the grant: allow writes to `<state root>/t3-plugins/learnings` and
+`<state root>/t3-plugins/learnings/**`, or run `t3-plugins setup --grant-learnings`.
+It shows no path below the learnings root.
+
+### Symlinked or dotfiles-managed settings
+
+Setup never writes through a symlinked provider config or config folder, such as a
+`~/.claude/settings.json` linked into a dotfiles repository. The next sync would
+overwrite the edit, and the agent sandbox may deny writes to the target anyway.
+Instead the receipt has `status: manual`, the resolved `target` and the exact
+`snippet`, and setup prints both on stderr. For Claude:
+
+```json
+{
+  "sandbox": {
+    "filesystem": {
+      "allowWrite": ["/absolute/state/root/t3-plugins/learnings"]
+    }
+  }
+}
+```
+
+Merge it into the target file in the dotfiles source repository, keeping existing
+entries, then sync. The directory entry covers everything below it. Codex gets a
+`[sandbox_workspace_write]` `writable_roots` snippet in TOML; OpenCode gets a
+`permission.external_directory` pattern ending in `/**`. Use the paths setup prints.
+
+### Confirm a real write
+
+Start a new provider session so it reads the changed settings. From a command that
+runs inside the provider's sandbox, run `t3-plugins doctor` and read the
+`learnings_write` field of its receipts. `writable` means the process created and
+removed a probe file under the learnings root; `denied` repeats the grant to add.
+Doctor creates nothing else and leaves provider config alone. A plugin's next
+writable run then returns `available` for its lesson.
 
 ## Harvest
 

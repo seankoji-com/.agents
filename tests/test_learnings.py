@@ -1,5 +1,6 @@
 """Stage 4: private storage, maintenance and installed helper failure paths."""
 import concurrent.futures
+import errno
 import json
 import os
 from pathlib import Path
@@ -13,7 +14,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'shared'))
-from learning_store import Store, Unavailable, canonical_remote, decode, project_identity, state_root
+from learning_store import (Store, Unavailable, canonical_remote, decode, probe_write, project_identity,
+                            state_root)
 
 OLD = '0.1.0+g' + 'a' * 12
 NEW = '0.2.0+g' + 'b' * 12
@@ -255,6 +257,83 @@ class LearningsTest(unittest.TestCase):
             self.assertEqual(unavailable['status'], 'unavailable')
             self.assertEqual(unavailable['proposed_learning'], proposal)
             self.assertFalse((self.project / 'state').exists())
+
+
+
+class SandboxDenialTest(unittest.TestCase):
+    """A sandbox that refuses the learnings subtree gets a named cause and grant, never a raw errno."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.base = Path(temp.name).resolve()
+        self.project = self.base / 'project'
+        self.project.mkdir()
+        self.env = dict(os.environ, HOME=str(self.base / 'home'), XDG_STATE_HOME=str(self.base / 'state'))
+        self.subtree = str(self.base / 'state/t3-plugins/learnings')
+        self.store = Store(self.project, 'imps', OLD, self.env)
+        self.proposal = {'entry': {'id': 'lesson', 'summary': 'Keep task handles',
+                                   'failure': 'A lost task handle prevented cancellation'}}
+
+    def assert_denied(self, result):
+        self.assertEqual(result['status'], 'unavailable', result)
+        self.assertEqual(result['proposed_learning'], self.proposal)
+        reason = result['reason']
+        self.assertIn('sandbox or filesystem denies writes under ' + self.subtree, reason)
+        self.assertIn(f'allow writes to {self.subtree} and {self.subtree}/**', reason)
+        self.assertIn('sandbox.filesystem.allowWrite', reason)
+        self.assertIn('t3-plugins setup --grant-learnings', reason)
+        # Nothing below the learnings root: no identity hash, plugin file or temporary name.
+        for private in (self.store.key, 'imps.md', '.learning-', 'Errno'):
+            self.assertNotIn(private, reason)
+
+    def test_simulated_erofs_eacces_and_eperm_name_the_grant(self):
+        for code, target in ((errno.EROFS, 'learning_store.os.mkdir'), (errno.EACCES, 'learning_store.atomic_file'),
+                             (errno.EPERM, 'learning_store.atomic_file')):
+            with self.subTest(errno=errno.errorcode[code]), mock.patch(
+                    target, side_effect=OSError(code, os.strerror(code), 'learnings')):
+                self.assert_denied(self.store.operate('write', self.proposal))
+        with mock.patch('learning_store.atomic_file', side_effect=OSError(errno.ENOSPC, 'No space left')):
+            self.assertIn('No space left', self.store.operate('write', self.proposal)['reason'])
+
+    @unittest.skipIf(os.geteuid() == 0, 'root ignores directory permissions')
+    def test_real_read_only_state_root_is_reported_and_probe_leaves_nothing(self):
+        state = self.base / 'state'
+        state.mkdir()
+        state.chmod(0o500)
+        self.addCleanup(state.chmod, 0o700)
+        self.assert_denied(self.store.operate('write', self.proposal))
+        probe = probe_write(self.env)
+        self.assertEqual(probe['status'], 'denied', probe)
+        self.assertIn(self.subtree + '/**', probe['reason'])
+        self.assertEqual(list(state.iterdir()), [])
+
+    def test_probe_writes_and_removes_without_creating_state(self):
+        self.assertEqual(probe_write(self.env), {'status': 'writable', 'root': self.subtree})
+        self.assertEqual(list(self.base.iterdir()), [self.project])
+        result = self.store.operate('write', self.proposal)
+        self.assertEqual(result['status'], 'available', result)
+        folder = Path(result['path']).parent
+        before = sorted(p.name for p in folder.iterdir())
+        self.assertEqual(probe_write(self.env)['status'], 'writable')
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), before)
+        self.assertEqual(sorted(p.name for p in Path(self.subtree).iterdir()), [folder.name])
+
+    def test_probe_reports_simulated_sandbox_denial_and_cleans_up(self):
+        real_open = os.open
+
+        def refuse_probe(name, *args, **kwargs):
+            if str(name).startswith('.probe-'):
+                raise OSError(errno.EROFS, 'Read-only file system', name)
+            return real_open(name, *args, **kwargs)
+
+        with mock.patch('learning_store.os.open', side_effect=refuse_probe):
+            probe = probe_write(self.env)
+        self.assertEqual(probe['status'], 'denied', probe)
+        self.assertNotIn('.probe-', probe['reason'])
+        self.assertEqual(list(self.base.iterdir()), [self.project])
+        env = dict(self.env, XDG_STATE_HOME='relative/state')
+        self.assertEqual(probe_write(env)['status'], 'unavailable')
 
 
 if __name__ == '__main__':
