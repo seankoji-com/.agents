@@ -7,6 +7,8 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+import skills  # noqa: E402
 
 
 class SkillAdapters(unittest.TestCase):
@@ -199,6 +201,139 @@ class SkillAdapters(unittest.TestCase):
         self.assertIn('  opencode/slash: "true"', front)
         self.assertNotIn('opencode/autoinvoke', front)
 
+
+    def openai_yaml(self, plugin='imps'):
+        return self.skills / ('t3-' + plugin) / 'agents/openai.yaml'
+
+    def receipt(self, plugin='imps'):
+        return json.loads((self.skills / ('t3-' + plugin) / '.t3-plugins-skill.json').read_text())
+
+    def test_codex_metadata_is_written_owned_and_removed_with_the_adapter(self):
+        self.install()
+        yaml = self.openai_yaml()
+        lines = yaml.read_text().splitlines()
+        self.assertEqual(lines[0], 'interface:')
+        fields = {line.split(':', 1)[0].strip(): json.loads(line.split(':', 1)[1]) for line in lines[1:]}
+        self.assertEqual(set(fields), {'display_name', 'short_description', 'default_prompt'})
+        self.assertEqual(fields['display_name'], 'T3 Imps')
+        self.assertIn('$t3-imps', fields['default_prompt'])
+        self.assertNotIn(str(self.prefix), yaml.read_text())
+        self.assertEqual(self.receipt()['files'],
+                         {'agents/openai.yaml': hashlib.sha256(yaml.read_bytes()).hexdigest()})
+        self.call('skills', 'uninstall', 'imps', '--root', str(self.skills))
+        self.assertFalse((self.skills / 't3-imps').exists())
+
+    def test_every_catalog_adapter_has_a_short_picker_description(self):
+        self.call('install')
+        self.call('skills', 'install', '--root', str(self.skills))
+        for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
+            meta = json.loads(manifest.read_text())
+            with self.subTest(plugin=meta['name']):
+                text = self.openai_yaml(meta['name']).read_text()
+                line = next(l for l in text.splitlines() if l.startswith('  short_description: '))
+                short = json.loads(line.split(': ', 1)[1])
+                # Codex picker blurbs are 25-64 characters.
+                self.assertTrue(25 <= len(short) <= 64, short)
+                self.assertEqual(short, meta.get('short_description', meta['description']))
+
+    def test_upgrade_from_a_receipt_without_files_adopts_the_metadata(self):
+        self.install()
+        folder = self.skills / 't3-imps'
+        receipt = self.receipt()
+        receipt.pop('files')
+        (folder / '.t3-plugins-skill.json').write_text(json.dumps(receipt))
+        self.openai_yaml().unlink()
+        (folder / 'agents').rmdir()
+        self.call('skills', 'install', 'imps', '--root', str(self.skills))
+        self.assertIn('agents/openai.yaml', self.receipt()['files'])
+        # Bytes identical to ours (an interrupted earlier install) are adopted too.
+        receipt.pop('files', None)
+        (folder / '.t3-plugins-skill.json').write_text(json.dumps(receipt))
+        self.call('skills', 'install', 'imps', '--root', str(self.skills))
+        self.assertIn('agents/openai.yaml', self.receipt()['files'])
+
+    def test_operator_metadata_under_an_old_receipt_is_preserved(self):
+        self.install()
+        folder = self.skills / 't3-imps'
+        receipt = self.receipt()
+        receipt.pop('files')
+        (folder / '.t3-plugins-skill.json').write_text(json.dumps(receipt))
+        self.openai_yaml().write_text('interface:\n  display_name: "Mine"\n')
+        result = json.loads(self.call('skills', 'install', 'imps', '--root', str(self.skills)).stdout)
+        self.assertEqual(result['preserved_files'], ['agents/openai.yaml'])
+        self.assertNotIn('files', self.receipt())
+        self.call('skills', 'uninstall', 'imps', '--root', str(self.skills))
+        self.assertEqual(self.openai_yaml().read_text(), 'interface:\n  display_name: "Mine"\n')
+        self.assertFalse((folder / 'SKILL.md').exists())
+
+    def test_modified_or_symlinked_metadata_is_refused(self):
+        self.install()
+        yaml = self.openai_yaml()
+        yaml.write_text('interface:\n  display_name: "Edited"\n')
+        for action in ('install', 'uninstall'):
+            self.call('skills', action, 'imps', '--root', str(self.skills), code=2)
+        self.assertEqual(yaml.read_text(), 'interface:\n  display_name: "Edited"\n')
+        yaml.unlink()
+        agents = yaml.parent
+        agents.rmdir()
+        external = self.base / 'external'
+        external.mkdir()
+        agents.symlink_to(external, target_is_directory=True)
+        for action in ('install', 'uninstall'):
+            self.call('skills', action, 'imps', '--root', str(self.skills), code=2)
+        self.assertEqual(list(external.iterdir()), [])
+
+    def test_receipt_cannot_name_files_outside_the_owned_set(self):
+        self.install()
+        folder = self.skills / 't3-imps'
+        bystander = folder / 'operator.txt'
+        bystander.write_text('notes')
+        receipt = self.receipt()
+        receipt['files']['operator.txt'] = hashlib.sha256(b'notes').hexdigest()
+        (folder / '.t3-plugins-skill.json').write_text(json.dumps(receipt))
+        self.call('skills', 'uninstall', 'imps', '--root', str(self.skills), code=2)
+        self.assertEqual(bystander.read_text(), 'notes')
+
+    def test_retired_adapter_removal_takes_its_owned_metadata(self):
+        self.install()
+        folder = self.skills / 't3-imps'
+        removed = skills.remove_retired(self.skills, 'imps')
+        self.assertTrue(removed['removed'])
+        self.assertEqual(removed['kept'], [])
+        self.assertFalse(folder.exists())
+
+    def test_interrupted_upgrade_with_new_bytes_already_written_recovers(self):
+        self.install()
+        folder = self.skills / 't3-imps'
+        marker = folder / '.t3-plugins-skill.json'
+        # Simulate an earlier version: different owned bytes, receipt for them.
+        old = b'interface:\n  display_name: "Old"\n'
+        receipt = self.receipt()
+        receipt['files']['agents/openai.yaml'] = hashlib.sha256(old).hexdigest()
+        new_yaml = self.openai_yaml().read_bytes()
+        marker.write_text(json.dumps(receipt))
+        # The upgrade wrote the new metadata, then stopped before the marker.
+        self.assertEqual(self.openai_yaml().read_bytes(), new_yaml)
+        self.call('skills', 'uninstall', 'imps', '--root', str(self.skills), code=2)
+        self.call('skills', 'install', 'imps', '--root', str(self.skills))
+        self.assertEqual(self.receipt()['files']['agents/openai.yaml'], hashlib.sha256(new_yaml).hexdigest())
+
+    def test_operator_files_in_agents_survive_uninstall_and_retired_removal(self):
+        for remove in ('uninstall', 'retired'):
+            with self.subTest(remove=remove):
+                self.install()
+                own = self.skills / 't3-imps/agents/claude.yaml'
+                own.write_text('mine')
+                if remove == 'uninstall':
+                    self.call('skills', 'uninstall', 'imps', '--root', str(self.skills))
+                else:
+                    self.assertEqual(skills.remove_retired(self.skills, 'imps')['kept'], ['agents'])
+                self.assertEqual(own.read_text(), 'mine')
+                self.assertFalse(self.openai_yaml().exists())
+                self.assertFalse((self.skills / 't3-imps/SKILL.md').exists())
+                own.unlink()
+                own.parent.rmdir()
+                (self.skills / 't3-imps').rmdir()
 
 if __name__ == '__main__':
     unittest.main()

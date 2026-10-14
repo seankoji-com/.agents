@@ -11,6 +11,10 @@ import install as installer
 from core.jobs.store import trusted_link  # importing install puts the repository root on sys.path
 
 MARKER = '.t3-plugins-skill.json'
+# Codex reads picker metadata from agents/openai.yaml beside SKILL.md. The receipt
+# owns it by relative path, so only these names can ever be replaced or removed.
+OPENAI_YAML = 'agents/openai.yaml'
+OWNED_EXTRAS = (OPENAI_YAML,)
 
 
 def safe_path(path):
@@ -69,6 +73,19 @@ def render(meta, entry):
             'This adapter grants no additional authorization. T3 owns delegation and watches.\n')
 
 
+def openai_yaml(meta):
+    """Codex picker metadata. JSON strings are valid double-quoted YAML scalars.
+    A manifest `short_description` keeps the picker blurb short; otherwise the
+    description is used as written."""
+    name = 't3-' + meta['name']
+    interface = {
+        'display_name': 'T3 ' + meta['name'].replace('-', ' ').title(),
+        'short_description': meta.get('short_description') or meta['description'],
+        'default_prompt': 'Use $' + name + ' with one operation: ' + ', '.join(meta['operations']) + '.',
+    }
+    return ('interface:\n' + ''.join(f'  {key}: {json.dumps(value)}\n' for key, value in interface.items())).encode()
+
+
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -83,16 +100,50 @@ def atomic_write(path, data):
         Path(temporary).unlink(missing_ok=True)
 
 
-def managed(directory, name):
+def managed(directory, name, pending=None):
+    """Verify the marker owns an unmodified adapter. `pending` maps owned files to
+    the digests an install is about to write; a file already holding those bytes
+    is the trace of an interrupted install, not an edit."""
+    pending = pending or {}
     marker = directory / MARKER
     skill = directory / 'SKILL.md'
     if not marker.is_file() or marker.is_symlink() or skill.is_symlink():
         raise ValueError(f'refusing an unowned skill directory: {directory}')
     receipt = json.loads(marker.read_text())
     if (not isinstance(receipt, dict) or receipt.get('schema_version') != 1 or receipt.get('name') != name
-            or receipt.get('sha256') != digest(skill.read_bytes())):
+            or digest(skill.read_bytes()) not in (receipt.get('sha256'), pending.get('SKILL.md'))):
         raise ValueError(f'refusing a modified or invalid skill adapter: {directory}')
+    # Receipts written before extras existed have no `files`; they own SKILL.md only.
+    files = receipt.get('files', {})
+    if not isinstance(files, dict) or not set(files) <= set(OWNED_EXTRAS):
+        raise ValueError(f'refusing a modified or invalid skill adapter: {directory}')
+    for relative, sha in files.items():
+        path = extra_path(directory, relative)
+        if path.exists() and digest(path.read_bytes()) not in (sha, pending.get(relative)):
+            raise ValueError(f'refusing a modified skill adapter file: {path}')
     return receipt
+
+
+def extra_path(directory, relative):
+    path = directory / relative
+    for part in (path.parent, path):
+        if part.is_symlink():
+            raise ValueError(f'skill adapter path is a symlink: {part}')
+    if path.exists() and not path.is_file():
+        raise ValueError(f'skill adapter path is not a file: {path}')
+    return path
+
+
+def remove_owned(directory, receipt):
+    """Remove the adapter files the verified receipt owns and any directory
+    left empty by that. Operator files stay."""
+    for relative in receipt.get('files', {}):
+        path = extra_path(directory, relative)
+        path.unlink(missing_ok=True)
+        if path.parent != directory and path.parent.is_dir() and not any(path.parent.iterdir()):
+            path.parent.rmdir()
+    (directory / 'SKILL.md').unlink()
+    (directory / MARKER).unlink()
 
 
 def install(root, prefix, meta):
@@ -112,14 +163,26 @@ def install(root, prefix, meta):
     entry = current / meta['entry']
     if not entry.is_file() or any(ord(c) < 32 for c in str(entry)):
         raise ValueError('invalid installed entry path')
-    if directory.exists():
-        managed(directory, name)
     data = render(meta, entry).encode()
+    yaml = openai_yaml(meta)
+    pending = {'SKILL.md': digest(data), OPENAI_YAML: digest(yaml)}
+    previous = managed(directory, name, pending) if directory.exists() else {}
     receipt = {'schema_version': 1, 'name': name, 'entry': str(entry), 'sha256': digest(data)}
+    result = {'name': name, 'path': str(directory / 'SKILL.md'), 'entry': str(entry)}
     directory.mkdir(parents=True, exist_ok=True)
+    target = extra_path(directory, OPENAI_YAML)
+    # An existing openai.yaml the receipt does not own is the operator's; keep it,
+    # unless it is byte-identical to ours (an interrupted earlier install).
+    if (target.exists() and OPENAI_YAML not in previous.get('files', {})
+            and target.read_bytes() != yaml):
+        result['preserved_files'] = [OPENAI_YAML]
+    else:
+        target.parent.mkdir(exist_ok=True)
+        atomic_write(target, yaml)
+        receipt['files'] = {OPENAI_YAML: digest(yaml)}
     atomic_write(directory / 'SKILL.md', data)
     atomic_write(directory / MARKER, (json.dumps(receipt, indent=2) + '\n').encode())
-    return {'name': name, 'path': str(directory / 'SKILL.md'), 'entry': str(entry)}
+    return result
 
 
 def remove_retired(root, plugin):
@@ -136,11 +199,10 @@ def remove_retired(root, plugin):
     try:
         if directory.is_symlink():
             raise ValueError(f'skill directory is a symlink: {directory}')
-        managed(directory, name)
+        owned = managed(directory, name)
     except (ValueError, OSError) as exc:
         return dict(receipt, preserved=str(exc))
-    (directory / 'SKILL.md').unlink()
-    (directory / MARKER).unlink()
+    remove_owned(directory, owned)
     kept = sorted(path.name for path in directory.iterdir())
     if not kept:
         directory.rmdir()
@@ -152,9 +214,7 @@ def uninstall(root, meta):
     directory = safe_path(safe_path(root) / name)
     if not directory.exists():
         return {'name': name, 'removed': False}
-    managed(directory, name)
-    (directory / 'SKILL.md').unlink()
-    (directory / MARKER).unlink()
+    remove_owned(directory, managed(directory, name))
     # Preserve anything the operator added to the adapter directory.
     if not any(directory.iterdir()):
         directory.rmdir()

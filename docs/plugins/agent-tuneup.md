@@ -20,6 +20,12 @@ Compare every provider in T3's live catalog:
 $t3-agent-tuneup align
 ```
 
+Check that new T3 worktrees install dependencies before the agent starts:
+
+```text
+$t3-agent-tuneup audit --t3-projects
+```
+
 The provider running the workflow doesn't have to be the one you audit. Send
 `$t3-agent-tuneup doctor` first on a new machine or provider. To see the audit helper
 work without a model, [run it locally](#run-without-a-model).
@@ -35,6 +41,70 @@ layer applies.
 `apply` then writes one approved settings file at a time. It checks the original and
 candidate hashes, keeps a private backup, and refuses stale plans or newly added broad
 permission patterns.
+
+## Worktree setup for T3 projects
+
+A T3 thread in worktree mode starts in a fresh checkout. Without a setup script,
+`node_modules`, `.venv` and module caches are missing, and the agent's first test run
+fails. `audit --t3-projects` reads your projects through T3's own tools
+(`t3_environment_read`, `t3_project_list`, `t3_project_read`) and flags
+`worktree-bootstrap-missing` when all three hold:
+
+- The project's thread mode is `worktree`. The audit takes the project setting
+  first, then the environment default, then `defaultThreadEnvMode` in `t3.json`.
+  That order follows T3's project-file contract as read on 14 October 2026; if your
+  T3 build resolves it differently, treat the mode source in the finding as a hint.
+- The checkout root has a tracked `pnpm-lock.yaml`, `package-lock.json`, `bun.lock`,
+  `uv.lock` or `go.mod`. Untracked or gitignored lockfiles don't count.
+- No saved project script sets `runOnWorktreeCreate: true`. When `t3.json` has
+  such a script but the saved scripts don't, the finding is
+  `worktree-bootstrap-not-imported` instead, with no draft: the script exists and
+  only needs importing.
+
+Each finding carries a draft `t3.json`:
+
+```json
+{
+  "scripts": [
+    {
+      "name": "Setup Worktree",
+      "command": "node \"$HOME/.local/bin/t3-setup-worktree.mjs\"",
+      "icon": "configure",
+      "runOnWorktreeCreate": true,
+      "async": false
+    }
+  ]
+}
+```
+
+`async` is `false` for JavaScript and Python projects, so the agent waits for the
+install, and `true` when `go.mod` is the only lockfile. The command assumes a setup
+helper at `$HOME/.local/bin/t3-setup-worktree.mjs`; put your repository's install
+command there if you don't have one. If the project already has a `t3.json`, add the
+script to its `scripts` array rather than replacing the file.
+
+The audit writes nothing. It doesn't create `t3.json`, change project settings or
+import scripts. A committed `t3.json` isn't enough on its own: import its scripts in
+Settings → your project → Actions, or ask the agent to call `t3_project_update` with
+the existing saved scripts plus this one. `draft_saved_script` carries an `id` that
+none of the project's saved scripts already use.
+
+To run the check without a model, save T3's responses in a private file outside every
+checkout. It holds local paths, so don't commit it:
+
+```json
+{"environment": {"preferences": {"defaultThreadEnvMode": "worktree"}},
+ "projects": [{"id": "example", "workspaceRoot": "/absolute/checkout",
+               "defaultThreadEnvMode": null, "scripts": []}]}
+```
+
+```sh
+python3 "$(dirname "$(t3-plugins path agent-tuneup)")/scripts/audit.py" --t3-projects private-snapshot.json
+```
+
+It exits `1` with findings, `0` with none and `2` for an unreadable snapshot. Findings
+name projects by index and T3 id, never by path. Projects whose checkout is missing
+or isn't a readable git repository appear under `unchecked`.
 
 ## Operations
 

@@ -14,6 +14,30 @@
 4. If one file has no open semantic question, report its findings and stop. Otherwise
    continue with a job.
 
+## T3 project bootstrap
+
+`audit --t3-projects` is direct and read-only.
+
+1. Discover T3's live tool schemas, then call `t3_environment_read`, page through
+   `t3_project_list`, and call `t3_project_read` for any project whose listing lacks
+   `workspaceRoot` or `scripts`. If a tool is missing, report the blocker; never read
+   `~/.t3/userdata` instead.
+2. Save `{"environment": <t3_environment_read>, "projects": [<project>, ...]}` as a
+   private file outside every checkout. It names local paths; never commit or publish it.
+3. Run `python3 PKG/scripts/audit.py --t3-projects <file>`. Exit `0` clean, `1`
+   findings, `2` unreadable or invalid snapshot. `unchecked` entries name projects
+   whose checkout was missing or unreadable; report them, do not guess.
+4. Report each `worktree-bootstrap-missing` finding with its project, lockfiles,
+   mode source, `draft_t3_json` and the `import` note. `worktree-bootstrap-not-imported`
+   means `t3.json` already has a setup script that the saved scripts lack; report the
+   `import` note only. The draft is a proposal for the
+   owner to review and commit. When a `t3.json` already exists, propose adding the
+   draft script to its `scripts` array instead of replacing the file. The draft assumes
+   the setup helper `$HOME/.local/bin/t3-setup-worktree.mjs`; say so, and offer the
+   repository's own install command if that helper is absent.
+5. Do not write `t3.json`, call `t3_project_update`, or edit any project. Importing
+   scripts is a separate owner action; an audit request does not authorize it.
+
 ## Audit job
 
 Create the job from `PKG/references/job-plan.md`: an `inspect` stage the coordinator

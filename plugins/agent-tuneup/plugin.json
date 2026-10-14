@@ -2,7 +2,8 @@
   "name": "agent-tuneup",
   "version": "1.1.4",
   "description": "Audit and align provider permissions, MCPs and plugins with approved native changes.",
-  "argument_hint": "doctor | audit --provider NAME --settings PATH | align | apply --plan PATH | scan --provider claude",
+  "short_description": "Audit and align provider permissions, MCPs and plugins",
+  "argument_hint": "doctor | audit --provider NAME --settings PATH | audit --t3-projects | align | apply --plan PATH | scan --provider claude",
   "entry": "entry.md",
   "operations": [
     "doctor",
