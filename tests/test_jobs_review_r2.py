@@ -8,9 +8,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -502,6 +504,63 @@ class R2ReviewSupportTests(unittest.TestCase):
             _bounded_run([sys.executable, "-c", "print('x' * 4096)"], ROOT,
                          {"timeout_seconds": 5, "max_output_bytes": 128})
 
+    # Cleanup when killpg answers EPERM, as macOS does while an exited leader is a zombie.
+
+    def _eperm_run(self, script, *, killpg_refusals=1, refuse_kill=False):
+        """Run _bounded_run with the first killpg calls refused; return the real Popen."""
+        from unittest import mock
+        import shared.job_acceptance as acceptance
+
+        real_killpg, real_popen, procs, calls = os.killpg, subprocess.Popen, [], []
+
+        def killpg(pgid, sig):
+            calls.append(pgid)
+            if len(calls) <= killpg_refusals:
+                raise PermissionError(1, 'Operation not permitted')
+            return real_killpg(pgid, sig)
+
+        def popen(*args, **kwargs):
+            procs.append(real_popen(*args, **kwargs))
+            return procs[-1]
+
+        patches = [mock.patch.object(acceptance.os, 'killpg', side_effect=killpg),
+                   mock.patch.object(acceptance.subprocess, 'Popen', side_effect=popen)]
+        if refuse_kill:
+            patches.append(mock.patch.object(real_popen, 'kill', side_effect=PermissionError(1, 'refused')))
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+        def reap():
+            for proc in procs:
+                try:
+                    real_killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                proc.wait(timeout=5)
+        self.addCleanup(reap)
+        with self.assertRaisesRegex(AcceptanceError, "output limit"):
+            _bounded_run([sys.executable, "-c", script], ROOT,
+                         {"timeout_seconds": 5, "max_output_bytes": 128})
+        self.assertEqual(len(procs), 1)
+        self.assertTrue(procs[0].stdout.closed and procs[0].stderr.closed)
+        return procs[0], calls
+
+    def test_eperm_from_an_exited_leader_keeps_the_real_error(self):
+        proc, calls = self._eperm_run("print('x' * 4096)")
+        self.assertIsNotNone(proc.returncode)  # reaped by cleanup
+        self.assertEqual(len(calls), 1)  # the group is signalled once, never retried
+
+    def test_eperm_still_stops_a_live_leader(self):
+        proc, calls = self._eperm_run("import time; print('x' * 4096, flush=True); time.sleep(30)")
+        self.assertEqual(proc.returncode, -signal.SIGKILL)
+        self.assertEqual(len(calls), 1)
+
+    def test_cleanup_failure_never_masks_the_real_error(self):
+        # The group kill and the leader kill are both refused. The output-limit error
+        # still surfaces and both pipes are closed; reap() stops the helper afterwards.
+        self._eperm_run("import time; print('x' * 4096, flush=True); time.sleep(1)",
+                        killpg_refusals=99, refuse_kill=True)
 
 if __name__ == "__main__":
     unittest.main()
