@@ -5,3 +5,4 @@ site/
 .venv-docs/
 .coverage
 htmlcov/
+.repos/
