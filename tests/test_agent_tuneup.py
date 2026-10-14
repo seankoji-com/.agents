@@ -91,7 +91,10 @@ class AuditTest(unittest.TestCase):
 
 def git(root, *args):
     subprocess.run(['git', '-C', str(root), *args], check=True, capture_output=True,
-                   env={**os.environ, 'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_CONFIG_NOSYSTEM': '1'})
+                   env={**os.environ, 'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_CONFIG_NOSYSTEM': '1',
+                        # No detached auto-maintenance: it writes under .git while tests compare trees.
+                        'GIT_CONFIG_COUNT': '2', 'GIT_CONFIG_KEY_0': 'gc.auto', 'GIT_CONFIG_VALUE_0': '0',
+                        'GIT_CONFIG_KEY_1': 'maintenance.auto', 'GIT_CONFIG_VALUE_1': 'false'})
 
 
 class WorktreeBootstrapTest(unittest.TestCase):
