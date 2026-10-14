@@ -554,5 +554,31 @@ class SkillAdapters(unittest.TestCase):
                 skills.Adapter, '_open_sub', lambda adapter, name: None):
             self.assertFalse(skills.interrupted_first_install(adapter, {}))
 
+    def test_untrusted_root_link_is_never_followed_even_if_sampled_as_a_link(self):
+        external = self.external()
+        link = self.base / 'link-root'
+        link.symlink_to(external, target_is_directory=True)
+        self.assertFalse(skills.trusted_root_link(link))
+        folder = link / 't3-imps'
+        with self.assertRaises(ValueError):
+            skills.Adapter(folder, create=True, root_is_link=skills.trusted_root_link(link))
+        self.assert_external_untouched(external)
+
+    def test_failed_subdirectory_check_closes_its_descriptor(self):
+        self.install()
+        folder = self.skills / 't3-imps'
+        shutil_rmtree(folder / 'agents')
+        before = len(os.listdir('/dev/fd'))
+        real_listdir = os.listdir
+
+        def failing(target):
+            if isinstance(target, int):
+                raise OSError(5, 'injected')
+            return real_listdir(target)
+        with skills.Adapter(folder) as adapter, mock.patch.object(skills.os, 'listdir', failing), \
+                self.assertRaises(OSError):
+            adapter.sub('agents', create=True)
+        self.assertEqual(len(os.listdir('/dev/fd')), before)
+
 if __name__ == '__main__':
     unittest.main()

@@ -18,6 +18,12 @@ OPENAI_YAML = 'agents/openai.yaml'
 OWNED_EXTRAS = (OPENAI_YAML,)
 
 
+def trusted_root_link(root):
+    """Whether the root may be followed as a link: only a trusted one, whatever
+    the path holds when sampled. An untrusted link swapped in later is refused."""
+    return root.is_symlink() and trusted_link(root)
+
+
 def safe_path(path):
     path = Path(path).expanduser().absolute()
     for part in [*reversed(path.parents), path]:
@@ -180,10 +186,13 @@ class Adapter:
         if self.subs[name] is None and create:
             made = mkdir_at(self.top, name)
             fd = self._open_sub(name)
-            if fd is None or not made or os.listdir(fd):
+            try:
+                if fd is None or not made or os.listdir(fd):
+                    raise ValueError(f'skill adapter directory changed during the run: {self.path / name}')
+            except BaseException:
                 if fd is not None:
                     os.close(fd)
-                raise ValueError(f'skill adapter directory changed during the run: {self.path / name}')
+                raise
             self.subs[name] = fd
         return self.subs[name]
 
@@ -303,7 +312,7 @@ def interrupted_first_install(adapter, expected):
 
 def install(root, prefix, meta):
     root = safe_path(root)
-    root_is_link = root.is_symlink()
+    root_is_link = trusted_root_link(root)
     name = 't3-' + meta['name']
     directory = safe_path(root / name)
     current = prefix / meta['name'] / 'current'
@@ -351,7 +360,7 @@ def remove_retired(root, plugin):
     name = 't3-' + plugin
     try:
         directory = safe_path(root) / name
-        root_is_link = directory.parent.is_symlink()
+        root_is_link = trusted_root_link(directory.parent)
     except ValueError as exc:
         return {'name': name, 'root': str(root), 'removed': False, 'preserved': str(exc)}
     if not directory.exists() and not directory.is_symlink():
@@ -373,7 +382,7 @@ def remove_retired(root, plugin):
 def uninstall(root, meta):
     name = 't3-' + meta['name']
     directory = safe_path(safe_path(root) / name)
-    root_is_link = directory.parent.is_symlink()
+    root_is_link = trusted_root_link(directory.parent)
     if not directory.exists():
         return {'name': name, 'removed': False}
     with Adapter(directory, root_is_link=root_is_link) as adapter:
