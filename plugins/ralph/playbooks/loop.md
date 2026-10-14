@@ -75,8 +75,9 @@ Only the parent writes checkpoints; never delegate access to this directory.
 ## One tracked task at a time
 
 Call `next --state FILE`. Its `dispatch` object is the complete input for the live
-`delegate_task` schema. It pins `mode: async`, role, target and a stable
-`clientRequestId` before dispatch. The task brief includes the goal, contract,
+`delegate_task` schema. It pins `mode: async`, role, target, a stable
+`clientRequestId` and a compact title (`R2 impl`, `R2 delta`, `R2 review`) before
+dispatch. The task brief includes the goal, contract,
 existing worktree, the latest implementation summary and evaluator report, every
 failed task's summary, every recovery reason, and EVERY prior verdict, evaluation
 gap and invalidation without truncation. Older completed reports stay in the

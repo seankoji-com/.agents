@@ -243,7 +243,9 @@ def make_dispatch(state):
                 'clientRequestId': request_id, 'target': {k: v for k, v in chosen.items()
                                                         if k in ('providerInstanceId', 'model', 'options')},
                 'runtimeMode': chosen['runtimeMode'], 'interactionMode': 'default',
-                'title': f"Ralph attempt {state['attempt']}: {role}" + (' (delta)' if scope == 'delta' else '')}
+                # Compact: T3's sidebar truncates long titles, so the round and stage lead.
+                'title': f"R{state['attempt']} " + ('impl' if phase == 'implement' else
+                                                    'delta' if scope == 'delta' else 'review')}
     record = {'role': role, 'attempt': state['attempt'], 'dispatch': dispatch, 'binding': binding}
     if scope:
         record['scope'] = scope

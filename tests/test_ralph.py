@@ -310,12 +310,15 @@ class RalphTest(unittest.TestCase):
         self.assertEqual(contract['delta']['sinceRevision'],
                          ralph.snapshot.token(self.state['tasks'][1]['binding']))
         self.assertIn('cannot finish the run', delta['task'])
+        self.assertEqual([full['title'], delta['title']], ['R1 review', 'R2 delta'])
         # The delta pass earns a fresh full review, not acceptance or another attempt.
         self.assertEqual(self.state['phase'], 'evaluate')
         self.assertEqual(self.state['attempt'], 2)
         self.assertFalse(ralph.publication_verified(dict(self.state, evaluatedRevision=self.state['tasks'][-1]['binding'])))
         final, _ = self.review()
         self.assertIn('"reviewScope": "full"', final['task'])
+        self.assertEqual(final['title'], 'R2 review')
+        self.assertEqual(self.state['tasks'][0]['dispatch']['title'], 'R1 impl')
         self.assertEqual(self.state['phase'], 'evaluated')
         self.assertTrue(ralph.publication_verified(self.state))
         ralph.validate_checkpoint(self.state)
