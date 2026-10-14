@@ -157,7 +157,10 @@ def main(argv=None):
     for name in ('path', 'prompt', 'doctor'):
         command = sub.add_parser(name, help=helps[name])
         command.add_argument('plugin', nargs='?' if name == 'doctor' else None)
-        if name == 'doctor': command.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
+        if name == 'doctor':
+            command.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
+            command.add_argument('--project', dest='doctor_project', default=None,
+                                 help='also refuse a learnings root inside this project, as its plugin runs would')
         if name == 'prompt':
             command.add_argument('request', nargs=argparse.REMAINDER, default=['doctor'])
     install = sub.add_parser('install', help='install all plugins or one named plugin')
@@ -282,8 +285,9 @@ def main(argv=None):
         failed = False
         reference_errors = registry.validate_job_references()
         # Optional storage: report whether this process may write lessons, without failing doctor.
-        # The current directory is the project, as the learnings helper's --project would be.
-        learnings_write = learning_store.probe_write('.') if args.command == 'doctor' else None
+        # Global by default; --project adds the containment refusal a plugin run for that project applies.
+        learnings_write = (learning_store.probe_write(getattr(args, 'doctor_project', None))
+                           if args.command == 'doctor' else None)
         for meta in plugins:
             current = prefix / meta['name'] / 'current'
             entry = current / meta['entry']

@@ -294,6 +294,21 @@ class SandboxDenialTest(unittest.TestCase):
         Path(self.subtree).mkdir(parents=True)
         return Path(self.subtree)
 
+    def test_symlink_loop_in_the_state_root_is_unavailable_not_a_crash(self):
+        loop = self.base / 'loop'
+        os.symlink(loop, loop)
+        env = dict(self.env, XDG_STATE_HOME=str(loop))
+        for project in (None, self.project):
+            with self.subTest(project=project):
+                probe = probe_write(project, env)
+                self.assertEqual(probe['status'], 'unavailable', probe)
+        # Store refuses it too: Unavailable where resolve() raises (Python < 3.13), or the
+        # no-symlink walk's OSError, which the learnings helper turns into an unavailable receipt.
+        with self.assertRaises((Unavailable, OSError)):
+            Store(self.project, 'imps', OLD, env)
+        with mock.patch.object(Path, 'resolve', side_effect=RuntimeError('Symlink loop')):
+            self.assertEqual(probe_write(self.project, self.env)['status'], 'unavailable')
+
     def test_simulated_erofs_eacces_and_eperm_name_the_grant(self):
         for code, target in ((errno.EROFS, 'learning_store.os.mkdir'), (errno.EACCES, 'learning_store.atomic_file'),
                              (errno.EPERM, 'learning_store.atomic_file')):

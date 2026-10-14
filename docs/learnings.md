@@ -104,10 +104,9 @@ entries, then sync. The directory entry covers everything below it. Codex gets a
 ### Confirm a real write
 
 Start a new provider session so it reads the changed settings. From a command that
-runs inside the provider's sandbox, change to the project and run `t3-plugins doctor`.
-Doctor treats the current directory as the project, as the helper's `--project`
-would, so it refuses the same state roots a plugin run would. Read the
-`learnings_write` field of its receipts:
+runs inside the provider's sandbox, run `t3-plugins doctor`. That is a global check from
+any directory. Add `--project PATH` to also refuse a learnings root inside that project,
+as plugin runs for it would. Read the `learnings_write` field of its receipts:
 
 | Status | Meaning |
 | --- | --- |

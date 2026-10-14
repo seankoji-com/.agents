@@ -114,12 +114,22 @@ class SetupTest(unittest.TestCase):
             self.assertEqual(list(root.iterdir()), [])
         self.assertFalse((self.home / '.claude').exists())
 
-    def test_doctor_refuses_a_state_root_inside_the_current_project(self):
+    def test_doctor_with_project_refuses_a_state_root_inside_it(self):
+        self.call('install', 'imps')
+        self.env['XDG_STATE_HOME'] = str(self.project / 'state')
+        receipt = json.loads(self.call('doctor', 'imps', '--project', str(self.project)).stdout)
+        self.assertTrue(receipt['ok'])
+        self.assertEqual(receipt['learnings_write'], {'status': 'unavailable', 'reason': 'state root is inside the project'})
+        self.assertEqual(list(self.project.iterdir()), [])
+
+    def test_doctor_without_project_is_a_global_check_from_any_directory(self):
+        # The documented first run is `t3-plugins doctor` from $HOME, which contains the
+        # default ~/.local/state root; a global check must not call that "inside the project".
         self.call('install', 'imps')
         self.env['XDG_STATE_HOME'] = str(self.project / 'state')
         receipt = json.loads(self.call('doctor', 'imps').stdout)
         self.assertTrue(receipt['ok'])
-        self.assertEqual(receipt['learnings_write'], {'status': 'unavailable', 'reason': 'state root is inside the project'})
+        self.assertEqual(receipt['learnings_write']['status'], 'absent')
         self.assertEqual(list(self.project.iterdir()), [])
 
     def test_setup_from_home_prints_and_applies_default_grants(self):

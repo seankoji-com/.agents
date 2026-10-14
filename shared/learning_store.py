@@ -109,7 +109,11 @@ def state_root(project, env=None):
     root = Path(env.get('XDG_STATE_HOME') or str(Path(env.get('HOME', str(Path.home()))) / '.local/state'))
     if not root.is_absolute() or '..' in root.parts:
         raise Unavailable('state root must be absolute')
-    if project is not None and root.resolve().is_relative_to(Path(project).resolve()):
+    try:
+        inside = project is not None and root.resolve().is_relative_to(Path(project).resolve())
+    except (OSError, RuntimeError) as exc:  # RuntimeError: symlink loop on Python < 3.13
+        raise Unavailable(f'state root cannot be resolved: {type(exc).__name__}') from exc
+    if inside:
         raise Unavailable('state root is inside the project')
     # Validate existing ancestors without creating anything, including for grant proposals.
     try:
@@ -149,15 +153,16 @@ def directory(path, create=False):
         os.close(fd)
 
 
-def probe_write(project, env=None):
-    """Doctor's check. The root is resolved exactly as Store resolves it. The probe never
+def probe_write(project=None, env=None):
+    """Doctor's check. The root is resolved exactly as Store resolves it; with a project, the
+    same containment refusal applies, and without one the check is global. The probe never
     creates or removes directories: it creates one file inside an existing learnings root and
     unlinks it through the same directory descriptor, and says so if that unlink fails."""
     try:
         subtree = state_root(project, env) / 't3-plugins/learnings'
     except Denied as exc:
         return {'status': 'denied', 'reason': str(exc)}
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         return {'status': 'unavailable', 'reason': str(exc)}
     receipt = {'root': str(subtree)}
     name = '.probe-' + uuid.uuid4().hex
