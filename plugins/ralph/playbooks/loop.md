@@ -77,9 +77,10 @@ Only the parent writes checkpoints; never delegate access to this directory.
 Call `next --state FILE`. Its `dispatch` object is the complete input for the live
 `delegate_task` schema. It pins `mode: async`, role, target and a stable
 `clientRequestId` before dispatch. The task brief includes the goal, contract,
-existing worktree, the latest implementation summary, and EVERY prior verdict,
-evaluation gap and invalidation without truncation. Older raw summaries stay in
-the checkpoint, so the brief does not grow by a full report each round.
+existing worktree, the latest implementation summary and evaluator report, every
+failed task's summary, every recovery reason, and EVERY prior verdict, evaluation
+gap and invalidation without truncation. Older completed reports stay in the
+checkpoint, so the brief does not grow by a full report each round.
 Every attempt and evaluation uses a NEW `delegate_task`, never `childThreadId`
 continuation, `t3_thread_send`, a native subagent, or a top-level thread.
 Continuing a reviewer's conversation would anchor it on its earlier verdict, and
@@ -135,8 +136,9 @@ the full task diff against the intended base. After a review rejects with
 feedback, the next review is `delta`: a fresh task checks each `openFeedback` item
 and every path in `changedPathsSinceReview` since that review's revision. A delta
 review cannot finish the run. When it passes, the helper issues a full review of
-the same tree without consuming an attempt. A failed verdict without feedback,
-an invalidated verdict, or tree drift after acceptance gets a full review. Evaluation is read-only;
+the same tree without consuming an attempt. Only the latest review decides: if it
+was invalidated, malformed or failed, returned no feedback, or the tree drifted
+after acceptance, the next review is full. Evaluation is read-only;
 it may run suitable checks, inspect artifacts and report gaps, but cannot edit,
 commit, push, publish, delegate or change the goal. If required inspection cannot
 be performed, the evaluator must return a failure/gap, never infer success.
@@ -152,6 +154,8 @@ The evaluator must finish with ONE fenced JSON object marked `ralph-evaluation`:
 }
 ```
 
+Each feedback message must be self-contained, with file, line and reproduction,
+because later tasks see only the latest evaluator report in full.
 Pass the unmodified structured status and raw summary to `observe`; the helper
 extracts the JSON block itself. Malformed, absent, stale, or unsupported output is
 a verification gap, not a pass. The helper requires a real boolean, an array of
@@ -208,6 +212,8 @@ another round. Unattached uncertain dispatch must be reconciled and stopped too.
 Never cancel unrelated tasks. Stop task-owned services at handoff.
 
 Checkpoint format 2 adds per-target modes, recovery and a content baseline.
-Review `scope` and `reviewBaseline` are optional format 2 fields; reviews without
-them count as full and never seed a delta review. Older
-checkpoints require their original installed snapshot; do not rewrite their state.
+Format 3 adds each review's `scope` and delta `reviewBaseline`. The helper reads
+a format 2 checkpoint as format 3 with every review marked full, and saves it as
+format 3 on its next write. Earlier helpers refuse format 3, so they cannot accept
+a delta review. Older checkpoints require their original installed snapshot; do
+not rewrite their state.

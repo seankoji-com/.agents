@@ -26,7 +26,7 @@ PHASES = {'implement', 'evaluate', 'evaluated', 'exhausted', 'blocked', 'stoppin
 RESUME_PHASES = {'implement', 'evaluate', 'evaluated', 'exhausted'}
 BLOCKER_KINDS = {'identity', 'pending_runs', 'invalid_evaluation', 'invalid_result', 'task_failure'}
 RUNTIME_MODES = ('approval-required', 'auto-accept-edits', 'auto', 'full-access')
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3  # 3 adds review scope; format 2 upgrades in place
 
 
 def require(condition, message):
@@ -150,18 +150,35 @@ def history_entry(task):
              if k in task}
     if 'observation' in task:
         entry['status'] = task['observation'].get('status')
+        if entry['status'] != 'completed':
+            entry['summary'] = task['observation'].get('summary')  # provider errors stay actionable
     return entry
+
+
+def tracked_modes(worktree, head):
+    """Working modes of tracked paths that differ from `head`; a bare chmod leaves blobs unchanged."""
+    raw = snapshot.git(worktree, 'diff', '--raw', '-z', '--no-renames', head, check=False).split('\0') if head else []
+    return {raw[i + 1]: raw[i].split()[1] for i in range(0, len(raw) - 1, 2) if raw[i].startswith(':')}
+
+
+def review_baseline(worktree):
+    base = snapshot.baseline(worktree)
+    return dict(base, modes=tracked_modes(worktree, base['head']))
 
 
 def review_scope(state):
     """Re-review only what changed after a rejection; only a full review can accept."""
-    prior = next((t for t in reversed(state['tasks']) if t['role'] == 'review' and 'evaluation' in t), None)
-    # A failed verdict without feedback names nothing to re-check, so it gets a full review.
-    if prior is None or prior.get('stale') or 'reviewBaseline' not in prior or not prior['evaluation']['feedback']:
+    prior = next((t for t in reversed(state['tasks']) if t['role'] == 'review'), None)
+    # Only the latest review counts: an invalidated, failed or malformed one, or a failed verdict
+    # without feedback, names nothing reliable to re-check, so it gets a full review.
+    if (prior is None or prior.get('stale') or 'evaluation' not in prior or 'reviewBaseline' not in prior
+            or not prior['evaluation']['feedback']):
         return 'full', None
-    return 'delta', {'sinceRevision': snapshot.token(prior['binding']),
-                     'changedPathsSinceReview': sorted(snapshot.changed_since(state['worktree'],
-                                                                              prior['reviewBaseline'])),
+    base = prior['reviewBaseline']
+    modes = tracked_modes(state['worktree'], base['head'])
+    changed = snapshot.changed_since(state['worktree'], base) | {
+        path for path in base['modes'].keys() | modes.keys() if base['modes'].get(path) != modes.get(path)}
+    return 'delta', {'sinceRevision': snapshot.token(prior['binding']), 'changedPathsSinceReview': sorted(changed),
                      'openFeedback': prior['evaluation']['feedback'],
                      'previousGoalAchieved': prior['evaluation']['goalAchieved']}
 
@@ -173,8 +190,10 @@ def make_dispatch(state):
     # Every verdict, gap and invalidation, untruncated. Raw summaries grow every round, so only
     # the latest implementation summary travels; the checkpoint keeps the rest.
     history = [history_entry(t) for t in state['tasks']]
-    latest = next((t['observation']['summary'] for t in reversed(state['tasks'])
-                   if t['role'] == 'implementation' and t.get('observation', {}).get('status') == 'completed'), None)
+
+    def latest(role):
+        return next((t['observation']['summary'] for t in reversed(state['tasks']) if t['role'] == role
+                     and t.get('observation', {}).get('status') == 'completed'), None)
     binding = snapshot.take(state['worktree']) if phase == 'evaluate' else None
     scope, delta = review_scope(state) if phase == 'evaluate' else (None, None)
     if phase == 'implement':
@@ -201,12 +220,14 @@ def make_dispatch(state):
             'verification is a gap. End with one fenced ralph-evaluation JSON object with '
             'goalAchieved (boolean), feedback (array of {severity, message}), evidence (nonempty '
             'array of strings), and revision equal to the supplied token. Success requires '
-            'goalAchieved true AND feedback empty. '
+            'goalAchieved true AND feedback empty. Make each feedback message self-contained, with '
+            'file, line and reproduction: the next tasks receive only your latest report. '
         )
     # Stable fields first, so repeated briefs share the longest possible prefix.
     contract = {'goal': state['goal'], 'brief': state['brief'], 'worktree': state['worktree'],
                 'maxAttempts': state['maxAttempts'], 'attempt': state['attempt'], 'history': history,
-                'latestImplementationSummary': latest}
+                'recoveries': state.get('recoveries', []), 'latestImplementationSummary': latest('implementation'),
+                'latestEvaluationReport': latest('review')}
     if scope:
         contract['reviewScope'] = scope
     if delta:
@@ -222,7 +243,7 @@ def make_dispatch(state):
     record = {'role': role, 'attempt': state['attempt'], 'dispatch': dispatch, 'binding': binding}
     if scope:
         record['scope'] = scope
-        record['reviewBaseline'] = snapshot.baseline(state['worktree'])
+        record['reviewBaseline'] = review_baseline(state['worktree'])
     return record
 
 
@@ -387,7 +408,7 @@ def observe(state, data):
         return
     record['evaluation'] = verdict
     record['consumed'] = True
-    if not rejected(verdict) and record.get('scope') == 'delta':
+    if not rejected(verdict) and record['scope'] == 'delta':
         state['phase'] = 'evaluate'  # A delta pass earns a full fresh review, never acceptance.
     elif not rejected(verdict):
         state['phase'] = 'evaluated'
@@ -427,6 +448,30 @@ def validate_blocker(value, name):
     text_field(value.get('message'), f'{name} message')
     if value.get('taskId') is not None:
         text_field(value['taskId'], f'{name} taskId')
+
+
+def upgrade(state):
+    """Format 2 predates scoped reviews, so each of its reviews was a full review."""
+    if isinstance(state, dict) and type(state.get('schemaVersion')) is int and state['schemaVersion'] == 2:
+        require(isinstance(state.get('tasks'), list), 'checkpoint tasks must be an array of objects')
+        for record in state['tasks']:
+            if isinstance(record, dict) and record.get('role') == 'review':
+                require('scope' not in record and 'reviewBaseline' not in record,
+                        'format 2 checkpoint cannot hold scoped reviews')
+                record['scope'] = 'full'
+        state['schemaVersion'] = SCHEMA_VERSION
+    return state
+
+
+def validate_review_baseline(value):
+    def path_map(field, check):
+        return isinstance(value.get(field), dict) and all(isinstance(k, str) and check(v)
+                                                         for k, v in value[field].items())
+    optional_text = lambda v: v is None or isinstance(v, str)
+    require(isinstance(value, dict) and optional_text(value.get('head'))
+            and path_map('dirty', optional_text) and path_map('modes', lambda v: isinstance(v, str))
+            and path_map('index', lambda v: isinstance(v, list) and all(isinstance(e, str) for e in v)),
+            'checkpoint reviewBaseline must map paths to head, dirty, mode and index entries')
 
 
 def validate_checkpoint(state):
@@ -505,11 +550,9 @@ def validate_checkpoint(state):
                         f'checkpoint observation {key} must be a boolean')
         if record['role'] == 'review':
             require(isinstance(record.get('binding'), dict), 'checkpoint review binding must be an object')
-            require(record.get('scope', 'full') in ('full', 'delta'), 'checkpoint review scope is invalid')
+            require(record.get('scope') in ('full', 'delta'), 'checkpoint review scope is invalid')
             if 'reviewBaseline' in record:
-                require(isinstance(record['reviewBaseline'], dict)
-                        and isinstance(record['reviewBaseline'].get('dirty'), dict),
-                        'checkpoint reviewBaseline must be a baseline object')
+                validate_review_baseline(record['reviewBaseline'])
     for key in ('blocker', 'stoppedBlocker', 'evaluatedRevision'):
         if key in state:
             require(isinstance(state[key], dict), f'checkpoint {key} must be an object')
@@ -523,7 +566,7 @@ def validate_checkpoint(state):
                 'evaluated checkpoint requires an evaluatedRevision object')
         require(bool(state['tasks']) and state['tasks'][-1]['role'] == 'review'
                 and isinstance(state['tasks'][-1].get('binding'), dict)
-                and state['tasks'][-1].get('scope', 'full') == 'full',
+                and state['tasks'][-1]['scope'] == 'full',
                 'evaluated checkpoint requires a final full review with an object binding')
     if 'recoveries' in state:
         for recovery in object_list(state['recoveries'], 'checkpoint recoveries'):
@@ -536,7 +579,7 @@ def publication_verified(state):
     if not tasks:
         return False
     review = tasks[-1]
-    if (review['role'] != 'review' or review.get('scope', 'full') != 'full'
+    if (review['role'] != 'review' or review.get('scope') != 'full'
             or review.get('consumed') is not True or review.get('stale') is True
             or review.get('observation', {}).get('status') != 'completed'
             or review.get('observation', {}).get('workState') != 'result_available'
@@ -581,7 +624,7 @@ def main(argv=None):
                 require(not path.exists(), 'init never overwrites an existing run')
                 result = {'phase': state['phase']}
             else:
-                state = read_json(path)
+                state = upgrade(read_json(path))
                 validate_checkpoint(state)
                 require(not path.resolve().is_relative_to(Path(state['worktree']).resolve()),
                         'checkpoint must be outside the worktree')

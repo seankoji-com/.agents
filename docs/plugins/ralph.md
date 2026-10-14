@@ -61,8 +61,9 @@ attempt. A failure verdict without feedback also triggers another attempt.
 
 Children receive only the supplied brief. ralph carries the original goal,
 constraints, acceptance criteria, every earlier verdict and all feedback into each
-new task, plus the latest implementation report. Earlier reports stay in the
-checkpoint, so the brief doesn't grow by a full report every round. Code remains in
+new task, plus the latest implementation and evaluation reports, failure details
+and recovery reasons. Earlier reports stay in the checkpoint, so the brief doesn't
+grow by a full report every round. Code remains in
 the same worktree. It does not resume a child's conversation, discard previous
 attempts, or swap models after criticism.
 
@@ -118,8 +119,10 @@ Cancellation stops only this run's tracked children. ralph waits for T3 to confi
 they and their pending turns have stopped; requesting cancellation is not proof.
 Keep the checkpoint until you are finished with the run. It can contain private
 goal text and feedback, so store it outside the repository and do not commit it.
-Checkpoint format 2 is separate from the original experimental format. Resume
-older checkpoints using their original installed snapshot rather than rewriting them.
+Checkpoint format 3 records each evaluation's review scope. ralph upgrades a
+format 2 checkpoint the next time it saves one, and earlier ralph versions refuse
+format 3. The original experimental format is separate: resume those checkpoints
+using their original installed snapshot rather than rewriting them.
 
 ## Compatibility
 
