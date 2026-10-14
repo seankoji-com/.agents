@@ -22,7 +22,8 @@ cold read is about to start.
 
 `doctor`, `thinking list`, `resolve`, `gate` and `render_handoff.py --check` are
 cheap and deterministic. Run them yourself; never launch an agent for them. `doctor`
-checks Python 3.10+, `thinking_state.py --help`, and the installed bundle through
+is not a `thinking_state.py` subcommand. It checks Python 3.10+,
+`thinking_state.py --help`, and the installed bundle through
 `t3-plugins agents list elephant-goldfish`. `gh` is needed only for optional
 publishing.
 

@@ -32,11 +32,13 @@ and that run's `validate` stays the acceptance authority.
 For free text, source input or `--personas`, read `PKG/references/request.md`;
 `--personas` also reads `PKG/references/personas.md`.
 
-**doctor.** Change nothing; run it directly. Check Python 3.10+, Git,
-state-directory writability and T3's live `orchestrator_capabilities`. Report
-enabled providers and the separate reasons others are disabled, uninstalled or
-unauthenticated. Direct work remains possible when children are unavailable. Read
-`PKG/references/compatibility.md` for historical provider observations.
+**doctor.** Change nothing; run it directly. First run `python3 PKG/cli.py doctor`.
+It reports Python 3.10+, Git, a removed probe write to the state root and learnings;
+exit 5 lists failures in `error.details`. Then call T3's live
+`orchestrator_capabilities`; the helper cannot. Never guess another subcommand.
+Report enabled providers and the separate reasons others are disabled, uninstalled
+or unauthenticated. Direct work remains possible when children are unavailable.
+Read `PKG/references/compatibility.md` for historical provider observations.
 
 **run <task>.** Inspect repository instructions and the working tree. Preserve
 unrelated work. Before a writable run, run the sibling-work check in `PKG/shared/t3-runtime.md`

@@ -26,6 +26,8 @@ Use JSON files with `--input FILE`; never interpolate goal text into shell code.
   Cancellation is complete only after T3 confirms terminal status and no pending runs.
 - `doctor` checks Python 3.10+, Git, live delegation/status/cancellation capability,
   and that at least two runnable, verified model lineages are available. Change nothing.
+  The helper has no `doctor` operation: run `python3 --version` and `git --version`,
+  then call T3 `orchestrator_capabilities`.
 
 The default authority covers local edits, tests, commits, push of the task branch,
 and opening a normal PR for code changes. Respect narrower user instructions and

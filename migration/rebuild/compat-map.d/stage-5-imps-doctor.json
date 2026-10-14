@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "stage": 5,
+  "inventory": {
+    "helpers": [
+      {
+        "path": "plugins/imps/scripts/doctor.py",
+        "kind": "python-cli",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Deterministic local readiness for $t3-imps doctor, reached as cli.py doctor: Python 3.10+, Git, a removed probe write to the state root and the learnings load status in one envelope; exit 5 names failed checks. T3 capabilities stay with the agent. Lives outside core/ to keep the core line budget.",
+        "interface": "cli.py doctor [--state-root DIR] [--repo DIR]"
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_imps_doctor.py",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "cli.py doctor: writable, under-a-file and read-only state roots, the XDG default, missing Git, invalid arguments, envelope shape and exit codes, no files created, and the installed copy run after its source is removed.",
+        "assertions": [
+          {
+            "selector": "test_imps_doctor.DoctorTest",
+            "coverage": [
+              "REQ-COMPAT",
+              "REQ-BOUNDARIES"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_imps_doctor.InstalledDoctorTest",
+            "coverage": [
+              "REQ-DELIVERY",
+              "REQ-BOUNDARIES"
+            ],
+            "survives": true
+          }
+        ]
+      }
+    ]
+  }
+}

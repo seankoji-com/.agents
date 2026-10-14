@@ -13,6 +13,9 @@ In a T3 thread attached to your repository, check readiness first:
 $t3-imps doctor
 ```
 
+Doctor runs `cli.py doctor` for Python, Git, a probe write to the state root and the
+learnings load, then asks T3 which providers can run child tasks. It changes nothing.
+
 Then give it a task with a finish line and a limit:
 
 ```text

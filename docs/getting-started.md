@@ -123,6 +123,10 @@ timelines are in the [Claude transcript](assets/recordings/t3-imps-doctor-claude
 and the [Codex transcript](assets/recordings/t3-imps-doctor-codex.txt). The Codex one
 leaves out a step that read the agent's private memory notes.
 
+Both runs predate `cli.py doctor`: each agent tried that subcommand, and it
+failed, so the agent checked Python, Git and the state directory by hand. Doctor now
+runs that subcommand first, so these checks come from one helper call.
+
 If a sandbox blocks the state directory, do what doctor suggested: pass `--state-root`
 with a writable directory outside the repository. To keep the default path, allow writes
 to `~/.local/state/t3-plugins/imps` in your provider's sandbox settings (for Claude,
