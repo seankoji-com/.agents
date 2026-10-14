@@ -163,10 +163,17 @@ class Stage3Repair5Tests(unittest.TestCase):
                 owned = json.loads(marker.read_text()); pid = owned['child']
                 try:
                     state = Path("/proc") / str(pid) / "stat"
+
+                    def proc_state():
+                        # A reaped process can vanish between an exists() check and the read; gone is cleaned up.
+                        try:
+                            return state.read_text().split()[2]
+                        except (FileNotFoundError, ProcessLookupError):
+                            return None
                     deadline = time.monotonic() + 1
-                    while state.exists() and state.read_text().split()[2] not in ('Z', 'X') and time.monotonic() < deadline:
+                    while proc_state() not in (None, 'Z', 'X') and time.monotonic() < deadline:
                         time.sleep(0.01)
-                    if state.exists(): self.assertIn(state.read_text().split()[2], ('Z', 'X'))
+                    self.assertIn(proc_state(), (None, 'Z', 'X'))
                 finally:
                     try: os.killpg(owned['group'], signal.SIGKILL)
                     except (ProcessLookupError, PermissionError): pass  # macOS answers EPERM for a reaped group
