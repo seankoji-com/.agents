@@ -1,7 +1,8 @@
 # Ralph for T3 Code
 Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
-Implement, evaluate, and retry in fresh T3 child tasks. Read
+Implement, evaluate, and retry in T3 child tasks. Implementations and full reviews
+are fresh; delta re-reviews may continue the rejecting reviewer's thread. Read
 `PKG/shared/t3-runtime.md` and `PKG/shared/delegation.md` once, then
 `PKG/playbooks/loop.md`. Ralph requires a verified different evaluator lineage;
 the shared contract's same-lineage fallback does not apply.

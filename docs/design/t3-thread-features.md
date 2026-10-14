@@ -124,8 +124,8 @@ schema observation.
 
 **Today.** Allowed only for a job's tracked same-scope follow-up with `mode=queue` to an
 owned `childThreadId` (`shared/delegation.md`, `shared/job-coordination.md` section 6).
-Ralph never uses it (`plugins/ralph/playbooks/loop.md`). `shared/t3-runtime.md` says not
-to send messages without authorization.
+Ralph uses it only to continue its own reviewer for a delta re-review (decision
+below). `shared/t3-runtime.md` says not to send messages without authorization.
 
 **Opportunity considered.** Hand a finished output to a sibling thread, or steer a
 sibling found by the sibling-work check.
@@ -142,6 +142,18 @@ authorization, and child continuation is already bounded by `shared/delegation.m
 sibling-work check states "Never send to, steer, interrupt, cancel or adopt a thread
 this run does not own." A future owner-approved handoff would need its own decision
 record and tests.
+
+**Decision, 14 October 2026: Ralph delta re-reviews continue the rejecting reviewer.**
+The owner approved one more follow-up. After a review rejects with feedback, Ralph's
+next review is a delta re-review, sent with `mode=queue` to the rejecting review's own
+`childThreadId`. A live probe on this host confirmed that such a follow-up gets its own
+`taskId` in the same thread and that `task_status` reports its provider, model and
+summary. The original task's result stays unchanged. This departs from T3's
+`delegate_task` guidance that every review round is a new task. The departure is
+limited to delta reviews because they cannot accept: anchoring can cost a repair
+round, never a false pass. Implementations and full reviews stay fresh, and only a
+fresh full review accepts. `tests/test_ralph.py` and the send-boundary test in
+`tests/test_t3_thread_features.py` pin the thread, mode and acceptance rules.
 
 ## 4. External MCP endpoint
 

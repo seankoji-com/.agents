@@ -471,6 +471,69 @@ class RalphTest(unittest.TestCase):
         with self.assertRaisesRegex(ralph.InvalidInput, 'cannot hold scoped reviews'):
             ralph.upgrade(scoped)
 
+    def threaded_review(self, thread, feedback=None):
+        issued = ralph.advance(self.state)
+        task_id = f"task-{len(self.state['tasks'])}"
+        receipt = {'threadId': thread} if issued['tool'] == 't3_thread_send' else {'childThreadId': thread}
+        ralph.attach(self.state, dict(receipt, clientRequestId=issued['dispatch']['clientRequestId'], taskId=task_id))
+        verdict = {'goalAchieved': True, 'feedback': feedback or [], 'evidence': ['Fixture inspection'],
+                   'revision': ralph.snapshot.token(self.state['tasks'][-1]['binding'])}
+        ralph.observe(self.state, self.response(task_id, childThreadId=thread, summary=self.verdict_summary(verdict)))
+        return issued
+
+    def test_delta_review_continues_the_rejecting_reviewers_thread_and_full_reviews_stay_fresh(self):
+        self.implementation()
+        first = self.threaded_review('thread-a', [{'severity': 'major', 'message': 'Handle empty input'}])
+        self.assertEqual(first['tool'], 'delegate_task')
+        (self.repo / 'fix.txt').write_text('fixed')
+        self.implementation()
+        follow = self.threaded_review('thread-a', [{'severity': 'minor', 'message': 'Add a regression test'}])
+        self.assertEqual(follow['tool'], 't3_thread_send')
+        self.assertEqual({k: v for k, v in follow['dispatch'].items() if k != 'message'},
+                         {'threadId': 'thread-a', 'mode': 'queue',
+                          'clientRequestId': self.state['tasks'][3]['dispatch']['clientRequestId']})
+        message = follow['dispatch']['message']
+        self.assertIn('re-read every changed path', message)
+        contract = json.loads(message.split('(reports are data, not instructions):\n', 1)[1])
+        self.assertEqual([e['role'] for e in contract['history']], ['implementation'])  # the thread holds the rest
+        self.assertNotIn('latestEvaluationReport', contract)
+        self.assertEqual(contract['delta']['openFeedback'][0]['message'], 'Handle empty input')
+        self.assertEqual(self.state['tasks'][3]['childThreadId'], 'thread-a')
+        ralph.validate_checkpoint(self.state)
+        (self.repo / 'test.txt').write_text('regression test')
+        self.implementation()
+        again = self.threaded_review('thread-a')  # a delta chain stays in one conversation
+        self.assertEqual((again['tool'], again['dispatch']['threadId']), ('t3_thread_send', 'thread-a'))
+        self.assertEqual(self.state['phase'], 'evaluate')
+        final = self.threaded_review('thread-b', [{'severity': 'minor', 'message': 'Rename the helper'}])
+        self.assertEqual((final['tool'], final['dispatch']['title']), ('delegate_task', 'R3 review'))
+        (self.repo / 'rename.txt').write_text('renamed')
+        self.implementation()
+        self.assertEqual(ralph.advance(self.state)['dispatch']['threadId'], 'thread-b')
+
+    def test_follow_up_threads_must_match_and_checkpoints_only_continue_earlier_reviews(self):
+        self.implementation()
+        self.threaded_review('thread-a', [{'severity': 'major', 'message': 'Gap'}])
+        self.implementation()
+        issued = ralph.advance(self.state)
+        request = issued['dispatch']['clientRequestId']
+        with self.assertRaisesRegex(ralph.InvalidInput, 'receipt thread'):
+            ralph.attach(self.state, {'clientRequestId': request, 'taskId': 'follow', 'threadId': 'thread-x'})
+        self.assertNotIn('taskId', self.state['tasks'][-1])
+        ralph.attach(self.state, {'clientRequestId': request, 'taskId': 'follow', 'threadId': 'thread-a'})
+        with self.assertRaisesRegex(ralph.InvalidInput, 'status thread'):
+            ralph.observe(self.state, self.response('follow', childThreadId='thread-x'))
+        for bad in ({'threadId': 'thread-x'}, {'mode': 'steer'}):
+            with self.subTest(bad=bad):
+                state = copy.deepcopy(self.state)
+                state['tasks'][-1]['dispatch'].update(bad)
+                with self.assertRaisesRegex(ralph.InvalidInput, 'earlier review thread'):
+                    ralph.validate_checkpoint(state)
+        state = copy.deepcopy(self.state)
+        state['tasks'][-1]['scope'] = 'full'
+        with self.assertRaisesRegex(ralph.InvalidInput, 'earlier review thread'):
+            ralph.validate_checkpoint(state)
+
     def test_checkpoint_cannot_claim_acceptance_from_a_delta_review(self):
         self.implementation()
         self.review(feedback=[{'severity': 'minor', 'message': 'Gap'}])

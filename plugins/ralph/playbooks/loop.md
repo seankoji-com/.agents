@@ -13,7 +13,8 @@ thread on the same worktree or branch needs an owner decision before dispatch.
 
 Discover T3's live schemas and call `orchestrator_capabilities`. If tools are absent,
 try bounded discovery and the host's documented ACP transport before declaring
-unavailable. Use only `delegate_task`, `task_status` and `task_cancel` for children.
+unavailable. Use only `delegate_task`, `task_status` and `task_cancel` for children,
+plus the queued `t3_thread_send` follow-up the helper issues for delta reviews.
 
 Ask interactively for BOTH exact provider-instance/model choices on every new run.
 Show available choices from this catalog, their options, and lineage evidence.
@@ -74,22 +75,28 @@ Only the parent writes checkpoints; never delegate access to this directory.
 
 ## One tracked task at a time
 
-Call `next --state FILE`. Its `dispatch` object is the complete input for the live
-`delegate_task` schema. It pins `mode: async`, role, target, a stable
-`clientRequestId` and a compact title (`R2 impl`, `R2 delta`, `R2 review`) before
-dispatch. The task brief includes the goal, contract,
+Call `next --state FILE`. Its `tool` names the T3 tool and its `dispatch` object is
+that tool's complete input. A `delegate_task` dispatch pins `mode: async`, role,
+target, a stable `clientRequestId` and a compact title (`R2 impl`, `R2 delta`,
+`R2 review`) before dispatch. The task brief includes the goal, contract,
 existing worktree, the latest implementation summary and evaluator report, every
 failed task's summary, every recovery reason, and EVERY prior verdict, evaluation
 gap and invalidation without truncation. Older completed reports stay in the
 checkpoint, so the brief does not grow by a full report each round.
-Every attempt and evaluation uses a NEW `delegate_task`, never `childThreadId`
-continuation, `t3_thread_send`, a native subagent, or a top-level thread.
-Continuing a reviewer's conversation would anchor it on its earlier verdict, and
-T3 directs each review round to a new task.
+Every implementation and full review uses a NEW `delegate_task`. A delta review
+may instead be a `t3_thread_send` dispatch: `mode: queue` to the `childThreadId`
+of the review that rejected, so the reviewer keeps its reading of the code. T3 then
+creates a new tracked task in that thread. Send exactly that dispatch; never steer,
+restart or send to any other thread, and never use a native subagent or a top-level
+thread. This departs from T3's guidance that each review round is a new
+`delegate_task`, by owner decision on 14 October 2026. It is limited to delta
+reviews because they cannot accept: anchoring on an earlier verdict can cost a
+repair round, never a false pass. Acceptance always comes from a fresh full review.
 
 Retain the returned `taskId` immediately: `attach --state FILE --input FILE`, where
 the JSON contains `clientRequestId` and the unmodified T3 response, including
-`taskId` and any echoed `providerInstanceId`/`model`. Discover the live schema;
+`taskId`, its `childThreadId` or `threadId`, and any echoed `providerInstanceId`/`model`.
+A thread other than the issued one is rejected. Discover the live schema;
 never fill absent identity fields from the request. A lost response is uncertain
 dispatch. Reconcile using the same request ID and exact arguments; never generate
 a replacement task. A saved attached task means read its status, never redispatch.
@@ -102,7 +109,9 @@ runs still blocks the next stage. Reconcile those runs before proceeding. Failed
 interrupted or cancelled tasks block this run; preserve their summaries and IDs.
 Later pending runs temporarily block a consumed round. Observe every saved task
 again once those runs end; the helper restores the previous phase when identities
-are verified and every consumed task is quiescent.
+are verified and every consumed task is quiescent. A running delta follow-up shows
+as a pending run on the earlier review that owns its thread; observe that review
+again after the follow-up ends.
 
 An unreported `model` is retained as unreported. The helper can verify it against
 an exact target in the saved authoritative delegation receipt, only when T3 echoed
@@ -134,8 +143,11 @@ context with that binding and the implementation summary.
 
 The helper sets each review's `reviewScope`. A `full` review covers the goal and
 the full task diff against the intended base. After a review rejects with
-feedback, the next review is `delta`: a fresh task checks each `openFeedback` item
-and every path in `changedPathsSinceReview` since that review's revision. A delta
+feedback, the next review is `delta`: it checks each `openFeedback` item and every
+path in `changedPathsSinceReview` since that review's revision. It continues the
+rejecting reviewer's thread when one was recorded, told to re-read changed paths
+and re-run cited checks at the new revision, and receives only the history since
+its own report. Otherwise it is a fresh task with the full brief. A delta
 review cannot finish the run. When it passes, the helper issues a full review of
 the same tree without consuming an attempt. Only the latest review decides: if it
 was invalidated, malformed or failed, returned no feedback, or the tree drifted

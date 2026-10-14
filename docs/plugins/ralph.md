@@ -64,20 +64,23 @@ constraints, acceptance criteria, every earlier verdict and all feedback into ea
 new task, plus the latest implementation and evaluation reports, failure details
 and recovery reasons. Earlier reports stay in the checkpoint, so the brief doesn't
 grow by a full report every round. Code remains in
-the same worktree. It does not resume a child's conversation, discard previous
-attempts, or swap models after criticism.
+the same worktree. It does not discard previous attempts or swap models after
+criticism.
 
 The first evaluation is a full review of the goal and the whole change. After a
-rejection, the next evaluation is a narrower re-review: a fresh evaluator checks
-each open feedback item and the files changed since the rejecting review. That
+rejection, the next evaluation is a narrower re-review that continues the
+rejecting evaluator's conversation, so it doesn't re-read the code from scratch. It
+checks each open feedback item and the files changed since the rejecting review. That
 re-review can send the work back, but it can't finish the run. When it finds nothing,
 a full fresh review of the same tree decides, and that extra review doesn't use up
 an attempt. Long runs spend most of their rounds on cheap re-reviews; a run that
 passes on its second evaluation pays for one extra narrow review.
 
-ralph doesn't reuse an evaluator's conversation between rounds. An evaluator that
-remembers its earlier verdict tends to confirm it, and T3 asks for every review
-round to be a new task.
+An evaluator that remembers its earlier verdict tends to stick to it, so only these
+re-reviews continue a conversation: they can send work back but never approve it.
+The final full review and every implementation attempt start fresh. T3's own
+guidance asks for each review round to be a new task; ralph departs from it for
+re-reviews only.
 
 A saved checkpoint keeps request IDs, task IDs, chosen targets, the worktree, and
 round results across completion notifications and parent turns. T3 runs the tasks;
