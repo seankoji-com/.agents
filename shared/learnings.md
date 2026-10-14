@@ -17,7 +17,9 @@ Read-only operations, including doctor, status and audits, only load. Report
 load, maintain if needed, then write lessons from observed failures, including
 wrong delegation choices. Use `--input FILE` for JSON proposals. Any `unavailable`
 receipt goes into the main report with the proposed lesson; continue the main work.
-Never use a project or temporary directory as a fallback learning store.
+Never use a project or temporary directory as a fallback learning store. If a
+sandbox denies the write, retry it outside the sandbox only when the owner has
+explicitly authorised that in the current conversation; otherwise report the reason.
 
 ## Maintenance
 

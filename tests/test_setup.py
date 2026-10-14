@@ -74,6 +74,64 @@ class SetupTest(unittest.TestCase):
                   if 'learnings_grant' in json.loads(line)]
         self.assertEqual(next(g for g in grants if g['provider'] == 'claudeAgent')['status'], 'unchanged')
 
+    def test_symlinked_claude_settings_get_target_and_snippet_not_a_write(self):
+        target = self.base / 'dotfiles/claude/settings.json'
+        target.parent.mkdir(parents=True)
+        target.write_text('{"sandbox": {"enabled": true}}')
+        (self.home / '.claude').mkdir()
+        (self.home / '.claude/settings.json').symlink_to(target)
+        result = self.call('setup', 'imps', '--grant-learnings')
+        grants = [json.loads(line)['learnings_grant'] for line in result.stdout.splitlines()
+                  if 'learnings_grant' in json.loads(line)]
+        claude = next(g for g in grants if g['provider'] == 'claudeAgent')
+        self.assertEqual((claude['status'], claude['target']), ('manual', str(target)))
+        self.assertEqual(json.loads(claude['snippet']), {'sandbox': {'filesystem': {'allowWrite': [
+            str(self.base / 'state/t3-plugins/learnings')]}}})
+        self.assertIn(f'into {target} in its source repository', result.stderr)
+        self.assertIn('"allowWrite": [', result.stderr)
+        self.assertEqual(target.read_text(), '{"sandbox": {"enabled": true}}')
+        self.assertEqual([p.name for p in target.parent.iterdir()], ['settings.json'])
+
+    def test_doctor_probes_learnings_write_and_leaves_no_files(self):
+        self.call('install', 'imps')
+        state = self.base / 'state'
+        root = state / 't3-plugins/learnings'
+        receipt = json.loads(self.call('doctor', 'imps').stdout)
+        self.assertEqual((receipt['learnings_write']['status'], receipt['learnings_write']['root']),
+                         ('absent', str(root)))
+        self.assertFalse(state.exists())
+        root.mkdir(parents=True)
+        receipt = json.loads(self.call('doctor', 'imps').stdout)
+        self.assertEqual(receipt['learnings_write'], {'status': 'writable', 'root': str(root)})
+        self.assertEqual(list(root.iterdir()), [])
+        root.chmod(0o500)
+        self.addCleanup(root.chmod, 0o700)
+        if os.geteuid() != 0:
+            receipt = json.loads(self.call('doctor', 'imps').stdout)
+            self.assertTrue(receipt['ok'])
+            self.assertEqual(receipt['learnings_write']['status'], 'denied')
+            self.assertIn('t3-plugins setup --grant-learnings', receipt['learnings_write']['reason'])
+            self.assertEqual(list(root.iterdir()), [])
+        self.assertFalse((self.home / '.claude').exists())
+
+    def test_doctor_with_project_refuses_a_state_root_inside_it(self):
+        self.call('install', 'imps')
+        self.env['XDG_STATE_HOME'] = str(self.project / 'state')
+        receipt = json.loads(self.call('doctor', 'imps', '--project', str(self.project)).stdout)
+        self.assertTrue(receipt['ok'])
+        self.assertEqual(receipt['learnings_write'], {'status': 'unavailable', 'reason': 'state root is inside the project'})
+        self.assertEqual(list(self.project.iterdir()), [])
+
+    def test_doctor_without_project_is_a_global_check_from_any_directory(self):
+        # The documented first run is `t3-plugins doctor` from $HOME, which contains the
+        # default ~/.local/state root; a global check must not call that "inside the project".
+        self.call('install', 'imps')
+        self.env['XDG_STATE_HOME'] = str(self.project / 'state')
+        receipt = json.loads(self.call('doctor', 'imps').stdout)
+        self.assertTrue(receipt['ok'])
+        self.assertEqual(receipt['learnings_write']['status'], 'absent')
+        self.assertEqual(list(self.project.iterdir()), [])
+
     def test_setup_from_home_prints_and_applies_default_grants(self):
         self.project = self.home
         self.env.pop('XDG_STATE_HOME')

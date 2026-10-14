@@ -1,5 +1,6 @@
 """Stage 4: private storage, maintenance and installed helper failure paths."""
 import concurrent.futures
+import errno
 import json
 import os
 from pathlib import Path
@@ -13,7 +14,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'shared'))
-from learning_store import Store, Unavailable, canonical_remote, decode, project_identity, state_root
+from learning_store import (Store, Unavailable, canonical_remote, decode, probe_write, project_identity,
+                            state_root)
 
 OLD = '0.1.0+g' + 'a' * 12
 NEW = '0.2.0+g' + 'b' * 12
@@ -255,6 +257,185 @@ class LearningsTest(unittest.TestCase):
             self.assertEqual(unavailable['status'], 'unavailable')
             self.assertEqual(unavailable['proposed_learning'], proposal)
             self.assertFalse((self.project / 'state').exists())
+
+
+
+class SandboxDenialTest(unittest.TestCase):
+    """A sandbox or filesystem that refuses the learnings subtree gets a named cause and both remedies."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.base = Path(temp.name).resolve()
+        self.project = self.base / 'project'
+        self.project.mkdir()
+        self.env = dict(os.environ, HOME=str(self.base / 'home'), XDG_STATE_HOME=str(self.base / 'state'))
+        self.subtree = str(self.base / 'state/t3-plugins/learnings')
+        self.store = Store(self.project, 'imps', OLD, self.env)
+        self.proposal = {'entry': {'id': 'lesson', 'summary': 'Keep task handles',
+                                   'failure': 'A lost task handle prevented cancellation'}}
+
+    def assert_remedies(self, reason, action='writes under'):
+        self.assertIn(f'the sandbox or filesystem permissions deny {action} {self.subtree}', reason)
+        self.assertIn(f'allow writes to {self.subtree} and {self.subtree}/** in the sandbox', reason)
+        self.assertIn('sandbox.filesystem.allowWrite', reason)
+        self.assertIn('t3-plugins setup --grant-learnings', reason)
+        self.assertIn('fix the ownership, permissions or read-only mount', reason)
+        # Nothing below the learnings root: no identity hash, plugin file or temporary name.
+        for private in (self.store.key, 'imps.md', '.learning-', '.probe-', 'Errno'):
+            self.assertNotIn(private, reason)
+
+    def assert_denied(self, result):
+        self.assertEqual(result['status'], 'unavailable', result)
+        self.assertEqual(result['proposed_learning'], self.proposal)
+        self.assert_remedies(result['reason'])
+
+    def make_root(self):
+        Path(self.subtree).mkdir(parents=True)
+        return Path(self.subtree)
+
+    def test_symlink_loop_in_the_state_root_is_unavailable_not_a_crash(self):
+        loop = self.base / 'loop'
+        os.symlink(loop, loop)
+        env = dict(self.env, XDG_STATE_HOME=str(loop))
+        for project in (None, self.project):
+            with self.subTest(project=project):
+                probe = probe_write(project, env)
+                self.assertEqual(probe['status'], 'unavailable', probe)
+        # Store refuses it too: Unavailable where resolve() raises (Python < 3.13), or the
+        # no-symlink walk's OSError, which the learnings helper turns into an unavailable receipt.
+        with self.assertRaises((Unavailable, OSError)):
+            Store(self.project, 'imps', OLD, env)
+        with mock.patch.object(Path, 'resolve', side_effect=RuntimeError('Symlink loop')):
+            self.assertEqual(probe_write(self.project, self.env)['status'], 'unavailable')
+
+    def test_simulated_erofs_eacces_and_eperm_name_the_grant(self):
+        for code, target in ((errno.EROFS, 'learning_store.os.mkdir'), (errno.EACCES, 'learning_store.atomic_file'),
+                             (errno.EPERM, 'learning_store.atomic_file')):
+            with self.subTest(errno=errno.errorcode[code]), mock.patch(
+                    target, side_effect=OSError(code, os.strerror(code), 'learnings')):
+                self.assert_denied(self.store.operate('write', self.proposal))
+        with mock.patch('learning_store.atomic_file', side_effect=OSError(errno.ENOSPC, 'No space left')):
+            self.assertIn('No space left', self.store.operate('write', self.proposal)['reason'])
+
+    def test_state_root_traversal_denial_is_classified_for_store_helper_and_probe(self):
+        real_open = os.open
+
+        def refuse_state(name, *args, **kwargs):
+            if name == 'state' and kwargs.get('dir_fd') is not None:
+                raise OSError(errno.EACCES, 'Permission denied', name)
+            return real_open(name, *args, **kwargs)
+
+        (self.base / 'state').mkdir()
+        package = self.base / 'package'
+        package.mkdir()
+        (package / 'install-manifest.json').write_text(json.dumps({'plugin': 'imps', 'version': OLD}))
+        import contextlib, io, learnings
+        with mock.patch('learning_store.os.open', side_effect=refuse_state):
+            with self.assertRaises(Unavailable) as raised:
+                Store(self.project, 'imps', OLD, self.env)
+            self.assert_remedies(str(raised.exception), 'access to')
+            output = io.StringIO()
+            with mock.patch.dict(os.environ, self.env), contextlib.redirect_stdout(output):
+                learnings.main(['write', '--project', str(self.project), '--package', str(package)])
+            helper = json.loads(output.getvalue())
+            probe = probe_write(self.project, self.env)
+        self.assertEqual(helper['status'], 'unavailable')
+        self.assert_remedies(helper['reason'], 'access to')
+        self.assertEqual(probe['status'], 'denied', probe)
+        self.assert_remedies(probe['reason'], 'access to')
+
+    @unittest.skipIf(os.geteuid() == 0, 'root ignores directory permissions')
+    def test_real_read_only_learnings_root_is_reported_and_probe_leaves_nothing(self):
+        root = self.make_root()
+        root.chmod(0o500)
+        self.addCleanup(root.chmod, 0o700)
+        self.assert_denied(self.store.operate('write', self.proposal))
+        probe = probe_write(self.project, self.env)
+        self.assertEqual(probe['status'], 'denied', probe)
+        self.assert_remedies(probe['reason'])
+        self.assertEqual(list(root.iterdir()), [])
+
+    def test_probe_creates_no_directories_when_the_root_is_absent(self):
+        with mock.patch('learning_store.os.mkdir') as mkdir, mock.patch('learning_store.os.rmdir') as rmdir:
+            probe = probe_write(self.project, self.env)
+        mkdir.assert_not_called()
+        rmdir.assert_not_called()
+        self.assertEqual(probe['status'], 'absent', probe)
+        self.assertEqual((probe['root'], probe['ancestor']), (self.subtree, str(self.base)))
+        self.assertIs(probe['ancestor_writable'], True)
+        self.assertIn('advisory', probe['reason'])
+        self.assertEqual(list(self.base.iterdir()), [self.project])
+
+    def test_probe_writes_and_removes_one_file_in_an_existing_root(self):
+        result = self.store.operate('write', self.proposal)
+        self.assertEqual(result['status'], 'available', result)
+        folder = Path(result['path']).parent
+        before = sorted(p.name for p in folder.iterdir())
+        with mock.patch('learning_store.os.mkdir') as mkdir, mock.patch('learning_store.os.rmdir') as rmdir:
+            self.assertEqual(probe_write(self.project, self.env), {'status': 'writable', 'root': self.subtree})
+        mkdir.assert_not_called()
+        rmdir.assert_not_called()
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), before)
+        self.assertEqual(sorted(p.name for p in Path(self.subtree).iterdir()), [folder.name])
+
+    def test_probe_refuses_a_symlinked_root_and_touches_nothing_outside(self):
+        outside = self.base / 'outside'
+        (outside / 'kept').mkdir(parents=True)
+        Path(self.subtree).parent.mkdir(parents=True)
+        Path(self.subtree).symlink_to(outside)
+        with mock.patch('learning_store.os.rmdir') as rmdir:
+            probe = probe_write(self.project, self.env)
+        rmdir.assert_not_called()
+        self.assertEqual(probe['status'], 'unavailable', probe)
+        self.assertEqual([p.name for p in outside.iterdir()], ['kept'])
+
+    def test_probe_reports_a_file_it_could_not_remove(self):
+        root = self.make_root()
+        real_unlink = os.unlink
+
+        def refuse_probe(name, *args, **kwargs):
+            if str(name).startswith('.probe-'):
+                raise OSError(errno.EACCES, 'Permission denied', name)
+            return real_unlink(name, *args, **kwargs)
+
+        with mock.patch('learning_store.os.unlink', side_effect=refuse_probe):
+            probe = probe_write(self.project, self.env)
+        self.assertEqual(probe['status'], 'probe_left', probe)
+        self.assertEqual([p.name for p in root.iterdir()], [probe['probe']])
+        self.assertIn(probe['probe'] + ' in the learnings root', probe['reason'])
+        self.assertIn('left behind', probe['reason'])
+
+    def test_probe_reports_simulated_create_denial(self):
+        root = self.make_root()
+        real_open = os.open
+
+        def refuse_probe(name, *args, **kwargs):
+            if str(name).startswith('.probe-'):
+                raise OSError(errno.EROFS, 'Read-only file system', name)
+            return real_open(name, *args, **kwargs)
+
+        with mock.patch('learning_store.os.open', side_effect=refuse_probe):
+            probe = probe_write(self.project, self.env)
+        self.assertEqual(probe['status'], 'denied', probe)
+        self.assert_remedies(probe['reason'])
+        self.assertEqual(list(root.iterdir()), [])
+
+    def test_probe_refuses_the_same_roots_as_store(self):
+        cases = {'project-contained': str(self.project / 'state'), 'relative': 'relative/state'}
+        for label, root in cases.items():
+            with self.subTest(root=label):
+                env = dict(self.env, XDG_STATE_HOME=root)
+                with self.assertRaises(Unavailable) as raised:
+                    Store(self.project, 'imps', OLD, env)
+                self.assertEqual(probe_write(self.project, env), {'status': 'unavailable', 'reason': str(raised.exception)})
+        self.assertEqual(list(self.project.iterdir()), [])
+
+    def test_docs_name_both_causes_and_remedies(self):
+        text = ' '.join((ROOT / 'docs/troubleshooting.md').read_text().split())
+        self.assertIn('the sandbox or filesystem permissions deny', text)
+        self.assertIn('read-only mount', text)
+        self.assertIn('--grant-learnings', text)
 
 
 if __name__ == '__main__':

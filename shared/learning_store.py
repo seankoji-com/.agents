@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import errno
 import hashlib
 import importlib.util
 import json
@@ -32,6 +33,23 @@ trusted_link = _core_trusted_link()
 
 class Unavailable(ValueError):
     pass
+
+
+# The sandbox, ownership, permission bits or a read-only mount refuse the write. The remedy is
+# a sandbox grant or a filesystem fix, never a fallback store.
+DENIED = (errno.EROFS, errno.EACCES, errno.EPERM)
+
+
+class Denied(Unavailable):
+    pass
+
+
+def denied_reason(subtree, action='writes under'):
+    """Name both causes and remedies without echoing paths below the learnings root."""
+    return (f'the sandbox or filesystem permissions deny {action} {subtree}. Either allow writes to '
+            f'{subtree} and {subtree}/** in the sandbox (for Claude, add {subtree} to '
+            'sandbox.filesystem.allowWrite, or run `t3-plugins setup --grant-learnings`), or fix the '
+            'ownership, permissions or read-only mount that blocks it')
 
 
 def digest(value):
@@ -91,7 +109,11 @@ def state_root(project, env=None):
     root = Path(env.get('XDG_STATE_HOME') or str(Path(env.get('HOME', str(Path.home()))) / '.local/state'))
     if not root.is_absolute() or '..' in root.parts:
         raise Unavailable('state root must be absolute')
-    if project is not None and root.resolve().is_relative_to(Path(project).resolve()):
+    try:
+        inside = project is not None and root.resolve().is_relative_to(Path(project).resolve())
+    except (OSError, RuntimeError) as exc:  # RuntimeError: symlink loop on Python < 3.13
+        raise Unavailable(f'state root cannot be resolved: {type(exc).__name__}') from exc
+    if inside:
         raise Unavailable('state root is inside the project')
     # Validate existing ancestors without creating anything, including for grant proposals.
     try:
@@ -99,6 +121,10 @@ def state_root(project, env=None):
             pass
     except FileNotFoundError:
         pass
+    except OSError as exc:
+        if exc.errno in DENIED:
+            raise Denied(denied_reason(root / 't3-plugins/learnings', 'access to')) from exc
+        raise
     return root
 
 
@@ -125,6 +151,44 @@ def directory(path, create=False):
         yield fd
     finally:
         os.close(fd)
+
+
+def probe_write(project=None, env=None):
+    """Doctor's check. The root is resolved exactly as Store resolves it; with a project, the
+    same containment refusal applies, and without one the check is global. The probe never
+    creates or removes directories: it creates one file inside an existing learnings root and
+    unlinks it through the same directory descriptor, and says so if that unlink fails."""
+    try:
+        subtree = state_root(project, env) / 't3-plugins/learnings'
+    except Denied as exc:
+        return {'status': 'denied', 'reason': str(exc)}
+    except (OSError, ValueError, RuntimeError) as exc:
+        return {'status': 'unavailable', 'reason': str(exc)}
+    receipt = {'root': str(subtree)}
+    name = '.probe-' + uuid.uuid4().hex
+    try:
+        with directory(subtree) as fd:
+            os.close(os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=fd))
+            try:
+                os.unlink(name, dir_fd=fd)
+            except OSError as exc:
+                return dict(receipt, status='probe_left', probe=name,
+                            reason=f'created {name} in the learnings root but could not remove it '
+                                   f'({exc.strerror}); it was left behind, delete it by hand')
+    except FileNotFoundError:
+        ancestor = next(p for p in subtree.parents if os.path.exists(p))
+        return dict(receipt, status='absent', ancestor=str(ancestor),
+                    ancestor_writable=os.access(ancestor, os.W_OK),
+                    reason='no learnings root yet, so doctor wrote nothing; the first writable plugin '
+                           'run creates it. ancestor_writable is advisory: os.access reflects read-only '
+                           'mounts and permission bits, not every sandbox rule')
+    except OSError as exc:
+        if exc.errno in DENIED:
+            return dict(receipt, status='denied', reason=denied_reason(subtree))
+        return dict(receipt, status='unavailable', reason=str(exc))
+    except ValueError as exc:
+        return dict(receipt, status='unavailable', reason=str(exc))
+    return dict(receipt, status='writable')
 
 
 def read_file(fd, name):
@@ -263,7 +327,10 @@ class Store:
         try:
             return self._operate(operation, proposal)
         except (OSError, ValueError, KeyError, TypeError, UnicodeError, AttributeError) as exc:
-            return {'status': 'unavailable', 'reason': str(exc), 'proposed_learning': proposal}
+            reason = str(exc)
+            if operation != 'load' and isinstance(exc, OSError) and exc.errno in DENIED:
+                reason = denied_reason(self.root / 't3-plugins/learnings')
+            return {'status': 'unavailable', 'reason': reason, 'proposed_learning': proposal}
 
     def _operate(self, operation, proposal):
         if operation not in ('load', 'write', 'maintain', 'harvest'):

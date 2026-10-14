@@ -15,6 +15,7 @@ import registry
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'shared'))
 import learning_grants
+import learning_store
 
 ROOT = Path(__file__).resolve().parent.parent
 # Removed from the catalog. Setup deletes their owned, unmodified skill adapters;
@@ -156,7 +157,10 @@ def main(argv=None):
     for name in ('path', 'prompt', 'doctor'):
         command = sub.add_parser(name, help=helps[name])
         command.add_argument('plugin', nargs='?' if name == 'doctor' else None)
-        if name == 'doctor': command.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
+        if name == 'doctor':
+            command.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
+            command.add_argument('--project', dest='doctor_project', default=None,
+                                 help='also refuse a learnings root inside this project, as its plugin runs would')
         if name == 'prompt':
             command.add_argument('request', nargs=argparse.REMAINDER, default=['doctor'])
     install = sub.add_parser('install', help='install all plugins or one named plugin')
@@ -244,6 +248,8 @@ def main(argv=None):
             # when a plugin loads lessons; cwd=$HOME must not reject the default root.
             for receipt in learning_grants.setup_grants(None, caps, args.grant_learnings):
                 print(json.dumps({'learnings_grant': receipt}))
+                if receipt['status'] == 'manual':
+                    print(f"t3-plugins: {receipt['action']}\n{receipt['snippet']}", file=sys.stderr)
             if args.capabilities:
                 receipt = routing.write_default(args.capabilities)
                 print(json.dumps(receipt))
@@ -278,6 +284,10 @@ def main(argv=None):
             return 0
         failed = False
         reference_errors = registry.validate_job_references()
+        # Optional storage: report whether this process may write lessons, without failing doctor.
+        # Global by default; --project adds the containment refusal a plugin run for that project applies.
+        learnings_write = (learning_store.probe_write(getattr(args, 'doctor_project', None))
+                           if args.command == 'doctor' else None)
         for meta in plugins:
             current = prefix / meta['name'] / 'current'
             entry = current / meta['entry']
@@ -321,7 +331,10 @@ def main(argv=None):
                         errors.append(f'installation_invalid: {exc}')
                 failed |= bool(errors)
                 print(json.dumps({'plugin': meta['name'], 'ok': not errors, 'errors': errors,
-                                  'scope': 'installed file integrity and package currency; provider behavior not tested'}))
+                                  'learnings_write': learnings_write,
+                                  'scope': 'installed file integrity and package currency; learnings_write probes '
+                                           'this process globally, or for --project when given; '
+                                           'provider behavior not tested'}))
             else:
                 job_arg = args.job if args.job is not None else getattr(args, 'job', None)
                 if args.command == 'path' and job_arg:
