@@ -5,12 +5,17 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import tempfile
+import secrets
+import stat
 
 import install as installer
 from core.jobs.store import trusted_link  # importing install puts the repository root on sys.path
 
 MARKER = '.t3-plugins-skill.json'
+# Codex reads picker metadata from agents/openai.yaml beside SKILL.md. The receipt
+# owns it by relative path, so only these names can ever be replaced or removed.
+OPENAI_YAML = 'agents/openai.yaml'
+OWNED_EXTRAS = (OPENAI_YAML,)
 
 
 def safe_path(path):
@@ -69,34 +74,236 @@ def render(meta, entry):
             'This adapter grants no additional authorization. T3 owns delegation and watches.\n')
 
 
+def openai_yaml(meta):
+    """Codex picker metadata. JSON strings are valid double-quoted YAML scalars.
+    A manifest `short_description` keeps the picker blurb short; otherwise the
+    description is used as written."""
+    name = 't3-' + meta['name']
+    interface = {
+        'display_name': 'T3 ' + meta['name'].replace('-', ' ').title(),
+        'short_description': meta.get('short_description') or meta['description'],
+        'default_prompt': 'Use $' + name + ' with one operation: ' + ', '.join(meta['operations']) + '.',
+    }
+    return ('interface:\n' + ''.join(f'  {key}: {json.dumps(value)}\n' for key, value in interface.items())).encode()
+
+
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def atomic_write(path, data):
-    fd, temporary = tempfile.mkstemp(prefix='.t3-skill-', dir=path.parent)
+# One adapter transaction pins the skill root, the adapter directory and each
+# owned subdirectory by descriptor, opened once and without following symlinks.
+# Every read, write and unlink happens relative to those descriptors, so a
+# directory swapped mid-run (for a link or another directory) cannot redirect a
+# write or delete: validation and mutation see the same directories. The root
+# follows a link only when safe_path() accepted it as a trusted link; the
+# ancestors above it are the caller's choice and are not pinned.
+DIRECTORY = os.O_RDONLY | os.O_DIRECTORY
+NOFOLLOW_DIR = DIRECTORY | os.O_NOFOLLOW
+# O_NONBLOCK keeps a FIFO from blocking the open before the file-type check.
+NOFOLLOW_FILE = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+
+
+def mkdir_at(dir_fd, name):
+    """Create `name` under `dir_fd`; True only when this call created it."""
+    try:
+        os.mkdir(name, 0o755, dir_fd=dir_fd)
+        return True
+    except FileExistsError:
+        return False
+
+
+def read_at(dir_fd, name, label):
+    """Bytes of a regular file, or None when absent. Anything else raises."""
+    try:
+        fd = os.open(name, NOFOLLOW_FILE, dir_fd=dir_fd)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise ValueError(f'skill adapter path is not a plain file: {label}') from exc
+    with os.fdopen(fd, 'rb') as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise ValueError(f'skill adapter path is not a plain file: {label}')
+        return stream.read()
+
+
+def write_at(dir_fd, name, data):
+    temporary = f'.t3-skill-{os.getpid()}-{secrets.token_hex(4)}'
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dir_fd)
     try:
         with os.fdopen(fd, 'wb') as stream:
             stream.write(data)
-        os.replace(temporary, path)
+        os.replace(temporary, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
     finally:
-        Path(temporary).unlink(missing_ok=True)
+        try:
+            os.unlink(temporary, dir_fd=dir_fd)
+        except FileNotFoundError:
+            pass
 
 
-def managed(directory, name):
-    marker = directory / MARKER
-    skill = directory / 'SKILL.md'
-    if not marker.is_file() or marker.is_symlink() or skill.is_symlink():
-        raise ValueError(f'refusing an unowned skill directory: {directory}')
-    receipt = json.loads(marker.read_text())
+class Adapter:
+    """An adapter directory pinned by descriptor for one install or removal."""
+
+    def __init__(self, directory, create=False, root_is_link=False):
+        """`root_is_link` records what safe_path() saw: only a root that was already
+        a trusted link when validated may be followed now."""
+        self.path, self.root, self.top, self.created, self.subs = directory, None, None, False, {}
+        try:
+            self.root = os.open(directory.parent, DIRECTORY if root_is_link else NOFOLLOW_DIR)
+            made = create and mkdir_at(self.root, directory.name)
+            self.top = os.open(directory.name, NOFOLLOW_DIR, dir_fd=self.root)
+            # A directory created here and still empty when opened is new. One
+            # swapped in after the mkdir is not, and gets the ownership check.
+            self.created = bool(made) and not os.listdir(self.top)
+        except OSError as exc:
+            self.close()
+            raise ValueError(f'skill adapter directory is not a plain directory: {directory}') from exc
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def close(self):
+        for fd in (*self.subs.values(), self.top, self.root):
+            if fd is not None:
+                os.close(fd)
+        self.subs, self.root, self.top = {}, None, None
+
+    def sub(self, name, create=False):
+        """Pinned descriptor of a subdirectory, opened once per transaction, or None
+        when absent. Creating one that was absent fails closed unless this call
+        made it and it is still empty, so nothing swapped in is ever written to."""
+        if name not in self.subs:
+            self.subs[name] = self._open_sub(name)
+        if self.subs[name] is None and create:
+            made = mkdir_at(self.top, name)
+            fd = self._open_sub(name)
+            if fd is None or not made or os.listdir(fd):
+                if fd is not None:
+                    os.close(fd)
+                raise ValueError(f'skill adapter directory changed during the run: {self.path / name}')
+            self.subs[name] = fd
+        return self.subs[name]
+
+    def _open_sub(self, name):
+        try:
+            return os.open(name, NOFOLLOW_DIR, dir_fd=self.top)
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            raise ValueError(f'skill adapter path is not a plain directory: {self.path / name}') from exc
+
+    def read(self, relative):
+        if '/' not in relative:
+            return read_at(self.top, relative, self.path / relative)
+        sub, leaf = relative.split('/')
+        fd = self.sub(sub)
+        return None if fd is None else read_at(fd, leaf, self.path / relative)
+
+    def write(self, relative, data):
+        if '/' not in relative:
+            return write_at(self.top, relative, data)
+        sub, leaf = relative.split('/')
+        write_at(self.sub(sub, create=True), leaf, data)
+
+    def unlink(self, relative):
+        """Unlink one owned file; a subdirectory left empty goes too. Operator
+        files and anything refilled or replaced meanwhile stay."""
+        if '/' not in relative:
+            try:
+                os.unlink(relative, dir_fd=self.top)
+            except FileNotFoundError:
+                pass
+            return
+        sub, leaf = relative.split('/')
+        fd = self.sub(sub)
+        if fd is None:
+            return
+        try:
+            os.unlink(leaf, dir_fd=fd)
+        except FileNotFoundError:
+            pass
+        if not os.listdir(fd):
+            try:
+                os.rmdir(sub, dir_fd=self.top)
+            except OSError:
+                pass
+
+    def entries(self):
+        return sorted(os.listdir(self.top))
+
+    def remove_if_empty(self):
+        if not os.listdir(self.top):
+            try:
+                os.rmdir(self.path.name, dir_fd=self.root)
+            except OSError:
+                pass  # refilled or replaced since the listing: leave it
+
+
+def managed(adapter, name, pending=None):
+    """Verify the marker owns an unmodified adapter. `pending` maps owned files to
+    the digests an install is about to write; a file already holding those bytes
+    is the trace of an interrupted install, not an edit."""
+    pending = pending or {}
+    marker, skill = adapter.read(MARKER), adapter.read('SKILL.md')
+    if marker is None:
+        raise ValueError(f'refusing an unowned skill directory: {adapter.path}')
+    receipt = json.loads(marker)
     if (not isinstance(receipt, dict) or receipt.get('schema_version') != 1 or receipt.get('name') != name
-            or receipt.get('sha256') != digest(skill.read_bytes())):
-        raise ValueError(f'refusing a modified or invalid skill adapter: {directory}')
+            or skill is None or digest(skill) not in (receipt.get('sha256'), pending.get('SKILL.md'))):
+        raise ValueError(f'refusing a modified or invalid skill adapter: {adapter.path}')
+    # Receipts written before extras existed have no `files`; they own SKILL.md only.
+    files = receipt.get('files', {})
+    if not isinstance(files, dict) or not set(files) <= set(OWNED_EXTRAS):
+        raise ValueError(f'refusing a modified or invalid skill adapter: {adapter.path}')
+    for relative, sha in files.items():
+        data = adapter.read(relative)
+        if data is not None and digest(data) not in (sha, pending.get(relative)):
+            raise ValueError(f'refusing a modified skill adapter file: {adapter.path / relative}')
     return receipt
+
+
+def remove_owned(adapter, receipt):
+    """Remove the adapter files the verified receipt owns. Operator files stay."""
+    for relative in receipt.get('files', {}):
+        adapter.unlink(relative)
+    adapter.unlink('SKILL.md')
+    adapter.unlink(MARKER)
+
+
+def interrupted_first_install(adapter, expected):
+    """True when a marker-less adapter directory holds only regular files an
+    earlier install of these exact bytes wrote before it was interrupted."""
+    subdirs = {relative.split('/')[0] for relative in OWNED_EXTRAS}
+
+    def kind(dir_fd, name):
+        return stat.S_IFMT(os.stat(name, dir_fd=dir_fd, follow_symlinks=False).st_mode)
+
+    found = []
+    for name in adapter.entries():
+        if name == MARKER:
+            return False
+        if kind(adapter.top, name) == stat.S_IFREG:
+            found.append(name)
+        elif kind(adapter.top, name) == stat.S_IFDIR and name in subdirs:
+            fd = adapter.sub(name)
+            if fd is None:
+                return False  # vanished since the listing
+            for child in os.listdir(fd):
+                if kind(fd, child) != stat.S_IFREG:
+                    return False
+                found.append(f'{name}/{child}')
+        else:
+            return False
+    return all(relative in expected and digest(adapter.read(relative)) == expected[relative]
+               for relative in found)
 
 
 def install(root, prefix, meta):
     root = safe_path(root)
+    root_is_link = root.is_symlink()
     name = 't3-' + meta['name']
     directory = safe_path(root / name)
     current = prefix / meta['name'] / 'current'
@@ -112,14 +319,30 @@ def install(root, prefix, meta):
     entry = current / meta['entry']
     if not entry.is_file() or any(ord(c) < 32 for c in str(entry)):
         raise ValueError('invalid installed entry path')
-    if directory.exists():
-        managed(directory, name)
     data = render(meta, entry).encode()
+    yaml = openai_yaml(meta)
+    pending = {'SKILL.md': digest(data), OPENAI_YAML: digest(yaml)}
     receipt = {'schema_version': 1, 'name': name, 'entry': str(entry), 'sha256': digest(data)}
-    directory.mkdir(parents=True, exist_ok=True)
-    atomic_write(directory / 'SKILL.md', data)
-    atomic_write(directory / MARKER, (json.dumps(receipt, indent=2) + '\n').encode())
-    return {'name': name, 'path': str(directory / 'SKILL.md'), 'entry': str(entry)}
+    result = {'name': name, 'path': str(directory / 'SKILL.md'), 'entry': str(entry)}
+    root.mkdir(parents=True, exist_ok=True)
+    with Adapter(directory, create=True, root_is_link=root_is_link) as adapter:
+        # Only a directory this call created, or the exact leftovers of an
+        # interrupted install, skips the ownership check.
+        if adapter.created or interrupted_first_install(adapter, pending):
+            previous = {}
+        else:
+            previous = managed(adapter, name, pending)
+        existing = adapter.read(OPENAI_YAML)
+        # An existing openai.yaml the receipt does not own is the operator's; keep it,
+        # unless it is byte-identical to ours (an interrupted earlier install).
+        if existing is not None and OPENAI_YAML not in previous.get('files', {}) and existing != yaml:
+            result['preserved_files'] = [OPENAI_YAML]
+        else:
+            adapter.write(OPENAI_YAML, yaml)
+            receipt['files'] = {OPENAI_YAML: digest(yaml)}
+        adapter.write('SKILL.md', data)
+        adapter.write(MARKER, (json.dumps(receipt, indent=2) + '\n').encode())
+    return result
 
 
 def remove_retired(root, plugin):
@@ -128,6 +351,7 @@ def remove_retired(root, plugin):
     name = 't3-' + plugin
     try:
         directory = safe_path(root) / name
+        root_is_link = directory.parent.is_symlink()
     except ValueError as exc:
         return {'name': name, 'root': str(root), 'removed': False, 'preserved': str(exc)}
     if not directory.exists() and not directory.is_symlink():
@@ -136,26 +360,24 @@ def remove_retired(root, plugin):
     try:
         if directory.is_symlink():
             raise ValueError(f'skill directory is a symlink: {directory}')
-        managed(directory, name)
+        with Adapter(directory, root_is_link=root_is_link) as adapter:
+            remove_owned(adapter, managed(adapter, name))
+            kept = adapter.entries()
+            if not kept:
+                adapter.remove_if_empty()
     except (ValueError, OSError) as exc:
         return dict(receipt, preserved=str(exc))
-    (directory / 'SKILL.md').unlink()
-    (directory / MARKER).unlink()
-    kept = sorted(path.name for path in directory.iterdir())
-    if not kept:
-        directory.rmdir()
     return dict(receipt, removed=True, kept=kept)
 
 
 def uninstall(root, meta):
     name = 't3-' + meta['name']
     directory = safe_path(safe_path(root) / name)
+    root_is_link = directory.parent.is_symlink()
     if not directory.exists():
         return {'name': name, 'removed': False}
-    managed(directory, name)
-    (directory / 'SKILL.md').unlink()
-    (directory / MARKER).unlink()
-    # Preserve anything the operator added to the adapter directory.
-    if not any(directory.iterdir()):
-        directory.rmdir()
+    with Adapter(directory, root_is_link=root_is_link) as adapter:
+        remove_owned(adapter, managed(adapter, name))
+        # Preserve anything the operator added to the adapter directory.
+        adapter.remove_if_empty()
     return {'name': name, 'removed': True}

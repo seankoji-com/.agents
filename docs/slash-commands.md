@@ -11,6 +11,13 @@ defaults. It won't overwrite a skill it didn't write or one you edited: it stops
 the receipts it already printed stay valid, so fix the conflict and run it again. Run
 `setup` again after every upgrade.
 
+Each skill folder also gets `agents/openai.yaml`, Codex's skill metadata: a display
+name such as `T3 Imps`, a short description and a starting prompt, all taken from the
+plugin manifest. The `.t3-plugins-skill.json` marker owns it the same way it owns
+`SKILL.md`. Upgrades replace it, `skills uninstall` removes it, and an edited copy
+stops the run. If you wrote your own `agents/openai.yaml` before upgrading, setup
+keeps it and lists it under `preserved_files` in the receipt it prints.
+
 To install snapshots and skills separately, or into one folder at a time:
 
 ```sh

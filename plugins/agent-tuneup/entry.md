@@ -24,6 +24,12 @@ for `audit`, `PKG/playbooks/align.md` for `align` or `apply`, and
   One file with no open syntax, scope or precedence question is direct: run the
   helper and report. When findings need provider semantics, several files or
   scopes need comparing, or the owner wants changes proposed, coordinate a job.
+- `audit --t3-projects`: check that worktree-mode T3 projects with a tracked
+  root lockfile run a `runOnWorktreeCreate` setup script. Follow "T3 project
+  bootstrap" in `PKG/playbooks/audit.md`. It is direct, reports
+  `worktree-bootstrap-missing` with a draft `t3.json` or
+  `worktree-bootstrap-not-imported`, and writes nothing: no `t3.json`, no
+  `t3_project_update`.
 - `align`: inventory every provider in T3's live catalog, compare permissions, MCPs,
   plugins, skills, instructions and hooks, and prepare native changes for review.
   Inventory and proposals write no settings. Alignment across several providers is a

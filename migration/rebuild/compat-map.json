@@ -1832,7 +1832,7 @@
       ],
       "disposition": "keep",
       "stage": 2,
-      "reason": "Adapter receipts unchanged."
+      "reason": "Adapter receipts keep schema_version 1. An optional files map (added after issue 28) owns agents/openai.yaml; receipts without it own SKILL.md only."
     },
     {
       "id": "ape-workspace-marker",

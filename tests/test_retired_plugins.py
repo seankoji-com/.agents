@@ -160,8 +160,9 @@ class RetiredAdapters(unittest.TestCase):
         (corrupt / MARKER).write_text('{not json')
         before_root, before_outside = tree(root), tree(outside)
         receipts = self.call('setup', 'imps', '--root', str(root))
-        after = tree(root)
-        after.pop('t3-imps', None), after.pop('t3-imps/SKILL.md', None), after.pop('t3-imps/' + MARKER, None)
+        adapter = {'t3-imps', 't3-imps/SKILL.md', 't3-imps/' + MARKER, 't3-imps/agents', 't3-imps/agents/openai.yaml'}
+        self.assertLessEqual({k for k in tree(root) if k.split('/')[0] == 't3-imps'}, adapter)
+        after = {k: v for k, v in tree(root).items() if k not in adapter}
         self.assertEqual(after, before_root)
         self.assertEqual(tree(outside), before_outside)
         preserved = {r['name']: r['preserved'] for r in receipts if 'preserved' in r}

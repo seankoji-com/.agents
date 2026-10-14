@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -109,15 +111,140 @@ def inspect(provider, data):
     return findings
 
 
+# Root-level lockfiles that mean a new worktree needs an install before work starts.
+# uv.lock counts only when tracked, like every other entry here.
+LOCKFILES = {"pnpm-lock.yaml": "js", "package-lock.json": "js", "bun.lock": "js",
+             "uv.lock": "python", "go.mod": "go"}
+SETUP_COMMAND = 'node "$HOME/.local/bin/t3-setup-worktree.mjs"'
+IMPORT_NOTE = ("T3 runs the project's saved scripts. Import t3.json scripts in Settings -> project -> Actions, "
+               "or pass the existing saved scripts plus the new one to t3_project_update.")
+
+
+def tracked_lockfiles(root):
+    """Tracked root-level lockfiles, read without taking git's optional locks."""
+    result = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--", *sorted(LOCKFILES)],
+                            capture_output=True, text=True, timeout=30,
+                            env=dict(os.environ, GIT_OPTIONAL_LOCKS="0"))
+    if result.returncode:
+        raise OSError("git ls-files failed")
+    return sorted(name for name in result.stdout.split("\0") if name in LOCKFILES)
+
+
+def read_project_file(root):
+    """Return (status, data) for the project's t3.json without echoing its contents."""
+    path = root / "t3.json"
+    if not path.is_file():
+        return "absent", {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or not isinstance(data.get("scripts", []), list):
+        raise ValueError("t3.json must be an object with a scripts array")
+    listed = subprocess.run(["git", "-C", str(root), "ls-files", "--error-unmatch", "--", "t3.json"],
+                            capture_output=True, timeout=30, env=dict(os.environ, GIT_OPTIONAL_LOCKS="0"))
+    return ("tracked" if listed.returncode == 0 else "untracked"), data
+
+
+def has_setup_script(scripts):
+    return any(isinstance(script, dict) and script.get("runOnWorktreeCreate") is True for script in scripts)
+
+
+def bootstrap_draft(lockfiles, saved):
+    """A reviewable proposal. Go module downloads can run beside the agent; JS and
+    Python tests need installed dependencies before the first command. The saved
+    script id avoids every id the project already uses."""
+    script = {"name": "Setup Worktree", "command": SETUP_COMMAND, "icon": "configure",
+              "runOnWorktreeCreate": True,
+              "async": all(LOCKFILES[name] == "go" for name in lockfiles)}
+    used = {item["id"] for item in saved if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    script_id, suffix = "setup-worktree", 2
+    while script_id in used:
+        script_id, suffix = f"setup-worktree-{suffix}", suffix + 1
+    return {"scripts": [script]}, dict(script, id=script_id)
+
+
+def inspect_projects(snapshot):
+    """Flag projects whose new worktrees start without dependencies.
+
+    `snapshot` holds T3's own tool responses: `environment` from t3_environment_read
+    and `projects` from t3_project_list or t3_project_read. Thread mode resolves as
+    project override, then environment preference, then t3.json.
+    """
+    if not isinstance(snapshot, dict) or not isinstance(snapshot.get("projects"), list):
+        raise ValueError("snapshot must be an object with a projects array")
+    environment = snapshot.get("environment", {})
+    if not isinstance(environment, dict) or not isinstance(environment.get("preferences", {}), dict):
+        raise ValueError("environment must be an object")
+    environment_mode = environment.get("preferences", {}).get("defaultThreadEnvMode")
+    findings, unchecked = [], []
+    for index, project in enumerate(snapshot["projects"]):
+        if not isinstance(project, dict):
+            raise ValueError("project must be an object")
+        location = f"projects[{index}]"
+        saved = project.get("scripts")
+        saved = [] if saved is None else saved
+        if not isinstance(saved, list):
+            raise ValueError("project scripts must be an array")
+        # Ids are echoed in findings: accept only T3's string ids, never arbitrary values.
+        if not isinstance(project.get("id"), str) or any(
+                isinstance(item, dict) and "id" in item and not isinstance(item["id"], str) for item in saved):
+            raise ValueError("project and script ids must be strings")
+        if project.get("deletedAt"):
+            continue
+        root = project.get("workspaceRoot")
+        if not isinstance(root, str) or not os.path.isabs(root) or not Path(root).is_dir():
+            unchecked.append({"location": location, "reason": "workspace_unavailable"})
+            continue
+        root = Path(root)
+        try:
+            lockfiles = tracked_lockfiles(root)
+            file_status, project_file = read_project_file(root)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            unchecked.append({"location": location, "reason": "workspace_unreadable"})
+            continue
+        for source, mode in (("project", project.get("defaultThreadEnvMode")),
+                             ("environment", environment_mode),
+                             ("t3.json", project_file.get("defaultThreadEnvMode"))):
+            if mode:
+                break
+        else:
+            source, mode = "unset", None
+        if mode != "worktree" or not lockfiles or has_setup_script(saved):
+            continue
+        finding = {"location": location, "project_id": project.get("id"), "mode_source": source,
+                   "lockfiles": lockfiles, "t3_json": file_status, "import": IMPORT_NOTE}
+        if has_setup_script(project_file.get("scripts", [])):
+            # The repository already declares a setup script; it only needs importing.
+            findings.append({"code": "worktree-bootstrap-not-imported", **finding})
+            continue
+        draft, saved_script = bootstrap_draft(lockfiles, saved)
+        findings.append({"code": "worktree-bootstrap-missing", **finding, "draft_t3_json": draft,
+                         "draft_saved_script": saved_script})
+    return findings, unchecked
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--list-adapters", action="store_true")
     parser.add_argument("--provider", choices=sorted(ADAPTERS))
     parser.add_argument("--settings", type=Path)
+    parser.add_argument("--t3-projects", type=Path, metavar="SNAPSHOT",
+                        help="JSON with T3's environment and project tool responses")
     args = parser.parse_args(argv)
     if args.list_adapters:
         print(json.dumps(ADAPTERS))
         return 0
+    if args.t3_projects is not None:
+        if args.provider or args.settings is not None:
+            parser.error("--t3-projects cannot be combined with --provider or --settings")
+        try:
+            snapshot = json.loads(args.t3_projects.expanduser().read_text(encoding="utf-8"))
+            findings, unchecked = inspect_projects(snapshot)
+        except (OSError, ValueError):
+            print(json.dumps({"ok": False, "error": "snapshot_unreadable_or_invalid", "check": "t3-projects"}))
+            return 2
+        print(json.dumps({"ok": True, "check": "t3-projects", "findings": findings, "unchecked": unchecked,
+                          "scope": "worktree bootstrap check; drafts are proposals, nothing is imported",
+                          "writes": 0}))
+        return 1 if findings else 0
     if not args.provider or args.settings is None:
         parser.error("--provider and --settings are required")
     if args.provider == "codex":
