@@ -291,11 +291,22 @@ def _bounded_run(argv, cwd, limits):
             raise AcceptanceError('validator helper timeout after output closed') from exc
         return subprocess.CompletedProcess(argv, proc.returncode, bytes(output[proc.stdout]), bytes(output[proc.stderr]))
     finally:
+        # Cleanup must never replace an error already in flight.
         try:
             os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
+            # ESRCH: the group is gone. EPERM: macOS returns it when only zombies remain,
+            # which cannot be signalled, so nothing in the group is still running.
             pass
-        proc.wait(timeout=5)
+        if proc.poll() is None:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
         selector.close()
         for stream in output:
             stream.close()
