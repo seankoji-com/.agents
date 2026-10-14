@@ -17,12 +17,10 @@ the machine where you install. Homebrew brings Python 3.12; from source you need
 
 ## 1. Install with Homebrew
 
-On macOS or Linux. The tap's stable formula is still v0.4.0, which predates ralph and
-several commands on this page, so install the HEAD build until the next release
-([why](#homebrew-release-channel)):
+On macOS or Linux:
 
 ```sh
-brew install --HEAD seankoji-com/tap/t3-plugins
+brew install seankoji-com/tap/t3-plugins
 t3-plugins setup
 t3-plugins doctor
 ```
@@ -157,34 +155,22 @@ $ python3 "$(dirname "$(t3-plugins path agent-tuneup)")/scripts/audit.py" --prov
 ## Homebrew release channel
 
 The tap installs a `t3-plugins` command and an `imps` command, with Python 3.12 as a
-dependency. What has been checked, as of 14 Oct 2026:
+dependency. The stable formula is v0.5.0, released 14 Oct 2026, with all six workflows.
+What has been checked on that release:
 
-- Linux x86_64: Homebrew installs and runs the stable formula. For the HEAD build, the
-  formula's install steps were replayed by hand (same directories, same wrapper, same
-  Homebrew Python 3.12), and `setup`, `doctor` and `list` passed. `brew install
-  --HEAD` itself was not run on Linux.
-- macOS: the tap's CI installs and tests the stable formula on macOS 15.
+- Linux x86_64: `brew upgrade` to v0.5.0, `brew test`, and `setup`, `doctor` and `list`
+  in an isolated home all passed.
+- macOS: the tap's CI installs the formula and runs `brew test` on macOS 15.
 
-On a HEAD install, `brew test t3-plugins` fails: the tap's test still expects the
-retired prompt-builder plugin in `t3-plugins list`. Use `t3-plugins doctor` instead.
+From v0.4.0 or earlier, run `brew update && brew upgrade t3-plugins`, then
+`t3-plugins setup`. `t3-plugins list` shows `ralph` on v0.5.0 and later.
 
-The stable formula is v0.4.0. It has `setup`, `doctor` and `prompt`, but not ralph,
-`agents`, `resolve` or `adopt`, and it still ships two retired plugins. These docs
-describe the current `master`, which `--HEAD` builds:
-
-```sh
-brew uninstall t3-plugins                        # only if v0.4.0 is installed
-brew install --HEAD seankoji-com/tap/t3-plugins
-t3-plugins setup
-```
-
-Plain `brew upgrade` checks a HEAD install for new commits only when a new stable
-version appears. To update it now, run `brew upgrade --fetch-HEAD t3-plugins`, then
-`t3-plugins setup` again. After the next
-release reaches the tap, you can switch back to stable with `brew uninstall t3-plugins`
-and `brew install seankoji-com/tap/t3-plugins`; `t3-plugins list` shows `ralph` on
-either build that has it. Homebrew's own formula test runs in a temporary home, so it
-never populates your skills; run `setup` yourself.
+If you installed the HEAD build while stable lagged, either switch back with
+`brew uninstall t3-plugins && brew install seankoji-com/tap/t3-plugins`, or keep HEAD
+and update it with `brew upgrade --fetch-HEAD t3-plugins`. Plain `brew upgrade` checks
+a HEAD install for new commits only when a new stable version appears. Homebrew's own
+formula test runs in a temporary home, so it never populates your skills; run `setup`
+yourself.
 
 ## From source
 
@@ -232,8 +218,8 @@ python3 bin/t3-plugins doctor
 ```
 
 Run these in your source checkout. With Homebrew, run
-`brew upgrade --fetch-HEAD t3-plugins` for a HEAD install (or `brew upgrade t3-plugins`
-for a stable one), then `t3-plugins setup` and `t3-plugins doctor`. Reinstalling identical files changes nothing. A changed package gets a new snapshot. Local edits
+`brew upgrade t3-plugins` (or `brew upgrade --fetch-HEAD t3-plugins` for a HEAD
+install), then `t3-plugins setup` and `t3-plugins doctor`. Reinstalling identical files changes nothing. A changed package gets a new snapshot. Local edits
 to that same snapshot cause refusal; `--force` is an explicit overwrite. Older
 snapshots remain available, including any edits you made there.
 

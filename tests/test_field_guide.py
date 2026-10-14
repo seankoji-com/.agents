@@ -97,10 +97,9 @@ class RepositoryGuideTest(unittest.TestCase):
         self.assertIn('class="demo-rec"', svg)
         template = (ROOT / 'overrides' / 'home.html').read_text()
         self.assertIn('guide.recording | safe', template)
-        # The tap's stable formula predates these docs, so the hero installs HEAD and
-        # says why before the command, not after it.
-        self.assertIn('brew install --HEAD seankoji-com/tap/t3-plugins', template)
-        self.assertLess(template.index('fg-install__note'), template.index('brew install --HEAD'))
+        # v0.5.0 ships what these docs describe, so the hero installs the stable formula.
+        self.assertIn('brew install seankoji-com/tap/t3-plugins', template)
+        self.assertNotIn('--HEAD', template)
         # The hero sits outside Material's content area, so it carries its own copy
         # button; Material's document-wide clipboard handler serves it.
         self.assertIn('<pre id="fg-install-code">', template)

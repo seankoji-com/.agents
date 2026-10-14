@@ -15,17 +15,14 @@ settings and implement-then-grade loops.
 
 ## Install (macOS or Linux)
 
-The tap's stable formula is still v0.4.0, which predates ralph and several commands
-in these docs. Until the next release, install the HEAD build from `master`:
-
 ```sh
-brew install --HEAD seankoji-com/tap/t3-plugins
+brew install seankoji-com/tap/t3-plugins
 t3-plugins setup      # installs the workflows and their slash-menu skills
 t3-plugins doctor     # checks the installed files; expect "ok": true per plugin
 ```
 
-Update a HEAD install with `brew upgrade --fetch-HEAD t3-plugins`, then run
-`t3-plugins setup` again.
+Already installed? Run `brew upgrade t3-plugins`, then `t3-plugins setup` again. ralph
+needs v0.5.0 or later.
 
 In T3, open **Settings > General**, turn on **Show skills in slash menu**, and restart
 the agent session. Then send this in a thread attached to your repository:
