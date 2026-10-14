@@ -23,10 +23,11 @@ $t3-ralph resume /path/to/ralph-state.json
 $t3-ralph cancel /path/to/ralph-state.json
 ```
 
-Choosing `t3-ralph` from the `/` menu inserts the `$t3-ralph` mention. ralph is not in
-the tap's stable v0.4.0 formula. If `t3-plugins list` doesn't include it, install
-[the HEAD build or from source](../getting-started.md#homebrew-release-channel), then
-run `t3-plugins setup ralph` and restart the agent session.
+Choosing `t3-ralph` from the `/` menu inserts the `$t3-ralph` mention. ralph needs
+catalog v0.5.0 or later. If `t3-plugins list` doesn't include it, run
+`brew update && brew upgrade t3-plugins` (or
+[install from source](../getting-started.md#from-source)), then run
+`t3-plugins setup ralph` and restart the agent session.
 
 ## What you get
 

@@ -52,11 +52,11 @@ Do not change the state version or try to convert it by editing JSON.
 
 ## Homebrew has an older catalog
 
-These guides describe the current `master`. Check with `t3-plugins list`: no `ralph`
-means you have the stable v0.4.0 formula. Reinstall the
-[HEAD build](getting-started.md#homebrew-release-channel), or install from source.
-To pick up new commits on a HEAD install, run `brew upgrade --fetch-HEAD t3-plugins`;
-plain `brew upgrade` doesn't check for them. Run `t3-plugins setup` after either. A GitHub release and its
+Check with `t3-plugins list`: no `ralph` means you have v0.4.0 or earlier. Run
+`brew update && brew upgrade t3-plugins`, then `t3-plugins setup`. On a
+[HEAD install](getting-started.md#homebrew-release-channel), run
+`brew upgrade --fetch-HEAD t3-plugins` instead; plain `brew upgrade` doesn't check it for
+new commits. A GitHub release and its
 tap formula update are separate steps, so a new release can take a while to reach
 `brew`.
 
