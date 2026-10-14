@@ -33,9 +33,9 @@ For free text, source input or `--personas`, read `PKG/references/request.md`;
 `--personas` also reads `PKG/references/personas.md`.
 
 **doctor.** Change nothing; run it directly. First run `python3 PKG/cli.py doctor`.
-It reports Python 3.10+, Git, a removed probe write to the state root and learnings;
-exit 5 lists failures in `error.details`. Then call T3's live
-`orchestrator_capabilities`; the helper cannot. Never guess another subcommand.
+It checks Python 3.10+, Git, learnings and the state root, writing only one
+short-lived file, inside an existing root; exit 5 lists failures in `error.details`.
+Then call T3's live `orchestrator_capabilities` yourself. Never guess another subcommand.
 Report enabled providers and the separate reasons others are disabled, uninstalled
 or unauthenticated. Direct work remains possible when children are unavailable.
 Read `PKG/references/compatibility.md` for historical provider observations.

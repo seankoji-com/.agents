@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Local readiness for `$t3-imps doctor`, printed as one core-style JSON envelope.
 
-Checks Python 3.10+, Git, state-root writability (a probe file, removed before
-returning) and the learnings load status. Changes nothing else. T3 capabilities
-are the agent's check: this process cannot call T3 tools. Exit 0 when the
-required checks pass, 2 for invalid arguments, 5 when one fails."""
+Checks Python 3.10+, Git, the state root and the learnings load status. The only
+write is one temporary file inside an existing state root, removed straight away; an
+absent root gets no write at all. T3 capabilities are the agent's check: this process
+cannot call T3 tools. Exit 0 when the required checks pass, 2 for invalid arguments,
+5 when one fails."""
 import argparse
 import json
 import os
+import secrets
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -21,22 +22,68 @@ sys.path.insert(0, str(BASE))
 MIN_PYTHON = (3, 10)
 
 
-def probe_writable(root):
-    """Create and remove one file where `init` would first write: the root, or its nearest existing ancestor."""
-    target = root
-    while not target.exists() and target != target.parent:
-        target = target.parent
-    result = {'path': str(root), 'exists': root.is_dir(), 'probed': str(target)}
-    try:
-        handle, name = tempfile.mkstemp(prefix='.doctor-probe-', dir=target)
+def open_directory(path):
+    """Open an absolute directory one component at a time, refusing a symlink at any of them."""
+    fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY)
+    for part in Path(path).parts[1:]:
         try:
-            os.write(handle, b'probe\n')
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
         finally:
-            os.close(handle)
-            os.unlink(name)
+            os.close(fd)
+        fd = child
+    return fd
+
+
+def nearest_ancestor(root):
+    """For a root with a missing component: (nearest existing ancestor, None), or (None, a dangling symlink)."""
+    ancestor = Path(root.anchor)
+    for prefix in [*reversed(root.parents[:-1]), root]:
+        if not os.path.lexists(prefix):
+            return ancestor, None
+        if not os.path.exists(prefix):
+            return None, prefix
+        ancestor = prefix
+    return ancestor, None
+
+
+def refused(result, exc):
+    return {**result, 'status': 'refused', 'ok': False, 'reason': f'{type(exc).__name__}: {exc}'}
+
+
+def probe_state_root(root):
+    """Create and remove one empty file inside the resolved root, and only when the root exists."""
+    result = {'path': str(root)}
+    try:
+        resolved = Path(os.path.realpath(root, strict=True))
+    except FileNotFoundError:
+        ancestor, dangling = nearest_ancestor(root)
+        if dangling:
+            return {**result, 'status': 'refused', 'ok': False, 'reason': f'dangling symlink: {dangling}'}
+        # Doctor writes nothing outside the state root, so this is os.access's guess, not a probe.
+        return {**result, 'status': 'absent', 'ok': True, 'note': 'created on first run; nothing written',
+                'advisory': {'nearest_existing_ancestor': str(ancestor),
+                             'access_w_ok': os.access(ancestor, os.W_OK)}}
     except OSError as exc:
-        return {**result, 'ok': False, 'reason': f'{type(exc).__name__}: {exc.strerror or exc}'}
-    return {**result, 'ok': True}
+        return refused(result, exc)
+    result['resolved'] = str(resolved)
+    try:
+        fd = open_directory(resolved)
+    except OSError as exc:
+        return refused(result, exc)
+    name = f'.doctor-probe-{os.getpid()}-{secrets.token_hex(4)}'
+    try:
+        try:
+            os.close(os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=fd))
+        except OSError as exc:
+            return {**result, 'status': 'not_writable', 'ok': False, 'reason': f'{type(exc).__name__}: {exc.strerror}'}
+        try:
+            os.unlink(name, dir_fd=fd)
+        except OSError as exc:
+            return {**result, 'status': 'probe_left', 'ok': False, 'leftover': str(resolved / name),
+                    'reason': f'{type(exc).__name__}: {exc.strerror}'}
+    finally:
+        os.close(fd)
+    return {**result, 'status': 'writable', 'ok': True}
 
 
 def learnings(project):
@@ -70,7 +117,7 @@ def doctor(state_root, project):
                          else {'ok': False, 'reason': git.stderr.strip() or f'exit {git.returncode}'})
     except (OSError, subprocess.TimeoutExpired) as exc:
         checks['git'] = {'ok': False, 'reason': f'{type(exc).__name__}: {exc}'}
-    checks['state_root'] = probe_writable(root)
+    checks['state_root'] = probe_state_root(root)
     checks['learnings'] = learnings(project)
     failed = [name for name in ('python', 'git', 'state_root') if not checks[name]['ok']]
     return {'plugin': meta['name'], 'version': version, 'project': str(project), 'checks': checks,

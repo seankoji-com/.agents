@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -10,12 +11,16 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parent.parent
 WRAPPER = ROOT / 'plugins' / 'imps' / 'cli.py'
 CHECKS = {'python', 'git', 'state_root', 'learnings'}
+SPEC = importlib.util.spec_from_file_location('imps_doctor', ROOT / 'plugins' / 'imps' / 'scripts' / 'doctor.py')
+DOCTOR = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(DOCTOR)
 
 
 def tree(path):
@@ -54,9 +59,53 @@ class DoctorTest(unittest.TestCase):
         self.assertTrue(data['checks']['python']['ok'])
         self.assertEqual(data['checks']['python']['required'], '3.10+')
         self.assertTrue(data['checks']['git']['version'].startswith('git version'))
-        state = data['checks']['state_root']
-        self.assertEqual(state, {'path': str(root), 'exists': False, 'probed': str(self.tmp), 'ok': True})
+        self.assertEqual(data['checks']['state_root']['status'], 'absent')
         self.assertIn(data['checks']['learnings']['status'], ('available', 'unavailable'))
+
+    def test_absent_root_passes_and_writes_nothing_anywhere(self):
+        root = self.tmp / 'state' / 'imps'
+        before, stamp = tree(self.tmp), os.stat(self.tmp).st_mtime_ns
+        code, out = self.doctor('--state-root', root)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out['data']['checks']['state_root'], {
+            'path': str(root), 'status': 'absent', 'ok': True, 'note': 'created on first run; nothing written',
+            'advisory': {'nearest_existing_ancestor': str(self.tmp), 'access_w_ok': True}})
+        # A create-then-unlink in the ancestor leaves no file but still moves its mtime.
+        self.assertEqual((tree(self.tmp), os.stat(self.tmp).st_mtime_ns), (before, stamp))
+
+    @unittest.skipIf(hasattr(os, 'geteuid') and os.geteuid() == 0, 'root ignores directory permissions')
+    def test_absent_root_under_a_read_only_ancestor_passes_with_an_advisory(self):
+        parent = self.tmp / 'locked'
+        parent.mkdir()
+        parent.chmod(0o500)
+        self.addCleanup(parent.chmod, 0o700)
+        code, out = self.doctor('--state-root', parent / 'imps')
+        self.assertEqual(code, 0, out)
+        state = out['data']['checks']['state_root']
+        self.assertEqual(state['status'], 'absent')
+        self.assertEqual(state['advisory'], {'nearest_existing_ancestor': str(parent), 'access_w_ok': False})
+
+    def test_dangling_symlink_root_fails_instead_of_counting_as_absent(self):
+        root = self.tmp / 'state'
+        root.symlink_to(self.tmp / 'nowhere')
+        before = tree(self.tmp)
+        for target in (root, root / 'imps'):
+            code, out = self.doctor('--state-root', target)
+            self.assertEqual(code, 5, out)
+            state = out['error']['details']['checks']['state_root']
+            self.assertEqual((state['status'], state['reason']), ('refused', f'dangling symlink: {root}'))
+        self.assertFalse(os.path.lexists(self.tmp / 'nowhere'))
+        self.assertEqual(tree(self.tmp), before)
+
+    def test_symlinked_root_probes_its_resolved_directory(self):
+        real = self.tmp / 'real'
+        real.mkdir()
+        (self.tmp / 'link').symlink_to(real)
+        code, out = self.doctor('--state-root', self.tmp / 'link')
+        self.assertEqual(code, 0, out)
+        state = out['data']['checks']['state_root']
+        self.assertEqual((state['status'], state['resolved']), ('writable', os.path.realpath(real)))
+        self.assertEqual(list(real.iterdir()), [])
 
     def test_creates_no_files(self):
         root = self.tmp / 'state'
@@ -64,7 +113,8 @@ class DoctorTest(unittest.TestCase):
         before = tree(self.tmp)
         code, out = self.doctor('--state-root', root)
         self.assertEqual(code, 0, out)
-        self.assertEqual(out['data']['checks']['state_root']['probed'], str(root))
+        self.assertEqual(out['data']['checks']['state_root']['status'], 'writable')
+        self.assertEqual(out['data']['checks']['state_root']['resolved'], os.path.realpath(root))
         self.assertEqual(tree(self.tmp), before)
         code, _ = self.doctor()  # the default XDG root does not exist yet and is not created
         self.assertEqual(code, 0)
@@ -101,7 +151,9 @@ class DoctorTest(unittest.TestCase):
         code, out = self.doctor('--state-root', root)
         self.assertEqual(code, 5)
         self.assertEqual(out['error']['details']['failed'], ['state_root'])
-        self.assertIn('PermissionError', out['error']['details']['checks']['state_root']['reason'])
+        state = out['error']['details']['checks']['state_root']
+        self.assertEqual(state['status'], 'not_writable')
+        self.assertIn('PermissionError', state['reason'])
         self.assertEqual(list(root.iterdir()), [])
 
     def test_invalid_arguments_exit_2_in_an_envelope(self):
@@ -116,6 +168,64 @@ class DoctorTest(unittest.TestCase):
         self.assertEqual(code, 5)
         self.assertEqual(out['error']['details']['failed'], ['git'])
         self.assertFalse(out['error']['details']['checks']['git']['ok'])
+
+
+class ProbeRaceTest(unittest.TestCase):
+    """The probe is created and removed through one directory descriptor, not by pathname."""
+
+    def setUp(self):
+        self.tmp = Path(os.path.realpath(tempfile.mkdtemp()))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.root = self.tmp / 'state'
+        self.root.mkdir()
+
+    def probe_with_unlink_hook(self, hook):
+        unlink = os.unlink
+
+        def hooked(name, *args, **kwargs):
+            if os.path.basename(name).startswith('.doctor-probe-'):
+                hook()
+            return unlink(name, *args, **kwargs)
+        with mock.patch.object(DOCTOR.os, 'unlink', hooked):
+            return DOCTOR.probe_state_root(self.root)
+
+    def test_root_renamed_between_create_and_unlink_keeps_no_probe(self):
+        moved = self.tmp / 'moved'
+        state = self.probe_with_unlink_hook(lambda: self.root.rename(moved))
+        self.assertEqual(list(moved.iterdir()), [])
+        self.assertEqual(state['status'], 'writable', state)
+
+    def test_root_replaced_between_create_and_unlink_keeps_no_probe(self):
+        moved = self.tmp / 'moved'
+        state = self.probe_with_unlink_hook(lambda: (self.root.rename(moved), self.root.mkdir()))
+        self.assertEqual((list(moved.iterdir()), list(self.root.iterdir())), ([], []))
+        self.assertEqual(state['status'], 'writable', state)
+
+    def test_failed_unlink_names_the_leftover_and_fails(self):
+        def refuse(name, *args, **kwargs):
+            raise PermissionError(1, 'Operation not permitted')
+        with mock.patch.object(DOCTOR.os, 'unlink', refuse):
+            state = DOCTOR.probe_state_root(self.root)
+        self.assertFalse(state['ok'])
+        self.assertEqual(state['status'], 'probe_left')
+        leftover = [p.name for p in self.root.iterdir()]
+        self.assertEqual(len(leftover), 1)
+        self.assertEqual(state['leftover'], str(self.root / leftover[0]))
+
+    def test_root_swapped_for_a_symlink_after_resolving_is_refused(self):
+        real = self.tmp / 'elsewhere'
+        real.mkdir()
+        resolve = os.path.realpath
+
+        def swap(path, **kwargs):
+            resolved = resolve(path, **kwargs)
+            self.root.rmdir()
+            self.root.symlink_to(real)
+            return resolved
+        with mock.patch.object(DOCTOR.os.path, 'realpath', swap):
+            state = DOCTOR.probe_state_root(self.root)
+        self.assertEqual(state['status'], 'refused', state)
+        self.assertEqual(list(real.iterdir()), [])
 
 
 class InstalledDoctorTest(unittest.TestCase):
