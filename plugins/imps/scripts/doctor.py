@@ -20,14 +20,18 @@ PKG = Path(__file__).resolve().parent.parent
 BASE = next((p for p in (PKG, PKG.parent.parent) if (p / 'core' / 'store.py').is_file()), PKG)
 sys.path.insert(0, str(BASE))
 MIN_PYTHON = (3, 10)
+# init needs only search permission on the way down, so the walk must not ask for more.
+# O_PATH (Linux) opens a directory without read permission; elsewhere O_RDONLY is the
+# closest portable flag and an unreadable directory is reported as refused.
+WALK = getattr(os, 'O_PATH', os.O_RDONLY) | os.O_DIRECTORY
 
 
 def open_directory(path):
     """Open an absolute directory one component at a time, refusing a symlink at any of them."""
-    fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY)
+    fd = os.open('/', WALK)
     for part in Path(path).parts[1:]:
         try:
-            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            child = os.open(part, WALK | os.O_NOFOLLOW, dir_fd=fd)
         finally:
             os.close(fd)
         fd = child

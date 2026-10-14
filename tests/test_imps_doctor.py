@@ -156,6 +156,23 @@ class DoctorTest(unittest.TestCase):
         self.assertIn('PermissionError', state['reason'])
         self.assertEqual(list(root.iterdir()), [])
 
+    @unittest.skipIf(hasattr(os, 'geteuid') and os.geteuid() == 0, 'root ignores directory permissions')
+    @unittest.skipUnless(hasattr(os, 'O_PATH'), 'searching without read permission needs O_PATH')
+    def test_search_only_permissions_pass_like_init(self):
+        # init needs only search (x) on ancestors and write+search on the root, never read.
+        ancestor = self.tmp / 'search-only'
+        root = ancestor / 'imps'
+        root.mkdir(parents=True)
+        root.chmod(0o300)
+        ancestor.chmod(0o100)
+        self.addCleanup(lambda: (ancestor.chmod(0o700), root.chmod(0o700)))
+        code, out = self.doctor('--state-root', root)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out['data']['checks']['state_root']['status'], 'writable')
+        ancestor.chmod(0o700)
+        root.chmod(0o700)
+        self.assertEqual(list(root.iterdir()), [])
+
     def test_invalid_arguments_exit_2_in_an_envelope(self):
         code, out = self.doctor('--no-such-flag')
         self.assertEqual(code, 2)
