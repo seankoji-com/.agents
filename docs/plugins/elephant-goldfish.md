@@ -1,44 +1,48 @@
 # elephant-goldfish
 
-Prepare a brief that a fresh session can use.
-
-## When to use it
-
-You know something needs improving but cannot yet give an implementation agent a
-clear task. It also checks whether an existing design document is still accurate.
+You know something should change, but you can't yet hand an agent a clear task.
+elephant-goldfish interviews you, writes down what you decided, turns it into
+acceptance criteria, and packages a brief that a fresh thread can execute. It never
+starts the implementation. It can also check whether an existing design document still
+matches the repository.
 
 ## Try it
 
-After [installation](../getting-started.md), run in your terminal:
+In a T3 thread attached to your repository:
 
-```sh
-t3-plugins prompt elephant-goldfish doctor
+```text
+$t3-elephant-goldfish thinking retry-policy
 ```
 
-Paste the printed line into a T3 thread attached to your project. Once readiness is
-clear, generate a task prompt:
-
-```sh
-t3-plugins prompt elephant-goldfish thinking retry-policy
-```
-
-Paste that output into T3. Replace the sample task or path with your own.
-If you installed [skill adapters](../slash-commands.md), select **t3-elephant-goldfish**
-from `/` and append the same request instead.
-
-## Operations
-
-`doctor`, `thinking`, `elephant`, `check`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/elephant-goldfish/entry.md) names the file to load for each operation.
+`retry-policy` is the topic name; use your own. The agent asks questions until the
+problem is clear, shows you the refined discovery to accept, then writes the
+specification and handoff. Run the same command later to pick the topic up again, or
+`thinking list` to see saved topics. Send `$t3-elephant-goldfish doctor` first on a new
+machine or provider.
 
 ## What you get
 
-Local `thinking/<topic>/discovery.md`, `spec.md`, `handoff.md` and a provenance
-manifest. Discovery records decisions and unknowns; the specification gives stable
-requirement IDs and observable acceptance criteria. The handoff copies the source
-verbatim with hashes. The agent presents refined discovery for your review before
-finalising the rubric. Your acceptance is recorded against that content's hash;
-editing discovery reopens review. A complete handoff still needs a separate instruction
-to start implementation or research.
+Files under `thinking/<topic>/` in your repository:
+
+- `discovery.md`: decisions, constraints and open unknowns;
+- `spec.md`: requirements with stable IDs and acceptance criteria you can observe;
+- `handoff.md`: the source documents copied verbatim, with their hashes, plus a
+  provenance manifest.
+
+Your acceptance of the discovery is recorded against that content's hash, so editing
+it reopens review. A finished handoff still needs a separate instruction before anyone
+implements or researches it.
+
+Two other operations check durable documents. `elephant` checks a design document
+against the repository and has a separate cold reader judge whether a newcomer could
+act on it. `check` runs only the factual drift pass. A readable document can still be
+wrong, so the two verdicts stay separate.
+
+## Operations
+
+`doctor`, `thinking`, `elephant`, `check`. The
+[entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/elephant-goldfish/entry.md)
+names the file the agent loads for each one.
 
 ## Review and drafts
 
@@ -94,15 +98,9 @@ question picker.
 
 ## Limits
 
-Thinking stops at the handoff. A cold-reader pass establishes readability and completeness, not factual correctness. See [compatibility](../compatibility.md) for the distinction between deterministic tests and live provider results.
-Helpers check receipt structure, content binding, and provenance. They cannot judge
-interview quality, authenticate an operator statement, or prevent every unauthorised
-agent action.
-
-## Continue planning
-
-Use `thinking retry-policy` again to resume the same topic, or `thinking list` to
-inspect saved topics. `elephant` checks a durable design document against repository
-facts and runs a separate cold-reader review; `check` runs the factual drift check.
-A readable brief can still be factually wrong, so those verdicts stay separate.
-GitHub publication is optional and requires explicit authorization.
+Thinking stops at the handoff. A cold reader's pass means the brief is readable and
+complete, not that its facts are right. The helpers check receipt structure, content
+hashes and provenance. They can't judge the quality of the interview, authenticate
+who accepted a review, or prevent every unauthorised agent action. Unit tests don't
+show how a given model behaves; see [compatibility](../compatibility.md). Publishing
+anything to GitHub needs explicit permission.

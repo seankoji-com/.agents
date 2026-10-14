@@ -1,43 +1,54 @@
-# Ralph
+# ralph
 
-Give Ralph a goal. Choose an implementer and an evaluator from different model
-lineages. Ralph starts a fresh T3 implementation task, then a fresh evaluation task.
-Every feedback item sends the work back to a new implementation task using the
-original model and existing worktree.
+ralph splits building from judging. One model implements your goal in a fresh T3 task;
+a model from a different lineage evaluates the result in another fresh task. Any
+feedback at all, even a minor suggestion, sends the work back to a new implementation
+task with the same model and worktree. When the evaluator reports the goal met with
+nothing left to say, ralph opens a PR.
+
+## Try it
 
 ```text
-/t3-ralph fix the parser and add regression coverage
-/t3-ralph --max-attempts 8 implement the export endpoint
-/t3-ralph resume /path/to/ralph-state.json
-/t3-ralph status /path/to/ralph-state.json
-/t3-ralph cancel /path/to/ralph-state.json
+$t3-ralph fix the parser and add regression coverage
 ```
 
-Selecting `t3-ralph` from T3's slash menu inserts the portable skill mention.
-`$t3-ralph <goal>` invokes the same entry.
+ralph first asks you to choose the implementer and the evaluator from T3's live model
+catalog. Then it runs attempts until the evaluator is satisfied or the limit (five by
+default) runs out. Other forms:
+
+```text
+$t3-ralph --max-attempts 8 implement the export endpoint
+$t3-ralph status /path/to/ralph-state.json
+$t3-ralph resume /path/to/ralph-state.json
+$t3-ralph cancel /path/to/ralph-state.json
+```
+
+Choosing `t3-ralph` from the `/` menu inserts the `$t3-ralph` mention. ralph is not in
+the tap's stable v0.4.0 formula. If `t3-plugins list` doesn't include it, install
+[the HEAD build or from source](../getting-started.md#homebrew-release-channel), then
+run `t3-plugins setup ralph` and restart the agent session.
+
+## What you get
+
+- for a code change that passes: a normal PR from the run's branch;
+- otherwise: the remaining feedback and the checkpoint path, never a success claim;
+- a checkpoint file outside the repository with every task ID, the chosen models, the
+  worktree and each round's result, so `status` and `resume` work across sessions.
 
 ## Choose the pair
 
 Each new run asks for both models from the live T3 catalog, including custom models
-and their available settings. Ralph keeps that pair throughout the run. A provider
-can host several model lineages, so choosing different providers alone does not
-establish independence. Unknown lineage labels need your confirmation. If the pair
-cannot be verified as independent, the run cannot start.
+and their settings, and keeps that pair for the whole run. One provider can host
+several model lineages, so picking two providers doesn't prove independence. Unknown
+lineage labels need your confirmation; if the pair can't be shown to be independent,
+the run doesn't start.
 
-Install the command with the usual [setup workflow](../slash-commands.md):
-
-```sh
-python3 bin/t3-plugins setup ralph
-```
-
-Run this from a source checkout containing Ralph. For a packaged catalog, first
-check that `t3-plugins list` includes `ralph`, then use `t3-plugins setup ralph`.
-Restart the agent session after setup. The installed adapter points to the versioned
-Ralph package, which includes its checkpoint helper and shared T3 instructions.
-Runtime modes are resolved per provider within the parent's boundary and shown
-alongside the model choices. OpenCode requires Full Access because other modes can
-stall on T3 permission requests. If you choose OpenCode from a narrower parent mode,
-Ralph stops before dispatch and asks you to select Full Access for the parent.
+The installed skill points at the versioned ralph package, which carries its
+checkpoint helper and the shared T3 instructions. Runtime modes are resolved per
+provider within the parent thread's limits and shown next to the model choices.
+OpenCode needs Full Access, because other modes can stall on T3 permission requests.
+If you choose OpenCode from a narrower parent mode, ralph stops before dispatch and
+asks you to switch the parent to Full Access.
 
 ## Feedback and stopping
 
@@ -47,7 +58,7 @@ was achieved, every feedback item, and the evidence it inspected. Success requir
 both an achieved goal and no feedback. Even a minor suggestion triggers another
 attempt. A failure verdict without feedback also triggers another attempt.
 
-Children receive only the supplied brief. Ralph carries the original goal,
+Children receive only the supplied brief. ralph carries the original goal,
 constraints, acceptance criteria, prior results, and all feedback into each new
 task. Code remains in the same worktree. It does not resume a child's conversation,
 discard previous attempts, or swap models after criticism.
@@ -69,12 +80,12 @@ a recovery reason and creates a fresh task with the same pair and worktree.
 Implementation retries still count against the limit. Temporary pending child runs
 clear after their terminal statuses are observed, restoring the earlier stage.
 Missing model identity needs an exact saved T3 delegation receipt or authoritative
-status; Ralph never guesses aliases or accepts an unverified model as success.
+status; ralph never guesses aliases or accepts an unverified model as success.
 
 ## PR delivery
 
 Successful runs that produce code changes normally finish by opening a normal PR.
-Ralph may edit, test, commit owned paths, push the task branch, and open that PR.
+ralph may edit, test, commit owned paths, push the task branch, and open that PR.
 Your narrower instructions take precedence. It follows repository checks and
 pre-PR review requirements, uses the intended base, and verifies the PR head.
 It does not merge, deploy, release, or send messages without separate authority.
@@ -84,11 +95,11 @@ The evaluator reviews committed output before publication. A subsequent edit or
 commit requires fresh evaluation. Unrelated dirty work stays outside the commit.
 The checkpoint reports paths changed since the run started. The parent still
 checks ownership and whether those paths are code changes before opening a PR.
-If publication fails, Ralph reports the evaluated result and the separate PR
+If publication fails, ralph reports the evaluated result and the separate PR
 delivery blocker. Current-head CI, merge, deployment and live acceptance remain
 separate outcomes.
 
-Cancellation stops only this run's tracked children. Ralph waits for T3 to confirm
+Cancellation stops only this run's tracked children. ralph waits for T3 to confirm
 they and their pending turns have stopped; requesting cancellation is not proof.
 Keep the checkpoint until you are finished with the run. It can contain private
 goal text and feedback, so store it outside the repository and do not commit it.
@@ -97,6 +108,6 @@ older checkpoints using their original installed snapshot rather than rewriting 
 
 ## Compatibility
 
-Ralph is experimental. Behavioral tests cover checkpoints, feedback decisions,
-revision invalidation, cancellation and installed helpers without live model calls.
-They do not establish live provider compatibility or a completed model-driven run.
+ralph is experimental. Behavioural tests cover checkpoints, feedback decisions,
+revision invalidation, cancellation and the installed helpers, without live model
+calls. They don't show live provider compatibility or a completed model-driven run.

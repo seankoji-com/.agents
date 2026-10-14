@@ -1,57 +1,54 @@
 # imps
 
-Implement with revision-bound evidence.
-
-## When to use it
-
-A failing behavior needs fixing, or a small feature has clear acceptance criteria.
-Use a direct request for a trivial edit; use imps when current checks, independent
-review or interruption recovery justify saved run state.
+imps turns one bounded task into a plan with numbered requirements, makes the change,
+runs the checks it planned, and gets an independent review. Every check is tied to the
+revision it ran on. If the agent edits a file afterwards, the check goes stale and the
+report says so. For a one-line edit, ask the agent directly instead.
 
 ## Try it
 
-After [installation](../getting-started.md), run in your terminal:
+In a T3 thread attached to your repository, check readiness first:
 
-```sh
-t3-plugins prompt imps doctor
+```text
+$t3-imps doctor
 ```
 
-Paste the printed line into a T3 thread attached to your project. Once readiness is
-clear, generate a task prompt:
+Then give it a task with a finish line and a limit:
 
-```sh
-t3-plugins prompt imps run 'Fix the date parser: reject 31 April with a useful error. Add a regression check. Verify locally without committing or publishing.'
+```text
+$t3-imps run Fix the date parser: reject 31 April with a useful error. Add a regression check. Verify locally without committing or publishing.
 ```
 
-Paste that output into T3. Replace the sample task or path with your own.
-If you installed [skill adapters](../slash-commands.md), select **t3-imps**
-from `/` and append the same request instead.
-
-## Operations
-
-`doctor`, `run`, `resume`, `status`, `cancel`, `verification-init`, `blast-radius`, `audit`, `issues`, `prs`, `checklist`, `discussion`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/imps/entry.md) names the file to load for each operation.
-
-Free-text starts `run`. Issue numbers select `issues`; a GitHub Discussion URL
-selects `discussion`; an existing Markdown path selects `checklist`. The checklist
-helper parses claims and criteria without executing commands. Checks and subsequent
-remediation run only within the operator's authorization.
-
-`--personas` adds architecture, edge-case, operations, acceptance, and UX reviews.
-The core tracks each perspective as a required, revision-bound review. It supplements
-the default independent review. Discussion input retains its source and seeds the
-normal run; posting a summary is a separately authorized action.
-
-Install the `t3-imps` adapter using the [slash commands guide](../slash-commands.md)
-to discover this same entry through supported provider skill integrations. Follow
-the guide's per-provider discovery and live-verification steps.
+No slash menu? `t3-plugins prompt imps run '…'` prints the same request as a line to
+paste. [Your first imps run](../first-workflow.md) walks through one end to end.
 
 ## What you get
 
-You receive a run ID, current validation report and paths to copied evidence.
-The report distinguishes local readiness from the authorized remote outcome.
-If a check or review is missing, failed or stale, it names the remaining work.
-Keep the run ID and state root to [resume later](../first-workflow.md#resume-inspect-or-stop).
-A job adds a job ID and an overview of every stage.
+- the change, in your working tree;
+- a run ID and state root, to [resume later](../first-workflow.md#resume-inspect-or-stop);
+- a validation report that maps each requirement to its check or review and the
+  revision it ran on, with paths to the saved output;
+- every missing, failed or stale check named, with what's left to do.
+
+The report keeps local readiness separate from anything remote you authorized, such
+as a PR or a merge. A job adds a job ID and an overview of every stage.
+
+## Operations
+
+`doctor`, `run`, `resume`, `status`, `cancel`, `verification-init`, `blast-radius`,
+`audit`, `issues`, `prs`, `checklist`, `discussion`. The
+[entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/imps/entry.md)
+names the file the agent loads for each one.
+
+imps picks the operation from what you send. Free text starts `run`. Issue numbers
+select `issues`, a GitHub Discussion URL selects `discussion`, and a path to an
+existing Markdown file selects `checklist`. The checklist helper parses claims and
+criteria without running commands; checks and fixes run only as far as you authorize.
+
+`--personas` adds architecture, edge-case, operations, acceptance and UX reviews on
+top of the default independent review. Each is tracked as a required review tied to
+the revision. A Discussion keeps its source and seeds a normal run; posting a summary
+back needs separate permission.
 
 ## Jobs and workers
 
@@ -82,4 +79,7 @@ the removed APIs and retained evidence boundaries.
 
 ## Limits
 
-Use a direct edit for trivial work. imps earns its overhead when acceptance evidence, interruption recovery, or delegation matters. See [compatibility](../compatibility.md) for the distinction between deterministic tests and live provider results.
+imps costs more turns than a direct request. It pays off when you need the evidence,
+when the work may be interrupted, or when another model should review it. The unit
+tests cover the state engine, not whether a given model follows the workflow; see
+[compatibility](../compatibility.md).
