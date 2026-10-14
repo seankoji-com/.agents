@@ -333,7 +333,7 @@ def main(argv=None):
                 print(json.dumps({'plugin': meta['name'], 'ok': not errors, 'errors': errors,
                                   'learnings_write': learnings_write,
                                   'scope': 'installed file integrity and package currency; learnings_write probes '
-                                           'this process with the current directory as the project; '
+                                           'this process globally, or for --project when given; '
                                            'provider behavior not tested'}))
             else:
                 job_arg = args.job if args.job is not None else getattr(args, 'job', None)
