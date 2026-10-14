@@ -19,6 +19,10 @@ class FormulaTemplateTest(unittest.TestCase):
         filled = set(re.findall(r's\|(__[A-Z0-9]+__)\|', WORKFLOW))
         self.assertEqual(placeholders, filled)
 
+    def test_tap_branch_is_namespaced_to_this_formula(self):
+        # The tap is shared: a bare release-vX.Y.Z collided with frugalbar's branch.
+        self.assertIn('BRANCH="t3-plugins-release-${TAG}"', WORKFLOW)
+
 
 if __name__ == '__main__':
     unittest.main()

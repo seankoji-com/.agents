@@ -181,7 +181,8 @@ jobs:
           fi
           SHA="$sha256"
           URL="https://github.com/seankoji-com/t3-plugins/releases/download/${TAG}/${tarball}"
-          BRANCH="release-${TAG}"
+          # Prefixed: the tap is shared, and frugalbar once pushed release-v0.6.0.
+          BRANCH="t3-plugins-release-${TAG}"
 
           # The token stays in gh's credential helper, never in a remote URL.
           gh auth setup-git
