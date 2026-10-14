@@ -6,6 +6,7 @@ import argparse
 import copy
 import fcntl
 import json
+import os
 import re
 from pathlib import Path
 import sys
@@ -155,15 +156,18 @@ def history_entry(task):
     return entry
 
 
-def tracked_modes(worktree, head):
-    """Working modes of tracked paths that differ from `head`; a bare chmod leaves blobs unchanged."""
-    raw = snapshot.git(worktree, 'diff', '--raw', '-z', '--no-renames', head, check=False).split('\0') if head else []
-    return {raw[i + 1]: raw[i].split()[1] for i in range(0, len(raw) - 1, 2) if raw[i].startswith(':')}
-
-
 def review_baseline(worktree):
+    """A content baseline plus the permission bits the revision token hashes for each dirty path,
+    so a bare chmod, which leaves blobs and index entries unchanged, is still a changed path."""
     base = snapshot.baseline(worktree)
-    return dict(base, modes=tracked_modes(worktree, base['head']))
+    root = snapshot.toplevel(worktree)
+
+    def mode(rel):
+        try:
+            return os.lstat(root / rel).st_mode & 0o170111
+        except OSError:
+            return None
+    return dict(base, modes={rel: mode(rel) for rel in base['dirty']})
 
 
 def review_scope(state):
@@ -175,7 +179,7 @@ def review_scope(state):
             or not prior['evaluation']['feedback']):
         return 'full', None
     base = prior['reviewBaseline']
-    modes = tracked_modes(state['worktree'], base['head'])
+    modes = review_baseline(state['worktree'])['modes']
     changed = snapshot.changed_since(state['worktree'], base) | {
         path for path in base['modes'].keys() | modes.keys() if base['modes'].get(path) != modes.get(path)}
     return 'delta', {'sinceRevision': snapshot.token(prior['binding']), 'changedPathsSinceReview': sorted(changed),
@@ -469,7 +473,7 @@ def validate_review_baseline(value):
                                                          for k, v in value[field].items())
     optional_text = lambda v: v is None or isinstance(v, str)
     require(isinstance(value, dict) and optional_text(value.get('head'))
-            and path_map('dirty', optional_text) and path_map('modes', lambda v: isinstance(v, str))
+            and path_map('dirty', optional_text) and path_map('modes', lambda v: v is None or type(v) is int)
             and path_map('index', lambda v: isinstance(v, list) and all(isinstance(e, str) for e in v)),
             'checkpoint reviewBaseline must map paths to head, dirty, mode and index entries')
 
