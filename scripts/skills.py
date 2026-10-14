@@ -91,11 +91,13 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-# One adapter transaction pins the skill root and the adapter directory by
-# descriptor. Every read, write and unlink below happens relative to those
-# descriptors, opened without following symlinks, so a directory swapped for a
-# link mid-run cannot redirect a write or delete outside the adapter. The root
-# itself is opened once, after safe_path() has validated it.
+# One adapter transaction pins the skill root, the adapter directory and each
+# owned subdirectory by descriptor, opened once and without following symlinks.
+# Every read, write and unlink happens relative to those descriptors, so a
+# directory swapped mid-run (for a link or another directory) cannot redirect a
+# write or delete: validation and mutation see the same directories. The root
+# follows a link only when safe_path() accepted it as a trusted link; the
+# ancestors above it are the caller's choice and are not pinned.
 DIRECTORY = os.O_RDONLY | os.O_DIRECTORY
 NOFOLLOW_DIR = DIRECTORY | os.O_NOFOLLOW
 # O_NONBLOCK keeps a FIFO from blocking the open before the file-type check.
@@ -142,13 +144,17 @@ def write_at(dir_fd, name, data):
 class Adapter:
     """An adapter directory pinned by descriptor for one install or removal."""
 
-    def __init__(self, directory, create=False):
-        self.path, self.root, self.top, self.created = directory, None, None, False
+    def __init__(self, directory, create=False, root_is_link=False):
+        """`root_is_link` records what safe_path() saw: only a root that was already
+        a trusted link when validated may be followed now."""
+        self.path, self.root, self.top, self.created, self.subs = directory, None, None, False, {}
         try:
-            self.root = os.open(directory.parent, DIRECTORY)
-            if create:
-                self.created = mkdir_at(self.root, directory.name)
+            self.root = os.open(directory.parent, DIRECTORY if root_is_link else NOFOLLOW_DIR)
+            made = create and mkdir_at(self.root, directory.name)
             self.top = os.open(directory.name, NOFOLLOW_DIR, dir_fd=self.root)
+            # A directory created here and still empty when opened is new. One
+            # swapped in after the mkdir is not, and gets the ownership check.
+            self.created = bool(made) and not os.listdir(self.top)
         except OSError as exc:
             self.close()
             raise ValueError(f'skill adapter directory is not a plain directory: {directory}') from exc
@@ -160,21 +166,31 @@ class Adapter:
         self.close()
 
     def close(self):
-        for fd in (self.top, self.root):
+        for fd in (*self.subs.values(), self.top, self.root):
             if fd is not None:
                 os.close(fd)
-        self.root = self.top = None
+        self.subs, self.root, self.top = {}, None, None
 
     def sub(self, name, create=False):
-        """Descriptor of a subdirectory, or None when it is absent and not created.
-        The caller closes it. Creation fails closed if the directory cannot be opened."""
-        if create:
-            mkdir_at(self.top, name)
+        """Pinned descriptor of a subdirectory, opened once per transaction, or None
+        when absent. Creating one that was absent fails closed unless this call
+        made it and it is still empty, so nothing swapped in is ever written to."""
+        if name not in self.subs:
+            self.subs[name] = self._open_sub(name)
+        if self.subs[name] is None and create:
+            made = mkdir_at(self.top, name)
+            fd = self._open_sub(name)
+            if fd is None or not made or os.listdir(fd):
+                if fd is not None:
+                    os.close(fd)
+                raise ValueError(f'skill adapter directory changed during the run: {self.path / name}')
+            self.subs[name] = fd
+        return self.subs[name]
+
+    def _open_sub(self, name):
         try:
             return os.open(name, NOFOLLOW_DIR, dir_fd=self.top)
         except FileNotFoundError:
-            if create:
-                raise ValueError(f'skill adapter directory vanished: {self.path / name}')
             return None
         except OSError as exc:
             raise ValueError(f'skill adapter path is not a plain directory: {self.path / name}') from exc
@@ -184,22 +200,13 @@ class Adapter:
             return read_at(self.top, relative, self.path / relative)
         sub, leaf = relative.split('/')
         fd = self.sub(sub)
-        if fd is None:
-            return None
-        try:
-            return read_at(fd, leaf, self.path / relative)
-        finally:
-            os.close(fd)
+        return None if fd is None else read_at(fd, leaf, self.path / relative)
 
     def write(self, relative, data):
         if '/' not in relative:
             return write_at(self.top, relative, data)
         sub, leaf = relative.split('/')
-        fd = self.sub(sub, create=True)
-        try:
-            write_at(fd, leaf, data)
-        finally:
-            os.close(fd)
+        write_at(self.sub(sub, create=True), leaf, data)
 
     def unlink(self, relative):
         """Unlink one owned file; a subdirectory left empty goes too. Operator
@@ -215,14 +222,10 @@ class Adapter:
         if fd is None:
             return
         try:
-            try:
-                os.unlink(leaf, dir_fd=fd)
-            except FileNotFoundError:
-                pass
-            empty = not os.listdir(fd)
-        finally:
-            os.close(fd)
-        if empty:
+            os.unlink(leaf, dir_fd=fd)
+        except FileNotFoundError:
+            pass
+        if not os.listdir(fd):
             try:
                 os.rmdir(sub, dir_fd=self.top)
             except OSError:
@@ -286,13 +289,12 @@ def interrupted_first_install(adapter, expected):
             found.append(name)
         elif kind(adapter.top, name) == stat.S_IFDIR and name in subdirs:
             fd = adapter.sub(name)
-            try:
-                for child in os.listdir(fd):
-                    if kind(fd, child) != stat.S_IFREG:
-                        return False
-                    found.append(f'{name}/{child}')
-            finally:
-                os.close(fd)
+            if fd is None:
+                return False  # vanished since the listing
+            for child in os.listdir(fd):
+                if kind(fd, child) != stat.S_IFREG:
+                    return False
+                found.append(f'{name}/{child}')
         else:
             return False
     return all(relative in expected and digest(adapter.read(relative)) == expected[relative]
@@ -301,6 +303,7 @@ def interrupted_first_install(adapter, expected):
 
 def install(root, prefix, meta):
     root = safe_path(root)
+    root_is_link = root.is_symlink()
     name = 't3-' + meta['name']
     directory = safe_path(root / name)
     current = prefix / meta['name'] / 'current'
@@ -322,7 +325,7 @@ def install(root, prefix, meta):
     receipt = {'schema_version': 1, 'name': name, 'entry': str(entry), 'sha256': digest(data)}
     result = {'name': name, 'path': str(directory / 'SKILL.md'), 'entry': str(entry)}
     root.mkdir(parents=True, exist_ok=True)
-    with Adapter(directory, create=True) as adapter:
+    with Adapter(directory, create=True, root_is_link=root_is_link) as adapter:
         # Only a directory this call created, or the exact leftovers of an
         # interrupted install, skips the ownership check.
         if adapter.created or interrupted_first_install(adapter, pending):
@@ -348,6 +351,7 @@ def remove_retired(root, plugin):
     name = 't3-' + plugin
     try:
         directory = safe_path(root) / name
+        root_is_link = directory.parent.is_symlink()
     except ValueError as exc:
         return {'name': name, 'root': str(root), 'removed': False, 'preserved': str(exc)}
     if not directory.exists() and not directory.is_symlink():
@@ -356,7 +360,7 @@ def remove_retired(root, plugin):
     try:
         if directory.is_symlink():
             raise ValueError(f'skill directory is a symlink: {directory}')
-        with Adapter(directory) as adapter:
+        with Adapter(directory, root_is_link=root_is_link) as adapter:
             remove_owned(adapter, managed(adapter, name))
             kept = adapter.entries()
             if not kept:
@@ -369,9 +373,10 @@ def remove_retired(root, plugin):
 def uninstall(root, meta):
     name = 't3-' + meta['name']
     directory = safe_path(safe_path(root) / name)
+    root_is_link = directory.parent.is_symlink()
     if not directory.exists():
         return {'name': name, 'removed': False}
-    with Adapter(directory) as adapter:
+    with Adapter(directory, root_is_link=root_is_link) as adapter:
         remove_owned(adapter, managed(adapter, name))
         # Preserve anything the operator added to the adapter directory.
         adapter.remove_if_empty()

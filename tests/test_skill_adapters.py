@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import json
 import os
@@ -373,7 +374,9 @@ class SkillAdapters(unittest.TestCase):
         for action in ('install', 'uninstall'):
             with self.subTest(action=action):
                 self.install()
-                with self.racing_managed(swap), self.assertRaises(ValueError):
+                # The pinned agents/ was deleted by the swap: the run may fail or
+                # finish, but it never reaches through the link.
+                with self.racing_managed(swap), contextlib.suppress(ValueError, OSError):
                     if action == 'install':
                         skills.install(self.skills, self.prefix, meta)
                     else:
@@ -487,6 +490,69 @@ class SkillAdapters(unittest.TestCase):
             self.assert_external_untouched(external)
             (folder / 'agents').unlink()
             (folder / 'agents-detached').rename(folder / 'agents')
+
+    def test_root_swapped_for_a_symlink_before_open_is_refused(self):
+        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        self.install()
+        external = self.external()
+        original = skills.Adapter.__init__
+
+        def swapping(adapter, directory, create=False, root_is_link=False):
+            directory.parent.rename(self.base / 'real-root')
+            directory.parent.symlink_to(external, target_is_directory=True)
+            original(adapter, directory, create, root_is_link)
+        with mock.patch.object(skills.Adapter, '__init__', swapping), self.assertRaises(ValueError):
+            skills.install(self.skills, self.prefix, meta)
+        self.assert_external_untouched(external)
+
+    def test_directory_swapped_in_after_mkdir_gets_the_ownership_check(self):
+        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        self.call('install', 'imps')
+        self.skills.mkdir()
+        operator = self.base / 'operator-skill'
+        operator.mkdir()
+        (operator / 'SKILL.md').write_text('mine')
+        original = skills.mkdir_at
+
+        def swapping(dir_fd, name):
+            made = original(dir_fd, name)
+            if name == 't3-imps':
+                os.rmdir(name, dir_fd=dir_fd)
+                operator.rename(self.skills / name)
+            return made
+        with mock.patch.object(skills, 'mkdir_at', swapping), self.assertRaises(ValueError):
+            skills.install(self.skills, self.prefix, meta)
+        self.assertEqual((self.skills / 't3-imps/SKILL.md').read_text(), 'mine')
+        self.assertEqual(sorted(p.name for p in (self.skills / 't3-imps').iterdir()), ['SKILL.md'])
+
+    def test_agents_replaced_by_a_plain_directory_after_validation_keeps_operator_files(self):
+        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+
+        def swap(folder):
+            (folder / 'agents').rename(self.base / 'old-agents')
+            (folder / 'agents').mkdir()
+            (folder / 'agents/openai.yaml').write_text('operator')
+        for action in ('install', 'uninstall', 'retired'):
+            with self.subTest(action=action):
+                self.install()
+                with self.racing_managed(swap), contextlib.suppress(ValueError, OSError):
+                    if action == 'install':
+                        skills.install(self.skills, self.prefix, meta)
+                    elif action == 'uninstall':
+                        skills.uninstall(self.skills, meta)
+                    else:
+                        skills.remove_retired(self.skills, 'imps')
+                self.assertEqual((self.skills / 't3-imps/agents/openai.yaml').read_text(), 'operator')
+                shutil_rmtree(self.skills / 't3-imps')
+                shutil_rmtree(self.base / 'old-agents')
+
+    def test_adoption_tolerates_agents_vanishing_mid_check(self):
+        self.install()
+        folder = self.skills / 't3-imps'
+        (folder / '.t3-plugins-skill.json').unlink()
+        with skills.Adapter(folder) as adapter, mock.patch.object(
+                skills.Adapter, '_open_sub', lambda adapter, name: None):
+            self.assertFalse(skills.interrupted_first_install(adapter, {}))
 
 if __name__ == '__main__':
     unittest.main()
