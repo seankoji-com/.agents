@@ -1,47 +1,40 @@
 ---
 template: home.html
 title: Overview
-description: "Fix bugs with current evidence, plan work a fresh thread can use, and carry PRs through review and CI. Six installable workflows for T3 Code."
+description: "Six workflows for coding agents in T3 Code: fix a bug with checks tied to the files you receive, write a brief, cite another repo, finish a PR. Install with Homebrew on macOS or Linux."
 hide:
   - toc
   - navigation
 ---
 
-## Start with one useful result
+## What you can check afterwards
 
-[Install the catalog](getting-started.md) on the
-machine where your T3 provider executes tools, then paste the generated readiness
-prompt into T3. Use Homebrew catalog v0.5.0 or later, or install from source.
-The agent checks whether it can run the workflow before changing
-anything. For the picker, enable **Show skills in slash
-menu**, restart the agent session, then select **t3-imps** from `/` and append a task.
+An agent saying "done" tells you very little. These workflows leave files behind instead.
 
-[Installation and source setup](getting-started.md) ·
-[Your first workflow](first-workflow.md) · [Troubleshooting](troubleshooting.md)
+- **imps** gives you a run ID and a report that maps each requirement to its evidence,
+  bound to the revision the check ran on. Edit a file after that and the report says
+  the evidence is stale, so an old pass can't vouch for new code.
+- **elephant-goldfish** writes `discovery.md`, `spec.md` and `handoff.md`, with
+  hashes, so the next thread gets the brief you agreed to.
+- **ape** pins every citation to a commit and line number.
+- **babysitter** only reports a merge once it has seen GitHub record one.
 
-## Know what was checked
+Long jobs keep their plan and decisions in your thread. Fresh T3 tasks do each stage,
+and a validator accepts or rejects what they return. If the session drops, `resume`
+reads the job overview and checks every recorded task before starting anything new.
 
-imps ties checks and reviews to the revision they verified. If the files change,
-the evidence is stale. Its report names missing checks and blockers, with a run ID
-for resuming after an interruption. A local pass does not stand in for CI, merge or
-live deployment.
+[How imps works](plugins/imps.md) · [Safety and data](safety.md)
 
-Long jobs split into stages. Your thread keeps the plan and decisions and accepts
-each stage through a validator, while fresh T3 tasks do the stage work. One overview
-shows every stage after an interruption.
+## Where it stops
 
-[See how imps works](plugins/imps.md) · [Safety and data](safety.md)
+The workflows are Markdown files any T3 provider can read, plus Python helpers that use
+only the standard library. T3 owns delegated tasks, previews and PR watches. Skill
+discovery differs between providers, so every workflow has a `doctor` check and a
+prompt you can paste when the slash menu isn't available.
 
-## Use the model you choose
-
-The agent reads the same workflow entry with your selected T3 provider. Local helpers
-use Python's standard library; delegated tasks, previews and watches stay with T3.
-Skill discovery and host capabilities vary by provider, so every workflow has a
-readiness check and a direct-prompt fallback.
-
-The current catalog has deterministic helper tests. The published live-provider
-ledger covers an earlier imps gate; it does **not** certify imps 1.0.
-[Compatibility and evidence](compatibility.md) has the exact scope.
+The test suite exercises the helpers without calling a model. The published live
+results cover an earlier imps gate and do **not** certify imps 1.0;
+[compatibility](compatibility.md) has the exact scope.
 
 MIT licensed. [Source](https://github.com/seankoji-com/t3-plugins) ·
 [Contribute](contributing.md)

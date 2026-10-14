@@ -1,57 +1,61 @@
 # How the workflows help
 
-A workflow is useful when it saves you from reconstructing the same instructions
-or asking for missing evidence after the agent says it has finished.
+Each workflow exists because of a follow-up question you would otherwise ask the
+agent after it said it was done. This page names the question and what answers it.
 
-## Get a change you can check
+## "Did the tests actually run on this code?"
 
-[imps](plugins/imps.md) turns a bounded task into requirements, implementation and
-verification. Checks and reviews carry a binding to the files and contract they
-verified. If the code changes afterward, the gate reports stale evidence.
+[imps](plugins/imps.md) records each check with a snapshot of the files it ran
+against. If the agent edits anything afterwards, that check goes stale and the report
+says so; it can't carry an old pass forward. You get a run ID and a report listing
+each requirement, its evidence, and anything still blocked. An interrupted run resumes
+from its recorded artifacts and child task handles.
 
-You receive a run ID and a report showing current readiness. An interrupted run can
-resume with its recorded artifacts and child handles. Missing tools or a failed
-review stay visible rather than becoming a completion claim.
+## "What did we decide last session?"
 
-## Stop planning from evaporating between threads
+[elephant-goldfish](plugins/elephant-goldfish.md) interviews you and writes the
+decisions, constraints, unknowns and acceptance criteria to files. The handoff copies
+those files verbatim and records their hashes, so a fresh thread gets exactly the
+brief you accepted. It stops there. You decide when implementation starts.
 
-[elephant-goldfish](plugins/elephant-goldfish.md) captures decisions, constraints,
-unknowns and acceptance criteria. Its handoff copies the source documents verbatim
-and records their hashes, so a fresh session receives the agreed brief.
+## "Where in their code does it do that?"
 
-It stops at the handoff. You decide when implementation starts.
+[ape](plugins/ape.md) reads another repository against a gap in yours. Each
+recommendation cites lines at a resolved commit, names the local files it would
+touch, and proposes one small experiment with conditions for keeping or abandoning
+it. It never runs the other project's code and never starts editing yours.
 
-## Borrow an approach with evidence
+## "Why hasn't this PR merged?"
 
-[ape](plugins/ape.md) studies another repository against a gap in yours. Recommendations
-cite source at a resolved commit, name local target files and include a small
-experiment with success and abandon conditions. Research does not execute the
-third-party code or start changing your project.
+[babysitter](plugins/babysitter.md) checks reviews and CI at the PR's current head,
+fixes what you authorized, and asks T3 to wake it on the next failure, comment or
+conflict. It keeps one table of every targeted PR and the reason each hasn't merged,
+and reports a merge only after GitHub shows one. Branch protection still applies.
 
-## Keep PR work moving
+## "Which of my agents may run any shell command?"
 
-[babysitter](plugins/babysitter.md) checks reviews and CI against the current PR head,
-fixes authorized problems and uses T3 watches for later events. It reports actual
-merge state and exact blockers. Protected-branch requirements still apply.
+[agent-tuneup](plugins/agent-tuneup.md) reads the settings files you name and reports
+known broad permissions and duplicate rules as codes and locations, without printing
+the values. It flags known patterns; it doesn't simulate every permission layer.
 
-## Inspect settings without changing them
+## "Would a different model have accepted this?"
 
-[agent-tuneup](plugins/agent-tuneup.md) reports known broad permissions and duplicate
-rules in explicitly supplied settings. It emits finding codes and locations rather
-than values. The report is a starting point for inspection, not a complete permission
-simulator.
+[ralph](plugins/ralph.md) has one model implement and a model from another lineage
+grade the result. Every piece of feedback, however minor, sends the work back to a
+fresh implementation task in the same worktree. It stops at success or at the attempt
+limit, and opens a PR only for an accepted change.
 
-## Keep long jobs readable
+## Long jobs stay readable
 
-A multi-stage job keeps its plan, requirements and decisions in one overview. Fresh
-T3 tasks do each stage and return a structured result, so their exploration and logs
-stay in files rather than in your thread. A stage counts as done only when its
-validator accepts it, and the final check covers every requirement again. Whether
-this reduces context in practice has not been measured yet; see
+A multi-stage job keeps its plan, requirements and decisions in one overview in your
+thread. Fresh T3 tasks do each stage and return a structured result, so their
+exploration and logs stay in files, not in your conversation. A stage counts as done
+only when its validator accepts it, and the final check covers every requirement
+again. Whether this saves context in practice hasn't been measured; see
 [measurement limits](compatibility.md#measurement-limits).
 
-## When a direct request is enough
+## When to skip all of this
 
-A one-line edit rarely needs saved run state or delegated review. Use the smallest
-workflow that earns its overhead. All entries and their local helpers ship as
-readable files; [architecture](architecture.md) explains their boundaries.
+A one-line edit doesn't need saved run state or a second model's review. Ask the agent
+directly. Every entry and helper ships as a readable file;
+[architecture](architecture.md) explains how they fit together.

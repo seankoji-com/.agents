@@ -1,48 +1,46 @@
 # agent-tuneup
 
-Compare provider permissions, MCPs and plugins, then apply reviewed native changes.
-
-## When to use it
-
-You want consistent capabilities across the providers you use in T3 Code, while
-keeping each provider's access boundaries. `align` inventories T3's live catalog
-and reports gaps across permissions, MCPs, plugins, skills, instructions and hooks.
-You can also audit one settings file, find exact duplicate permission rules, or
-inspect Claude tool-use counts. The calling provider may differ from the target.
+If you use several providers in T3, their permissions, MCP servers and plugins drift
+apart. agent-tuneup lists what each provider actually has configured, shows the gaps,
+and prepares native settings changes for you to approve. It is read-only until you
+approve a concrete plan. It can also audit one settings file for over-broad allow
+rules, with no model involved.
 
 ## Try it
 
-After [installation](../getting-started.md), run in your terminal:
+Audit one file:
 
-```sh
-t3-plugins prompt agent-tuneup doctor
+```text
+$t3-agent-tuneup audit --provider claude --settings .claude/settings.json
 ```
 
-Paste the printed line into a T3 thread attached to your project. Once readiness is
-clear, generate a task prompt:
+Compare every provider in T3's live catalog:
 
-```sh
-t3-plugins prompt agent-tuneup audit --provider claude --settings .claude/settings.json
+```text
+$t3-agent-tuneup align
 ```
 
-Paste that output into T3. Replace the sample task or path with your own.
-If you installed [skill adapters](../slash-commands.md), select **t3-agent-tuneup**
-from `/` and append the same request instead.
-
-## Operations
-
-`doctor`, `audit`, `align`, `apply`, `scan`. The [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/agent-tuneup/entry.md) names the file to load for each operation.
+The provider running the workflow doesn't have to be the one you audit. Send
+`$t3-agent-tuneup doctor` first on a new machine or provider. To see the audit helper
+work without a model, [run it locally](#run-without-a-model).
 
 ## What you get
 
-A private inventory, a comparison matrix, and proposed provider-native changes.
-The deterministic receipts omit settings values and personal paths. `apply` writes
-one explicitly approved settings candidate at a time, checks original and candidate
-hashes, preserves a private backup, and refuses stale plans or newly added known
-broad permission patterns. A single-file audit
-returns finding codes and locations. A finding
-is a known pattern worth inspecting, not proof that a tool is allowed after every
-policy layer has been applied.
+An audit returns finding codes and locations, such as `broad_execution_allow` at
+`permissions.allow[0]`. It never prints setting values or personal paths. A finding is
+a known pattern worth a look; it doesn't prove a tool is allowed after every policy
+layer applies.
+
+`align` returns a private inventory, a comparison matrix and proposed native changes.
+`apply` then writes one approved settings file at a time. It checks the original and
+candidate hashes, keeps a private backup, and refuses stale plans or newly added broad
+permission patterns.
+
+## Operations
+
+`doctor`, `audit`, `align`, `apply`, `scan`. The
+[entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/agent-tuneup/entry.md)
+names the file the agent loads for each one.
 
 ## Jobs and workers
 
@@ -161,10 +159,12 @@ stale or unapproved input, or an I/O failure.
 
 ## Limits
 
-Calling provider and target configuration format are separate. Unsupported formats receive manual inspection, not guessed writes. Antigravity
-MCP JSON has structured inventory and native-file planning/apply; its permissions
-and plugin/extension settings remain manual. Codex plugin identity tables do not
-prove plugin installation. See [compatibility](../compatibility.md) for the distinction between deterministic tests and live provider results.
+The provider running the workflow and the configuration format it reads are separate
+questions. Unsupported formats get a manual inspection, never a guessed write.
+Antigravity MCP JSON has structured inventory and native-file planning and apply; its
+permissions and plugin or extension settings stay manual. Codex plugin identity tables
+don't prove a plugin is installed. Unit tests don't show how a given model behaves;
+see [compatibility](../compatibility.md).
 
 ## Supported audit formats
 
@@ -184,18 +184,19 @@ Format references (checked on 12 October 2026): [Claude settings](https://code.c
 
 ## Run without a model
 
-Create a synthetic settings file and audit it using the installed helper:
+The audit helper is plain Python. Point it at a synthetic settings file and it reports
+the broad Bash rule. This is real output, captured with
+[`scripts/capture_terminal.py`](https://github.com/seankoji-com/t3-plugins/blob/master/scripts/capture_terminal.py):
 
-```sh
-printf '%s\n' '{"permissions":{"allow":["Bash(*)"]}}' > example-settings.json
-entry="$(t3-plugins path agent-tuneup)"
-python3 "$(dirname "$entry")/scripts/audit.py" \
-  --provider claude --settings example-settings.json
+```console
+$ printf '%s\n' '{"permissions":{"allow":["Bash(*)"]}}' > example-settings.json
+$ python3 "$(dirname "$(t3-plugins path agent-tuneup)")/scripts/audit.py" --provider claude --settings example-settings.json
+{"ok": true, "provider": "claude", "findings": [{"code": "broad_execution_allow", "location": "permissions.allow[0]"}], "scope": "known-pattern audit; not a complete permission evaluation", "writes": 0}
 ```
 
-Expect a finding for the broad Bash rule and exit `1`. Exit `0` means no known
-findings; `2` means unreadable or invalid input. The helper does not change the
-settings file. Use `--list-adapters` to inspect supported formats.
+It exits `1` when it reports findings, `0` when it finds nothing it knows, and `2` for
+unreadable or invalid input. It never changes the settings file. `--list-adapters`
+shows the supported formats.
 
-`scan --provider claude` reads recent local transcript tool-call frequencies. Those
-counts do not authorize permission changes. Do not share private transcripts.
+`scan --provider claude` counts tool calls in recent local transcripts. Those counts
+don't authorize permission changes. Don't share private transcripts.

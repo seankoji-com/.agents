@@ -1,5 +1,5 @@
 site_name: t3-plugins
-site_description: Fix bugs with current evidence, plan work a fresh thread can use, and finish PRs. Six workflows for T3 Code.
+site_description: Six workflows for coding agents in T3 Code, each ending in something you can check. Install with Homebrew on macOS or Linux.
 site_url: https://seankoji-com.github.io/t3-plugins/
 site_dir: !ENV [T3_DOCS_SITE_DIR, site]
 repo_url: https://github.com/seankoji-com/t3-plugins
@@ -13,13 +13,15 @@ theme:
   logo: assets/mark.svg
   favicon: assets/mark.svg
   palette:
-    - scheme: default
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: custom
       accent: teal
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
-    - scheme: slate
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
       primary: custom
       accent: teal
       toggle:
@@ -56,16 +58,16 @@ extra_css:
 nav:
   - Overview: index.md
   - Get started:
-      - Installation: getting-started.md
+      - Install and first ten minutes: getting-started.md
       - Slash commands: slash-commands.md
-      - Your first workflow: first-workflow.md
+      - Your first imps run: first-workflow.md
       - How the workflows help: case-study.md
       - CLI reference: cli.md
       - Safety and data: safety.md
       - Learnings and harvest: learnings.md
       - Troubleshooting: troubleshooting.md
   - Plugins:
-      - Choose a plugin: plugins/index.md
+      - Choose a workflow: plugins/index.md
       - imps: plugins/imps.md
       - elephant-goldfish: plugins/elephant-goldfish.md
       - ape: plugins/ape.md

@@ -1,28 +1,26 @@
-# Choose a plugin
+# Choose a workflow
 
-Start with a concrete job. A short shell command or direct agent request is often enough; use a workflow when its checks or saved artifacts help.
+Start from the job you need done. For a quick edit, ask the agent directly; reach for a
+workflow when you want its checks or the files it leaves behind.
 
-| Plugin | Use it for |
-| --- | --- |
-| [imps](imps.md) | Implement with revision-bound evidence |
-| [elephant-goldfish](elephant-goldfish.md) | Prepare a brief that a fresh session can use |
-| [ape](ape.md) | Find ideas that transfer to your project |
-| [babysitter](babysitter.md) | Carry pull requests through review and CI |
-| [agent-tuneup](agent-tuneup.md) | Align agent settings with reviewed provider-specific changes |
-| [ralph](ralph.md) | Retry all evaluator feedback in fresh tasks and open a PR on success |
+| You have… | Use | Send in T3 |
+| --- | --- | --- |
+| A bug you can describe, or a small feature with a clear finish line | [imps](imps.md) | `$t3-imps run …` |
+| A problem you can't yet write as a task | [elephant-goldfish](elephant-goldfish.md) | `$t3-elephant-goldfish thinking TOPIC` |
+| A gap another project has probably solved | [ape](ape.md) | `$t3-ape study URL QUESTION` |
+| A PR stuck on reviews, checks or conflicts | [babysitter](babysitter.md) | `$t3-babysitter pr URL` |
+| Providers with different permissions, MCPs or plugins | [agent-tuneup](agent-tuneup.md) | `$t3-agent-tuneup align` |
+| A goal you want built by one model and graded by another | [ralph](ralph.md) | `$t3-ralph GOAL` |
 
+Common chains: elephant-goldfish writes the brief, then imps or ralph implements it.
+ape finds the approach before you commit to one. babysitter takes over once a PR
+exists.
+
+Every workflow has a `doctor` operation; send it first on a new machine or provider.
 The first five run long work as one job: your thread keeps the plan and accepts each
-stage, while fresh T3 tasks do the stage work. See [architecture](../architecture.md#whole-jobs).
+stage, while fresh T3 tasks do the stage work. See
+[architecture](../architecture.md#whole-jobs).
 
-All entries can be read by any T3 provider with filesystem access. That is a portability contract, not a completed live conformance matrix. See [compatibility](../compatibility.md).
-
-## Not sure where to start?
-
-- Know the bug and expected behavior? Start with **imps**.
-- Still deciding what should change? Start with **elephant-goldfish**, then hand its brief to imps.
-- Need evidence from another codebase? Use **ape** before committing to an approach.
-- Already have a PR? Give **babysitter** its URL and the actions you authorize.
-- Comparing provider permissions, MCPs or plugins? Use **agent-tuneup** with `align`.
-
-Every workflow has a `doctor` operation. [Install once](../getting-started.md), then
-use the T3 skill picker or [generate a prompt](../cli.md#catalog-commands).
+Any T3 provider with file access can read the entries. That's a portability design,
+not a finished live test across providers; [compatibility](../compatibility.md) has
+the details. No slash menu? [Generate a prompt](../cli.md#catalog-commands) instead.

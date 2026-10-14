@@ -1,18 +1,17 @@
 # Slash commands across providers
 
-Install a portable skill adapter for each plugin you want in T3's composer. The
-adapter reads the same installed entry file regardless of the selected provider.
-Skill names use the `t3-` prefix: `t3-imps`, `t3-ape`, `t3-babysitter`,
-`t3-elephant-goldfish`, `t3-agent-tuneup` and `t3-ralph`.
+`t3-plugins setup` writes one small skill per workflow, so you can type `/` in T3,
+pick `t3-imps`, and add the task. Every provider reads the same installed entry file,
+so the workflow is identical whichever model you choose. The skills are `t3-imps`,
+`t3-ape`, `t3-babysitter`, `t3-elephant-goldfish`, `t3-agent-tuneup` and `t3-ralph`.
 
-For one-step user setup after installation, use `t3-plugins setup`
-(`python3 bin/t3-plugins setup` from source). For Homebrew, use
-[catalog v0.5.0 or later](getting-started.md#homebrew-release-channel).
-It installs the full catalog and adapters into the three default roots below.
-Use `t3-plugins setup imps` for just imps, or repeat `--root PATH` for custom roots.
-Setup preserves unowned or edited adapters and stops on a conflict. Earlier receipts
-remain valid; resolve the conflict and retry. Run setup again after updating the installed package.
-For snapshots only or individual adapter roots, use these separate commands:
+`setup` installs the whole catalog and writes skills into the three default folders
+below. `t3-plugins setup imps` does one plugin; repeated `--root PATH` replaces the
+defaults. It won't overwrite a skill it didn't write or one you edited: it stops, and
+the receipts it already printed stay valid, so fix the conflict and run it again. Run
+`setup` again after every upgrade.
+
+To install snapshots and skills separately, or into one folder at a time:
 
 ```sh
 t3-plugins install imps
@@ -21,16 +20,15 @@ t3-plugins skills install imps --root ~/.claude/skills
 t3-plugins skills install imps --root ~/.gemini/config/skills
 ```
 
-Run these on the machine hosting your T3 environment. For a custom package prefix,
-pass the same `--prefix PATH` before both `install` and `skills`. Omit `imps` to
-install adapters for the entire catalog after `t3-plugins install`. It stops at the
-first missing installation. An all-catalog operation can
-partially succeed; each output line is a receipt and retries are safe.
+Run these on the machine where your T3 provider runs tools. With a custom prefix, pass
+the same `--prefix PATH` to both `install` and `skills`. Leaving out `imps` installs
+skills for the whole catalog, after `t3-plugins install`; it stops at the first plugin
+that isn't installed. Each output line is a receipt, so a partial run is safe to retry.
 
-Worker definitions are not skills. Installation writes them under the
-[agents root](cli.md#custom-locations), never into a skill root, and only a plugin's
-own coordinator loads them into a task brief. The agents root is a plugin
-convention, not a native agent directory for any provider.
+Worker definitions are not skills. They go under the
+[agents root](cli.md#custom-locations), never into a skill folder, and only a
+plugin's own coordinator loads them into a task brief. The agents root is a
+t3-plugins convention, not a native agent directory for any provider.
 
 ## Discovery roots
 
@@ -50,14 +48,13 @@ and [OpenCode's skills guide](https://opencode.ai/docs/skills/).
 Check custom instances and older versions rather than assuming one shared root.
 [Pi uses native skill discovery](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-pi.md).
 [Muse currently does not expose skills in T3's composer](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-muse.md).
-The installer cannot add a picker to a provider integration that does not expose
-skills. Use `t3-plugins prompt imps OPERATION` and paste its output there.
+The installer can't add a picker to a provider that doesn't expose skills. There, run
+`t3-plugins prompt imps OPERATION` and paste what it prints.
 
 ## Invoke and refresh
 
-Enable **Settings > General > Show skills in slash menu**, then use **Restart agent
-session** in T3's command palette after installation. Type `/`, select `t3-imps`,
-and append an operation:
+Turn on **Settings > General > Show skills in slash menu**, then run **Restart agent
+session** from T3's command palette. Type `/`, select `t3-imps`, and add an operation:
 
 ```text
 $t3-imps doctor
@@ -81,9 +78,9 @@ For OpenCode, refresh provider status after configuration changes. Its helper ma
 need to become idle before reloading configuration; an external server can need a
 restart. See the [T3 OpenCode guide](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-opencode.md#refresh-models-commands-and-skills).
 
-Verify with each selected provider: find `t3-imps` in the picker, invoke `doctor`,
-and check the entry path and reported T3 capabilities. Adapter installation and
-unit tests do not establish live invocation or provider parity.
+Check each provider you use: find `t3-imps` in the picker, send `$t3-imps doctor`,
+and read the entry path and T3 capabilities it reports. Installing a skill and passing
+unit tests don't prove the provider will invoke it.
 
 ## Ownership and removal
 
