@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import secrets
+import stat
 import tempfile
 
 import install as installer
@@ -118,32 +120,134 @@ def managed(directory, name, pending=None):
     if not isinstance(files, dict) or not set(files) <= set(OWNED_EXTRAS):
         raise ValueError(f'refusing a modified or invalid skill adapter: {directory}')
     for relative, sha in files.items():
-        path = extra_path(directory, relative)
-        if path.exists() and digest(path.read_bytes()) not in (sha, pending.get(relative)):
-            raise ValueError(f'refusing a modified skill adapter file: {path}')
+        data = read_extra(directory, relative)
+        if data is not None and digest(data) not in (sha, pending.get(relative)):
+            raise ValueError(f'refusing a modified skill adapter file: {directory / relative}')
     return receipt
 
 
-def extra_path(directory, relative):
-    path = directory / relative
-    for part in (path.parent, path):
-        if part.is_symlink():
-            raise ValueError(f'skill adapter path is a symlink: {part}')
-    if path.exists() and not path.is_file():
-        raise ValueError(f'skill adapter path is not a file: {path}')
-    return path
+# Owned extras live one directory below the adapter (agents/openai.yaml). Every
+# access goes through descriptors opened without following symlinks, so swapping
+# the adapter or agents/ directory for a link mid-run cannot redirect a write or
+# delete outside the adapter.
+NOFOLLOW_DIR = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+
+
+def open_dirs(directory, sub, create=False):
+    """Descriptors for the adapter directory and its `sub` directory, or None for
+    a missing `sub`. A symlink at either level raises."""
+    try:
+        top = os.open(directory, NOFOLLOW_DIR)
+    except OSError as exc:
+        raise ValueError(f'skill adapter directory is not a plain directory: {directory}') from exc
+    try:
+        if create:
+            try:
+                os.mkdir(sub, 0o755, dir_fd=top)
+            except FileExistsError:
+                pass
+        try:
+            return top, os.open(sub, NOFOLLOW_DIR, dir_fd=top)
+        except FileNotFoundError:
+            return top, None
+    except OSError as exc:
+        os.close(top)
+        raise ValueError(f'skill adapter path is not a plain directory: {directory / sub}') from exc
+    except BaseException:
+        os.close(top)
+        raise
+
+
+def close_dirs(*fds):
+    for fd in fds:
+        if fd is not None:
+            os.close(fd)
+
+
+def read_extra(directory, relative):
+    """Bytes of an owned extra, or None when absent. Symlinks and non-files raise."""
+    sub, leaf = relative.split('/')
+    top, parent = open_dirs(directory, sub)
+    try:
+        if parent is None:
+            return None
+        try:
+            fd = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent)
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            raise ValueError(f'skill adapter path is not a plain file: {directory / relative}') from exc
+        with os.fdopen(fd, 'rb') as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise ValueError(f'skill adapter path is not a plain file: {directory / relative}')
+            return stream.read()
+    finally:
+        close_dirs(parent, top)
+
+
+def write_extra(directory, relative, data):
+    sub, leaf = relative.split('/')
+    top, parent = open_dirs(directory, sub, create=True)
+    try:
+        temporary = f'.t3-skill-{os.getpid()}-{secrets.token_hex(4)}'
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=parent)
+        try:
+            with os.fdopen(fd, 'wb') as stream:
+                stream.write(data)
+            os.replace(temporary, leaf, src_dir_fd=parent, dst_dir_fd=parent)
+        finally:
+            try:
+                os.unlink(temporary, dir_fd=parent)
+            except FileNotFoundError:
+                pass
+    finally:
+        close_dirs(parent, top)
+
+
+def remove_extra(directory, relative):
+    """Unlink an owned extra and its directory once that is empty. A directory
+    holding operator files stays."""
+    sub, leaf = relative.split('/')
+    top, parent = open_dirs(directory, sub)
+    try:
+        if parent is None:
+            return
+        try:
+            os.unlink(leaf, dir_fd=parent)
+        except FileNotFoundError:
+            pass
+        if not os.listdir(parent):
+            try:
+                os.rmdir(sub, dir_fd=top)
+            except OSError:
+                pass  # refilled or replaced since the listing: leave it
+    finally:
+        close_dirs(parent, top)
 
 
 def remove_owned(directory, receipt):
-    """Remove the adapter files the verified receipt owns and any directory
-    left empty by that. Operator files stay."""
+    """Remove the adapter files the verified receipt owns. Operator files stay."""
     for relative in receipt.get('files', {}):
-        path = extra_path(directory, relative)
-        path.unlink(missing_ok=True)
-        if path.parent != directory and path.parent.is_dir() and not any(path.parent.iterdir()):
-            path.parent.rmdir()
+        remove_extra(directory, relative)
     (directory / 'SKILL.md').unlink()
     (directory / MARKER).unlink()
+
+
+def interrupted_first_install(directory, expected):
+    """True when a marker-less adapter directory holds only files an earlier
+    install of these exact bytes wrote before it was interrupted."""
+    if (directory / MARKER).exists() or (directory / MARKER).is_symlink():
+        return False
+    found = {}
+    for path in directory.rglob('*'):
+        if path.is_symlink():
+            return False
+        if path.is_file():
+            found[path.relative_to(directory).as_posix()] = path
+        elif path.is_dir() and path.relative_to(directory).as_posix() not in {r.split('/')[0] for r in OWNED_EXTRAS}:
+            return False
+    return all(name in expected and digest(path.read_bytes()) == expected[name]
+                               for name, path in found.items())
 
 
 def install(root, prefix, meta):
@@ -166,19 +270,20 @@ def install(root, prefix, meta):
     data = render(meta, entry).encode()
     yaml = openai_yaml(meta)
     pending = {'SKILL.md': digest(data), OPENAI_YAML: digest(yaml)}
-    previous = managed(directory, name, pending) if directory.exists() else {}
+    if not directory.exists() or interrupted_first_install(directory, pending):
+        previous = {}
+    else:
+        previous = managed(directory, name, pending)
     receipt = {'schema_version': 1, 'name': name, 'entry': str(entry), 'sha256': digest(data)}
     result = {'name': name, 'path': str(directory / 'SKILL.md'), 'entry': str(entry)}
     directory.mkdir(parents=True, exist_ok=True)
-    target = extra_path(directory, OPENAI_YAML)
+    existing = read_extra(directory, OPENAI_YAML)
     # An existing openai.yaml the receipt does not own is the operator's; keep it,
     # unless it is byte-identical to ours (an interrupted earlier install).
-    if (target.exists() and OPENAI_YAML not in previous.get('files', {})
-            and target.read_bytes() != yaml):
+    if existing is not None and OPENAI_YAML not in previous.get('files', {}) and existing != yaml:
         result['preserved_files'] = [OPENAI_YAML]
     else:
-        target.parent.mkdir(exist_ok=True)
-        atomic_write(target, yaml)
+        write_extra(directory, OPENAI_YAML, yaml)
         receipt['files'] = {OPENAI_YAML: digest(yaml)}
     atomic_write(directory / 'SKILL.md', data)
     atomic_write(directory / MARKER, (json.dumps(receipt, indent=2) + '\n').encode())

@@ -154,7 +154,7 @@ def bootstrap_draft(lockfiles, saved):
     script = {"name": "Setup Worktree", "command": SETUP_COMMAND, "icon": "configure",
               "runOnWorktreeCreate": True,
               "async": all(LOCKFILES[name] == "go" for name in lockfiles)}
-    used = {item.get("id") for item in saved if isinstance(item, dict)}
+    used = {item["id"] for item in saved if isinstance(item, dict) and isinstance(item.get("id"), str)}
     script_id, suffix = "setup-worktree", 2
     while script_id in used:
         script_id, suffix = f"setup-worktree-{suffix}", suffix + 1
@@ -183,6 +183,10 @@ def inspect_projects(snapshot):
         saved = [] if saved is None else saved
         if not isinstance(saved, list):
             raise ValueError("project scripts must be an array")
+        # Ids are echoed in findings: accept only T3's string ids, never arbitrary values.
+        if not isinstance(project.get("id"), str) or any(
+                isinstance(item, dict) and "id" in item and not isinstance(item["id"], str) for item in saved):
+            raise ValueError("project and script ids must be strings")
         if project.get("deletedAt"):
             continue
         root = project.get("workspaceRoot")

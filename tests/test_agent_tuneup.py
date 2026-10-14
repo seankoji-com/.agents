@@ -238,7 +238,9 @@ class WorktreeBootstrapTest(unittest.TestCase):
             {'location': 'projects[3]', 'reason': 'workspace_unavailable'},
             {'location': 'projects[4]', 'reason': 'workspace_unreadable'}])
         for bad in ([], {'projects': {}}, {'projects': [1]}, {'environment': [], 'projects': []},
-                    {'projects': [{'scripts': {}}]}):
+                    {'projects': [{'id': 'p', 'scripts': {}}]},
+                    {'projects': [{'id': {'token': 'secret-fixture'}, 'scripts': []}]},
+                    {'projects': [{'id': 'p', 'scripts': [{'id': [], 'runOnWorktreeCreate': False}]}]}):
             with self.subTest(snapshot=bad), self.assertRaises(ValueError):
                 audit.inspect_projects(bad)
 
@@ -261,6 +263,11 @@ class WorktreeBootstrapTest(unittest.TestCase):
         self.assertNotIn('private-title', result.stdout.replace('project-private-title', ''))
         self.assertEqual(state(), before)
         self.assertFalse((root / 't3.json').exists())
+        snapshot.write_text(json.dumps({'projects': [{'id': {'token': 'secret-fixture'}, 'scripts': []}]}))
+        leaked = subprocess.run([sys.executable, str(SCRIPT), '--t3-projects', str(snapshot)],
+                                capture_output=True, text=True)
+        self.assertEqual(leaked.returncode, 2)
+        self.assertNotIn('secret-fixture', leaked.stdout + leaked.stderr)
         snapshot.write_text('{"projects": "secret-fixture"}')
         bad = subprocess.run([sys.executable, str(SCRIPT), '--t3-projects', str(snapshot)],
                              capture_output=True, text=True)

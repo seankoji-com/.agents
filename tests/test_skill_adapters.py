@@ -5,10 +5,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import skills  # noqa: E402
+from shutil import rmtree as shutil_rmtree  # noqa: E402
 
 
 class SkillAdapters(unittest.TestCase):
@@ -334,6 +336,87 @@ class SkillAdapters(unittest.TestCase):
                 own.unlink()
                 own.parent.rmdir()
                 (self.skills / 't3-imps').rmdir()
+
+    def swap_agents_after_validation(self):
+        """Patch `managed` so agents/ becomes a link to an external directory right
+        after the ownership check passes: the window a racing process would use."""
+        external = self.base / 'external-agents'
+        external.mkdir()
+        (external / 'openai.yaml').write_text('external')
+        original = skills.managed
+
+        def racing(directory, *args, **kwargs):
+            receipt = original(directory, *args, **kwargs)
+            agents = directory / 'agents'
+            for item in agents.iterdir():
+                item.unlink()
+            agents.rmdir()
+            agents.symlink_to(external, target_is_directory=True)
+            return receipt
+        return external, mock.patch.object(skills, 'managed', racing)
+
+    def test_agents_swapped_for_a_symlink_after_validation_is_never_followed(self):
+        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        for action in ('install', 'uninstall'):
+            with self.subTest(action=action):
+                self.install()
+                external, patch = self.swap_agents_after_validation()
+                with patch, self.assertRaises(ValueError):
+                    if action == 'install':
+                        skills.install(self.skills, self.prefix, meta)
+                    else:
+                        skills.uninstall(self.skills, meta)
+                self.assertEqual([p.name for p in external.iterdir()], ['openai.yaml'])
+                self.assertEqual((external / 'openai.yaml').read_text(), 'external')
+                (self.skills / 't3-imps/agents').unlink()
+                for item in external.iterdir():
+                    item.unlink()
+                external.rmdir()
+                shutil_rmtree(self.skills / 't3-imps')
+
+    def test_interrupted_first_install_is_adopted_on_retry(self):
+        folder = self.skills / 't3-imps'
+        for lost in (['.t3-plugins-skill.json'], ['.t3-plugins-skill.json', 'SKILL.md']):
+            with self.subTest(lost=lost):
+                self.install()
+                for name in lost:
+                    (folder / name).unlink()
+                self.call('skills', 'install', 'imps', '--root', str(self.skills))
+                self.assertIn('agents/openai.yaml', self.receipt()['files'])
+                self.call('skills', 'uninstall', 'imps', '--root', str(self.skills))
+                self.assertFalse(folder.exists())
+        # A marker-less directory with any byte that is not ours stays refused.
+        self.install()
+        (folder / '.t3-plugins-skill.json').unlink()
+        self.openai_yaml().write_text('interface:\n  display_name: "Mine"\n')
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertEqual(self.openai_yaml().read_text(), 'interface:\n  display_name: "Mine"\n')
+
+    def test_swap_after_the_directories_are_opened_cannot_redirect_writes_or_deletes(self):
+        self.install()
+        folder = self.skills / 't3-imps'
+        external = self.base / 'external-agents'
+        external.mkdir()
+        (external / 'openai.yaml').write_text('external')
+        original = skills.open_dirs
+
+        def racing(directory, sub, create=False):
+            fds = original(directory, sub, create)
+            agents = directory / sub
+            agents.rename(directory / 'agents-detached')  # the pinned fd follows the directory
+            agents.symlink_to(external, target_is_directory=True)
+            return fds
+        for action in ('write', 'remove'):
+            with self.subTest(action=action), mock.patch.object(skills, 'open_dirs', racing):
+                if action == 'write':
+                    skills.write_extra(folder, 'agents/openai.yaml', b'ours')
+                    self.assertEqual((folder / 'agents-detached/openai.yaml').read_bytes(), b'ours')
+                else:
+                    skills.remove_extra(folder, 'agents/openai.yaml')
+                    self.assertFalse((folder / 'agents-detached/openai.yaml').exists())
+            self.assertEqual((external / 'openai.yaml').read_text(), 'external')
+            (folder / 'agents').unlink()
+            (folder / 'agents-detached').rename(folder / 'agents')
 
 if __name__ == '__main__':
     unittest.main()

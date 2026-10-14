@@ -61,7 +61,7 @@ fails. `audit --t3-projects` reads your projects through T3's own tools
   `worktree-bootstrap-not-imported` instead, with no draft: the script exists and
   only needs importing.
 
-Each finding carries a draft `t3.json`:
+A `worktree-bootstrap-missing` finding carries a draft `t3.json`:
 
 ```json
 {
