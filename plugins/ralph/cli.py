@@ -560,7 +560,8 @@ def validate_checkpoint(state):
                 'checkpoint task tool is invalid')
         if record.get('childThreadId') is not None:
             text_field(record['childThreadId'], 'checkpoint task childThreadId')
-        if not record.get('consumed') and record.get('tool') == 't3_thread_send':
+        if record.get('tool') == 't3_thread_send':
+            # Consumed or not: a continued conversation is only ever a delta review, which cannot accept.
             dispatch = record['dispatch']
             text_field(dispatch.get('clientRequestId'), 'checkpoint dispatch clientRequestId')
             text_field(dispatch.get('message'), 'checkpoint dispatch message')
@@ -627,7 +628,7 @@ def publication_verified(state):
     if not tasks:
         return False
     review = tasks[-1]
-    if (review['role'] != 'review' or review.get('scope') != 'full'
+    if (review['role'] != 'review' or review.get('scope') != 'full' or review.get('tool') == 't3_thread_send'
             or review.get('consumed') is not True or review.get('stale') is True
             or review.get('observation', {}).get('status') != 'completed'
             or review.get('observation', {}).get('workState') != 'result_available'

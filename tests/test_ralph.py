@@ -534,6 +534,20 @@ class RalphTest(unittest.TestCase):
         with self.assertRaisesRegex(ralph.InvalidInput, 'earlier review thread'):
             ralph.validate_checkpoint(state)
 
+    def test_a_relabelled_continuation_can_never_be_the_accepting_review(self):
+        self.implementation()
+        self.threaded_review('thread-a', [{'severity': 'major', 'message': 'Gap'}])
+        self.implementation()
+        self.threaded_review('thread-a')
+        record = self.state['tasks'][-1]
+        self.assertEqual((record['tool'], record['consumed'], self.state['phase']), ('t3_thread_send', True, 'evaluate'))
+        forged = copy.deepcopy(self.state)
+        forged['tasks'][-1]['scope'] = 'full'
+        forged.update(phase='evaluated', evaluatedRevision=record['binding'])
+        with self.assertRaisesRegex(ralph.InvalidInput, 'earlier review thread'):
+            ralph.validate_checkpoint(forged)
+        self.assertFalse(ralph.publication_verified(forged))
+
     def test_checkpoint_cannot_claim_acceptance_from_a_delta_review(self):
         self.implementation()
         self.review(feedback=[{'severity': 'minor', 'message': 'Gap'}])
