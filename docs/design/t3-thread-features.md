@@ -55,7 +55,8 @@ latest assistant message still maintains or watches the target.
 
 **Gain.** Efficiency: avoids two threads paying for the same repair and racing pushes
 to one branch. Flexibility: the owner chooses between stopping and proceeding, with
-the sibling's existence visible.
+the sibling's existence visible. Proceeding is offered only when the overlap is a PR or
+branch and this run writes in its own worktree; a shared worktree always stops.
 
 **Risk.** The check is deliberately bounded, so it can miss a sibling four ways:
 title matching misses threads whose titles omit the PR or branch; an older active

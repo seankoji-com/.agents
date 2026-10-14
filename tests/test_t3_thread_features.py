@@ -54,6 +54,9 @@ class SiblingWorkCheckTest(unittest.TestCase):
     def test_overlap_goes_to_the_owner_and_never_into_the_other_thread(self):
         self.assertIn('ask the owner through the question picker whether to stop (recommended) or proceed',
                       self.rule)
+        # Proceed never puts a second writer in a worktree another thread is writing.
+        self.assertIn('Offer proceed only for a PR or branch overlap where this run writes in its own worktree; '
+                      'when the match is the worktree this run would write in, stop', self.rule)
         self.assertIn('Never send to, steer, interrupt, cancel or adopt a thread this run does not own', self.rule)
         for tool in ('t3_thread_send', 't3_thread_interrupt', 'task_cancel'):
             self.assertNotIn(tool, self.rule)
@@ -147,11 +150,12 @@ class ResultRecoveryTest(unittest.TestCase):
 
 
 class SendBoundaryTest(unittest.TestCase):
-    def test_thread_send_is_named_only_where_the_tracked_follow_up_lives(self):
+    def test_shared_and_plugin_contracts_name_thread_send_only_for_the_follow_up_or_a_prohibition(self):
+        # Covers shared/ and plugins/ only; design notes and docs may discuss the tool freely.
         allowed = {'shared/delegation.md', 'shared/job-coordination.md',
                    'plugins/imps/references/t3-adapter.md', 'plugins/ralph/playbooks/loop.md'}
         naming = {p.relative_to(ROOT).as_posix()
-                  for p in [*SHARED.glob('*.md'), *(ROOT / 'plugins').rglob('*.md')]
+                  for p in [*SHARED.rglob('*.md'), *(ROOT / 'plugins').rglob('*.md')]
                   if 't3_thread_send' in p.read_text()}
         self.assertEqual(naming, allowed)
         self.assertIn('never `childThreadId` continuation, `t3_thread_send`',
@@ -189,7 +193,7 @@ class DependentWorkTest(unittest.TestCase):
 
     def test_withdrawn_handoff_text_is_absent_from_every_contract(self):
         self.assertIn(KEPT_PROHIBITIONS, isolation_rule())
-        contracts = [*SHARED.glob('*.md'), *(ROOT / 'plugins').rglob('*.md')]
+        contracts = [*SHARED.rglob('*.md'), *(ROOT / 'plugins').rglob('*.md')]
         self.assertGreater(len(contracts), 10)
         for path in contracts:
             text = flat(path.read_text())
@@ -225,7 +229,8 @@ LEAKS = re.compile(r'\b\d{1,3}(?:\.\d{1,3}){3}\b|\.ts\.net\b|\.local\b|/(?:home|
 class DesignNoteTest(unittest.TestCase):
     def setUp(self):
         self.text = NOTE.read_text()
-        parts = re.split(r'^## \d\. ', self.text, flags=re.M)
+        # Stop at `## Not changed` too, so section 7 holds only its own text.
+        parts = re.split(r'^## (?:\d\. |Not changed)', self.text, flags=re.M)
         self.sections = dict(zip(FEATURES, parts[1:]))
 
     def test_note_is_in_the_site_navigation(self):
