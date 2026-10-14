@@ -87,7 +87,10 @@ Read ~/.local/share/t3-plugins/imps/current/entry.md and run: doctor
 ### A real doctor run
 
 This came from a live T3 thread on 14 Oct 2026, with Claude Sonnet 5.5 on this
-repository. It took 22 seconds. Paths are shortened and the provider list is trimmed:
+repository. It took 22 seconds. This is an excerpt with shortened paths and a trimmed
+provider list. It leaves out a failed `cli.py doctor --help` probe at 9 s, the
+reference files read at 12 s, the Learnings row, and the Features and Compatibility
+notes. The full transcript has every step:
 
 ```text
 you        $t3-imps doctor
@@ -117,8 +120,13 @@ state directory, and said how to work around it before any task started. The sam
 command on Codex (GPT-6.1-Sol) reported the state directory as writable. The full
 timelines are in the [Claude transcript](assets/recordings/t3-imps-doctor-claude.txt)
 and the [Codex transcript](assets/recordings/t3-imps-doctor-codex.txt). The Codex one
-leaves out a step that read the agent's private memory notes. To let a sandboxed
-Claude session write state, see [sandbox grants](learnings.md#sandbox-grants).
+leaves out a step that read the agent's private memory notes.
+
+If a sandbox blocks the state directory, do what doctor suggested: pass `--state-root`
+with a writable directory outside the repository. To keep the default path, allow writes
+to `~/.local/state/t3-plugins/imps` in your provider's sandbox settings (for Claude,
+`sandbox.filesystem.allowWrite`). `t3-plugins setup --grant-learnings` won't do this:
+it covers only the learnings subtree ([sandbox grants](learnings.md#sandbox-grants)).
 
 ## 4. Get one real result
 
