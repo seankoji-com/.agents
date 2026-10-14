@@ -485,6 +485,17 @@ def validate_blocker(value, name):
         text_field(value['taskId'], f'{name} taskId')
 
 
+def continuation(tasks, index):
+    """Structural, not the editable `tool` label: a task that reuses an earlier task's thread, or
+    carries a send-shaped dispatch, continued a conversation."""
+    record = tasks[index]
+    dispatch = record.get('dispatch') if isinstance(record.get('dispatch'), dict) else {}
+    thread = record.get('childThreadId')
+    return (record.get('tool') == 't3_thread_send' or 'threadId' in dispatch or 'message' in dispatch
+            or 'task' not in dispatch
+            or (thread is not None and any(t.get('childThreadId') == thread for t in tasks[:index])))
+
+
 def upgrade(state):
     """Format 2 predates scoped reviews, so each of its reviews was a full review."""
     if isinstance(state, dict) and type(state.get('schemaVersion')) is int and state['schemaVersion'] == 2:
@@ -560,9 +571,10 @@ def validate_checkpoint(state):
                 'checkpoint task tool is invalid')
         if record.get('childThreadId') is not None:
             text_field(record['childThreadId'], 'checkpoint task childThreadId')
-        if record.get('tool') == 't3_thread_send':
+        if continuation(state['tasks'], state['tasks'].index(record)):
             # Consumed or not: a continued conversation is only ever a delta review, which cannot accept.
             dispatch = record['dispatch']
+            require(record.get('tool') == 't3_thread_send', 'checkpoint continuation must be a t3_thread_send task')
             text_field(dispatch.get('clientRequestId'), 'checkpoint dispatch clientRequestId')
             text_field(dispatch.get('message'), 'checkpoint dispatch message')
             earlier = state['tasks'][:state['tasks'].index(record)]
@@ -628,7 +640,7 @@ def publication_verified(state):
     if not tasks:
         return False
     review = tasks[-1]
-    if (review['role'] != 'review' or review.get('scope') != 'full' or review.get('tool') == 't3_thread_send'
+    if (review['role'] != 'review' or review.get('scope') != 'full' or continuation(tasks, len(tasks) - 1)
             or review.get('consumed') is not True or review.get('stale') is True
             or review.get('observation', {}).get('status') != 'completed'
             or review.get('observation', {}).get('workState') != 'result_available'

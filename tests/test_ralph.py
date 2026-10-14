@@ -544,9 +544,15 @@ class RalphTest(unittest.TestCase):
         forged = copy.deepcopy(self.state)
         forged['tasks'][-1]['scope'] = 'full'
         forged.update(phase='evaluated', evaluatedRevision=record['binding'])
-        with self.assertRaisesRegex(ralph.InvalidInput, 'earlier review thread'):
-            ralph.validate_checkpoint(forged)
-        self.assertFalse(ralph.publication_verified(forged))
+        for label in (None, 'delegate_task', 't3_thread_send'):
+            with self.subTest(tool=label):
+                attempt = copy.deepcopy(forged)
+                attempt['tasks'][-1].pop('tool')
+                if label:
+                    attempt['tasks'][-1]['tool'] = label
+                with self.assertRaises(ralph.InvalidInput):
+                    ralph.validate_checkpoint(attempt)
+                self.assertFalse(ralph.publication_verified(attempt))
 
     def test_checkpoint_cannot_claim_acceptance_from_a_delta_review(self):
         self.implementation()
