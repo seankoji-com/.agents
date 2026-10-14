@@ -76,6 +76,7 @@ nav:
       - ralph: plugins/ralph.md
   - Engineering:
       - Architecture: architecture.md
+      - T3 thread features: design/t3-thread-features.md
       - Compatibility: compatibility.md
       - Historical provider results: sightings.md
       - Upgrading to plugin 1.0: migration.md

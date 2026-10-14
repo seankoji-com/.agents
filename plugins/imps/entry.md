@@ -39,7 +39,8 @@ unauthenticated. Direct work remains possible when children are unavailable. Rea
 `PKG/references/compatibility.md` for historical provider observations.
 
 **run <task>.** Inspect repository instructions and the working tree. Preserve
-unrelated work. Read `PKG/references/brief-probes.md`. For a bug, read
+unrelated work. Before a writable run, run the sibling-work check in `PKG/shared/t3-runtime.md`
+for the target branch or PR. Read `PKG/references/brief-probes.md`. For a bug, read
 `PKG/playbooks/bug-fix.md`; for a cited answer, `PKG/playbooks/investigation.md`.
 Each gate run, whether direct or a job stage, follows this procedure. Write a
 major-version-2 plan using `PKG/core/schemas/plan.schema.json`: stable requirement

@@ -14,7 +14,8 @@ Load this when a T3 tool is missing, errors, or behaves unexpectedly.
 | `delegate_task` | doc, confirmed live | agent-owned child dispatch through the shared contract |
 | `task_status` | doc, confirmed live | child status and confirmed stops |
 | `task_cancel` | doc, confirmed live | task-owned cancellation |
-| `t3_thread_read` | doc | fetch a result omitted from the summary |
+| `t3_thread_read` | doc, schema seen 13 October 2026 | fetch a result omitted from the summary (owned child only, paginated to the end); confirm a sibling-work candidate |
+| `t3_thread_list` | schema seen 13 October 2026 | read-only sibling-work check before a writable run (`PKG/shared/t3-runtime.md`) |
 | `link_pull_request` | confirmed live | Register an authorised PR with this thread |
 | `watch_pull_request` / `unwatch_pull_request` | confirmed live | Start monitoring and yield; stop monitoring before handing work back |
 | `create_threads`, `t3_thread_launch` | doc | never used for child work (`PKG/shared/delegation.md`) |

@@ -54,7 +54,9 @@ T3 completion notifications wake the coordinator; never poll or start a watcher.
 `task_status` (terminal status, `workState`, pending runs) and record it as a
 `completion` observation with `completion_id`, `status`, `work_state` and
 `has_pending_child_runs`. Ingest with `job_cli.py result`, passing the whole terminal
-summary as `result: {json: ...}` or a declared result file as `result: {path: ...}`. The
+summary as `result: {json: ...}` or a declared result file as `result: {path: ...}`.
+A truncated summary is recovered once through `t3_thread_read` as
+`PKG/shared/delegation.md` describes, never re-run. The
 parser rejects prose, fences, duplicate keys and oversize input; never extract or
 truncate. An uncertain launch is recorded as `uncertain` and retried with the same
 `clientRequestId` at most twice. A definite capacity rejection is `capacity-deferred` and
