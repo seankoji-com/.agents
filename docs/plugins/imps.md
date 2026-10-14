@@ -13,6 +13,14 @@ In a T3 thread attached to your repository, check readiness first:
 $t3-imps doctor
 ```
 
+Doctor runs `cli.py doctor` to check Python, Git, the state root and the learnings
+load, then asks T3 which providers can run child tasks. Its only write is one temporary
+file inside an existing state root, removed straight away. If the state root does not
+exist yet, doctor writes nothing, not even to a parent directory, and still passes: the
+first run creates it. It adds an advisory `os.access` answer for the nearest existing
+parent. If the state root is a symlink, the file goes in the directory it points to; a
+broken symlink fails.
+
 Then give it a task with a finish line and a limit:
 
 ```text
