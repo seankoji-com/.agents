@@ -18,6 +18,7 @@ t3-plugins install imps
 t3-plugins skills install imps --root ~/.agents/skills
 t3-plugins skills install imps --root ~/.claude/skills
 t3-plugins skills install imps --root ~/.gemini/config/skills
+t3-plugins skills install imps --root ~/.config/muse/skills
 ```
 
 Run these on the machine where your T3 provider runs tools. With a custom prefix, pass

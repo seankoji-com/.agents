@@ -368,6 +368,27 @@ class AlignmentTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.proposal('muse', safe, '{"permissions":{"schema_version":1}}', ['/permissions/profiles'])
 
+    def test_muse_filesystem_deletion_is_refused_before_writes(self):
+        before = {'permissions': {'profiles': {'work': {
+            'approval': 'on_request', 'filesystem': {'allow': ['./fixture']}}}}}
+        after = {'permissions': {'profiles': {'work': {'approval': 'on_request'}}}}
+        with self.assertRaisesRegex(ValueError, 'protective_setting_weakened'):
+            self.proposal('muse', json.dumps(before), json.dumps(after),
+                          ['/permissions/profiles/work/filesystem'])
+        self.assertEqual(json.loads(self.target.read_text()), before)
+
+    def test_muse_mcp_and_plugin_inventory_remain_unknown(self):
+        path = self.file('muse-settings.json', '{"permissions":{"profiles":{}}}')
+        catalog = {'providers': [{'providerInstanceId': 'muse'}]}
+        inventory = {'version': 1, 'providers': [{
+            'provider_instance_id': 'muse', 'adapter': 'muse',
+            'sources': [{'path': str(path), 'scope': 'global'}]}],
+            'capabilities': [{'kind': kind, 'members': {'muse': 'fixture'}}
+                             for kind in ('mcp', 'plugin')]}
+        result = align.compare(catalog, inventory)
+        self.assertEqual(result['providers'][0]['sources'][0]['status'], 'parsed')
+        self.assertEqual([c['states'] for c in result['capabilities']], [['unknown'], ['unknown']])
+
     def test_cli_plan_is_private_and_failures_never_echo_parser_values(self):
         plan = self.proposal()
         out = self.root / 'plan.json'

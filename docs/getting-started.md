@@ -287,6 +287,7 @@ adapter cleanup performed by `setup`:
 t3-plugins skills uninstall --root ~/.agents/skills
 t3-plugins skills uninstall --root ~/.claude/skills
 t3-plugins skills uninstall --root ~/.gemini/config/skills
+t3-plugins skills uninstall --root ~/.config/muse/skills
 t3-plugins uninstall ape
 
 # For a Homebrew installation only:

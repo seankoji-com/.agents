@@ -93,7 +93,7 @@ python3 PKG/scripts/align.py plan --adapter claude \
 Supported roots: Claude `permissions`, `mcpServers`, MCP approval/disable settings,
 `sandbox`; Codex approval/sandbox/MCP/plugin settings, including those
 policy fields inside named `profiles`; OpenCode `permission`, `mcp`, `plugin` and
-agent-specific `permission`; Antigravity `mcpServers`. Profile/agent model changes
+agent-specific `permission`; Antigravity `mcpServers`; Muse `permissions` (`permissions.profiles`). Profile/agent model changes
 and Claude `projects`/`hooks` writes are excluded. Propose those edits separately when
 needed, with the same approval, backup and validation requirements.
 

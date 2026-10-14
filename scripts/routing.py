@@ -276,6 +276,7 @@ def resolve(role: str, capabilities: dict, config: dict, implementer_lineage: st
         if offered and candidate['runtimeMode'] not in offered:
             # The driver cannot run this mode at all (Muse offers no auto
             # variant). Substituting another mode would hide a config error.
+            candidate.pop('owner_action', None)
             unavailable.append(dict(candidate, reason=(
                 f"runtime_mode_unsupported: {candidate['runtimeMode']} not offered; "
                 f"provider offers {', '.join(offered)}")))

@@ -206,7 +206,8 @@ def compare(catalog, inventory):
                 status = 'unmapped'
             elif not isinstance(native, str):
                 raise ValueError('invalid_capability')
-            elif not observations[ident] or (kind == 'plugin' and indexed.get(ident, {}).get('adapter') in {'codex', 'antigravity', 'muse'}):
+            elif (not observations[ident] or indexed.get(ident, {}).get('adapter') == 'muse'
+                  or (kind == 'plugin' and indexed.get(ident, {}).get('adapter') in {'codex', 'antigravity'})):
                 status = 'unknown'
             else:
                 states = {o[kind][native] for o in observations[ident] if native in o[kind]}
@@ -348,7 +349,7 @@ def protect_policy(adapter, old, new):
             if before.get('reviewer') == 'human' and after.get('reviewer') != 'human':
                 raise ValueError('protective_setting_weakened')
             if ('filesystem' in before and before['filesystem'] != 'unrestricted'
-                    and after.get('filesystem') == 'unrestricted'):
+                    and ('filesystem' not in after or after.get('filesystem') == 'unrestricted')):
                 raise ValueError('protective_setting_weakened')
             before_mode = before.get('network', {}).get('mode') if isinstance(before.get('network'), dict) else None
             after_mode = after.get('network', {}).get('mode') if isinstance(after.get('network'), dict) else None

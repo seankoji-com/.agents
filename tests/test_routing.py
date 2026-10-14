@@ -351,6 +351,7 @@ class RoutingCli(unittest.TestCase):
         result = self.resolve('workhorse', code=1, caps=caps_path)
         self.assertEqual(result['candidates'], [])
         self.assertTrue(result['unavailable'][0]['reason'].startswith('runtime_mode_unsupported'))
+        self.assertNotIn('owner_action', result['unavailable'][0])
         # An offered mode resolves normally.
         caps_path.write_text(json.dumps(self.muse_caps()))
         result = self.resolve('workhorse', caps=caps_path)
