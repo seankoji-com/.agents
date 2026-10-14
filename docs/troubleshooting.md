@@ -68,17 +68,23 @@ symlinked root can cause refusal. Preserve the conflicting files and follow the
 [adapter recovery steps](slash-commands.md#ownership-and-removal), then retry.
 Do not delete a whole skill root or use snapshot `--force` to solve a skill conflict.
 
-## Learnings report `unavailable` inside the sandbox
+## Learnings report `unavailable` with a denied write
 
-A reason starting "the sandbox or filesystem denies writes" means the provider's
-sandbox doesn't allow the learnings folder. The plugin still finishes its work and
-reports the proposed lesson. Run `t3-plugins setup --grant-learnings`, or add the
-grant the reason names. If setup returns `status: manual`, your provider config is a
-symlink, usually into a dotfiles repository. Add the printed `snippet` to the printed
-`target` in that repository and sync; editing through the link gets overwritten.
-Then follow [confirm a real write](learnings.md#confirm-a-real-write): `t3-plugins
-doctor`, run inside the sandbox, should report `learnings_write` as `writable`. Don't
-move lessons to the project or a temporary folder, and don't turn the sandbox off.
+A reason starting "the sandbox or filesystem permissions deny" has two possible
+causes, and each has its own fix. The plugin still finishes its work and reports the
+proposed lesson.
+
+- **The provider's sandbox doesn't allow the learnings folder.** Run
+  `t3-plugins setup --grant-learnings`, or add the grant the reason names. If setup
+  returns `status: manual`, your provider config is a symlink, usually into a dotfiles
+  repository. Add the printed `snippet` to the printed `target` in that repository and
+  sync; editing through the link gets overwritten.
+- **Ordinary filesystem permissions or a read-only mount.** A sandbox grant can't fix
+  these. Check who owns the state root and the learnings folder, their permission
+  bits, and whether the mount is read-only, then fix whichever blocks your user.
+
+Then follow [confirm a real write](learnings.md#confirm-a-real-write). Don't move
+lessons to the project or a temporary folder, and don't turn the sandbox off.
 
 ## Resume a job after an interruption
 

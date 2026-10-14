@@ -70,11 +70,13 @@ and OpenCode JSONC/overrides require manual configuration. Managed or host-level
 restrictions can still deny writes. A config receipt is not live provider
 acceptance: check a real write in the provider before claiming it works.
 
-When a sandbox or read-only mount refuses a learnings write (`EROFS`, `EACCES` or
-`EPERM`), the receipt stays `unavailable` with the proposed lesson. Its reason names
-the cause and the grant: allow writes to `<state root>/t3-plugins/learnings` and
-`<state root>/t3-plugins/learnings/**`, or run `t3-plugins setup --grant-learnings`.
-It shows no path below the learnings root.
+When a learnings write is refused with `EROFS`, `EACCES` or `EPERM`, the receipt
+stays `unavailable` with the proposed lesson. The reason says the sandbox or
+filesystem permissions deny the write and gives both remedies: allow writes to
+`<state root>/t3-plugins/learnings` and everything below it in the sandbox (or run
+`t3-plugins setup --grant-learnings`), or fix the ownership, permissions or read-only
+mount that blocks it. The same reason appears when the state root itself can't be
+opened. It shows no path below the learnings root.
 
 ### Symlinked or dotfiles-managed settings
 
@@ -102,11 +104,21 @@ entries, then sync. The directory entry covers everything below it. Codex gets a
 ### Confirm a real write
 
 Start a new provider session so it reads the changed settings. From a command that
-runs inside the provider's sandbox, run `t3-plugins doctor` and read the
-`learnings_write` field of its receipts. `writable` means the process created and
-removed a probe file under the learnings root; `denied` repeats the grant to add.
-Doctor creates nothing else and leaves provider config alone. A plugin's next
-writable run then returns `available` for its lesson.
+runs inside the provider's sandbox, change to the project and run `t3-plugins doctor`.
+Doctor treats the current directory as the project, as the helper's `--project`
+would, so it refuses the same state roots a plugin run would. Read the
+`learnings_write` field of its receipts:
+
+| Status | Meaning |
+| --- | --- |
+| `writable` | Doctor created one probe file in the existing learnings root and removed it |
+| `absent` | No learnings root yet, so doctor wrote nothing. The first writable plugin run creates it. `ancestor_writable` is advisory: it reflects permission bits and read-only mounts, not every sandbox rule |
+| `denied` | The sandbox or filesystem permissions refuse the write; the reason names both remedies |
+| `probe_left` | The probe file was created but could not be removed; `probe` names it. Delete it by hand |
+| `unavailable` | The root is refused, for example relative, inside the project or behind a symlink |
+
+Doctor never creates or removes folders and leaves provider config alone. After an
+`absent` result, run a plugin's writable operation, then doctor again.
 
 ## Harvest
 

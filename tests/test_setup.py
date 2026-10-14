@@ -95,20 +95,32 @@ class SetupTest(unittest.TestCase):
     def test_doctor_probes_learnings_write_and_leaves_no_files(self):
         self.call('install', 'imps')
         state = self.base / 'state'
+        root = state / 't3-plugins/learnings'
         receipt = json.loads(self.call('doctor', 'imps').stdout)
-        self.assertEqual(receipt['learnings_write'],
-                         {'status': 'writable', 'root': str(state / 't3-plugins/learnings')})
+        self.assertEqual((receipt['learnings_write']['status'], receipt['learnings_write']['root']),
+                         ('absent', str(root)))
         self.assertFalse(state.exists())
-        state.mkdir()
-        state.chmod(0o500)
-        self.addCleanup(state.chmod, 0o700)
+        root.mkdir(parents=True)
+        receipt = json.loads(self.call('doctor', 'imps').stdout)
+        self.assertEqual(receipt['learnings_write'], {'status': 'writable', 'root': str(root)})
+        self.assertEqual(list(root.iterdir()), [])
+        root.chmod(0o500)
+        self.addCleanup(root.chmod, 0o700)
         if os.geteuid() != 0:
             receipt = json.loads(self.call('doctor', 'imps').stdout)
             self.assertTrue(receipt['ok'])
             self.assertEqual(receipt['learnings_write']['status'], 'denied')
             self.assertIn('t3-plugins setup --grant-learnings', receipt['learnings_write']['reason'])
-            self.assertEqual(list(state.iterdir()), [])
+            self.assertEqual(list(root.iterdir()), [])
         self.assertFalse((self.home / '.claude').exists())
+
+    def test_doctor_refuses_a_state_root_inside_the_current_project(self):
+        self.call('install', 'imps')
+        self.env['XDG_STATE_HOME'] = str(self.project / 'state')
+        receipt = json.loads(self.call('doctor', 'imps').stdout)
+        self.assertTrue(receipt['ok'])
+        self.assertEqual(receipt['learnings_write'], {'status': 'unavailable', 'reason': 'state root is inside the project'})
+        self.assertEqual(list(self.project.iterdir()), [])
 
     def test_setup_from_home_prints_and_applies_default_grants(self):
         self.project = self.home

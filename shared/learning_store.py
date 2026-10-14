@@ -35,15 +35,21 @@ class Unavailable(ValueError):
     pass
 
 
-# A sandbox or read-only mount refuses the write; the remedy is a subtree grant, not a fallback store.
+# The sandbox, ownership, permission bits or a read-only mount refuse the write. The remedy is
+# a sandbox grant or a filesystem fix, never a fallback store.
 DENIED = (errno.EROFS, errno.EACCES, errno.EPERM)
 
 
-def denied_reason(subtree):
-    """Name the cause and the grant without echoing paths below the learnings root."""
-    return (f'the sandbox or filesystem denies writes under {subtree}; allow writes to {subtree} '
-            f'and {subtree}/** (for Claude, add {subtree} to sandbox.filesystem.allowWrite), '
-            'or run `t3-plugins setup --grant-learnings`')
+class Denied(Unavailable):
+    pass
+
+
+def denied_reason(subtree, action='writes under'):
+    """Name both causes and remedies without echoing paths below the learnings root."""
+    return (f'the sandbox or filesystem permissions deny {action} {subtree}. Either allow writes to '
+            f'{subtree} and {subtree}/** in the sandbox (for Claude, add {subtree} to '
+            'sandbox.filesystem.allowWrite, or run `t3-plugins setup --grant-learnings`), or fix the '
+            'ownership, permissions or read-only mount that blocks it')
 
 
 def digest(value):
@@ -111,13 +117,16 @@ def state_root(project, env=None):
             pass
     except FileNotFoundError:
         pass
+    except OSError as exc:
+        if exc.errno in DENIED:
+            raise Denied(denied_reason(root / 't3-plugins/learnings', 'access to')) from exc
+        raise
     return root
 
 
 @contextlib.contextmanager
-def directory(path, create=False, created=None):
-    """Walk with directory descriptors, refusing symlinks even during concurrent renames.
-    When `created` is a list, record each directory this walk made."""
+def directory(path, create=False):
+    """Walk with directory descriptors, refusing symlinks even during concurrent renames."""
     path = Path(path)
     if not path.is_absolute() or '..' in path.parts:
         raise Unavailable('directory must be absolute and contained')
@@ -129,8 +138,6 @@ def directory(path, create=False, created=None):
             if create:
                 try:
                     os.mkdir(part, 0o700, dir_fd=fd)
-                    if created is not None:
-                        created.append(Path(*path.parts[:index]))
                 except FileExistsError:
                     pass
             follow = trusted_link(Path(*path.parts[:index]))
@@ -142,31 +149,41 @@ def directory(path, create=False, created=None):
         os.close(fd)
 
 
-def probe_write(env=None):
-    """Doctor's check: create and remove one file under the learnings root from this process.
-    Directories the probe had to create are removed again, so nothing is left behind."""
+def probe_write(project, env=None):
+    """Doctor's check. The root is resolved exactly as Store resolves it. The probe never
+    creates or removes directories: it creates one file inside an existing learnings root and
+    unlinks it through the same directory descriptor, and says so if that unlink fails."""
     try:
-        subtree = state_root(None, env) / 't3-plugins/learnings'
+        subtree = state_root(project, env) / 't3-plugins/learnings'
+    except Denied as exc:
+        return {'status': 'denied', 'reason': str(exc)}
     except (OSError, ValueError) as exc:
         return {'status': 'unavailable', 'reason': str(exc)}
-    created = []
+    receipt = {'root': str(subtree)}
+    name = '.probe-' + uuid.uuid4().hex
     try:
-        try:
-            with directory(subtree, True, created) as fd:
-                name = '.probe-' + uuid.uuid4().hex
-                os.close(os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=fd))
+        with directory(subtree) as fd:
+            os.close(os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=fd))
+            try:
                 os.unlink(name, dir_fd=fd)
-        finally:
-            for path in reversed(created):
-                with contextlib.suppress(OSError):
-                    os.rmdir(path)  # Only empty directories; a concurrent writer's folder stays.
+            except OSError as exc:
+                return dict(receipt, status='probe_left', probe=name,
+                            reason=f'created {name} in the learnings root but could not remove it '
+                                   f'({exc.strerror}); it was left behind, delete it by hand')
+    except FileNotFoundError:
+        ancestor = next(p for p in subtree.parents if os.path.exists(p))
+        return dict(receipt, status='absent', ancestor=str(ancestor),
+                    ancestor_writable=os.access(ancestor, os.W_OK),
+                    reason='no learnings root yet, so doctor wrote nothing; the first writable plugin '
+                           'run creates it. ancestor_writable is advisory: os.access reflects read-only '
+                           'mounts and permission bits, not every sandbox rule')
     except OSError as exc:
         if exc.errno in DENIED:
-            return {'status': 'denied', 'root': str(subtree), 'reason': denied_reason(subtree)}
-        return {'status': 'unavailable', 'root': str(subtree), 'reason': str(exc)}
+            return dict(receipt, status='denied', reason=denied_reason(subtree))
+        return dict(receipt, status='unavailable', reason=str(exc))
     except ValueError as exc:
-        return {'status': 'unavailable', 'root': str(subtree), 'reason': str(exc)}
-    return {'status': 'writable', 'root': str(subtree)}
+        return dict(receipt, status='unavailable', reason=str(exc))
+    return dict(receipt, status='writable')
 
 
 def read_file(fd, name):

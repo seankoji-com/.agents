@@ -1,4 +1,5 @@
 """Sandbox grants never touch the owner's configuration; all paths are isolated."""
+import errno
 import json
 import os
 from pathlib import Path
@@ -121,6 +122,29 @@ class GrantsTest(unittest.TestCase):
         result = grant('claudeAgent', self.project, True, self.env)
         self.assertEqual((result['status'], result['target']), ('manual', str(dotfiles / 'claudeAgent/settings.json')))
         self.assertEqual((dotfiles / 'claudeAgent/settings.json').read_text(), cases['claudeAgent'])
+
+    def test_cyclic_config_symlink_returns_a_manual_receipt(self):
+        path = Path(grant('claudeAgent', self.project, env=self.env)['config'])
+        path.parent.mkdir(parents=True)
+        loop = path.parent / 'loop.json'
+        path.symlink_to(loop)
+        loop.symlink_to(path)
+        real_resolve = Path.resolve
+        # Python 3.12 raises RuntimeError for a loop, 3.13+ OSError in strict mode; simulate both.
+        for error in (None, RuntimeError('Symlink loop'), OSError(errno.ELOOP, 'Too many levels of symbolic links')):
+            def resolve(self, *args, **kwargs):
+                if self == path and error is not None:
+                    raise error
+                return real_resolve(self, *args, **kwargs)
+
+            with self.subTest(error=error), mock.patch.object(Path, 'resolve', resolve):
+                result = grant('claudeAgent', self.project, True, self.env)
+                self.assertEqual(result['status'], 'manual', result)
+                self.assertIn(self.subtree, result['snippet'])
+                if error is not None:
+                    self.assertIsNone(result['target'])
+                    self.assertIn('does not resolve', result['action'])
+        self.assertEqual(sorted(p.name for p in path.parent.iterdir()), ['loop.json', 'settings.json'])
 
     def test_unsupported_layout_and_pattern_path_are_not_widened(self):
         path = self.config('opencode', '{"permission":"ask"}')

@@ -8,7 +8,7 @@
         "assertions": [
           {
             "selector": "test_learnings.SandboxDenialTest",
-            "tests": 4,
+            "tests": 10,
             "coverage": [
               "G-LEARNINGS"
             ],

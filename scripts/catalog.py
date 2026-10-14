@@ -282,7 +282,8 @@ def main(argv=None):
         failed = False
         reference_errors = registry.validate_job_references()
         # Optional storage: report whether this process may write lessons, without failing doctor.
-        learnings_write = learning_store.probe_write() if args.command == 'doctor' else None
+        # The current directory is the project, as the learnings helper's --project would be.
+        learnings_write = learning_store.probe_write('.') if args.command == 'doctor' else None
         for meta in plugins:
             current = prefix / meta['name'] / 'current'
             entry = current / meta['entry']
@@ -328,7 +329,8 @@ def main(argv=None):
                 print(json.dumps({'plugin': meta['name'], 'ok': not errors, 'errors': errors,
                                   'learnings_write': learnings_write,
                                   'scope': 'installed file integrity and package currency; learnings_write probes '
-                                           'this process only; provider behavior not tested'}))
+                                           'this process with the current directory as the project; '
+                                           'provider behavior not tested'}))
             else:
                 job_arg = args.job if args.job is not None else getattr(args, 'job', None)
                 if args.command == 'path' and job_arg:

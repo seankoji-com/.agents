@@ -120,7 +120,12 @@ def grant(driver, project, apply=False, env=None):
         # Dotfiles-managed configs: writing through the link would be lost on the next sync.
         link = next((p for p in (path, *path.parents) if p.is_symlink() and not trusted_link(p)), None)
         if link is not None:
-            target = path.resolve()
+            try:
+                target = path.resolve()
+            except (RuntimeError, OSError) as exc:  # A symlink loop: 3.12 raises RuntimeError.
+                return dict(receipt, status='manual', target=None, snippet=snippet(driver, change),
+                            action=(f'{link} is a symlink that does not resolve ({exc}). Fix the link, then '
+                                    'merge the snippet into the file it points to, keeping existing entries.'))
             return dict(receipt, status='manual', target=str(target), snippet=snippet(driver, change),
                         action=(f'{link} is a symlink and setup does not write through it. Merge the snippet '
                                 f'into {target} in its source repository, keeping existing entries, then '
