@@ -103,3 +103,5 @@ apply; babysitter never uses admin bypass, dismisses reviews or force-pushes.
 T3 watches PRs that already exist. Picking up future PRs across a repository or
 organization needs a separately authorized scheduled sweep. Unit tests don't show how a
 given model behaves; see [compatibility](../compatibility.md).
+
+Jobs created through the shared CLI carry `policy.identity: observed`. Required review executions and their subjects need verified host identity at acceptance. Legacy jobs without the marker retain target-only acceptance semantics.

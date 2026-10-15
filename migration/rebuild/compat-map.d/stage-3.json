@@ -27,6 +27,12 @@
         "disposition": "change"
       },
       {
+        "path": "shared/document_authors.py",
+        "stage": 3,
+        "reason": "Validates host-transcribed document authorship against document hashes and lineage-waiver bindings.",
+        "disposition": "change"
+      },
+      {
         "path": "shared/job_acceptance_cli.py",
         "stage": 3,
         "reason": "Stage 3 generic job/result/acceptance interface.",
@@ -273,7 +279,7 @@
         "assertions": [
           {
             "selector": "test_jobs_stage3.JobStateTests",
-            "tests": 20,
+            "tests": 21,
             "coverage": [
               "REQ-JOB",
               "REQ-VISIBILITY",
@@ -400,6 +406,20 @@
               "REQ-EVIDENCE",
               "REQ-REPAIR"
             ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_jobs_author_lineage.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Synthetic issue 50 B2 checks for catalog-bound author records, source unions, canonical lineage and binding drift.",
+        "assertions": [
+          {
+            "selector": "test_jobs_author_lineage.DocumentAuthorTests",
+            "tests": 4,
+            "coverage": ["REQ-JOB", "REQ-LIFECYCLE", "REQ-EVIDENCE"],
             "survives": true
           }
         ]

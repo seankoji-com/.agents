@@ -58,6 +58,8 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
     The registry lock spans pinning and indexing, so a concurrent uninstall either runs
     first (and the pin fails) or sees the index record (and refuses removal)."""
     from shared.worker_registry import locked,registry_root,job_agents_roots,record_job_root,forget_job_root
+    job=__import__('copy').deepcopy(job)
+    job.setdefault('policy', {})['identity']='observed'
     with locked(registry_root(agents_root)):
         pins=verified_pins(job,state_root,prefix,agents_root,config_path)
         added=record_job_root(job_agents_roots(pins),state_root,job['job_id'])
@@ -114,7 +116,7 @@ def pinned_store(state_root,job_id):
 def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_reason='configured worker'):
     """Bind explicit review subjects before preparing their immutable brief."""
     from core.jobs import prepare, _live_handles
-    from shared.job_acceptance import AcceptanceError, independent_lineage, review_inputs
+    from shared.job_acceptance import AcceptanceError, independent_lineage, independent_of_authors, review_inputs
     if not callable(verify_pin) or any(verify_pin(d, store.load()['pins'][d['key']]) is not True for d in store.load()['dependencies']):
         raise JobError('pinned dependency verifier is required before review preparation')
     def bind(job):
@@ -129,6 +131,20 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
                     independent_lineage(next(t for t in job['tasks'] if t['task_id'] == subject), task)
                 except AcceptanceError as exc:
                     raise JobError(str(exc)) from exc
+        if task.get('independent_of_author'):
+            subjects = [next(t for t in job['tasks'] if t['task_id'] == sid) for sid in task.get('reviewed_task_ids', [])]
+            if not subjects:
+                subjects = [task]
+            try:
+                for subject in subjects:
+                    try:
+                        independent_of_authors(subject, task)
+                    except AcceptanceError:
+                        from shared.document_authors import has_current_task_waiver
+                        if not has_current_task_waiver(job, subject):
+                            raise
+            except AcceptanceError as exc:
+                raise JobError(str(exc)) from exc
     store.transact(caller, bind, 'prepare')
     return prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason)
 

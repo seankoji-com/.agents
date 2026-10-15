@@ -224,6 +224,9 @@ class InstalledJobFixture(unittest.TestCase):
         return json.loads((self.state / job_id / 'job.json').read_text())
 
     def base_job(self, job_id, workflow, requirements, stages, tasks, policy=None):
+        for task in tasks:
+            task.setdefault('target', {'providerInstanceId': 'fixture-provider',
+                                       'model': 'fixture-model', 'lineage': 'anthropic'})
         job = {'schema_version': 1, 'job_id': job_id, 'installation_id': self.install['installation_id'],
                'workflow': workflow, 'owner': {'id': 'owner'},
                'objective': 'PRIVATE-OBJECTIVE-MARKER plan the retry rollout',
@@ -248,6 +251,8 @@ class InstalledJobFixture(unittest.TestCase):
         event = {'kind': 'accepted', 'request_id': brief['request_id'], 'host_task_id': host,
                  'child_thread_id': 'child-' + host, 'status': 'running', 'work_state': 'working',
                  'has_pending_child_runs': False}
+        target = next(t for t in self.job_state(job_id)['tasks'] if t['task_id'] == task_id)['target']
+        event['status_identity'] = {'providerInstanceId': target['providerInstanceId'], 'model': target['model']}
         self.ok(self.run_helper('job_cli.py', 'task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': event}))
         result = {'schema_version': 1, 'status': status, 'conclusion': conclusion,
                   'requirements': [{'id': r['id'], 'status': requirement, 'evidence': ['synthetic fixture evidence']}

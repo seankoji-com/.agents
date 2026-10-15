@@ -138,6 +138,15 @@ class JobStateTests(unittest.TestCase):
    job=self.base();job['policy']['max_artifact_bytes']=32*1024*1024;job['pins']={}
    create_job(job,d,{'imps':{'package_digest':'c'*64}});self.assertEqual(Store(d,'job-1').load()['policy']['max_artifact_bytes'],32*1024*1024)
 
+ def test_observed_identity_policy_cannot_be_removed_by_plan_revision(self):
+  from core.jobs import revise_plan
+  with tempfile.TemporaryDirectory() as d:
+   job=self.base();job['policy']['identity']='observed';store=Store(d,'job-1');store.create(job)
+   caller={'installation_id':'install-1','workflow':'imps/run','package_digest':'c'*64,'actor':'coordinator'}
+   changed=store.load();changed['policy']['identity']='legacy'
+   with self.assertRaisesRegex(JobError,'identity policy is immutable'):
+    revise_plan(store,caller,{'id':'remove-identity'},changed)
+
  def test_dependency_adoption_preserves_unchanged_pins_limits_and_owner_boundary(self):
   from core.jobs import revise_plan,decision
   from shared.job_coordinator import create_pinned_job,adopt_pins,verify_all_pins
@@ -152,7 +161,7 @@ class JobStateTests(unittest.TestCase):
     target=agents/'overrides'/(worker_id+'.md');target.parent.mkdir(parents=True,exist_ok=True);target.write_text(f'---\nworker_id: {worker_id}\n---\nfixture owner enabled override\n')
     override_rows.append({'worker_id':worker_id,'base_bundle_digest':manifest['bundle_digest'],'path':worker_id+'.md','enabled':True})
    config.parent.mkdir(parents=True,exist_ok=True);config.write_text(json.dumps({'schema_version':1,'max_live_workers':2,'max_repair_cycles':3,'overrides':override_rows}))
-   job=self.base();job['pins']={};job['dependencies']=[{'key':'imps','plugin':'imps'},{'key':'babysitter','plugin':'babysitter'}];job['policy']={'max_repair_cycles':3,'max_artifact_bytes':32*1024*1024,'max_live_workers':2};job['stages'][0]['validator_dependency']='imps'
+   job=self.base();job['pins']={};job['dependencies']=[{'key':'imps','plugin':'imps'},{'key':'babysitter','plugin':'babysitter'}];job['policy']={'identity':'observed','max_repair_cycles':3,'max_artifact_bytes':32*1024*1024,'max_live_workers':2};job['stages'][0]['validator_dependency']='imps'
    create_pinned_job(job,state,prefix,agents,config);store=Store(state,'job-1');original=store.load()['pins'];caller={'installation_id':store.load()['installation_id'],'workflow':'imps/run','package_digest':original['imps']['package_digest'],'actor':'coordinator'}
    self.assertEqual(original['imps']['effective_workers']['imps/stage-executor']['override_status'],'enabled')
    self.assertEqual(original['babysitter']['effective_workers']['babysitter/pr-maintainer']['override_status'],'enabled')

@@ -34,6 +34,8 @@ Never let one stage cover both.
 - **Factual slot.** Worker `elephant-goldfish/factual-checker`, write scope
   `coordinator-only` (inline result). Its brief carries the document path and hash,
   the checked revision, the claims to verify and read-only authority. Its
+  contract sets `independent_of_author: true`; the host-observed identity must be
+  verified before acceptance.
   `review_verdict` is null, or `adverse` beside any blocker or major finding; such a
   result is ingested, its findings are retained, and the stage stays unaccepted.
 - **Cold-read slot.** Worker `elephant-goldfish/cold-reader` with `role: review`,
@@ -41,7 +43,10 @@ Never let one stage cover both.
   naming exactly that same `{path, sha256}`, and write scope `coordinator-only`. Its
   review subject is the document, not another task: never add `reviewed_task_ids`.
   `prepare` and acceptance both re-hash the document, so an edit after the read makes
-  the verdict stale. The helper strips the job objective, predecessor outputs,
+  the verdict stale. Its contract sets `independent_of_author: true`; unknown author or reviewer lineage
+  fails closed. Author records are keyed by document SHA-256 and imported only when
+  the current hash matches. A missing record means unknown authorship.
+  The helper strips the job objective, predecessor outputs,
   requirement statements, resources and task contract from this brief. Do not try to
   pass them another way. The dispatch message contains only the brief path, its
   SHA-256 and the instruction to read that brief and the document it names. Never
@@ -50,6 +55,27 @@ Never let one stage cover both.
 
 T3 workspace access is not a sandbox. Document-only isolation is an instruction
 boundary plus the helper's brief filter. Report it that way.
+
+## Author records and identity
+
+Every new job has `policy.identity: observed`. Acceptance requires host-reported
+verified identity for required reviewer executions, their subjects and factual
+slots marked `independent_of_author`. Legacy jobs without the marker keep their
+target-only rule.
+
+Author identities are taken from a fresh `orchestrator_capabilities` response passed
+as `--capabilities FILE`. The inherited provider, model and parent thread must be
+present, and the model must occur in that provider's catalog. A checker never adds
+itself as an author. A handoff's authors are its renderer plus authors from both
+source hashes; an unrecorded source leaves authorship unknown. These are host facts
+transcribed by the coordinator, not cryptographic proof of freshness.
+
+An owner `lineage-waiver:task:<task-id>` binds the review target, canonical author
+list, slot contract and document hash. For a direct zero-slot factual stage, use
+`lineage-waiver:stage:<stage-id>` and bind the latest direct-execution identity.
+Neither waiver skips a requirement. A changed target, author list, contract or
+document needs a new decision. Resuming direct execution under another identity also
+needs a new stage waiver.
 
 ## Verdicts
 
@@ -79,31 +105,16 @@ The validator checks provenance, hashes and coverage, not truth. It rejects
 
 ## Repair rounds
 
-You repair cold-read gaps yourself. Workers never edit the document. A repaired
-document has a new hash, so:
-
-1. Record each finding's disposition (`fixed`, `rejected` with evidence, or
-   `deferred`). Deferred blockers keep the stage blocked.
-2. Run `document-revision` with `{caller, task_id: <cold-read slot>, document: {path,
-   sha256}, reason}`. Within the round budget this is a declared repair and needs no
-   owner decision. It rebinds every stage contract and slot that names the path to the
-   new hash and makes those stages and their successors stale.
-3. `retry` the factual slot, run it, and accept the factual stage on the new hash.
-   Then `retry` the cold-read slot and dispatch a fresh reader. Each retry charges its
-   stage budget. The previous findings stay in job history; the new reader never
-   sees them.
-
-A `thinking` job has no factual slot. Repair through discovery or spec, re-render the
-handoff with `render_handoff.py` and pass `thinking_state.py gate`. The old `handoff`
-receipt no longer matches the new bytes, so run `accept-stage` on the `handoff` stage
-again (a charged direct pass). Then run `document-revision` with the new `handoff.md`
-hash and `retry` the cold-read slot.
-
-When the budget is spent, `document-revision` refuses with `attempt_budget_exhausted`
-and `owner_decision_required`. Another round then needs the owner, asked through the
-question picker with the recommended option first, recorded with `decision`, and a
-`plan-revision` that raises the limit. Do not seek another reviewer to overturn an
-adverse verdict.
+You repair cold-read gaps yourself; workers never edit the document. Record finding dispositions,
+then call `document-revision` with the cold-read task and new `{path, sha256}`. It
+rebinds stages naming that path and stales them and their successors. Retry the
+factual stage first when present, accept it on the new hash, then retry the cold read.
+The new reader never sees earlier findings. For a `thinking` handoff, repair discovery
+or spec, render and gate again, accept the direct handoff stage, then revise the cold
+read document and retry it. Each retry charges its stage budget. When the budget is
+spent, `document-revision` refuses; raising it needs an owner decision through the
+question picker and a `plan-revision`. An adverse verdict is not grounds to seek a
+second opinion.
 
 ## Round limits
 
@@ -120,14 +131,10 @@ document, not to a session, and resume never resets it.
   the performed count cannot be established, ask the owner through the picker
   instead of guessing.
 
-For thinking topics the topic is the record. `init` records the four-round default;
-`resolve` reports `cold_read` with the remaining rounds. Record a legacy budget with
-`thinking_state.py set <slug> cold_read.max_rounds=5 cold_read.rounds_performed=<k>
-cold_read.limit_source=legacy-five-round-policy`, and update `rounds_performed` after
-each round. `set` refuses a decreasing count, a count above the limit, and a raised
-limit unless `limit_source=owner-decision` with a `decision_ref`. For `elephant.md`,
-the job is the record; resume that job rather than creating a new one. These fields
-record the budget; they never affect readiness and grant no execution authority.
+For thinking topics, `init` records the four-round default and `resolve` reports the
+remaining rounds. A legacy budget is recorded with `thinking_state.py set`; keep its
+round count when resuming. For `elephant.md`, resume the existing job. Budget fields
+do not affect readiness or grant execution authority.
 
 When the budget is spent, report the document as NOT READY with its unresolved gaps.
 Raising a limit is an owner decision through the picker, recorded with `decision`.

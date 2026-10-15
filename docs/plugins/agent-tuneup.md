@@ -272,3 +272,5 @@ shows the supported formats.
 
 `scan --provider claude` counts tool calls in recent local transcripts. Those counts
 don't authorize permission changes. Don't share private transcripts.
+
+Jobs created through the shared CLI carry `policy.identity: observed`. Required review executions and their subjects need verified host identity at acceptance. Legacy jobs without the marker retain target-only acceptance semantics.

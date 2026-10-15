@@ -81,6 +81,14 @@ a `reconciled` event carries its observed identity and terminal state. A charged
 creates a new execution and is the only way to clear the prior execution's mismatch.
 Doctor reports recorded unreported providers separately from configured providers
 with no recorded identity, and launches nothing.
+`job_cli create` sets `policy.identity: observed` with no opt-out. Required reviewer,
+subject and `independent_of_author` executions must report verified identity at
+acceptance. Legacy jobs without the marker keep target-only acceptance semantics.
+Document author records are keyed by SHA-256. A lineage waiver binds the reviewer
+target, canonical author list, slot contract and document hash. It waives no
+requirement and must be refreshed after any bound value changes. Capabilities are
+host evidence transcribed by the coordinator; validation checks correlation and
+shape, not freshness or forgery.
 Review and document-only slots use fresh executions, never same-child follow-ups.
 Unexpected continuations stay owned and non-accepting, and their result bytes are
 quarantined during ingestion.

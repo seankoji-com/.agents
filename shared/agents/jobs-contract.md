@@ -255,8 +255,14 @@ lists distinct worker tasks in its stage and needs the lineage checks above.
 with no parent traversal or symlink component, outside the job state. A document-only
 review names exactly its supplied `document`. Both forms, or neither, are refused.
 Preparation and acceptance re-hash each document; changed bytes make the review
-stale. Lineage independence does not apply to a document subject, but approval still
-needs the reviewer's completed owned host execution and the `approve` verdict.
+stale. For document subjects, set `independent_of_author: true` on the review slot
+and record `document_authors` from records keyed by the exact document hash. The
+reviewer lineage must be known, canonical and different from every author lineage.
+Unknown authorship or lineage fails closed. New jobs require verified observed
+identity for reviewers, their subjects and author-independent slots under
+`policy.identity: observed`; legacy jobs without that marker keep target-only
+acceptance semantics. Approval still needs the reviewer's completed owned host
+execution and the `approve` verdict.
 
 `document-revision` takes caller, task_id, `document: {path, sha256}` and reason. The
 task must name that path, have an ingested execution and be settled; the new hash must

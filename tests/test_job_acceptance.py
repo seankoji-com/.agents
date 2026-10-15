@@ -39,6 +39,7 @@ class PinnedAcceptanceTests(unittest.TestCase):
    job={'schema_version':1,'job_id':'accept-1','installation_id':manifest['installation_id'],'workflow':'ape/study','owner':'coordinator','objective':'research','requirements':{'R1':'retain provenance'},'authorization':{'actions':['read']},'constraints':['no target writes'],'snapshot':{'sha256':'a'*64},'dependencies':[{'key':'ape','plugin':'ape'}],'pins':{},'policy':{'max_repair_cycles':3,'max_artifact_bytes':16777216},'stages':[{'id':'research','depends_on':[],'requirements':['R1'],'status':'pending','execution_mode':'direct','validator_dependency':'ape','criteria':[{'id':'C1','kind':'source-provenance'}],'revision':'source-1'}],'tasks':[],'decisions':[],'history':[],'metrics':{},'result_contract':{'schema_version':1}}
    source_pin=source_fixture(base,job)
    created=create_pinned_job(job,state,prefix,agents,base/'config/workers.json');self.assertTrue(Path(created['job']).exists())
+   self.assertEqual(Store(state,'accept-1').load()['policy']['identity'],'observed')
    inp=base/'report.json';inp.write_text(json.dumps(ape_report(base,source_pin)))
    caller={'installation_id':manifest['installation_id'],'workflow':'ape/study','package_digest':manifest['package_digest'],'actor':'coordinator'}
    validator=version/'scripts/validate_report.py'

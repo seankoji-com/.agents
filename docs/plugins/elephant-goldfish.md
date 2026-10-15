@@ -6,6 +6,13 @@ acceptance criteria, and packages a brief that a fresh thread can execute. It ne
 starts the implementation. It can also check whether an existing design document still
 matches the repository.
 
+Factual and cold-read slots set `independent_of_author: true`. Their review lineage
+must be canonical and differ from every author recorded for the document SHA-256.
+Unknown authorship fails closed unless the owner records a hash-bound
+`lineage-waiver`; it waives no requirement. New jobs require verified host identity
+for the reviewer, subject and author-independent slot. Legacy jobs without the
+identity policy marker retain target-only acceptance semantics.
+
 ## Try it
 
 In a T3 thread attached to your repository:

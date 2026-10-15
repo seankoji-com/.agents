@@ -132,3 +132,5 @@ using their original installed snapshot rather than rewriting them.
 ralph is experimental. Behavioural tests cover checkpoints, feedback decisions,
 revision invalidation, cancellation and the installed helpers, without live model
 calls. They don't show live provider compatibility or a completed model-driven run.
+
+Jobs created through the shared CLI carry `policy.identity: observed`. Required review executions and their subjects need verified host identity at acceptance. Legacy jobs without the marker retain target-only acceptance semantics.

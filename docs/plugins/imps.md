@@ -91,3 +91,5 @@ imps costs more turns than a direct request. It pays off when you need the evide
 when the work may be interrupted, or when another model should review it. The unit
 tests cover the state engine, not whether a given model follows the workflow; see
 [compatibility](../compatibility.md).
+
+Jobs created through the shared CLI carry `policy.identity: observed`. Required review executions and their subjects need verified host identity at acceptance. Legacy jobs without the marker retain target-only acceptance semantics.

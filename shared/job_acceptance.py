@@ -87,6 +87,17 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
     for task in job['tasks']:
         if task['stage_id'] != stage['id'] or task_ids is not None and task['task_id'] not in task_ids:
             continue
+        if job.get('policy', {}).get('identity') == 'observed' and (task.get('role') == 'review' or task.get('review_required') or task.get('independent_of_author')):
+            current = [h for h in task.get('handles', []) + task.get('followups', []) if h.get('request_id') == task.get('request_id')]
+            if not current or current[0].get('observed_identity', {}).get('status') != 'verified':
+                raise AcceptanceError('required observed execution identity is unreported or mismatched: ' + task['task_id'])
+        if task.get('independent_of_author'):
+            try:
+                independent_of_authors(task, task)
+            except AcceptanceError:
+                from shared.document_authors import has_current_task_waiver
+                if not has_current_task_waiver(job, task):
+                    raise
         if task.get('inputs_stale'):
             raise AcceptanceError('task inputs changed while its owned handle remained live; charged repair required')
         owned = task.get('handles', []) + task.get('followups', [])
@@ -173,6 +184,18 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
                     if task_id == task['task_id'] or task['request_id'] == reviewer.get('request_id') or task['logical_slot_id'] == reviewer.get('logical_slot_id') or original['task_id'] == peer['task_id'] or original['child_thread_id'] == peer['child_thread_id']:
                         raise AcceptanceError('required review execution is not independent')
                     independent_lineage(task, reviewer, original, peer)
+                    if task.get('independent_of_author') or reviewer.get('independent_of_author'):
+                        try:
+                            independent_of_authors(task, reviewer)
+                        except AcceptanceError:
+                            from shared.document_authors import has_current_task_waiver
+                            if not has_current_task_waiver(job, task):
+                                raise
+                    if job.get('policy', {}).get('identity') == 'observed':
+                        subject_handles = [h for h in task.get('handles', []) + task.get('followups', []) if h.get('request_id') == task.get('request_id')]
+                        review_handles = [h for h in reviewer.get('handles', []) + reviewer.get('followups', []) if h.get('request_id') == reviewer.get('request_id')]
+                        if not subject_handles or subject_handles[0].get('observed_identity', {}).get('status') != 'verified' or not review_handles or review_handles[0].get('observed_identity', {}).get('status') != 'verified':
+                            raise AcceptanceError('required observed execution identity is unreported or mismatched')
 
 
 def _lineage(task, handle=None):
@@ -189,6 +212,25 @@ def _lineage(task, handle=None):
     if not isinstance(target, dict) or any(not isinstance(target.get(key), str) or not target[key] for key in ('providerInstanceId', 'model', 'lineage')):
         raise AcceptanceError('required_review_unavailable: review lineage is unknown; independent review is unverified')
     return target['providerInstanceId'], target['model'], target['lineage']
+
+def canonical_lineage(value):
+    from scripts.routing import DRIVER_LINEAGE, FAMILY_LINEAGE
+    allowed = set(DRIVER_LINEAGE.values()) | set(FAMILY_LINEAGE.values())
+    if value not in allowed:
+        raise AcceptanceError('author lineage is unknown or non-canonical; author independence is unverified')
+    return value
+
+def independent_of_authors(task, reviewer):
+    authors = task.get('document_authors')
+    if not isinstance(authors, list) or not authors or any(not isinstance(a, dict) or a.get('unknown') for a in authors):
+        raise AcceptanceError('author independence is unverified: author unrecorded')
+    _, _, lineage = _lineage(reviewer)
+    canonical_lineage(lineage)
+    for author in authors:
+        author_lineage = author.get('lineage')
+        canonical_lineage(author_lineage)
+        if author_lineage == lineage:
+            raise AcceptanceError('reviewer lineage must differ from every document author')
 
 
 def independent_lineage(worker, reviewer, worker_handle=None, reviewer_handle=None):

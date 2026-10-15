@@ -93,6 +93,18 @@ Fall back to the same lineage only when no other is available, never because a r
 was adverse. An adverse review is final for that revision. Explicit repository review
 policy wins over all of this.
 
+New jobs carry `policy.identity: observed`. Acceptance requires verified host identity
+for required reviewers and their subjects, and for every slot marked
+`independent_of_author`. Review preparation still checks declared targets before
+dispatch. Jobs without the marker keep target-only semantics.
+
+Document authorship is keyed by document SHA-256. A reviewer needs a canonical
+routing lineage different from every recorded author. Unknown author or reviewer
+lineage fails closed. A `lineage-waiver` is an owner decision bound to the target,
+author list, contract and document hash; it waives no requirement. These records are
+host evidence transcribed by the coordinator. Shape checks do not prove freshness or
+detect a forged capabilities file.
+
 ## Observed execution identity
 
 Record identity only from host responses. The coordinator may store separate
