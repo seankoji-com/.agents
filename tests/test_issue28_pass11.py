@@ -160,6 +160,22 @@ class Pass11JobsTests(Pass10Fixture):
             dispose_finding(store, self.caller, 't0', 'F', 'rejected', ref, digest(canonical(major)))
             self.check(store)  # positive control after its own disposition
 
+    def test_disposition_names_fit_ecryptfs_with_the_atomic_temp_suffix(self):
+        # ecryptfs allows 143-byte names; _atomic writes '.' + name + '.' + 24 hex chars first.
+        finding = {'id': 'B1R2-01', 'severity': 'major', 'scenario': 'mismatch accepted', 'summary': 'major',
+                   'source_evidence': ['fixture']}
+        with tempfile.TemporaryDirectory() as td:
+            store = self.fx.store(td)
+            evidence = Path(td) / 'disposition.txt'; evidence.write_text('fixed in the repair commit\n')
+            ref = {'path': str(evidence), 'sha256': hashlib.sha256(evidence.read_bytes()).hexdigest(),
+                   'bytes': evidence.stat().st_size}
+            self.ready(store, findings=[finding], review_verdict='adverse')
+            row = dispose_finding(store, self.caller, 't0', 'B1R2-01', 'fixed', ref)
+            name = Path(row['evidence']['path']).name
+            self.assertLessEqual(len('.' + 'pr-b1-review' + name[len('t0'):] + '.' + 'f' * 24), 143)
+            self.assertEqual(Path(row['evidence']['path']).read_bytes(), evidence.read_bytes())
+            self.assertEqual(store.load()['tasks'][0]['finding_dispositions'][0]['disposition'], 'fixed')
+
 
 if __name__ == '__main__':
     unittest.main()
