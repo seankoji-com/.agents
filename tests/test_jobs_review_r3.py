@@ -42,9 +42,14 @@ class Stage3Repair5Tests(unittest.TestCase):
         return Store(root, job_id)
 
     def accepted_handle(self, store):
-        record_dispatch(store, self.caller(), "t0", {"kind": "accepted", "request_id": "req0",
+        task = next(t for t in store.load()['tasks'] if t['task_id'] == 't0')
+        event = {"kind": "accepted", "request_id": "req0",
             "host_task_id": "host0", "status": "running", "work_state": "working",
-            "has_pending_child_runs": False})
+            "has_pending_child_runs": False}
+        if task.get('target'):
+            event['status_identity'] = {'providerInstanceId': task['target']['providerInstanceId'],
+                                        'model': task['target']['model']}
+        record_dispatch(store, self.caller(), "t0", event)
 
     def test_worker_observation_traversal_is_refused_without_mutating_job(self):
         from shared.job_coordinator import publish_observation

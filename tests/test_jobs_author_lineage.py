@@ -71,6 +71,20 @@ class DocumentAuthorTests(unittest.TestCase):
         with self.assertRaisesRegex(AcceptanceError, 'author unrecorded'):
             independent_of_authors({'document_authors': unknown}, c_reader)
 
+    def test_repaired_source_without_a_hash_record_keeps_rerendered_handoff_unknown(self):
+        caps_a, caps_b = (copy.deepcopy(self.caps) for _ in range(2))
+        caps_b.update(inheritedProviderInstanceId='codex', inheritedModel='gpt-6.1-sol')
+        records = append_author({}, b'discovery A', caps_a)
+        old_spec_sha = __import__('hashlib').sha256(b'spec before repair').hexdigest()
+        records = append_author(records, b'handoff B', caps_b, (next(iter(records)), old_spec_sha))
+        repaired_spec = b'spec repaired by C'
+        repaired_spec_sha = __import__('hashlib').sha256(repaired_spec).hexdigest()
+        # C's repaired bytes have no record. Rendering B cannot infer their author.
+        revised = append_author(records, b'rendered handoff after repair', caps_b,
+                                (next(iter(records)), repaired_spec_sha))
+        result_sha = __import__('hashlib').sha256(b'rendered handoff after repair').hexdigest()
+        self.assertEqual(authors_for_hash(revised, result_sha), [{'unknown': True}])
+
     def test_author_independence_requires_known_canonical_different_lineage(self):
         task = {'document_authors': [{'lineage': 'anthropic'}]}
         independent_of_authors(task, {'target': {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol', 'lineage': 'openai'}})

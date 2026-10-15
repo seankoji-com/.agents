@@ -44,6 +44,10 @@ class Pass10Fixture(unittest.TestCase):
     def observe(self, store, task_id, kind, request, host, **extra):
         event = {'kind': kind, 'request_id': request, 'host_task_id': host, 'child_thread_id': 'child-' + host,
                  'status': 'running', 'work_state': 'working', 'has_pending_child_runs': False}
+        task = next(t for t in store.load()['tasks'] if t['task_id'] == task_id)
+        target = task.get('target')
+        if target:
+            event['status_identity'] = {'providerInstanceId': target['providerInstanceId'], 'model': target['model']}
         if kind in ('completion', 'reconciled'):
             event.update(status='completed', work_state='result_available', completion_id=host + '-done')
         event.update(extra)

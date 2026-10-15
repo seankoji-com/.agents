@@ -91,7 +91,7 @@ class JobReviewTests(unittest.TestCase):
             "constraints": ["offline fixture only"],
             "dependencies": [{"key": "ape", "plugin": "ape"}],
             "pins": {"ape": {"package_digest": "a" * 64}},
-            "policy": {"max_repair_cycles": 3, "max_artifact_bytes": 1_000_000, "max_live_workers": 2},
+            "policy": {"identity": "observed", "max_repair_cycles": 3, "max_artifact_bytes": 1_000_000, "max_live_workers": 2},
             "result_contract": {"schema_version": 1},
             "stages": [
                 {
@@ -133,6 +133,9 @@ class JobReviewTests(unittest.TestCase):
         job = job or self.base_job()
         create_job(job, root, job["pins"])
         return Store(root, job["job_id"])
+
+    def test_new_job_fixture_uses_observed_identity_policy(self):
+        self.assertEqual(self.base_job()['policy']['identity'], 'observed')
 
     def install(self, base, plugin="ape"):
         home = base / "home"

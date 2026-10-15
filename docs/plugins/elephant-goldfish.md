@@ -19,6 +19,12 @@ Record discovery and spec authors with `thinking_state.py author` using a fresh
 hashes; missing source records remain unknown. `check` is read-only and never records
 the checker as an author.
 
+A zero-slot factual fallback records each direct execution from fresh capabilities.
+Its owner `lineage-waiver:stage:<stage-id>` decision binds the latest executor,
+document hash and stage contract. Resuming under another model needs a replacement
+decision. Adding, removing or changing `independent_of_author` or `lineage_waiver`
+through `plan-revision` also needs an owner decision.
+
 ## Try it
 
 In a T3 thread attached to your repository:
