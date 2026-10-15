@@ -27,10 +27,13 @@ class ImpsInput(unittest.TestCase):
         panel = inputs.route('run --personas 42 43')
         self.assertTrue(panel['personas'])
         self.assertEqual(panel['issues'], [42, 43])
-        self.assertEqual(inputs.route('')['picker'], True)
-        self.assertEqual(inputs.route('   ')['picker'], True)
-        self.assertEqual(inputs.route('$t3-imps')['picker'], True)
-        self.assertEqual(inputs.route('/t3-imps')['picker'], True)
+        empty = {'operation': None, 'arguments': '', 'personas': False, 'picker': True}
+        self.assertEqual(inputs.route(''), empty)
+        self.assertEqual(inputs.route('   '), empty)
+        self.assertEqual(inputs.route('$t3-imps'), empty)
+        self.assertEqual(inputs.route('/t3-imps'), empty)
+        self.assertEqual(inputs.route('$t3-imps --personas'),
+                         {'operation': None, 'arguments': '', 'personas': True, 'picker': True})
         for request in ('run', '$t3-imps run', '/imps:imps run', 'run --personas'):
             value = inputs.route(request)
             self.assertEqual(value['operation'], 'run')

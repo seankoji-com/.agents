@@ -15,10 +15,10 @@
   "kind": "workflow",
   "compatibility": "experimental",
   "picker": [
-    "doctor",
     "run",
     "resume",
-    "status"
+    "status",
+    "doctor"
   ],
   "routes": [
     {

@@ -44,7 +44,9 @@ class SkillAdapters(unittest.TestCase):
         adapter = self.skills / 't3-imps/SKILL.md'
         self.assertIn(json.dumps(str(entry)), adapter.read_text())
         self.assertIn('name: t3-imps', adapter.read_text())
-        self.assertIn('With no arguments, ask which operation to run. Offer:', adapter.read_text())
+        self.assertIn("With no request, ask through the host's native question picker.", adapter.read_text())
+        self.assertIn('Recommend the first option.', adapter.read_text())
+        self.assertIn('Do nothing until the owner answers.', adapter.read_text())
         self.assertIn('Use the operation from the first matching route. If no route matches, ask',
                       adapter.read_text())
         self.assertNotIn('With no arguments, run `doctor`.', adapter.read_text())
@@ -171,14 +173,25 @@ class SkillAdapters(unittest.TestCase):
     def test_prompt_without_request_offers_manifest_picker(self):
         self.call('install', 'imps')
         prompt = self.call('prompt', 'imps').stdout
-        self.assertIn('Choose an operation: doctor, run, audit, issues.', prompt)
+        self.assertIn("Ask through the host's native question picker.", prompt)
+        self.assertIn('Recommend the first option and do nothing until the owner answers.', prompt)
+        self.assertIn('Options: run, audit, issues, doctor.', prompt)
         self.assertNotIn('doctor\n', prompt)
 
     def test_workflow_manifests_have_valid_picker_routes(self):
+        expected = {
+            'imps': ['run', 'audit', 'issues', 'doctor'],
+            'ralph': ['run', 'resume', 'status', 'doctor'],
+            'elephant-goldfish': ['thinking', 'elephant', 'check', 'doctor'],
+            'babysitter': ['pr', 'repo', 'org', 'doctor'],
+            'ape': ['forage', 'study', 'clean', 'doctor'],
+            'agent-tuneup': ['audit', 'align', 'scan', 'doctor'],
+        }
         for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
             meta = json.loads(manifest.read_text())
             with self.subTest(plugin=meta['name']):
                 skills.validate_picker(meta)
+                self.assertEqual(meta['picker'], expected[meta['name']])
         invalid = {'name': 'bad', 'operations': ['doctor'], 'picker': ['doctor', 'doctor'],
                    'routes': [{'pattern': 'doctor', 'operation': 'doctor'}]}
         with self.assertRaises(ValueError):

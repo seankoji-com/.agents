@@ -55,10 +55,10 @@
     "jobs-contract.md"
   ],
   "picker": [
-    "doctor",
     "pr",
     "repo",
-    "org"
+    "org",
+    "doctor"
   ],
   "routes": [
     {

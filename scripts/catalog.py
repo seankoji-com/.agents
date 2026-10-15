@@ -355,7 +355,9 @@ def main(argv=None):
                         print(f'Read {entry} and run: {request}')
                     else:
                         options = ', '.join(meta['picker'])
-                        print(f'Read {entry}. Choose an operation: {options}.')
+                        print(f'Read {entry}. Ask through the host\'s native question picker. '
+                              f'Recommend the first option and do nothing until the owner answers. '
+                              f'Options: {options}.')
         return 1 if failed else 0
     except (ValueError, OSError, KeyError, installer.InstallError, routing.RoutingError) as exc:
         print(f't3-plugins: {exc}', file=sys.stderr)

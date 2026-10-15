@@ -89,7 +89,7 @@ class CatalogTest(unittest.TestCase):
         self.assertEqual(self.call('prompt', 'ape', 'study', 'https://github.com/example/project').stdout.strip(),
                          f'Read {self.prefix}/ape/current/entry.md and run: study https://github.com/example/project')
         picker = self.call('prompt', 'ape').stdout.strip()
-        self.assertEqual(picker, f'Read {self.prefix}/ape/current/entry.md. Choose an operation: doctor, forage, study, clean.')
+        self.assertEqual(picker, f"Read {self.prefix}/ape/current/entry.md. Ask through the host's native question picker. Recommend the first option and do nothing until the owner answers. Options: forage, study, clean, doctor.")
         self.assertNotIn('run: doctor', picker)
 
     def test_doctor_detects_missing_files_and_external_activation(self):

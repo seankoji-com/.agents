@@ -16,9 +16,9 @@ write `run status page shows stale data` or `run audit trail lacks timestamps`
 when those words begin a free-text task. Use `checklist PATH` with a readable file;
 the path is required. The short discussion form is lowercase `discussion N`.
 
-An empty request or a bare imps mention returns `picker: true`. A bare `run` returns
-`needsArgument: true`; ask for the task before continuing. Keep all other input
-classification unchanged.
+An empty request or a bare imps mention returns `operation: null`, empty `arguments`,
+the `personas` flag, and `picker: true`. A bare `run` returns `needsArgument: true`;
+ask for the task before continuing. Keep all other input classification unchanged.
 
 | Input | Operation |
 | --- | --- |

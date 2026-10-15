@@ -77,10 +77,10 @@
     "jobs-contract.md"
   ],
   "picker": [
-    "doctor",
     "run",
     "audit",
-    "issues"
+    "issues",
+    "doctor"
   ],
   "routes": [
     {

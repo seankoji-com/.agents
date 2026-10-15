@@ -112,7 +112,8 @@ def render(meta, entry):
             'The package directory is the directory containing that entry file.\n'
             'Use the text after the skill mention as the operation and arguments. Operations: ' +
             ', '.join('`' + op + '`' for op in meta['operations']) + '.\n'
-            'With no arguments, ask which operation to run. Offer: ' + picker + '.\n'
+            "With no request, ask through the host's native question picker. Recommend the first option. " +
+            'Do nothing until the owner answers. Options: ' + picker + '.\n'
             'For free text, test the full string against these manifest routes in order. '
             'Use the operation from the first matching route. If no route matches, ask which operation to run.\n'
             + routes + '\n' +

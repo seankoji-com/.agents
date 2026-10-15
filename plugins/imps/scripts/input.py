@@ -97,7 +97,7 @@ def route(text):
     panel = bool(re.search(r'(?<!\S)--personas(?!\S)', text))
     text = re.sub(r'(?<!\S)--personas(?!\S)', '', text).strip()
     if not text:
-        return {'picker': True, 'personas': panel}
+        return {'operation': None, 'arguments': '', 'personas': panel, 'picker': True}
     parts = text.split(maxsplit=1)
     first = parts[0].removeprefix('/imps:')
     operation = ALIASES.get(first, first)

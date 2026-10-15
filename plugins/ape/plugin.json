@@ -51,10 +51,10 @@
     "jobs-contract.md"
   ],
   "picker": [
-    "doctor",
     "forage",
     "study",
-    "clean"
+    "clean",
+    "doctor"
   ],
   "routes": [
     {

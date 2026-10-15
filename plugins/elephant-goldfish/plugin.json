@@ -53,10 +53,10 @@
     "jobs-contract.md"
   ],
   "picker": [
-    "doctor",
     "thinking",
     "elephant",
-    "check"
+    "check",
+    "doctor"
   ],
   "routes": [
     {

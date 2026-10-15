@@ -55,10 +55,10 @@
     "jobs-contract.md"
   ],
   "picker": [
-    "doctor",
     "audit",
     "align",
-    "apply"
+    "scan",
+    "doctor"
   ],
   "routes": []
 }
