@@ -783,7 +783,7 @@ class ElephantDocumentJobTests(InstalledJobFixture):
                                 {'caller': caller, 'revision': {'id': 'retarget-doc',
                                  'owner_decision_id': decision['id']}, 'new_plan': plan}))
         current = self.job_state(job_id)['tasks'][0]
-        self.assertEqual({row['lineage'] for row in current['document_authors']}, {'google'})
+        self.assertEqual({row['lineage'] for row in current['document_authors']}, {'google', 'openai'})
         refused = self.run_helper('job_cli.py', 'prepare', job_id,
                                   {'caller': caller, 'task_id': 'c0'})
         self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
@@ -815,6 +815,123 @@ class ElephantDocumentJobTests(InstalledJobFixture):
                                   {'caller': self.caller(self.WORKFLOW), 'task_id': 'c0'})
         self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
         self.assertIn('differ from every document author', refused.stderr)
+
+    def test_rerecord_after_move_keeps_moved_copy_editor_and_refuses_that_lineage(self):
+        document = self.document()
+        draft = document.parent / 'draft.md'
+        draft.write_bytes(document.read_bytes() + b'B edited this copy.\n')
+        caps = json.loads(self.capabilities.read_text())
+        caps.update(inheritedProviderInstanceId='codex', inheritedModel='gpt-6.1-sol',
+                    parentThreadId='synthetic-moved-copy-editor-rerecord')
+        editor_caps = self.base / 'editor-caps.json'; editor_caps.write_text(json.dumps(caps))
+        recorded = subprocess.run([sys.executable, str(PLUGIN / 'scripts/record_document_author.py'),
+                                   str(draft), '--capabilities', str(editor_caps)], capture_output=True,
+                                  text=True, env=self.env)
+        self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
+        os.replace(draft, document)
+
+        # A records the moved bytes again. The current hash and destination path
+        # hash must both contribute their authors to the replacement record.
+        original_caps = json.loads(self.capabilities.read_text())
+        original_caps.update(inheritedProviderInstanceId='antigravity', inheritedModel='gemini-3.8-flash-high')
+        original_caps['parentThreadId'] = 'synthetic-original-author-rerecord'
+        original_path = self.base / 'original-caps.json'; original_path.write_text(json.dumps(original_caps))
+        recorded = subprocess.run([sys.executable, str(PLUGIN / 'scripts/record_document_author.py'),
+                                   str(document), '--capabilities', str(original_path)], capture_output=True,
+                                  text=True, env=self.env)
+        self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
+        current_hash = sha(document.read_bytes())
+        sidecar = json.loads((document.parent / 'document-authors.json').read_text())
+        self.assertEqual({row['lineage'] for row in sidecar[current_hash]['authors']}, {'google', 'openai'})
+
+        job_id = 'rerecorded-moved-copy-author-union'
+        job = self.elephant_job(job_id, document, factual=False)
+        job['tasks'][0]['target'] = {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol', 'lineage': 'openai'}
+        self.create(job)
+        self.assertEqual({row['lineage'] for row in self.job_state(job_id)['tasks'][0]['document_authors']},
+                         {'google', 'openai'})
+        refused = self.run_helper('job_cli.py', 'prepare', job_id,
+                                  {'caller': self.caller(self.WORKFLOW), 'task_id': 'c0'})
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('differ from every document author', refused.stderr)
+
+    def test_third_author_record_after_move_keeps_moved_copy_editor(self):
+        document = self.document()
+        draft = document.parent / 'draft.md'
+        draft.write_bytes(document.read_bytes() + b'B edited this copy.\n')
+        caps = json.loads(self.capabilities.read_text())
+        caps.update(inheritedProviderInstanceId='codex', inheritedModel='gpt-6.1-sol',
+                    parentThreadId='synthetic-p1a-editor')
+        editor_caps = self.base / 'p1a-editor-caps.json'; editor_caps.write_text(json.dumps(caps))
+        recorded = subprocess.run([sys.executable, str(PLUGIN / 'scripts/record_document_author.py'),
+                                   str(draft), '--capabilities', str(editor_caps)], capture_output=True,
+                                  text=True, env=self.env)
+        self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
+        os.replace(draft, document)
+
+        document.write_bytes(document.read_bytes() + b'C fixed a typo in place.\n')
+        caps.update(inheritedProviderInstanceId='claudeAgent', inheritedModel='claude-opus-5-5',
+                    parentThreadId='synthetic-p1a-third-author')
+        third_caps = self.base / 'p1a-third-caps.json'; third_caps.write_text(json.dumps(caps))
+        recorded = subprocess.run([sys.executable, str(PLUGIN / 'scripts/record_document_author.py'),
+                                   str(document), '--capabilities', str(third_caps)], capture_output=True,
+                                  text=True, env=self.env)
+        self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
+        current_hash = sha(document.read_bytes())
+        sidecar = json.loads((document.parent / 'document-authors.json').read_text())
+        self.assertEqual({row['lineage'] for row in sidecar[current_hash]['authors']},
+                         {'google', 'openai', 'anthropic'})
+        job_id = 'third-author-after-move'
+        job = self.elephant_job(job_id, document, factual=False)
+        job['tasks'][0]['target'] = {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol', 'lineage': 'openai'}
+        self.create(job)
+        refused = self.run_helper('job_cli.py', 'prepare', job_id,
+                                  {'caller': self.caller(self.WORKFLOW), 'task_id': 'c0'})
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('differ from every document author', refused.stderr)
+
+    def test_plan_revision_cannot_remove_retained_authors_after_reimport(self):
+        document = self.document()
+        job_id, caller = 'plan-revision-retained-authors', self.caller(self.WORKFLOW)
+        self.create(self.elephant_job(job_id, document, factual=False))
+        state = self.job_state(job_id)
+        state['tasks'][0]['document_authors'].append({'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol',
+                                                       'parentThreadId': 'synthetic-retained-author',
+                                                       'lineage': 'openai'})
+        (self.state / job_id / 'job.json').write_text(json.dumps(state))
+        plan = {key: copy.deepcopy(state[key]) for key in
+                ('requirements', 'dependencies', 'stages', 'tasks', 'constraints', 'authorization', 'policy')}
+        current_hash = sha(document.read_bytes())
+        sidecar_path = document.parent / 'document-authors.json'
+        sidecar = json.loads(sidecar_path.read_text())
+        sidecar[current_hash]['authors'] = [row for row in sidecar[current_hash]['authors']
+                                            if row['lineage'] == 'google']
+        sidecar_path.write_text(json.dumps(sidecar))
+        revised = self.run_helper('job_cli.py', 'plan-revision', job_id,
+                                  {'caller': caller, 'revision': {'id': 'retain-authors'}, 'new_plan': plan})
+        self.assertEqual(revised.returncode, 0, revised.stdout + revised.stderr)
+        authors = self.job_state(job_id)['tasks'][0]['document_authors']
+        self.assertEqual({row['lineage'] for row in authors}, {'google', 'openai'})
+
+    def test_author_independence_policy_cannot_be_disabled_with_owner_decision(self):
+        document = self.document()
+        job_id, caller = 'author-policy-immutable', self.caller(self.WORKFLOW)
+        self.create(self.elephant_job(job_id, document, factual=False))
+        state = self.job_state(job_id)
+        plan = {key: copy.deepcopy(state[key]) for key in
+                ('requirements', 'dependencies', 'stages', 'tasks', 'constraints', 'authorization', 'policy')}
+        plan['policy']['author_independence'] = False
+        source = self.base / 'owner-policy.txt'; source.write_text('Owner approves a policy change.')
+        decision = {'id': 'owner-policy', 'scope': 'plan:disable-author-policy', 'requirement_ids': [],
+                    'quote': 'Owner approves a policy change.', 'source': str(source),
+                    'source_sha256': sha(source.read_bytes())}
+        self.ok(self.run_helper('job_cli.py', 'decision', job_id, {'caller': caller, 'decision': decision}))
+        refused = self.run_helper('job_cli.py', 'plan-revision', job_id,
+                                  {'caller': caller,
+                                   'revision': {'id': 'disable-author-policy', 'owner_decision_id': 'owner-policy'},
+                                   'new_plan': plan})
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('author independence policy is immutable', refused.stderr)
 
     def test_check_direct_factual_stage_requires_executor_and_stage_waiver_for_known_authors(self):
         from shared.document_authors import stage_waiver_binding

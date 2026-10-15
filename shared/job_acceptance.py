@@ -92,7 +92,8 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
                            not any(not isinstance(row, dict) or row.get('unknown') for row in stage['document_authors']))
     direct_factual = ((author_policy or check_authors_known) and
                       stage.get('execution_mode') == 'direct' and contract.get('mode') == 'factual')
-    direct_cold_read = (author_policy and stage.get('execution_mode') == 'direct' and
+    authoring_workflow = job.get('workflow', '').endswith(('/thinking', '/elephant'))
+    direct_cold_read = (author_policy and authoring_workflow and stage.get('execution_mode') == 'direct' and
                         contract.get('mode') == 'cold-read')
     if not stage_tasks and direct_cold_read:
         raise AcceptanceError('cold-read cannot fall back to the coordinator')

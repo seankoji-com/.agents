@@ -282,7 +282,9 @@ If a direct check's hash has no author record, the read-only check may proceed w
 author independence reported as unverified; a waiver cannot establish missing
 authorship. Direct factual authoring stages stay blocked when authorship is unknown,
 even with a waiver. A direct cold-read
-stage cannot fall back to the coordinator and acceptance refuses it.
+stage cannot fall back to the coordinator and acceptance refuses it. Re-recording a
+moved path unions both hashes; plan revisions retain job authors. Once enabled,
+`policy.author_independence` cannot be disabled, even by owner decision.
 
 If an edited copy is recorded at a temporary path and then moved over a recorded
 document, importing the resulting hash also inherits the previous authors for the

@@ -57,6 +57,10 @@ def main(argv=None):
     pins=adopt_pins(job,deps,a.state_root,a.prefix or '',a.agents_root or '',a.config,data['revision'].get('adopt_keys',[]))
     record_job_root(job_agents_roots(pins),a.state_root,a.job);return pins  # index new owning roots before the revision is written
    from shared.document_authors import refresh_new_task_authors
+   current_policy=store.load().get('policy', {})
+   proposed_policy=data['new_plan'].get('policy', current_policy)
+   if current_policy.get('author_independence') is True and proposed_policy.get('author_independence', True) is not True:
+    raise JobError('author independence policy is immutable once enabled')
    refresh_new_task_authors(store.load(),data['new_plan'])
    out=revise_plan(store,data['caller'],data['revision'],data['new_plan'],adopt)
   elif a.command=='document-revision':

@@ -26,10 +26,10 @@ author independence is unverified. A direct check with unknown authorship may pr
 read-only but cannot use a waiver to establish missing authorship. A direct factual
 authoring stage stays blocked when authorship is unknown.
 
-Plan revisions re-import authors for changed or added slots. An edited copy recorded
-at a temporary path and moved into place inherits the prior authors recorded for the
-destination path. A first record of a previously unrecorded document cannot identify
-earlier authors. That earlier authorship remains outside the trust boundary; author
+Plan revisions re-import authors and retain the job's existing author records.
+Recording a moved destination again keeps authors from its prior path hash and its
+current bytes. Once enabled, author independence cannot be disabled by plan revision.
+A first record cannot identify earlier authorship for an unrecorded document. Author
 records are host evidence transcribed by the coordinator, not proof of freshness.
 
 A zero-slot factual fallback under `elephant-goldfish/elephant` sets stage

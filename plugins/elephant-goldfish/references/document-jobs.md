@@ -76,12 +76,14 @@ authoring with unknown authorship stays blocked. Report routing labels as
 An owner `lineage-waiver:task:<task-id>` binds the target, author list, slot contract
 and document hash. Direct factual stages use `lineage-waiver:stage:<stage-id>` bound
 to the latest executor. Waivers skip no requirement; changes to bound values need a
-new decision. Plan revisions re-import authors for changed or added slots and check
-each slot against its stage document.
+new decision. Plan revisions re-import changed or added slot records, union them
+with retained authors and check against the stage document. Once enabled,
+`policy.author_independence` cannot be disabled by plan revision, including with an
+owner decision.
 
-An edited copy recorded at a temporary path and moved into place inherits authors
-recorded for the destination path. A first record of an unrecorded document cannot
-identify earlier authors; that history stays outside the trust boundary.
+An edited copy moved into place inherits the destination's recorded authors.
+Re-recording that path unions its prior and current hashes. A first record cannot
+recover earlier authorship; that remains outside the trust boundary.
 
 ## Verdicts
 

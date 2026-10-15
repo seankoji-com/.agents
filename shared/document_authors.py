@@ -39,6 +39,7 @@ def refresh_new_task_authors(job, plan):
     plan.setdefault('stages', job.get('stages', []))
     plan.setdefault('tasks', job.get('tasks', []))
     workflow = str(job.get('workflow', ''))
+    existing_tasks = {row.get('task_id'): row for row in job.get('tasks', [])}
     for task in plan.get('tasks', []):
         stage = next((row for row in plan['stages'] if row['id'] == task.get('stage_id')), {})
         contract = stage.get('validator_contract') or {}
@@ -56,7 +57,7 @@ def refresh_new_task_authors(job, plan):
                 (not isinstance(task['document'], dict) or task['document'].get('path') != validated_path or
                  task['document'].get('sha256') != contract.get('document_sha256'))):
             raise JobError('author-independent slot document must match the stage validated document')
-        task.pop('document_authors', None)
+        retained_authors = existing_tasks.get(task.get('task_id'), {}).get('document_authors')
         subjects = [validated]
         subjects.extend(subject for subject in [task.get('document'), *(task.get('reviewed_documents') or [])]
                         if subject and subject != validated)
@@ -67,7 +68,15 @@ def refresh_new_task_authors(job, plan):
             authors = [{'unknown': True}] if merged.get('unknown') else merged['authors']
         else:
             authors = [{'unknown': True}]
-        task['document_authors'] = authors
+        retained = merge_author_records({'authors': retained_authors or [],
+                                         'unknown': retained_authors is not None and
+                                         (not isinstance(retained_authors, list) or
+                                          any(not isinstance(row, dict) or row.get('unknown') for row in retained_authors))})
+        imported_record = {'authors': authors,
+                           'unknown': not isinstance(authors, list) or
+                           any(not isinstance(row, dict) or row.get('unknown') for row in authors)}
+        merged_authors = merge_author_records(retained, imported_record)
+        task['document_authors'] = [{'unknown': True}] if merged_authors.get('unknown') else merged_authors['authors']
         if checking:
             validated_authors = import_subject_authors(validated) if validated else [{'unknown': True}]
             if validated_authors and not any(row.get('unknown') for row in validated_authors):
@@ -120,6 +129,7 @@ def authors_for_hash(records, sha256):
 
 def append_author(records, data, capabilities, source_hashes=(), document_path=None):
     """Record one author and propagate source authors; unknown sources stay unknown."""
+    from pathlib import Path
     sha256 = digest(data)
     current = author_from_capabilities(capabilities)
     authors, unknown = [current], False
@@ -137,14 +147,31 @@ def append_author(records, data, capabilities, source_hashes=(), document_path=N
             previous_hash = legacy[0]
         elif len(legacy) > 1:
             raise JobError('cannot establish the previous author record for this document path')
-    previous = authors_for_hash(records, previous_hash) if previous_hash else (
-        authors_for_hash(records, sha256) if isinstance(records, dict) and sha256 in records else [])
-    if any(item.get('unknown') for item in previous):
+    # A moved recorded copy may be the bytes now at this path while the path
+    # pointer still names its older hash. Preserve both provenance records.
+    prior_hashes = [key for key in (previous_hash, sha256)
+                    if key and isinstance(records, dict) and key in records]
+    if path_key:
+        destination = Path(path_key)
+        # A recorded temporary copy can be moved over this path. Its sidecar
+        # pointer then names a missing sibling while the destination pointer
+        # still names the old bytes. Keep those recorded sibling authors when
+        # the destination is edited before it is recorded again.
+        for recorded_path, recorded_hash in paths.items():
+            if recorded_path == path_key or not isinstance(recorded_path, str):
+                continue
+            source = Path(recorded_path)
+            if (source.parent == destination.parent and not source.exists() and
+                    isinstance(records, dict) and recorded_hash in records):
+                prior_hashes.append(recorded_hash)
+    previous_records = [authors_for_hash(records, key) for key in dict.fromkeys(prior_hashes)]
+    if any(any(item.get('unknown') for item in rows) for rows in previous_records):
         # A hash already marked unknown stays unknown even if a later coordinator
         # records the same bytes; provenance cannot be reconstructed after the fact.
         unknown = True
     else:
-        authors.extend(previous)
+        for rows in previous_records:
+            authors.extend(rows)
     for source_hash in source_hashes:
         inherited = authors_for_hash(records, source_hash)
         if any(item.get('unknown') for item in inherited):

@@ -89,7 +89,9 @@ matching-hash authors and enforces verified identity and a different lineage whe
 authors are known. Its factual slot must name the validated stage document. Extra
 unknown subjects preserve the independence requirement and make preparation fail
 closed. A zero-slot direct check of a document with recorded authors needs a
-stage-scoped waiver bound to the latest `direct-execution` identity. If the checked
+stage-scoped waiver bound to the latest `direct-execution` identity. Re-recording a
+moved path unions both hashes; plan revisions retain job authors. Once enabled,
+`policy.author_independence` cannot be disabled, even by owner decision. If the checked
 hash has no author record, the read-only check may proceed with author independence
 reported as unverified; a waiver cannot establish missing authorship. Direct factual
 authoring stages stay blocked when authorship is unknown, even with a waiver.
