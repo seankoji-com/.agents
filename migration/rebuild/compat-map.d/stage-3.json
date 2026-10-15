@@ -15,6 +15,13 @@
         "disposition": "change",
         "stage": 3,
         "reason": "Declares anchored request patterns used to route unambiguous free-text requests."
+      },
+      {
+        "id": "plugin.json:standalone_flags",
+        "field": "standalone_flags",
+        "disposition": "change",
+        "stage": 3,
+        "reason": "Declares standalone flags accepted by the workflow adapter."
       }
     ],
     "helpers": [
