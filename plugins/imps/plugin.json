@@ -84,87 +84,91 @@
   ],
   "routes": [
     {
-      "pattern": "^(?i:doctor\\b.*)$",
+      "pattern": "^(?:/imps:)?doctor(?:\\s[\\s\\S]*)?$",
       "operation": "doctor"
     },
     {
-      "pattern": "^(?i:resume\\b.*)$",
+      "pattern": "^(?:/imps:)?resume(?:\\s[\\s\\S]*)?$",
       "operation": "resume"
     },
     {
-      "pattern": "^(?i:status\\b.*)$",
+      "pattern": "^(?:/imps:)?status(?:\\s[\\s\\S]*)?$",
       "operation": "status"
     },
     {
-      "pattern": "^(?i:cancel\\b.*)$",
+      "pattern": "^(?:/imps:)?cancel(?:\\s[\\s\\S]*)?$",
       "operation": "cancel"
     },
     {
-      "pattern": "^(?i:verification-init\\b.*)$",
+      "pattern": "^(?:/imps:)?verification-init(?:\\s[\\s\\S]*)?$",
       "operation": "verification-init"
     },
     {
-      "pattern": "^(?i:blast-radius\\b.*)$",
+      "pattern": "^(?:/imps:)?blast-radius(?:\\s[\\s\\S]*)?$",
       "operation": "blast-radius"
     },
     {
-      "pattern": "^(?i:audit\\b.*)$",
+      "pattern": "^(?:/imps:)?audit(?:\\s[\\s\\S]*)?$",
       "operation": "audit"
     },
     {
-      "pattern": "^(?i:issues?\\b.*)$",
+      "pattern": "^(?:/imps:)?issues(?:\\s[\\s\\S]*)?$",
       "operation": "issues"
     },
     {
-      "pattern": "^(?i:prs\\b.*)$",
+      "pattern": "^(?:/imps:)?prs(?:\\s[\\s\\S]*)?$",
       "operation": "prs"
     },
     {
-      "pattern": "^(?i:checklist\\b.*)$",
+      "pattern": "^(?:/imps:)?checklist(?:\\s[\\s\\S]*)?$",
       "operation": "checklist"
     },
     {
-      "pattern": "^(?i:discussion\\b.*)$",
+      "pattern": "^(?:/imps:)?discussion(?:\\s[\\s\\S]*)?$",
       "operation": "discussion"
     },
     {
-      "pattern": "^(?i:(?:imp-agency|/imps:imp-agency)\\b.*)$",
+      "pattern": "^(?:/imps:)?imp-agency(?:\\s[\\s\\S]*)?$",
       "operation": "audit"
     },
     {
-      "pattern": "^(?i:issue-mode\\b.*)$",
+      "pattern": "^(?:/imps:)?issue-mode(?:\\s[\\s\\S]*)?$",
       "operation": "issues"
     },
     {
-      "pattern": "^(?i:run\\s+)(?:\\{\"issues\".*|#?[1-9][0-9]*(?:\\s+#?[1-9][0-9]*)*)$",
-      "operation": "issues"
-    },
-    {
-      "pattern": "^(?i:run\\s+)(?:https://github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#].*)?|discussion\\s+#?[1-9][0-9]*)$",
-      "operation": "discussion"
-    },
-    {
-      "pattern": "^(?i:run\\s+).*\\.md$",
-      "operation": "checklist"
-    },
-    {
-      "pattern": "^(?i:(?:run|fix|implement|build|investigate)\\b.*)$",
+      "pattern": "^(?:/imps:)?imps(?:\\s[\\s\\S]*)?$",
       "operation": "run"
     },
     {
-      "pattern": "^(?:\\{\"issues\".*|#?[1-9][0-9]*(?:\\s+#?[1-9][0-9]*)*)$",
+      "pattern": "^(?:/imps:)?run\\s+(?:\\{\"issues\"[\\s\\S]*|#?[1-9][0-9]*(?:\\s+#?[1-9][0-9]*)*)$",
       "operation": "issues"
     },
     {
-      "pattern": "^(?:https://github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#].*)?|discussion\\s+#?[1-9][0-9]*)$",
+      "pattern": "^(?:/imps:)?run\\s+(?:https://github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#][\\s\\S]*)?|discussion\\s+#?[1-9][0-9]*)$",
       "operation": "discussion"
     },
     {
-      "pattern": "^.*\\.md$",
+      "pattern": "^(?:/imps:)?run\\s+[\\s\\S]*\\.md$",
       "operation": "checklist"
     },
     {
-      "pattern": "^(?i:.*)$",
+      "pattern": "^(?:/imps:)?run(?:\\s[\\s\\S]*)?$",
+      "operation": "run"
+    },
+    {
+      "pattern": "^(?:\\{\"issues\"[\\s\\S]*|#?[1-9][0-9]*(?:\\s+#?[1-9][0-9]*)*)$",
+      "operation": "issues"
+    },
+    {
+      "pattern": "^(?:https://github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#][\\s\\S]*)?|discussion\\s+#?[1-9][0-9]*)$",
+      "operation": "discussion"
+    },
+    {
+      "pattern": "^[\\s\\S]*\\.md$",
+      "operation": "checklist"
+    },
+    {
+      "pattern": "^[\\s\\S]*$",
       "operation": "run"
     }
   ]

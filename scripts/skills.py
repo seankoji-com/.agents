@@ -58,6 +58,8 @@ def validate_picker(meta):
                 escaped = False
             elif char == '\\':
                 escaped = True
+                if in_class:
+                    class_first = False
             elif char == '[':
                 in_class = True
                 class_first = True
@@ -82,10 +84,11 @@ def validate_picker(meta):
 def route(meta, text):
     """Return the first manifest route matching all of the free text, if any."""
     validate_picker(meta)
-    if not text.strip():
+    text = text.strip()
+    if not text:
         return None
     for item in meta['routes']:
-        if re.fullmatch(item['pattern'], text):
+        if re.fullmatch(item['pattern'], text, re.DOTALL):
             return item['operation']
     return None
 
@@ -145,17 +148,19 @@ def render(meta, entry):
     routes = '\n'.join('- `' + route['pattern'] + '` -> `' + route['operation'] + '`'
                         for route in meta['routes'])
     return ('\n'.join(header) + '\n\n# ' + meta['name'] + ' in T3 Code\n\n'
-            'Read the installed entry file at ' + json.dumps(str(entry)) + ' and follow it.\n'
-            'The package directory is the directory containing that entry file.\n'
-            'Use the text after the skill mention as the operation and arguments. Operations: ' +
-            ', '.join('`' + op + '`' for op in meta['operations']) + '.\n'
+            'Read the installed entry file at ' + json.dumps(str(entry)) + ' and follow it.\n' +
+            'The package directory is the directory containing that entry file.\n' +
+            ('Use the text after the skill mention as the operation and arguments. '
+             if meta['routes'] else '') +
+            'Operations: ' + ', '.join('`' + op + '`' for op in meta['operations']) + '.\n'
             "With no request, ask through the host's native question picker. Recommend the first option. " +
             'Do nothing until the owner answers. Options: ' + picker + '.\n'
             + ('For imps, a task without an operation means `run <task>`.\n'
                if meta['name'] == 'imps' else '')
-            + 'For free text, test the full string against these manifest routes in order. '
-            'Use the operation from the first matching route. If no route matches, ask which operation to run.\n'
-            + routes + '\n' +
+            + ('For free text, test the full string against these manifest routes in order. '
+               'Use the operation from the first matching route. If no route matches, ask which operation to run.\n'
+               + routes + '\n' if meta['routes'] else
+               'With no route table, ask which operation to run.\n') +
             'If the entry is missing, report that this adapter needs `t3-plugins install ' + meta['name'] +
             '` using the same package prefix; do not switch to another ' + meta['name'] + ' installation.\n'
             'This adapter grants no additional authorization. T3 owns delegation and watches.\n')

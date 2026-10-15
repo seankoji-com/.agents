@@ -38,7 +38,7 @@
       "operation": "status"
     },
     {
-      "pattern": "^(?i:.*)$",
+      "pattern": "^[\\s\\S]*$",
       "operation": "run"
     }
   ]

@@ -76,7 +76,7 @@
       "operation": "check"
     },
     {
-      "pattern": "^(?i:.*)$",
+      "pattern": "^[\\s\\S]*$",
       "operation": "thinking"
     }
   ]

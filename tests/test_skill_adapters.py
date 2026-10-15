@@ -240,6 +240,20 @@ class SkillAdapters(unittest.TestCase):
                 'imp-agency security': 'audit', 'verification-init': 'verification-init',
                 'doctor --global': 'doctor', 'doctor 42': 'doctor',
                 'doctor verbose': 'doctor',
+                'issue tracker is slow': 'run', 'issues are piling up': 'issues',
+                'status-page shows stale data': 'run', 'audit-log is broken': 'run',
+                'doctor-mode flaky': 'run', 'ISSUES 5': 'run', 'Issues 5': 'run',
+                'Resume x': 'run', '/imps:audit': 'audit', '/imps:doctor': 'doctor',
+                '/imps:issues 5': 'issues', '  doctor  ': 'doctor',
+                '  issue tracker is slow  ': 'run',
+                'fix the bug\nwith details': 'run',
+                '/imps:resume x': 'resume', '/imps:status x': 'status',
+                '/imps:cancel x': 'cancel', '/imps:verification-init x': 'verification-init',
+                '/imps:blast-radius x': 'blast-radius', '/imps:prs x': 'prs',
+                '/imps:checklist ' + str(checklist): 'checklist',
+                '/imps:discussion 7': 'discussion',
+                '/imps:run fix it': 'run', '/imps:run 5': 'issues',
+                '/imps:imp-agency x': 'audit', '/imps:issue-mode 5': 'issues',
                 str(checklist): 'checklist', 'a plain task': 'run',
             }
             rendered = skills.render(manifest, Path('entry.md'))
@@ -247,15 +261,21 @@ class SkillAdapters(unittest.TestCase):
             expected_routes = ['- `' + item['pattern'] + '` -> `' + item['operation'] + '`'
                                for item in manifest['routes']]
             self.assertEqual(rendered_routes, expected_routes)
+            classifier_refusals = {'issues are piling up'}
             for text, operation in cases.items():
                 with self.subTest(text=text):
                     self.assertEqual(skills.route(manifest, text), operation)
-                    self.assertEqual(input_module.route(text)['operation'], operation)
+                    if text in classifier_refusals:
+                        with self.assertRaisesRegex(ValueError, 'issues requires issue numbers'):
+                            input_module.route(text)
+                    else:
+                        self.assertEqual(input_module.route(text)['operation'], operation)
             # Routes cannot test file existence. input.py deliberately leaves a
             # nonexistent markdown path as task text while the manifest selects checklist.
             missing = str(Path(temp) / 'missing.md')
             self.assertEqual(skills.route(manifest, missing), 'checklist')
             self.assertEqual(input_module.route(missing)['operation'], 'run')
+            self.assertIsNone(skills.route(manifest, '   '))
 
     def test_manifest_routes_dispatch_first_match_and_leave_ambiguous_text_to_picker(self):
         manifests = {meta['name']: meta for manifest in (ROOT / 'plugins').glob('*/plugin.json')
@@ -270,6 +290,11 @@ class SkillAdapters(unittest.TestCase):
         self.assertEqual(skills.route(ape, 'https://github.com/acme/widgets'), 'study')
         self.assertEqual(tuneup['routes'], [])
         self.assertIsNone(skills.route(tuneup, 'align the provider permissions'))
+        rendered_tuneup = skills.render(tuneup, Path('entry.md'))
+        self.assertIn("With no request, ask through the host's native question picker.", rendered_tuneup)
+        self.assertIn('With no route table, ask which operation to run.', rendered_tuneup)
+        self.assertNotIn('Use the text after the skill mention as the operation and arguments.',
+                         rendered_tuneup)
         imps = manifests['imps']
         ralph = manifests['ralph']
         elephant = manifests['elephant-goldfish']
@@ -277,6 +302,10 @@ class SkillAdapters(unittest.TestCase):
         self.assertEqual(skills.route(imps, 'review login flow'), 'run')
         self.assertEqual(skills.route(ralph, 'ship a settings page'), 'run')
         self.assertEqual(skills.route(elephant, 'improve the design brief'), 'thinking')
+        multiline = 'ship this\nwith details'
+        self.assertEqual(skills.route(imps, multiline), 'run')
+        self.assertEqual(skills.route(ralph, multiline), 'run')
+        self.assertEqual(skills.route(elephant, multiline), 'thinking')
         for meta in manifests.values():
             with self.subTest(plugin=meta['name']):
                 skills.validate_picker(meta)
