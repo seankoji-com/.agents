@@ -175,6 +175,15 @@ class JobStateTests(unittest.TestCase):
    with self.assertRaisesRegex(JobError,'identity policy is immutable'):
     revise_plan(store,caller,{'id':'remove-identity'},changed)
 
+ def test_author_independence_policy_cannot_be_removed_in_core_plan_revision(self):
+  from core.jobs import revise_plan
+  with tempfile.TemporaryDirectory() as d:
+   job=self.base();job['policy']['author_independence']=True;store=Store(d,'job-1');store.create(job)
+   caller={'installation_id':'install-1','workflow':'imps/run','package_digest':'c'*64,'actor':'coordinator'}
+   changed=store.load();changed['policy']['author_independence']=False
+   with self.assertRaisesRegex(JobError,'author independence policy is immutable'):
+    revise_plan(store,caller,{'id':'remove-author-independence'},changed)
+
  def test_dependency_adoption_preserves_unchanged_pins_limits_and_owner_boundary(self):
   from core.jobs import revise_plan,decision
   from shared.job_coordinator import create_pinned_job,adopt_pins,verify_all_pins

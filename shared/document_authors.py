@@ -22,7 +22,22 @@ def import_subject_authors(subject):
         # A document can be edited at a temporary path and then moved into place.
         # Keep authors of the last hash recorded for the validated destination too.
         paths = records.get('_document_paths', {}) if isinstance(records, dict) else {}
-        previous_hash = paths.get(str(path.resolve()))
+        pointer = paths.get(str(path.resolve()))
+        previous_hash = pointer.get('sha256') if isinstance(pointer, dict) else pointer
+        last_order = pointer.get('order', 0) if isinstance(pointer, dict) else 0
+        # Records written anywhere in this sidecar after the destination was
+        # last recorded may describe a copied or moved version of its content.
+        # Include them regardless of whether their original path still exists.
+        later = [entry for key, entry in records.items()
+                 if key not in ('_document_paths', '_record_order') and isinstance(entry, dict)
+                 and isinstance(entry.get('order'), int) and entry['order'] > last_order]
+        if later:
+            inherited = merge_author_records(*({'authors': entry.get('authors', []),
+                                                'unknown': entry.get('unknown') is True}
+                                               for entry in later))
+            if inherited.get('unknown'):
+                return [{'unknown': True}]
+            authors = merge_author_records({'authors': authors}, inherited)['authors']
         if previous_hash and previous_hash != subject['sha256']:
             previous = authors_for_hash(records, previous_hash)
             if any(row.get('unknown') for row in previous):
@@ -135,7 +150,9 @@ def append_author(records, data, capabilities, source_hashes=(), document_path=N
     authors, unknown = [current], False
     paths = records.get('_document_paths', {}) if isinstance(records, dict) else {}
     path_key = str(document_path.resolve()) if document_path is not None else None
-    previous_hash = paths.get(path_key) if path_key else None
+    pointer = paths.get(path_key) if path_key else None
+    previous_hash = pointer.get('sha256') if isinstance(pointer, dict) else pointer
+    last_order = pointer.get('order', 0) if isinstance(pointer, dict) else 0
     if path_key and previous_hash is None:
         matching = [key for key, value in records.items()
                     if key != '_document_paths' and isinstance(value, dict) and value.get('document_path') == path_key]
@@ -152,18 +169,13 @@ def append_author(records, data, capabilities, source_hashes=(), document_path=N
     prior_hashes = [key for key in (previous_hash, sha256)
                     if key and isinstance(records, dict) and key in records]
     if path_key:
-        destination = Path(path_key)
-        # A recorded temporary copy can be moved over this path. Its sidecar
-        # pointer then names a missing sibling while the destination pointer
-        # still names the old bytes. Keep those recorded sibling authors when
-        # the destination is edited before it is recorded again.
-        for recorded_path, recorded_hash in paths.items():
-            if recorded_path == path_key or not isinstance(recorded_path, str):
-                continue
-            source = Path(recorded_path)
-            if (source.parent == destination.parent and not source.exists() and
-                    isinstance(records, dict) and recorded_hash in records):
-                prior_hashes.append(recorded_hash)
+        # Sidecar order records content history, not filesystem state. Any
+        # record made since this path was last recorded may be a copied or
+        # moved version and therefore contributes its authors.
+        for key, entry in records.items():
+            if (key not in ('_document_paths', '_record_order') and isinstance(entry, dict)
+                    and isinstance(entry.get('order'), int) and entry['order'] > last_order):
+                prior_hashes.append(key)
     previous_records = [authors_for_hash(records, key) for key in dict.fromkeys(prior_hashes)]
     if any(any(item.get('unknown') for item in rows) for rows in previous_records):
         # A hash already marked unknown stays unknown even if a later coordinator
@@ -179,16 +191,21 @@ def append_author(records, data, capabilities, source_hashes=(), document_path=N
         else:
             authors.extend(inherited)
     records = dict(records or {})
+    order = max([records.get('_record_order', 0)] + [entry.get('order', 0) for key, entry in records.items()
+                if key not in ('_document_paths', '_record_order') and isinstance(entry, dict)
+                and isinstance(entry.get('order', 0), int)]) + 1 if path_key else None
     if unknown:
         records[sha256] = {'authors': [], 'unknown': True}
     else:
         records[sha256] = {'authors': sorted({canonical(item): item for item in authors}.values(), key=canonical)}
     if path_key:
+        records[sha256]['order'] = order
         records[sha256]['document_path'] = path_key
     if path_key:
         paths = dict(paths)
-        paths[path_key] = sha256
+        paths[path_key] = {'sha256': sha256, 'order': order}
         records['_document_paths'] = paths
+        records['_record_order'] = order
     return records
 
 

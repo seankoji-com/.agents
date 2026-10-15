@@ -36,17 +36,14 @@ Keep `R-FACT` and `R-COLD` in separate stages. Never let one stage cover both.
   `context_policy: document-only`, a document descriptor, the same descriptor in
   `reviewed_documents`, and `coordinator-only` write scope. Review the document, not
   another task; omit `reviewed_task_ids`.
-  `prepare` and acceptance re-hash the document; edits make the verdict stale. Its
-  contract sets `independent_of_author: true`; if author or reviewer lineage is
-  unknown, the job stops because it cannot check independence. Author records use the document SHA-256 and
-  imported only when the current hash matches. A missing record means unknown authorship.
-  The helper strips the objective, predecessors, requirements, resources and task
-  contract. Do not pass them another way. The dispatch message contains only the brief path, its
-  SHA-256 and the instruction to read the brief and named document. Never add planning notes, factual findings, repository answers or earlier cold-read reports. Start every
-  cold read in a fresh child; never use a follow-up.
-
-T3 workspace access is not a sandbox. Document-only isolation is an instruction
-boundary and a brief filter. Report it that way.
+  `prepare` and acceptance re-hash the document; edits stale the verdict. Its contract
+  sets `independent_of_author: true`; unknown author or reviewer lineage blocks the job.
+  Records use the document SHA-256; a missing match means unknown authorship. The helper
+  strips the objective, predecessors, requirements, resources and task contract.
+  Dispatch only the brief path, its
+  SHA-256 and instruction to read the brief and named document. Omit planning notes,
+  factual findings, repository answers or earlier cold-read reports. Start
+  each cold read in a fresh child; never use a follow-up.
 
 ## Author records and identity
 
@@ -61,8 +58,8 @@ that provider's catalog. Use `thinking_state.py author` for discovery/spec,
 `record_document_author.py <path> --capabilities FILE` for `elephant.md`, and
 `job_cli.py document-revision --capabilities FILE` for repairs. A handoff includes
 its renderer and source-hash authors; missing source records leave it unknown. A
-checker never becomes an author. These are host facts transcribed by the coordinator;
-shape and hash checks cannot prove freshness or detect a forged file.
+checker never becomes an author. These host facts are coordinator-transcribed;
+shape and hash checks cannot prove freshness or detect forged files.
 
 `check` stays read-only. Its factual slot must name the validated stage document. If
 its hash has authors, the worker needs verified identity and a different canonical
@@ -77,13 +74,17 @@ An owner `lineage-waiver:task:<task-id>` binds the target, author list, slot con
 and document hash. Direct factual stages use `lineage-waiver:stage:<stage-id>` bound
 to the latest executor. Waivers skip no requirement; changes to bound values need a
 new decision. Plan revisions re-import changed or added slot records, union them
-with retained authors and check against the stage document. Once enabled,
-`policy.author_independence` cannot be disabled by plan revision, including with an
-owner decision.
+with retained authors and check against the stage document. `policy.author_independence`
+is immutable, even with an owner decision.
 
-An edited copy moved into place inherits the destination's recorded authors.
-Re-recording that path unions its prior and current hashes. A first record cannot
-recover earlier authorship; that remains outside the trust boundary.
+Each record has a monotonic sidecar order. Recording path P unions authors from
+P's previous hash, every sidecar record written since P was last recorded, and
+the current coordinator. Job creation imports those recorded authors, not its
+coordinator. Records without an
+order are older than ordered records. This may include unrelated authors and
+refuse legitimate reviews. Copies or moves across sidecars, and edits never
+recorded, remain outside the trust boundary. If P has no current-hash record but
+its pointer names another hash, re-recording P uses this same union rule.
 
 ## Verdicts
 

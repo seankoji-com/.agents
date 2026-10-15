@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -890,6 +891,50 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
         self.assertIn('differ from every document author', refused.stderr)
 
+    def _assert_later_record_keeps_sidecar_authors(self, recreate_draft):
+        document = self.document()
+        draft = document.parent / 'draft.md'
+        draft.write_bytes(document.read_bytes() + b'B edited this copy.\n')
+        caps = json.loads(self.capabilities.read_text())
+        caps.update(inheritedProviderInstanceId='codex', inheritedModel='gpt-6.1-sol',
+                    parentThreadId='synthetic-p6-editor')
+        editor_caps = self.base / 'p6-editor-caps.json'; editor_caps.write_text(json.dumps(caps))
+        recorded = subprocess.run([sys.executable, str(PLUGIN / 'scripts/record_document_author.py'),
+                                   str(draft), '--capabilities', str(editor_caps)], capture_output=True,
+                                  text=True, env=self.env)
+        self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
+        if recreate_draft:
+            os.replace(draft, document)
+            shutil.copyfile(document, draft)
+        else:
+            shutil.copyfile(draft, document)
+        document.write_bytes(document.read_bytes() + b'C edited in place.\n')
+        caps.update(inheritedProviderInstanceId='claudeAgent', inheritedModel='claude-opus-5-5',
+                    parentThreadId='synthetic-p6-third-author')
+        third_caps = self.base / 'p6-third-caps.json'; third_caps.write_text(json.dumps(caps))
+        recorded = subprocess.run([sys.executable, str(PLUGIN / 'scripts/record_document_author.py'),
+                                   str(document), '--capabilities', str(third_caps)], capture_output=True,
+                                  text=True, env=self.env)
+        self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
+        current_hash = sha(document.read_bytes())
+        sidecar = json.loads((document.parent / 'document-authors.json').read_text())
+        self.assertEqual({row['lineage'] for row in sidecar[current_hash]['authors']},
+                         {'google', 'openai', 'anthropic'})
+        job_id = 'copy-kept-draft' if not recreate_draft else 'recreated-draft'
+        job = self.elephant_job(job_id, document, factual=False)
+        job['tasks'][0]['target'] = {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol', 'lineage': 'openai'}
+        self.create(job)
+        refused = self.run_helper('job_cli.py', 'prepare', job_id,
+                                  {'caller': self.caller(self.WORKFLOW), 'task_id': 'c0'})
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('differ from every document author', refused.stderr)
+
+    def test_copy_recorded_draft_kept_then_in_place_record_retains_its_author(self):
+        self._assert_later_record_keeps_sidecar_authors(False)
+
+    def test_recreated_draft_after_move_then_in_place_record_retains_its_author(self):
+        self._assert_later_record_keeps_sidecar_authors(True)
+
     def test_plan_revision_cannot_remove_retained_authors_after_reimport(self):
         document = self.document()
         job_id, caller = 'plan-revision-retained-authors', self.caller(self.WORKFLOW)
@@ -1357,6 +1402,16 @@ class ElephantDocumentJobTests(InstalledJobFixture):
             'caller': caller, 'revision': {'id': 'repair-round-2'}, 'new_plan': plan})
         self.assertEqual(undeclared.returncode, 2)
         self.assertIn('must match the stage validated document', undeclared.stderr)
+        # Keep the slot subject consistent so the document consistency guard
+        # cannot pre-empt the owner-decision check for a hash-only revision.
+        for task in plan['tasks']:
+            if task.get('document', {}).get('path') == str(document):
+                task['document']['sha256'] = new_sha
+        undeclared_hash_change = self.run_helper('job_cli.py', 'plan-revision', job_id, {
+            'caller': caller, 'revision': {'id': 'repair-round-2-hash-only'}, 'new_plan': plan})
+        self.assertEqual(undeclared_hash_change.returncode, 2,
+                         undeclared_hash_change.stdout + undeclared_hash_change.stderr)
+        self.assertIn('undeclared_expansion: owner decision required', undeclared_hash_change.stderr)
         # A declared repair needs the current bytes and a changed hash, but no owner decision.
         for wrong in (old_sha, 'f' * 64):
             refused = self.revise(job_id, caller, document, digest=wrong)

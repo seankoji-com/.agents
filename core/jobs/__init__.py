@@ -297,7 +297,7 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
     if not _subset(new_auth,old_auth):required_decision=True;why.append('authority broadened')
     old_policy=j.get('policy',{});new_policy=new_plan.get('policy',old_policy)
     for key,value in old_policy.items():
-        if key=='identity' and value=='observed' and new_policy.get(key,value)!='observed':raise JobError('observed identity policy is immutable')
+        if (key=='identity' and value=='observed' and new_policy.get(key,value)!='observed') or (key=='author_independence' and value is True and new_policy.get(key,value) is not True):raise JobError('observed identity policy is immutable' if key=='identity' else 'author independence policy is immutable once enabled')
         if (isinstance(value,(int,float)) and not isinstance(value,bool) and isinstance(new_policy.get(key,value),(int,float)) and not isinstance(new_policy.get(key,value),bool) and new_policy.get(key,value)>value) or key=='max_live_workers' and value is not None and new_policy.get(key,value) is None:
             required_decision=True;why.append(f'limit raised: {key}')
         elif new_policy.get(key,value)!=value and key not in ('max_repair_cycles','max_live_workers','max_artifact_bytes'):
