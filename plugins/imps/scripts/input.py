@@ -93,7 +93,7 @@ def route(text):
     if not isinstance(text, str):
         raise ValueError('text must be a string')
     text = text.strip()
-    if re.fullmatch(r'/imps:imps(?:\s+--personas)?', text):
+    if re.fullmatch(r'(?:--personas\s+)?/imps:imps(?:\s+--personas)?', text):
         return {'operation': None, 'arguments': '',
                 'personas': '--personas' in text, 'picker': True}
     text = re.sub(r'^(?:\$|/)?t3-imps(?:\s+|$)', '', text, count=1)

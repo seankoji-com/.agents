@@ -35,6 +35,8 @@ class ImpsInput(unittest.TestCase):
         self.assertEqual(inputs.route('/imps:imps'), empty)
         self.assertEqual(inputs.route('/imps:imps --personas'),
                          {'operation': None, 'arguments': '', 'personas': True, 'picker': True})
+        self.assertEqual(inputs.route('--personas /imps:imps'),
+                         {'operation': None, 'arguments': '', 'personas': True, 'picker': True})
         self.assertEqual(inputs.route('$t3-imps --personas'),
                          {'operation': None, 'arguments': '', 'personas': True, 'picker': True})
         for request in ('run', '$t3-imps run', '/imps:imps run', 'run --personas'):

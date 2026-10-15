@@ -1,5 +1,6 @@
 import contextlib
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -152,7 +153,7 @@ class SkillAdapters(unittest.TestCase):
                 for route in meta['routes']:
                     self.assertTrue(route['pattern'].startswith('^') and route['pattern'].endswith('$'))
                     self.assertIn(route['pattern'], (self.skills / ('t3-' + meta['name']) / 'SKILL.md').read_text())
-                    self.assertIn(route['operation'], meta['picker'])
+                    self.assertIn(route['operation'], meta['operations'])
         imps = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
         for hint in ('run <task>', 'resume <run-id>', 'checklist <path>',
                      'issues <number> [<number> ...]', 'discussion <number or URL>',
@@ -197,8 +198,8 @@ class SkillAdapters(unittest.TestCase):
         with self.assertRaises(ValueError):
             skills.validate_picker(invalid)
         for bad_picker in (['doctor', 'doctor'], ['doctor', 'unknown'],
-                           ['doctor', 'doctor', 'doctor', 'doctor', 'doctor']):
-            invalid_picker = {'name': 'bad', 'operations': ['doctor', 'run'],
+                           ['run', 'resume', 'status', 'doctor', 'cancel']):
+            invalid_picker = {'name': 'bad', 'operations': ['doctor', 'run', 'resume', 'status', 'cancel'],
                               'picker': bad_picker, 'routes': []}
             with self.subTest(picker=bad_picker), self.assertRaises(ValueError):
                 skills.validate_picker(invalid_picker)
@@ -206,6 +207,50 @@ class SkillAdapters(unittest.TestCase):
             skills.validate_picker({'name': 'bad', 'operations': ['run', 'doctor'],
                                     'picker': ['run', 'doctor'],
                                     'routes': [{'pattern': '^a|b$', 'operation': 'run'}]})
+        with self.assertRaises(ValueError):
+            skills.validate_picker({'name': 'bad', 'operations': ['run', 'doctor'],
+                                    'picker': ['run', 'doctor'],
+                                    'routes': [{'pattern': '^abc\\$', 'operation': 'run'}]})
+        skills.validate_picker({'name': 'good', 'operations': ['run', 'doctor'],
+                                 'picker': ['run', 'doctor'],
+                                 'routes': [{'pattern': '^[]|]x$', 'operation': 'run'}]})
+
+    def test_imps_manifest_routes_match_input_classifier_and_render_in_order(self):
+        manifest = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        input_spec = importlib.util.spec_from_file_location(
+            'imps_input_for_routes', ROOT / 'plugins/imps/scripts/input.py')
+        input_module = importlib.util.module_from_spec(input_spec)
+        input_spec.loader.exec_module(input_module)
+        with tempfile.TemporaryDirectory() as temp:
+            checklist = Path(temp) / 'audit with spaces.md'
+            checklist.write_text('- [ ] check\n  Verify: python3 check.py\n  Done when: passed\n')
+            cases = {
+                '42 #43': 'issues', '#12': 'issues',
+                'discussion 5': 'discussion',
+                'https://github.com/example/project/discussions/5': 'discussion',
+                'run 42 #43': 'issues', 'run discussion 5': 'discussion',
+                'run ' + str(checklist): 'checklist',
+                'status run-123': 'status', 'resume run-123': 'resume',
+                'cancel run-123': 'cancel', 'blast-radius HEAD~1': 'blast-radius',
+                'prs repo example/project': 'prs',
+                'audit --focus routing': 'audit', 'issue-mode 42': 'issues',
+                'imp-agency security': 'audit', 'verification-init': 'verification-init',
+                str(checklist): 'checklist', 'a plain task': 'run',
+            }
+            rendered = skills.render(manifest, Path('entry.md'))
+            rendered_routes = [line for line in rendered.splitlines() if line.startswith('- `')]
+            expected_routes = ['- `' + item['pattern'] + '` -> `' + item['operation'] + '`'
+                               for item in manifest['routes']]
+            self.assertEqual(rendered_routes, expected_routes)
+            for text, operation in cases.items():
+                with self.subTest(text=text):
+                    self.assertEqual(skills.route(manifest, text), operation)
+                    self.assertEqual(input_module.route(text)['operation'], operation)
+            # Routes cannot test file existence. input.py deliberately leaves a
+            # nonexistent markdown path as task text while the manifest selects checklist.
+            missing = str(Path(temp) / 'missing.md')
+            self.assertEqual(skills.route(manifest, missing), 'checklist')
+            self.assertEqual(input_module.route(missing)['operation'], 'run')
 
     def test_manifest_routes_dispatch_first_match_and_leave_ambiguous_text_to_picker(self):
         manifests = {meta['name']: meta for manifest in (ROOT / 'plugins').glob('*/plugin.json')
@@ -233,7 +278,7 @@ class SkillAdapters(unittest.TestCase):
                 for item in meta['routes']:
                     self.assertTrue(item['pattern'].startswith('^') and item['pattern'].endswith('$'))
                     re.compile(item['pattern'])
-                    self.assertIn(item['operation'], meta['picker'])
+                    self.assertIn(item['operation'], meta['operations'])
                     rendered = skills.render(meta, Path('entry.md'))
                     self.assertIn('- `' + item['pattern'] + '` -> `' + item['operation'] + '`', rendered)
 

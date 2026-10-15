@@ -6,7 +6,10 @@ text. Apply those routes to the whole request in order. The first matching route
 If no route matches, ask the user to choose from the picker. For example, `pr/foo`
 matches both the PR and repository patterns; the earlier PR route wins.
 
-For imps, a task without an operation uses `run`. Write the text after the skill mention as
+For imps, `input.py` is authoritative for argument parsing, aliases, and checking whether a
+checklist path exists. The adapter's regex routes select the initial operation but cannot
+check the filesystem, so a Markdown path routes to `checklist` even when `input.py` later
+leaves a nonexistent path as task text. A task without an operation uses `run`. Write the text after the skill mention as
 `{"text": "the full request"}` to a scratch JSON file, then run
 `python3 PKG/scripts/input.py --input FILE`. Check `ok`. The helper classifies input
 without running commands or contacting GitHub. Use its operation and arguments:
@@ -26,12 +29,16 @@ ask for the task before continuing. Keep all other input classification unchange
 | Issue numbers, such as `42 #43` | `issues` |
 | GitHub Discussion URL or `discussion N` | `discussion` |
 | Existing Markdown checklist path, including spaces | `checklist` |
-| `imp-agency`, `issue-mode`, `/imps:imps` | `audit`, `issues`, `run` |
+| `imp-agency`, `issue-mode` | `audit`, `issues` |
+| Bare `/imps:imps` | Ask through the host picker; `input.py` is authoritative for this input surface |
 
 Explicit `run` still detects issue, discussion, and checklist input. A nonexistent
 bare path remains task text; explicit `checklist PATH` fails if it cannot be read.
-These aliases translate requests after the entry loads. They are not registered
-Claude colon commands in T3.
+These aliases translate requests after the entry loads. A bare `/imps:imps` opens
+the picker; the alias table does not make it a `run` request. The explicit
+`/imps:imps audit` form retains the helper's existing behavior and is interpreted
+by `input.py` as task text because it does not strip the prefix before checking
+for an explicit operation. These are not registered Claude colon commands in T3.
 
 If `personas` is true, load `PKG/references/personas.md` and add its required
 acceptance obligation before initializing the plan. For an explicit `doctor`

@@ -35,33 +35,48 @@ def validate_picker(meta):
         if not isinstance(route, dict) or set(route) != {'pattern', 'operation'}:
             raise ValueError(f"{meta.get('name', 'plugin')}: route must contain pattern and operation")
         pattern, operation = route['pattern'], route['operation']
-        if (not isinstance(pattern, str) or not pattern.startswith('^') or not pattern.endswith('$') or
-                not isinstance(operation, str) or operation not in picker):
-            raise ValueError(f"{meta.get('name', 'plugin')}: routes must be anchored and target picker operations")
+        if (not isinstance(pattern, str) or not isinstance(operation, str) or
+                operation not in operations):
+            raise ValueError(f"{meta.get('name', 'plugin')}: routes must target known operations")
         try:
             compiled = re.compile(pattern)
         except re.error as exc:
             raise ValueError(f"{meta.get('name', 'plugin')}: invalid route pattern") from exc
-        # The anchors must enclose the whole expression. Checking the first and
-        # last characters alone accepts `^a|b$`, whose second branch is open.
+        # Check the anchors and alternations while respecting escapes and
+        # character classes. A closing bracket immediately after `[` or `[^`
+        # is a literal class member, not the end of the class.
+        if not pattern.startswith('^'):
+            raise ValueError(f"{meta.get('name', 'plugin')}: route must start with ^")
         depth = 0
         in_class = False
         escaped = False
-        for char in pattern[1:-1]:
+        class_first = False
+        end_anchor = False
+        for index, char in enumerate(pattern[1:], 1):
+            was_escaped = escaped
             if escaped:
                 escaped = False
             elif char == '\\':
                 escaped = True
             elif char == '[':
                 in_class = True
-            elif char == ']' and in_class:
+                class_first = True
+            elif in_class and class_first and char == '^':
+                class_first = False
+            elif char == ']' and in_class and not class_first:
                 in_class = False
+            elif in_class:
+                class_first = False
             elif not in_class and char == '(':
                 depth += 1
             elif not in_class and char == ')':
                 depth -= 1
             elif not in_class and depth == 0 and char == '|':
                 raise ValueError(f"{meta.get('name', 'plugin')}: route alternation must be grouped")
+            if index == len(pattern) - 1 and char == '$' and not was_escaped and not in_class:
+                end_anchor = True
+        if not end_anchor:
+            raise ValueError(f"{meta.get('name', 'plugin')}: route must end with an unescaped $")
 
 
 def route(meta, text):

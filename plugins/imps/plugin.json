@@ -88,16 +88,80 @@
       "operation": "doctor"
     },
     {
-      "pattern": "^(?i:(?:run|fix|implement|build|investigate)\\b.*)$",
-      "operation": "run"
+      "pattern": "^(?i:resume\\b.*)$",
+      "operation": "resume"
+    },
+    {
+      "pattern": "^(?i:status\\b.*)$",
+      "operation": "status"
+    },
+    {
+      "pattern": "^(?i:cancel\\b.*)$",
+      "operation": "cancel"
+    },
+    {
+      "pattern": "^(?i:verification-init\\b.*)$",
+      "operation": "verification-init"
+    },
+    {
+      "pattern": "^(?i:blast-radius\\b.*)$",
+      "operation": "blast-radius"
     },
     {
       "pattern": "^(?i:audit\\b.*)$",
       "operation": "audit"
     },
     {
-      "pattern": "^(?i:(?:issue|issues)\\b.*)$",
+      "pattern": "^(?i:issues?\\b.*)$",
       "operation": "issues"
+    },
+    {
+      "pattern": "^(?i:prs\\b.*)$",
+      "operation": "prs"
+    },
+    {
+      "pattern": "^(?i:checklist\\b.*)$",
+      "operation": "checklist"
+    },
+    {
+      "pattern": "^(?i:discussion\\b.*)$",
+      "operation": "discussion"
+    },
+    {
+      "pattern": "^(?i:(?:imp-agency|/imps:imp-agency)\\b.*)$",
+      "operation": "audit"
+    },
+    {
+      "pattern": "^(?i:issue-mode\\b.*)$",
+      "operation": "issues"
+    },
+    {
+      "pattern": "^(?i:run\\s+)(?:\\{\"issues\".*|#?[1-9][0-9]*(?:\\s+#?[1-9][0-9]*)*)$",
+      "operation": "issues"
+    },
+    {
+      "pattern": "^(?i:run\\s+)(?:https://github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#].*)?|discussion\\s+#?[1-9][0-9]*)$",
+      "operation": "discussion"
+    },
+    {
+      "pattern": "^(?i:run\\s+).*\\.md$",
+      "operation": "checklist"
+    },
+    {
+      "pattern": "^(?i:(?:run|fix|implement|build|investigate)\\b.*)$",
+      "operation": "run"
+    },
+    {
+      "pattern": "^(?:\\{\"issues\".*|#?[1-9][0-9]*(?:\\s+#?[1-9][0-9]*)*)$",
+      "operation": "issues"
+    },
+    {
+      "pattern": "^(?:https://github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#].*)?|discussion\\s+#?[1-9][0-9]*)$",
+      "operation": "discussion"
+    },
+    {
+      "pattern": "^.*\\.md$",
+      "operation": "checklist"
     },
     {
       "pattern": "^(?i:.*)$",
