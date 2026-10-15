@@ -73,8 +73,12 @@ next agent must inspect the actual user instruction and scope before acting.
    `DRAFT. Non-executable.` at the top of `spec.md`. A draft does not require acceptance.
    Standalone status lines also hold a draft when placed below its heading. Code-fenced
    examples and inline quotations of the marker stay inert.
-6. Run `thinking_state.py gate <slug> --require discovery,spec`, then
-   `render_handoff.py <slug>` and `render_handoff.py <slug> --check`.
+6. After you write or repair `discovery.md` or `spec.md`, record that hash's author
+   with `thinking_state.py author <slug> discovery.md --capabilities <fresh-capabilities.json>`
+   (and repeat for `spec.md`). Run `thinking_state.py gate <slug> --require discovery,spec`,
+   then `render_handoff.py <slug> --capabilities <fresh-capabilities.json>` and
+   `render_handoff.py <slug> --check`. The author record is host-reported evidence; a
+   missing source record makes the handoff author unknown.
    The renderer copies source documents verbatim and records hashes. Never replace
    that deterministic step with a model-written summary.
    For an explicitly requested draft, use `gate <slug> --require discovery,spec --draft`

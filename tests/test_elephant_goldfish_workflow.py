@@ -123,10 +123,10 @@ class InstructionContractTests(unittest.TestCase):
     def test_cold_reader_isolation_and_round_policy_are_stated(self):
         slots = section(self.reference, '## Slots')
         self.assertIn('context_policy: document-only', slots)
-        self.assertIn('only the brief path, its\n  SHA-256', slots)
-        for leak in ('planning notes', 'factual findings', 'repository answers', 'earlier cold-read'):
+        self.assertIn('only the brief path and hash', slots)
+        for leak in ('notes, findings', 'repository\n  answers', 'earlier reports'):
             self.assertIn(leak, slots)
-        self.assertIn('never use a follow-up', slots)
+        self.assertIn('no follow-ups', slots)
         limits = section(self.reference, '## Round limits')
         self.assertIn('Four rounds in total', limits)
         self.assertIn('Keep the recorded limit', limits)
@@ -190,6 +190,9 @@ class InstalledJobFixture(unittest.TestCase):
         self.base = Path(tmp.name)
         self.state = self.base / 'jobs'
         self.counter = 0
+        self.capabilities = self.base / 'capabilities.json'
+        caps = json.loads((ROOT / 'tests/fixtures/t3/capabilities.json').read_text())
+        self.capabilities.write_text(json.dumps(caps))
 
     # -- installed helpers -------------------------------------------------
     def caller(self, workflow):
@@ -225,8 +228,8 @@ class InstalledJobFixture(unittest.TestCase):
 
     def base_job(self, job_id, workflow, requirements, stages, tasks, policy=None):
         for task in tasks:
-            task.setdefault('target', {'providerInstanceId': 'fixture-provider',
-                                       'model': 'fixture-model', 'lineage': 'anthropic'})
+            task.setdefault('target', {'providerInstanceId': 'codex',
+                                       'model': 'gpt-6.1-sol', 'lineage': 'openai'})
         job = {'schema_version': 1, 'job_id': job_id, 'installation_id': self.install['installation_id'],
                'workflow': workflow, 'owner': {'id': 'owner'},
                'objective': 'PRIVATE-OBJECTIVE-MARKER plan the retry rollout',
@@ -328,7 +331,7 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
                                        '--discovery-sha256', sha(discovery.encode()), '--evidence-ref', 'msg:2',
                                        '--operator-statement-file', self.write_statement(topic, 'I accept this discovery.'))
         self.assertEqual(reviewed.returncode, 0, reviewed.stdout)
-        render = subprocess.run([sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root)],
+        render = subprocess.run([sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root), '--capabilities', str(self.capabilities)],
                                 capture_output=True, text=True, env=self.env)
         self.assertEqual(render.returncode, 0, render.stdout + render.stderr)
         # The cold-read budget is recorded in the topic and changes neither phase nor authority.
@@ -377,7 +380,7 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
                                              '--operator-statement-file',
                                              self.write_statement(topic, 'I accept this discovery.')).returncode, 0)
         render = lambda: self.assertEqual(subprocess.run(
-            [sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root)],
+            [sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root), '--capabilities', str(self.capabilities)],
             capture_output=True, text=True, env=self.env).returncode, 0)
         render()
         handoff = topic / 'handoff.md'
@@ -416,7 +419,8 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         self.ok(self.accept(job_id, caller, 'handoff', self.doc_argv(root, slug, 'handoff'), descriptor, 'handoff-r1'))
         new_sha = sha(handoff.read_bytes())
         record = self.ok(self.run_helper('job_cli.py', 'document-revision', job_id, {
-            'caller': caller, 'task_id': 'c0', 'reason': 'spec repaired', 'document': {'path': str(handoff), 'sha256': new_sha}}))
+            'caller': caller, 'task_id': 'c0', 'reason': 'spec repaired', 'document': {'path': str(handoff), 'sha256': new_sha}},
+            capabilities=self.capabilities))
         self.assertEqual(record['stale_stages'], ['cold-read'])
         state = self.job_state(job_id)
         self.assertEqual(state['decisions'], [])
@@ -438,6 +442,10 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         repo.mkdir(parents=True, exist_ok=True)
         path = repo / 'elephant.md'
         path.write_text(text)
+        from shared.document_authors import append_author
+        caps = json.loads((ROOT / 'tests/fixtures/t3/capabilities.json').read_text())
+        caps.update(inheritedProviderInstanceId='antigravity', inheritedModel='gemini-3.8-flash-high')
+        (repo / 'document-authors.json').write_text(json.dumps(append_author({}, path.read_bytes(), caps)))
         return path
 
     def contract(self, document, mode, digest=None):
@@ -448,7 +456,7 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         subject = {'path': str(document), 'sha256': digest or sha(document.read_bytes())}
         slot = {'task_id': task_id, 'stage_id': 'cold-read', 'logical_slot_id': 'cold-read', 'request_id': 'req-' + task_id,
                 'worker_id': 'elephant-goldfish/cold-reader', 'dependency_key': 'eg', 'context_policy': 'document-only',
-                'document': subject, 'write_scope': {'mode': 'coordinator-only'}}
+                'document': subject, 'write_scope': {'mode': 'coordinator-only'}, 'independent_of_author': True}
         if role:
             # A cold reader reviews a document, not a worker task: the document-subject review form.
             slot.update(role=role, reviewed_documents=[dict(subject)])
@@ -463,7 +471,7 @@ class ElephantDocumentJobTests(InstalledJobFixture):
                            'validator_contract': self.contract(document, 'factual')})
             tasks.append({'task_id': 'f0', 'stage_id': 'factual', 'logical_slot_id': 'factual', 'request_id': 'req-f0',
                           'worker_id': 'elephant-goldfish/factual-checker', 'dependency_key': 'eg',
-                          'write_scope': {'mode': 'coordinator-only'}})
+                          'write_scope': {'mode': 'coordinator-only'}, 'independent_of_author': True})
         requirements['R-COLD'] = 'a fresh reader finds no blocking gap'
         stages.append({'id': 'cold-read', 'depends_on': ['factual'] if factual else [], 'requirements': ['R-COLD'],
                        'status': 'pending', 'validator_dependency': 'eg',
@@ -556,12 +564,16 @@ class ElephantDocumentJobTests(InstalledJobFixture):
     def revise(self, job_id, caller, document, task_id='c0', digest=None):
         return self.run_helper('job_cli.py', 'document-revision', job_id, {
             'caller': caller, 'task_id': task_id, 'reason': 'coordinator repaired NOT READY gaps',
-            'document': {'path': str(document), 'sha256': digest or sha(document.read_bytes())}})
+            'document': {'path': str(document), 'sha256': digest or sha(document.read_bytes())}},
+            capabilities=self.capabilities)
 
     def test_repair_round_rebinds_the_document_within_the_round_budget_without_an_owner_decision(self):
         document = self.document()
         job_id, caller = 'elephant-repair', self.caller(self.WORKFLOW)
         self.create(self.elephant_job(job_id, document))
+        # The fixture's synthetic author lineage is independent of its worker targets.
+        self.assertEqual({a['lineage'] for a in next(t for t in self.job_state(job_id)['tasks'] if t['task_id'] == 'c0')['document_authors']}, {'google'})
+        self.assertEqual({a['lineage'] for a in next(t for t in self.job_state(job_id)['tasks'] if t['task_id'] == 'f0')['document_authors']}, {'google'})
         self.accept_factual(job_id, caller, document)
         self.dispatch(job_id, caller, 'c0', verdict='adverse', status='failed', requirement='failed',
                       findings=self.NOT_READY, conclusion='VERDICT: NOT READY')
@@ -583,6 +595,15 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         for wrong in (old_sha, 'f' * 64):
             refused = self.revise(job_id, caller, document, digest=wrong)
             self.assertEqual(refused.returncode, 2, refused.stdout)
+        missing_parent = json.loads(self.capabilities.read_text())
+        missing_parent.pop('parentThreadId')
+        bad_capabilities = self.base / 'missing-parent-capabilities.json'
+        bad_capabilities.write_text(json.dumps(missing_parent))
+        refused = self.run_helper('job_cli.py', 'document-revision', job_id, {
+            'caller': caller, 'task_id': 'c0', 'reason': 'coordinator repair',
+            'document': {'path': str(document), 'sha256': new_sha}}, capabilities=bad_capabilities)
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn('capabilities', refused.stderr)
         record = self.ok(self.revise(job_id, caller, document))
         self.assertEqual((record['previous_sha256'], record['sha256']), (old_sha, new_sha))
         self.assertEqual((record['rounds_performed'], record['max_rounds']), (1, 4))

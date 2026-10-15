@@ -15,7 +15,7 @@ def author_from_capabilities(capabilities):
     models = row.get('models', []) if row else []
     if not any(isinstance(item, dict) and item.get('id') == model for item in models):
         raise JobError('inherited model is absent from its provider catalog')
-    from scripts.routing import lineage
+    from shared.lineage import lineage
     label = lineage(row.get('driverKind', ''), model)
     from shared.job_acceptance import canonical_lineage
     canonical_lineage(label)
@@ -39,6 +39,13 @@ def append_author(records, data, capabilities, source_hashes=()):
     sha256 = digest(data)
     current = author_from_capabilities(capabilities)
     authors, unknown = [current], False
+    previous = authors_for_hash(records, sha256) if isinstance(records, dict) and sha256 in records else []
+    if any(item.get('unknown') for item in previous):
+        # A hash already marked unknown stays unknown even if a later coordinator
+        # records the same bytes; provenance cannot be reconstructed after the fact.
+        unknown = True
+    else:
+        authors.extend(previous)
     for source_hash in source_hashes:
         inherited = authors_for_hash(records, source_hash)
         if any(item.get('unknown') for item in inherited):
@@ -70,5 +77,25 @@ def has_current_task_waiver(job, task):
     from core.jobs.store import canonical
     expected = waiver_binding(task)
     return any(d.get('scope') == 'lineage-waiver:task:' + task['task_id'] and
+               d.get('requirement_ids') == [] and d.get('binding') == expected and
+               _owner_current(d, job['policy']['max_artifact_bytes']) for d in job.get('decisions', []))
+
+
+def stage_waiver_binding(stage, authors, document_sha256, executor):
+    contract = {key: value for key, value in stage.items() if key not in
+                ('status', 'attempts', 'acceptance', 'acceptance_history', 'acceptance_runs', 'validated_cycle', 'cycle', 'direct_execution_history')}
+    return {'target': executor, 'document_authors_sha256': digest(canonical(authors)),
+            'contract_sha256': digest(canonical(contract)), 'document_sha256': document_sha256}
+
+
+def has_current_stage_waiver(job, stage):
+    executor = (stage.get('direct_execution_history') or [{}])[-1].get('identity')
+    if not executor:
+        return False
+    authors = stage.get('document_authors', [{'unknown': True}])
+    document_sha = (stage.get('validator_contract') or {}).get('document_sha256')
+    expected = stage_waiver_binding(stage, authors, document_sha, executor)
+    from core.jobs import _owner_current
+    return any(d.get('scope') == 'lineage-waiver:stage:' + stage['id'] and
                d.get('requirement_ids') == [] and d.get('binding') == expected and
                _owner_current(d, job['policy']['max_artifact_bytes']) for d in job.get('decisions', []))

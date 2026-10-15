@@ -264,13 +264,20 @@ identity for reviewers, their subjects and author-independent slots under
 acceptance semantics. Approval still needs the reviewer's completed owned host
 execution and the `approve` verdict.
 
-`document-revision` takes caller, task_id, `document: {path, sha256}` and reason. The
+`document-revision` takes caller, task_id, `document: {path, sha256}`, reason and
+`--capabilities FILE` for author-independent document jobs. The capabilities response
+must include inherited provider, model and parent thread, and the inherited model must
+be in that provider's catalog. It appends the coordinator to the hash-bound author set
+and propagates the set to every slot for the revised path. The
 task must name that path, have an ingested execution and be settled; the new hash must
 differ and match the current bytes. Within the persisted repair budget it needs no
 owner decision: it rewrites the hash in every stage contract and slot naming the path,
 stales those stages and successors, and records history. Each executed slot then needs
 a charged `retry`. A spent budget refuses with `attempt_budget_exhausted` and
 `owner_decision_required`; raising it is a plan revision with an owner decision.
+Zero-slot direct factual stages record each start or resume with
+`job_cli.py direct-execution --capabilities FILE`. Acceptance requires a current
+`lineage-waiver:stage:<stage-id>` decision bound to the latest recorded identity.
 
 Observed identity may use `status_identity`, `receipt_identity` and
 `configuration_identity`, or `observed: {source, providerInstanceId, model}`

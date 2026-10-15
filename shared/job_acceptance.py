@@ -84,6 +84,12 @@ def _unchanged(store, generation, stage_ids):
 def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
     if not any(t['stage_id'] == stage['id'] for t in job['tasks']) and stage.get('execution_mode') != 'direct':
         raise AcceptanceError('zero-worker stage requires explicit direct execution mode')
+    stage_tasks = [t for t in job['tasks'] if t['stage_id'] == stage['id']]
+    if not stage_tasks and stage.get('independent_of_author'):
+        from shared.document_authors import has_current_stage_waiver
+        history = stage.get('direct_execution_history') or []
+        if not history or not has_current_stage_waiver(job, stage):
+            raise AcceptanceError('zero-slot direct factual stage requires a current stage-scoped lineage waiver bound to its latest direct-execution identity')
     for task in job['tasks']:
         if task['stage_id'] != stage['id'] or task_ids is not None and task['task_id'] not in task_ids:
             continue
@@ -214,7 +220,7 @@ def _lineage(task, handle=None):
     return target['providerInstanceId'], target['model'], target['lineage']
 
 def canonical_lineage(value):
-    from scripts.routing import DRIVER_LINEAGE, FAMILY_LINEAGE
+    from shared.lineage import DRIVER_LINEAGE, FAMILY_LINEAGE
     allowed = set(DRIVER_LINEAGE.values()) | set(FAMILY_LINEAGE.values())
     if value not in allowed:
         raise AcceptanceError('author lineage is unknown or non-canonical; author independence is unverified')
@@ -230,7 +236,7 @@ def independent_of_authors(task, reviewer):
         author_lineage = author.get('lineage')
         canonical_lineage(author_lineage)
         if author_lineage == lineage:
-            raise AcceptanceError('reviewer lineage must differ from every document author')
+            raise AcceptanceError('reviewer lineage must differ from every document author (' + lineage + ')')
 
 
 def independent_lineage(worker, reviewer, worker_handle=None, reviewer_handle=None):

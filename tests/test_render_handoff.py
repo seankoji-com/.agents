@@ -20,6 +20,7 @@ from unittest import mock
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _PLUGIN = os.path.join(_HERE, "..", "plugins", "elephant-goldfish")
 _TEMPLATES = os.path.join(_PLUGIN, "templates")
+_CAPABILITIES = os.path.join(_HERE, "fixtures", "t3", "capabilities.json")
 
 
 def _load(name, filename):
@@ -70,6 +71,8 @@ def read(path):
 
 def run(argv):
     buf, err = io.StringIO(), io.StringIO()
+    if "--stdout" not in argv and "--check" not in argv and "--capabilities" not in argv:
+        argv = argv + ["--capabilities", _CAPABILITIES]
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(err):
         code = rh.main(argv + ["--template-dir", _TEMPLATES])
     return code, buf.getvalue(), err.getvalue()
@@ -155,6 +158,9 @@ class TestRenderCLI(unittest.TestCase):
             self.assertIn("A Title", body)
             self.assertNotIn("{{", body)
             self.assertIn("thinking/t/handoff.md", out)
+            manifest = json.loads(read("thinking/t/handoff.manifest.json"))
+            records = json.loads(read("thinking/t/document-authors.json"))
+            self.assertTrue(records[manifest["handoff_sha256"]]["unknown"])
 
     def test_research_and_implementation_use_different_templates(self):
         with topic(output_type="research"):
@@ -319,7 +325,8 @@ class TestWriteFailures(unittest.TestCase):
                 with mock.patch.object(target, operation, side_effect=OSError('fixture disk failure')):
                     code, out, err = run(['t'])
                 self.assertEqual(code, 1)
-                self.assertIn('render_handoff: fixture disk failure', err)
+                self.assertTrue(err.startswith('render_handoff: '), err)
+                self.assertIn('fixture disk failure', err)
                 self.assertEqual(read('thinking/t/handoff.md'), 'previous handoff')
                 self.assertFalse(any(name.startswith('handoff.md.') for name in os.listdir('thinking/t')))
 

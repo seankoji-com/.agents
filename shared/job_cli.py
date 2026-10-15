@@ -3,13 +3,13 @@ import argparse,json,os,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from core.jobs import prepare,record_result,decision,cancel,discard,record_dispatch,retry_task,revise_plan
-from shared.job_coordinator import create_pinned_job,verify_pinned_dependency,verify_all_pins,adopt_pins,pinned_store,prepare_task,prepare_followup,publish_observation,dispose_finding,record_observation,revise_document
+from shared.job_coordinator import create_pinned_job,verify_pinned_dependency,verify_all_pins,adopt_pins,pinned_store,prepare_task,prepare_followup,publish_observation,dispose_finding,record_observation,revise_document,record_direct_execution
 from shared.job_acceptance import validate_stage
 from shared.worker_registry import job_agents_roots,record_job_root
 from core.jobs.store import Store,JobError,strict_load
 
 def main(argv=None):
- p=argparse.ArgumentParser();p.add_argument('command',choices=['create','overview','status','prepare','result','task-observation','followup-prepare','observation','finding-disposition','decision','plan-revision','document-revision','retry','cancel','discard']);p.add_argument('--state-root',required=True);p.add_argument('--job',required=True);p.add_argument('--input');p.add_argument('--prefix');p.add_argument('--agents-root');p.add_argument('--config')
+ p=argparse.ArgumentParser();p.add_argument('command',choices=['create','overview','status','prepare','result','task-observation','followup-prepare','observation','direct-execution','finding-disposition','decision','plan-revision','document-revision','retry','cancel','discard']);p.add_argument('--state-root',required=True);p.add_argument('--job',required=True);p.add_argument('--input');p.add_argument('--prefix');p.add_argument('--agents-root');p.add_argument('--config');p.add_argument('--capabilities')
  a=p.parse_args(argv)
  try:
   store=pinned_store(a.state_root,a.job)  # unsafe job IDs are invalid input, refused before any state access
@@ -57,7 +57,17 @@ def main(argv=None):
     pins=adopt_pins(job,deps,a.state_root,a.prefix or '',a.agents_root or '',a.config,data['revision'].get('adopt_keys',[]))
     record_job_root(job_agents_roots(pins),a.state_root,a.job);return pins  # index new owning roots before the revision is written
    out=revise_plan(store,data['caller'],data['revision'],data['new_plan'],adopt)
-  elif a.command=='document-revision':out=revise_document(store,data['caller'],data['task_id'],data['document'],data['reason'])
+  elif a.command=='document-revision':
+   capabilities=None
+   if a.capabilities:
+    from core.jobs.store import _regular
+    capabilities=strict_load(_regular(Path(a.capabilities),max_bytes=1024*1024))
+   out=revise_document(store,data['caller'],data['task_id'],data['document'],data['reason'],capabilities)
+  elif a.command=='direct-execution':
+   if not a.capabilities:raise JobError('direct-execution requires --capabilities')
+   from core.jobs.store import _regular
+   capabilities=strict_load(_regular(Path(a.capabilities),max_bytes=1024*1024))
+   out=record_direct_execution(store,data['caller'],data['stage_id'],capabilities)
   elif a.command=='decision':out=decision(store,data['caller'],data['decision'])
   elif a.command=='cancel':out=cancel(store,data['caller'],data['reason']);record_job_root(job_agents_roots(out['pins']),a.state_root,a.job,'cancelled')
   else:out=discard(store,data['caller'],data['reason']);record_job_root(job_agents_roots(out['pins']),a.state_root,a.job,'discarded')

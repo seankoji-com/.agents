@@ -42,16 +42,14 @@ Never let one stage cover both.
   `context_policy: document-only`, `document: {path, sha256}`, `reviewed_documents`
   naming exactly that same `{path, sha256}`, and write scope `coordinator-only`. Its
   review subject is the document, not another task: never add `reviewed_task_ids`.
-  `prepare` and acceptance both re-hash the document, so an edit after the read makes
-  the verdict stale. Its contract sets `independent_of_author: true`; unknown author or reviewer lineage
+  `prepare` and acceptance re-hash the document, so edits make the verdict stale. Its
+  contract sets `independent_of_author: true`; unknown author or reviewer lineage
   fails closed. Author records are keyed by document SHA-256 and imported only when
   the current hash matches. A missing record means unknown authorship.
-  The helper strips the job objective, predecessor outputs,
-  requirement statements, resources and task contract from this brief. Do not try to
-  pass them another way. The dispatch message contains only the brief path, its
-  SHA-256 and the instruction to read that brief and the document it names. Never
-  add planning notes, factual findings, repository answers or earlier cold-read
-  reports. Start every cold read in a fresh child; never use a follow-up.
+  The helper strips the objective, predecessor outputs, requirement statements,
+  resources and task contract. Dispatch only the brief path and hash, with an
+  instruction to read it and its named document. Never pass notes, findings, repository
+  answers or earlier reports. Start each cold read in a fresh child; no follow-ups.
 
 T3 workspace access is not a sandbox. Document-only isolation is an instruction
 boundary plus the helper's brief filter. Report it that way.
@@ -69,6 +67,15 @@ present, and the model must occur in that provider's catalog. A checker never ad
 itself as an author. A handoff's authors are its renderer plus authors from both
 source hashes; an unrecorded source leaves authorship unknown. These are host facts
 transcribed by the coordinator, not cryptographic proof of freshness.
+After writing `discovery.md` or `spec.md`, run `thinking_state.py author <slug>
+<document.md> --capabilities FILE`. Render with `render_handoff.py <slug>
+--capabilities FILE`. A repair uses `job_cli.py document-revision` with
+`--capabilities FILE`; the new author union is written beside the document and
+copied to every affected author-independent slot. `job_cli.py direct-execution`
+records the identity on each start or resume of a zero-slot direct factual stage.
+The `check` operation imports authors only for the checked hash, never writes the
+checker's identity, and proceeds when provenance is missing. Its report says
+`author unrecorded` when the current hash has no record.
 
 An owner `lineage-waiver:task:<task-id>` binds the review target, canonical author
 list, slot contract and document hash. For a direct zero-slot factual stage, use
@@ -99,9 +106,9 @@ accept the stage with `accept-stage`:
   "evidence": [...]}]}` with `kind: factual-claim` rows binding
   `{document_sha256, claim_id, outcome}`.
 
-Open the evidence behind consequential factual findings before you record an outcome.
-The validator checks provenance, hashes and coverage, not truth. It rejects
-`unknown`. Repair every `refuted` claim and check again before final acceptance.
+Open evidence behind consequential findings before recording outcomes. The validator
+checks provenance, hashes and coverage, not truth; it rejects `unknown`. Repair refuted
+claims and check again before final acceptance.
 
 ## Repair rounds
 

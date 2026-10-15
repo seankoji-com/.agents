@@ -1,6 +1,15 @@
 {
   "stage": 4,
   "inventory": {
+    "cli_subcommands": [
+      {
+        "id": "thinking_state:author",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "Records author identity from a fresh capabilities file against the current document hash.",
+        "path": "plugins/elephant-goldfish/scripts/thinking_state.py"
+      }
+    ],
     "tests": [
       {
         "path": "tests/test_elephant_goldfish_workflow.py",

@@ -104,6 +104,11 @@ lineage fails closed. A `lineage-waiver` is an owner decision bound to the targe
 author list, contract and document hash; it waives no requirement. These records are
 host evidence transcribed by the coordinator. Shape checks do not prove freshness or
 detect a forged capabilities file.
+For elephant-goldfish documents, record each coordinator write with a fresh
+`orchestrator_capabilities` file. `thinking_state.py author` records discovery and
+spec hashes; `render_handoff.py --capabilities` unions its identity with both source
+hashes. `document-revision --capabilities` adds the repairing coordinator to the new
+hash and updates every affected slot. Missing source provenance remains unknown.
 
 ## Observed execution identity
 

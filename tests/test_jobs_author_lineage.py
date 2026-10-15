@@ -8,8 +8,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from core.jobs.store import JobError
-from shared.document_authors import append_author, author_from_capabilities, authors_for_hash, has_current_task_waiver, waiver_binding
-from shared.job_acceptance import AcceptanceError, independent_of_authors
+from shared.document_authors import (append_author, author_from_capabilities, authors_for_hash,
+                                     has_current_task_waiver, has_current_stage_waiver,
+                                     stage_waiver_binding, waiver_binding)
+from shared.job_acceptance import AcceptanceError, independent_of_authors, _check_slots
 
 
 class DocumentAuthorTests(unittest.TestCase):
@@ -39,6 +41,35 @@ class DocumentAuthorTests(unittest.TestCase):
         self.assertEqual({a['lineage'] for a in authors_for_hash(handoff, __import__('hashlib').sha256(b'handoff').hexdigest())}, {'anthropic', 'openai'})
         unknown = append_author({}, b'unknown-source', caps_b, ('f' * 64,))
         self.assertEqual(authors_for_hash(unknown, __import__('hashlib').sha256(b'unknown-source').hexdigest()), [{'unknown': True}])
+
+    def test_handoff_and_repair_keep_every_source_author_for_cold_readers(self):
+        caps_a = copy.deepcopy(self.caps)
+        caps_b = copy.deepcopy(self.caps)
+        caps_b.update(inheritedProviderInstanceId='codex', inheritedModel='gpt-6.1-sol')
+        caps_c = copy.deepcopy(self.caps)
+        caps_c.update(inheritedProviderInstanceId='antigravity', inheritedModel='gemini-3.8-flash-high')
+        records = append_author({}, b'discovery A', caps_a)
+        records = append_author(records, b'spec A', caps_a)
+        hashes = tuple(records)
+        records = append_author(records, b'handoff rendered by B', caps_b, hashes)
+        handoff_hash = __import__('hashlib').sha256(b'handoff rendered by B').hexdigest()
+        authors = authors_for_hash(records, handoff_hash)
+        self.assertEqual({row['lineage'] for row in authors}, {'anthropic', 'openai'})
+        with self.assertRaisesRegex(AcceptanceError, 'differ from every document author'):
+            independent_of_authors({'document_authors': authors},
+                                   {'target': {'providerInstanceId': 'claudeAgent', 'model': 'claude-opus-5-5', 'lineage': 'anthropic'}})
+        records = append_author(records, b'spec repaired by C', caps_c)
+        new_hashes = (hashes[0], __import__('hashlib').sha256(b'spec repaired by C').hexdigest())
+        records = append_author(records, b'handoff rerendered by B', caps_b, new_hashes)
+        repaired = authors_for_hash(records, __import__('hashlib').sha256(b'handoff rerendered by B').hexdigest())
+        self.assertEqual({row['lineage'] for row in repaired}, {'anthropic', 'openai', 'google'})
+        c_reader = {'target': {'providerInstanceId': 'antigravity', 'model': 'gemini-3.8-flash-high', 'lineage': 'google'}}
+        with self.assertRaisesRegex(AcceptanceError, 'differ from every document author'):
+            independent_of_authors({'document_authors': repaired}, c_reader)
+        unknown_records = append_author({}, b'unknown source rendered', caps_b, ('f' * 64,))
+        unknown = authors_for_hash(unknown_records, __import__('hashlib').sha256(b'unknown source rendered').hexdigest())
+        with self.assertRaisesRegex(AcceptanceError, 'author unrecorded'):
+            independent_of_authors({'document_authors': unknown}, c_reader)
 
     def test_author_independence_requires_known_canonical_different_lineage(self):
         task = {'document_authors': [{'lineage': 'anthropic'}]}
@@ -71,6 +102,52 @@ class DocumentAuthorTests(unittest.TestCase):
                                  ('independent_of_author', False)):
                 changed = dict(task, **{field: value})
                 self.assertFalse(has_current_task_waiver(job, changed), field)
+
+
+class MarkerAcceptanceTests(unittest.TestCase):
+    def test_marked_review_and_subject_require_verified_identity(self):
+        stage = {'id': 'read', 'execution_mode': 'direct'}
+        for role, extra in (('review', {}), ('worker', {'review_required': True}),
+                            ('worker', {'independent_of_author': True})):
+            task = {'task_id': 'slot', 'stage_id': 'read', 'request_id': 'req', 'role': role,
+                    'handles': [{'request_id': 'req', 'observed_identity': {'status': 'unreported'}}], **extra}
+            job = {'policy': {'identity': 'observed'}, 'tasks': [task], 'blockers': []}
+            with self.subTest(role=role, extra=extra), self.assertRaisesRegex(
+                    AcceptanceError, 'unreported or mismatched'):
+                _check_slots(None, job, stage, require_reviews=False)
+            task['handles'][0]['observed_identity']['status'] = 'mismatched'
+            with self.assertRaisesRegex(AcceptanceError, 'unreported or mismatched'):
+                _check_slots(None, job, stage, require_reviews=False)
+
+    def test_legacy_direct_stage_keeps_target_only_acceptance_path(self):
+        job = {'policy': {}, 'tasks': [], 'blockers': []}
+        _check_slots(None, job, {'id': 'legacy', 'execution_mode': 'direct'}, require_reviews=False)
+
+    def test_stage_waiver_is_bound_to_latest_direct_identity_and_contract(self):
+        from core.jobs.store import digest
+        with __import__('tempfile').TemporaryDirectory() as td:
+            source = Path(td) / 'owner.txt'
+            source.write_text('owner approved direct stage lineage waiver')
+            stage = {'id': 'fact', 'execution_mode': 'direct', 'independent_of_author': True,
+                     'document_authors': [{'lineage': 'anthropic'}],
+                     'validator_contract': {'document_sha256': 'a' * 64},
+                     'direct_execution_history': [{'identity': {'providerInstanceId': 'codex',
+                         'model': 'gpt-6.1-sol', 'lineage': 'openai'}}]}
+            decision = {'scope': 'lineage-waiver:stage:fact', 'requirement_ids': [],
+                        'binding': stage_waiver_binding(stage, stage['document_authors'], 'a' * 64,
+                                                        stage['direct_execution_history'][-1]['identity']),
+                        'source': str(source), 'source_sha256': digest(source.read_bytes()),
+                        'quote': 'owner approved direct stage lineage waiver'}
+            job = {'decisions': [decision], 'policy': {'max_artifact_bytes': 10000}}
+            self.assertTrue(has_current_stage_waiver(job, stage))
+            job.update(tasks=[], blockers=[])
+            _check_slots(None, job, stage, require_reviews=False)
+            resumed = copy.deepcopy(stage)
+            resumed['direct_execution_history'].append({'identity': {'providerInstanceId': 'claudeAgent',
+                'model': 'claude-opus-5-5', 'lineage': 'anthropic'}})
+            self.assertFalse(has_current_stage_waiver(job, resumed))
+            with self.assertRaisesRegex(AcceptanceError, 'latest direct-execution identity'):
+                _check_slots(None, job, resumed, require_reviews=False)
 
 
 if __name__ == '__main__':

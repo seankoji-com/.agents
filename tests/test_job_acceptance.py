@@ -176,7 +176,7 @@ class PinnedAcceptanceTests(unittest.TestCase):
    discovery='# Discovery\n\nA specific problem.\n';spec='# Spec\n\n[REQ-ONE] Confirm this criterion.\n'
    (topic/'discovery.md').write_text(discovery);(topic/'spec.md').write_text(spec)
    meta={'output_type':'research','title':'Fixture','published':{},'review':{'schema':1,'status':'accepted','scope':'finalise-brief','evidence_ref':'review-1','operator_statement':'Reviewed fixture discovery','recorded_at':'2026-10-12T00:00:00Z','discovery_sha256':hashlib.sha256(discovery.encode()).hexdigest()}}
-   (topic/'meta.json').write_text(json.dumps(meta));render=subprocess.run([sys.executable,str(version/'scripts/render_handoff.py'),'fixture-topic','--root',str(root)],capture_output=True,text=True)
+   (topic/'meta.json').write_text(json.dumps(meta));capabilities=base/'capabilities.json';capabilities.write_bytes((ROOT/'tests/fixtures/t3/capabilities.json').read_bytes());render=subprocess.run([sys.executable,str(version/'scripts/render_handoff.py'),'fixture-topic','--root',str(root),'--capabilities',str(capabilities)],capture_output=True,text=True)
    self.assertEqual(render.returncode,0,render.stdout+render.stderr)
    state_gate=subprocess.run([sys.executable,str(version/'scripts/thinking_state.py'),'--root',str(root),'gate','fixture-topic','--require','discovery,spec,handoff'],capture_output=True,text=True)
    self.assertEqual(state_gate.returncode,0,state_gate.stdout+state_gate.stderr)
@@ -195,7 +195,9 @@ class PinnedAcceptanceTests(unittest.TestCase):
    factual_args=[sys.executable,str(validator),'--root',str(root),'--slug','fixture-topic','--mode','factual','--input',str(factual)]
    self.assertNotEqual(subprocess.run(factual_args,capture_output=True).returncode,0)
    confirmed_content={'document_sha256':doc_hash,'claim_id':'C1','outcome':'confirmed'};confirmed_row={'observer':'coordinator','kind':'factual-claim','source':'fixture claim inspection','content':confirmed_content,'sha256':hashlib.sha256(canonical(confirmed_content)).hexdigest()};factual.write_text(json.dumps({'kind':'factual-observation','document_path':str(doc_path),'document_sha256':doc_hash,'claims':[{'claim_id':'C1','outcome':'confirmed','evidence':[confirmed_row]}]}))
-   self.assertEqual(subprocess.run(factual_args,capture_output=True).returncode,0)
+   factual_result=subprocess.run(factual_args,capture_output=True,text=True);self.assertEqual(factual_result.returncode,0,factual_result.stdout);self.assertIn('author unrecorded',factual_result.stdout);self.assertNotIn(doc_hash,json.loads((topic/'document-authors.json').read_text()))
+   (topic/'document-authors.json').write_text(json.dumps({'f'*64:{'authors':[{'lineage':'openai'}]}}))
+   different_hash=subprocess.run(factual_args,capture_output=True,text=True);self.assertEqual(different_hash.returncode,0,different_hash.stdout);self.assertIn('author unrecorded',different_hash.stdout)
    claim_tamper={'kind':'factual-observation','document_path':str(doc_path),'document_sha256':doc_hash,'claims':[{'claim_id':'C1','outcome':'confirmed','evidence':[dict(confirmed_row,content={'claim_id':'C1','outcome':'refuted'})]}]};factual.write_text(json.dumps(claim_tamper));self.assertNotEqual(subprocess.run(factual_args,capture_output=True).returncode,0)
    cold=base/'cold.json';document=topic/'cold-document.md';document.write_text('# Cold read fixture\nThe criterion is visible.\n');doc_sha=hashlib.sha256(document.read_bytes()).hexdigest();cold_content={'document_sha256':doc_sha,'verdict':'ready'};cold_row={'observer':'coordinator','kind':'cold-read','source':'fixture cold reader','content':cold_content,'sha256':hashlib.sha256(canonical(cold_content)).hexdigest()};cold.write_text(json.dumps({'kind':'cold-read-observation','document_path':str(document),'document_sha256':doc_sha,'verdict':'ready','evidence':[cold_row]}))
    cold_args=[sys.executable,str(validator),'--root',str(root),'--slug','fixture-topic','--mode','cold-read','--input',str(cold)]

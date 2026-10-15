@@ -60,6 +60,46 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
     from shared.worker_registry import locked,registry_root,job_agents_roots,record_job_root,forget_job_root
     job=__import__('copy').deepcopy(job)
     job.setdefault('policy', {})['identity']='observed'
+    workflow = str(job.get('workflow', ''))
+    if workflow.startswith('elephant-goldfish/'):
+        if workflow.endswith(('/thinking', '/elephant')):
+            job.setdefault('policy', {})['author_independence'] = True
+        if workflow.endswith('/check'):
+            # Drift checks are read-only and may inspect legacy documents without
+            # provenance; they report authorship as unverified instead of authoring.
+            job.setdefault('policy', {})['author_independence'] = False
+        from shared.document_authors import authors_for_hash
+        from core.jobs.store import digest, _regular
+        for task in job.get('tasks', []):
+            if workflow.endswith('/check'):
+                task.pop('independent_of_author', None)
+            stage = next((row for row in job.get('stages', []) if row['id'] == task.get('stage_id')), {})
+            contract = stage.get('validator_contract') or {}
+            inferred = ({'path': contract.get('document_path'), 'sha256': contract.get('document_sha256')}
+                        if contract.get('document_path') and contract.get('document_sha256') else None)
+            if inferred and not task.get('document'):
+                task['document'] = inferred
+            subjects = [task.get('document'), *(task.get('reviewed_documents') or [])]
+            for subject in subjects:
+                if not isinstance(subject, dict) or not isinstance(subject.get('path'), str):
+                    continue
+                document_path = Path(subject['path'])
+                try:
+                    if not document_path.is_absolute() or '..' in document_path.parts or any(part.is_symlink() for part in (document_path, *document_path.parents)):
+                        continue
+                    current = digest(_regular(document_path))
+                except (OSError, TypeError, ValueError):
+                    current = None
+                record_path = document_path.parent / 'document-authors.json'
+                try:
+                    records = json.loads(record_path.read_text(encoding='utf-8')) if record_path.is_file() and not record_path.is_symlink() else {}
+                except (OSError, ValueError):
+                    records = {}
+                authors = authors_for_hash(records, subject.get('sha256')) if current == subject.get('sha256') else [{'unknown': True}]
+                if subject is task.get('document') and (task.get('independent_of_author') or workflow.endswith('/check')):
+                    task['document_authors'] = authors
+                if subject in (task.get('reviewed_documents') or []) and (task.get('independent_of_author') or workflow.endswith('/check')):
+                    task['document_authors'] = authors
     with locked(registry_root(agents_root)):
         pins=verified_pins(job,state_root,prefix,agents_root,config_path)
         added=record_job_root(job_agents_roots(pins),state_root,job['job_id'])
@@ -350,11 +390,31 @@ def publish_observation(store, caller, stage_id, input_file):
     return store.transact(caller, apply, 'observation')
 
 
+def record_direct_execution(store, caller, stage_id, capabilities):
+    """Record the identity reported for a direct factual-stage execution."""
+    from shared.document_authors import author_from_capabilities
+    try:
+        author = author_from_capabilities(capabilities)
+    except (JobError, TypeError, ValueError) as exc:
+        raise JobError('direct execution requires a fresh, catalog-correlated capabilities response') from exc
+    def apply(job):
+        stage = next((row for row in job['stages'] if row['id'] == stage_id), None)
+        if stage is None or stage.get('execution_mode') != 'direct' or any(t['stage_id'] == stage_id for t in job['tasks']):
+            raise JobError('direct execution observation requires a zero-slot direct stage')
+        observation = {'identity': author, 'recorded_at': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()}
+        stage.setdefault('direct_execution_history', []).append(observation)
+        stage['status'] = 'pending'
+        stage['acceptance'] = None
+        job['history'].append({'kind': 'direct-execution', 'stage_id': stage_id, 'identity': author})
+        return observation
+    return store.transact(caller, apply, 'task-observation')
+
+
 def _document_subjects(task):
     return [d for d in [task.get('document'), *task.get('reviewed_documents', [])] if isinstance(d, dict)]
 
 
-def revise_document(store, caller, task_id, document, reason):
+def revise_document(store, caller, task_id, document, reason, capabilities=None):
     """Rebind a coordinator-repaired document to its new hash as a declared repair round.
 
     Within the persisted repair budget no owner decision is needed: every stage contract and
@@ -364,7 +424,8 @@ def revise_document(store, caller, task_id, document, reason):
     """
     import re
     from core.jobs import _unsettled
-    from core.jobs.store import digest
+    from core.jobs.store import digest, canonical
+    from shared.document_authors import append_author
     from shared.job_acceptance import AcceptanceError, _descendants, reviewed_document_bytes
     if not isinstance(document, dict) or set(document) != {'path', 'sha256'} or not isinstance(reason, str) or not reason.strip():
         raise JobError('document revision needs document {path, sha256} and a reason')
@@ -378,6 +439,7 @@ def revise_document(store, caller, task_id, document, reason):
         old = next((d['sha256'] for d in _document_subjects(task) if d.get('path') == path), None)
         if old is None:
             raise JobError('task does not declare this document subject')
+        revised_authors = None
         if not re.fullmatch(r'[0-9a-f]{64}', str(new)) or new == old:
             raise JobError('document revision needs a new SHA-256')
         try:
@@ -385,6 +447,34 @@ def revise_document(store, caller, task_id, document, reason):
                 raise JobError('document bytes differ from the revised SHA-256')
         except AcceptanceError as exc:
             raise JobError(str(exc)) from exc
+        if job.get('policy', {}).get('author_independence'):
+            if capabilities is None:
+                raise JobError('document-revision requires a fresh --capabilities response')
+            try:
+                sidecar = Path(path).parent / 'document-authors.json'
+                if sidecar.is_symlink():
+                    raise JobError('document author records may not be a symlink')
+                records = json.loads(sidecar.read_text(encoding='utf-8')) if sidecar.is_file() else {}
+                if not isinstance(records, dict):
+                    raise JobError('document author records must be an object')
+                prior = records.get(old, {'authors': [], 'unknown': True})
+                updated = append_author({old: prior}, reviewed_document_bytes(store, job, path), capabilities)
+                new_authors = updated[new]
+                retained = task.get('document_authors', [{'unknown': True}])
+                if any(row.get('unknown') for row in retained) or new_authors.get('unknown'):
+                    union = {'authors': [], 'unknown': True}
+                else:
+                    rows = retained + new_authors.get('authors', [])
+                    union = {'authors': sorted({canonical(row): row for row in rows}.values(), key=canonical)}
+                records[new] = union
+                job.setdefault('document_author_records', {}).update(records)
+                revised_authors = [{'unknown': True}] if union.get('unknown') else union['authors']
+                task['document_authors'] = revised_authors
+                temporary = sidecar.with_name(sidecar.name + '.tmp')
+                temporary.write_text(json.dumps(records, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+                os.replace(temporary, sidecar)
+            except (TypeError, KeyError, ValueError) as exc:
+                raise JobError('document-revision capabilities or inherited author record is invalid') from exc
         if not task.get('execution_history') or task.get('status') not in ('failed', 'blocked', 'stale', 'awaiting-acceptance'):
             raise JobError('a document revision follows an executed, ingested round; use plan-revision otherwise')
         stages = {s['id'] for s in job['stages'] if (s.get('validator_contract') or {}).get('document_path') == path}
@@ -410,6 +500,8 @@ def revise_document(store, caller, task_id, document, reason):
             for subject in _document_subjects(slot):
                 if subject.get('path') == path:
                     subject['sha256'] = new
+                    if revised_authors is not None and slot.get('independent_of_author'):
+                        slot['document_authors'] = revised_authors
             if slot['stage_id'] in stages:
                 slot['inputs_stale'] = True  # a charged retry, or fresh preparation of an unexecuted slot, clears it
                 slot['status'] = 'stale'

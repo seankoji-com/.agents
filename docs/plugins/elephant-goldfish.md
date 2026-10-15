@@ -13,6 +13,12 @@ Unknown authorship fails closed unless the owner records a hash-bound
 for the reviewer, subject and author-independent slot. Legacy jobs without the
 identity policy marker retain target-only acceptance semantics.
 
+Record discovery and spec authors with `thinking_state.py author` using a fresh
+`orchestrator_capabilities` file. Render handoffs and repair documents with the same
+`--capabilities FILE` input. Handoff authorship includes the renderer and both source
+hashes; missing source records remain unknown. `check` is read-only and never records
+the checker as an author.
+
 ## Try it
 
 In a T3 thread attached to your repository:

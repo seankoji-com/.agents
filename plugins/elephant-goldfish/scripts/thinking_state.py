@@ -55,7 +55,7 @@ SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 # a bare `$ARGUMENTS` that is either the word `list` or a topic slug, and a topic actually
 # named `list` makes that undecidable. Reserve the subcommand names so the collision cannot
 # be created in the first place.
-RESERVED_SLUGS = frozenset({"list", "resolve", "init", "set", "gate", "review"})
+RESERVED_SLUGS = frozenset({"list", "resolve", "init", "set", "gate", "review", "author"})
 DRAFT_MARKER = "<!-- thinking:draft -->"
 DRAFT_LABEL = "DRAFT. Non-executable."
 REVIEW_SCOPE = "finalise-brief"
@@ -480,6 +480,40 @@ def cmd_review(args) -> dict:
     return resolve(root, args.slug)
 
 
+def cmd_author(args) -> dict:
+    """Record the coordinator identity for the current hash of a written topic document."""
+    tdir = topic_dir(Path(args.root), args.slug)
+    if args.document not in ARTIFACTS:
+        raise StateError("author records are limited to discovery.md, spec.md and handoff.md")
+    target = tdir / args.document
+    if target.is_symlink() or not target.is_file():
+        raise StateError("document must be a regular, non-symlink file")
+    try:
+        package_root = next((parent for parent in Path(__file__).resolve().parents
+                             if (parent / "shared" / "document_authors.py").is_file()), None)
+        if package_root is None:
+            raise StateError("shared document-author helpers are unavailable")
+        sys.path.insert(0, str(package_root))
+        from shared.document_authors import append_author
+        raw = target.read_bytes()
+        records_path = tdir / "document-authors.json"
+        if records_path.is_symlink():
+            raise StateError("document author records may not be a symlink")
+        records = json.loads(records_path.read_text(encoding="utf-8")) if records_path.exists() else {}
+        capabilities_path = Path(args.capabilities)
+        if capabilities_path.is_symlink() or not capabilities_path.is_file():
+            raise StateError("capabilities must be a regular file")
+        capabilities = json.loads(capabilities_path.read_text(encoding="utf-8"))
+        records = append_author(records, raw, capabilities)
+        temporary = records_path.with_name(records_path.name + ".tmp")
+        temporary.write_text(json.dumps(records, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(temporary, records_path)
+        return {"document": args.document, "sha256": hashlib.sha256(raw).hexdigest(),
+                "authors": records[hashlib.sha256(raw).hexdigest()]}
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        raise StateError("cannot record document author: " + str(exc)) from exc
+
+
 def cmd_gate(args) -> dict:
     """Fail-closed artifact gate. Missing or empty input is an error, never a warning.
 
@@ -564,6 +598,11 @@ def build_parser() -> argparse.ArgumentParser:
     statement.add_argument("--operator-statement", help="literal statement; prefer a file for shell calls")
     statement.add_argument("--operator-statement-file", help="UTF-8 statement file, or - for stdin")
 
+    p_author = sub.add_parser("author", help="record the coordinator for a document hash")
+    p_author.add_argument("slug")
+    p_author.add_argument("document", choices=ARTIFACTS)
+    p_author.add_argument("--capabilities", required=True, help="fresh orchestrator_capabilities JSON")
+
     p_gate = sub.add_parser("gate", help="check artifacts and operator discovery review")
     p_gate.add_argument("slug")
     p_gate.add_argument("--require", required=True, help="comma-separated artifact names")
@@ -579,6 +618,7 @@ HANDLERS = {
     "set": cmd_set,
     "gate": cmd_gate,
     "review": cmd_review,
+    "author": cmd_author,
 }
 
 

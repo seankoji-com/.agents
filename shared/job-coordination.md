@@ -89,6 +89,13 @@ target, canonical author list, slot contract and document hash. It waives no
 requirement and must be refreshed after any bound value changes. Capabilities are
 host evidence transcribed by the coordinator; validation checks correlation and
 shape, not freshness or forgery.
+Elephant-goldfish coordinators record a document with
+`thinking_state.py author <slug> <document.md> --capabilities FILE`; handoff rendering
+uses `render_handoff.py <slug> --capabilities FILE`. A repair uses
+`document-revision --capabilities FILE`. A source hash without a record keeps the
+rendered handoff's authorship unknown. Zero-slot direct stages record each executor
+with `job_cli.py direct-execution --capabilities FILE`; acceptance checks the
+stage-scoped waiver against the latest observation.
 Review and document-only slots use fresh executions, never same-child follow-ups.
 Unexpected continuations stay owned and non-accepting, and their result bytes are
 quarantined during ingestion.

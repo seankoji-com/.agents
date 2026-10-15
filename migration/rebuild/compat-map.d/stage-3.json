@@ -33,6 +33,12 @@
         "disposition": "change"
       },
       {
+        "path": "shared/lineage.py",
+        "stage": 3,
+        "reason": "Shares canonical routing lineage labels with installed job helpers.",
+        "disposition": "change"
+      },
+      {
         "path": "shared/job_acceptance_cli.py",
         "stage": 3,
         "reason": "Stage 3 generic job/result/acceptance interface.",
@@ -263,6 +269,13 @@
         "path": "shared/job_cli.py"
       },
       {
+        "id": "shared.job_cli:direct-execution",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Records catalog-correlated identity for each zero-slot direct-stage execution.",
+        "path": "shared/job_cli.py"
+      },
+      {
         "id": "shared.job_cli:finding-disposition",
         "stage": 3,
         "disposition": "change",
@@ -418,7 +431,13 @@
         "assertions": [
           {
             "selector": "test_jobs_author_lineage.DocumentAuthorTests",
-            "tests": 4,
+            "tests": 5,
+            "coverage": ["REQ-JOB", "REQ-LIFECYCLE", "REQ-EVIDENCE"],
+            "survives": true
+          },
+          {
+            "selector": "test_jobs_author_lineage.MarkerAcceptanceTests",
+            "tests": 3,
             "coverage": ["REQ-JOB", "REQ-LIFECYCLE", "REQ-EVIDENCE"],
             "survives": true
           }
