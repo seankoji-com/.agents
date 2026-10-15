@@ -632,6 +632,24 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         accepted = self.accept(job_id, caller, 'cold-read', argv, observation)
         self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
 
+        baseline = self.job_state(job_id)
+        stale_mutations = (
+            ('target', lambda task: task.update(target={'providerInstanceId': 'antigravity-resumed',
+                'model': 'gemini-3.8-flash-high', 'lineage': 'google'})),
+            ('authors', lambda task: task['document_authors'].append({'providerInstanceId': 'other-google',
+                'model': 'gemini-3.8-pro', 'lineage': 'google', 'parentThreadId': 'synthetic-other-author'})),
+            ('contract', lambda task: task.update(max_followups=1)),
+            ('document', lambda task: task['document'].update(sha256='f' * 64)),
+        )
+        for label, mutate in stale_mutations:
+            changed = copy.deepcopy(baseline)
+            mutate(changed['tasks'][0])
+            (self.state / job_id / 'job.json').write_text(json.dumps(changed))
+            stale = self.accept(job_id, caller, 'cold-read', argv, observation)
+            self.assertEqual(stale.returncode, 2, f'{label}: {stale.stdout}{stale.stderr}')
+            self.assertIn('differ from every document author', stale.stderr, label)
+        (self.state / job_id / 'job.json').write_text(json.dumps(baseline))
+
         # A separate first-pass job proves the waiver cannot excuse a failed worker
         # requirement before the document validator runs.
         failed_job = 'task-waiver-failed-requirement'
