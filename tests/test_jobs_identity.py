@@ -43,19 +43,46 @@ class ObservedIdentityTests(unittest.TestCase):
             with self.subTest(event=event):
                 self.assertEqual(identity_for(event, TARGET)['status'], 'unreported')
 
-    def test_provider_mismatch_is_retained_and_reconciled_without_losing_blocker(self):
+    def test_observed_aliases_reject_unknown_source_and_empty_target_is_unreported(self):
+        self.assertEqual(identity_for({'observed': {'source': 'status', 'providerInstanceId': 'provider-b', 'model': 'model-a'}}, TARGET)['status'], 'mismatched')
+        self.assertEqual(identity_for({'observed_identity': {'source': 'thread-configuration', 'model': 'model-a'}}, TARGET)['sources']['configuration']['model'], 'model-a')
+        with self.assertRaises(KeyError):
+            identity_for({'observed': {'source': 'mystery', 'providerInstanceId': 'provider-a'}}, TARGET)
+        for target in ({}, None):
+            self.assertEqual(identity_for({'receipt_identity': {}}, target)['status'], 'unreported')
+
+    def test_mismatch_survives_reconciliation_but_verified_charged_retry_can_pass(self):
         fixture = job_fixture(); job = fixture.base_job('identity-mismatch')
         job['tasks'][0]['target'] = TARGET
+        job['pins']['ape']['effective_workers'] = {'ape/source-researcher': {'bytes': 'synthetic worker', 'sha256': 'b' * 64}}
         with tempfile.TemporaryDirectory() as td:
             create_job(job, td, job['pins']); store = Store(td, job['job_id']); caller = fixture.caller()
+            brief = prepare(store, caller, 't0', lambda *_: True, lambda *_: True)
             record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': 'req0', 'host_task_id': 'host0',
                 'status_identity': {'providerInstanceId': 'provider-b', 'model': 'model-a'}})
             task = store.load()['tasks'][0]
             self.assertEqual(task['handles'][0]['observed_identity']['status'], 'mismatched')
             self.assertEqual(task['handles'][0]['task_id'], 'host0')
+            original = fixture.valid_result(); frozen = json.loads(Path(brief['path']).read_text())
+            original.update({key: frozen[key] for key in ('job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256')});original['binding'] = frozen['snapshot'];original['revision']=frozen['revision'];original['requirements']=[{'id': x['id'], 'status': 'passed', 'evidence': ['fixture evidence']} for x in frozen['requirements']]
+            record_result(store, caller, 't0', {'request_id': 'req0', 'completion_id': 'done-original', 'result': json.dumps(original).encode()})
             record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': 'req0', 'host_task_id': 'host0',
                 'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
-            self.assertTrue(any(b['kind'] == 'identity-mismatch' and b['reconciled'] for b in store.load()['blockers']))
+            with self.assertRaisesRegex(AcceptanceError, 'sticky observed host identity mismatch'):
+                _check_slots(store, store.load(), store.load()['stages'][0])
+            retry_task(store, caller, 't0', 'replace mismatched execution')
+            brief = prepare(store, caller, 't0', lambda *_: True, lambda *_: True)
+            request = store.load()['tasks'][0]['request_id']
+            record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': request, 'host_task_id': 'host1',
+                'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False,
+                'status_identity': STATUS})
+            original = fixture.valid_result(); frozen = json.loads(Path(brief['path']).read_text())
+            original.update({key: frozen[key] for key in ('job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256')});original['binding'] = frozen['snapshot'];original['revision']=frozen['revision'];original['requirements']=[{'id': x['id'], 'status': 'passed', 'evidence': ['fixture evidence']} for x in frozen['requirements']]
+            record_result(store, caller, 't0', {'request_id': request, 'completion_id': 'done-retry', 'result': json.dumps(original).encode()})
+            record_dispatch(store, caller, 't0', {'kind': 'completion', 'request_id': request, 'host_task_id': 'host1', 'completion_id': 'notify-retry',
+                'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
+            self.assertEqual(store.load()['tasks'][0]['status'], 'awaiting-acceptance', store.load()['tasks'][0]['execution_history'][-1])
+            _check_slots(store, store.load(), store.load()['stages'][0])
 
     def test_nonterminal_reconciliation_cannot_clear_obligation(self):
         fixture = job_fixture(); job = fixture.base_job('nonterminal-reconcile'); job['tasks'][0]['target'] = TARGET
@@ -153,3 +180,16 @@ class ObservedIdentityTests(unittest.TestCase):
             record_dispatch(store, caller, 't0', {**completion, 'status_identity': {'providerInstanceId': 'provider-b', 'model': 'model-z'}})
             observed = store.load()['tasks'][0]['handles'][0]['observed_identity']
             self.assertEqual((observed['providerInstanceId'], observed['model']), ('provider-a', 'model-a'))
+
+    def test_mismatch_is_sticky_and_completion_without_identity_keeps_receipt(self):
+        identity = identity_for({'status_identity': {'providerInstanceId': 'provider-b', 'model': 'model-a'}}, TARGET)
+        handle = {'task_id': 'h', 'request_id': 'r', 'target': TARGET, 'observed_identity': identity}
+        from core.jobs import _record_identity
+        _record_identity({'blockers': []}, {'task_id': 't', 'target': TARGET}, handle,
+                         {'status_identity': STATUS})
+        self.assertEqual(handle['observed_identity']['status'], 'mismatched')
+        handle = {'task_id': 'h', 'request_id': 'r', 'target': TARGET}
+        _record_identity({'blockers': []}, {'task_id': 't', 'target': TARGET}, handle,
+                         {'receipt_identity': {'model': 'model-a'}})
+        _record_identity({'blockers': []}, {'task_id': 't', 'target': TARGET}, handle, {})
+        self.assertEqual(handle['observed_identity']['sources']['receipt']['model'], 'model-a')

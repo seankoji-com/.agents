@@ -135,18 +135,6 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
 
 TERMINAL = ('completed', 'failed', 'cancelled', 'interrupted')
 
-def observed_identity(sources, target):
-    """Resolve only host-read source fields against this execution's pinned target."""
-    provider = sources.get('status', {}).get('providerInstanceId'); model = sources.get('status', {}).get('model')
-    if provider and not model:
-        model = next((sources[s].get('model') for s in ('receipt', 'configuration')
-                      if s in sources and sources[s].get('providerInstanceId') in (None, provider) and sources[s].get('model')), None)
-    target = target or {}
-    mismatch = bool(provider and (provider != target.get('providerInstanceId') or model and model != target.get('model') or
-                     any(x.get('providerInstanceId') not in (None, provider) for x in sources.values())))
-    return {'status': 'mismatched' if mismatch else 'verified' if provider and model else 'unreported',
-            'sources': sources, 'providerInstanceId': provider, 'model': model}
-
 def _shared_observation(job, task_id, event):
     """Apply follow-up uncertainty or conflicting-host reconciliation; return False for core observations."""
     task = next((t for t in job['tasks'] if t['task_id'] == task_id), None)

@@ -16,13 +16,15 @@ def _live_handles(task):
     return any(h.get('status') not in ('completed','failed','cancelled','interrupted') or h.get('has_pending_child_runs') or h.get('work_state')!='result_available' for h in task.get('handles',[])+task.get('followups',[]))
 def _uningested(task): return any(h.get('status') in ('completed','failed','cancelled','interrupted') and not h.get('has_pending_child_runs') and h.get('work_state')=='result_available' and not any(x.get('request_id')==h.get('request_id') for x in task.get('execution_history',[])) for h in task.get('handles',[])+task.get('followups',[]))  # terminal work whose result was never ingested is still an obligation
 def _record_identity(j,t,h,e):
-    previous=h.get('observed_identity',{});s=copy.deepcopy(previous.get('sources',{}));observed=e.get('observed_identity');inputs={k:e.get(k+'_identity',(observed or {}).get(k) if isinstance(observed,dict) else None) for k in ('status','receipt','configuration')};inputs.update({observed['source']:observed} if isinstance(observed,dict) and observed.get('source') in inputs else {})
+    previous=h.get('observed_identity',{});s=copy.deepcopy(previous.get('sources',{}));observed=e.get('observed_identity',e.get('observed'));names={'status':'status','receipt':'receipt','configuration':'configuration','thread-configuration':'configuration'};inputs={k:e.get(k+'_identity',(observed or {}).get(k) if isinstance(observed,dict) else None) for k in ('status','receipt','configuration')}
+    if isinstance(observed,dict) and observed.get('source'):inputs[names[observed['source']]]=observed
     for source,value in inputs.items():
-        if isinstance(value,dict):
-            row=s.setdefault(source,{});provider=value.get('providerInstanceId',value.get('provider_instance_id'));model=value.get('model',value.get('model_id',value.get('modelId')));row.update({'providerInstanceId':provider} if isinstance(provider,str) and provider else {});row.update({'model':model} if isinstance(model,str) and model else {})
-    target=h.get('target') or t.get('target') or {};tp=target.get('providerInstanceId');tm=target.get('model');bad=previous.get('status')=='mismatched' or any(v.get('providerInstanceId') is not None and v.get('providerInstanceId')!=tp or v.get('model') is not None and v.get('model')!=tm for v in s.values());p=s.get('status',{}).get('providerInstanceId');m=s.get('status',{}).get('model') or next((s[k].get('model') for k in ('receipt','configuration') if k in s and s[k].get('model')),None);verified=p==tp and any(v.get('model')==tm for v in s.values())
+        if isinstance(value,dict):row=s.setdefault(source,{});provider=value.get('providerInstanceId',value.get('provider_instance_id'));model=value.get('model',value.get('model_id',value.get('modelId')));row.update({'providerInstanceId':provider} if isinstance(provider,str) and provider else {});row.update({'model':model} if isinstance(model,str) and model else {})
+    target=h.get('target') or t.get('target') or {};tp=target.get('providerInstanceId');tm=target.get('model');bad=previous.get('status')=='mismatched' or any(v.get('providerInstanceId') is not None and v.get('providerInstanceId')!=tp or v.get('model') is not None and v.get('model')!=tm for v in s.values());p=s.get('status',{}).get('providerInstanceId');m=s.get('status',{}).get('model') or next((s[k].get('model') for k in ('receipt','configuration') if k in s and s[k].get('model')),None);verified=bool(tp and tm and p==tp and any(v.get('model')==tm for v in s.values()))
     h['observed_identity']={'status':'mismatched' if bad else 'verified' if verified else 'unreported','sources':s,'providerInstanceId':p,'model':m}
     if bad and not any(b.get('kind')=='identity-mismatch' and b.get('request_id')==h.get('request_id') and b.get('host_task_id')==h.get('task_id') for b in j.get('blockers',[])):j.setdefault('blockers',[]).append({'kind':'identity-mismatch','task_id':t['task_id'],'request_id':h.get('request_id'),'host_task_id':h.get('task_id'),'providerInstanceId':p,'model':m,'reconciled':None})
+    if h['observed_identity']['status']!='mismatched':
+        for b in j.get('blockers',[]):b.get('kind')=='identity-mismatch' and b.get('task_id')==t['task_id'] and b.get('request_id')!=h.get('request_id') and b.update(superseded_by=h.get('request_id'))
 def _quarantine_result(store,t,r):
     request=r['request_id'];h=next((x for x in t.get('followups',[]) if x.get('request_id')==request and x.get('forbidden_followup')),None)
     if not h:return False
@@ -246,7 +248,6 @@ def retry_task(store,caller,task_id,reason,category='primary'):
         if new in requests(j):raise JobError('retry request ID is retained by job history')
         t.setdefault('retired_request_ids',[]).append(t['request_id']);t['request_id']=new;t.pop('brief',None)
     return store.transact(caller,apply,'retry')
-
 def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
     """Apply declared plan edits, requiring recorded owner evidence for expansion/weakening."""
     if not isinstance(revision,dict) or not revision.get('id'):raise JobError('revision needs a stable ID')
@@ -335,7 +336,6 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
                 if not _live_handles(task) and not task.get('uncertain_calls'):task['status']='stale'
         state.setdefault('plan_revisions',[]).append({'revision':revision,'plan_sha256':digest(canonical(new_plan)),'decision_id':decision_id if decision else None,'expanded':required_decision,'adopted_dependencies':sorted(added|replaced),'invalidated_acceptance':bool(affected)})
     return store.transact(caller,apply,'plan-revision')
-
 def _subset(candidate, ceiling):
     if isinstance(candidate,dict):return isinstance(ceiling,dict) and set(candidate)<=set(ceiling) and all(_subset(v,ceiling[k]) for k,v in candidate.items())
     if isinstance(candidate,list):return isinstance(ceiling,list) and all(v in ceiling for v in candidate)

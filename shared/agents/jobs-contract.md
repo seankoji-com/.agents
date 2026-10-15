@@ -267,8 +267,10 @@ a charged `retry`. A spent budget refuses with `attempt_budget_exhausted` and
 `owner_decision_required`; raising it is a plan revision with an owner decision.
 
 Observed identity may use `status_identity`, `receipt_identity` and
-`configuration_identity`, or `observed_identity: {source, providerInstanceId,
-model}`. Each source is retained separately. Any present provider or model that
+`configuration_identity`, or `observed: {source, providerInstanceId, model}`
+(`observed_identity` is an alias). Sources are `status`, `receipt`, and
+`configuration` (`thread-configuration` is an alias); unknown source names are
+rejected. Each source is retained separately. Any present provider or model that
 differs from the pinned target makes that execution mismatched, and the mismatch is
 sticky until a charged retry creates a new execution. Verification requires the
 status source to report the target provider and at least one source to report the
