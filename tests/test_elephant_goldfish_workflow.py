@@ -358,20 +358,6 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         prepared = self.run_helper('job_cli.py', 'prepare', job_id, {'caller': caller, 'task_id': 'cold-a'})
         self.assertEqual(prepared.returncode, 2, prepared.stdout)
         self.assertIn('differ from every document author', prepared.stderr)
-        # The public acceptance CLI takes the same path through _ready_slots and fails closed too.
-        state = self.job_state(job_id); slot = state['tasks'][0]
-        slot.pop('independent_of_author', None)
-        slot['status'] = 'awaiting-acceptance'
-        slot['handles'] = [{'request_id': slot['request_id'], 'status': 'completed', 'work_state': 'result_available',
-                            'has_pending_child_runs': False, 'observed_identity': {'status': 'verified'}}]
-        slot['execution_history'] = [{'request_id': slot['request_id']}]
-        (self.state / job_id / 'job.json').write_text(json.dumps(state))
-        input_file = self.base / 'cold-observation.json'; input_file.write_text('{}')
-        acceptance = self.accept(job_id, caller, 'cold', self.doc_argv(root, slug, 'cold-read', str(input_file)),
-                                 str(input_file))
-        self.assertEqual(acceptance.returncode, 2, acceptance.stdout + acceptance.stderr)
-        self.assertIn('differ from every document author', acceptance.stderr)
-
         # A different canonical reader can execute a review round. Coordinator C
         # then repairs spec.md, records its hash, and B renders the revised handoff.
         repair_id = 'handoff-revision-lineage-e2e'
@@ -410,20 +396,6 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
                                    {'caller': caller, 'task_id': 'cold-openai'})
         self.assertEqual(prepared.returncode, 2, prepared.stdout + prepared.stderr)
         self.assertIn('differ from every document author', prepared.stderr)
-        # Acceptance repeats the author-lineage check after verified execution evidence.
-        repair_state = self.job_state(repair_id); repair_slot = next(
-            t for t in repair_state['tasks'] if t['task_id'] == 'cold-openai')
-        repair_slot['status'] = 'awaiting-acceptance'
-        repair_slot['handles'] = [{'request_id': repair_slot['request_id'], 'status': 'completed',
-                                   'work_state': 'result_available', 'has_pending_child_runs': False,
-                                   'observed_identity': {'status': 'verified'}}]
-        repair_slot['execution_history'] = [{'request_id': repair_slot['request_id']}]
-        (self.state / repair_id / 'job.json').write_text(json.dumps(repair_state))
-        c_accept = self.accept(repair_id, caller, 'cold',
-            self.doc_argv(root, slug, 'cold-read', str(input_file)), str(input_file))
-        self.assertEqual(c_accept.returncode, 2, c_accept.stdout + c_accept.stderr)
-        self.assertIn('differ from every document author', c_accept.stderr)
-
         # Repeat through document-revision with a repaired source that has no hash
         # record. The renderer and the revision must preserve unknown authorship.
         unknown_job = 'handoff-unknown-revision-e2e'; unknown_sha = sha(handoff.read_bytes())
@@ -621,6 +593,78 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         (self.state / 'policy-author-flag' / 'job.json').write_text(json.dumps(state))
         refused = self.run_helper('job_cli.py', 'prepare', 'policy-author-flag',
                                   {'caller': caller, 'task_id': 'f0'})
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('differ from every document author', refused.stderr)
+
+    def test_task_lineage_waiver_flows_through_prepare_and_acceptance(self):
+        from shared.document_authors import waiver_binding
+        document = self.document()
+        job_id, caller = 'task-waiver-e2e', self.caller(self.WORKFLOW)
+        job = self.elephant_job(job_id, document, factual=False)
+        slot = job['tasks'][0]
+        slot['target'] = {'providerInstanceId': 'antigravity',
+                          'model': 'gemini-3.8-flash-high', 'lineage': 'google'}
+        self.create(job)
+        state = self.job_state(job_id)
+        task = state['tasks'][0]
+        self.assertEqual({a.get('lineage') for a in task['document_authors']}, {'google'})
+
+        def add_waiver(label, target_job=job_id):
+            current = self.job_state(target_job)['tasks'][0]
+            source = self.base / f'owner-task-waiver-{label}.txt'
+            source.write_text('Owner approves same-lineage document review ' + label)
+            decision = {'id': 'owner-task-waiver-' + label,
+                        'scope': 'lineage-waiver:task:' + current['task_id'],
+                        'requirement_ids': [], 'binding': waiver_binding(current),
+                        'source': str(source), 'source_sha256': sha(source.read_bytes()),
+                        'quote': 'Owner approves same-lineage document review ' + label}
+            self.ok(self.run_helper('job_cli.py', 'decision', target_job,
+                                    {'caller': caller, 'decision': decision}))
+
+        refused = self.run_helper('job_cli.py', 'prepare', job_id,
+                                  {'caller': caller, 'task_id': task['task_id']})
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn('differ from every document author', refused.stderr)
+        add_waiver('initial')
+        self.dispatch(job_id, caller, task['task_id'])
+        observation = self.publish(job_id, caller, 'cold-read', self.cold_observation(document))
+        argv = self.doc_argv(document.parent.parent, document.parent.name, 'cold-read', observation)
+        accepted = self.accept(job_id, caller, 'cold-read', argv, observation)
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+
+        # A separate first-pass job proves the waiver cannot excuse a failed worker
+        # requirement before the document validator runs.
+        failed_job = 'task-waiver-failed-requirement'
+        failed_plan = self.elephant_job(failed_job, document, factual=False)
+        failed_plan['tasks'][0]['target'] = {'providerInstanceId': 'antigravity',
+            'model': 'gemini-3.8-flash-high', 'lineage': 'google'}
+        self.create(failed_plan)
+        add_waiver('failed-requirement', failed_job)
+        self.dispatch(failed_job, caller, 'c0', status='ready-for-acceptance', requirement='failed')
+        failed_observation = self.publish(failed_job, caller, 'cold-read', self.cold_observation(document))
+        failed_argv = self.doc_argv(document.parent.parent, document.parent.name, 'cold-read', failed_observation)
+        rejected = self.accept(failed_job, caller, 'cold-read', failed_argv, failed_observation)
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn('current ready result', rejected.stdout + rejected.stderr)
+
+    def test_acceptance_lineage_refusal_uses_task_observation_evidence(self):
+        document = self.document()
+        job_id, caller = 'observed-author-refusal', self.caller(self.WORKFLOW)
+        job = self.elephant_job(job_id, document, factual=False)
+        job['tasks'][0]['target'] = {'providerInstanceId': 'grok', 'model': 'grok-3', 'lineage': 'xai'}
+        self.create(job)
+        self.dispatch(job_id, caller, 'c0')
+        state = self.job_state(job_id)
+        handle = state['tasks'][0]['handles'][0]
+        self.assertEqual(handle['observed_identity']['status'], 'verified')
+        # Authorship changes after the host observation, so acceptance must re-check
+        # the actual recorded execution against the current document authors.
+        state['tasks'][0]['document_authors'].append({'providerInstanceId': 'grok', 'model': 'grok-3',
+            'lineage': 'xai', 'parentThreadId': 'synthetic-late-author'})
+        (self.state / job_id / 'job.json').write_text(json.dumps(state))
+        observation = self.publish(job_id, caller, 'cold-read', self.cold_observation(document))
+        argv = self.doc_argv(document.parent.parent, document.parent.name, 'cold-read', observation)
+        refused = self.accept(job_id, caller, 'cold-read', argv, observation)
         self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
         self.assertIn('differ from every document author', refused.stderr)
 
