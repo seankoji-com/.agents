@@ -1,5 +1,10 @@
 # Maintain pull requests
 
+At the final-head PR review, the coordinator may use
+`PKG/shared/supplemental-reviews.md`. Keep optional handles outside required slots,
+close them when the primary round ends and verify concrete findings before routing
+confirmed issues to the fixer. The mandatory review gate remains unchanged.
+
 This thread is the coordinator. It owns the roster, the PR table, every watch, every
 merge, and every acceptance. Children own one PR's repair or review at a time. The
 review gate in the entry binds every step below: a review-gated PR gets no

@@ -11,6 +11,10 @@ Read once per run. The plugin entry defines the task; this file defines how it u
   tools, and what a child brief contains. Substantive multi-stage work follows
   `PKG/shared/job-coordination.md`: one pinned job, coordinator-only dispatch, tracked
   handles, validator acceptance, bounded repair and visible fallback.
+- At substantive review rounds, the coordinator also follows
+  `PKG/shared/supplemental-reviews.md` for up to three optional free OpenCode views.
+  Existing sharing authority is required; unavailable or failed extras are skips.
+  They never replace mandatory review or its independence and acceptance gates.
 - Tool prefixes vary by harness. Match exposed tools by name and description. If an
   expected tool is absent, attempt bounded discovery. Report the missing capability
   rather than inventing a substitute. Do not change provider configuration to unblock it.

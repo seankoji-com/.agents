@@ -1,0 +1,73 @@
+{
+  "stage": 4,
+  "inventory": {
+    "helpers": [
+      {
+        "path": "shared/supplemental_reviews.py",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "Installed relocatable deterministic optional-review selector, pinned read-only briefs and separate lifecycle ledger; host alone dispatches; no mandatory acceptance or repair-counter mutations."
+      }
+    ],
+    "instructions": [
+      {
+        "path": "shared/supplemental-reviews.md",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "Coordinator-only free supplemental review protocol: fresh pricing and catalog, at most three distinct targets, Full Access and sharing boundaries, async dispatch, resume, untrusted findings and cancellation hygiene without optional gates."
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_supplemental_reviews.py",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "Offline synthetic pricing/selection/lifecycle and relocated installed-artifact coverage; no live provider compatibility claimed.",
+        "assertions": [
+          {
+            "selector": "test_supplemental_reviews.SelectionTest",
+            "tests": 3,
+            "coverage": [
+              "REQ-DISPATCH",
+              "REQ-LIFECYCLE",
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_supplemental_reviews.LifecycleTest",
+            "tests": 7,
+            "coverage": [
+              "REQ-DISPATCH",
+              "REQ-LIFECYCLE",
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_supplemental_reviews.InstalledTest",
+            "tests": 2,
+            "coverage": [
+              "REQ-DISPATCH",
+              "REQ-LIFECYCLE",
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      }
+    ],
+    "persisted_formats": [
+      {
+        "id": "supplemental-review-ledger",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "Private coordinator-only schema-version-1 optional ledger, one per parent review round, separate from mandatory job and evaluator state.",
+        "paths": [
+          "shared/supplemental_reviews.py",
+          "shared/supplemental-reviews.md"
+        ]
+      }
+    ]
+  }
+}

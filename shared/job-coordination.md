@@ -87,6 +87,12 @@ quarantined during ingestion.
 
 ## 5. Acceptance
 
+At a substantive review, use `PKG/shared/supplemental-reviews.md` alongside the
+mandatory reviewer. Keep its optional ledger outside job slots and budgets. Close
+and request cleanup when the primary review ends; independently verify optional
+findings before routing confirmed issues through step 6. Optional failures never
+charge a retry or supply acceptance. All required validators still apply.
+
 A terminal task is not an accepted stage. Freeze coordinator-observed input with
 `job_cli.py observation` (`{caller, stage_id, input_file}`), then run
 `job_acceptance_cli.py accept-stage` with the pinned plugin validator argv and that

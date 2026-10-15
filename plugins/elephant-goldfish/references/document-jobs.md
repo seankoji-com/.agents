@@ -1,5 +1,10 @@
 # Document jobs: factual checks and cold reads
 
+The coordinator can supplement factual checks using
+`PKG/shared/supplemental-reviews.md`, with document/content hashes in the pinned
+scope and a separate optional ledger. Independently verify consequential claims.
+Never attach these extras to document-only cold reads or use them as cold readers.
+
 Load this when `elephant`, `check` or `thinking` is about to delegate a factual check
 or a cold read. The generic protocol (create, prepare, dispatch, observe, ingest,
 accept, retry, fallback, overview checklists) is in `PKG/shared/job-coordination.md`.

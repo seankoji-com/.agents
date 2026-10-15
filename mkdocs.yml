@@ -64,6 +64,7 @@ nav:
       - How the workflows help: case-study.md
       - CLI reference: cli.md
       - Safety and data: safety.md
+      - Free supplemental reviews: supplemental-reviews.md
       - Learnings and harvest: learnings.md
       - Troubleshooting: troubleshooting.md
   - Plugins:

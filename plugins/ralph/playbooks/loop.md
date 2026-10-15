@@ -1,5 +1,13 @@
 # Implementation and evaluation loop
 
+At each issued evaluation round, the coordinator may add free supplemental reviews
+under `PKG/shared/supplemental-reviews.md`, using one optional ledger for the round.
+Dispatch the mandatory evaluator first. Keep extras out of this helper's evaluator
+records and attempt budget. Close and request cancellation when the mandatory round
+ends; never wait for extras. Verify concrete findings before adding confirmed issues
+to the normal feedback/repair path. Required independence, fresh full-scope
+acceptance and pending-run gates stay unchanged.
+
 ## Start and pin the contract
 
 Inspect repository instructions, branch, working tree and intended PR base. Preserve

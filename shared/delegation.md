@@ -83,6 +83,12 @@ not fetch, reset to or depend on their refs unless the host documents them.
 
 ## Review independence
 
+Supplemental free reviews follow `PKG/shared/supplemental-reviews.md`. Their separate
+ledger retains ownership without making them required task slots. Close intake and
+request cancellation at the primary round's end; report unconfirmed stops without
+waiting for optional work. Required gates and the prohibition on claiming quiescence
+without host evidence still apply.
+
 The reviewer comes from a different model lineage than the implementer when one is
 available. Lineage is the `lineage` field on each model in the routing config, never
 the provider name, because one provider such as OpenCode serves several lineages.
