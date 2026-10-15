@@ -55,13 +55,43 @@ class DoctorTest(unittest.TestCase):
         self.assertEqual(set(data['checks']), CHECKS)
         self.assertEqual(data['failed'], [])
         self.assertEqual(data['agent_checks'], ['orchestrator_capabilities'])
-        self.assertEqual(data['identity_reporting'], {'source': 'recorded host observations only', 'launches_nothing': True})
+        self.assertEqual(data['identity_reporting'], {
+            'source': 'recorded host observations only',
+            'providers_with_unreported_model': [],
+            'identity_reporting_unverified': [],
+            'launches_nothing': True,
+        })
         self.assertEqual(data['plugin'], 'imps')
         self.assertTrue(data['checks']['python']['ok'])
         self.assertEqual(data['checks']['python']['required'], '3.10+')
         self.assertTrue(data['checks']['git']['version'].startswith('git version'))
         self.assertEqual(data['checks']['state_root']['status'], 'absent')
         self.assertIn(data['checks']['learnings']['status'], ('available', 'unavailable'))
+
+    def test_identity_reporting_names_only_recorded_unreported_providers(self):
+        root = self.tmp / 'jobs'
+        root.mkdir()
+        code, empty = self.doctor('--state-root', self.tmp / 'state', '--jobs-state-root', root)
+        self.assertEqual(code, 0, empty)
+        self.assertEqual(empty['data']['identity_reporting']['identity_reporting_unverified'], [])
+
+        job_dir = root / 'job-one'
+        job_dir.mkdir()
+        (job_dir / 'job.json').write_text(json.dumps({
+            'tasks': [{'handles': [
+                {'observed_identity': {'status': 'unreported', 'providerInstanceId': 'fixture-provider', 'model': None}},
+                {'observed_identity': {'status': 'verified', 'providerInstanceId': 'reported-provider', 'model': 'fixture-model'}},
+            ]}],
+            'history': [],
+        }))
+        code, recorded = self.doctor('--state-root', self.tmp / 'state', '--jobs-state-root', root)
+        self.assertEqual(code, 0, recorded)
+        self.assertEqual(recorded['data']['identity_reporting'], {
+            'source': 'recorded host observations only',
+            'providers_with_unreported_model': ['fixture-provider'],
+            'identity_reporting_unverified': ['fixture-provider'],
+            'launches_nothing': True,
+        })
 
     def test_absent_root_passes_and_writes_nothing_anywhere(self):
         root = self.tmp / 'state' / 'imps'

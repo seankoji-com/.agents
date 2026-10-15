@@ -25,8 +25,10 @@ cheap and deterministic. Run them yourself; never launch an agent for them. `doc
 is not a `thinking_state.py` subcommand. It checks Python 3.10+,
 `thinking_state.py --help`, and the installed bundle through
 `t3-plugins agents list elephant-goldfish`. It reports identity information only
-from recorded host observations and launches nothing. `gh` is needed only for
-optional publishing.
+from recorded host observations and launches nothing. Name providers whose
+recorded observations have no model and report their identity reporting as
+unverified. Do not infer identity from configured targets or query a live
+provider catalog. `gh` is needed only for optional publishing.
 
 ## Who does what
 

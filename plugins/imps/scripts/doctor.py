@@ -106,13 +106,61 @@ def learnings(project):
     return {'status': receipt.get('status'), 'reason': receipt.get('reason')}
 
 
-def doctor(state_root, project):
+def recorded_identity_reporting(jobs_state_root):
+    """Summarise identity observations in saved jobs without consulting the host."""
+    unreported = set()
+    root = Path(jobs_state_root)
+    try:
+        job_files = sorted(root.glob('*/job.json'))
+    except OSError:
+        job_files = []
+    for path in job_files:
+        try:
+            if path.stat().st_size > 16 * 1024 * 1024:
+                continue
+            job = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, UnicodeError, ValueError):
+            continue
+        if not isinstance(job, dict):
+            continue
+        tasks = list(job.get('tasks', []))
+        for historic in job.get('history', []):
+            if isinstance(historic, dict):
+                tasks.extend(historic.get('tasks', []))
+        for task in tasks:
+            if not isinstance(task, dict):
+                continue
+            records = []
+            for key in ('handles', 'followups', 'execution_history', 'dispatch_history', 'host_conflicts'):
+                records.extend(task.get(key, []))
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                observed = record.get('observed_identity')
+                if not isinstance(observed, dict):
+                    continue
+                provider = observed.get('providerInstanceId')
+                if not isinstance(provider, str) or not provider:
+                    continue
+                if observed.get('status') == 'unreported' and not observed.get('model'):
+                    unreported.add(provider)
+    return {
+        'source': 'recorded host observations only',
+        'providers_with_unreported_model': sorted(unreported),
+        'identity_reporting_unverified': sorted(unreported),
+        'launches_nothing': True,
+    }
+
+
+def doctor(state_root, project, jobs_state_root=None):
     from core.store import env_state_root
     meta = json.loads((PKG / 'plugin.json').read_text())
     version = meta['version']
     if (PKG / 'install-manifest.json').is_file():
         version = json.loads((PKG / 'install-manifest.json').read_text())['version']
     root = Path(state_root).expanduser().absolute() if state_root else env_state_root(meta['name'])
+    jobs_root = Path(jobs_state_root).expanduser().absolute() if jobs_state_root else Path(
+        os.environ.get('XDG_STATE_HOME') or Path.home() / '.local' / 'state') / 't3-plugins' / 'jobs'
     checks = {'python': {'ok': sys.version_info[:2] >= MIN_PYTHON, 'version': '.'.join(map(str, sys.version_info[:3])),
                          'required': '.'.join(map(str, MIN_PYTHON)) + '+'}}
     try:
@@ -125,13 +173,14 @@ def doctor(state_root, project):
     checks['learnings'] = learnings(project)
     failed = [name for name in ('python', 'git', 'state_root') if not checks[name]['ok']]
     return {'plugin': meta['name'], 'version': version, 'project': str(project), 'checks': checks,
-            'failed': failed, 'identity_reporting': {'source': 'recorded host observations only', 'launches_nothing': True},
+            'failed': failed, 'identity_reporting': recorded_identity_reporting(jobs_root),
             'agent_checks': ['orchestrator_capabilities']}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='cli.py doctor', description=__doc__.split('\n')[0])
     parser.add_argument('--state-root')
+    parser.add_argument('--jobs-state-root', help=argparse.SUPPRESS)
     parser.add_argument('--repo', default='.', help='project whose learnings to load (default: cwd)')
     envelope = {'schema_version': 1, 'ok': False, 'op': 'doctor', 'run_id': None}
     try:
@@ -142,7 +191,7 @@ def main(argv=None):
         error, code = {'code': 'usage', 'message': 'invalid arguments; see --help on stderr', 'details': {}}, 2
     else:
         try:
-            data = doctor(args.state_root, Path(args.repo).absolute())
+            data = doctor(args.state_root, Path(args.repo).absolute(), args.jobs_state_root)
         except (OSError, ValueError, KeyError) as exc:
             error, code = {'code': 'io_error', 'message': f'{type(exc).__name__}: {exc}', 'details': {}}, 5
         else:

@@ -38,6 +38,10 @@ short-lived file, inside an existing root; exit 5 lists failures in `error.detai
 Then call T3's live `orchestrator_capabilities` yourself. Never guess another subcommand.
 Report enabled providers and the separate reasons others are disabled, uninstalled
 or unauthenticated. Direct work remains possible when children are unavailable.
+For identity reporting, name providers with a recorded unreported-model observation
+and mark providers without a recorded identity result as `identity reporting
+unverified`. Use recorded observations only; do not query the live provider catalog
+or launch anything to fill the gap.
 Read `PKG/references/compatibility.md` for historical provider observations.
 
 **run <task>.** Inspect repository instructions and the working tree. Preserve
