@@ -91,6 +91,18 @@
         "stage": 3,
         "disposition": "change",
         "reason": "Strict regular input and content-bound coordinator observation validation for workflow adapters."
+      },
+      {
+        "path": "plugins/elephant-goldfish/scripts/doctor.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Reports elephant-goldfish readiness and recorded identity observations through the shared doctor helper."
+      },
+      {
+        "path": "shared/identity_reporting.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Provides recorded-observation identity reporting shared by the imps and elephant-goldfish doctors."
       }
     ],
     "schemas": [
