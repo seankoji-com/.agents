@@ -266,6 +266,16 @@ stales those stages and successors, and records history. Each executed slot then
 a charged `retry`. A spent budget refuses with `attempt_budget_exhausted` and
 `owner_decision_required`; raising it is a plan revision with an owner decision.
 
+Observed identity may use `status_identity`, `receipt_identity` and
+`configuration_identity`, or `observed_identity: {source, providerInstanceId,
+model}`. Each source is retained separately. Any present provider or model that
+differs from the pinned target makes that execution mismatched, and the mismatch is
+sticky until a charged retry creates a new execution. Verification requires the
+status source to report the target provider and at least one source to report the
+target model; incomplete evidence is unreported. A redelivered completion ignores its
+new identity fields. A terminal `reconciled` observation retains its observed identity
+and host state.
+
 A second host ID for an already owned
 original or follow-up request is refused; `task-observation` retains it in the
 task's `host_conflicts` and the job `blockers`. Until a `reconciled`

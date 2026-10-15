@@ -96,7 +96,7 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
             raise AcceptanceError(_open_dispatch(task))
         if any(b.get('kind') == 'conflicting-host-handle' and b.get('task_id') == task['task_id'] and not b.get('reconciled') for b in job.get('blockers', [])):
             raise AcceptanceError('a conflicting host handle remains unreconciled in job blockers')
-        if any(b.get('kind') == 'identity-mismatch' and b.get('task_id') == task['task_id'] for b in job.get('blockers', [])):
+        if any(b.get('kind') == 'identity-mismatch' and b.get('task_id') == task['task_id'] and not b.get('reconciled') for b in job.get('blockers', [])):
             raise AcceptanceError('observed host identity mismatch is a sticky blocker')
         if _live_handles(task):
             raise AcceptanceError('every owned host handle must be terminal with work_state result_available and no pending runs')

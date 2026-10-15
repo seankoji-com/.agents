@@ -109,6 +109,8 @@ def learnings(project):
 def recorded_identity_reporting(jobs_state_root):
     """Summarise identity observations in saved jobs without consulting the host."""
     unreported = set()
+    known_providers = set()
+    observed_providers = set()
     root = Path(jobs_state_root)
     try:
         job_files = sorted(root.glob('*/job.json'))
@@ -130,6 +132,9 @@ def recorded_identity_reporting(jobs_state_root):
         for task in tasks:
             if not isinstance(task, dict):
                 continue
+            target = task.get('target')
+            if isinstance(target, dict) and isinstance(target.get('providerInstanceId'), str):
+                known_providers.add(target['providerInstanceId'])
             records = []
             for key in ('handles', 'followups', 'execution_history', 'dispatch_history', 'host_conflicts'):
                 records.extend(task.get(key, []))
@@ -142,12 +147,13 @@ def recorded_identity_reporting(jobs_state_root):
                 provider = observed.get('providerInstanceId')
                 if not isinstance(provider, str) or not provider:
                     continue
+                observed_providers.add(provider)
                 if observed.get('status') == 'unreported' and not observed.get('model'):
                     unreported.add(provider)
     return {
         'source': 'recorded host observations only',
         'providers_with_unreported_model': sorted(unreported),
-        'identity_reporting_unverified': sorted(unreported),
+        'identity_reporting_unverified': sorted(known_providers - observed_providers),
         'launches_nothing': True,
     }
 
@@ -159,8 +165,7 @@ def doctor(state_root, project, jobs_state_root=None):
     if (PKG / 'install-manifest.json').is_file():
         version = json.loads((PKG / 'install-manifest.json').read_text())['version']
     root = Path(state_root).expanduser().absolute() if state_root else env_state_root(meta['name'])
-    jobs_root = Path(jobs_state_root).expanduser().absolute() if jobs_state_root else Path(
-        os.environ.get('XDG_STATE_HOME') or Path.home() / '.local' / 'state') / 't3-plugins' / 'jobs'
+    jobs_root = Path(jobs_state_root).expanduser().absolute() if jobs_state_root else env_state_root('imps').parent / 'jobs'
     checks = {'python': {'ok': sys.version_info[:2] >= MIN_PYTHON, 'version': '.'.join(map(str, sys.version_info[:3])),
                          'required': '.'.join(map(str, MIN_PYTHON)) + '+'}}
     try:

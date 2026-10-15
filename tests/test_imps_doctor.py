@@ -78,7 +78,7 @@ class DoctorTest(unittest.TestCase):
         job_dir = root / 'job-one'
         job_dir.mkdir()
         (job_dir / 'job.json').write_text(json.dumps({
-            'tasks': [{'handles': [
+            'tasks': [{'target': {'providerInstanceId': 'unobserved-provider'}, 'handles': [
                 {'observed_identity': {'status': 'unreported', 'providerInstanceId': 'fixture-provider', 'model': None}},
                 {'observed_identity': {'status': 'verified', 'providerInstanceId': 'reported-provider', 'model': 'fixture-model'}},
             ]}],
@@ -89,7 +89,7 @@ class DoctorTest(unittest.TestCase):
         self.assertEqual(recorded['data']['identity_reporting'], {
             'source': 'recorded host observations only',
             'providers_with_unreported_model': ['fixture-provider'],
-            'identity_reporting_unverified': ['fixture-provider'],
+            'identity_reporting_unverified': ['unobserved-provider'],
             'launches_nothing': True,
         })
 

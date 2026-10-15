@@ -4,13 +4,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core.jobs import JobError, create_job, prepare, record_dispatch, record_result, retry_task
+from core.jobs import JobError, cancel, create_job, prepare, record_dispatch, record_result, retry_task
 from core.jobs.store import Store
 from shared.job_coordinator import prepare_followup
 from shared.job_acceptance import AcceptanceError, _check_slots
 from shared.job_acceptance import _pending
 from shared.job_coordinator import record_observation
-from shared.job_coordinator import observed_identity
 
 def job_fixture():
     # Import lazily so unittest does not collect the fixture class as this module's tests.
@@ -22,13 +21,11 @@ STATUS = {'providerInstanceId': 'provider-a', 'model': 'model-a'}
 TARGET = {'providerInstanceId': 'provider-a', 'model': 'model-a'}
 
 def identity_for(event, target):
-    sources = event.get('observed_identity', {})
-    for source in ('status', 'receipt', 'configuration'):
-        value = event.get(source + '_identity')
-        if isinstance(value, dict):
-            sources[source] = {'providerInstanceId': value.get('providerInstanceId'),
-                               'model': value.get('model', value.get('model_id'))}
-    return observed_identity(sources, target)
+    from core.jobs import _record_identity
+    task = {'task_id': 'fixture-task', 'target': target}
+    handle = {'task_id': 'fixture-host', 'request_id': 'fixture-request', 'target': target}
+    _record_identity({'blockers': []}, task, handle, event)
+    return handle['observed_identity']
 
 
 class ObservedIdentityTests(unittest.TestCase):
@@ -59,6 +56,16 @@ class ObservedIdentityTests(unittest.TestCase):
             record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': 'req0', 'host_task_id': 'host0',
                 'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
             self.assertTrue(any(b['kind'] == 'identity-mismatch' and b['reconciled'] for b in store.load()['blockers']))
+
+    def test_nonterminal_reconciliation_cannot_clear_obligation(self):
+        fixture = job_fixture(); job = fixture.base_job('nonterminal-reconcile'); job['tasks'][0]['target'] = TARGET
+        with tempfile.TemporaryDirectory() as td:
+            create_job(job, td, job['pins']); store = Store(td, job['job_id']); caller = fixture.caller()
+            record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': 'req0', 'host_task_id': 'host0',
+                'status_identity': {'providerInstanceId': 'provider-b', 'model': 'model-a'}})
+            record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': 'req0', 'host_task_id': 'host0',
+                'status': 'running', 'work_state': 'working', 'has_pending_child_runs': False})
+            self.assertFalse(next(b for b in store.load()['blockers'] if b['kind'] == 'identity-mismatch').get('reconciled'))
 
     def test_followup_observation_is_checked_against_its_own_target(self):
         # The per-execution target is passed to the identity matcher, including for a follow-up.
@@ -112,6 +119,26 @@ class ObservedIdentityTests(unittest.TestCase):
             self.assertEqual(store.load()['tasks'][0]['status'], 'pending')
             with self.assertRaises(AcceptanceError):
                 _check_slots(store, store.load(), store.load()['stages'][0])
+
+    def test_cancelled_job_retains_observed_forbidden_continuations(self):
+        fixture = job_fixture()
+        for role, context in (('review', None), ('worker', 'document-only')):
+            with self.subTest(role=role), tempfile.TemporaryDirectory() as td:
+                job = fixture.base_job('cancelled-forbidden-' + role)
+                job['tasks'][0].update(role=role, target=TARGET)
+                if context:
+                    job['tasks'][0]['context_policy'] = context
+                create_job(job, td, job['pins']); store = Store(td, job['job_id']); caller = fixture.caller()
+                record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': 'req0', 'host_task_id': 'host0'})
+                record_dispatch(store, caller, 't0', {'kind': 'completion', 'request_id': 'req0', 'host_task_id': 'host0',
+                    'completion_id': 'done0', 'status': 'completed', 'work_state': 'result_available',
+                    'has_pending_child_runs': False})
+                cancel(store, caller, 'fixture cancellation')
+                event = {'kind': 'followup', 'request_id': 'req-forbidden', 'host_task_id': 'host-f',
+                         'parent_host_task_id': 'host0', 'target': TARGET,
+                         'scope': job['tasks'][0]['write_scope'], 'status_identity': STATUS}
+                record_observation(store, caller, 't0', event)
+                self.assertTrue(store.load()['tasks'][0]['followups'][0]['forbidden_followup'])
 
     def test_redelivered_completion_ignores_its_observed_identity(self):
         fixture = job_fixture(); job = fixture.base_job('completion-identity')
