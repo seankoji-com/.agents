@@ -95,6 +95,15 @@ class DocumentAuthorTests(unittest.TestCase):
         with self.assertRaises(AcceptanceError):
             independent_of_authors({'document_authors': [{'lineage': 'sonnet'}]}, {'target': {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol', 'lineage': 'openai'}})
 
+    def test_reviewer_lineage_is_derived_and_declared_label_must_agree(self):
+        authors = {'document_authors': [{'lineage': 'google'}]}
+        gemini = {'target': {'providerInstanceId': 'antigravity',
+                             'model': 'gemini-3.8-flash-high', 'lineage': 'openai'}}
+        with self.assertRaisesRegex(AcceptanceError, 'disagrees with provider and model'):
+            independent_of_authors(authors, gemini)
+        independent_of_authors(authors, {'target': {'providerInstanceId': 'codex',
+                                                    'model': 'gpt-6.1-sol', 'lineage': 'openai'}})
+
     def test_recording_cannot_guess_between_legacy_predecessor_hashes(self):
         from tempfile import TemporaryDirectory
         with TemporaryDirectory() as td:

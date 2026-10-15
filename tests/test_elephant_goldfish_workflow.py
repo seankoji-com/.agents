@@ -609,13 +609,25 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         for label in ('unknown', 'sonnet'):
             job_id = 'noncanonical-author-lineage-' + label
             job = self.elephant_job(job_id, document, factual=False)
-            job['tasks'][0]['target'] = {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol',
+            job['tasks'][0]['target'] = {'providerInstanceId': 'opencode', 'model': label,
                                          'lineage': label}
             self.create(job)
             refused = self.run_helper('job_cli.py', 'prepare', job_id,
                                       {'caller': self.caller(self.WORKFLOW), 'task_id': 'c0'})
             self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
             self.assertIn('unknown or non-canonical', refused.stderr)
+
+    def test_cli_prepare_rejects_lineage_label_that_disagrees_with_target_model(self):
+        document = self.document()
+        job_id = 'mislabeled-author-lineage'
+        job = self.elephant_job(job_id, document, factual=False)
+        job['tasks'][0]['target'] = {'providerInstanceId': 'antigravity',
+                                     'model': 'gemini-3.8-flash-high', 'lineage': 'openai'}
+        self.create(job)
+        refused = self.run_helper('job_cli.py', 'prepare', job_id,
+                                  {'caller': self.caller(self.WORKFLOW), 'task_id': 'c0'})
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('disagrees with provider and model', refused.stderr)
 
     def test_check_workflow_imports_authors_and_rejects_same_lineage_worker(self):
         document = self.document()
@@ -1399,9 +1411,7 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         self.assertEqual(repair_sidecar['_document_paths'][path_key]['sha256'], repaired_hash)
         self.assertEqual(repair_sidecar['_document_paths'][path_key]['order'], repair_sidecar[repaired_hash]['order'])
         self.assertEqual(repair_sidecar[repaired_hash]['document_path'], path_key)
-        job_records = self.job_state(job_id)['document_author_records']
-        self.assertEqual(job_records['_document_paths'][path_key], repair_sidecar['_document_paths'][path_key])
-        self.assertEqual(job_records[repaired_hash], repair_sidecar[repaired_hash])
+        self.assertNotIn('document_author_records', self.job_state(job_id))
 
         document.write_bytes(document.read_bytes() + b'\nC fixed a typo in place.\n')
         later_caps = copy.deepcopy(repair_caps)

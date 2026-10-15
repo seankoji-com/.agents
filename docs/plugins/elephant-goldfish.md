@@ -27,8 +27,9 @@ read-only but cannot use a waiver to establish missing authorship. A direct fact
 authoring stage stays blocked when authorship is unknown.
 
 Plan revisions re-import authors and retain the job's existing author records.
-Recording a moved destination again keeps authors from its prior path hash and its
-current bytes. Once enabled, author independence cannot be disabled by plan revision.
+The sidecar order rule applies to records in the same directory. Copies or moves across
+directories and unrecorded edits are outside the trust boundary. Once enabled, author
+independence cannot be disabled by plan revision.
 A first record cannot identify earlier authorship for an unrecorded document. Author
 records are host evidence transcribed by the coordinator, not proof of freshness.
 

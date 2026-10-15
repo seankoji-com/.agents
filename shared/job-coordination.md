@@ -89,19 +89,20 @@ matching-hash authors and enforces verified identity and a different lineage whe
 authors are known. Its factual slot must name the validated stage document. Extra
 unknown subjects preserve the independence requirement and make preparation fail
 closed. A zero-slot direct check of a document with recorded authors needs a
-stage-scoped waiver bound to the latest `direct-execution` identity. Re-recording a
-moved path unions both hashes; plan revisions retain job authors. Once enabled,
+stage-scoped waiver bound to the latest `direct-execution` identity. Plan revisions
+retain job authors. Once enabled,
 `policy.author_independence` cannot be disabled, even by owner decision. If the checked
 hash has no author record, the read-only check may proceed with author independence
 reported as unverified; a waiver cannot establish missing authorship. Direct factual
 authoring stages stay blocked when authorship is unknown, even with a waiver.
-Re-recording a path inherits its previous hash and every sidecar record ordered since
-that path was last recorded. Copies or moves across directories and unrecorded edits
+Re-recording a path inherits its previous hash and later sidecar records. The order
+rule applies within one directory; cross-directory copies or moves and unrecorded edits
 are outside the trust boundary.
 Waivers bind target, author list, slot contract and document hash; they waive no
 requirement and expire when any bound value changes. Capabilities are host evidence
 transcribed by the coordinator; validation checks shape and correlation, not freshness
 or forgery. A first record cannot reveal earlier authors.
+The sidecar is unlocked; concurrent writes can overwrite records.
 `document-revision` validates before updating the sidecar and unions existing
 new-hash authors with inherited authors and the repairer. `record_document_author.py`
 records `elephant.md`.

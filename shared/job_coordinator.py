@@ -486,7 +486,6 @@ def revise_document(store, caller, task_id, document, reason, capabilities=None)
                 # Preserve append_author's order, path and pointer metadata so a
                 # later in-place recording inherits this revision's authors.
                 updated[new] = {**updated.get(new, {}), **union}
-                job.setdefault('document_author_records', {}).update(updated)
                 revised_authors = [{'unknown': True}] if union.get('unknown') else union['authors']
                 task['document_authors'] = revised_authors
                 sidecar_update = (sidecar, updated)

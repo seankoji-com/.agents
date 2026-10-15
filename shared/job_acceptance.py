@@ -247,7 +247,14 @@ def independent_of_authors(task, reviewer):
     authors = task.get('document_authors')
     if not isinstance(authors, list) or not authors or any(not isinstance(a, dict) or a.get('unknown') for a in authors):
         raise AcceptanceError('author independence is unverified: author unrecorded')
-    _, _, lineage = _lineage(reviewer)
+    target = reviewer.get('target')
+    if not isinstance(target, dict) or any(not isinstance(target.get(key), str) or not target[key]
+                                            for key in ('providerInstanceId', 'model')):
+        raise AcceptanceError('reviewer lineage is unknown; author independence is unverified')
+    from shared.lineage import lineage as derive_lineage
+    lineage = derive_lineage(target['providerInstanceId'], target['model'])
+    if target.get('lineage') is not None and target['lineage'] != lineage:
+        raise AcceptanceError('declared reviewer lineage disagrees with provider and model')
     canonical_lineage(lineage)
     for author in authors:
         author_lineage = author.get('lineage')
