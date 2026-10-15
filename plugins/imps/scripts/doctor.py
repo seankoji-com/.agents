@@ -19,6 +19,7 @@ PKG = Path(__file__).resolve().parent.parent
 # core/ and shared/ sit beside this package when installed, two levels up in a source checkout.
 BASE = next((p for p in (PKG, PKG.parent.parent) if (p / 'core' / 'store.py').is_file()), PKG)
 sys.path.insert(0, str(BASE))
+from shared.identity_reporting import recorded_identity_reporting
 MIN_PYTHON = (3, 10)
 # init needs only search permission on the way down, so the walk must not ask for more.
 # O_PATH (Linux) opens a directory without read permission; elsewhere O_RDONLY is the
@@ -104,58 +105,6 @@ def learnings(project):
         return {'status': 'available', 'entries': len(receipt['data']['entries']),
                 'pending_maintenance': receipt['pending_maintenance']}
     return {'status': receipt.get('status'), 'reason': receipt.get('reason')}
-
-
-def recorded_identity_reporting(jobs_state_root):
-    """Summarise identity observations in saved jobs without consulting the host."""
-    unreported = set()
-    known_providers = set()
-    observed_providers = set()
-    root = Path(jobs_state_root)
-    try:
-        job_files = sorted(root.glob('*/job.json'))
-    except OSError:
-        job_files = []
-    for path in job_files:
-        try:
-            if path.stat().st_size > 16 * 1024 * 1024:
-                continue
-            job = json.loads(path.read_text(encoding='utf-8'))
-        except (OSError, UnicodeError, ValueError):
-            continue
-        if not isinstance(job, dict):
-            continue
-        tasks = list(job.get('tasks', []))
-        for historic in job.get('history', []):
-            if isinstance(historic, dict):
-                tasks.extend(historic.get('tasks', []))
-        for task in tasks:
-            if not isinstance(task, dict):
-                continue
-            target = task.get('target')
-            if isinstance(target, dict) and isinstance(target.get('providerInstanceId'), str):
-                known_providers.add(target['providerInstanceId'])
-            records = []
-            for key in ('handles', 'followups', 'execution_history', 'dispatch_history', 'host_conflicts'):
-                records.extend(task.get(key, []))
-            for record in records:
-                if not isinstance(record, dict):
-                    continue
-                observed = record.get('observed_identity')
-                if not isinstance(observed, dict):
-                    continue
-                provider = observed.get('providerInstanceId')
-                if not isinstance(provider, str) or not provider:
-                    continue
-                observed_providers.add(provider)
-                if observed.get('status') == 'unreported' and not observed.get('model'):
-                    unreported.add(provider)
-    return {
-        'source': 'recorded host observations only',
-        'providers_with_unreported_model': sorted(unreported),
-        'identity_reporting_unverified': sorted(known_providers - observed_providers),
-        'launches_nothing': True,
-    }
 
 
 def doctor(state_root, project, jobs_state_root=None):

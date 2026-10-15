@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import hashlib
+import contextlib
+import io
 import importlib.util
 import json
 import os
@@ -21,6 +23,9 @@ CHECKS = {'python', 'git', 'state_root', 'learnings'}
 SPEC = importlib.util.spec_from_file_location('imps_doctor', ROOT / 'plugins' / 'imps' / 'scripts' / 'doctor.py')
 DOCTOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(DOCTOR)
+EG_SPEC = importlib.util.spec_from_file_location('elephant_goldfish_doctor', ROOT / 'plugins' / 'elephant-goldfish' / 'scripts' / 'doctor.py')
+EG_DOCTOR = importlib.util.module_from_spec(EG_SPEC)
+EG_SPEC.loader.exec_module(EG_DOCTOR)
 
 
 def tree(path):
@@ -92,6 +97,28 @@ class DoctorTest(unittest.TestCase):
             'identity_reporting_unverified': ['unobserved-provider'],
             'launches_nothing': True,
         })
+
+    def test_elephant_goldfish_doctor_reports_only_recorded_identity_and_runs_readiness_checks(self):
+        root = self.tmp / 'jobs'
+        root.mkdir()
+        ok = subprocess.CompletedProcess([], 0, 'ready', '')
+        with mock.patch.object(EG_DOCTOR.subprocess, 'run', return_value=ok) as run, contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(EG_DOCTOR.main(['--jobs-state-root', str(root)]), 0)
+        empty = json.loads(out.getvalue())['data']
+        self.assertEqual(empty['identity_reporting']['identity_reporting_unverified'], [])
+        self.assertEqual([call.args[0][-1] for call in run.call_args_list], ['--help', 'elephant-goldfish'])
+        job_dir = root / 'job-one'
+        job_dir.mkdir()
+        (job_dir / 'job.json').write_text(json.dumps({'tasks': [
+            {'target': {'providerInstanceId': 'unobserved-provider'}, 'handles': [
+                {'observed_identity': {'status': 'unreported', 'providerInstanceId': 'fixture-provider', 'model': None}},
+                {'observed_identity': {'status': 'verified', 'providerInstanceId': 'reported-provider', 'model': 'fixture-model'}},
+            ]}], 'history': []}))
+        with mock.patch.object(EG_DOCTOR.subprocess, 'run', return_value=ok), contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(EG_DOCTOR.main(['--jobs-state-root', str(root)]), 0)
+        reported = json.loads(out.getvalue())['data']['identity_reporting']
+        self.assertEqual(reported['providers_with_unreported_model'], ['fixture-provider'])
+        self.assertEqual(reported['identity_reporting_unverified'], ['unobserved-provider'])
 
     def test_absent_root_passes_and_writes_nothing_anywhere(self):
         root = self.tmp / 'state' / 'imps'

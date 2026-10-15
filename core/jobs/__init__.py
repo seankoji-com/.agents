@@ -46,7 +46,6 @@ def create_job(payload,state_root,pins):
     for t in j['tasks']:
         t.setdefault('status','pending');t.setdefault('attempt',0);t.setdefault('handles',[]);t.setdefault('followups',[]);t.setdefault('dispatch_retries',0)
     store=Store(state_root,j['job_id']);store.create(j);return {'job':str(store.file),'overview':str(store.path/'overview.json')}
-
 def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason='configured worker'):
     if not callable(verify_pin):raise JobError('pinned dependency verifier is required')
     def check(job):
@@ -78,7 +77,6 @@ def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason
         task['brief'].update(path=str(path),sha256=digest(raw));task['cycle']=stage.get('cycle',0);task.pop('inputs_stale',None)  # the execution belongs to this pass under the current contract
         return {'path':str(path),'sha256':digest(raw),'bytes':len(raw),'provenance':{key:brief[key] for key in ('job_id','stage_id','task_id','request_id')}}
     return store.transact(caller,apply,'prepare')
-
 def record_result(store,caller,task_id,result,result_parser=None):
     from .results import parse_result
     parser=result_parser or parse_result
@@ -121,7 +119,6 @@ def record_result(store,caller,task_id,result,result_parser=None):
         task['result_ref']={'sha256':parsed['sha256'],'kind':parsed['kind'],'bytes':parsed['bytes'],'transport_path':str(transport),'transport_sha256':digest(bytes(result['result']))};task.update(last_execution_status=parsed['result']['status'],last_completion_id=completion_id)
         task.setdefault('execution_history',[]).append({'request_id':request,'result':parsed['result'],'completion_id':completion_id,'sha256':parsed['sha256'],'accepted_execution':True,'transport_ref':task['result_ref']});return task
     return store.transact(caller,apply,'result')
-
 def decision(store,caller,decision):
     def apply(j):
         if not isinstance(decision,dict) or not decision.get('quote') or not decision.get('source') or not decision.get('source_sha256') or not decision.get('scope') or not __import__('re').fullmatch(r'[0-9a-f]{64}',str(decision.get('source_sha256',''))):raise JobError('owner decision needs quote, source, SHA-256 and scope')
@@ -133,13 +130,10 @@ def decision(store,caller,decision):
         if decision['scope'].startswith('waiver:') and (not isinstance(decision.get('requirement_ids'),list) or not decision['requirement_ids'] or any(r not in j['requirements'] for r in decision['requirement_ids'])):raise JobError('waiver requires explicit job requirement IDs; execution also requires policy permission')
         j['decisions'].append(decision);j['history'].append({'kind':'owner-decision','decision_id':decision.get('id')})
     return store.transact(caller,apply,'decision')
-
 def cancel(store,caller,reason):return store.transact(caller,lambda j:j.update(status='cancelled') or j.setdefault('blockers',[]).append({'kind':'cancelled','reason':reason}),'cancel')
-
 def discard(store,caller,reason):
     # Explicitly records archival intent; state and artifacts remain immutable/history-preserving.
     return store.transact(caller,lambda j:j.update(discard_requested={'reason':reason,'artifacts_preserved':True}),'discard')
-
 def record_dispatch(store,caller,task_id,event):
     """Record host observations; no event dispatches, replaces or cancels work."""
     def apply(j):
@@ -220,7 +214,6 @@ def record_dispatch(store,caller,task_id,event):
         else:raise JobError('unknown host observation')
         t.setdefault('dispatch_history',[]).append(event)
     return store.transact(caller,apply,'task-observation')
-
 def worker_write(store,caller,task_id,relative_path,data):
     """Write only declared task evidence using non-following directory handles."""
     def apply(j):
@@ -236,7 +229,6 @@ def worker_write(store,caller,task_id,relative_path,data):
         if any(h.get('transport_ref',{}).get('kind')=='artifact' and strict_load(_regular(Path(h['transport_ref']['transport_path'])))['artifact']['path']==relative_path for h in task.get('execution_history',[])):raise JobError('prior full-result artifact is immutable')
         _atomic(store.path/rel,data);return {'path':str(store.path/rel),'sha256':digest(data),'bytes':len(data),'task_id':task_id}
     return store.transact(caller,apply,'worker-evidence')
-
 def retry_task(store,caller,task_id,reason,category='primary'):
     """Reopen a failed task only within the persisted stage repair budget."""
     if category not in ('primary','support','review'):raise JobError('invalid retry category')

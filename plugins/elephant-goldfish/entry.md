@@ -9,7 +9,7 @@ Load only the row for the requested operation.
 
 | Request | Meaning | Load |
 | --- | --- | --- |
-| `doctor` | Local readiness check | Nothing else. Run it directly. |
+| `doctor` | Local readiness check | Run it directly with `python3 PKG/scripts/doctor.py`. |
 | `thinking <topic>` or `thinking list` | Interactive discovery, rubric and deterministic handoff | `PKG/playbooks/thinking.md` |
 | `elephant [failure report]` | Write or revise `elephant.md`, then verify facts and cold readability separately | `PKG/playbooks/elephant.md` |
 | `check` | Factual drift pass on `elephant.md` only; no edits, no cold read | The `check` section of `PKG/playbooks/elephant.md` |
@@ -22,7 +22,7 @@ cold read is about to start.
 
 `doctor`, `thinking list`, `resolve`, `gate` and `render_handoff.py --check` are
 cheap and deterministic. Run them yourself; never launch an agent for them. `doctor`
-is not a `thinking_state.py` subcommand. It checks Python 3.10+,
+runs as `python3 PKG/scripts/doctor.py`, not as a `thinking_state.py` subcommand. It checks Python 3.10+,
 `thinking_state.py --help`, and the installed bundle through
 `t3-plugins agents list elephant-goldfish`. It reports identity information only
 from recorded host observations and launches nothing. Name providers whose
