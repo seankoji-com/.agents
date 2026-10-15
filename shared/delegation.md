@@ -99,7 +99,7 @@ for required reviewers and their subjects, and for every slot marked
 `policy.author_independence` even if a slot omits its flag. Review preparation still checks declared targets before
 dispatch. Jobs without the marker keep target-only semantics.
 
-Document authorship is keyed by document SHA-256 and keeps prior authors when an edited file is recorded again.
+Document authorship is keyed by document SHA-256 and keeps prior authors when an edited file is recorded again. Recording an edited copy and moving it into place also inherits the previous authors recorded for the destination path. A first record of a previously unrecorded document cannot identify earlier authors, so it records only the current coordinator; that earlier authorship remains outside this evidence boundary.
 A reviewer needs a canonical routing lineage different from every recorded author. If authorship or reviewer lineage is unknown, the job stops because independence cannot be checked. A `lineage-waiver` is an owner decision bound to the target,
 author list, full slot contract and document hash; it waives no requirement. These records are
 host evidence transcribed by the coordinator. Shape checks do not prove freshness or
@@ -109,7 +109,9 @@ For elephant-goldfish documents, record each coordinator write with fresh
 `render_handoff.py --capabilities` unions renderer and source authors.
 `document-revision --capabilities` validates first, then unions existing new-hash
 authors, inherited authors and the repairer. Missing source provenance stays unknown.
-`record_document_author.py <path> --capabilities FILE` records `elephant.md`. The authoring policy is enabled only for `elephant-goldfish/thinking` and `elephant-goldfish/elephant`. `elephant-goldfish/check` imports matching-hash authors for its factual slot and requires a different lineage when authors are known; unknown provenance stays unverified.
+`record_document_author.py <path> --capabilities FILE` records `elephant.md`. The authoring policy is enabled only for `elephant-goldfish/thinking` and `elephant-goldfish/elephant`. `elephant-goldfish/check` imports matching-hash authors for its factual slot and requires a different lineage and verified identity when authors are known. A checked slot must name the stage's validated document. Unknown additional subjects make the result stricter; they never remove the author-independence requirement. A zero-slot direct factual check with recorded authors needs a `direct-execution` record and a stage-scoped waiver bound to the latest executor. With no author record, the read-only check may proceed with author independence reported as unverified; a waiver cannot establish missing authorship. Direct factual authoring stages stay blocked when authorship is unknown, even with a waiver.
+
+A direct cold-read stage is not a fallback. It cannot be accepted from the coordinator's own observation; keep `R-COLD` blocked until a separate reader completes.
 
 ## Observed execution identity
 

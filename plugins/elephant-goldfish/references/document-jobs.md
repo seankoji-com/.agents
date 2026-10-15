@@ -50,34 +50,38 @@ boundary and a brief filter. Report it that way.
 
 ## Author records and identity
 
-New jobs set `policy.identity: observed`. Acceptance requires verified host identity
-for required reviewers, their subjects and author-independent slots. Legacy jobs
-without the marker keep target-only rules.
+New jobs set `policy.identity: observed`; acceptance verifies reviewers, subjects
+and author-independent slots. Legacy jobs without the marker keep target-only rules.
+`thinking` and `elephant` also set `policy.author_independence`.
 
-Author identity comes from a fresh `orchestrator_capabilities` response passed as
-`--capabilities FILE`. Require inherited provider, model and parent thread, with the
-model in that provider's catalog. A checker never adds itself as an author. Handoff
-authorship includes its renderer and both source hashes; an unrecorded source makes
-authorship unknown. These host facts are transcribed by the coordinator; the helper
-cannot prove freshness.
-After writing discovery or spec, use `thinking_state.py author` with fresh capabilities.
-Render with `render_handoff.py --capabilities FILE`. Record `elephant.md` with
-`record_document_author.py <path> --capabilities FILE`. Repairs use
-`job_cli.py document-revision --capabilities FILE`. `direct-execution` records each
-zero-slot factual start or resume. `check` imports matching authors, never the checker,
-and reports `author unrecorded` when provenance is missing.
+Record each author from fresh `orchestrator_capabilities` using `--capabilities FILE`.
+The response needs inherited provider, model and parent thread; the model must be in
+that provider's catalog. Use `thinking_state.py author` for discovery/spec,
+`render_handoff.py --capabilities FILE` for handoffs,
+`record_document_author.py <path> --capabilities FILE` for `elephant.md`, and
+`job_cli.py document-revision --capabilities FILE` for repairs. A handoff includes
+its renderer and source-hash authors; missing source records leave it unknown. A
+checker never becomes an author. These are host facts transcribed by the coordinator;
+shape and hash checks cannot prove freshness or detect a forged file.
 
-`elephant-goldfish/thinking` and `elephant-goldfish/elephant` enable
-`policy.author_independence`. `elephant-goldfish/check` stays read-only. If the checked
-hash has authors, its factual worker needs verified identity and a different canonical
-lineage. Otherwise the report says author independence is unverified. Until provenance
-is verified, report `lineage per routing config (labels unverified)`.
+`check` stays read-only. Its factual slot must name the validated stage document. If
+its hash has authors, the worker needs verified identity and a different canonical
+lineage. Unknown extra subjects preserve this requirement and fail closed. A direct
+check with recorded authors needs `direct-execution` and a stage-scoped waiver bound
+to the latest executor. With no author record, it may proceed with author independence
+reported as unverified; a waiver cannot establish missing authorship. Direct factual
+authoring with unknown authorship stays blocked. Report routing labels as
+`lineage per routing config (labels unverified)` until provenance is verified.
 
-An owner `lineage-waiver:task:<task-id>` binds the target, authors, full slot contract
-and document hash. A zero-slot direct factual stage uses
-`lineage-waiver:stage:<stage-id>` bound to its latest executor identity. Waivers skip
-no requirement. Changes to target, authors, contract, document or executor need a new
-decision.
+An owner `lineage-waiver:task:<task-id>` binds the target, author list, slot contract
+and document hash. Direct factual stages use `lineage-waiver:stage:<stage-id>` bound
+to the latest executor. Waivers skip no requirement; changes to bound values need a
+new decision. Plan revisions re-import authors for changed or added slots and check
+each slot against its stage document.
+
+An edited copy recorded at a temporary path and moved into place inherits authors
+recorded for the destination path. A first record of an unrecorded document cannot
+identify earlier authors; that history stays outside the trust boundary.
 
 ## Verdicts
 
@@ -124,30 +128,24 @@ receipt no longer matches the new bytes, so run `accept-stage` on the `handoff` 
 again (a charged direct pass). Then run `document-revision` with the new `handoff.md`
 hash and `retry` the cold-read slot.
 
-When the budget is spent, `document-revision` refuses with `attempt_budget_exhausted`
-and `owner_decision_required`. Another round needs the owner, asked through the
-question picker with the recommended option first, recorded with `decision`, and a
-`plan-revision` that raises the limit. Do not seek another reviewer to overturn an
-adverse verdict.
+When spent, report NOT READY. `document-revision` refuses with
+`attempt_budget_exhausted` and `owner_decision_required`. Another round needs an owner
+decision through the question picker and a `plan-revision` that raises the limit. Do not seek
+another reviewer to overturn an adverse verdict.
 
 ## Round limits
 
-A cold-read round is one executed cold-read slot. The budget belongs to the topic or
-document, not to a session, and resume never resets it.
+A cold-read round is one executed slot. Its budget belongs to the topic or document;
+resume never resets it.
 
 - **New topics and documents.** Four rounds in total: the initial read plus three
-  repairs. This is the default job policy (`max_repair_cycles: 3`).
+  repairs (`max_repair_cycles: 3`).
 - **Existing topics with a recorded limit.** Keep the recorded limit and count.
-- **Legacy topics with no recorded limit.** Record a limit of five and the rounds already performed. Set `max_repair_cycles` to remaining rounds minus one.
-  Stop if none remain. If the count is unknown, ask the owner instead of guessing.
+- **Legacy topics with no recorded limit.** Record a limit of five and the rounds already performed. Set `max_repair_cycles` to remaining rounds minus one. Stop if none remain; ask the owner if the count is unknown.
 
-For thinking topics, `init` records the four-round default and `resolve` reports the
-remaining rounds. `set` records legacy limits and refuses lower counts or increases
-without an owner decision. For `elephant.md`, resume the existing job. Budget fields
-do not change readiness or grant execution authority.
-
-When the budget is spent, report the document as NOT READY with its unresolved gaps.
-Raising a limit is an owner decision through the picker, recorded with `decision`.
+For thinking topics, `init` sets the default and `resolve` reports remaining rounds.
+`set` records legacy limits and refuses changes without an owner decision. For
+`elephant.md`, resume the existing job. Budget fields do not change readiness.
 
 ## Fallback
 
@@ -156,7 +154,7 @@ under the same contract and counters. Set stage `independent_of_author: true`, r
 each start with fresh capabilities, and get an owner `lineage-waiver:stage:<stage-id>`
 bound to the latest executor, authors, document and stage contract. Unknown authorship
 blocks acceptance because independence cannot be checked. Show
-`fallback: direct, same-lineage (waived)` in the checklist. A cold read cannot fall back to you. Report it as unreviewed and keep `R-COLD` blocked.
+`fallback: direct, same-lineage (waived)` in the checklist. A cold read cannot fall back to you. A direct cold-read stage cannot be accepted from the coordinator. Report it as unreviewed and keep `R-COLD` blocked.
 
 ## Report
 

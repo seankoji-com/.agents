@@ -24,3 +24,7 @@ stage, while fresh T3 tasks do the stage work. See
 Any T3 provider with file access can read the entries. That's a portability design,
 not a finished live test across providers; [compatibility](../compatibility.md) has
 the details. No slash menu? [Generate a prompt](../cli.md#catalog-commands) instead.
+
+Shared jobs record host execution identity. Document workflows also track author
+lineage by document hash. A first author record cannot identify earlier authors of an
+unrecorded document, and a direct cold-read stage cannot fall back to the coordinator.

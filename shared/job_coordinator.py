@@ -67,8 +67,7 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
         if workflow.endswith('/check'):
             # Checks enforce author lineage only when matching-hash records exist.
             job.setdefault('policy', {})['author_independence'] = False
-        from shared.document_authors import authors_for_hash, merge_author_records
-        from core.jobs.store import digest, _regular
+        from shared.document_authors import import_subject_authors, merge_author_records
         for task in job.get('tasks', []):
             stage = next((row for row in job.get('stages', []) if row['id'] == task.get('stage_id')), {})
             contract = stage.get('validator_contract') or {}
@@ -76,58 +75,35 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
                         if contract.get('document_path') and contract.get('document_sha256') else None)
             if inferred and not task.get('document'):
                 task['document'] = inferred
-            subjects = [task.get('document'), *(task.get('reviewed_documents') or [])]
-            imported = []
-            for subject in subjects:
-                if not isinstance(subject, dict) or not isinstance(subject.get('path'), str):
-                    continue
-                document_path = Path(subject['path'])
-                try:
-                    if not document_path.is_absolute() or '..' in document_path.parts or any(part.is_symlink() for part in (document_path, *document_path.parents)):
-                        continue
-                    current = digest(_regular(document_path))
-                except (OSError, TypeError, ValueError):
-                    current = None
-                record_path = document_path.parent / 'document-authors.json'
-                try:
-                    records = json.loads(record_path.read_text(encoding='utf-8')) if record_path.is_file() and not record_path.is_symlink() else {}
-                except (OSError, ValueError):
-                    records = {}
-                authors = authors_for_hash(records, subject.get('sha256')) if current == subject.get('sha256') else [{'unknown': True}]
-                if task.get('independent_of_author') or job.get('policy', {}).get('author_independence') or workflow.endswith('/check'):
-                    imported.append({'authors': authors, 'unknown': any(a.get('unknown') for a in authors)})
-            if imported and (task.get('independent_of_author') or job.get('policy', {}).get('author_independence') or workflow.endswith('/check')):
-                task['document_authors'] = merge_author_records(*imported).get('authors') if not any(x.get('unknown') for x in imported) else [{'unknown': True}]
-                if workflow.endswith('/check'):
-                    if any(author.get('unknown') for author in task['document_authors']):
-                        task.pop('independent_of_author', None)
-                    else:
-                        task['independent_of_author'] = True
-            elif workflow.endswith('/check'):
-                task.pop('independent_of_author', None)
-                task.pop('document_authors', None)
             validated_path = contract.get('document_path')
-            if task.get('independent_of_author') or job.get('policy', {}).get('author_independence'):
-                if task.get('document') and validated_path and task['document'].get('path') != validated_path:
+            checking = workflow.endswith('/check')
+            authoring = bool(job.get('policy', {}).get('author_independence'))
+            if (task.get('independent_of_author') or authoring or checking) and task.get('document') and validated_path:
+                if (not isinstance(task['document'], dict) or task['document'].get('path') != validated_path or
+                        task['document'].get('sha256') != contract.get('document_sha256')):
                     raise JobError('author-independent slot document must match the stage validated document')
-                if task.get('role') in ('factual', 'cold-read') or workflow.endswith(('/thinking', '/elephant')):
+            if task.get('independent_of_author') or authoring or checking:
+                subjects = [inferred, task.get('document'), *(task.get('reviewed_documents') or [])]
+                imported = [import_subject_authors(subject) for subject in subjects if subject]
+                merged = merge_author_records(*(
+                    {'authors': authors, 'unknown': any(row.get('unknown') for row in authors)}
+                    for authors in imported)) if imported else {'authors': [], 'unknown': True}
+                task['document_authors'] = [{'unknown': True}] if merged.get('unknown') else merged['authors']
+                validated_authors = import_subject_authors(inferred) if inferred else [{'unknown': True}]
+                if checking:
+                    if validated_authors and not any(row.get('unknown') for row in validated_authors):
+                        task['independent_of_author'] = True
+                    else:
+                        task.pop('independent_of_author', None)
+                elif task.get('role') in ('factual', 'cold-read') or authoring:
                     task['independent_of_author'] = True
-        if job.get('policy', {}).get('author_independence'):
+        if job.get('policy', {}).get('author_independence') or workflow.endswith('/check'):
             for stage in job.get('stages', []):
                 contract = stage.get('validator_contract') or {}
                 path, sha256 = contract.get('document_path'), contract.get('document_sha256')
                 if not path or not sha256:
                     continue
-                source = Path(path)
-                authors = [{'unknown': True}]
-                try:
-                    if source.is_absolute() and '..' not in source.parts and not any(p.is_symlink() for p in (source, *source.parents)):
-                        record_path = source.parent / 'document-authors.json'
-                        records = json.loads(record_path.read_text(encoding='utf-8')) if record_path.is_file() and not record_path.is_symlink() else {}
-                        authors = authors_for_hash(records, sha256) if digest(_regular(source)) == sha256 else [{'unknown': True}]
-                except (OSError, ValueError, TypeError):
-                    pass
-                stage['document_authors'] = authors
+                stage['document_authors'] = import_subject_authors({'path': path, 'sha256': sha256})
     with locked(registry_root(agents_root)):
         pins=verified_pins(job,state_root,prefix,agents_root,config_path)
         added=record_job_root(job_agents_roots(pins),state_root,job['job_id'])

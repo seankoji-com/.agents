@@ -86,8 +86,16 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
         raise AcceptanceError('zero-worker stage requires explicit direct execution mode')
     stage_tasks = [t for t in job['tasks'] if t['stage_id'] == stage['id']]
     contract = stage.get('validator_contract') or {}
-    direct_factual = (job.get('policy', {}).get('author_independence') and
+    author_policy = job.get('policy', {}).get('author_independence')
+    check_authors_known = (job.get('workflow', '').endswith('/check') and
+                           isinstance(stage.get('document_authors'), list) and stage['document_authors'] and
+                           not any(not isinstance(row, dict) or row.get('unknown') for row in stage['document_authors']))
+    direct_factual = ((author_policy or check_authors_known) and
                       stage.get('execution_mode') == 'direct' and contract.get('mode') == 'factual')
+    direct_cold_read = (author_policy and stage.get('execution_mode') == 'direct' and
+                        contract.get('mode') == 'cold-read')
+    if not stage_tasks and direct_cold_read:
+        raise AcceptanceError('cold-read cannot fall back to the coordinator')
     if not stage_tasks and (stage.get('independent_of_author') or direct_factual):
         from shared.document_authors import has_current_stage_waiver
         authors = stage.get('document_authors')

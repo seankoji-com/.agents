@@ -260,7 +260,7 @@ and record `document_authors` from records keyed by the exact document hash. Aut
 jobs with `policy.author_independence` enforce this check for every factual and
 cold-read slot even when its own flag is absent. The
 reviewer lineage must be known, canonical and different from every author lineage.
-If authorship or lineage is unknown, the job stops because independence cannot be checked. New jobs require verified observed
+Unknown authorship or lineage fails closed. A factual slot must name the exact document validated by its stage. Unknown additional subjects cannot remove `independent_of_author`; they make the result stricter. New jobs require verified observed
 identity for reviewers, their subjects and author-independent slots under
 `policy.identity: observed`; legacy jobs without that marker keep target-only
 acceptance semantics. Approval still needs the reviewer's completed owned host
@@ -275,6 +275,21 @@ checker as author. `elephant-goldfish/thinking` and `elephant-goldfish/elephant`
 enable `policy.author_independence`. `elephant-goldfish/check` imports matching-hash
 authors and enforces a different lineage and verified worker identity when authors
 are known. Without a matching record, its report says author independence is unverified.
+`plan-revision` re-imports authors for changed or added slots and rechecks each slot
+against its stage document. A zero-slot direct check of a recorded document requires
+`direct-execution` evidence and a stage-scoped waiver bound to the latest executor.
+If a direct check's hash has no author record, the read-only check may proceed with
+author independence reported as unverified; a waiver cannot establish missing
+authorship. Direct factual authoring stages stay blocked when authorship is unknown,
+even with a waiver. A direct cold-read
+stage cannot fall back to the coordinator and acceptance refuses it.
+
+If an edited copy is recorded at a temporary path and then moved over a recorded
+document, importing the resulting hash also inherits the previous authors for the
+destination path. A first record of a document with no prior author record cannot
+identify earlier authors; that prior history is outside the trust boundary. As with
+other task observations, author records are host evidence transcribed by the
+coordinator. Shape and hash checks do not prove freshness or detect a forged file.
 
 `document-revision` takes caller, task_id, `document: {path, sha256}`, reason and
 `--capabilities FILE` for author-independent document jobs. The capabilities response

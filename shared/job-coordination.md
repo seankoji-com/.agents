@@ -73,27 +73,33 @@ is an alias), and corresponding `*_identity` event fields. Unknown sources are
 rejected. Keep each source separate on the handle. Identity is mismatched if any reported provider or model in
 any source differs from the pinned target. It is verified only when status reports the
 target provider and some source reports the target model. Otherwise it is unreported.
-A mismatch is sticky for the charged pass in which it was recorded, stores the handle
-and blocks acceptance even after terminal host reconciliation. A same-pass follow-up
-cannot clear it. Only a charged retry whose new execution is non-mismatched clears
-the prior mismatch for acceptance. A redelivered completion ignores its new identity data;
-a `reconciled` event carries its observed identity and terminal state. A charged retry
-creates a new execution and is the only way to clear the prior execution's mismatch.
+A mismatch is sticky for its charged pass, retains the handle and blocks acceptance
+after reconciliation. A same-pass follow-up cannot clear it; only a charged,
+non-mismatched retry can. A redelivered completion ignores new identity data;
+`reconciled` carries observed identity and terminal state.
 Doctor reports recorded unreported providers separately from configured providers
 with no recorded identity, and launches nothing.
 `job_cli create` sets `policy.identity: observed` with no opt-out. Required reviewer,
 subject and `independent_of_author` executions must report verified identity at
 acceptance. Legacy jobs without the marker keep target-only acceptance semantics.
 `elephant-goldfish/thinking` and `elephant-goldfish/elephant` set
-`policy.author_independence`; preparation and acceptance enforce document lineage even
-when a factual or cold-read slot omits its flag. `elephant-goldfish/check` imports
+`policy.author_independence`; preparation and acceptance enforce document lineage
+despite a missing factual or cold-read slot flag. `elephant-goldfish/check` imports
 matching-hash authors and enforces verified identity and a different lineage when
-authors are known.
-Document author records are keyed by SHA-256 and retain every author. A lineage
-waiver binds the reviewer target, canonical author list, full slot contract and document hash. It waives no
-requirement and must be refreshed after any bound value changes. Capabilities are
-host evidence transcribed by the coordinator; validation checks correlation and
-shape, not freshness or forgery.
+authors are known. Its factual slot must name the validated stage document. Extra
+unknown subjects preserve the independence requirement and make preparation fail
+closed. A zero-slot direct check of a document with recorded authors needs a
+stage-scoped waiver bound to the latest `direct-execution` identity. If the checked
+hash has no author record, the read-only check may proceed with author independence
+reported as unverified; a waiver cannot establish missing authorship. Direct factual
+authoring stages stay blocked when authorship is unknown, even with a waiver.
+SHA-256 author records retain every author. Waivers bind target, author list, slot
+contract and document hash; they waive no requirement and expire when any bound value
+changes. Capabilities are host evidence transcribed by the coordinator; validation
+checks shape and correlation, not freshness or forgery. Recording an edited copy at a
+temporary path and moving it into place also inherits authors recorded for the
+destination path. The first record of an unrecorded document cannot discover earlier authors; it covers
+only the current coordinator, and earlier authorship stays outside this boundary.
 `document-revision` validates before updating the sidecar and unions existing
 new-hash authors with inherited authors and the repairer. `record_document_author.py`
 records `elephant.md`.
@@ -103,9 +109,11 @@ uses `render_handoff.py <slug> --capabilities FILE`. A repair uses
 `document-revision --capabilities FILE`. A source hash without a record keeps the
 rendered handoff's authorship unknown. Zero-slot direct factual stages under author
 independence set stage `independent_of_author: true`, record each executor with
-`job_cli.py direct-execution --capabilities FILE`, and require known authorship plus a
-stage-scoped waiver bound to the latest observation. Their checklist says
+`job_cli.py direct-execution --capabilities FILE`, and require known authorship and a
+stage-scoped waiver bound to the latest observation. The checklist says
 `fallback: direct, same-lineage (waived)`.
+A direct cold-read stage is never a coordinator fallback. Acceptance refuses it; keep
+`R-COLD` blocked until a separate reader completes.
 Review and document-only slots use fresh executions, never same-child follow-ups.
 Unexpected continuations stay owned and non-accepting, and their result bytes are
 quarantined during ingestion.

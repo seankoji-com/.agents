@@ -257,7 +257,7 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
     for key in ('requirements','dependencies','stages','tasks','constraints','authorization','policy'):
         if key not in new_plan:new_plan[key]=j.get(key)
     new_plan['policy']={**j['policy'],**new_plan['policy']}
-    task_contract={'task_id','stage_id','logical_slot_id','worker_id','dependency_key','target','write_scope','requirements','context_policy','document','max_followups','review_required','role','review_task_ids','reviewed_task_ids','reviewed_documents','independent_of_author','document_authors'};stage_contract={'id','depends_on','requirements','criteria','resources','validator_dependency','validator_contract','revision','outputs','stop_conditions','execution_mode','validator_limits','independent_of_author','lineage_waiver'}
+    task_contract={'task_id','stage_id','logical_slot_id','worker_id','dependency_key','target','write_scope','requirements','context_policy','document','max_followups','review_required','role','review_task_ids','reviewed_task_ids','reviewed_documents','independent_of_author','document_authors'};stage_contract={'id','depends_on','requirements','criteria','resources','validator_dependency','validator_contract','revision','outputs','stop_conditions','execution_mode','validator_limits','independent_of_author','lineage_waiver','document_authors'}
     for kind,contract in (('tasks',task_contract),('stages',stage_contract)):
         identity='task_id' if kind=='tasks' else 'id'
         for candidate in new_plan[kind]:

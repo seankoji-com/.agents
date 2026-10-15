@@ -17,38 +17,73 @@ def import_subject_authors(subject):
         sidecar = path.parent / 'document-authors.json'
         if sidecar.is_symlink() or not sidecar.is_file():
             return [{'unknown': True}]
-        return authors_for_hash(json.loads(sidecar.read_text(encoding='utf-8')), subject['sha256'])
+        records = json.loads(sidecar.read_text(encoding='utf-8'))
+        authors = authors_for_hash(records, subject['sha256'])
+        # A document can be edited at a temporary path and then moved into place.
+        # Keep authors of the last hash recorded for the validated destination too.
+        paths = records.get('_document_paths', {}) if isinstance(records, dict) else {}
+        previous_hash = paths.get(str(path.resolve()))
+        if previous_hash and previous_hash != subject['sha256']:
+            previous = authors_for_hash(records, previous_hash)
+            if any(row.get('unknown') for row in previous):
+                return [{'unknown': True}]
+            if not any(row.get('unknown') for row in authors):
+                authors = merge_author_records({'authors': authors}, {'authors': previous})['authors']
+        return authors
     except (OSError, TypeError, ValueError):
         return [{'unknown': True}]
 
 
 def refresh_new_task_authors(job, plan):
-    """Replace coordinator-supplied author claims on newly added plan slots."""
-    old_ids = {task['task_id'] for task in job.get('tasks', [])}
+    """Re-import hash-matched authors for every slot and validated stage document."""
+    plan.setdefault('stages', job.get('stages', []))
+    plan.setdefault('tasks', job.get('tasks', []))
     workflow = str(job.get('workflow', ''))
     for task in plan.get('tasks', []):
-        if task['task_id'] in old_ids:
-            continue
         stage = next((row for row in plan['stages'] if row['id'] == task.get('stage_id')), {})
         contract = stage.get('validator_contract') or {}
-        subject = task.get('document') or (
-            {'path': contract['document_path'], 'sha256': contract['document_sha256']}
-            if contract.get('document_path') and contract.get('document_sha256') else None)
         authoring = workflow.endswith(('/thinking', '/elephant'))
         checking = workflow.endswith('/check')
         should_import = bool(task.get('independent_of_author') or authoring or checking)
         if not should_import:
             continue
+        validated_path = contract.get('document_path')
+        validated = ({'path': validated_path, 'sha256': contract.get('document_sha256')}
+                     if validated_path and contract.get('document_sha256') else None)
+        if validated and not task.get('document'):
+            task['document'] = dict(validated)
+        if (task.get('document') and validated_path and
+                (not isinstance(task['document'], dict) or task['document'].get('path') != validated_path or
+                 task['document'].get('sha256') != contract.get('document_sha256'))):
+            raise JobError('author-independent slot document must match the stage validated document')
         task.pop('document_authors', None)
-        authors = import_subject_authors(subject)
+        subjects = [validated]
+        subjects.extend(subject for subject in [task.get('document'), *(task.get('reviewed_documents') or [])]
+                        if subject and subject != validated)
+        imported = [import_subject_authors(row) for row in subjects if row]
+        if imported:
+            merged = merge_author_records(*({'authors': rows, 'unknown': any(a.get('unknown') for a in rows)}
+                                            for rows in imported))
+            authors = [{'unknown': True}] if merged.get('unknown') else merged['authors']
+        else:
+            authors = [{'unknown': True}]
         task['document_authors'] = authors
         if checking:
-            if authors and not any(row.get('unknown') for row in authors):
+            validated_authors = import_subject_authors(validated) if validated else [{'unknown': True}]
+            if validated_authors and not any(row.get('unknown') for row in validated_authors):
                 task['independent_of_author'] = True
             else:
                 task.pop('independent_of_author', None)
         elif authoring and task.get('role') in ('factual', 'cold-read'):
             task['independent_of_author'] = True
+
+    if workflow.startswith('elephant-goldfish/'):
+        for stage in plan.get('stages', []):
+            contract = stage.get('validator_contract') or {}
+            subject = ({'path': contract['document_path'], 'sha256': contract['document_sha256']}
+                       if contract.get('document_path') and contract.get('document_sha256') else None)
+            if subject and (workflow.endswith(('/thinking', '/elephant')) or workflow.endswith('/check')):
+                stage['document_authors'] = import_subject_authors(subject)
 
 
 def author_from_capabilities(capabilities):
