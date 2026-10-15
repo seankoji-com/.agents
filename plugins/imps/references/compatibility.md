@@ -6,6 +6,14 @@ The live results, with the T3 version, the provider and model IDs, every repeat'
 
 To rerun the procedure from a T3 thread, follow `conformance/procedure.md` in the source repository.
 
+## Doctor identity reporting
+
+Doctor reports identity information from saved host observations only. Name every
+provider with a recorded unreported-model observation, and list providers without
+a recorded identity result as `identity reporting unverified`. Do not infer identity
+from configured targets or query the live provider catalog. Launch nothing to fill
+an observation gap.
+
 Those dated observations used the previous major-version-1 gate. The smaller gate
 has deterministic regression coverage; live provider compatibility has not yet been
 observed. Activate the previous package to reproduce the historical procedure.

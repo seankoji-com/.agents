@@ -19,6 +19,7 @@ PKG = Path(__file__).resolve().parent.parent
 # core/ and shared/ sit beside this package when installed, two levels up in a source checkout.
 BASE = next((p for p in (PKG, PKG.parent.parent) if (p / 'core' / 'store.py').is_file()), PKG)
 sys.path.insert(0, str(BASE))
+from shared.identity_reporting import recorded_identity_reporting
 MIN_PYTHON = (3, 10)
 # init needs only search permission on the way down, so the walk must not ask for more.
 # O_PATH (Linux) opens a directory without read permission; elsewhere O_RDONLY is the
@@ -106,13 +107,14 @@ def learnings(project):
     return {'status': receipt.get('status'), 'reason': receipt.get('reason')}
 
 
-def doctor(state_root, project):
+def doctor(state_root, project, jobs_state_root=None):
     from core.store import env_state_root
     meta = json.loads((PKG / 'plugin.json').read_text())
     version = meta['version']
     if (PKG / 'install-manifest.json').is_file():
         version = json.loads((PKG / 'install-manifest.json').read_text())['version']
     root = Path(state_root).expanduser().absolute() if state_root else env_state_root(meta['name'])
+    jobs_root = Path(jobs_state_root).expanduser().absolute() if jobs_state_root else env_state_root('imps').parent / 'jobs'
     checks = {'python': {'ok': sys.version_info[:2] >= MIN_PYTHON, 'version': '.'.join(map(str, sys.version_info[:3])),
                          'required': '.'.join(map(str, MIN_PYTHON)) + '+'}}
     try:
@@ -125,12 +127,14 @@ def doctor(state_root, project):
     checks['learnings'] = learnings(project)
     failed = [name for name in ('python', 'git', 'state_root') if not checks[name]['ok']]
     return {'plugin': meta['name'], 'version': version, 'project': str(project), 'checks': checks,
-            'failed': failed, 'agent_checks': ['orchestrator_capabilities']}
+            'failed': failed, 'identity_reporting': recorded_identity_reporting(jobs_root),
+            'agent_checks': ['orchestrator_capabilities']}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='cli.py doctor', description=__doc__.split('\n')[0])
     parser.add_argument('--state-root')
+    parser.add_argument('--jobs-state-root', help=argparse.SUPPRESS)
     parser.add_argument('--repo', default='.', help='project whose learnings to load (default: cwd)')
     envelope = {'schema_version': 1, 'ok': False, 'op': 'doctor', 'run_id': None}
     try:
@@ -141,7 +145,7 @@ def main(argv=None):
         error, code = {'code': 'usage', 'message': 'invalid arguments; see --help on stderr', 'details': {}}, 2
     else:
         try:
-            data = doctor(args.state_root, Path(args.repo).absolute())
+            data = doctor(args.state_root, Path(args.repo).absolute(), args.jobs_state_root)
         except (OSError, ValueError, KeyError) as exc:
             error, code = {'code': 'io_error', 'message': f'{type(exc).__name__}: {exc}', 'details': {}}, 5
         else:

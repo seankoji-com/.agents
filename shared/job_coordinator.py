@@ -135,7 +135,6 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
 
 TERMINAL = ('completed', 'failed', 'cancelled', 'interrupted')
 
-
 def _shared_observation(job, task_id, event):
     """Apply follow-up uncertainty or conflicting-host reconciliation; return False for core observations."""
     task = next((t for t in job['tasks'] if t['task_id'] == task_id), None)
@@ -239,6 +238,8 @@ def prepare_followup(store, caller, task_id, request_id):
         stage = next(s for s in job['stages'] if s['id'] == task['stage_id'])
         if task.get('role') == 'review':
             raise JobError('review rounds require a fresh declared execution, not a same-child follow-up')
+        if task.get('context_policy') == 'document-only':
+            raise JobError('document-only slots require a fresh declared execution, not a same-child follow-up')
         if task.get('inputs_stale') or task.get('status') == 'stale':
             raise JobError('stale task contract requires a charged fresh preparation, not a follow-up')
         if _spent(stage) or task.get('attempt', 0) >= 1 + job['policy']['max_repair_cycles']:

@@ -87,6 +87,22 @@ evidence remain immutable. Nothing in these helpers calls a model or schedules w
 Cancellation/discard record intent and preserve artifacts; host termination still
 requires an authoritative observation.
 
+Host identity is separate evidence on each handle. Store only returned status,
+receipt and child-configuration provider/model fields. A status provider must be
+present to verify identity; use its model, then the receipt model, then the
+configuration model when those sources report one. Receipt-only, configuration-only
+and provider-only records are `unreported`. Never substitute target values. Provider
+or model mismatch retains the host handle and adds a sticky `identity-mismatch`
+blocker; a terminal `reconciled` observation records the host's final state without
+erasing that blocker. Redelivered completion notifications do not replace earlier
+identity evidence.
+
+Review and document-only slots refuse `followup-prepare`. If a forbidden follow-up is
+observed after launch, retain its handle and blocker, ingest its bytes only to
+`results/quarantine/<request-id>.json`, and mark that execution non-accepting. The
+request can be reconciled and a charged fresh retry can proceed. Acceptance never
+parses or selects quarantined bytes.
+
 Acceptance uses `shared.job_acceptance.accept_stage`, `validate_stage` and
 `validate_final`, or the installed `shared/job_acceptance_cli.py` actions
 `accept-stage`, `validate`, `validate-final`. Exit 0 means current authoritative
@@ -249,6 +265,20 @@ owner decision: it rewrites the hash in every stage contract and slot naming the
 stales those stages and successors, and records history. Each executed slot then needs
 a charged `retry`. A spent budget refuses with `attempt_budget_exhausted` and
 `owner_decision_required`; raising it is a plan revision with an owner decision.
+
+Observed identity may use `status_identity`, `receipt_identity` and
+`configuration_identity`, or `observed: {source, providerInstanceId, model}`
+(`observed_identity` is an alias). Sources are `status`, `receipt`, and
+`configuration` (`thread-configuration` is an alias); unknown source names are
+rejected. Each source is retained separately. Any present provider or model that
+differs from the pinned target makes that execution mismatched, and the mismatch is
+sticky for the charged pass in which it was recorded; a same-pass follow-up cannot
+clear it. Only a charged retry whose new execution is non-mismatched clears it.
+Verification requires the
+status source to report the target provider and at least one source to report the
+target model; incomplete evidence is unreported. A redelivered completion ignores its
+new identity fields. A terminal `reconciled` observation retains its observed identity
+and host state.
 
 A second host ID for an already owned
 original or follow-up request is refused; `task-observation` retains it in the

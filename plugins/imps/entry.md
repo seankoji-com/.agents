@@ -38,7 +38,7 @@ short-lived file, inside an existing root; exit 5 lists failures in `error.detai
 Then call T3's live `orchestrator_capabilities` yourself. Never guess another subcommand.
 Report enabled providers and the separate reasons others are disabled, uninstalled
 or unauthenticated. Direct work remains possible when children are unavailable.
-Read `PKG/references/compatibility.md` for historical provider observations.
+See `PKG/references/compatibility.md` for identity guidance and historical observations.
 
 **run <task>.** Inspect repository instructions and the working tree. Preserve
 unrelated work. Before a writable run, run the sibling-work check in `PKG/shared/t3-runtime.md`

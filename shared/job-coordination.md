@@ -65,6 +65,26 @@ retries only after a new owned completion notification. Cancel follows
 `task_cancel` each owned live task and record a terminal `reconciled` observation from
 `task_status`.
 
+Store provider and model identity only when a host response reports them. Events may
+carry `status_identity`, `receipt_identity` and `configuration_identity`, or one
+`observed: {source, providerInstanceId, model}` record (`observed_identity` is an
+alias). Sources are `status`, `receipt`, `configuration` (`thread-configuration`
+is an alias), and corresponding `*_identity` event fields. Unknown sources are
+rejected. Keep each source separate on the handle. Identity is mismatched if any reported provider or model in
+any source differs from the pinned target. It is verified only when status reports the
+target provider and some source reports the target model. Otherwise it is unreported.
+A mismatch is sticky for the charged pass in which it was recorded, stores the handle
+and blocks acceptance even after terminal host reconciliation. A same-pass follow-up
+cannot clear it. Only a charged retry whose new execution is non-mismatched clears
+the prior mismatch for acceptance. A redelivered completion ignores its new identity data;
+a `reconciled` event carries its observed identity and terminal state. A charged retry
+creates a new execution and is the only way to clear the prior execution's mismatch.
+Doctor reports recorded unreported providers separately from configured providers
+with no recorded identity, and launches nothing.
+Review and document-only slots use fresh executions, never same-child follow-ups.
+Unexpected continuations stay owned and non-accepting, and their result bytes are
+quarantined during ingestion.
+
 ## 5. Acceptance
 
 A terminal task is not an accepted stage. Freeze coordinator-observed input with

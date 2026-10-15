@@ -93,6 +93,22 @@ Fall back to the same lineage only when no other is available, never because a r
 was adverse. An adverse review is final for that revision. Explicit repository review
 policy wins over all of this.
 
+## Observed execution identity
+
+Record identity only from host responses. The coordinator may store separate
+`status`, `receipt` and `configuration` observations on an owned handle. A status
+provider is required before identity can be verified. Its model wins when present;
+otherwise use a receipt model, then a child-configuration model. Receipt-only,
+configuration-only and provider-only observations remain `unreported`. Never fill
+missing values from the requested target. A mismatch is retained with the handle
+and leaves a blocker for reconciliation.
+
+Review slots and document-only slots cannot continue through a same-child follow-up.
+They need a fresh declared execution. Treat any forbidden continuation returned by
+the host as owned but non-accepting work. Retain its result under
+`results/quarantine/<request-id>.json`; acceptance reads only the current prepared
+execution result.
+
 ## Worker brief
 
 Every child brief states:
