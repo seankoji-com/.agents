@@ -84,7 +84,7 @@
   ],
   "routes": [
     {
-      "pattern": "^(?i:doctor)$",
+      "pattern": "^(?i:doctor\\b.*)$",
       "operation": "doctor"
     },
     {

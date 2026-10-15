@@ -224,6 +224,9 @@ class SkillAdapters(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             checklist = Path(temp) / 'audit with spaces.md'
             checklist.write_text('- [ ] check\n  Verify: python3 check.py\n  Done when: passed\n')
+            # Bare /imps:imps-shaped requests and --personas alone belong to the
+            # picker surface, which the route table never sees. route() returns
+            # None for empty text; input.py classifies the whole request.
             cases = {
                 '42 #43': 'issues', '#12': 'issues',
                 'discussion 5': 'discussion',
@@ -235,6 +238,8 @@ class SkillAdapters(unittest.TestCase):
                 'prs repo example/project': 'prs',
                 'audit --focus routing': 'audit', 'issue-mode 42': 'issues',
                 'imp-agency security': 'audit', 'verification-init': 'verification-init',
+                'doctor --global': 'doctor', 'doctor 42': 'doctor',
+                'doctor verbose': 'doctor',
                 str(checklist): 'checklist', 'a plain task': 'run',
             }
             rendered = skills.render(manifest, Path('entry.md'))
