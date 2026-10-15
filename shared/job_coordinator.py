@@ -431,7 +431,10 @@ def dispose_finding(store, caller, task_id, finding_id, disposition, evidence, f
         raw = _regular(source, max_bytes=job['policy']['max_artifact_bytes'])
         if not raw or digest(raw) != evidence.get('sha256') or len(raw) != evidence.get('bytes'):
             raise JobError('disposition evidence bytes/hash differ')
-        path = store.path / 'dispositions' / (task_id + '-' + digest(finding_id.encode()) + '-' + digest(raw) + '.bin')
+        # One digest over the finding ID and the evidence digest keeps the name unique per pair
+        # and short enough for ecryptfs, whose 143-byte name limit must also fit the temp suffix.
+        name_key = digest(finding_id.encode() + b'\0' + digest(raw).encode())
+        path = store.path / 'dispositions' / (task_id + '-' + name_key + '.bin')
         _retain(path, raw, 'disposition evidence is immutable')
         before = dict(row)
         row.update(disposition=disposition, evidence={'path': str(path), 'sha256': digest(raw), 'bytes': len(raw)})
