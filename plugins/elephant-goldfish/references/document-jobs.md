@@ -37,8 +37,8 @@ Keep `R-FACT` and `R-COLD` in separate stages. Never let one stage cover both.
   `reviewed_documents`, and `coordinator-only` write scope. Review the document, not
   another task; omit `reviewed_task_ids`.
   `prepare` and acceptance re-hash the document; edits make the verdict stale. Its
-  contract sets `independent_of_author: true`; unknown author
-  or reviewer lineage fails closed. Author records are keyed by document SHA-256 and
+  contract sets `independent_of_author: true`; if author or reviewer lineage is
+  unknown, the job stops because it cannot check independence. Author records use the document SHA-256 and
   imported only when the current hash matches. A missing record means unknown authorship.
   The helper strips the objective, predecessors, requirements, resources and task
   contract. Do not pass them another way. The dispatch message contains only the brief path, its
@@ -60,14 +60,18 @@ model in that provider's catalog. A checker never adds itself as an author. Hand
 authorship includes its renderer and both source hashes; an unrecorded source makes
 authorship unknown. These host facts are transcribed by the coordinator; the helper
 cannot prove freshness.
-After writing discovery or spec, run `thinking_state.py author <slug> <document.md>
---capabilities FILE`. Render with `render_handoff.py <slug> --capabilities FILE`.
-Record `elephant.md` with `scripts/record_document_author.py <path> --capabilities
-FILE`. Repairs use `job_cli.py document-revision --capabilities FILE`; it updates
-affected author-independent slots. `job_cli.py direct-execution` records every start
-or resume of a zero-slot factual stage. `check` imports authors only for the checked
-hash and never records the checker. It proceeds without provenance and reports
-`author unrecorded`.
+After writing discovery or spec, use `thinking_state.py author` with fresh capabilities.
+Render with `render_handoff.py --capabilities FILE`. Record `elephant.md` with
+`record_document_author.py <path> --capabilities FILE`. Repairs use
+`job_cli.py document-revision --capabilities FILE`. `direct-execution` records each
+zero-slot factual start or resume. `check` imports matching authors, never the checker,
+and reports `author unrecorded` when provenance is missing.
+
+`elephant-goldfish/thinking` and `elephant-goldfish/elephant` enable
+`policy.author_independence`. `elephant-goldfish/check` stays read-only. If the checked
+hash has authors, its factual worker needs verified identity and a different canonical
+lineage. Otherwise the report says author independence is unverified. Until provenance
+is verified, report `lineage per routing config (labels unverified)`.
 
 An owner `lineage-waiver:task:<task-id>` binds the target, authors, full slot contract
 and document hash. A zero-slot direct factual stage uses
@@ -105,16 +109,14 @@ claims and check again before final acceptance.
 You repair cold-read gaps yourself. Workers never edit the document. A repaired
 document has a new hash, so:
 
-1. Record each finding's disposition (`fixed`, `rejected` with evidence, or
-   `deferred`). Deferred blockers keep the stage blocked.
-2. Run `document-revision` with `{caller, task_id: <cold-read slot>, document: {path,
-   sha256}, reason}`. Within the round budget this is a declared repair and needs no
-   owner decision. It rebinds every stage contract and slot that names the path to the
-   new hash and makes those stages and their successors stale.
-3. `retry` the factual slot, run it, and accept the factual stage on the new hash.
-   Then `retry` the cold-read slot and dispatch a fresh reader. Each retry charges its
-   stage budget. The previous findings stay in job history; the new reader never
-   sees them.
+1. Record each finding as `fixed`, `rejected` with evidence, or `deferred`. Deferred
+   blockers keep the stage blocked.
+2. Run `document-revision` with the cold-read slot and new `{path, sha256}`. Within
+   budget, it rebinds affected contracts and slots, then marks those stages and
+   successors stale.
+3. Retry the factual slot and accept the new hash. Then retry and dispatch a fresh
+   cold reader. Retries charge the stage budget. Findings stay in history and are not
+   sent to the new reader.
 
 A `thinking` job has no factual slot. Repair through discovery or spec, re-render the
 handoff with `render_handoff.py` and pass `thinking_state.py gate`. The old `handoff`
@@ -136,30 +138,25 @@ document, not to a session, and resume never resets it.
 - **New topics and documents.** Four rounds in total: the initial read plus three
   repairs. This is the default job policy (`max_repair_cycles: 3`).
 - **Existing topics with a recorded limit.** Keep the recorded limit and count.
-- **Legacy topics with no recorded limit** (a cold-read loop started under the older
-  five-round instruction). Record a limit of five and the rounds already performed.
-  Create the job with `max_repair_cycles` equal to the remaining rounds minus one,
-  and quote the limit source in the job constraints. If no rounds remain, stop. If
-  the performed count cannot be established, ask the owner through the picker
-  instead of guessing.
+- **Legacy topics with no recorded limit.** Record a limit of five and the rounds already performed. Set `max_repair_cycles` to remaining rounds minus one.
+  Stop if none remain. If the count is unknown, ask the owner instead of guessing.
 
-For thinking topics the topic is the record. `init` records the four-round default;
-`resolve` reports `cold_read` with the remaining rounds. Record a legacy budget with
-`thinking_state.py set <slug> cold_read.max_rounds=5 cold_read.rounds_performed=<k>
-cold_read.limit_source=legacy-five-round-policy`, and update `rounds_performed` after
-each round. `set` refuses a decreasing count, a count above the limit, and a raised
-limit unless `limit_source=owner-decision` with a `decision_ref`. For `elephant.md`,
-the job is the record; resume that job rather than creating a new one. These fields
-record the budget; they never affect readiness and grant no execution authority.
+For thinking topics, `init` records the four-round default and `resolve` reports the
+remaining rounds. `set` records legacy limits and refuses lower counts or increases
+without an owner decision. For `elephant.md`, resume the existing job. Budget fields
+do not change readiness or grant execution authority.
 
 When the budget is spent, report the document as NOT READY with its unresolved gaps.
 Raising a limit is an owner decision through the picker, recorded with `decision`.
 
 ## Fallback
 
-If T3 cannot run a suitable child, run the factual stage yourself under the same
-contract with a visible fallback marker. A cold read cannot fall back to you: you
-have seen the planning context. Report it as unreviewed and keep `R-COLD` blocked.
+If T3 cannot run a factual stage under `elephant-goldfish/elephant`, run it yourself
+under the same contract and counters. Set stage `independent_of_author: true`, record
+each start with fresh capabilities, and get an owner `lineage-waiver:stage:<stage-id>`
+bound to the latest executor, authors, document and stage contract. Unknown authorship
+blocks acceptance because independence cannot be checked. Show
+`fallback: direct, same-lineage (waived)` in the checklist. A cold read cannot fall back to you. Report it as unreviewed and keep `R-COLD` blocked.
 
 ## Report
 

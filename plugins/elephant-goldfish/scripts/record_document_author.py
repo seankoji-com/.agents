@@ -29,7 +29,8 @@ def main():
     if not isinstance(records, dict):
         parser.error('document author records must be an object')
     raw = document.read_bytes()
-    updated = append_author(records, raw, json.loads(capabilities.read_text(encoding='utf-8')))
+    updated = append_author(records, raw, json.loads(capabilities.read_text(encoding='utf-8')),
+                            document_path=document)
     temporary = sidecar.with_name(sidecar.name + '.tmp')
     temporary.write_text(json.dumps(updated, indent=2, sort_keys=True) + '\n', encoding='utf-8')
     os.replace(temporary, sidecar)

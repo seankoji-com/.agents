@@ -8,7 +8,7 @@ matches the repository.
 
 Factual and cold-read slots set `independent_of_author: true`. Their review lineage
 must be canonical and differ from every author recorded for the document SHA-256.
-Unknown authorship fails closed unless the owner records a hash-bound
+When authorship or lineage is unknown, the job stops because independence cannot be checked. A known same-lineage fallback needs a hash-bound
 `lineage-waiver`; it waives no requirement. New jobs require verified host identity
 for the reviewer, subject and author-independent slot. Legacy jobs without the
 identity policy marker retain target-only acceptance semantics.
@@ -17,13 +17,18 @@ Record discovery and spec authors with `thinking_state.py author` using a fresh
 `orchestrator_capabilities` file. Render handoffs and repair documents with the same
 `--capabilities FILE` input. Handoff authorship includes the renderer and both source
 hashes; missing source records remain unknown. `check` is read-only and never records
-the checker as an author.
+the checker as an author. `elephant-goldfish/check` imports authors only for a matching
+document hash. When authors are known, its factual worker needs verified identity and
+a different lineage. If hashes differ or authors are missing, the report says author
+independence is unverified.
 
-A zero-slot factual fallback records each direct execution from fresh capabilities.
-Its owner `lineage-waiver:stage:<stage-id>` decision binds the latest executor,
-document hash and stage contract. Resuming under another model needs a replacement
-decision. Adding, removing or changing `independent_of_author` or `lineage_waiver`
-through `plan-revision` also needs an owner decision.
+A zero-slot factual fallback under `elephant-goldfish/elephant` sets stage
+`independent_of_author: true` and records each direct execution from fresh capabilities.
+Acceptance requires known authorship and an owner
+`lineage-waiver:stage:<stage-id>` decision bound to the latest executor, document hash
+and stage contract. Resuming under another model needs a replacement decision. Report
+`fallback: direct, same-lineage (waived)`. Adding, removing or changing either stage
+field through `plan-revision` also needs an owner decision.
 
 ## Try it
 

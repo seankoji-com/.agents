@@ -84,8 +84,11 @@ with no recorded identity, and launches nothing.
 `job_cli create` sets `policy.identity: observed` with no opt-out. Required reviewer,
 subject and `independent_of_author` executions must report verified identity at
 acceptance. Legacy jobs without the marker keep target-only acceptance semantics.
-Authoring workflows set `policy.author_independence`; preparation and acceptance
-enforce document lineage even when a factual or cold-read slot omits its flag.
+`elephant-goldfish/thinking` and `elephant-goldfish/elephant` set
+`policy.author_independence`; preparation and acceptance enforce document lineage even
+when a factual or cold-read slot omits its flag. `elephant-goldfish/check` imports
+matching-hash authors and enforces verified identity and a different lineage when
+authors are known.
 Document author records are keyed by SHA-256 and retain every author. A lineage
 waiver binds the reviewer target, canonical author list, full slot contract and document hash. It waives no
 requirement and must be refreshed after any bound value changes. Capabilities are
@@ -98,9 +101,11 @@ Elephant-goldfish coordinators record a document with
 `thinking_state.py author <slug> <document.md> --capabilities FILE`; handoff rendering
 uses `render_handoff.py <slug> --capabilities FILE`. A repair uses
 `document-revision --capabilities FILE`. A source hash without a record keeps the
-rendered handoff's authorship unknown. Zero-slot direct stages record each executor
-with `job_cli.py direct-execution --capabilities FILE`; acceptance checks the
-stage-scoped waiver against the latest observation.
+rendered handoff's authorship unknown. Zero-slot direct factual stages under author
+independence set stage `independent_of_author: true`, record each executor with
+`job_cli.py direct-execution --capabilities FILE`, and require known authorship plus a
+stage-scoped waiver bound to the latest observation. Their checklist says
+`fallback: direct, same-lineage (waived)`.
 Review and document-only slots use fresh executions, never same-child follow-ups.
 Unexpected continuations stay owned and non-accepting, and their result bytes are
 quarantined during ingestion.
@@ -133,9 +138,12 @@ Exhausted budgets block for an owner decision (`attempt_budget_exhausted`).
 ## 7. Fallback
 
 If T3 or every suitable target is unavailable, record the bounded discovery and errors,
-then run the stage directly under the same contract, counters and gate. Show
-`fallback: direct (<reason>)` in every checklist for that stage. A missing required
-independent review stays a blocker; direct work cannot supply independence.
+then run the stage directly under the same contract, counters and gate. For an
+author-independent factual stage, set `independent_of_author: true`, record each start
+or resume with fresh capabilities, and obtain a stage-scoped owner waiver bound to the
+latest executor. Show `fallback: direct, same-lineage (waived)` in the checklist.
+Unknown authorship blocks acceptance because independence cannot be checked. A missing
+required independent review stays a blocker; direct work cannot supply it.
 
 ## 8. Visibility and resume
 

@@ -65,14 +65,11 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
         if workflow.endswith(('/thinking', '/elephant')):
             job.setdefault('policy', {})['author_independence'] = True
         if workflow.endswith('/check'):
-            # Drift checks are read-only and may inspect legacy documents without
-            # provenance; they report authorship as unverified instead of authoring.
+            # Checks enforce author lineage only when matching-hash records exist.
             job.setdefault('policy', {})['author_independence'] = False
         from shared.document_authors import authors_for_hash, merge_author_records
         from core.jobs.store import digest, _regular
         for task in job.get('tasks', []):
-            if workflow.endswith('/check'):
-                task.pop('independent_of_author', None)
             stage = next((row for row in job.get('stages', []) if row['id'] == task.get('stage_id')), {})
             contract = stage.get('validator_contract') or {}
             inferred = ({'path': contract.get('document_path'), 'sha256': contract.get('document_sha256')}
@@ -101,6 +98,14 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
                     imported.append({'authors': authors, 'unknown': any(a.get('unknown') for a in authors)})
             if imported and (task.get('independent_of_author') or job.get('policy', {}).get('author_independence') or workflow.endswith('/check')):
                 task['document_authors'] = merge_author_records(*imported).get('authors') if not any(x.get('unknown') for x in imported) else [{'unknown': True}]
+                if workflow.endswith('/check'):
+                    if any(author.get('unknown') for author in task['document_authors']):
+                        task.pop('independent_of_author', None)
+                    else:
+                        task['independent_of_author'] = True
+            elif workflow.endswith('/check'):
+                task.pop('independent_of_author', None)
+                task.pop('document_authors', None)
             validated_path = contract.get('document_path')
             if task.get('independent_of_author') or job.get('policy', {}).get('author_independence'):
                 if task.get('document') and validated_path and task['document'].get('path') != validated_path:
@@ -204,7 +209,7 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
                         independent_of_authors(subject, task)
                     except AcceptanceError:
                         from shared.document_authors import has_current_task_waiver
-                        if not has_current_task_waiver(job, subject):
+                        if not has_current_task_waiver(job, subject, reviewer=task if subject is not task else None):
                             raise
             except AcceptanceError as exc:
                 raise JobError(str(exc)) from exc
@@ -495,7 +500,9 @@ def revise_document(store, caller, task_id, document, reason, capabilities=None)
                 if not isinstance(records, dict):
                     raise JobError('document author records must be an object')
                 inherited = records.get(old, {'authors': [], 'unknown': True})
-                updated = append_author(records, reviewed_document_bytes(store, job, path), capabilities)
+                records.setdefault('_document_paths', {})[str(Path(path).resolve())] = old
+                updated = append_author(records, reviewed_document_bytes(store, job, path), capabilities,
+                                        document_path=Path(path))
                 union = merge_author_records(inherited,
                     {'authors': task.get('document_authors', []), 'unknown': any(a.get('unknown') for a in task.get('document_authors', []))},
                     updated.get(new, {'authors': [], 'unknown': True}))

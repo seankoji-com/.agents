@@ -87,8 +87,8 @@ The reviewer comes from a different model lineage than the implementer when one 
 available. Lineage is the `lineage` field on each model in the routing config, never
 the provider name, because one provider such as OpenCode serves several lineages.
 `resolve reviewer --implementer-lineage <lineage>` lists independent candidates first;
-try each of them before any same-lineage one. Without lineage data, report reviewer
-independence as unverified.
+try each of them before any same-lineage one. Until provenance is verified, report
+`lineage per routing config (labels unverified)`.
 Fall back to the same lineage only when no other is available, never because a review
 was adverse. An adverse review is final for that revision. Explicit repository review
 policy wins over all of this.
@@ -99,10 +99,9 @@ for required reviewers and their subjects, and for every slot marked
 `policy.author_independence` even if a slot omits its flag. Review preparation still checks declared targets before
 dispatch. Jobs without the marker keep target-only semantics.
 
-Document authorship is keyed by document SHA-256 and never loses a recorded author.
-A reviewer needs a canonical routing lineage different from every recorded author. Unknown author or reviewer
-lineage fails closed. A `lineage-waiver` is an owner decision bound to the target,
-author list, contract and document hash; it waives no requirement. These records are
+Document authorship is keyed by document SHA-256 and keeps prior authors when an edited file is recorded again.
+A reviewer needs a canonical routing lineage different from every recorded author. If authorship or reviewer lineage is unknown, the job stops because independence cannot be checked. A `lineage-waiver` is an owner decision bound to the target,
+author list, full slot contract and document hash; it waives no requirement. These records are
 host evidence transcribed by the coordinator. Shape checks do not prove freshness or
 detect a forged capabilities file.
 For elephant-goldfish documents, record each coordinator write with fresh
@@ -110,7 +109,7 @@ For elephant-goldfish documents, record each coordinator write with fresh
 `render_handoff.py --capabilities` unions renderer and source authors.
 `document-revision --capabilities` validates first, then unions existing new-hash
 authors, inherited authors and the repairer. Missing source provenance stays unknown.
-`record_document_author.py <path> --capabilities FILE` records `elephant.md`.
+`record_document_author.py <path> --capabilities FILE` records `elephant.md`. The authoring policy is enabled only for `elephant-goldfish/thinking` and `elephant-goldfish/elephant`. `elephant-goldfish/check` imports matching-hash authors for its factual slot and requires a different lineage when authors are known; unknown provenance stays unverified.
 
 ## Observed execution identity
 

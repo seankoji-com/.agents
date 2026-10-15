@@ -191,7 +191,8 @@ def main(argv=None) -> int:
                 if not isinstance(records, dict):
                     raise RenderError("document author records must be an object")
                 source_hashes = [manifest["discovery_sha256"], manifest["spec_sha256"]]
-                records = append_author(records, out.encode("utf-8"), capabilities, source_hashes)
+                records = append_author(records, out.encode("utf-8"), capabilities, source_hashes,
+                                        tdir / "handoff.md")
                 manifest["document_authors"] = records[manifest["handoff_sha256"]]
                 temporary_records = records_path.with_name(records_path.name + ".tmp")
                 temporary_records.write_text(json.dumps(records, indent=2, sort_keys=True) + "\n", encoding="utf-8")

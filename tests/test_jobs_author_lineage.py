@@ -95,6 +95,14 @@ class DocumentAuthorTests(unittest.TestCase):
         with self.assertRaises(AcceptanceError):
             independent_of_authors({'document_authors': [{'lineage': 'sonnet'}]}, {'target': {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol', 'lineage': 'openai'}})
 
+    def test_recording_cannot_guess_between_legacy_predecessor_hashes(self):
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as td:
+            records = {'a' * 64: {'authors': [{'lineage': 'google'}]},
+                       'b' * 64: {'authors': [{'lineage': 'anthropic'}]}}
+            with self.assertRaisesRegex(JobError, 'cannot establish the previous author record'):
+                append_author(records, b'edited bytes', self.caps, document_path=Path(td) / 'document.md')
+
     def test_task_waiver_rebinds_to_target_authors_contract_and_document(self):
         from core.jobs.store import digest
         with __import__('tempfile').TemporaryDirectory() as td:
@@ -115,10 +123,29 @@ class DocumentAuthorTests(unittest.TestCase):
                                  ('document', {'path': '/tmp/document', 'sha256': 'b' * 64}),
                                  ('independent_of_author', False),
                                  ('requirements', ['R-OTHER']), ('role', 'worker'),
+                                 ('dependency_key', 'other'), ('review_required', True),
+                                 ('review_task_ids', ['other-review']),
                                  ('context_policy', 'document-only'),
                                  ('write_scope', {'mode': 'worker-evidence'}), ('max_followups', 2)):
                 changed = dict(task, **{field: value})
                 self.assertFalse(has_current_task_waiver(job, changed), field)
+
+    def test_review_lineage_waiver_binds_the_reviewers_target(self):
+        from core.jobs.store import digest
+        with __import__('tempfile').TemporaryDirectory() as td:
+            source = Path(td) / 'owner.txt'; source.write_text('owner approved reviewer lineage waiver')
+            subject = {'task_id': 'subject', 'stage_id': 'read', 'logical_slot_id': 'factual',
+                       'worker_id': 'worker', 'target': {'providerInstanceId': 'codex', 'model': 'm1', 'lineage': 'openai'},
+                       'independent_of_author': True, 'document': {'path': '/tmp/document', 'sha256': 'a' * 64},
+                       'document_authors': [{'lineage': 'openai'}]}
+            reviewer = {'target': {'providerInstanceId': 'claudeAgent', 'model': 'm2', 'lineage': 'anthropic'}}
+            decision = {'scope': 'lineage-waiver:task:subject', 'requirement_ids': [],
+                        'binding': waiver_binding(subject, reviewer), 'source': str(source),
+                        'source_sha256': digest(source.read_bytes()), 'quote': 'owner approved reviewer lineage waiver'}
+            job = {'decisions': [decision], 'policy': {'max_artifact_bytes': 10000}}
+            self.assertTrue(has_current_task_waiver(job, subject, reviewer))
+            changed_reviewer = {'target': {'providerInstanceId': 'claudeAgent', 'model': 'm3', 'lineage': 'anthropic'}}
+            self.assertFalse(has_current_task_waiver(job, subject, changed_reviewer))
 
 
 class MarkerAcceptanceTests(unittest.TestCase):
@@ -165,6 +192,16 @@ class MarkerAcceptanceTests(unittest.TestCase):
             self.assertFalse(has_current_stage_waiver(job, resumed))
             with self.assertRaisesRegex(AcceptanceError, 'latest direct-execution identity'):
                 _check_slots(None, job, resumed, require_reviews=False)
+
+    def test_author_policy_gates_flagless_direct_factual_stage_and_unknown_authors(self):
+        stage = {'id': 'factual', 'execution_mode': 'direct', 'validator_contract': {'mode': 'factual'},
+                 'document_authors': [{'lineage': 'google'}]}
+        job = {'policy': {'author_independence': True}, 'tasks': [], 'blockers': []}
+        with self.assertRaisesRegex(AcceptanceError, 'current stage-scoped lineage waiver'):
+            _check_slots(None, job, stage, require_reviews=False)
+        stage['document_authors'] = [{'unknown': True}]
+        with self.assertRaisesRegex(AcceptanceError, 'author unrecorded'):
+            _check_slots(None, job, stage, require_reviews=False)
 
 
 if __name__ == '__main__':

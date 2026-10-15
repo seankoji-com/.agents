@@ -513,7 +513,7 @@ def cmd_author(args) -> dict:
             sources = [manifest.get('discovery_sha256'), manifest.get('spec_sha256')]
             if any(not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{64}', value) for value in sources):
                 raise StateError('handoff source hashes are invalid')
-        records = append_author(records, raw, capabilities, sources)
+        records = append_author(records, raw, capabilities, sources, target)
         temporary = records_path.with_name(records_path.name + ".tmp")
         temporary.write_text(json.dumps(records, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         os.replace(temporary, records_path)

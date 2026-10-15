@@ -260,7 +260,7 @@ and record `document_authors` from records keyed by the exact document hash. Aut
 jobs with `policy.author_independence` enforce this check for every factual and
 cold-read slot even when its own flag is absent. The
 reviewer lineage must be known, canonical and different from every author lineage.
-Unknown authorship or lineage fails closed. New jobs require verified observed
+If authorship or lineage is unknown, the job stops because independence cannot be checked. New jobs require verified observed
 identity for reviewers, their subjects and author-independent slots under
 `policy.identity: observed`; legacy jobs without that marker keep target-only
 acceptance semantics. Approval still needs the reviewer's completed owned host
@@ -271,7 +271,10 @@ when the sidecar hash matches current bytes; it never adds the creating coordina
 Handoff authorship unions renderer and source-hash authors. Missing source records
 make authorship unknown. Record `elephant.md` with
 `record_document_author.py <path> --capabilities FILE`; check jobs never record their
-checker as author.
+checker as author. `elephant-goldfish/thinking` and `elephant-goldfish/elephant`
+enable `policy.author_independence`. `elephant-goldfish/check` imports matching-hash
+authors and enforces a different lineage and verified worker identity when authors
+are known. Without a matching record, its report says author independence is unverified.
 
 `document-revision` takes caller, task_id, `document: {path, sha256}`, reason and
 `--capabilities FILE` for author-independent document jobs. The capabilities response
@@ -285,9 +288,11 @@ owner decision: it rewrites the hash in every stage contract and slot naming the
 stales those stages and successors, and records history. Each executed slot then needs
 a charged `retry`. A spent budget refuses with `attempt_budget_exhausted` and
 `owner_decision_required`; raising it is a plan revision with an owner decision.
-Zero-slot direct factual stages record each start or resume with
-`job_cli.py direct-execution --capabilities FILE`. Acceptance requires a current
-`lineage-waiver:stage:<stage-id>` decision bound to the latest recorded identity.
+Zero-slot direct factual stages under author independence set
+`independent_of_author: true`, record each start or resume with
+`job_cli.py direct-execution --capabilities FILE`, and require known authorship plus
+a current `lineage-waiver:stage:<stage-id>` decision bound to the latest recorded identity.
+Their checklist says `fallback: direct, same-lineage (waived)`.
 
 Observed identity may use `status_identity`, `receipt_identity` and
 `configuration_identity`, or `observed: {source, providerInstanceId, model}`

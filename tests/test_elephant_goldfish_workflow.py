@@ -246,7 +246,7 @@ class InstalledJobFixture(unittest.TestCase):
 
     # -- synthetic worker lifecycle -----------------------------------------
     def dispatch(self, job_id, caller, task_id, *, verdict=None, status='ready-for-acceptance',
-                 requirement='passed', findings=(), conclusion='checked'):
+                 requirement='passed', findings=(), conclusion='checked', report_identity=True):
         """prepare -> accepted handle -> ingested result -> terminal observation."""
         ref = self.ok(self.run_helper('job_cli.py', 'prepare', job_id, {'caller': caller, 'task_id': task_id}))
         self.assertEqual(set(ref), {'path', 'sha256', 'bytes', 'provenance'})
@@ -258,7 +258,8 @@ class InstalledJobFixture(unittest.TestCase):
                  'child_thread_id': 'child-' + host, 'status': 'running', 'work_state': 'working',
                  'has_pending_child_runs': False}
         target = next(t for t in self.job_state(job_id)['tasks'] if t['task_id'] == task_id)['target']
-        event['status_identity'] = {'providerInstanceId': target['providerInstanceId'], 'model': target['model']}
+        if report_identity:
+            event['status_identity'] = {'providerInstanceId': target['providerInstanceId'], 'model': target['model']}
         self.ok(self.run_helper('job_cli.py', 'task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': event}))
         result = {'schema_version': 1, 'status': status, 'conclusion': conclusion,
                   'requirements': [{'id': r['id'], 'status': requirement, 'evidence': ['synthetic fixture evidence']}
@@ -359,7 +360,7 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         self.assertEqual(prepared.returncode, 2, prepared.stdout)
         self.assertIn('differ from every document author', prepared.stderr)
         # A different canonical reader can execute a review round. Coordinator C
-        # then repairs spec.md, records its hash, and B renders the revised handoff.
+        # edits both source files and records each new hash before B renders again.
         repair_id = 'handoff-revision-lineage-e2e'
         repair_task = {**task, 'task_id': 'cold-openai', 'logical_slot_id': 'cold-openai',
                        'request_id': 'req-cold-openai', 'target': {'providerInstanceId': 'claudeAgent',
@@ -368,12 +369,18 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
             [{'id': 'cold', 'depends_on': [], 'requirements': ['R-COLD'], 'status': 'pending',
               'validator_dependency': 'eg', 'validator_contract': contract}], [repair_task]))
         self.dispatch(repair_id, caller, 'cold-openai')
+        discovery = '# Discovery\n\n[REQ-RETRY] The retry must not charge twice.\n'
         spec = '# Spec\n\n[REQ-RETRY] Retry a timed-out charge exactly once per request ID.\n'
+        (topic / 'discovery.md').write_text(discovery)
         (topic / 'spec.md').write_text(spec)
         caps_c = json.loads(self.capabilities.read_text())
         caps_c.update(inheritedProviderInstanceId='claudeAgent', inheritedModel='claude-opus-5-5')
         caps_c['parentThreadId'] = 'synthetic-repair-c'
         caps_c_path = self.base / 'caps-c.json'; caps_c_path.write_text(json.dumps(caps_c))
+        self.assertEqual(self.thinking_state(root, 'review', slug, '--decision', 'accepted', '--scope', 'finalise-brief',
+            '--discovery-sha256', sha(discovery.encode()), '--evidence-ref', 'synthetic:owner-review-after-edit',
+            '--operator-statement', 'I accept the edited discovery.').returncode, 0)
+        self.assertEqual(self.thinking_state(root, 'author', slug, 'discovery.md', '--capabilities', str(caps_c_path)).returncode, 0)
         self.assertEqual(self.thinking_state(root, 'author', slug, 'spec.md', '--capabilities', str(caps_c_path)).returncode, 0)
         render = subprocess.run([sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root),
                                  '--capabilities', str(caps_b_path)], capture_output=True, text=True, env=self.env)
@@ -596,6 +603,106 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
         self.assertIn('differ from every document author', refused.stderr)
 
+    def test_cli_prepare_rejects_unknown_and_noncanonical_author_lineage(self):
+        document = self.document()
+        for label in ('unknown', 'sonnet'):
+            job_id = 'noncanonical-author-lineage-' + label
+            job = self.elephant_job(job_id, document, factual=False)
+            job['tasks'][0]['target'] = {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol',
+                                         'lineage': label}
+            self.create(job)
+            refused = self.run_helper('job_cli.py', 'prepare', job_id,
+                                      {'caller': self.caller(self.WORKFLOW), 'task_id': 'c0'})
+            self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+            self.assertIn('unknown or non-canonical', refused.stderr)
+
+    def test_check_workflow_imports_authors_and_rejects_same_lineage_worker(self):
+        document = self.document()
+        task = {'task_id': 'check-worker', 'stage_id': 'check', 'logical_slot_id': 'factual',
+                'request_id': 'check-worker-request', 'worker_id': 'elephant-goldfish/factual-checker',
+                'dependency_key': 'eg', 'write_scope': {'mode': 'coordinator-only'},
+                'independent_of_author': True,
+                'target': {'providerInstanceId': 'antigravity', 'model': 'gemini-3.8-flash-high', 'lineage': 'google'}}
+        stage = {'id': 'check', 'depends_on': [], 'requirements': ['R-CHECK'], 'status': 'pending',
+                 'execution_mode': 'direct', 'validator_dependency': 'eg', 'revision': 'check-r1',
+                 'validator_contract': self.contract(document, 'factual')}
+        job = self.base_job('check-known-author-same-lineage', 'elephant-goldfish/check',
+                            {'R-CHECK': 'factual observations match'}, [stage], [task])
+        self.create(job)
+        factual = self.job_state(job['job_id'])['tasks'][0]
+        self.assertEqual({author['lineage'] for author in factual['document_authors']}, {'google'})
+        self.assertTrue(factual['independent_of_author'])
+        refused = self.run_helper('job_cli.py', 'prepare', job['job_id'],
+                                  {'caller': self.caller('elephant-goldfish/check'), 'task_id': 'check-worker'})
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('differ from every document author', refused.stderr)
+
+    def test_check_workflow_rejects_unreported_worker_at_acceptance(self):
+        document = self.document()
+        caller = self.caller('elephant-goldfish/check')
+        task = {'task_id': 'check-worker', 'stage_id': 'check', 'logical_slot_id': 'factual',
+                'request_id': 'check-worker-request', 'worker_id': 'elephant-goldfish/factual-checker',
+                'dependency_key': 'eg', 'write_scope': {'mode': 'coordinator-only'},
+                'independent_of_author': True,
+                'target': {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol', 'lineage': 'openai'}}
+        stage = {'id': 'check', 'depends_on': [], 'requirements': ['R-CHECK'], 'status': 'pending',
+                 'execution_mode': 'direct', 'validator_dependency': 'eg', 'revision': 'check-r1',
+                 'validator_contract': self.contract(document, 'factual')}
+        job = self.base_job('check-unreported-worker', 'elephant-goldfish/check',
+                            {'R-CHECK': 'factual observations match'}, [stage], [task])
+        self.create(job)
+        self.dispatch(job['job_id'], caller, 'check-worker', report_identity=False)
+        observation = self.publish(job['job_id'], caller, 'check', self.factual_observation(document))
+        argv = self.doc_argv(document.parent.parent, document.parent.name, 'factual', observation)
+        refused = self.accept(job['job_id'], caller, 'check', argv, observation, 'check-r1')
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('unreported or mismatched', refused.stderr)
+
+    def test_zero_slot_direct_factual_stage_requires_waiver_and_known_authors(self):
+        for unknown in (False, True):
+            document = self.document()
+            current_hash = sha(document.read_bytes())
+            if unknown:
+                sidecar = document.parent / 'document-authors.json'
+                records = json.loads(sidecar.read_text())
+                records.pop(current_hash)
+                sidecar.write_text(json.dumps(records))
+            job_id, workflow = 'direct-factual-unknown' if unknown else 'direct-factual-no-waiver', self.WORKFLOW
+            stage = {'id': 'factual', 'depends_on': [], 'requirements': ['R-FACT'], 'status': 'pending',
+                     'execution_mode': 'direct', 'validator_dependency': 'eg', 'revision': 'direct-r1',
+                     'validator_contract': self.contract(document, 'factual')}
+            job = self.base_job(job_id, workflow, {'R-FACT': 'claims are confirmed'}, [stage], [])
+            self.create(job)
+            if not unknown:
+                created_state = self.job_state(job_id)
+                self.assertEqual(created_state['tasks'], [])
+                self.assertEqual(created_state['policy']['author_independence'], True)
+                self.assertEqual({row['lineage'] for row in created_state['stages'][0]['document_authors']}, {'google'})
+            caller = self.caller(workflow)
+            observation = self.publish(job_id, caller, 'factual', self.factual_observation(document))
+            if not unknown:
+                after_observation = self.job_state(job_id)
+                self.assertEqual(after_observation['stages'][0]['document_authors'], created_state['stages'][0]['document_authors'])
+                self.assertEqual({row['lineage'] for row in after_observation['stages'][0]['document_authors']}, {'google'})
+            argv = self.doc_argv(document.parent.parent, document.parent.name, 'factual', observation)
+            before_execution = self.accept(job_id, caller, 'factual', argv, observation, 'direct-r1')
+            self.assertEqual(before_execution.returncode, 2, before_execution.stdout + before_execution.stderr)
+            self.assertTrue(any(message in before_execution.stderr for message in
+                                ('current stage-scoped lineage waiver', 'author unrecorded')))
+            caps_path = self.base / f'{job_id}-capabilities.json'
+            caps_path.write_text(self.capabilities.read_text())
+            recorded = self.run_helper('job_cli.py', 'direct-execution', job_id,
+                                       {'caller': caller, 'stage_id': 'factual'}, capabilities=caps_path)
+            self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
+            observation = self.publish(job_id, caller, 'factual', self.factual_observation(document))
+            argv = self.doc_argv(document.parent.parent, document.parent.name, 'factual', observation)
+            refused = self.accept(job_id, caller, 'factual', argv, observation, 'direct-r1')
+            self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+            if unknown:
+                self.assertIn('author unrecorded', refused.stderr)
+            else:
+                self.assertIn('current stage-scoped lineage waiver', refused.stderr)
+
     def test_task_lineage_waiver_flows_through_prepare_and_acceptance(self):
         from shared.document_authors import waiver_binding
         document = self.document()
@@ -722,6 +829,62 @@ class ElephantDocumentJobTests(InstalledJobFixture):
             'document': {'path': str(document), 'sha256': new_hash}}, capabilities=caps_path)
         self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
         self.assertEqual(json.loads(sidecar.read_text())[new_hash], before)
+
+    def test_recording_an_edited_document_preserves_previous_authors_and_blocks_them(self):
+        document = self.document()
+        old_hash = sha(document.read_bytes())
+        original = json.loads((document.parent / 'document-authors.json').read_text())
+        self.assertEqual({row['lineage'] for row in original[old_hash]['authors']}, {'google'})
+        document.write_bytes(document.read_bytes() + b'\nEdited by another coordinator.\n')
+        caps = json.loads(self.capabilities.read_text())
+        caps.update(inheritedProviderInstanceId='codex', inheritedModel='gpt-6.1-sol',
+                    parentThreadId='synthetic-editor-b')
+        caps_path = self.base / 'editor-b-capabilities.json'
+        caps_path.write_text(json.dumps(caps))
+        recorded = subprocess.run([sys.executable, str(PLUGIN / 'scripts/record_document_author.py'),
+                                   str(document), '--capabilities', str(caps_path)], capture_output=True,
+                                  text=True, env=self.env)
+        self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
+        new_hash = sha(document.read_bytes())
+        authors = json.loads((document.parent / 'document-authors.json').read_text())[new_hash]['authors']
+        self.assertEqual({row['lineage'] for row in authors}, {'google', 'openai'})
+        job = self.elephant_job('edited-document-author-union', document, factual=False)
+        job['tasks'][0]['target'] = {'providerInstanceId': 'antigravity',
+                                     'model': 'gemini-3.8-flash-high', 'lineage': 'google'}
+        self.create(job)
+        refused = self.run_helper('job_cli.py', 'prepare', job['job_id'],
+                                  {'caller': self.caller(self.WORKFLOW), 'task_id': 'c0'})
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('differ from every document author', refused.stderr)
+
+    def test_plan_revision_reimports_authors_for_new_slots(self):
+        document = self.document()
+        job_id, caller = 'plan-revision-author-import', self.caller(self.WORKFLOW)
+        self.create(self.elephant_job(job_id, document, factual=False))
+        state = self.job_state(job_id)
+        plan = {key: copy.deepcopy(state[key]) for key in
+                ('requirements', 'dependencies', 'stages', 'tasks', 'constraints', 'authorization', 'policy')}
+        slot = copy.deepcopy(plan['tasks'][0])
+        slot.update(task_id='c1', logical_slot_id='cold-reader-2', request_id='req-c1',
+                    target={'providerInstanceId': 'antigravity', 'model': 'gemini-3.8-flash-high', 'lineage': 'google'},
+                    document_authors=[{'providerInstanceId': 'xai', 'model': 'grok-3',
+                                       'parentThreadId': 'synthetic-forged-author', 'lineage': 'xai'}])
+        plan['tasks'].append(slot)
+        revision_id = 'add-second-cold-reader'
+        source = self.base / 'owner-add-cold-reader.txt'; source.write_text('Owner approves a second cold reader.')
+        decision = {'id': 'owner-add-cold-reader', 'scope': 'plan:' + revision_id, 'requirement_ids': [],
+                    'quote': 'Owner approves a second cold reader.', 'source': str(source),
+                    'source_sha256': sha(source.read_bytes())}
+        self.ok(self.run_helper('job_cli.py', 'decision', job_id, {'caller': caller, 'decision': decision}))
+        self.ok(self.run_helper('job_cli.py', 'plan-revision', job_id,
+                                {'caller': caller, 'revision': {'id': revision_id,
+                                 'owner_decision_id': decision['id']}, 'new_plan': plan}))
+        imported = next(task for task in self.job_state(job_id)['tasks'] if task['task_id'] == 'c1')
+        self.assertEqual({author['lineage'] for author in imported['document_authors']}, {'google'})
+        refused = self.run_helper('job_cli.py', 'prepare', job_id,
+                                  {'caller': caller, 'task_id': 'c1'})
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('differ from every document author', refused.stderr)
 
     def contract(self, document, mode, digest=None):
         return {'root': str(document.parent.parent), 'slug': document.parent.name, 'mode': mode,
@@ -962,26 +1125,69 @@ class ElephantDocumentJobTests(InstalledJobFixture):
     def test_legacy_job_fixture_without_identity_accepts_review_target_only(self):
         document = self.document()
         job_id, caller = 'legacy-review-target-only', self.caller(self.WORKFLOW)
-        job = self.elephant_job(job_id, document, cold_role='review')
+        stage = {'id': 'factual', 'depends_on': [], 'requirements': ['R-FACT'], 'status': 'pending',
+                 'execution_mode': 'direct', 'validator_dependency': 'eg', 'revision': 'legacy-r1',
+                 'validator_contract': self.contract(document, 'factual')}
+        subject = {'task_id': 'f0', 'stage_id': 'factual', 'logical_slot_id': 'factual',
+                   'request_id': 'legacy-f0', 'worker_id': 'elephant-goldfish/factual-checker',
+                   'dependency_key': 'eg', 'write_scope': {'mode': 'coordinator-only'},
+                   'review_required': True, 'review_task_ids': ['r0'],
+                   'target': {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol', 'lineage': 'openai'}}
+        reviewer = {'task_id': 'r0', 'stage_id': 'factual', 'logical_slot_id': 'review',
+                    'request_id': 'legacy-r0', 'worker_id': 'elephant-goldfish/cold-reader',
+                    'dependency_key': 'eg', 'role': 'review', 'reviewed_task_ids': ['f0'],
+                    'target': {'providerInstanceId': 'claudeAgent', 'model': 'claude-opus-5-5', 'lineage': 'anthropic'},
+                    'write_scope': {'mode': 'coordinator-only'}}
+        job = self.base_job(job_id, self.WORKFLOW, {'R-FACT': 'every cited claim is confirmed'},
+                            [stage], [subject, reviewer])
         # This pre-marker fixture is loaded through core storage, not created by the new-job CLI.
         job['policy'] = {'max_repair_cycles': 3, 'max_artifact_bytes': 16 * 1024 * 1024,
                          'max_live_workers': 2}
-        for task in job['tasks']:
-            task.pop('independent_of_author', None)
         from core.jobs import create_job
         from shared.job_coordinator import verified_pins
         pins = verified_pins(job, self.state, self.prefix, self.agents,
                              self.base / 'config' / 'workers.json')
         create_job(job, self.state, pins)
         self.assertNotIn('identity', self.job_state(job_id)['policy'])
-        factual_argv, factual_input = self.accept_factual(job_id, caller, document)
-        self.dispatch(job_id, caller, 'c0', verdict='approve', conclusion='VERDICT: READY')
-        cold_input = self.publish(job_id, caller, 'cold-read', self.cold_observation(document))
-        cold_argv = self.doc_argv(document.parent.parent, document.parent.name, 'cold-read', cold_input)
-        self.ok(self.accept(job_id, caller, 'cold-read', cold_argv, cold_input))
-        final = {'caller': caller, 'validator_argv_by_stage': {'factual': factual_argv, 'cold-read': cold_argv},
-                 'input_file_by_stage': {'factual': factual_input, 'cold-read': cold_input}}
-        self.ok(self.run_helper('job_acceptance_cli.py', 'validate-final', job_id, final))
+        self.dispatch(job_id, caller, 'f0', report_identity=False)
+        self.dispatch(job_id, caller, 'r0', verdict='approve', report_identity=False)
+        factual_input = self.publish(job_id, caller, 'factual', self.factual_observation(document))
+        factual_argv = self.doc_argv(document.parent.parent, document.parent.name, 'factual', factual_input)
+        accepted = self.accept(job_id, caller, 'factual', factual_argv, factual_input, 'legacy-r1')
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+
+    def test_marked_acceptance_requires_observed_identity_for_subject_and_reviewer(self):
+        document = self.document()
+        caller = self.caller(self.WORKFLOW)
+        for missing in ('subject', 'reviewer'):
+            job_id = 'marked-unreported-' + missing
+            stage = {'id': 'factual', 'depends_on': [], 'requirements': ['R-FACT'], 'status': 'pending',
+                     'execution_mode': 'direct', 'validator_dependency': 'eg', 'revision': 'marked-r1',
+                     'validator_contract': self.contract(document, 'factual')}
+            subject = {'task_id': 'f0', 'stage_id': 'factual', 'logical_slot_id': 'factual',
+                       'request_id': 'marked-f0', 'worker_id': 'elephant-goldfish/factual-checker',
+                       'dependency_key': 'eg', 'write_scope': {'mode': 'coordinator-only'},
+                       'review_required': True, 'review_task_ids': ['r0'],
+                       'target': {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol', 'lineage': 'openai'}}
+            reviewer = {'task_id': 'r0', 'stage_id': 'factual', 'logical_slot_id': 'review',
+                        'request_id': 'marked-r0', 'worker_id': 'elephant-goldfish/cold-reader',
+                        'dependency_key': 'eg', 'role': 'review', 'reviewed_task_ids': ['f0'],
+                        'target': {'providerInstanceId': 'claudeAgent', 'model': 'claude-opus-5-5', 'lineage': 'anthropic'},
+                        'write_scope': {'mode': 'coordinator-only'}}
+            self.create(self.base_job(job_id, self.WORKFLOW, {'R-FACT': 'claims are confirmed'},
+                                      [stage], [subject, reviewer]))
+            self.dispatch(job_id, caller, 'f0')
+            self.dispatch(job_id, caller, 'r0', verdict='approve')
+            state = self.job_state(job_id)
+            task_id = 'f0' if missing == 'subject' else 'r0'
+            task = next(row for row in state['tasks'] if row['task_id'] == task_id)
+            task['handles'][0].pop('observed_identity', None)
+            (self.state / job_id / 'job.json').write_text(json.dumps(state))
+            observation = self.publish(job_id, caller, 'factual', self.factual_observation(document))
+            argv = self.doc_argv(document.parent.parent, document.parent.name, 'factual', observation)
+            refused = self.accept(job_id, caller, 'factual', argv, observation, 'marked-r1')
+            self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+            self.assertIn('unreported or mismatched', refused.stderr)
 
     def test_direct_factual_cli_requires_latest_executor_waiver_and_replacement_after_resume(self):
         from shared.document_authors import stage_waiver_binding

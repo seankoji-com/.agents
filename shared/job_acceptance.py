@@ -85,8 +85,16 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
     if not any(t['stage_id'] == stage['id'] for t in job['tasks']) and stage.get('execution_mode') != 'direct':
         raise AcceptanceError('zero-worker stage requires explicit direct execution mode')
     stage_tasks = [t for t in job['tasks'] if t['stage_id'] == stage['id']]
-    if not stage_tasks and stage.get('independent_of_author'):
+    contract = stage.get('validator_contract') or {}
+    direct_factual = (job.get('policy', {}).get('author_independence') and
+                      stage.get('execution_mode') == 'direct' and contract.get('mode') == 'factual')
+    if not stage_tasks and (stage.get('independent_of_author') or direct_factual):
         from shared.document_authors import has_current_stage_waiver
+        authors = stage.get('document_authors')
+        if not isinstance(authors, list) or not authors or any(not isinstance(row, dict) or row.get('unknown') for row in authors):
+            raise AcceptanceError('author independence is unverified: author unrecorded')
+        for author in authors:
+            canonical_lineage(author.get('lineage'))
         history = stage.get('direct_execution_history') or []
         if not history or not has_current_stage_waiver(job, stage):
             raise AcceptanceError('zero-slot direct factual stage requires a current stage-scoped lineage waiver bound to its latest direct-execution identity')
@@ -195,7 +203,7 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
                             independent_of_authors(task, reviewer)
                         except AcceptanceError:
                             from shared.document_authors import has_current_task_waiver
-                            if not has_current_task_waiver(job, task):
+                            if not has_current_task_waiver(job, task, reviewer=reviewer):
                                 raise
                     if job.get('policy', {}).get('identity') == 'observed':
                         subject_handles = [h for h in task.get('handles', []) + task.get('followups', []) if h.get('request_id') == task.get('request_id')]
