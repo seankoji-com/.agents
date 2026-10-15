@@ -476,19 +476,20 @@ def revise_document(store, caller, task_id, document, reason, capabilities=None)
                 if not isinstance(records, dict):
                     raise JobError('document author records must be an object')
                 inherited = records.get(old, {'authors': [], 'unknown': True})
-                records.setdefault('_document_paths', {})[str(Path(path).resolve())] = old
                 updated = append_author(records, reviewed_document_bytes(store, job, path), capabilities,
                                         document_path=Path(path))
                 union = merge_author_records(inherited,
                     {'authors': task.get('document_authors', []), 'unknown': any(a.get('unknown') for a in task.get('document_authors', []))},
                     updated.get(new, {'authors': [], 'unknown': True}))
                 # Never replace a record with a smaller author set.
-                union = merge_author_records(records.get(new, {'authors': []}), union)
-                records[new] = union
-                job.setdefault('document_author_records', {}).update(records)
+                union = merge_author_records(updated.get(new, {'authors': []}), union)
+                # Preserve append_author's order, path and pointer metadata so a
+                # later in-place recording inherits this revision's authors.
+                updated[new] = {**updated.get(new, {}), **union}
+                job.setdefault('document_author_records', {}).update(updated)
                 revised_authors = [{'unknown': True}] if union.get('unknown') else union['authors']
                 task['document_authors'] = revised_authors
-                sidecar_update = (sidecar, records)
+                sidecar_update = (sidecar, updated)
             except (TypeError, KeyError, ValueError) as exc:
                 raise JobError('document-revision capabilities or inherited author record is invalid') from exc
         for stage in job['stages']:

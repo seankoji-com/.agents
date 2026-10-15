@@ -1378,6 +1378,50 @@ class ElephantDocumentJobTests(InstalledJobFixture):
             'document': {'path': str(document), 'sha256': digest or sha(document.read_bytes())}},
             capabilities=self.capabilities)
 
+    def test_document_revision_then_in_place_record_keeps_repairer_for_new_job(self):
+        document = self.document()
+        caller = self.caller(self.WORKFLOW)
+        repair_caps = json.loads(self.capabilities.read_text())
+        repair_caps.update(inheritedProviderInstanceId='codex', inheritedModel='gpt-6.1-sol',
+                           parentThreadId='synthetic-repairer-b')
+        self.capabilities.write_text(json.dumps(repair_caps))
+        job_id = 'revision-record-lineage'
+        self.create(self.elephant_job(job_id, document, factual=False))
+        self.dispatch(job_id, caller, 'c0', verdict='adverse', status='failed', requirement='failed',
+                      findings=self.NOT_READY, conclusion='VERDICT: NOT READY')
+        revised = document.read_bytes() + b'\nB repaired the deployment instructions.\n'
+        document.write_bytes(revised)
+        self.ok(self.revise(job_id, caller, document))
+
+        repair_sidecar = json.loads((document.parent / 'document-authors.json').read_text())
+        repaired_hash = sha(revised)
+        path_key = str(document.resolve())
+        self.assertEqual(repair_sidecar['_document_paths'][path_key]['sha256'], repaired_hash)
+        self.assertEqual(repair_sidecar['_document_paths'][path_key]['order'], repair_sidecar[repaired_hash]['order'])
+        self.assertEqual(repair_sidecar[repaired_hash]['document_path'], path_key)
+        job_records = self.job_state(job_id)['document_author_records']
+        self.assertEqual(job_records['_document_paths'][path_key], repair_sidecar['_document_paths'][path_key])
+        self.assertEqual(job_records[repaired_hash], repair_sidecar[repaired_hash])
+
+        document.write_bytes(document.read_bytes() + b'\nC fixed a typo in place.\n')
+        later_caps = copy.deepcopy(repair_caps)
+        later_caps.update(inheritedProviderInstanceId='claudeAgent', inheritedModel='claude-opus-5-5',
+                          parentThreadId='synthetic-editor-c')
+        later_caps_path = self.base / 'later-editor-capabilities.json'
+        later_caps_path.write_text(json.dumps(later_caps))
+        recorded = subprocess.run([sys.executable, str(PLUGIN / 'scripts/record_document_author.py'), str(document),
+                                   '--capabilities', str(later_caps_path)], capture_output=True,
+                                  text=True, env=self.env)
+        self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
+
+        new_job = 'revision-record-lineage-new'
+        self.create(self.elephant_job(new_job, document, factual=False))
+        imported = next(t for t in self.job_state(new_job)['tasks'] if t['task_id'] == 'c0')['document_authors']
+        self.assertEqual({author.get('lineage') for author in imported}, {'google', 'openai', 'anthropic'})
+        prepared = self.run_helper('job_cli.py', 'prepare', new_job, {'caller': caller, 'task_id': 'c0'})
+        self.assertEqual(prepared.returncode, 2, prepared.stdout + prepared.stderr)
+        self.assertIn('differ from every document author', prepared.stderr)
+
     def test_repair_round_rebinds_the_document_within_the_round_budget_without_an_owner_decision(self):
         document = self.document()
         job_id, caller = 'elephant-repair', self.caller(self.WORKFLOW)

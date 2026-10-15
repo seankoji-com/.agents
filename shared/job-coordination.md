@@ -95,13 +95,13 @@ moved path unions both hashes; plan revisions retain job authors. Once enabled,
 hash has no author record, the read-only check may proceed with author independence
 reported as unverified; a waiver cannot establish missing authorship. Direct factual
 authoring stages stay blocked when authorship is unknown, even with a waiver.
-SHA-256 author records retain every author. Waivers bind target, author list, slot
-contract and document hash; they waive no requirement and expire when any bound value
-changes. Capabilities are host evidence transcribed by the coordinator; validation
-checks shape and correlation, not freshness or forgery. Recording an edited copy at a
-temporary path and moving it into place also inherits authors recorded for the
-destination path. The first record of an unrecorded document cannot discover earlier authors; it covers
-only the current coordinator, and earlier authorship stays outside this boundary.
+Re-recording a path inherits its previous hash and every sidecar record ordered since
+that path was last recorded. Copies or moves across directories and unrecorded edits
+are outside the trust boundary.
+Waivers bind target, author list, slot contract and document hash; they waive no
+requirement and expire when any bound value changes. Capabilities are host evidence
+transcribed by the coordinator; validation checks shape and correlation, not freshness
+or forgery. A first record cannot reveal earlier authors.
 `document-revision` validates before updating the sidecar and unions existing
 new-hash authors with inherited authors and the repairer. `record_document_author.py`
 records `elephant.md`.

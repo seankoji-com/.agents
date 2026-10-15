@@ -283,15 +283,14 @@ author independence reported as unverified; a waiver cannot establish missing
 authorship. Direct factual authoring stages stay blocked when authorship is unknown,
 even with a waiver. A direct cold-read
 stage cannot fall back to the coordinator and acceptance refuses it. Re-recording a
-moved path unions both hashes; plan revisions retain job authors. Once enabled,
+path inherits later records in its sidecar; plan revisions retain job authors. Once enabled,
 `policy.author_independence` cannot be disabled, even by owner decision.
 
-If an edited copy is recorded at a temporary path and then moved over a recorded
-document, importing the resulting hash also inherits the previous authors for the
-destination path. A first record of a document with no prior author record cannot
-identify earlier authors; that prior history is outside the trust boundary. As with
-other task observations, author records are host evidence transcribed by the
-coordinator. Shape and hash checks do not prove freshness or detect a forged file.
+Re-recording inherits its previous hash and every same-sidecar record ordered since
+that path was last recorded. Copies or moves across directories and unrecorded edits
+are outside the trust boundary. A first record cannot identify earlier authors; author
+records remain host evidence transcribed by the coordinator, and shape and hash checks
+do not prove freshness or detect forged files.
 
 `document-revision` takes caller, task_id, `document: {path, sha256}`, reason and
 `--capabilities FILE` for author-independent document jobs. The capabilities response
