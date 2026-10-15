@@ -112,6 +112,27 @@ class DocumentAuthorTests(unittest.TestCase):
             with self.assertRaisesRegex(JobError, 'cannot establish the previous author record'):
                 append_author(records, b'edited bytes', self.caps, document_path=Path(td) / 'document.md')
 
+    def test_import_follows_only_trusted_system_links_like_macos_var(self):
+        from tempfile import TemporaryDirectory
+        from unittest import mock
+        from core.jobs.store import digest
+        import shared.document_authors as authors_module
+        with TemporaryDirectory() as td:
+            real = Path(td) / 'private' / 'docs'
+            real.mkdir(parents=True)
+            document = real / 'elephant.md'
+            document.write_bytes(b'# Doc\n')
+            records = append_author({}, document.read_bytes(), self.caps, document_path=document)
+            (real / 'document-authors.json').write_text(json.dumps(records))
+            link = Path(td) / 'var'
+            link.symlink_to(Path(td) / 'private')
+            subject = {'path': str(link / 'docs' / 'elephant.md'), 'sha256': digest(b'# Doc\n')}
+            self.assertEqual(authors_module.import_subject_authors(subject), [{'unknown': True}],
+                             'a user-owned link stays outside the trust boundary')
+            with mock.patch.object(authors_module, 'trusted_link', lambda p: Path(p) == link):
+                self.assertEqual([row['lineage'] for row in authors_module.import_subject_authors(subject)],
+                                 ['anthropic'])
+
     def test_task_waiver_rebinds_to_target_authors_contract_and_document(self):
         from core.jobs.store import digest
         with __import__('tempfile').TemporaryDirectory() as td:

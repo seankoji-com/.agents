@@ -1,5 +1,5 @@
 """Hash-bound document author records transcribed from host capabilities."""
-from core.jobs.store import canonical, digest, JobError
+from core.jobs.store import canonical, digest, JobError, trusted_link
 
 
 def import_subject_authors(subject):
@@ -10,7 +10,8 @@ def import_subject_authors(subject):
         return [{'unknown': True}]
     path = Path(subject['path'])
     try:
-        if not path.is_absolute() or '..' in path.parts or any(part.is_symlink() for part in (path, *path.parents)):
+        if (not path.is_absolute() or '..' in path.parts or
+                any(part.is_symlink() and not trusted_link(part) for part in (path, *path.parents))):
             return [{'unknown': True}]
         if digest(path.read_bytes()) != subject.get('sha256'):
             return [{'unknown': True}]
