@@ -36,6 +36,10 @@
     {
       "pattern": "^(?i:status\\b.*)$",
       "operation": "status"
+    },
+    {
+      "pattern": "^(?i:.*)$",
+      "operation": "run"
     }
   ]
 }

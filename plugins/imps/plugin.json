@@ -92,12 +92,16 @@
       "operation": "run"
     },
     {
-      "pattern": "^(?i:(?:audit|review|inspect)\\b.*)$",
+      "pattern": "^(?i:audit\\b.*)$",
       "operation": "audit"
     },
     {
       "pattern": "^(?i:(?:issue|issues)\\b.*)$",
       "operation": "issues"
+    },
+    {
+      "pattern": "^(?i:.*)$",
+      "operation": "run"
     }
   ]
 }

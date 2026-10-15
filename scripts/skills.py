@@ -39,14 +39,36 @@ def validate_picker(meta):
                 not isinstance(operation, str) or operation not in picker):
             raise ValueError(f"{meta.get('name', 'plugin')}: routes must be anchored and target picker operations")
         try:
-            re.compile(pattern)
+            compiled = re.compile(pattern)
         except re.error as exc:
             raise ValueError(f"{meta.get('name', 'plugin')}: invalid route pattern") from exc
+        # The anchors must enclose the whole expression. Checking the first and
+        # last characters alone accepts `^a|b$`, whose second branch is open.
+        depth = 0
+        in_class = False
+        escaped = False
+        for char in pattern[1:-1]:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == '[':
+                in_class = True
+            elif char == ']' and in_class:
+                in_class = False
+            elif not in_class and char == '(':
+                depth += 1
+            elif not in_class and char == ')':
+                depth -= 1
+            elif not in_class and depth == 0 and char == '|':
+                raise ValueError(f"{meta.get('name', 'plugin')}: route alternation must be grouped")
 
 
 def route(meta, text):
     """Return the first manifest route matching all of the free text, if any."""
     validate_picker(meta)
+    if not text.strip():
+        return None
     for item in meta['routes']:
         if re.fullmatch(item['pattern'], text):
             return item['operation']
@@ -114,7 +136,9 @@ def render(meta, entry):
             ', '.join('`' + op + '`' for op in meta['operations']) + '.\n'
             "With no request, ask through the host's native question picker. Recommend the first option. " +
             'Do nothing until the owner answers. Options: ' + picker + '.\n'
-            'For free text, test the full string against these manifest routes in order. '
+            + ('For imps, a task without an operation means `run <task>`.\n'
+               if meta['name'] == 'imps' else '')
+            + 'For free text, test the full string against these manifest routes in order. '
             'Use the operation from the first matching route. If no route matches, ask which operation to run.\n'
             + routes + '\n' +
             'If the entry is missing, report that this adapter needs `t3-plugins install ' + meta['name'] +

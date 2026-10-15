@@ -196,6 +196,16 @@ class SkillAdapters(unittest.TestCase):
                    'routes': [{'pattern': 'doctor', 'operation': 'doctor'}]}
         with self.assertRaises(ValueError):
             skills.validate_picker(invalid)
+        for bad_picker in (['doctor', 'doctor'], ['doctor', 'unknown'],
+                           ['doctor', 'doctor', 'doctor', 'doctor', 'doctor']):
+            invalid_picker = {'name': 'bad', 'operations': ['doctor', 'run'],
+                              'picker': bad_picker, 'routes': []}
+            with self.subTest(picker=bad_picker), self.assertRaises(ValueError):
+                skills.validate_picker(invalid_picker)
+        with self.assertRaises(ValueError):
+            skills.validate_picker({'name': 'bad', 'operations': ['run', 'doctor'],
+                                    'picker': ['run', 'doctor'],
+                                    'routes': [{'pattern': '^a|b$', 'operation': 'run'}]})
 
     def test_manifest_routes_dispatch_first_match_and_leave_ambiguous_text_to_picker(self):
         manifests = {meta['name']: meta for manifest in (ROOT / 'plugins').glob('*/plugin.json')
@@ -210,6 +220,13 @@ class SkillAdapters(unittest.TestCase):
         self.assertEqual(skills.route(ape, 'https://github.com/acme/widgets'), 'study')
         self.assertEqual(tuneup['routes'], [])
         self.assertIsNone(skills.route(tuneup, 'align the provider permissions'))
+        imps = manifests['imps']
+        ralph = manifests['ralph']
+        elephant = manifests['elephant-goldfish']
+        self.assertEqual(skills.route(imps, 'add dark mode'), 'run')
+        self.assertEqual(skills.route(imps, 'review login flow'), 'run')
+        self.assertEqual(skills.route(ralph, 'ship a settings page'), 'run')
+        self.assertEqual(skills.route(elephant, 'improve the design brief'), 'thinking')
         for meta in manifests.values():
             with self.subTest(plugin=meta['name']):
                 skills.validate_picker(meta)

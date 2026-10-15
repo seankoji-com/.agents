@@ -74,6 +74,10 @@
     {
       "pattern": "^(?i:(?:check|verify)\\b.*)$",
       "operation": "check"
+    },
+    {
+      "pattern": "^(?i:.*)$",
+      "operation": "thinking"
     }
   ]
 }

@@ -2,9 +2,9 @@
 
 When the command has no request, ask which operation to run. Do not assume `doctor`.
 Each workflow manifest declares the short picker list and anchored routes for free
-text. Apply those routes to the whole request in order. Use an operation only when
-exactly one route matches. If no route matches or more than one matches, ask the user
-to choose from the picker.
+text. Apply those routes to the whole request in order. The first matching route wins.
+If no route matches, ask the user to choose from the picker. For example, `pr/foo`
+matches both the PR and repository patterns; the earlier PR route wins.
 
 For imps, a task without an operation uses `run`. Write the text after the skill mention as
 `{"text": "the full request"}` to a scratch JSON file, then run

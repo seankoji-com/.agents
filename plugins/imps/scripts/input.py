@@ -92,7 +92,11 @@ def issue_set(text):
 def route(text):
     if not isinstance(text, str):
         raise ValueError('text must be a string')
-    text = re.sub(r'^(?:\$|/)?t3-imps(?:\s+|$)', '', text.strip(), count=1)
+    text = text.strip()
+    if re.fullmatch(r'/imps:imps(?:\s+--personas)?', text):
+        return {'operation': None, 'arguments': '',
+                'personas': '--personas' in text, 'picker': True}
+    text = re.sub(r'^(?:\$|/)?t3-imps(?:\s+|$)', '', text, count=1)
     # Only a standalone flag opts in, never a mention inside task prose or a path.
     panel = bool(re.search(r'(?<!\S)--personas(?!\S)', text))
     text = re.sub(r'(?<!\S)--personas(?!\S)', '', text).strip()
