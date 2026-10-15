@@ -136,19 +136,15 @@
       "operation": "issues"
     },
     {
-      "pattern": "^(?:/imps:)?imps(?:\\s[\\s\\S]*)?$",
-      "operation": "run"
-    },
-    {
-      "pattern": "^(?:/imps:)?run\\s+(?:\\{\"issues\"[\\s\\S]*|#?[1-9][0-9]*(?:\\s+#?[1-9][0-9]*)*)$",
+      "pattern": "^(?:/imps:)?(?:run|imps)\\s+(?:\\{\"issues\"[\\s\\S]*|#?[1-9][0-9]*(?:\\s+#?[1-9][0-9]*)*)$",
       "operation": "issues"
     },
     {
-      "pattern": "^(?:/imps:)?run\\s+(?:https://github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#][\\s\\S]*)?|discussion\\s+#?[1-9][0-9]*)$",
+      "pattern": "^(?:/imps:)?(?:run|imps)\\s+(?:(?i:https://)github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#][\\s\\S]*)?|discussion\\s+#?[1-9][0-9]*)$",
       "operation": "discussion"
     },
     {
-      "pattern": "^(?:/imps:)?run\\s+[\\s\\S]*\\.md$",
+      "pattern": "^(?:/imps:)?(?:run|imps)\\s+[\\s\\S]*\\.md$",
       "operation": "checklist"
     },
     {
@@ -156,11 +152,15 @@
       "operation": "run"
     },
     {
+      "pattern": "^(?:/imps:)?imps(?:\\s[\\s\\S]*)?$",
+      "operation": "run"
+    },
+    {
       "pattern": "^(?:\\{\"issues\"[\\s\\S]*|#?[1-9][0-9]*(?:\\s+#?[1-9][0-9]*)*)$",
       "operation": "issues"
     },
     {
-      "pattern": "^(?:https://github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#][\\s\\S]*)?|discussion\\s+#?[1-9][0-9]*)$",
+      "pattern": "^(?:(?i:https://)github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#][\\s\\S]*)?|discussion\\s+#?[1-9][0-9]*)$",
       "operation": "discussion"
     },
     {
@@ -171,5 +171,8 @@
       "pattern": "^[\\s\\S]*$",
       "operation": "run"
     }
+  ],
+  "standalone_flags": [
+    "--personas"
   ]
 }

@@ -24,6 +24,7 @@ def validate_picker(meta):
     operations = meta.get('operations')
     picker = meta.get('picker')
     routes = meta.get('routes')
+    standalone_flags = meta.get('standalone_flags', [])
     if (not isinstance(operations, list) or not isinstance(picker, list) or
             not 2 <= len(picker) <= 4 or
             any(not isinstance(op, str) for op in picker) or
@@ -31,6 +32,11 @@ def validate_picker(meta):
         raise ValueError(f"{meta.get('name', 'plugin')}: picker must contain 2 to 4 unique operation IDs")
     if not isinstance(routes, list):
         raise ValueError(f"{meta.get('name', 'plugin')}: routes must be a list")
+    if (not isinstance(standalone_flags, list) or
+            any(not isinstance(flag, str) or not re.fullmatch(r'--[A-Za-z0-9][A-Za-z0-9-]*', flag)
+                for flag in standalone_flags) or
+            len(set(standalone_flags)) != len(standalone_flags)):
+        raise ValueError(f"{meta.get('name', 'plugin')}: standalone_flags must be unique long flags")
     for route in routes:
         if not isinstance(route, dict) or set(route) != {'pattern', 'operation'}:
             raise ValueError(f"{meta.get('name', 'plugin')}: route must contain pattern and operation")
@@ -85,6 +91,9 @@ def route(meta, text):
     """Return the first manifest route matching all of the free text, if any."""
     validate_picker(meta)
     text = text.strip()
+    if meta.get('standalone_flags'):
+        flags = '|'.join(re.escape(flag) for flag in meta['standalone_flags'])
+        text = re.sub(r'(?<!\S)(?:' + flags + r')(?!\S)', '', text).strip()
     if not text:
         return None
     for item in meta['routes']:
@@ -157,6 +166,8 @@ def render(meta, entry):
             'Do nothing until the owner answers. Options: ' + picker + '.\n'
             + ('For imps, a task without an operation means `run <task>`.\n'
                if meta['name'] == 'imps' else '')
+            + ('Ignore standalone flags when choosing the operation.\n'
+               if meta.get('standalone_flags') else '')
             + ('For free text, test the full string against these manifest routes in order. '
                'Use the operation from the first matching route. If no route matches, ask which operation to run.\n'
                + routes + '\n' if meta['routes'] else

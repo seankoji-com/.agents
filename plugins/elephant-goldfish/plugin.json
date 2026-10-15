@@ -60,19 +60,19 @@
   ],
   "routes": [
     {
-      "pattern": "^(?i:doctor)$",
+      "pattern": "^doctor(?:\\s[\\s\\S]*)?$",
       "operation": "doctor"
     },
     {
-      "pattern": "^(?i:(?:thinking|plan|design)\\b.*)$",
+      "pattern": "^thinking(?:\\s[\\s\\S]*)?$",
       "operation": "thinking"
     },
     {
-      "pattern": "^(?i:(?:elephant|failure|incident)\\b.*)$",
+      "pattern": "^elephant(?:\\s[\\s\\S]*)?$",
       "operation": "elephant"
     },
     {
-      "pattern": "^(?i:(?:check|verify)\\b.*)$",
+      "pattern": "^check(?:\\s[\\s\\S]*)?$",
       "operation": "check"
     },
     {

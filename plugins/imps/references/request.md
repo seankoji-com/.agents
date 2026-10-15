@@ -36,9 +36,9 @@ Explicit `run` still detects issue, discussion, and checklist input. A nonexiste
 bare path remains task text; explicit `checklist PATH` fails if it cannot be read.
 These aliases translate requests after the entry loads. A bare `/imps:imps` opens
 the picker; the alias table does not make it a `run` request. The explicit
-`/imps:imps audit` form retains the helper's existing behavior and is interpreted
-by `input.py` as task text because it does not strip the prefix before checking
-for an explicit operation. These are not registered Claude colon commands in T3.
+`/imps:imps audit` form maps `imps` to `run`, so `audit` remains task text under
+the helper's existing alias behavior. These are not registered Claude colon
+commands in T3.
 
 If `personas` is true, load `PKG/references/personas.md` and add its required
 acceptance obligation before initializing the plan. For an explicit `doctor`

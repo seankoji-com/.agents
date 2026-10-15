@@ -158,6 +158,8 @@ class SkillAdapters(unittest.TestCase):
                     self.assertIn(route['pattern'], (self.skills / ('t3-' + meta['name']) / 'SKILL.md').read_text())
                     self.assertIn(route['operation'], meta['operations'])
         imps = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
+        imps_adapter = (self.skills / 't3-imps/SKILL.md').read_text()
+        self.assertIn('Ignore standalone flags when choosing the operation.', imps_adapter)
         for hint in ('run <task>', 'resume <run-id>', 'checklist <path>',
                      'issues <number> [<number> ...]', 'discussion <number or URL>',
                      'add --personas before or after any request'):
@@ -217,6 +219,11 @@ class SkillAdapters(unittest.TestCase):
         skills.validate_picker({'name': 'good', 'operations': ['run', 'doctor'],
                                  'picker': ['run', 'doctor'],
                                  'routes': [{'pattern': '^[]|]x$', 'operation': 'run'}]})
+        for flags in (['-p'], ['--bad flag'], ['--personas', '--personas'], [1]):
+            with self.subTest(standalone_flags=flags), self.assertRaises(ValueError):
+                skills.validate_picker({'name': 'bad', 'operations': ['run', 'doctor'],
+                                        'picker': ['run', 'doctor'], 'routes': [],
+                                        'standalone_flags': flags})
 
     def test_imps_manifest_routes_match_input_classifier_and_render_in_order(self):
         manifest = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
@@ -234,7 +241,17 @@ class SkillAdapters(unittest.TestCase):
                 '42 #43': 'issues', '#12': 'issues',
                 'discussion 5': 'discussion',
                 'https://github.com/example/project/discussions/5': 'discussion',
+                'HTTPS://github.com/example/project/discussions/5': 'discussion',
+                'Https://github.com/example/project/discussions/5': 'discussion',
+                'run HTTPS://github.com/example/project/discussions/5': 'discussion',
                 'run 42 #43': 'issues', 'run discussion 5': 'discussion',
+                '/imps:imps 42 43': 'issues', 'imps #12': 'issues',
+                'imps {"issues": [1]}': 'issues', 'imps discussion 5': 'discussion',
+                'imps https://github.com/a/b/discussions/7': 'discussion',
+                'imps ' + str(checklist): 'checklist',
+                '/imps:imps ' + str(checklist): 'checklist',
+                '--personas audit': 'audit', '--personas doctor': 'doctor',
+                '--personas 42': 'issues', '42 --personas': 'issues',
                 'run ' + str(checklist): 'checklist',
                 'status run-123': 'status', 'resume run-123': 'resume',
                 'cancel run-123': 'cancel', 'blast-radius HEAD~1': 'blast-radius',
@@ -279,6 +296,8 @@ class SkillAdapters(unittest.TestCase):
             self.assertEqual(skills.route(manifest, missing), 'checklist')
             self.assertEqual(input_module.route(missing)['operation'], 'run')
             self.assertIsNone(skills.route(manifest, '   '))
+            self.assertIsNone(skills.route(manifest, '--personas'))
+            self.assertIsNone(input_module.route('--personas')['operation'])
 
     def test_manifest_routes_dispatch_first_match_and_leave_ambiguous_text_to_picker(self):
         manifests = {meta['name']: meta for manifest in (ROOT / 'plugins').glob('*/plugin.json')
@@ -304,7 +323,23 @@ class SkillAdapters(unittest.TestCase):
         self.assertEqual(skills.route(imps, 'add dark mode'), 'run')
         self.assertEqual(skills.route(imps, 'review login flow'), 'run')
         self.assertEqual(skills.route(ralph, 'ship a settings page'), 'run')
+        for text, operation in {
+            'run --max-attempts 3 goal': 'run', 'resume state.json': 'resume',
+            'status state.json': 'status', 'cancel state.json': 'cancel',
+            'doctor': 'doctor', 'doctor --verbose': 'doctor',
+        }.items():
+            with self.subTest(ralph=text):
+                self.assertEqual(skills.route(ralph, text), operation)
         self.assertEqual(skills.route(elephant, 'improve the design brief'), 'thinking')
+        for text, operation in {
+            'doctor': 'doctor', 'thinking topic': 'thinking',
+            'elephant failure report': 'elephant', 'check': 'check',
+            'status page shows stale data': 'thinking',
+            'verify the rollout plan': 'thinking',
+            'failure modes of the queue': 'thinking',
+        }.items():
+            with self.subTest(elephant=text):
+                self.assertEqual(skills.route(elephant, text), operation)
         multiline = 'ship this\nwith details'
         self.assertEqual(skills.route(imps, multiline), 'run')
         self.assertEqual(skills.route(ralph, multiline), 'run')

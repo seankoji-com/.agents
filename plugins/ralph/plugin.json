@@ -22,20 +22,24 @@
   ],
   "routes": [
     {
-      "pattern": "^(?i:doctor)$",
+      "pattern": "^doctor(?:\\s[\\s\\S]*)?$",
       "operation": "doctor"
     },
     {
-      "pattern": "^(?i:(?:run|implement|build|goal)\\b.*)$",
+      "pattern": "^(?:run)(?:\\s[\\s\\S]*)?$",
       "operation": "run"
     },
     {
-      "pattern": "^(?i:resume\\b.*)$",
+      "pattern": "^resume(?:\\s[\\s\\S]*)?$",
       "operation": "resume"
     },
     {
-      "pattern": "^(?i:status\\b.*)$",
+      "pattern": "^status(?:\\s[\\s\\S]*)?$",
       "operation": "status"
+    },
+    {
+      "pattern": "^cancel(?:\\s[\\s\\S]*)?$",
+      "operation": "cancel"
     },
     {
       "pattern": "^[\\s\\S]*$",
