@@ -53,5 +53,12 @@
     "result-envelope.schema.json",
     "acceptance.schema.json",
     "jobs-contract.md"
-  ]
+  ],
+  "picker": [
+    "audit",
+    "align",
+    "scan",
+    "doctor"
+  ],
+  "routes": []
 }

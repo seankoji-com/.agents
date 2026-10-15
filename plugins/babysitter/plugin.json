@@ -53,5 +53,37 @@
     "result-envelope.schema.json",
     "acceptance.schema.json",
     "jobs-contract.md"
+  ],
+  "picker": [
+    "pr",
+    "repo",
+    "org",
+    "doctor"
+  ],
+  "routes": [
+    {
+      "pattern": "^doctor$",
+      "operation": "doctor"
+    },
+    {
+      "pattern": "^(?i:https?://github\\.com/[^/\\s]+/[^/\\s]+/pull/\\d+(?:[?#].*)?)$",
+      "operation": "pr"
+    },
+    {
+      "pattern": "^(?i:pr\\s+https?://github\\.com/[^/\\s]+/[^/\\s]+/pull/\\d+(?:[?#].*)?)$",
+      "operation": "pr"
+    },
+    {
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "operation": "repo"
+    },
+    {
+      "pattern": "^repo\\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "operation": "repo"
+    },
+    {
+      "pattern": "^org\\s+[A-Za-z0-9_.-]+$",
+      "operation": "org"
+    }
   ]
 }

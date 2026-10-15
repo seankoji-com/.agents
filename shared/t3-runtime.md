@@ -3,6 +3,10 @@
 Read once per run. The plugin entry defines the task; this file defines how it uses T3.
 
 - Inherit the active provider and model, and respect the operator's choices.
+- For a bare plugin command, ask through the host's native question picker with the
+  recommended option first. If the host has no picker, use a clearly marked question
+  block. After an operation is chosen, ask a plain question for any required argument
+  that is still missing.
 - Delegation follows `PKG/shared/delegation.md`: when to hand off, which model, which
   tools, and what a child brief contains. Substantive multi-stage work follows
   `PKG/shared/job-coordination.md`: one pinned job, coordinator-only dispatch, tracked

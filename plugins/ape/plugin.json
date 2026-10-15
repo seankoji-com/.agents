@@ -49,5 +49,33 @@
     "result-envelope.schema.json",
     "acceptance.schema.json",
     "jobs-contract.md"
+  ],
+  "picker": [
+    "forage",
+    "study",
+    "clean",
+    "doctor"
+  ],
+  "routes": [
+    {
+      "pattern": "^doctor$",
+      "operation": "doctor"
+    },
+    {
+      "pattern": "^forage(?:\\s+[\\s\\S]+)?$",
+      "operation": "forage"
+    },
+    {
+      "pattern": "^(?i:https?://github\\.com/[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$",
+      "operation": "study"
+    },
+    {
+      "pattern": "^study\\s+(?i:https?://github\\.com/[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)(?:\\s+[\\s\\S]+)?$",
+      "operation": "study"
+    },
+    {
+      "pattern": "^clean\\s+\\S+(?:\\s+--all)?$",
+      "operation": "clean"
+    }
   ]
 }

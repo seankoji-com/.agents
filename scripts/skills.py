@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import stat
 
@@ -16,6 +17,89 @@ MARKER = '.t3-plugins-skill.json'
 # owns it by relative path, so only these names can ever be replaced or removed.
 OPENAI_YAML = 'agents/openai.yaml'
 OWNED_EXTRAS = (OPENAI_YAML,)
+
+
+def validate_picker(meta):
+    """Reject incomplete or ambiguous picker routing before rendering an adapter."""
+    operations = meta.get('operations')
+    picker = meta.get('picker')
+    routes = meta.get('routes')
+    standalone_flags = meta.get('standalone_flags', [])
+    if (not isinstance(operations, list) or not isinstance(picker, list) or
+            not 2 <= len(picker) <= 4 or
+            any(not isinstance(op, str) for op in picker) or
+            len(set(picker)) != len(picker) or any(op not in operations for op in picker)):
+        raise ValueError(f"{meta.get('name', 'plugin')}: picker must contain 2 to 4 unique operation IDs")
+    if not isinstance(routes, list):
+        raise ValueError(f"{meta.get('name', 'plugin')}: routes must be a list")
+    if (not isinstance(standalone_flags, list) or
+            any(not isinstance(flag, str) or not re.fullmatch(r'--[A-Za-z0-9][A-Za-z0-9-]*', flag)
+                for flag in standalone_flags) or
+            len(set(standalone_flags)) != len(standalone_flags)):
+        raise ValueError(f"{meta.get('name', 'plugin')}: standalone_flags must be unique long flags")
+    for route in routes:
+        if not isinstance(route, dict) or set(route) != {'pattern', 'operation'}:
+            raise ValueError(f"{meta.get('name', 'plugin')}: route must contain pattern and operation")
+        pattern, operation = route['pattern'], route['operation']
+        if (not isinstance(pattern, str) or not isinstance(operation, str) or
+                operation not in operations):
+            raise ValueError(f"{meta.get('name', 'plugin')}: routes must target known operations")
+        try:
+            compiled = re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"{meta.get('name', 'plugin')}: invalid route pattern") from exc
+        # Check the anchors and alternations while respecting escapes and
+        # character classes. A closing bracket immediately after `[` or `[^`
+        # is a literal class member, not the end of the class.
+        if not pattern.startswith('^'):
+            raise ValueError(f"{meta.get('name', 'plugin')}: route must start with ^")
+        depth = 0
+        in_class = False
+        escaped = False
+        class_first = False
+        end_anchor = False
+        for index, char in enumerate(pattern[1:], 1):
+            was_escaped = escaped
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+                if in_class:
+                    class_first = False
+            elif char == '[':
+                in_class = True
+                class_first = True
+            elif in_class and class_first and char == '^':
+                class_first = False
+            elif char == ']' and in_class and not class_first:
+                in_class = False
+            elif in_class:
+                class_first = False
+            elif not in_class and char == '(':
+                depth += 1
+            elif not in_class and char == ')':
+                depth -= 1
+            elif not in_class and depth == 0 and char == '|':
+                raise ValueError(f"{meta.get('name', 'plugin')}: route alternation must be grouped")
+            if index == len(pattern) - 1 and char == '$' and not was_escaped and not in_class:
+                end_anchor = True
+        if not end_anchor:
+            raise ValueError(f"{meta.get('name', 'plugin')}: route must end with an unescaped $")
+
+
+def route(meta, text):
+    """Return the first manifest route matching all of the free text, if any."""
+    validate_picker(meta)
+    text = text.strip()
+    if meta.get('standalone_flags'):
+        flags = '|'.join(re.escape(flag) for flag in meta['standalone_flags'])
+        text = re.sub(r'(?<!\S)(?:' + flags + r')(?!\S)', '', text).strip()
+    if not text:
+        return None
+    for item in meta['routes']:
+        if re.fullmatch(item['pattern'], text, re.DOTALL):
+            return item['operation']
+    return None
 
 
 def trusted_root_link(root):
@@ -56,6 +140,7 @@ def metadata_fields(meta):
 
 
 def render(meta, entry):
+    validate_picker(meta)
     # Pickers expose the description across providers; keep argument syntax there
     # rather than relying on a provider-specific argument-hint frontmatter field.
     description = meta['description']
@@ -68,13 +153,29 @@ def render(meta, entry):
         header.append('metadata:')
         header.extend('  ' + key + ': ' + json.dumps(value) for key, value in metadata.items())
     header.append('---')
+    picker = ', '.join('`' + op + '`' for op in meta['picker'])
+    routes = '\n'.join('- `' + route['pattern'] + '` -> `' + route['operation'] + '`'
+                        for route in meta['routes'])
+    standalone_flags = (
+        'Remove declared standalone flags (' + ', '.join(
+            '`' + flag + '`' for flag in meta['standalone_flags'])
+        + ') before choosing the operation.\n'
+        if meta.get('standalone_flags') else '')
     return ('\n'.join(header) + '\n\n# ' + meta['name'] + ' in T3 Code\n\n'
-            'Read the installed entry file at ' + json.dumps(str(entry)) + ' and follow it.\n'
-            'The package directory is the directory containing that entry file.\n'
-            'Use the text after the skill mention as the operation and arguments. Operations: ' +
-            ', '.join('`' + op + '`' for op in meta['operations']) + '.\n'
-            'With no arguments, run `doctor`.\n' +
-            ('For imps, a task without an operation means `run <task>`.\n' if meta['name'] == 'imps' else '') +
+            'Read the installed entry file at ' + json.dumps(str(entry)) + ' and follow it.\n' +
+            'The package directory is the directory containing that entry file.\n' +
+            ('Use the text after the skill mention as the operation and arguments. '
+             if meta['routes'] else '') +
+            'Operations: ' + ', '.join('`' + op + '`' for op in meta['operations']) + '.\n'
+            "With no request, ask through the host's native question picker. Recommend the first option. " +
+            'Do nothing until the owner answers. Options: ' + picker + '.\n'
+            + ('For imps, a task without an operation means `run <task>`.\n'
+               if meta['name'] == 'imps' else '')
+            + standalone_flags
+            + ('For free text, test the full string against these manifest routes in order. '
+               'Use the operation from the first matching route. If no route matches, ask which operation to run.\n'
+               + routes + '\n' if meta['routes'] else
+               'With no route table, ask which operation to run.\n') +
             'If the entry is missing, report that this adapter needs `t3-plugins install ' + meta['name'] +
             '` using the same package prefix; do not switch to another ' + meta['name'] + ' installation.\n'
             'This adapter grants no additional authorization. T3 owns delegation and watches.\n')

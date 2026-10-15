@@ -51,5 +51,33 @@
     "result-envelope.schema.json",
     "acceptance.schema.json",
     "jobs-contract.md"
+  ],
+  "picker": [
+    "thinking",
+    "elephant",
+    "check",
+    "doctor"
+  ],
+  "routes": [
+    {
+      "pattern": "^doctor(?:\\s[\\s\\S]*)?$",
+      "operation": "doctor"
+    },
+    {
+      "pattern": "^thinking(?:\\s[\\s\\S]*)?$",
+      "operation": "thinking"
+    },
+    {
+      "pattern": "^elephant(?:\\s[\\s\\S]*)?$",
+      "operation": "elephant"
+    },
+    {
+      "pattern": "^check(?:\\s[\\s\\S]*)?$",
+      "operation": "check"
+    },
+    {
+      "pattern": "^[\\s\\S]*$",
+      "operation": "thinking"
+    }
   ]
 }
