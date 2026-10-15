@@ -28,9 +28,12 @@ class SkillAdapters(unittest.TestCase):
         self.agents = self.base / 'managed agents'
 
     def call(self, *args, code=0):
+        # A full install fsyncs every file it writes (about 470), so it takes several
+        # seconds and stretches further when the disk is busy. The timeout only guards
+        # against a hang, so leave headroom for parallel suite runs on a loaded host.
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/catalog.py'),
                                  '--prefix', str(self.prefix), '--agents-root', str(self.agents), *args],
-                                capture_output=True, text=True, timeout=15)
+                                capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, code, result.stdout + result.stderr)
         self.assertNotIn('Traceback', result.stderr)
         return result
