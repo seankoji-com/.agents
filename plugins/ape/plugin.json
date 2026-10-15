@@ -66,6 +66,10 @@
       "operation": "forage"
     },
     {
+      "pattern": "^(?i:https?://github\\.com/[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$",
+      "operation": "study"
+    },
+    {
       "pattern": "^(?i:(?:study|research)\\b.*)$",
       "operation": "study"
     },

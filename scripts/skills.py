@@ -29,8 +29,8 @@ def validate_picker(meta):
             any(not isinstance(op, str) for op in picker) or
             len(set(picker)) != len(picker) or any(op not in operations for op in picker)):
         raise ValueError(f"{meta.get('name', 'plugin')}: picker must contain 2 to 4 unique operation IDs")
-    if not isinstance(routes, list) or not routes:
-        raise ValueError(f"{meta.get('name', 'plugin')}: routes must be a nonempty list")
+    if not isinstance(routes, list):
+        raise ValueError(f"{meta.get('name', 'plugin')}: routes must be a list")
     for route in routes:
         if not isinstance(route, dict) or set(route) != {'pattern', 'operation'}:
             raise ValueError(f"{meta.get('name', 'plugin')}: route must contain pattern and operation")
@@ -42,6 +42,15 @@ def validate_picker(meta):
             re.compile(pattern)
         except re.error as exc:
             raise ValueError(f"{meta.get('name', 'plugin')}: invalid route pattern") from exc
+
+
+def route(meta, text):
+    """Return the first manifest route matching all of the free text, if any."""
+    validate_picker(meta)
+    for item in meta['routes']:
+        if re.fullmatch(item['pattern'], text):
+            return item['operation']
+    return None
 
 
 def trusted_root_link(root):
@@ -104,8 +113,8 @@ def render(meta, entry):
             'Use the text after the skill mention as the operation and arguments. Operations: ' +
             ', '.join('`' + op + '`' for op in meta['operations']) + '.\n'
             'With no arguments, ask which operation to run. Offer: ' + picker + '.\n'
-            'For free text, test each full string against these manifest routes in order. '
-            'If exactly one route matches, use its operation; if none or more than one match, ask which operation to run.\n'
+            'For free text, test the full string against these manifest routes in order. '
+            'Use the operation from the first matching route. If no route matches, ask which operation to run.\n'
             + routes + '\n' +
             'If the entry is missing, report that this adapter needs `t3-plugins install ' + meta['name'] +
             '` using the same package prefix; do not switch to another ' + meta['name'] + ' installation.\n'

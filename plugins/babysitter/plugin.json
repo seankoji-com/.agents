@@ -66,8 +66,16 @@
       "operation": "doctor"
     },
     {
+      "pattern": "^(?i:https?://github\\.com/[^/\\s]+/[^/\\s]+/pull/\\d+(?:[?#].*)?)$",
+      "operation": "pr"
+    },
+    {
       "pattern": "^(?i:(?:pr|pull request)\\b.*)$",
       "operation": "pr"
+    },
+    {
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "operation": "repo"
     },
     {
       "pattern": "^(?i:(?:repo|repository)\\b.*)$",

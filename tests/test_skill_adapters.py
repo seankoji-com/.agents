@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
@@ -44,7 +45,7 @@ class SkillAdapters(unittest.TestCase):
         self.assertIn(json.dumps(str(entry)), adapter.read_text())
         self.assertIn('name: t3-imps', adapter.read_text())
         self.assertIn('With no arguments, ask which operation to run. Offer:', adapter.read_text())
-        self.assertIn('If exactly one route matches, use its operation; if none or more than one match, ask',
+        self.assertIn('Use the operation from the first matching route. If no route matches, ask',
                       adapter.read_text())
         self.assertNotIn('With no arguments, run `doctor`.', adapter.read_text())
         self.assertIn('do not switch to another imps installation', adapter.read_text())
@@ -182,6 +183,29 @@ class SkillAdapters(unittest.TestCase):
                    'routes': [{'pattern': 'doctor', 'operation': 'doctor'}]}
         with self.assertRaises(ValueError):
             skills.validate_picker(invalid)
+
+    def test_manifest_routes_dispatch_first_match_and_leave_ambiguous_text_to_picker(self):
+        manifests = {meta['name']: meta for manifest in (ROOT / 'plugins').glob('*/plugin.json')
+                     for meta in [json.loads(manifest.read_text())]}
+        babysitter = manifests['babysitter']
+        ape = manifests['ape']
+        tuneup = manifests['agent-tuneup']
+        self.assertEqual(skills.route(babysitter, 'https://github.com/acme/widgets/pull/42'), 'pr')
+        self.assertEqual(skills.route(babysitter, 'acme/widgets'), 'repo')
+        self.assertEqual(skills.route(babysitter, 'org acme'), 'org')
+        self.assertIsNone(skills.route(babysitter, 'doctr'))
+        self.assertEqual(skills.route(ape, 'https://github.com/acme/widgets'), 'study')
+        self.assertEqual(tuneup['routes'], [])
+        self.assertIsNone(skills.route(tuneup, 'align the provider permissions'))
+        for meta in manifests.values():
+            with self.subTest(plugin=meta['name']):
+                skills.validate_picker(meta)
+                for item in meta['routes']:
+                    self.assertTrue(item['pattern'].startswith('^') and item['pattern'].endswith('$'))
+                    re.compile(item['pattern'])
+                    self.assertIn(item['operation'], meta['picker'])
+                    rendered = skills.render(meta, Path('entry.md'))
+                    self.assertIn('- `' + item['pattern'] + '` -> `' + item['operation'] + '`', rendered)
 
     def test_adapter_frontmatter_carries_provenance_metadata(self):
         meta = json.loads((ROOT / 'plugins/babysitter/plugin.json').read_text())
