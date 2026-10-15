@@ -82,8 +82,8 @@ next agent must inspect the actual user instruction and scope before acting.
    The renderer copies source documents verbatim and records hashes. Never replace
    that deterministic step with a model-written summary.
    For an explicitly requested draft, use `gate <slug> --require discovery,spec --draft`
-   and `render_handoff.py <slug> --draft`. It writes `handoff.draft.md` and a separate
-   draft manifest, never a final completion. `--check` (or `--draft --check`) verifies
+   and `render_handoff.py <slug> --draft --capabilities <fresh-capabilities.json>`.
+   It writes `handoff.draft.md` and a separate draft manifest, never a final completion. `--check` (or `--draft --check`) verifies
    provenance only; the gate checks current review/readiness independently. Old topics
    without valid evidence need review even when spec and handoff already exist.
    Changing a receipt, including acceptance to an owner override, requires re-rendering

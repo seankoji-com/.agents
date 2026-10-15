@@ -133,6 +133,16 @@ class TestRenderCLIWithBraceContent(unittest.TestCase):
             for token in ("{{API_KEY}}", "{{USER_ID}}", "{{TOKEN}}"):
                 self.assertIn(token, body)
 
+    def test_writing_without_capabilities_is_refused_and_writes_nothing(self):
+        for extra in ([], ["--draft"]):
+            with self.subTest(extra=extra), topic():
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                    code = rh.main(["t", *extra, "--template-dir", _TEMPLATES])
+                self.assertEqual(code, 1)
+                self.assertIn("writing a handoff requires --capabilities", err.getvalue())
+                self.assertEqual(sorted(os.listdir("thinking/t")), ["discovery.md", "meta.json", "spec.md"])
+
 
 class TestRenderCLI(unittest.TestCase):
     def test_boundary_whitespace_and_line_endings_are_preserved(self):

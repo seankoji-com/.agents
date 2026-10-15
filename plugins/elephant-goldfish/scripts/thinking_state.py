@@ -494,12 +494,7 @@ def cmd_author(args) -> dict:
         if package_root is None:
             raise StateError("shared document-author helpers are unavailable")
         sys.path.insert(0, str(package_root))
-        from shared.document_authors import append_author
-        raw = target.read_bytes()
-        records_path = tdir / "document-authors.json"
-        if records_path.is_symlink():
-            raise StateError("document author records may not be a symlink")
-        records = json.loads(records_path.read_text(encoding="utf-8")) if records_path.exists() else {}
+        from shared.document_authors import append_author, locked_author_records
         capabilities_path = Path(args.capabilities)
         if capabilities_path.is_symlink() or not capabilities_path.is_file():
             raise StateError("capabilities must be a regular file")
@@ -513,10 +508,10 @@ def cmd_author(args) -> dict:
             sources = [manifest.get('discovery_sha256'), manifest.get('spec_sha256')]
             if any(not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{64}', value) for value in sources):
                 raise StateError('handoff source hashes are invalid')
-        records = append_author(records, raw, capabilities, sources, target)
-        temporary = records_path.with_name(records_path.name + ".tmp")
-        temporary.write_text(json.dumps(records, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        os.replace(temporary, records_path)
+        with locked_author_records(tdir) as (records, save):
+            raw = target.read_bytes()
+            records = append_author(records, raw, capabilities, sources, target)
+            save(records)
         return {"document": args.document, "sha256": hashlib.sha256(raw).hexdigest(),
                 "authors": records[hashlib.sha256(raw).hexdigest()]}
     except (OSError, ValueError, TypeError, KeyError) as exc:

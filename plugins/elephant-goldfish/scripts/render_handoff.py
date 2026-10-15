@@ -14,6 +14,7 @@ caller deciding anything at render time.
 
 Usage:
   render_handoff.py <slug> [--root DIR] [--template-dir DIR] [--stdout] [--draft] [--check]
+                    [--capabilities FILE]   (required unless --stdout or --check)
 """
 
 from __future__ import annotations
@@ -178,25 +179,19 @@ def main(argv=None) -> int:
                 if package_root is None:
                     raise RenderError("shared document-author helpers are unavailable")
                 sys.path.insert(0, str(package_root))
-                from shared.document_authors import append_author
-                from core.jobs.store import canonical
+                from shared.document_authors import append_author, locked_author_records
                 cap_path = Path(args.capabilities)
                 if cap_path.is_symlink() or not cap_path.is_file():
                     raise RenderError("capabilities file must be a regular file")
                 capabilities = json.loads(cap_path.read_text(encoding="utf-8"))
-                records_path = tdir / "document-authors.json"
-                if records_path.is_symlink():
-                    raise RenderError("document author records may not be a symlink")
-                records = json.loads(records_path.read_text(encoding="utf-8")) if records_path.exists() else {}
-                if not isinstance(records, dict):
-                    raise RenderError("document author records must be an object")
                 source_hashes = [manifest["discovery_sha256"], manifest["spec_sha256"]]
-                records = append_author(records, out.encode("utf-8"), capabilities, source_hashes,
-                                        tdir / "handoff.md")
+                with locked_author_records(tdir) as (records, save):
+                    # Record under the file this render writes, so a draft never
+                    # repoints handoff.md's history at draft bytes.
+                    records = append_author(records, out.encode("utf-8"), capabilities, source_hashes,
+                                            tdir / f"{stem}.md")
+                    save(records)
                 manifest["document_authors"] = records[manifest["handoff_sha256"]]
-                temporary_records = records_path.with_name(records_path.name + ".tmp")
-                temporary_records.write_text(json.dumps(records, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-                os.replace(temporary_records, records_path)
             except (OSError, ValueError, TypeError, KeyError) as exc:
                 raise RenderError("cannot record handoff author lineage: " + str(exc)) from exc
         if args.stdout:

@@ -135,26 +135,6 @@ class TestInit(unittest.TestCase):
             _, out = run(["init", "buy-family-car", "--output-type", "research"])
             self.assertEqual(out["meta"]["title"], "buy family car")
 
-
-class TestDocumentAuthorRecords(unittest.TestCase):
-    def test_author_records_exact_hash_and_refuses_missing_capability_fields(self):
-        with sandbox():
-            run(["init", "topic", "--output-type", "research"])
-            write("thinking/topic/discovery.md", "A synthetic discovery.\n")
-            capabilities = os.path.join(_HERE, "fixtures", "t3", "capabilities.json")
-            code, out = run(["author", "topic", "discovery.md", "--capabilities", capabilities])
-            self.assertEqual(code, 0, out)
-            record = json.loads(Path("thinking/topic/document-authors.json").read_text(encoding="utf-8"))
-            self.assertIn(out["sha256"], record)
-            self.assertEqual(record[out["sha256"]]["authors"][0]["lineage"], "anthropic")
-            missing = "capabilities-missing.json"
-            caps = json.loads(Path(capabilities).read_text(encoding="utf-8"))
-            caps.pop("inheritedModel")
-            write(missing, json.dumps(caps))
-            code, error = run(["author", "topic", "discovery.md", "--capabilities", missing])
-            self.assertEqual(code, 1)
-            self.assertIn("inherited", error["error"])
-
     def test_github_defaults_to_none(self):
         with sandbox():
             _, out = run(["init", "topic-one", "--output-type", "research"])
@@ -178,6 +158,26 @@ class TestDocumentAuthorRecords(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertIn("invalid slug", out["error"])
             self.assertFalse(os.path.exists("thinking"))
+
+
+class TestDocumentAuthorRecords(unittest.TestCase):
+    def test_author_records_exact_hash_and_refuses_missing_capability_fields(self):
+        with sandbox():
+            run(["init", "topic", "--output-type", "research"])
+            write("thinking/topic/discovery.md", "A synthetic discovery.\n")
+            capabilities = os.path.join(_HERE, "fixtures", "t3", "capabilities.json")
+            code, out = run(["author", "topic", "discovery.md", "--capabilities", capabilities])
+            self.assertEqual(code, 0, out)
+            record = json.loads(Path("thinking/topic/document-authors.json").read_text(encoding="utf-8"))
+            self.assertIn(out["sha256"], record)
+            self.assertEqual(record[out["sha256"]]["authors"][0]["lineage"], "anthropic")
+            missing = "capabilities-missing.json"
+            caps = json.loads(Path(capabilities).read_text(encoding="utf-8"))
+            caps.pop("inheritedModel")
+            write(missing, json.dumps(caps))
+            code, error = run(["author", "topic", "discovery.md", "--capabilities", missing])
+            self.assertEqual(code, 1)
+            self.assertIn("inherited", error["error"])
 
 
 class TestPhaseProgression(unittest.TestCase):

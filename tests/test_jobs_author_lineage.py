@@ -180,6 +180,70 @@ class DocumentAuthorTests(unittest.TestCase):
             self.assertFalse(has_current_task_waiver(job, subject, changed_reviewer))
 
 
+class RecordDocumentAuthorCliTests(unittest.TestCase):
+    SCRIPT = ROOT / 'plugins/elephant-goldfish/scripts/record_document_author.py'
+    CAPS = ROOT / 'tests/fixtures/t3/capabilities.json'
+
+    def record(self, document, caps=None):
+        import subprocess
+        return subprocess.Popen([sys.executable, str(self.SCRIPT), str(document), '--capabilities', str(caps or self.CAPS)],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+    def test_bad_sidecar_or_capabilities_exit_with_a_message_not_a_traceback(self):
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as td:
+            document = Path(td) / 'elephant.md'
+            document.write_text('# Doc\n')
+            bad_caps = Path(td) / 'caps.json'
+            bad_caps.write_text('{}')
+            sidecar = Path(td) / 'document-authors.json'
+            for label, sidecar_text, caps in (('truncated sidecar', '{"a":', None),
+                                              ('array sidecar', '[]', None),
+                                              ('list path index', '{"_document_paths": []}', None),
+                                              ('string record order', '{"_record_order": "z"}', None),
+                                              ('non-object hash record', '{"' + 'a' * 64 + '": []}', None),
+                                              ('capabilities without inherited fields', None, bad_caps)):
+                with self.subTest(label):
+                    if sidecar_text is None:
+                        sidecar.unlink(missing_ok=True)
+                    else:
+                        sidecar.write_text(sidecar_text)
+                    out, err = self.record(document, caps).communicate(timeout=60)
+                    self.assertIn('cannot record document author', err)
+                    self.assertNotIn('Traceback', err)
+
+    def test_concurrent_recorders_keep_every_record(self):
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as td:
+            documents = [Path(td) / f'doc-{index}.md' for index in range(6)]
+            for index, document in enumerate(documents):
+                document.write_text(f'# Doc {index}\n')
+            procs = [self.record(document) for document in documents]
+            for proc in procs:
+                out, err = proc.communicate(timeout=60)
+                self.assertEqual(proc.returncode, 0, err)
+            records = json.loads((Path(td) / 'document-authors.json').read_text())
+            self.assertEqual(sorted(records['_document_paths']), sorted(str(d.resolve()) for d in documents))
+            self.assertEqual(sorted(path.name for path in Path(td).iterdir()),
+                             sorted(['document-authors.json'] + [d.name for d in documents]),
+                             'no temporary or lock files are left behind')
+
+    def test_non_object_sidecar_reads_as_unknown_authorship(self):
+        from tempfile import TemporaryDirectory
+        from core.jobs.store import digest
+        from shared.document_authors import import_subject_authors
+        with TemporaryDirectory() as td:
+            document = Path(td) / 'elephant.md'
+            document.write_bytes(b'# Doc\n')
+            for text in ('[]', '{"_document_paths": []}', '{"_record_order": "z"}'):
+                with self.subTest(text):
+                    (Path(td) / 'document-authors.json').write_text(text)
+                    self.assertEqual(import_subject_authors({'path': str(document), 'sha256': digest(b'# Doc\n')}),
+                                     [{'unknown': True}])
+        with self.assertRaisesRegex(JobError, 'must be an object'):
+            append_author([], b'bytes', json.loads(self.CAPS.read_text()))
+
+
 class MarkerAcceptanceTests(unittest.TestCase):
     def test_marked_review_and_subject_require_verified_identity(self):
         stage = {'id': 'read', 'execution_mode': 'direct'}

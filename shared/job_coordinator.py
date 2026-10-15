@@ -429,14 +429,19 @@ def revise_document(store, caller, task_id, document, reason, capabilities=None)
     import re
     from core.jobs import _unsettled
     from core.jobs.store import digest, canonical
-    from shared.document_authors import append_author, merge_author_records
+    import contextlib
+    from shared.document_authors import append_author, locked_author_records, merge_author_records
     from shared.job_acceptance import AcceptanceError, _descendants, reviewed_document_bytes
     if not isinstance(document, dict) or set(document) != {'path', 'sha256'} or not isinstance(reason, str) or not reason.strip():
         raise JobError('document revision needs document {path, sha256} and a reason')
     if store.verify_pins is None:
         store.verify_pins = verify_job_pins
+    # The sidecar lock is held from the read below until after the job commits, and
+    # the sidecar is written only once job.json is persisted: a crash in between
+    # leaves the new hash unrecorded, which reads as unknown authorship.
+    sidecar_lock = contextlib.ExitStack()
+    sidecar_update = []
     def apply(job):
-        sidecar_update = None
         task = next((t for t in job['tasks'] if t['task_id'] == task_id), None)
         if task is None:
             raise JobError('unknown task slot')
@@ -469,12 +474,7 @@ def revise_document(store, caller, task_id, document, reason, capabilities=None)
             if capabilities is None:
                 raise JobError('document-revision requires a fresh --capabilities response')
             try:
-                sidecar = Path(path).parent / 'document-authors.json'
-                if sidecar.is_symlink():
-                    raise JobError('document author records may not be a symlink')
-                records = json.loads(sidecar.read_text(encoding='utf-8')) if sidecar.is_file() else {}
-                if not isinstance(records, dict):
-                    raise JobError('document author records must be an object')
+                records, save = sidecar_lock.enter_context(locked_author_records(Path(path).parent))
                 inherited = records.get(old, {'authors': [], 'unknown': True})
                 updated = append_author(records, reviewed_document_bytes(store, job, path), capabilities,
                                         document_path=Path(path))
@@ -488,8 +488,10 @@ def revise_document(store, caller, task_id, document, reason, capabilities=None)
                 updated[new] = {**updated.get(new, {}), **union}
                 revised_authors = [{'unknown': True}] if union.get('unknown') else union['authors']
                 task['document_authors'] = revised_authors
-                sidecar_update = (sidecar, updated)
-            except (TypeError, KeyError, ValueError) as exc:
+                sidecar_update.append((save, updated))
+            except JobError:
+                raise
+            except (OSError, TypeError, KeyError, ValueError) as exc:
                 raise JobError('document-revision capabilities or inherited author record is invalid') from exc
         for stage in job['stages']:
             contract = stage.get('validator_contract') or {}
@@ -514,15 +516,16 @@ def revise_document(store, caller, task_id, document, reason, capabilities=None)
                   'sha256': new, 'reason': reason, 'stale_stages': sorted(stages),
                   'rounds_performed': task.get('attempt', 0), 'max_rounds': 1 + limit}
         job['history'].append(record)
-        if sidecar_update is not None:
-            from core.jobs.store import validate
-            validate(job)
-            sidecar, records = sidecar_update
-            temporary = sidecar.with_name(sidecar.name + '.tmp')
-            temporary.write_text(json.dumps(records, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-            os.replace(temporary, sidecar)
         return record
-    return store.transact(caller, apply, 'document-revision')
+    with sidecar_lock:
+        record = store.transact(caller, apply, 'document-revision')
+        try:
+            for save, updated in sidecar_update:
+                save(updated)
+        except OSError as exc:
+            raise JobError('document revision was committed but its author record was not written; '
+                           'the new hash reads as unknown authorship: ' + str(exc)) from exc
+    return record
 
 
 def dispose_finding(store, caller, task_id, finding_id, disposition, evidence, finding_sha256=None):

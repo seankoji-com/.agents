@@ -459,6 +459,12 @@
             "survives": true
           },
           {
+            "selector": "test_jobs_author_lineage.RecordDocumentAuthorCliTests",
+            "tests": 3,
+            "coverage": ["REQ-JOB", "REQ-EVIDENCE"],
+            "survives": true
+          },
+          {
             "selector": "test_jobs_author_lineage.MarkerAcceptanceTests",
             "tests": 3,
             "coverage": ["REQ-JOB", "REQ-LIFECYCLE", "REQ-EVIDENCE"],

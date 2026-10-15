@@ -1,5 +1,65 @@
 """Hash-bound document author records transcribed from host capabilities."""
+import contextlib
 from core.jobs.store import canonical, digest, JobError, trusted_link
+
+
+@contextlib.contextmanager
+def locked_author_records(directory):
+    """Yield (records, save) for one directory's sidecar under an exclusive lock.
+
+    The lock is a flock on the directory itself, so concurrent recorders never
+    lose each other's records and no lock file is left beside the documents.
+    ``save`` writes a uniquely named, fsynced temporary file and replaces the sidecar.
+    """
+    import fcntl
+    import json
+    import os
+    import tempfile
+    from pathlib import Path
+    directory = Path(directory)
+    sidecar = directory / 'document-authors.json'
+    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        if sidecar.is_symlink():
+            raise JobError('document author records may not be a symlink')
+        try:
+            records = json.loads(sidecar.read_text(encoding='utf-8')) if sidecar.exists() else {}
+        except ValueError as exc:
+            raise JobError('document author records are not valid JSON') from exc
+        problem = records_shape_problem(records)
+        if problem:
+            raise JobError('document author records ' + problem)
+
+        def save(updated):
+            handle, temporary = tempfile.mkstemp(prefix='.' + sidecar.name + '.', dir=directory)
+            try:
+                with os.fdopen(handle, 'w', encoding='utf-8') as stream:
+                    stream.write(json.dumps(updated, indent=2, sort_keys=True) + '\n')
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, sidecar)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+
+        yield records, save
+    finally:
+        os.close(fd)
+
+
+def records_shape_problem(records):
+    """Describe why a parsed sidecar has the wrong shape, or return None."""
+    if not isinstance(records, dict):
+        return 'must be an object'
+    paths = records.get('_document_paths', {})
+    if not isinstance(paths, dict) or not all(isinstance(v, (dict, str)) for v in paths.values()):
+        return 'have an invalid path index'
+    if not isinstance(records.get('_record_order', 0), int):
+        return 'have an invalid record order'
+    if not all(isinstance(v, dict) for k, v in records.items() if k not in ('_document_paths', '_record_order')):
+        return 'have a non-object hash record'
+    return None
 
 
 def import_subject_authors(subject):
@@ -19,6 +79,8 @@ def import_subject_authors(subject):
         if sidecar.is_symlink() or not sidecar.is_file():
             return [{'unknown': True}]
         records = json.loads(sidecar.read_text(encoding='utf-8'))
+        if records_shape_problem(records):
+            return [{'unknown': True}]
         authors = authors_for_hash(records, subject['sha256'])
         # A document can be edited at a temporary path and then moved into place.
         # Keep authors of the last hash recorded for the validated destination too.
@@ -145,7 +207,9 @@ def authors_for_hash(records, sha256):
 
 def append_author(records, data, capabilities, source_hashes=(), document_path=None):
     """Record one author and propagate source authors; unknown sources stay unknown."""
-    from pathlib import Path
+    problem = records_shape_problem(records)
+    if problem:
+        raise JobError('document author records ' + problem)
     sha256 = digest(data)
     current = author_from_capabilities(capabilities)
     authors, unknown = [current], False
