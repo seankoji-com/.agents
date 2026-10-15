@@ -98,7 +98,7 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
             raise AcceptanceError('a conflicting host handle remains unreconciled in job blockers')
         if any(h.get('request_id') == task.get('request_id') and h.get('observed_identity', {}).get('status') == 'mismatched' for h in owned):
             raise AcceptanceError('current execution has a sticky observed host identity mismatch')
-        if any(b.get('kind') == 'identity-mismatch' and b.get('task_id') == task['task_id'] and b.get('request_id') == task.get('request_id') for b in job.get('blockers', [])):
+        if any(b.get('kind') == 'identity-mismatch' and b.get('task_id') == task['task_id'] and (b.get('cycle') == task.get('cycle', 0) or b.get('cycle') is None and b.get('request_id') == task.get('request_id')) for b in job.get('blockers', [])):
             raise AcceptanceError('observed host identity mismatch is a sticky blocker')
         if _live_handles(task):
             raise AcceptanceError('every owned host handle must be terminal with work_state result_available and no pending runs')

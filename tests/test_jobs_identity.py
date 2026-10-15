@@ -29,6 +29,13 @@ def identity_for(event, target):
 
 
 class ObservedIdentityTests(unittest.TestCase):
+    def _valid_result(self, fixture, brief):
+        result = fixture.valid_result(); frozen = json.loads(Path(brief['path']).read_text())
+        result.update({key: frozen[key] for key in ('job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256')})
+        result['binding'] = frozen['snapshot']; result['revision'] = frozen['revision']
+        result['requirements'] = [{'id': x['id'], 'status': 'passed', 'evidence': ['fixture evidence']} for x in frozen['requirements']]
+        return json.dumps(result).encode()
+
     def test_identity_uses_status_then_receipt_then_configuration_model(self):
         self.assertEqual(identity_for({'status_identity': STATUS}, TARGET)['status'], 'verified')
         self.assertEqual(identity_for({'status_identity': {**STATUS, 'model': None},
@@ -63,9 +70,7 @@ class ObservedIdentityTests(unittest.TestCase):
             task = store.load()['tasks'][0]
             self.assertEqual(task['handles'][0]['observed_identity']['status'], 'mismatched')
             self.assertEqual(task['handles'][0]['task_id'], 'host0')
-            original = fixture.valid_result(); frozen = json.loads(Path(brief['path']).read_text())
-            original.update({key: frozen[key] for key in ('job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256')});original['binding'] = frozen['snapshot'];original['revision']=frozen['revision'];original['requirements']=[{'id': x['id'], 'status': 'passed', 'evidence': ['fixture evidence']} for x in frozen['requirements']]
-            record_result(store, caller, 't0', {'request_id': 'req0', 'completion_id': 'done-original', 'result': json.dumps(original).encode()})
+            record_result(store, caller, 't0', {'request_id': 'req0', 'completion_id': 'done-original', 'result': self._valid_result(fixture, brief)})
             record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': 'req0', 'host_task_id': 'host0',
                 'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
             with self.assertRaisesRegex(AcceptanceError, 'sticky observed host identity mismatch'):
@@ -76,13 +81,57 @@ class ObservedIdentityTests(unittest.TestCase):
             record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': request, 'host_task_id': 'host1',
                 'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False,
                 'status_identity': STATUS})
-            original = fixture.valid_result(); frozen = json.loads(Path(brief['path']).read_text())
-            original.update({key: frozen[key] for key in ('job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256')});original['binding'] = frozen['snapshot'];original['revision']=frozen['revision'];original['requirements']=[{'id': x['id'], 'status': 'passed', 'evidence': ['fixture evidence']} for x in frozen['requirements']]
-            record_result(store, caller, 't0', {'request_id': request, 'completion_id': 'done-retry', 'result': json.dumps(original).encode()})
+            record_result(store, caller, 't0', {'request_id': request, 'completion_id': 'done-retry', 'result': self._valid_result(fixture, brief)})
             record_dispatch(store, caller, 't0', {'kind': 'completion', 'request_id': request, 'host_task_id': 'host1', 'completion_id': 'notify-retry',
                 'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
             self.assertEqual(store.load()['tasks'][0]['status'], 'awaiting-acceptance', store.load()['tasks'][0]['execution_history'][-1])
             _check_slots(store, store.load(), store.load()['stages'][0])
+
+    def test_same_pass_followups_cannot_clear_mismatch(self):
+        for observed in ({}, {'status_identity': STATUS}):
+            with self.subTest(observed=observed), tempfile.TemporaryDirectory() as td:
+                fixture = job_fixture(); job = fixture.base_job('followup-mismatch')
+                job['tasks'][0]['target'] = TARGET
+                job['pins']['ape']['effective_workers'] = {'ape/source-researcher': {'bytes': 'synthetic worker', 'sha256': 'b' * 64}}
+                create_job(job, td, job['pins']); store = Store(td, job['job_id']); caller = fixture.caller()
+                brief = prepare(store, caller, 't0', lambda *_: True, lambda *_: True)
+                record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': 'req0', 'host_task_id': 'host0',
+                    'status_identity': {'providerInstanceId': 'provider-b', 'model': 'model-a'}})
+                record_result(store, caller, 't0', {'request_id': 'req0', 'completion_id': 'done-original', 'result': self._valid_result(fixture, brief)})
+                record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': 'req0', 'host_task_id': 'host0',
+                    'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
+                followup = prepare_followup(store, caller, 't0', 'followup-req')
+                record_dispatch(store, caller, 't0', {'kind': 'followup', 'request_id': 'followup-req', 'host_task_id': 'host-f',
+                    'parent_host_task_id': 'host0', 'target': TARGET, 'scope': job['tasks'][0]['write_scope'], **observed})
+                record_result(store, caller, 't0', {'request_id': 'followup-req', 'completion_id': 'done-followup', 'result': self._valid_result(fixture, followup)})
+                record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': 'followup-req', 'host_task_id': 'host-f',
+                    'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
+                blockers = [b for b in store.load()['blockers'] if b['kind'] == 'identity-mismatch']
+                self.assertEqual(blockers[0]['cycle'], 0)
+                with self.assertRaisesRegex(AcceptanceError, 'identity mismatch'):
+                    _check_slots(store, store.load(), store.load()['stages'][0])
+
+    def test_charged_retry_with_mismatched_identity_stays_refused(self):
+        fixture = job_fixture(); job = fixture.base_job('mismatched-retry'); job['tasks'][0]['target'] = TARGET
+        job['pins']['ape']['effective_workers'] = {'ape/source-researcher': {'bytes': 'synthetic worker', 'sha256': 'b' * 64}}
+        with tempfile.TemporaryDirectory() as td:
+            create_job(job, td, job['pins']); store = Store(td, job['job_id']); caller = fixture.caller()
+            brief = prepare(store, caller, 't0', lambda *_: True, lambda *_: True)
+            record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': 'req0', 'host_task_id': 'host0',
+                'status_identity': {'providerInstanceId': 'provider-b', 'model': 'model-a'}})
+            record_result(store, caller, 't0', {'request_id': 'req0', 'completion_id': 'done-original', 'result': self._valid_result(fixture, brief)})
+            record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': 'req0', 'host_task_id': 'host0',
+                'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
+            retry_task(store, caller, 't0', 'retry with mismatched identity')
+            brief = prepare(store, caller, 't0', lambda *_: True, lambda *_: True)
+            request = store.load()['tasks'][0]['request_id']
+            record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': request, 'host_task_id': 'host1',
+                'status_identity': {'providerInstanceId': 'provider-b', 'model': 'model-a'}})
+            record_result(store, caller, 't0', {'request_id': request, 'completion_id': 'done-retry', 'result': self._valid_result(fixture, brief)})
+            record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': request, 'host_task_id': 'host1',
+                'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
+            with self.assertRaisesRegex(AcceptanceError, 'sticky observed host identity mismatch'):
+                _check_slots(store, store.load(), store.load()['stages'][0])
 
     def test_nonterminal_reconciliation_cannot_clear_obligation(self):
         fixture = job_fixture(); job = fixture.base_job('nonterminal-reconcile'); job['tasks'][0]['target'] = TARGET
