@@ -129,7 +129,9 @@ class DocumentAuthorTests(unittest.TestCase):
             subject = {'path': str(link / 'docs' / 'elephant.md'), 'sha256': digest(b'# Doc\n')}
             self.assertEqual(authors_module.import_subject_authors(subject), [{'unknown': True}],
                              'a user-owned link stays outside the trust boundary')
-            with mock.patch.object(authors_module, 'trusted_link', lambda p: Path(p) == link):
+            real_trusted = authors_module.trusted_link
+            # Keep the real rule for the platform's own links (macOS /var) and trust only our link besides.
+            with mock.patch.object(authors_module, 'trusted_link', lambda p: Path(p) == link or real_trusted(p)):
                 self.assertEqual([row['lineage'] for row in authors_module.import_subject_authors(subject)],
                                  ['anthropic'])
 
