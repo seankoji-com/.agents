@@ -1,8 +1,10 @@
 import contextlib
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
@@ -46,7 +48,12 @@ class SkillAdapters(unittest.TestCase):
         adapter = self.skills / 't3-imps/SKILL.md'
         self.assertIn(json.dumps(str(entry)), adapter.read_text())
         self.assertIn('name: t3-imps', adapter.read_text())
-        self.assertIn('For imps, a task without an operation means `run <task>`.', adapter.read_text())
+        self.assertIn("With no request, ask through the host's native question picker.", adapter.read_text())
+        self.assertIn('Recommend the first option.', adapter.read_text())
+        self.assertIn('Do nothing until the owner answers.', adapter.read_text())
+        self.assertIn('Use the operation from the first matching route. If no route matches, ask',
+                      adapter.read_text())
+        self.assertNotIn('With no arguments, run `doctor`.', adapter.read_text())
         self.assertIn('do not switch to another imps installation', adapter.read_text())
         self.assertNotIn(str(ROOT), adapter.read_text())
         second = self.call('skills', 'install', 'imps', '--root', str(self.skills))
@@ -143,7 +150,17 @@ class SkillAdapters(unittest.TestCase):
                 self.assertLessEqual(len(description), 1024)
                 operations = {hint.strip().split()[0] for hint in meta['argument_hint'].split('|')}
                 self.assertEqual(operations, set(meta['operations']))
+                self.assertEqual(len(meta['picker']), len(set(meta['picker'])))
+                self.assertGreaterEqual(len(meta['picker']), 2)
+                self.assertLessEqual(len(meta['picker']), 4)
+                for route in meta['routes']:
+                    self.assertTrue(route['pattern'].startswith('^') and route['pattern'].endswith('$'))
+                    self.assertIn(route['pattern'], (self.skills / ('t3-' + meta['name']) / 'SKILL.md').read_text())
+                    self.assertIn(route['operation'], meta['operations'])
         imps = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
+        imps_adapter = (self.skills / 't3-imps/SKILL.md').read_text()
+        self.assertIn('Remove declared standalone flags (`--personas`) before choosing the operation.',
+                      imps_adapter)
         for hint in ('run <task>', 'resume <run-id>', 'checklist <path>',
                      'issues <number> [<number> ...]', 'discussion <number or URL>',
                      'add --personas before or after any request'):
@@ -159,6 +176,200 @@ class SkillAdapters(unittest.TestCase):
         self.call('install', 'imps')
         prompt = self.call('prompt', 'imps', '--personas', '42', '43').stdout
         self.assertIn('run: --personas 42 43', prompt)
+
+    def test_prompt_without_request_offers_manifest_picker(self):
+        self.call('install', 'imps')
+        prompt = self.call('prompt', 'imps').stdout
+        self.assertIn("Ask through the host's native question picker.", prompt)
+        self.assertIn('Recommend the first option and do nothing until the owner answers.', prompt)
+        self.assertIn('Options: run, audit, issues, doctor.', prompt)
+        self.assertNotIn('doctor\n', prompt)
+
+    def test_workflow_manifests_have_valid_picker_routes(self):
+        expected = {
+            'imps': ['run', 'audit', 'issues', 'doctor'],
+            'ralph': ['run', 'resume', 'status', 'doctor'],
+            'elephant-goldfish': ['thinking', 'elephant', 'check', 'doctor'],
+            'babysitter': ['pr', 'repo', 'org', 'doctor'],
+            'ape': ['forage', 'study', 'clean', 'doctor'],
+            'agent-tuneup': ['audit', 'align', 'scan', 'doctor'],
+        }
+        for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
+            meta = json.loads(manifest.read_text())
+            with self.subTest(plugin=meta['name']):
+                skills.validate_picker(meta)
+                self.assertEqual(meta['picker'], expected[meta['name']])
+        invalid = {'name': 'bad', 'operations': ['doctor'], 'picker': ['doctor', 'doctor'],
+                   'routes': [{'pattern': 'doctor', 'operation': 'doctor'}]}
+        with self.assertRaises(ValueError):
+            skills.validate_picker(invalid)
+        for bad_picker in (['doctor', 'doctor'], ['doctor', 'unknown'],
+                           ['run', 'resume', 'status', 'doctor', 'cancel']):
+            invalid_picker = {'name': 'bad', 'operations': ['doctor', 'run', 'resume', 'status', 'cancel'],
+                              'picker': bad_picker, 'routes': []}
+            with self.subTest(picker=bad_picker), self.assertRaises(ValueError):
+                skills.validate_picker(invalid_picker)
+        with self.assertRaises(ValueError):
+            skills.validate_picker({'name': 'bad', 'operations': ['run', 'doctor'],
+                                    'picker': ['run', 'doctor'],
+                                    'routes': [{'pattern': '^a|b$', 'operation': 'run'}]})
+        with self.assertRaises(ValueError):
+            skills.validate_picker({'name': 'bad', 'operations': ['run', 'doctor'],
+                                    'picker': ['run', 'doctor'],
+                                    'routes': [{'pattern': '^abc\\$', 'operation': 'run'}]})
+        skills.validate_picker({'name': 'good', 'operations': ['run', 'doctor'],
+                                 'picker': ['run', 'doctor'],
+                                 'routes': [{'pattern': '^[]|]x$', 'operation': 'run'}]})
+        for flags in (['-p'], ['--bad flag'], ['--personas', '--personas'], [1]):
+            with self.subTest(standalone_flags=flags), self.assertRaises(ValueError):
+                skills.validate_picker({'name': 'bad', 'operations': ['run', 'doctor'],
+                                        'picker': ['run', 'doctor'], 'routes': [],
+                                        'standalone_flags': flags})
+
+    def test_imps_manifest_routes_match_input_classifier_and_render_in_order(self):
+        manifest = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        input_spec = importlib.util.spec_from_file_location(
+            'imps_input_for_routes', ROOT / 'plugins/imps/scripts/input.py')
+        input_module = importlib.util.module_from_spec(input_spec)
+        input_spec.loader.exec_module(input_module)
+        with tempfile.TemporaryDirectory() as temp:
+            checklist = Path(temp) / 'audit with spaces.md'
+            checklist.write_text('- [ ] check\n  Verify: python3 check.py\n  Done when: passed\n')
+            # Bare /imps:imps-shaped requests and --personas alone belong to the
+            # picker surface, which the route table never sees. route() returns
+            # None for empty text; input.py classifies the whole request.
+            cases = {
+                '42 #43': 'issues', '#12': 'issues',
+                'discussion 5': 'discussion',
+                'https://github.com/example/project/discussions/5': 'discussion',
+                'HTTPS://github.com/example/project/discussions/5': 'discussion',
+                'Https://github.com/example/project/discussions/5': 'discussion',
+                'run HTTPS://github.com/example/project/discussions/5': 'discussion',
+                'run 42 #43': 'issues', 'run discussion 5': 'discussion',
+                '/imps:imps 42 43': 'issues', 'imps #12': 'issues',
+                'imps {"issues": [1]}': 'issues', 'imps discussion 5': 'discussion',
+                'imps https://github.com/a/b/discussions/7': 'discussion',
+                'imps ' + str(checklist): 'checklist',
+                '/imps:imps ' + str(checklist): 'checklist',
+                '--personas audit': 'audit', '--personas doctor': 'doctor',
+                '--personas 42': 'issues', '42 --personas': 'issues',
+                'run ' + str(checklist): 'checklist',
+                'status run-123': 'status', 'resume run-123': 'resume',
+                'cancel run-123': 'cancel', 'blast-radius HEAD~1': 'blast-radius',
+                'prs repo example/project': 'prs',
+                'audit --focus routing': 'audit', 'issue-mode 42': 'issues',
+                'imp-agency security': 'audit', 'verification-init': 'verification-init',
+                'doctor --global': 'doctor', 'doctor 42': 'doctor',
+                'doctor verbose': 'doctor',
+                'issue tracker is slow': 'run', 'issues are piling up': 'issues',
+                'status-page shows stale data': 'run', 'audit-log is broken': 'run',
+                'doctor-mode flaky': 'run', 'ISSUES 5': 'run', 'Issues 5': 'run',
+                'Resume x': 'run', '/imps:audit': 'audit', '/imps:doctor': 'doctor',
+                '/imps:issues 5': 'issues', '  doctor  ': 'doctor',
+                '  issue tracker is slow  ': 'run',
+                'fix the bug\nwith details': 'run',
+                '/imps:resume x': 'resume', '/imps:status x': 'status',
+                '/imps:cancel x': 'cancel', '/imps:verification-init x': 'verification-init',
+                '/imps:blast-radius x': 'blast-radius', '/imps:prs x': 'prs',
+                '/imps:checklist ' + str(checklist): 'checklist',
+                '/imps:discussion 7': 'discussion',
+                '/imps:run fix it': 'run', '/imps:run 5': 'issues',
+                '/imps:imp-agency x': 'audit', '/imps:issue-mode 5': 'issues',
+                str(checklist): 'checklist', 'a plain task': 'run',
+            }
+            rendered = skills.render(manifest, Path('entry.md'))
+            rendered_routes = [line for line in rendered.splitlines() if line.startswith('- `')]
+            expected_routes = ['- `' + item['pattern'] + '` -> `' + item['operation'] + '`'
+                               for item in manifest['routes']]
+            self.assertEqual(rendered_routes, expected_routes)
+            classifier_refusals = {'issues are piling up'}
+            for text, operation in cases.items():
+                with self.subTest(text=text):
+                    self.assertEqual(skills.route(manifest, text), operation)
+                    if text in classifier_refusals:
+                        with self.assertRaisesRegex(ValueError, 'issues requires issue numbers'):
+                            input_module.route(text)
+                    else:
+                        self.assertEqual(input_module.route(text)['operation'], operation)
+            # Routes cannot test file existence. input.py deliberately leaves a
+            # nonexistent markdown path as task text while the manifest selects checklist.
+            missing = str(Path(temp) / 'missing.md')
+            self.assertEqual(skills.route(manifest, missing), 'checklist')
+            self.assertEqual(input_module.route(missing)['operation'], 'run')
+            self.assertIsNone(skills.route(manifest, '   '))
+            self.assertIsNone(skills.route(manifest, '--personas'))
+            self.assertIsNone(input_module.route('--personas')['operation'])
+
+    def test_manifest_routes_dispatch_first_match_and_leave_ambiguous_text_to_picker(self):
+        manifests = {meta['name']: meta for manifest in (ROOT / 'plugins').glob('*/plugin.json')
+                     for meta in [json.loads(manifest.read_text())]}
+        babysitter = manifests['babysitter']
+        ape = manifests['ape']
+        tuneup = manifests['agent-tuneup']
+        self.assertEqual(skills.route(babysitter, 'https://github.com/acme/widgets/pull/42'), 'pr')
+        self.assertEqual(skills.route(babysitter, 'pr https://github.com/acme/widgets/pull/42'), 'pr')
+        self.assertEqual(skills.route(babysitter, 'acme/widgets'), 'repo')
+        self.assertEqual(skills.route(babysitter, 'repo acme/widgets'), 'repo')
+        self.assertEqual(skills.route(babysitter, 'org acme'), 'org')
+        for text in ('pr', 'repo', 'org'):
+            self.assertIsNone(skills.route(babysitter, text))
+        self.assertIsNone(skills.route(babysitter, 'doctr'))
+        for text in (
+            'Org chart is wrong', 'Organization of files is messy',
+            'pull request 1', 'PR-1 is stuck',
+            'repository a/b', 'repo-cleanup',
+        ):
+            with self.subTest(plugin='babysitter', text=text):
+                self.assertIsNone(skills.route(babysitter, text))
+        self.assertEqual(skills.route(ape, 'https://github.com/acme/widgets'), 'study')
+        for text in (
+            'Clean up the README', 'search for auth libs', 'find repos', 'research caching',
+        ):
+            with self.subTest(plugin='ape', text=text):
+                self.assertIsNone(skills.route(ape, text))
+        self.assertEqual(tuneup['routes'], [])
+        self.assertIsNone(skills.route(tuneup, 'align the provider permissions'))
+        rendered_tuneup = skills.render(tuneup, Path('entry.md'))
+        self.assertIn("With no request, ask through the host's native question picker.", rendered_tuneup)
+        self.assertIn('With no route table, ask which operation to run.', rendered_tuneup)
+        self.assertNotIn('Use the text after the skill mention as the operation and arguments.',
+                         rendered_tuneup)
+        imps = manifests['imps']
+        ralph = manifests['ralph']
+        elephant = manifests['elephant-goldfish']
+        self.assertEqual(skills.route(imps, 'add dark mode'), 'run')
+        self.assertEqual(skills.route(imps, 'review login flow'), 'run')
+        self.assertEqual(skills.route(ralph, 'ship a settings page'), 'run')
+        for text, operation in {
+            'run --max-attempts 3 goal': 'run', 'resume state.json': 'resume',
+            'status state.json': 'status', 'cancel state.json': 'cancel',
+            'doctor': 'doctor', 'doctor --verbose': 'doctor',
+        }.items():
+            with self.subTest(ralph=text):
+                self.assertEqual(skills.route(ralph, text), operation)
+        self.assertEqual(skills.route(elephant, 'improve the design brief'), 'thinking')
+        for text, operation in {
+            'doctor': 'doctor', 'thinking topic': 'thinking',
+            'elephant failure report': 'elephant', 'check': 'check',
+            'status page shows stale data': 'thinking',
+            'verify the rollout plan': 'thinking',
+            'failure modes of the queue': 'thinking',
+        }.items():
+            with self.subTest(elephant=text):
+                self.assertEqual(skills.route(elephant, text), operation)
+        multiline = 'ship this\nwith details'
+        self.assertEqual(skills.route(imps, multiline), 'run')
+        self.assertEqual(skills.route(ralph, multiline), 'run')
+        self.assertEqual(skills.route(elephant, multiline), 'thinking')
+        for meta in manifests.values():
+            with self.subTest(plugin=meta['name']):
+                skills.validate_picker(meta)
+                for item in meta['routes']:
+                    self.assertTrue(item['pattern'].startswith('^') and item['pattern'].endswith('$'))
+                    re.compile(item['pattern'])
+                    self.assertIn(item['operation'], meta['operations'])
+                    rendered = skills.render(meta, Path('entry.md'))
+                    self.assertIn('- `' + item['pattern'] + '` -> `' + item['operation'] + '`', rendered)
 
     def test_adapter_frontmatter_carries_provenance_metadata(self):
         meta = json.loads((ROOT / 'plugins/babysitter/plugin.json').read_text())

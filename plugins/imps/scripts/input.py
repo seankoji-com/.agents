@@ -92,17 +92,23 @@ def issue_set(text):
 def route(text):
     if not isinstance(text, str):
         raise ValueError('text must be a string')
-    text = re.sub(r'^(?:\$|/)?t3-imps(?:\s+|$)', '', text.strip(), count=1)
+    text = text.strip()
+    if re.fullmatch(r'(?:--personas\s+)?/imps:imps(?:\s+--personas)?', text):
+        return {'operation': None, 'arguments': '',
+                'personas': '--personas' in text, 'picker': True}
+    text = re.sub(r'^(?:\$|/)?t3-imps(?:\s+|$)', '', text, count=1)
     # Only a standalone flag opts in, never a mention inside task prose or a path.
     panel = bool(re.search(r'(?<!\S)--personas(?!\S)', text))
     text = re.sub(r'(?<!\S)--personas(?!\S)', '', text).strip()
     if not text:
-        return {'operation': 'doctor', 'arguments': '', 'personas': panel}
+        return {'operation': None, 'arguments': '', 'personas': panel, 'picker': True}
     parts = text.split(maxsplit=1)
     first = parts[0].removeprefix('/imps:')
     operation = ALIASES.get(first, first)
     explicit = operation in OPERATIONS
     args = parts[1] if len(parts) > 1 else ''
+    if first == 'imps' and args == 'run':
+        args = ''
     if explicit and operation != 'run':
         result = {'operation': operation, 'arguments': args, 'personas': panel}
         if operation == 'checklist':
@@ -116,7 +122,7 @@ def route(text):
         return result
     task = args if explicit else text
     if not task:
-        return {'operation': 'doctor', 'arguments': '', 'personas': panel}
+        return {'operation': 'run', 'arguments': '', 'personas': panel, 'needsArgument': True}
     result = {'operation': 'run', 'arguments': task, 'personas': panel}
     if re.fullmatch(r'#?[1-9][0-9]*(?:\s+#?[1-9][0-9]*)*', task) or task.startswith('{"issues"'):
         result.update(operation='issues', **issue_set(task))

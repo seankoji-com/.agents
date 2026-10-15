@@ -1,6 +1,29 @@
 {
   "stage": 3,
   "inventory": {
+    "manifest_fields": [
+      {
+        "id": "plugin.json:picker",
+        "field": "picker",
+        "disposition": "change",
+        "stage": 3,
+        "reason": "Declares the ordered operations shown when a workflow request needs the operator to choose."
+      },
+      {
+        "id": "plugin.json:routes",
+        "field": "routes",
+        "disposition": "change",
+        "stage": 3,
+        "reason": "Declares anchored request patterns used to route unambiguous free-text requests."
+      },
+      {
+        "id": "plugin.json:standalone_flags",
+        "field": "standalone_flags",
+        "disposition": "change",
+        "stage": 3,
+        "reason": "Declares standalone flags accepted by the workflow adapter."
+      }
+    ],
     "helpers": [
       {
         "path": "core/jobs/store.py",

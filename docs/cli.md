@@ -15,7 +15,7 @@ Run `t3-plugins --help` or `t3-plugins COMMAND --help` for all options.
 | `setup [PLUGIN]` | Install snapshots, worker bundles and skill adapters; omit the name for all plugins |
 | `install [PLUGIN]` | Install snapshots and worker bundles, without skill adapters |
 | `path PLUGIN` | Print the active installed entry path |
-| `prompt PLUGIN [REQUEST…]` | Print a prompt to paste into T3; defaults to `doctor` |
+| `prompt PLUGIN [REQUEST…]` | Print a prompt to paste into T3; with no request, offer the workflow's manifest picker |
 | `doctor [PLUGIN] [--project PATH]` | Check installed files and package currency, and probe whether this process can write learnings (a global check from any directory); `--project` also refuses a learnings root inside that project, as its plugin runs would. Omit the name for all plugins |
 | `activate PLUGIN VERSION` | Select an existing snapshot without migrating run state |
 | `uninstall PLUGIN [--version VERSION]` | Remove owned snapshot and bundle files, preserving local edits, overrides and state; refuses a version a live job pins, in any recorded state root |
@@ -30,6 +30,13 @@ Run `t3-plugins --help` or `t3-plugins COMMAND --help` for all options.
 | `adopt --from-prefix OLD` | Keep a moved installation's identity after verifying its receipt |
 
 Omit the plugin from a `skills` command to act on all bundled plugins.
+
+Each workflow manifest declares 2 to 4 unique operation IDs for its picker and
+anchored regular-expression routes for free text. A generated adapter lists those
+options and routes. Remove any declared standalone flags before trying the routes.
+Match the full request against the patterns in order and use the first match. If
+no route matches, ask the user to choose an operation. A bare command never
+defaults to `doctor`.
 
 `setup --root PATH` replaces the default skill roots. Repeat it for multiple roots.
 `setup --capabilities FILE` initializes routing from a saved T3 capabilities response.

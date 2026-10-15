@@ -30,6 +30,7 @@ def catalog():
         installer.validate_name(meta['name'])
         if meta['name'] != path.parent.name:
             raise ValueError(f'catalog name does not match folder: {path.parent.name}')
+        skills.validate_picker(meta)
         plugins.append(meta)
     return plugins
 
@@ -152,7 +153,7 @@ def main(argv=None):
     adapters.add_argument('plugin', nargs='?')
     adapters.add_argument('--root', required=True, help='provider skill directory on the T3 environment')
     helps = {'path': 'print the installed entry path of one plugin',
-             'prompt': 'print a prompt that reads the installed entry and runs REQUEST (default: doctor)',
+             'prompt': 'print a prompt that reads the installed entry and runs REQUEST (or offers the operation picker)',
              'doctor': 'check installed file integrity for all plugins or one named plugin'}
     for name in ('path', 'prompt', 'doctor'):
         command = sub.add_parser(name, help=helps[name])
@@ -162,7 +163,7 @@ def main(argv=None):
             command.add_argument('--project', dest='doctor_project', default=None,
                                  help='also refuse a learnings root inside this project, as its plugin runs would')
         if name == 'prompt':
-            command.add_argument('request', nargs=argparse.REMAINDER, default=['doctor'])
+            command.add_argument('request', nargs=argparse.REMAINDER, default=[])
     install = sub.add_parser('install', help='install all plugins or one named plugin')
     install.add_argument('plugin', nargs='?')
     install.add_argument('--dry-run', action='store_true')
@@ -349,7 +350,14 @@ def main(argv=None):
                 if args.command == 'path':
                     print(entry)
                 else:
-                    print(f"Read {entry} and run: {' '.join(args.request) or 'doctor'}")
+                    request = ' '.join(args.request).strip()
+                    if request:
+                        print(f'Read {entry} and run: {request}')
+                    else:
+                        options = ', '.join(meta['picker'])
+                        print(f'Read {entry}. Ask through the host\'s native question picker. '
+                              f'Recommend the first option and do nothing until the owner answers. '
+                              f'Options: {options}.')
         return 1 if failed else 0
     except (ValueError, OSError, KeyError, installer.InstallError, routing.RoutingError) as exc:
         print(f't3-plugins: {exc}', file=sys.stderr)

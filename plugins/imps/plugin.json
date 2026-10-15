@@ -75,5 +75,104 @@
     "result-envelope.schema.json",
     "acceptance.schema.json",
     "jobs-contract.md"
+  ],
+  "picker": [
+    "run",
+    "audit",
+    "issues",
+    "doctor"
+  ],
+  "routes": [
+    {
+      "pattern": "^(?:/imps:)?doctor(?:\\s[\\s\\S]*)?$",
+      "operation": "doctor"
+    },
+    {
+      "pattern": "^(?:/imps:)?resume(?:\\s[\\s\\S]*)?$",
+      "operation": "resume"
+    },
+    {
+      "pattern": "^(?:/imps:)?status(?:\\s[\\s\\S]*)?$",
+      "operation": "status"
+    },
+    {
+      "pattern": "^(?:/imps:)?cancel(?:\\s[\\s\\S]*)?$",
+      "operation": "cancel"
+    },
+    {
+      "pattern": "^(?:/imps:)?verification-init(?:\\s[\\s\\S]*)?$",
+      "operation": "verification-init"
+    },
+    {
+      "pattern": "^(?:/imps:)?blast-radius(?:\\s[\\s\\S]*)?$",
+      "operation": "blast-radius"
+    },
+    {
+      "pattern": "^(?:/imps:)?audit(?:\\s[\\s\\S]*)?$",
+      "operation": "audit"
+    },
+    {
+      "pattern": "^(?:/imps:)?issues(?:\\s[\\s\\S]*)?$",
+      "operation": "issues"
+    },
+    {
+      "pattern": "^(?:/imps:)?prs(?:\\s[\\s\\S]*)?$",
+      "operation": "prs"
+    },
+    {
+      "pattern": "^(?:/imps:)?checklist(?:\\s[\\s\\S]*)?$",
+      "operation": "checklist"
+    },
+    {
+      "pattern": "^(?:/imps:)?discussion(?:\\s[\\s\\S]*)?$",
+      "operation": "discussion"
+    },
+    {
+      "pattern": "^(?:/imps:)?imp-agency(?:\\s[\\s\\S]*)?$",
+      "operation": "audit"
+    },
+    {
+      "pattern": "^(?:/imps:)?issue-mode(?:\\s[\\s\\S]*)?$",
+      "operation": "issues"
+    },
+    {
+      "pattern": "^(?:/imps:)?(?:run|imps)\\s+(?:\\{\"issues\"[\\s\\S]*|#?[1-9][0-9]*(?:\\s+#?[1-9][0-9]*)*)$",
+      "operation": "issues"
+    },
+    {
+      "pattern": "^(?:/imps:)?(?:run|imps)\\s+(?:(?i:https://)github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#][\\s\\S]*)?|discussion\\s+#?[1-9][0-9]*)$",
+      "operation": "discussion"
+    },
+    {
+      "pattern": "^(?:/imps:)?(?:run|imps)\\s+[\\s\\S]*\\.md$",
+      "operation": "checklist"
+    },
+    {
+      "pattern": "^(?:/imps:)?run(?:\\s[\\s\\S]*)?$",
+      "operation": "run"
+    },
+    {
+      "pattern": "^(?:/imps:)?imps(?:\\s[\\s\\S]*)?$",
+      "operation": "run"
+    },
+    {
+      "pattern": "^(?:\\{\"issues\"[\\s\\S]*|#?[1-9][0-9]*(?:\\s+#?[1-9][0-9]*)*)$",
+      "operation": "issues"
+    },
+    {
+      "pattern": "^(?:(?i:https://)github\\.com/[^/]+/[^/]+/discussions/[1-9][0-9]*/?(?:[?#][\\s\\S]*)?|discussion\\s+#?[1-9][0-9]*)$",
+      "operation": "discussion"
+    },
+    {
+      "pattern": "^[\\s\\S]*\\.md$",
+      "operation": "checklist"
+    },
+    {
+      "pattern": "^[\\s\\S]*$",
+      "operation": "run"
+    }
+  ],
+  "standalone_flags": [
+    "--personas"
   ]
 }

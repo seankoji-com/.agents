@@ -13,5 +13,37 @@
     "doctor"
   ],
   "kind": "workflow",
-  "compatibility": "experimental"
+  "compatibility": "experimental",
+  "picker": [
+    "run",
+    "resume",
+    "status",
+    "doctor"
+  ],
+  "routes": [
+    {
+      "pattern": "^doctor(?:\\s[\\s\\S]*)?$",
+      "operation": "doctor"
+    },
+    {
+      "pattern": "^(?:run)(?:\\s[\\s\\S]*)?$",
+      "operation": "run"
+    },
+    {
+      "pattern": "^resume(?:\\s[\\s\\S]*)?$",
+      "operation": "resume"
+    },
+    {
+      "pattern": "^status(?:\\s[\\s\\S]*)?$",
+      "operation": "status"
+    },
+    {
+      "pattern": "^cancel(?:\\s[\\s\\S]*)?$",
+      "operation": "cancel"
+    },
+    {
+      "pattern": "^[\\s\\S]*$",
+      "operation": "run"
+    }
+  ]
 }

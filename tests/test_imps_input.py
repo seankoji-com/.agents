@@ -15,7 +15,7 @@ spec.loader.exec_module(inputs)
 
 class ImpsInput(unittest.TestCase):
     def test_modes_and_legacy_operations(self):
-        cases = {'': 'doctor', 'fix the parser': 'run', 'run fix the parser': 'run',
+        cases = {'fix the parser': 'run', 'run fix the parser': 'run',
                  '42 #43 51': 'issues', 'discussion #284': 'discussion',
                  '/imps:imp-agency security': 'audit', 'issue-mode 42': 'issues',
                  'blast-radius HEAD~1': 'blast-radius', 'resume run-42': 'resume'}
@@ -27,10 +27,24 @@ class ImpsInput(unittest.TestCase):
         panel = inputs.route('run --personas 42 43')
         self.assertTrue(panel['personas'])
         self.assertEqual(panel['issues'], [42, 43])
-        for request in ('run', '$t3-imps run', '/imps:imps', 'run --personas'):
+        empty = {'operation': None, 'arguments': '', 'personas': False, 'picker': True}
+        self.assertEqual(inputs.route(''), empty)
+        self.assertEqual(inputs.route('   '), empty)
+        self.assertEqual(inputs.route('$t3-imps'), empty)
+        self.assertEqual(inputs.route('/t3-imps'), empty)
+        self.assertEqual(inputs.route('/imps:imps'), empty)
+        self.assertEqual(inputs.route('/imps:imps --personas'),
+                         {'operation': None, 'arguments': '', 'personas': True, 'picker': True})
+        self.assertEqual(inputs.route('--personas /imps:imps'),
+                         {'operation': None, 'arguments': '', 'personas': True, 'picker': True})
+        self.assertEqual(inputs.route('$t3-imps --personas'),
+                         {'operation': None, 'arguments': '', 'personas': True, 'picker': True})
+        for request in ('run', '$t3-imps run', '/imps:imps run', 'run --personas'):
             value = inputs.route(request)
-            self.assertEqual(value['operation'], 'doctor')
+            self.assertEqual(value['operation'], 'run')
             self.assertEqual(value['arguments'], '')
+            self.assertTrue(value['needsArgument'])
+            self.assertNotIn('doctor', value['operation'])
         self.assertTrue(inputs.route('run --personas')['personas'])
 
     def test_discussion_url_normalization_and_wrong_hosts(self):
