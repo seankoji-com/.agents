@@ -31,7 +31,7 @@
           },
           {
             "selector": "test_elephant_goldfish_workflow.ElephantDocumentJobTests",
-            "tests": 6,
+            "tests": 10,
             "coverage": ["REQ-COMPAT", "REQ-HANDOFF", "REQ-EVIDENCE", "REQ-REPAIR", "REQ-BOUNDARIES", "REQ-JOB", "G-EG-SEPARATION"],
             "survives": true
           }

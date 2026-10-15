@@ -113,7 +113,10 @@ class DocumentAuthorTests(unittest.TestCase):
             for field, value in (('target', {'providerInstanceId': 'codex', 'model': 'x', 'lineage': 'openai'}),
                                  ('document_authors', [{'lineage': 'openai'}]),
                                  ('document', {'path': '/tmp/document', 'sha256': 'b' * 64}),
-                                 ('independent_of_author', False)):
+                                 ('independent_of_author', False),
+                                 ('requirements', ['R-OTHER']), ('role', 'worker'),
+                                 ('context_policy', 'document-only'),
+                                 ('write_scope', {'mode': 'worker-evidence'}), ('max_followups', 2)):
                 changed = dict(task, **{field: value})
                 self.assertFalse(has_current_task_waiver(job, changed), field)
 

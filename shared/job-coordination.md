@@ -84,11 +84,16 @@ with no recorded identity, and launches nothing.
 `job_cli create` sets `policy.identity: observed` with no opt-out. Required reviewer,
 subject and `independent_of_author` executions must report verified identity at
 acceptance. Legacy jobs without the marker keep target-only acceptance semantics.
-Document author records are keyed by SHA-256. A lineage waiver binds the reviewer
-target, canonical author list, slot contract and document hash. It waives no
+Authoring workflows set `policy.author_independence`; preparation and acceptance
+enforce document lineage even when a factual or cold-read slot omits its flag.
+Document author records are keyed by SHA-256 and retain every author. A lineage
+waiver binds the reviewer target, canonical author list, full slot contract and document hash. It waives no
 requirement and must be refreshed after any bound value changes. Capabilities are
 host evidence transcribed by the coordinator; validation checks correlation and
 shape, not freshness or forgery.
+`document-revision` validates before updating the sidecar and unions existing
+new-hash authors with inherited authors and the repairer. `record_document_author.py`
+records `elephant.md`.
 Elephant-goldfish coordinators record a document with
 `thinking_state.py author <slug> <document.md> --capabilities FILE`; handoff rendering
 uses `render_handoff.py <slug> --capabilities FILE`. A repair uses

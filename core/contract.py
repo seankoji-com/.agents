@@ -3,6 +3,7 @@
 Progress checkboxes are not part of the contract: ticking a box leaves the hash
 unchanged, while any change to an ID, wording, kind or constraint changes it."""
 from __future__ import annotations
+
 import re
 from pathlib import Path
 

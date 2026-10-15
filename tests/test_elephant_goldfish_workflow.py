@@ -123,10 +123,10 @@ class InstructionContractTests(unittest.TestCase):
     def test_cold_reader_isolation_and_round_policy_are_stated(self):
         slots = section(self.reference, '## Slots')
         self.assertIn('context_policy: document-only', slots)
-        self.assertIn('only the brief path and hash', slots)
-        for leak in ('notes, findings', 'repository\n  answers', 'earlier reports'):
+        self.assertIn('only the brief path, its\n  SHA-256', slots)
+        for leak in ('planning notes', 'factual findings', 'repository answers', 'earlier cold-read'):
             self.assertIn(leak, slots)
-        self.assertIn('no follow-ups', slots)
+        self.assertIn('never use a follow-up', slots)
         limits = section(self.reference, '## Round limits')
         self.assertIn('Four rounds in total', limits)
         self.assertIn('Keep the recorded limit', limits)
@@ -338,7 +338,12 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         render = subprocess.run([sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root),
                                  '--capabilities', str(caps_b_path)], capture_output=True, text=True, env=self.env)
         self.assertEqual(render.returncode, 0, render.stdout + render.stderr)
-        handoff = topic / 'handoff.md'; digest = sha(handoff.read_bytes())
+        handoff = topic / 'handoff.md'
+        handoff.write_text(handoff.read_text() + '\n')
+        recorded_handoff = self.thinking_state(root, 'author', slug, 'handoff.md',
+                                               '--capabilities', str(caps_b_path))
+        self.assertEqual(recorded_handoff.returncode, 0, recorded_handoff.stdout + recorded_handoff.stderr)
+        digest = sha(handoff.read_bytes())
         job_id, caller = 'handoff-lineage-e2e', self.caller('elephant-goldfish/thinking')
         contract = {'root': str(root), 'slug': slug, 'mode': 'cold-read', 'document_path': str(handoff),
                     'document_sha256': digest}
@@ -355,6 +360,7 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         self.assertIn('differ from every document author', prepared.stderr)
         # The public acceptance CLI takes the same path through _ready_slots and fails closed too.
         state = self.job_state(job_id); slot = state['tasks'][0]
+        slot.pop('independent_of_author', None)
         slot['status'] = 'awaiting-acceptance'
         slot['handles'] = [{'request_id': slot['request_id'], 'status': 'completed', 'work_state': 'result_available',
                             'has_pending_child_runs': False, 'observed_identity': {'status': 'verified'}}]
@@ -388,13 +394,16 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         self.assertEqual(render.returncode, 0, render.stdout + render.stderr)
         revised_sha = sha(handoff.read_bytes())
         revision = self.run_helper('job_cli.py', 'document-revision', repair_id, {
-            'caller': caller, 'task_id': 'cold-openai', 'reason': 'coordinator C repaired the specification',
-            'document': {'path': str(handoff), 'sha256': revised_sha}}, capabilities=caps_c_path)
+            'caller': caller, 'task_id': 'cold-openai', 'reason': 'coordinator B re-rendered after C repaired the specification',
+            'document': {'path': str(handoff), 'sha256': revised_sha}}, capabilities=caps_b_path)
         self.assertEqual(revision.returncode, 0, revision.stdout + revision.stderr)
         repaired_task = next(t for t in self.job_state(repair_id)['tasks'] if t['task_id'] == 'cold-openai')
         self.assertEqual({row['lineage'] for row in repaired_task['document_authors']},
                          {'anthropic', 'openai', 'google'})
         self.assertIn('synthetic-repair-c', {row.get('parentThreadId') for row in repaired_task['document_authors']})
+        repaired_records = json.loads((topic / 'document-authors.json').read_text())
+        self.assertEqual({row['lineage'] for row in repaired_records[revised_sha]['authors']},
+                         {'anthropic', 'openai', 'google'})
         self.ok(self.run_helper('job_cli.py', 'retry', repair_id,
             {'caller': caller, 'task_id': 'cold-openai', 'reason': 'prepare against repaired handoff'}))
         prepared = self.run_helper('job_cli.py', 'prepare', repair_id,
@@ -417,20 +426,16 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
 
         # Repeat through document-revision with a repaired source that has no hash
         # record. The renderer and the revision must preserve unknown authorship.
-        first_missing_spec = '# Spec\n\n[REQ-RETRY] Retry once, as written by an unrecorded source.\n'
-        (topic / 'spec.md').write_text(first_missing_spec)
-        render = subprocess.run([sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root),
-                                 '--capabilities', str(caps_b_path)], capture_output=True, text=True, env=self.env)
-        self.assertEqual(render.returncode, 0, render.stdout + render.stderr)
         unknown_job = 'handoff-unknown-revision-e2e'; unknown_sha = sha(handoff.read_bytes())
         unknown_contract = {**contract, 'document_sha256': unknown_sha}
         unknown_task = {**task, 'task_id': 'unknown-source', 'logical_slot_id': 'unknown-source',
                         'request_id': 'req-unknown-source', 'document': {'path': str(handoff), 'sha256': unknown_sha}}
-        unknown_task.pop('independent_of_author')
+        unknown_task['target'] = {'providerInstanceId': 'grok', 'model': 'grok-3', 'lineage': 'xai'}
         self.create(self.base_job(unknown_job, 'elephant-goldfish/thinking', {'R-COLD': 'document review'},
             [{'id': 'cold', 'depends_on': [], 'requirements': ['R-COLD'], 'status': 'pending',
               'validator_dependency': 'eg', 'validator_contract': unknown_contract}], [unknown_task]))
         self.dispatch(unknown_job, caller, 'unknown-source')
+        first_missing_spec = '# Spec\n\n[REQ-RETRY] Retry once, as written by an unrecorded source.\n'
         (topic / 'spec.md').write_text(first_missing_spec + '\nA further repair with no author receipt.\n')
         render = subprocess.run([sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root),
                                  '--capabilities', str(caps_b_path)], capture_output=True, text=True, env=self.env)
@@ -443,6 +448,12 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         unknown_authors = next(t for t in self.job_state(unknown_job)['tasks']
                                if t['task_id'] == 'unknown-source')['document_authors']
         self.assertEqual(unknown_authors, [{'unknown': True}])
+        self.ok(self.run_helper('job_cli.py', 'retry', unknown_job,
+            {'caller': caller, 'task_id': 'unknown-source', 'reason': 'unknown source authorship'}))
+        refused_unknown = self.run_helper('job_cli.py', 'prepare', unknown_job,
+            {'caller': caller, 'task_id': 'unknown-source'})
+        self.assertEqual(refused_unknown.returncode, 2, refused_unknown.stdout + refused_unknown.stderr)
+        self.assertIn('author unrecorded', refused_unknown.stderr)
 
     def test_handoff_acceptance_is_content_bound_and_never_grants_execution(self):
         root = self.base / 'thinking'
@@ -508,6 +519,14 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         discovery = '# Discovery\n\nRetries must never double-charge.\n'
         (topic / 'discovery.md').write_text(discovery)
         (topic / 'spec.md').write_text('# Spec\n\n[REQ-RETRY] Retry a timed-out charge once.\n')
+        author_caps = json.loads(self.capabilities.read_text())
+        author_caps.update(inheritedProviderInstanceId='antigravity',
+                           inheritedModel='gemini-3.8-flash-high', parentThreadId='synthetic-thinking-author')
+        author_caps_path = self.base / 'thinking-author-capabilities.json'
+        author_caps_path.write_text(json.dumps(author_caps))
+        for name in ('discovery.md', 'spec.md'):
+            recorded = self.thinking_state(root, 'author', slug, name, '--capabilities', str(author_caps_path))
+            self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
         self.assertEqual(self.thinking_state(root, 'review', slug, '--decision', 'accepted', '--scope', 'finalise-brief',
                                              '--discovery-sha256', sha(discovery.encode()), '--evidence-ref', 'msg:1',
                                              '--operator-statement-file',
@@ -543,6 +562,8 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
                       findings=gap, conclusion='VERDICT: NOT READY')
         # Repair through the spec, re-render, and revalidate the handoff stage (no factual slot exists).
         (topic / 'spec.md').write_text('# Spec\n\n[REQ-RETRY] Retry a timed-out charge exactly once per request ID.\n')
+        repaired_source = self.thinking_state(root, 'author', slug, 'spec.md', '--capabilities', str(self.capabilities))
+        self.assertEqual(repaired_source.returncode, 0, repaired_source.stdout + repaired_source.stderr)
         render()
         self.assertEqual(self.thinking_state(root, 'gate', slug, '--require', 'discovery,spec,handoff').returncode, 0)
         # The old handoff receipt no longer matches the re-rendered bytes; a fresh direct pass accepts them.
@@ -575,11 +596,70 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         repo.mkdir(parents=True, exist_ok=True)
         path = repo / 'elephant.md'
         path.write_text(text)
-        from shared.document_authors import append_author
         caps = json.loads((ROOT / 'tests/fixtures/t3/capabilities.json').read_text())
         caps.update(inheritedProviderInstanceId='antigravity', inheritedModel='gemini-3.8-flash-high')
-        (repo / 'document-authors.json').write_text(json.dumps(append_author({}, path.read_bytes(), caps)))
+        caps['parentThreadId'] = 'synthetic-elephant-author'
+        cap_path = self.base / 'elephant-author-capabilities.json'
+        cap_path.write_text(json.dumps(caps))
+        recorded = subprocess.run([sys.executable, str(PLUGIN / 'scripts/record_document_author.py'),
+                                   str(path), '--capabilities', str(cap_path)], capture_output=True,
+                                  text=True, env=self.env)
+        self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
         return path
+
+    def test_policy_enforces_author_lineage_when_factual_slot_flag_is_missing(self):
+        document = self.document()
+        job = self.elephant_job('policy-author-flag', document)
+        job['tasks'] = [t for t in job['tasks'] if t['task_id'] == 'f0']
+        job['stages'] = [s for s in job['stages'] if s['id'] == 'factual']
+        job['tasks'][0]['target'] = {'providerInstanceId': 'antigravity',
+                                     'model': 'gemini-3.8-flash-high', 'lineage': 'google'}
+        caller = self.caller(self.WORKFLOW)
+        self.create(job)
+        state = self.job_state('policy-author-flag')
+        state['tasks'][0].pop('independent_of_author', None)
+        (self.state / 'policy-author-flag' / 'job.json').write_text(json.dumps(state))
+        refused = self.run_helper('job_cli.py', 'prepare', 'policy-author-flag',
+                                  {'caller': caller, 'task_id': 'f0'})
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('differ from every document author', refused.stderr)
+
+    def test_create_refuses_factual_document_mismatch(self):
+        document = self.document()
+        other = document.parent / 'other.md'
+        other.write_text('unrelated document\n')
+        job = self.elephant_job('document-mismatch', document)
+        job['tasks'] = [t for t in job['tasks'] if t['task_id'] == 'f0']
+        job['stages'] = [s for s in job['stages'] if s['id'] == 'factual']
+        job['tasks'][0]['document'] = {'path': str(other), 'sha256': sha(other.read_bytes())}
+        caller = self.caller(self.WORKFLOW)
+        created = self.run_helper('job_cli.py', 'create', 'document-mismatch', job, prefix=self.prefix,
+                                  agents_root=self.agents, config=self.base / 'config' / 'workers.json')
+        self.assertEqual(created.returncode, 2, created.stdout + created.stderr)
+        self.assertIn('must match the stage validated document', created.stderr)
+
+    def test_refused_document_revision_leaves_new_hash_authors_untouched(self):
+        document = self.document()
+        caller = self.caller(self.WORKFLOW)
+        self.create(self.elephant_job('premature-revision', document))
+        document.write_text(document.read_text() + '\nA changed paragraph.\n')
+        caps = json.loads(self.capabilities.read_text())
+        caps.update(inheritedProviderInstanceId='claudeAgent', inheritedModel='claude-opus-5-5',
+                    parentThreadId='synthetic-repair-author')
+        caps_path = self.base / 'repair-author-capabilities.json'
+        caps_path.write_text(json.dumps(caps))
+        recorded = subprocess.run([sys.executable, str(PLUGIN / 'scripts/record_document_author.py'),
+                                   str(document), '--capabilities', str(caps_path)], capture_output=True,
+                                  text=True, env=self.env)
+        self.assertEqual(recorded.returncode, 0, recorded.stdout + recorded.stderr)
+        new_hash = sha(document.read_bytes())
+        sidecar = document.parent / 'document-authors.json'
+        before = json.loads(sidecar.read_text())[new_hash]
+        refused = self.run_helper('job_cli.py', 'document-revision', 'premature-revision', {
+            'caller': caller, 'task_id': 'c0', 'reason': 'premature',
+            'document': {'path': str(document), 'sha256': new_hash}}, capabilities=caps_path)
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertEqual(json.loads(sidecar.read_text())[new_hash], before)
 
     def contract(self, document, mode, digest=None):
         return {'root': str(document.parent.parent), 'slug': document.parent.name, 'mode': mode,
@@ -816,6 +896,30 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         self.assertNotEqual(again.returncode, 0)
         self.assertIn('the review is stale', again.stdout + again.stderr)
         self.assertNotEqual(self.run_helper('job_acceptance_cli.py', 'validate-final', job_id, final).returncode, 0)
+
+    def test_legacy_job_fixture_without_identity_accepts_review_target_only(self):
+        document = self.document()
+        job_id, caller = 'legacy-review-target-only', self.caller(self.WORKFLOW)
+        job = self.elephant_job(job_id, document, cold_role='review')
+        # This pre-marker fixture is loaded through core storage, not created by the new-job CLI.
+        job['policy'] = {'max_repair_cycles': 3, 'max_artifact_bytes': 16 * 1024 * 1024,
+                         'max_live_workers': 2}
+        for task in job['tasks']:
+            task.pop('independent_of_author', None)
+        from core.jobs import create_job
+        from shared.job_coordinator import verified_pins
+        pins = verified_pins(job, self.state, self.prefix, self.agents,
+                             self.base / 'config' / 'workers.json')
+        create_job(job, self.state, pins)
+        self.assertNotIn('identity', self.job_state(job_id)['policy'])
+        factual_argv, factual_input = self.accept_factual(job_id, caller, document)
+        self.dispatch(job_id, caller, 'c0', verdict='approve', conclusion='VERDICT: READY')
+        cold_input = self.publish(job_id, caller, 'cold-read', self.cold_observation(document))
+        cold_argv = self.doc_argv(document.parent.parent, document.parent.name, 'cold-read', cold_input)
+        self.ok(self.accept(job_id, caller, 'cold-read', cold_argv, cold_input))
+        final = {'caller': caller, 'validator_argv_by_stage': {'factual': factual_argv, 'cold-read': cold_argv},
+                 'input_file_by_stage': {'factual': factual_input, 'cold-read': cold_input}}
+        self.ok(self.run_helper('job_acceptance_cli.py', 'validate-final', job_id, final))
 
     def test_direct_factual_cli_requires_latest_executor_waiver_and_replacement_after_resume(self):
         from shared.document_authors import stage_waiver_binding

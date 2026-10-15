@@ -504,7 +504,16 @@ def cmd_author(args) -> dict:
         if capabilities_path.is_symlink() or not capabilities_path.is_file():
             raise StateError("capabilities must be a regular file")
         capabilities = json.loads(capabilities_path.read_text(encoding="utf-8"))
-        records = append_author(records, raw, capabilities)
+        sources = []
+        if args.document == 'handoff.md':
+            manifest_path = tdir / 'handoff.manifest.json'
+            if manifest_path.is_symlink() or not manifest_path.is_file():
+                raise StateError('handoff authoring requires its source manifest')
+            manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+            sources = [manifest.get('discovery_sha256'), manifest.get('spec_sha256')]
+            if any(not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{64}', value) for value in sources):
+                raise StateError('handoff source hashes are invalid')
+        records = append_author(records, raw, capabilities, sources)
         temporary = records_path.with_name(records_path.name + ".tmp")
         temporary.write_text(json.dumps(records, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         os.replace(temporary, records_path)

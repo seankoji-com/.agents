@@ -256,7 +256,9 @@ with no parent traversal or symlink component, outside the job state. A document
 review names exactly its supplied `document`. Both forms, or neither, are refused.
 Preparation and acceptance re-hash each document; changed bytes make the review
 stale. For document subjects, set `independent_of_author: true` on the review slot
-and record `document_authors` from records keyed by the exact document hash. The
+and record `document_authors` from records keyed by the exact document hash. Authoring
+jobs with `policy.author_independence` enforce this check for every factual and
+cold-read slot even when its own flag is absent. The
 reviewer lineage must be known, canonical and different from every author lineage.
 Unknown authorship or lineage fails closed. New jobs require verified observed
 identity for reviewers, their subjects and author-independent slots under
@@ -264,11 +266,19 @@ identity for reviewers, their subjects and author-independent slots under
 acceptance semantics. Approval still needs the reviewer's completed owned host
 execution and the `approve` verdict.
 
+Author-independent jobs require `document_authors`. `create` imports records only
+when the sidecar hash matches current bytes; it never adds the creating coordinator.
+Handoff authorship unions renderer and source-hash authors. Missing source records
+make authorship unknown. Record `elephant.md` with
+`record_document_author.py <path> --capabilities FILE`; check jobs never record their
+checker as author.
+
 `document-revision` takes caller, task_id, `document: {path, sha256}`, reason and
 `--capabilities FILE` for author-independent document jobs. The capabilities response
 must include inherited provider, model and parent thread, and the inherited model must
-be in that provider's catalog. It appends the coordinator to the hash-bound author set
-and propagates the set to every slot for the revised path. The
+be in that provider's catalog. It unions authors already recorded for the new hash,
+prior authors and the repairing coordinator, then propagates them to affected slots.
+A refused revision leaves sidecars untouched. The
 task must name that path, have an ingested execution and be settled; the new hash must
 differ and match the current bytes. Within the persisted repair budget it needs no
 owner decision: it rewrites the hash in every stage contract and slot naming the path,

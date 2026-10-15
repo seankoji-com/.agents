@@ -60,10 +60,25 @@ def append_author(records, data, capabilities, source_hashes=()):
     return records
 
 
+def merge_author_records(*records):
+    """Union author records without allowing a known hash to lose authors."""
+    from core.jobs.store import canonical
+    rows, unknown = [], False
+    for record in records:
+        if not isinstance(record, dict) or record.get('unknown'):
+            unknown = True
+        else:
+            rows.extend(record.get('authors', []))
+    if unknown:
+        return {'authors': [], 'unknown': True}
+    return {'authors': sorted({canonical(row): row for row in rows}.values(), key=canonical)}
+
+
 def waiver_binding(task):
     from core.jobs.store import canonical, digest
     contract_keys = ('task_id', 'stage_id', 'logical_slot_id', 'worker_id', 'target',
-                     'independent_of_author', 'document', 'reviewed_documents', 'reviewed_task_ids')
+                     'independent_of_author', 'document', 'reviewed_documents', 'reviewed_task_ids',
+                     'requirements', 'role', 'context_policy', 'write_scope', 'max_followups')
     subjects = [task.get('document')] + task.get('reviewed_documents', [])
     document_sha = next((row.get('sha256') for row in subjects if isinstance(row, dict)), None)
     return {'target': task.get('target'),

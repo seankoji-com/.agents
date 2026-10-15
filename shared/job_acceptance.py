@@ -93,11 +93,11 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
     for task in job['tasks']:
         if task['stage_id'] != stage['id'] or task_ids is not None and task['task_id'] not in task_ids:
             continue
-        if job.get('policy', {}).get('identity') == 'observed' and (task.get('role') == 'review' or task.get('review_required') or task.get('independent_of_author')):
+        if job.get('policy', {}).get('identity') == 'observed' and (task.get('role') == 'review' or task.get('review_required') or task.get('independent_of_author') or job.get('policy', {}).get('author_independence')):
             current = [h for h in task.get('handles', []) + task.get('followups', []) if h.get('request_id') == task.get('request_id')]
             if not current or current[0].get('observed_identity', {}).get('status') != 'verified':
                 raise AcceptanceError('required observed execution identity is unreported or mismatched: ' + task['task_id'])
-        if task.get('independent_of_author'):
+        if task.get('independent_of_author') or job.get('policy', {}).get('author_independence'):
             try:
                 independent_of_authors(task, task)
             except AcceptanceError:
@@ -190,7 +190,7 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
                     if task_id == task['task_id'] or task['request_id'] == reviewer.get('request_id') or task['logical_slot_id'] == reviewer.get('logical_slot_id') or original['task_id'] == peer['task_id'] or original['child_thread_id'] == peer['child_thread_id']:
                         raise AcceptanceError('required review execution is not independent')
                     independent_lineage(task, reviewer, original, peer)
-                    if task.get('independent_of_author') or reviewer.get('independent_of_author'):
+                    if task.get('independent_of_author') or reviewer.get('independent_of_author') or job.get('policy', {}).get('author_independence'):
                         try:
                             independent_of_authors(task, reviewer)
                         except AcceptanceError:

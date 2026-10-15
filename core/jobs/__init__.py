@@ -297,11 +297,10 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
     if not _subset(new_auth,old_auth):required_decision=True;why.append('authority broadened')
     old_policy=j.get('policy',{});new_policy=new_plan.get('policy',old_policy)
     for key,value in old_policy.items():
-        candidate=new_policy.get(key,value)
-        if key=='identity' and value=='observed' and candidate!='observed':raise JobError('observed identity policy is immutable')
-        if (isinstance(value,(int,float)) and not isinstance(value,bool) and isinstance(candidate,(int,float)) and not isinstance(candidate,bool) and candidate>value) or key=='max_live_workers' and value is not None and candidate is None:
+        if key=='identity' and value=='observed' and new_policy.get(key,value)!='observed':raise JobError('observed identity policy is immutable')
+        if (isinstance(value,(int,float)) and not isinstance(value,bool) and isinstance(new_policy.get(key,value),(int,float)) and not isinstance(new_policy.get(key,value),bool) and new_policy.get(key,value)>value) or key=='max_live_workers' and value is not None and new_policy.get(key,value) is None:
             required_decision=True;why.append(f'limit raised: {key}')
-        elif candidate!=value and key not in ('max_repair_cycles','max_live_workers','max_artifact_bytes'):
+        elif new_policy.get(key,value)!=value and key not in ('max_repair_cycles','max_live_workers','max_artifact_bytes'):
             required_decision=True;why.append(f'policy changed: {key}')
     decision_id=revision.get('owner_decision_id');decision=next((d for d in j['decisions'] if d.get('id')==decision_id and d.get('scope')==f"plan:{revision['id']}" and _owner_current(d,j['policy']['max_artifact_bytes'])),None)
     if required_decision and decision is None:raise JobError('undeclared_expansion: owner decision required for '+', '.join(why))

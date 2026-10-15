@@ -95,20 +95,22 @@ policy wins over all of this.
 
 New jobs carry `policy.identity: observed`. Acceptance requires verified host identity
 for required reviewers and their subjects, and for every slot marked
-`independent_of_author`. Review preparation still checks declared targets before
+`independent_of_author`. Authoring jobs enforce lineage checks from
+`policy.author_independence` even if a slot omits its flag. Review preparation still checks declared targets before
 dispatch. Jobs without the marker keep target-only semantics.
 
-Document authorship is keyed by document SHA-256. A reviewer needs a canonical
-routing lineage different from every recorded author. Unknown author or reviewer
+Document authorship is keyed by document SHA-256 and never loses a recorded author.
+A reviewer needs a canonical routing lineage different from every recorded author. Unknown author or reviewer
 lineage fails closed. A `lineage-waiver` is an owner decision bound to the target,
 author list, contract and document hash; it waives no requirement. These records are
 host evidence transcribed by the coordinator. Shape checks do not prove freshness or
 detect a forged capabilities file.
-For elephant-goldfish documents, record each coordinator write with a fresh
-`orchestrator_capabilities` file. `thinking_state.py author` records discovery and
-spec hashes; `render_handoff.py --capabilities` unions its identity with both source
-hashes. `document-revision --capabilities` adds the repairing coordinator to the new
-hash and updates every affected slot. Missing source provenance remains unknown.
+For elephant-goldfish documents, record each coordinator write with fresh
+`orchestrator_capabilities`. `thinking_state.py author` records discovery and spec;
+`render_handoff.py --capabilities` unions renderer and source authors.
+`document-revision --capabilities` validates first, then unions existing new-hash
+authors, inherited authors and the repairer. Missing source provenance stays unknown.
+`record_document_author.py <path> --capabilities FILE` records `elephant.md`.
 
 ## Observed execution identity
 

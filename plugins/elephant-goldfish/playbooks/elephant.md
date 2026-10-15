@@ -20,6 +20,9 @@ with `validate_document.py --mode factual`.
 1. Draft or revise `elephant.md` with Problem, Technical plan, Alternatives, and
    Detailed implementation sections. Cite the owning paths. Preserve human rationale;
    mark superseded decisions explicitly. Record checked revision and dirty-tree status.
+   Then record its hash-bound author lineage with `scripts/record_document_author.py
+   <path-to-elephant.md> --capabilities FILE`, using a fresh
+   `orchestrator_capabilities` response. Repeat this after each edit.
    You write the document; workers never edit it.
 2. Create the job with a `factual` stage and then a `cold-read` stage, and record the
    cold-read round budget. Verify each concrete claim against code and command
