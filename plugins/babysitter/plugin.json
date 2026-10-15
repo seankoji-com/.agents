@@ -53,5 +53,29 @@
     "result-envelope.schema.json",
     "acceptance.schema.json",
     "jobs-contract.md"
+  ],
+  "picker": [
+    "doctor",
+    "pr",
+    "repo",
+    "org"
+  ],
+  "routes": [
+    {
+      "pattern": "^(?i:doctor)$",
+      "operation": "doctor"
+    },
+    {
+      "pattern": "^(?i:(?:pr|pull request)\\b.*)$",
+      "operation": "pr"
+    },
+    {
+      "pattern": "^(?i:(?:repo|repository)\\b.*)$",
+      "operation": "repo"
+    },
+    {
+      "pattern": "^(?i:(?:org|organization)\\b.*)$",
+      "operation": "org"
+    }
   ]
 }

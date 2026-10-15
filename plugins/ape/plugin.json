@@ -49,5 +49,29 @@
     "result-envelope.schema.json",
     "acceptance.schema.json",
     "jobs-contract.md"
+  ],
+  "picker": [
+    "doctor",
+    "forage",
+    "study",
+    "clean"
+  ],
+  "routes": [
+    {
+      "pattern": "^(?i:doctor)$",
+      "operation": "doctor"
+    },
+    {
+      "pattern": "^(?i:(?:forage|search|find)\\b.*)$",
+      "operation": "forage"
+    },
+    {
+      "pattern": "^(?i:(?:study|research)\\b.*)$",
+      "operation": "study"
+    },
+    {
+      "pattern": "^(?i:clean\\b.*)$",
+      "operation": "clean"
+    }
   ]
 }

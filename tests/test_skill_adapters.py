@@ -43,7 +43,10 @@ class SkillAdapters(unittest.TestCase):
         adapter = self.skills / 't3-imps/SKILL.md'
         self.assertIn(json.dumps(str(entry)), adapter.read_text())
         self.assertIn('name: t3-imps', adapter.read_text())
-        self.assertIn('For imps, a task without an operation means `run <task>`.', adapter.read_text())
+        self.assertIn('With no arguments, ask which operation to run. Offer:', adapter.read_text())
+        self.assertIn('If exactly one route matches, use its operation; if none or more than one match, ask',
+                      adapter.read_text())
+        self.assertNotIn('With no arguments, run `doctor`.', adapter.read_text())
         self.assertIn('do not switch to another imps installation', adapter.read_text())
         self.assertNotIn(str(ROOT), adapter.read_text())
         second = self.call('skills', 'install', 'imps', '--root', str(self.skills))
@@ -140,6 +143,13 @@ class SkillAdapters(unittest.TestCase):
                 self.assertLessEqual(len(description), 1024)
                 operations = {hint.strip().split()[0] for hint in meta['argument_hint'].split('|')}
                 self.assertEqual(operations, set(meta['operations']))
+                self.assertEqual(len(meta['picker']), len(set(meta['picker'])))
+                self.assertGreaterEqual(len(meta['picker']), 2)
+                self.assertLessEqual(len(meta['picker']), 4)
+                for route in meta['routes']:
+                    self.assertTrue(route['pattern'].startswith('^') and route['pattern'].endswith('$'))
+                    self.assertIn(route['pattern'], (self.skills / ('t3-' + meta['name']) / 'SKILL.md').read_text())
+                    self.assertIn(route['operation'], meta['picker'])
         imps = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
         for hint in ('run <task>', 'resume <run-id>', 'checklist <path>',
                      'issues <number> [<number> ...]', 'discussion <number or URL>',
@@ -156,6 +166,22 @@ class SkillAdapters(unittest.TestCase):
         self.call('install', 'imps')
         prompt = self.call('prompt', 'imps', '--personas', '42', '43').stdout
         self.assertIn('run: --personas 42 43', prompt)
+
+    def test_prompt_without_request_offers_manifest_picker(self):
+        self.call('install', 'imps')
+        prompt = self.call('prompt', 'imps').stdout
+        self.assertIn('Ask which operation to run: doctor, run, audit, issues.', prompt)
+        self.assertNotIn('doctor\n', prompt)
+
+    def test_workflow_manifests_have_valid_picker_routes(self):
+        for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
+            meta = json.loads(manifest.read_text())
+            with self.subTest(plugin=meta['name']):
+                skills.validate_picker(meta)
+        invalid = {'name': 'bad', 'operations': ['doctor'], 'picker': ['doctor', 'doctor'],
+                   'routes': [{'pattern': 'doctor', 'operation': 'doctor'}]}
+        with self.assertRaises(ValueError):
+            skills.validate_picker(invalid)
 
     def test_adapter_frontmatter_carries_provenance_metadata(self):
         meta = json.loads((ROOT / 'plugins/babysitter/plugin.json').read_text())

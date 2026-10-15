@@ -53,5 +53,29 @@
     "result-envelope.schema.json",
     "acceptance.schema.json",
     "jobs-contract.md"
+  ],
+  "picker": [
+    "doctor",
+    "audit",
+    "align",
+    "apply"
+  ],
+  "routes": [
+    {
+      "pattern": "^(?i:doctor)$",
+      "operation": "doctor"
+    },
+    {
+      "pattern": "^(?i:(?:audit|inspect)\\b.*)$",
+      "operation": "audit"
+    },
+    {
+      "pattern": "^(?i:(?:align|sync)\\b.*)$",
+      "operation": "align"
+    },
+    {
+      "pattern": "^(?i:apply\\b.*)$",
+      "operation": "apply"
+    }
   ]
 }

@@ -13,5 +13,29 @@
     "doctor"
   ],
   "kind": "workflow",
-  "compatibility": "experimental"
+  "compatibility": "experimental",
+  "picker": [
+    "doctor",
+    "run",
+    "resume",
+    "status"
+  ],
+  "routes": [
+    {
+      "pattern": "^(?i:doctor)$",
+      "operation": "doctor"
+    },
+    {
+      "pattern": "^(?i:(?:run|implement|build|goal)\\b.*)$",
+      "operation": "run"
+    },
+    {
+      "pattern": "^(?i:resume\\b.*)$",
+      "operation": "resume"
+    },
+    {
+      "pattern": "^(?i:status\\b.*)$",
+      "operation": "status"
+    }
+  ]
 }

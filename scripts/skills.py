@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import stat
 
@@ -16,6 +17,31 @@ MARKER = '.t3-plugins-skill.json'
 # owns it by relative path, so only these names can ever be replaced or removed.
 OPENAI_YAML = 'agents/openai.yaml'
 OWNED_EXTRAS = (OPENAI_YAML,)
+
+
+def validate_picker(meta):
+    """Reject incomplete or ambiguous picker routing before rendering an adapter."""
+    operations = meta.get('operations')
+    picker = meta.get('picker')
+    routes = meta.get('routes')
+    if (not isinstance(operations, list) or not isinstance(picker, list) or
+            not 2 <= len(picker) <= 4 or
+            any(not isinstance(op, str) for op in picker) or
+            len(set(picker)) != len(picker) or any(op not in operations for op in picker)):
+        raise ValueError(f"{meta.get('name', 'plugin')}: picker must contain 2 to 4 unique operation IDs")
+    if not isinstance(routes, list) or not routes:
+        raise ValueError(f"{meta.get('name', 'plugin')}: routes must be a nonempty list")
+    for route in routes:
+        if not isinstance(route, dict) or set(route) != {'pattern', 'operation'}:
+            raise ValueError(f"{meta.get('name', 'plugin')}: route must contain pattern and operation")
+        pattern, operation = route['pattern'], route['operation']
+        if (not isinstance(pattern, str) or not pattern.startswith('^') or not pattern.endswith('$') or
+                not isinstance(operation, str) or operation not in picker):
+            raise ValueError(f"{meta.get('name', 'plugin')}: routes must be anchored and target picker operations")
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"{meta.get('name', 'plugin')}: invalid route pattern") from exc
 
 
 def trusted_root_link(root):
@@ -56,6 +82,7 @@ def metadata_fields(meta):
 
 
 def render(meta, entry):
+    validate_picker(meta)
     # Pickers expose the description across providers; keep argument syntax there
     # rather than relying on a provider-specific argument-hint frontmatter field.
     description = meta['description']
@@ -68,13 +95,18 @@ def render(meta, entry):
         header.append('metadata:')
         header.extend('  ' + key + ': ' + json.dumps(value) for key, value in metadata.items())
     header.append('---')
+    picker = ', '.join('`' + op + '`' for op in meta['picker'])
+    routes = '\n'.join('- `' + route['pattern'] + '` -> `' + route['operation'] + '`'
+                        for route in meta['routes'])
     return ('\n'.join(header) + '\n\n# ' + meta['name'] + ' in T3 Code\n\n'
             'Read the installed entry file at ' + json.dumps(str(entry)) + ' and follow it.\n'
             'The package directory is the directory containing that entry file.\n'
             'Use the text after the skill mention as the operation and arguments. Operations: ' +
             ', '.join('`' + op + '`' for op in meta['operations']) + '.\n'
-            'With no arguments, run `doctor`.\n' +
-            ('For imps, a task without an operation means `run <task>`.\n' if meta['name'] == 'imps' else '') +
+            'With no arguments, ask which operation to run. Offer: ' + picker + '.\n'
+            'For free text, test each full string against these manifest routes in order. '
+            'If exactly one route matches, use its operation; if none or more than one match, ask which operation to run.\n'
+            + routes + '\n' +
             'If the entry is missing, report that this adapter needs `t3-plugins install ' + meta['name'] +
             '` using the same package prefix; do not switch to another ' + meta['name'] + ' installation.\n'
             'This adapter grants no additional authorization. T3 owns delegation and watches.\n')

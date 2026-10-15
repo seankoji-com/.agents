@@ -97,7 +97,7 @@ def route(text):
     panel = bool(re.search(r'(?<!\S)--personas(?!\S)', text))
     text = re.sub(r'(?<!\S)--personas(?!\S)', '', text).strip()
     if not text:
-        return {'operation': 'doctor', 'arguments': '', 'personas': panel}
+        return {'picker': True, 'personas': panel}
     parts = text.split(maxsplit=1)
     first = parts[0].removeprefix('/imps:')
     operation = ALIASES.get(first, first)
@@ -116,7 +116,7 @@ def route(text):
         return result
     task = args if explicit else text
     if not task:
-        return {'operation': 'doctor', 'arguments': '', 'personas': panel}
+        return {'operation': 'run', 'arguments': '', 'personas': panel, 'needsArgument': True}
     result = {'operation': 'run', 'arguments': task, 'personas': panel}
     if re.fullmatch(r'#?[1-9][0-9]*(?:\s+#?[1-9][0-9]*)*', task) or task.startswith('{"issues"'):
         result.update(operation='issues', **issue_set(task))

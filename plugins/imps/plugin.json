@@ -75,5 +75,29 @@
     "result-envelope.schema.json",
     "acceptance.schema.json",
     "jobs-contract.md"
+  ],
+  "picker": [
+    "doctor",
+    "run",
+    "audit",
+    "issues"
+  ],
+  "routes": [
+    {
+      "pattern": "^(?i:doctor)$",
+      "operation": "doctor"
+    },
+    {
+      "pattern": "^(?i:(?:run|fix|implement|build|investigate)\\b.*)$",
+      "operation": "run"
+    },
+    {
+      "pattern": "^(?i:(?:audit|review|inspect)\\b.*)$",
+      "operation": "audit"
+    },
+    {
+      "pattern": "^(?i:(?:issue|issues)\\b.*)$",
+      "operation": "issues"
+    }
   ]
 }
