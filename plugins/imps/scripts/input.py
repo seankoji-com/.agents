@@ -103,6 +103,8 @@ def route(text):
     operation = ALIASES.get(first, first)
     explicit = operation in OPERATIONS
     args = parts[1] if len(parts) > 1 else ''
+    if first == 'imps' and args == 'run':
+        args = ''
     if explicit and operation != 'run':
         result = {'operation': operation, 'arguments': args, 'personas': panel}
         if operation == 'checklist':

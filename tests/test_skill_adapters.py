@@ -170,7 +170,7 @@ class SkillAdapters(unittest.TestCase):
     def test_prompt_without_request_offers_manifest_picker(self):
         self.call('install', 'imps')
         prompt = self.call('prompt', 'imps').stdout
-        self.assertIn('Ask which operation to run: doctor, run, audit, issues.', prompt)
+        self.assertIn('Choose an operation: doctor, run, audit, issues.', prompt)
         self.assertNotIn('doctor\n', prompt)
 
     def test_workflow_manifests_have_valid_picker_routes(self):
