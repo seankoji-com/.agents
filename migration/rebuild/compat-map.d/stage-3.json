@@ -374,6 +374,25 @@
         ]
       },
       {
+        "path": "tests/test_jobs_identity.py",
+        "stage": 3,
+        "disposition": "change",
+        "reason": "Issue 50 B1 regressions for source-bound observed identity, sticky mismatch blockers, review follow-up refusal, forbidden-result quarantine and charged retry.",
+        "assertions": [
+          {
+            "selector": "test_jobs_identity.ObservedIdentityTests",
+            "tests": 7,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE",
+              "REQ-REPAIR"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
         "path": "tests/test_issue28_pass8.py",
         "stage": 3,
         "disposition": "change",

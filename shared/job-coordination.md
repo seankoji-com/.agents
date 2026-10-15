@@ -65,6 +65,16 @@ retries only after a new owned completion notification. Cancel follows
 `task_cancel` each owned live task and record a terminal `reconciled` observation from
 `task_status`.
 
+Store provider and model identity only when a host response reports them. Keep status,
+receipt and child-configuration evidence separate on the handle. Status provider is
+the required source; status model takes precedence, followed by receipt model and then
+child-configuration model. Missing observed identity stays unreported, even when the
+request or configuration names a target. A mismatch stores the handle and blocks
+acceptance until the host execution is reconciled; the mismatch remains a blocker.
+Review and document-only slots use fresh executions, never same-child follow-ups.
+Unexpected continuations stay owned and non-accepting, and their result bytes are
+quarantined during ingestion.
+
 ## 5. Acceptance
 
 A terminal task is not an accepted stage. Freeze coordinator-observed input with

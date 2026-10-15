@@ -24,8 +24,9 @@ cold read is about to start.
 cheap and deterministic. Run them yourself; never launch an agent for them. `doctor`
 is not a `thinking_state.py` subcommand. It checks Python 3.10+,
 `thinking_state.py --help`, and the installed bundle through
-`t3-plugins agents list elephant-goldfish`. `gh` is needed only for optional
-publishing.
+`t3-plugins agents list elephant-goldfish`. It reports identity information only
+from recorded host observations and launches nothing. `gh` is needed only for
+optional publishing.
 
 ## Who does what
 

@@ -125,7 +125,8 @@ def doctor(state_root, project):
     checks['learnings'] = learnings(project)
     failed = [name for name in ('python', 'git', 'state_root') if not checks[name]['ok']]
     return {'plugin': meta['name'], 'version': version, 'project': str(project), 'checks': checks,
-            'failed': failed, 'agent_checks': ['orchestrator_capabilities']}
+            'failed': failed, 'identity_reporting': {'source': 'recorded host observations only', 'launches_nothing': True},
+            'agent_checks': ['orchestrator_capabilities']}
 
 
 def main(argv=None):

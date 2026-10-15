@@ -135,6 +135,17 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
 
 TERMINAL = ('completed', 'failed', 'cancelled', 'interrupted')
 
+def observed_identity(sources, target):
+    """Resolve only host-read source fields against this execution's pinned target."""
+    provider = sources.get('status', {}).get('providerInstanceId'); model = sources.get('status', {}).get('model')
+    if provider and not model:
+        model = next((sources[s].get('model') for s in ('receipt', 'configuration')
+                      if s in sources and sources[s].get('providerInstanceId') in (None, provider) and sources[s].get('model')), None)
+    target = target or {}
+    mismatch = bool(provider and (provider != target.get('providerInstanceId') or model and model != target.get('model') or
+                     any(x.get('providerInstanceId') not in (None, provider) for x in sources.values())))
+    return {'status': 'mismatched' if mismatch else 'verified' if provider and model else 'unreported',
+            'sources': sources, 'providerInstanceId': provider, 'model': model}
 
 def _shared_observation(job, task_id, event):
     """Apply follow-up uncertainty or conflicting-host reconciliation; return False for core observations."""
@@ -239,6 +250,8 @@ def prepare_followup(store, caller, task_id, request_id):
         stage = next(s for s in job['stages'] if s['id'] == task['stage_id'])
         if task.get('role') == 'review':
             raise JobError('review rounds require a fresh declared execution, not a same-child follow-up')
+        if task.get('context_policy') == 'document-only':
+            raise JobError('document-only slots require a fresh declared execution, not a same-child follow-up')
         if task.get('inputs_stale') or task.get('status') == 'stale':
             raise JobError('stale task contract requires a charged fresh preparation, not a follow-up')
         if _spent(stage) or task.get('attempt', 0) >= 1 + job['policy']['max_repair_cycles']:

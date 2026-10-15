@@ -55,6 +55,7 @@ class DoctorTest(unittest.TestCase):
         self.assertEqual(set(data['checks']), CHECKS)
         self.assertEqual(data['failed'], [])
         self.assertEqual(data['agent_checks'], ['orchestrator_capabilities'])
+        self.assertEqual(data['identity_reporting'], {'source': 'recorded host observations only', 'launches_nothing': True})
         self.assertEqual(data['plugin'], 'imps')
         self.assertTrue(data['checks']['python']['ok'])
         self.assertEqual(data['checks']['python']['required'], '3.10+')
