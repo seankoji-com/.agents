@@ -2,9 +2,9 @@
 
 When the command has no request, ask which operation to run. Do not assume `doctor`.
 Each workflow manifest declares the short picker list and anchored routes for free
-text. Apply those routes to the whole request in order. The first matching route wins.
-If no route matches, ask the user to choose from the picker. For example, `pr/foo`
-matches both the PR and repository patterns; the earlier PR route wins.
+text. Remove declared standalone flags such as `--personas` before trying the
+routes. Apply the routes to the whole request in order. The first matching route wins.
+If no route matches, ask the user to choose from the picker.
 
 For imps, `input.py` is authoritative for argument parsing, aliases, and checking whether a
 checklist path exists. The adapter's regex routes select the initial operation but cannot

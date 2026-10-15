@@ -156,6 +156,11 @@ def render(meta, entry):
     picker = ', '.join('`' + op + '`' for op in meta['picker'])
     routes = '\n'.join('- `' + route['pattern'] + '` -> `' + route['operation'] + '`'
                         for route in meta['routes'])
+    standalone_flags = (
+        'Remove declared standalone flags (' + ', '.join(
+            '`' + flag + '`' for flag in meta['standalone_flags'])
+        + ') before choosing the operation.\n'
+        if meta.get('standalone_flags') else '')
     return ('\n'.join(header) + '\n\n# ' + meta['name'] + ' in T3 Code\n\n'
             'Read the installed entry file at ' + json.dumps(str(entry)) + ' and follow it.\n' +
             'The package directory is the directory containing that entry file.\n' +
@@ -166,8 +171,7 @@ def render(meta, entry):
             'Do nothing until the owner answers. Options: ' + picker + '.\n'
             + ('For imps, a task without an operation means `run <task>`.\n'
                if meta['name'] == 'imps' else '')
-            + ('Ignore standalone flags when choosing the operation.\n'
-               if meta.get('standalone_flags') else '')
+            + standalone_flags
             + ('For free text, test the full string against these manifest routes in order. '
                'Use the operation from the first matching route. If no route matches, ask which operation to run.\n'
                + routes + '\n' if meta['routes'] else

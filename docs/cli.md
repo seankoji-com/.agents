@@ -33,10 +33,10 @@ Omit the plugin from a `skills` command to act on all bundled plugins.
 
 Each workflow manifest declares 2 to 4 unique operation IDs for its picker and
 anchored regular-expression routes for free text. A generated adapter lists those
-options and routes. Match the full request against the patterns in order and use
-the first match. For example, `pr/foo` matches both the PR and repository patterns,
-so the earlier PR route wins. If no route matches, ask the user to choose an
-operation. A bare command never defaults to `doctor`.
+options and routes. Remove any declared standalone flags before trying the routes.
+Match the full request against the patterns in order and use the first match. If
+no route matches, ask the user to choose an operation. A bare command never
+defaults to `doctor`.
 
 `setup --root PATH` replaces the default skill roots. Repeat it for multiple roots.
 `setup --capabilities FILE` initializes routing from a saved T3 capabilities response.

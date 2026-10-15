@@ -58,11 +58,11 @@
   ],
   "routes": [
     {
-      "pattern": "^(?i:doctor)$",
+      "pattern": "^doctor$",
       "operation": "doctor"
     },
     {
-      "pattern": "^(?i:(?:forage|search|find)\\b.*)$",
+      "pattern": "^forage(?:\\s+[\\s\\S]+)?$",
       "operation": "forage"
     },
     {
@@ -70,11 +70,11 @@
       "operation": "study"
     },
     {
-      "pattern": "^(?i:(?:study|research)\\b.*)$",
+      "pattern": "^study\\s+(?i:https?://github\\.com/[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)(?:\\s+[\\s\\S]+)?$",
       "operation": "study"
     },
     {
-      "pattern": "^(?i:clean\\b.*)$",
+      "pattern": "^clean\\s+\\S+(?:\\s+--all)?$",
       "operation": "clean"
     }
   ]

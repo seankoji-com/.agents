@@ -62,7 +62,7 @@
   ],
   "routes": [
     {
-      "pattern": "^(?i:doctor)$",
+      "pattern": "^doctor$",
       "operation": "doctor"
     },
     {
@@ -70,7 +70,7 @@
       "operation": "pr"
     },
     {
-      "pattern": "^(?i:(?:pr|pull request)\\b.*)$",
+      "pattern": "^(?i:pr\\s+https?://github\\.com/[^/\\s]+/[^/\\s]+/pull/\\d+(?:[?#].*)?)$",
       "operation": "pr"
     },
     {
@@ -78,11 +78,11 @@
       "operation": "repo"
     },
     {
-      "pattern": "^(?i:(?:repo|repository)\\b.*)$",
+      "pattern": "^repo\\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
       "operation": "repo"
     },
     {
-      "pattern": "^(?i:(?:org|organization)\\b.*)$",
+      "pattern": "^org\\s+[A-Za-z0-9_.-]+$",
       "operation": "org"
     }
   ]

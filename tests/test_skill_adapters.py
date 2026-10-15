@@ -159,7 +159,8 @@ class SkillAdapters(unittest.TestCase):
                     self.assertIn(route['operation'], meta['operations'])
         imps = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
         imps_adapter = (self.skills / 't3-imps/SKILL.md').read_text()
-        self.assertIn('Ignore standalone flags when choosing the operation.', imps_adapter)
+        self.assertIn('Remove declared standalone flags (`--personas`) before choosing the operation.',
+                      imps_adapter)
         for hint in ('run <task>', 'resume <run-id>', 'checklist <path>',
                      'issues <number> [<number> ...]', 'discussion <number or URL>',
                      'add --personas before or after any request'):
@@ -306,10 +307,26 @@ class SkillAdapters(unittest.TestCase):
         ape = manifests['ape']
         tuneup = manifests['agent-tuneup']
         self.assertEqual(skills.route(babysitter, 'https://github.com/acme/widgets/pull/42'), 'pr')
+        self.assertEqual(skills.route(babysitter, 'pr https://github.com/acme/widgets/pull/42'), 'pr')
         self.assertEqual(skills.route(babysitter, 'acme/widgets'), 'repo')
+        self.assertEqual(skills.route(babysitter, 'repo acme/widgets'), 'repo')
         self.assertEqual(skills.route(babysitter, 'org acme'), 'org')
+        for text in ('pr', 'repo', 'org'):
+            self.assertIsNone(skills.route(babysitter, text))
         self.assertIsNone(skills.route(babysitter, 'doctr'))
+        for text in (
+            'Org chart is wrong', 'Organization of files is messy',
+            'pull request 1', 'PR-1 is stuck',
+            'repository a/b', 'repo-cleanup',
+        ):
+            with self.subTest(plugin='babysitter', text=text):
+                self.assertIsNone(skills.route(babysitter, text))
         self.assertEqual(skills.route(ape, 'https://github.com/acme/widgets'), 'study')
+        for text in (
+            'Clean up the README', 'search for auth libs', 'find repos', 'research caching',
+        ):
+            with self.subTest(plugin='ape', text=text):
+                self.assertIsNone(skills.route(ape, text))
         self.assertEqual(tuneup['routes'], [])
         self.assertIsNone(skills.route(tuneup, 'align the provider permissions'))
         rendered_tuneup = skills.render(tuneup, Path('entry.md'))
