@@ -88,9 +88,10 @@ the removed APIs and retained evidence boundaries.
 ### Upgrading a whole job
 
 A whole job pins its installed packages. Activating a newer version leaves those
-pins unchanged. If a required plan revision reaches the older package's 16 MiB
+pins unchanged. If a required plan revision reaches an older package's 16 or 64 MiB
 state ceiling, keep the complete job and old package intact. New packages allow
-64 MiB of job state; input and artifact limits remain unchanged.
+256 MiB of job state, including retained plan snapshots; input and artifact limits
+remain unchanged. This is still a finite ceiling, not a guarantee that every job fits.
 
 After every owned task is reconciled and its result ingested, record an owner
 decision scoped to `plan:<revision-id>` through the pinned package. From the

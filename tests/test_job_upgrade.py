@@ -13,18 +13,24 @@ def sha(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
+def with_state_limit(mebibytes):
+    def mutate(plugin):
+        path = plugin.parents[1] / 'core/jobs/store.py'
+        setting = f'MAX_STATE_BYTES={MAX_STATE_BYTES // (1024*1024)}*1024*1024'
+        source = path.read_text()
+        if source.count(setting) != 1:
+            raise AssertionError('fixture must replace exactly one state bound')
+        path.write_text(source.replace(setting, f'MAX_STATE_BYTES={mebibytes}*1024*1024', 1))
+    return mutate
+
+
 class InstalledUpgradeTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix='job-upgrade-')
         self.addCleanup(self.tmp.cleanup)
         self.box = Sandbox(Path(self.tmp.name))
 
-        def old_limit(plugin):
-            path = plugin.parents[1] / 'core/jobs/store.py'
-            path.write_text(path.read_text().replace('MAX_STATE_BYTES=64*1024*1024',
-                                                     'MAX_STATE_BYTES=16*1024*1024'))
-
-        source = self.box.source_copy('imps', old_limit, name='old-source')
+        source = self.box.source_copy('imps', with_state_limit(16), name='old-source')
         self.old, self.old_manifest = self.box.install('imps', source=source)
         self.caller = self.box.caller(self.old_manifest, 'imps/run')
         self.job_id = 'upgrade-fixture'
@@ -75,12 +81,25 @@ class InstalledUpgradeTests(unittest.TestCase):
         pinned_store(self.box.jobs, self.job_id).mutate(self.caller, function)
 
     def test_upgrade_crosses_old_limit_without_losing_provenance_or_resetting_budgets(self):
-        self.mutate_fixture(lambda job: (job['history'].append({'fixture': 'h' * (14*1024*1024)}),
+        self.assert_upgrade_preserves_history(16, 14)
+
+    def test_upgrade_crosses_64_mib_limit_without_losing_history(self):
+        source = self.box.source_copy('imps', with_state_limit(64), name='64-mib-source')
+        self.old, self.old_manifest = self.box.install('imps', source=source)
+        self.caller = self.box.caller(self.old_manifest, 'imps/run')
+        self.job_id = 'upgrade-64-mib-fixture'
+        self.box.create(self.old, self.plan())
+        self.file = self.box.jobs / self.job_id / 'job.json'
+        self.new, self.new_manifest = self.box.install('imps')
+        self.assert_upgrade_preserves_history(64, 62)
+
+    def assert_upgrade_preserves_history(self, old_limit_mib, history_mib):
+        self.mutate_fixture(lambda job: (job['history'].append({'fixture': 'h' * (history_mib*1024*1024)}),
                                         job['tasks'][0].update(fixture_evidence='e' * (900*1024))) and None)
         self.decision()
         before = self.file.read_bytes()
         original = json.loads(before)
-        self.assertLess(len(before), 16*1024*1024)
+        self.assertLess(len(before), old_limit_mib*1024*1024)
         packages_before = tree_digest(self.old, self.new)
         # The original package cannot archive another complete plan within its ceiling.
         old_route = {'caller': self.caller,
@@ -99,7 +118,7 @@ class InstalledUpgradeTests(unittest.TestCase):
         self.assertEqual(receipt['previous_state']['sha256'], sha(before))
         self.assertEqual(Path(receipt['previous_state']['path']).stat().st_mode & 0o777, 0o600)
         after = json.loads(self.file.read_bytes())
-        self.assertGreater(len(self.file.read_bytes()), 16*1024*1024)
+        self.assertGreater(len(self.file.read_bytes()), old_limit_mib*1024*1024)
         self.assertEqual(after['history'][:len(original['history'])], original['history'])
         for key in ('job_id', 'owner', 'requirements', 'authorization', 'constraints', 'policy', 'decisions'):
             self.assertEqual(after[key], original[key], key)

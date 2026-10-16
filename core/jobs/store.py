@@ -3,7 +3,7 @@ from __future__ import annotations
 import fcntl, hashlib, itertools, json, math, os, re, stat, tempfile
 from pathlib import Path
 VERSION=1
-MAX_STATE_BYTES=64*1024*1024;MAX_JSON_DEPTH=512  # finite state bound; input/artifact limits remain separate
+MAX_STATE_BYTES=256*1024*1024;MAX_JSON_DEPTH=512  # finite state bound; input/artifact limits remain separate
 class JobError(ValueError): pass
 def _pairs(pairs):
  if len(out:=dict(pairs))!=len(pairs):raise JobError('duplicate JSON key: '+next(k for i,(k,_) in enumerate(pairs) if any(k==x for x,_ in pairs[:i])))
