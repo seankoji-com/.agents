@@ -1,8 +1,9 @@
 # Document jobs: factual checks and cold reads
 
-Load when `elephant`, `check` or `thinking` delegates a review. Generic protocol:
-`PKG/shared/job-coordination.md`; helpers: `job_cli.py`, `job_acceptance_cli.py`;
+Protocol: `PKG/shared/job-coordination.md`; helpers: `job_cli.py`, `job_acceptance_cli.py`;
 validator: `PKG/scripts/validate_document.py`.
+
+Optional factual-only extras: `PKG/shared/supplemental-reviews.md`; never cold reads or required acceptance.
 
 ## Plan
 

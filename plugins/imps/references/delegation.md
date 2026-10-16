@@ -1,5 +1,9 @@
 # imps child evidence
 
+At review/audit rounds, the coordinator can add optional free views through
+`PKG/shared/supplemental-reviews.md`. Keep their ledger separate from child evidence
+and required reviews. Verify concrete findings before using the normal repair path.
+
 Read `PKG/shared/delegation.md` for policy, routing, isolation and worker briefs.
 Inside a job, `PKG/shared/job-coordination.md` and `PKG/references/jobs.md` own
 dispatch, task lifecycle, result intake and acceptance. This file covers what the

@@ -123,6 +123,8 @@ quarantined during ingestion.
 
 ## 5. Acceptance
 
+Optional extras: `PKG/shared/supplemental-reviews.md` (including **Confirmed findings in whole jobs**).
+
 A terminal task is not an accepted stage. Freeze coordinator-observed input with
 `job_cli.py observation` (`{caller, stage_id, input_file}`), then run
 `job_acceptance_cli.py accept-stage` with the pinned plugin validator argv and that

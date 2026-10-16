@@ -1,5 +1,10 @@
 # Maintain pull requests
 
+At final-head PR review, use `PKG/shared/supplemental-reviews.md` only when the
+coordinator checkout is already at the reviewed PR HEAD. Otherwise skip.
+Never change checkouts merely to enable extras. Keep extras outside mandatory
+slots; close with primary review and verify findings before fixer repair.
+
 This thread is the coordinator. It owns the roster, the PR table, every watch, every
 merge, and every acceptance. Children own one PR's repair or review at a time. The
 review gate in the entry binds every step below: a review-gated PR gets no

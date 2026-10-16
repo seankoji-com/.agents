@@ -201,6 +201,17 @@ In an imps job, every engineering stage keeps its own gate run, and job metadata
 stays outside it. The other plugins use the validators in the
 [acceptance table](#acceptance).
 
+## Supplemental reviews
+
+[Free supplemental reviews](supplemental-reviews.md) add up to three opportunistic
+OpenCode views alongside an existing required review. The installed shared helper
+selects from fresh host capabilities plus explicit fresh zero-price observations,
+prepares read-only briefs and records handles/results in a separate private ledger.
+Extras require a clean committed scope and fresh live-schema evidence for
+`isolation: "worktree"`. T3 owns isolated checkout setup, dispatch and cleanup.
+Optional failures never supply acceptance or use required repair counters;
+confirmed findings go through the existing repair path.
+
 ## Optional learnings
 
 Every installed package includes the shared learning helpers. They load only the

@@ -1,5 +1,11 @@
 # Tuneup job plan
 
+At configuration verification, the coordinator may use
+`PKG/shared/supplemental-reviews.md` within existing sharing authority. Skip private
+settings unless explicitly authorised for that provider. Keep extras outside required
+slots; verify concrete findings before the normal repair path. Optional failure never
+supplies acceptance or charges a required retry.
+
 Read this only when creating or resuming a tuneup job. The generic commands, lifecycle
 and repair rules are in `PKG/shared/job-coordination.md` and
 `PKG/shared/agents/jobs-contract.md`; this file adds the tuneup shapes.
