@@ -221,7 +221,10 @@ class Stage3Repair5Tests(unittest.TestCase):
             store = self.store(td); raw = store.file.read_bytes()
             # Make a syntactically invalid body beyond the documented ceiling; the
             # error should identify size, proving parsing was not attempted.
-            store.file.write_bytes(b"{" + b" " * (16 * 1024 * 1024 + 1))
+            from core.jobs.store import MAX_STATE_BYTES
+            with store.file.open('wb') as stream:
+                stream.write(b'{')
+                stream.truncate(MAX_STATE_BYTES + 1)
             started = time.monotonic()
             with self.assertRaisesRegex(JobError, "oversized|byte limit|size"):
                 store.load()

@@ -107,6 +107,15 @@ communication rules apply unchanged.
 
 ## Resume, status and cancel
 
+If the pinned package's state ceiling prevents a required plan revision, keep its
+files and the entire job intact. A reviewed newer installed package may run the
+explicit `upgrade-package` operation described in the imps user guide.
+It verifies both package pins, requires the owner-bound revision and exact current
+state hash, refuses unreconciled work, and retains an immutable pre-upgrade copy.
+It changes no repair budgets or requirements. Acceptance is invalidated and must
+be rerun with the newly pinned package. Ordinary commands still refuse an unpinned
+executing package. Never patch an installed package or truncate job history.
+
 - **Resume.** Run `t3-plugins --job JOBS/JOB/job.json path imps`. If it names a
   different entry than the one you loaded, load that one; a wrong package refuses
   writes and prints the pinned invocation. Read `overview`, reconcile each recorded

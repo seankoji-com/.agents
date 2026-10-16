@@ -3,7 +3,7 @@ from __future__ import annotations
 import fcntl, hashlib, itertools, json, math, os, re, stat, tempfile
 from pathlib import Path
 VERSION=1
-MAX_STATE_BYTES=16*1024*1024;MAX_JSON_DEPTH=512  # explicit: Python 3.14+ may parse far deeper without RecursionError
+MAX_STATE_BYTES=64*1024*1024;MAX_JSON_DEPTH=512  # finite state bound; input/artifact limits remain separate
 class JobError(ValueError): pass
 def _pairs(pairs):
  if len(out:=dict(pairs))!=len(pairs):raise JobError('duplicate JSON key: '+next(k for i,(k,_) in enumerate(pairs) if any(k==x for x,_ in pairs[:i])))
@@ -16,7 +16,7 @@ def strict_load(data):
 def json_depth(text):return max(itertools.accumulate(1 if c in '[{' else -1 for c in re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"|[^\][{}"]+','',text)),default=0)  # valid JSON only: strings are stripped, so quoted brackets never count
 def digest(data):return hashlib.sha256(data).hexdigest()
 def canonical(value):return (json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)+'\n').encode()
-def _regular(path,max_bytes=MAX_STATE_BYTES):
+def _regular(path,max_bytes=16*1024*1024):
  parent=_directory_fd(Path(path).parent)
  try:fd=os.open(Path(path).name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=parent)
  finally:os.close(parent)
@@ -41,10 +41,10 @@ def _atomic(path,data,exclusive=False):  # exclusive: create-only; an existing n
   try:os.unlink(name,dir_fd=parent)
   except FileNotFoundError:pass
   os.close(parent)
-def _retain(path,data,why):  # Retained evidence is create-exclusive; only identical bytes may be re-presented.
+def _retain(path,data,why,max_bytes=16*1024*1024):  # Retained evidence is create-exclusive; only identical bytes may be re-presented.
  try:_atomic(path,data,exclusive=True)
  except FileExistsError:
-  if _regular(path)!=data:raise JobError(why) from None
+  if _regular(path,max_bytes=max_bytes)!=data:raise JobError(why) from None
 def tasks(j):return j['tasks']+[y for h in j.get('history',[]) for y in h.get('tasks',[])]  # current and superseded task records
 def requests(j,skip=None):  # Every request ID retained by current or superseded task records (optionally excluding one task ID).
  out=set()

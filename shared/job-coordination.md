@@ -1,6 +1,6 @@
 # Whole-job coordination
 
-Shared by imps, ape, elephant-goldfish, babysitter and agent-tuneup. Plugin entries add
+Shared whole-job protocol. Plugin entries add
 only their own policy: stages, workers, validator and boundaries. Exact helper inputs
 and limits are in `PKG/shared/agents/jobs-contract.md`; model choice, allowed tools and
 brief content are in `PKG/shared/delegation.md`; approvals follow `PKG/shared/t3-runtime.md`.
@@ -135,6 +135,8 @@ findings block. Final readiness needs `job_acceptance_cli.py validate-final` (im
 final gate) to accept every requirement at the integrated snapshot.
 
 ## 6. Repair
+
+`upgrade-package` requires the imps upgrade procedure.
 
 Each stage gets the initial attempt plus `max_repair_cycles` (default 20) through
 `job_cli.py retry` (`{caller, task_id, reason, category}`, category `primary`, `support`
