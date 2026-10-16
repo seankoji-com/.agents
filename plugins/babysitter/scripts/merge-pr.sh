@@ -57,8 +57,10 @@
 # call to this script needed. Auto-merge fires only once GitHub's merge requirements
 # are met (it does not act on the arming user's bypass), so it is the safe hand-off
 # for a not-yet-CLEAN PR. GitHub refuses to arm it on a PR that is already CLEAN or
-# UNSTABLE; that is reported as automerge=unavailable. Arming it changes nothing about whether THIS run considers the PR blocked; the
-# exit code and reason are unaffected.
+# UNSTABLE, and on a PR whose base branch carries no protected-branch rules at all
+# (a stacked PR based on an unprotected feature branch always lands here); each is
+# reported as automerge=unavailable. Arming it changes nothing about whether THIS
+# run considers the PR blocked; the exit code and reason are unaffected.
 #
 # An existing auto-merge request is never a blocker in any mode. It stays armed,
 # is reported as automerge=preexisting, and a CLEAN PR carrying one is merged
