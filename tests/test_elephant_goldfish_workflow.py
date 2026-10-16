@@ -129,7 +129,7 @@ class InstructionContractTests(unittest.TestCase):
             self.assertIn(leak, slots)
         self.assertIn('never use a follow-up', slots)
         limits = section(self.reference, '## Round limits')
-        self.assertIn('Four rounds in total', limits)
+        self.assertIn('Twelve rounds', limits)
         self.assertIn('Keep the recorded limit', limits)
         self.assertIn('limit of five and the rounds already performed', limits)
         self.assertIn('You repair cold-read gaps yourself', self.reference)
@@ -459,10 +459,10 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
                                 capture_output=True, text=True, env=self.env)
         self.assertEqual(render.returncode, 0, render.stdout + render.stderr)
         # The cold-read budget is recorded in the topic and changes neither phase nor authority.
-        budget = self.thinking_state(root, 'set', slug, 'cold_read.max_rounds=4', 'cold_read.rounds_performed=0',
+        budget = self.thinking_state(root, 'set', slug, 'cold_read.max_rounds=12', 'cold_read.rounds_performed=0',
                                      'cold_read.limit_source=new-topic-default')
         state = json.loads(budget.stdout)
-        self.assertEqual(state['meta']['cold_read'], {'max_rounds': 4, 'rounds_performed': 0,
+        self.assertEqual(state['meta']['cold_read'], {'max_rounds': 12, 'rounds_performed': 0,
                                                       'limit_source': 'new-topic-default'})
         self.assertEqual(state['next_phase'], 'complete')
         self.assertIs(state['execution_authorized'], False)
@@ -1520,7 +1520,7 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         self.assertIn('capabilities', refused.stderr)
         record = self.ok(self.revise(job_id, caller, document))
         self.assertEqual((record['previous_sha256'], record['sha256']), (old_sha, new_sha))
-        self.assertEqual((record['rounds_performed'], record['max_rounds']), (1, 4))
+        self.assertEqual((record['rounds_performed'], record['max_rounds']), (1, 21))
         state = self.job_state(job_id)
         self.assertEqual(state['decisions'], [])
         self.assertEqual({s['id']: s['status'] for s in state['stages']}, {'factual': 'stale', 'cold-read': 'stale'})
@@ -1565,12 +1565,12 @@ class ElephantDocumentJobTests(InstalledJobFixture):
                 return executed
             self.assertEqual(json.loads(revised.stdout)['rounds_performed'], executed)
             self.ok(self.run_helper('job_cli.py', 'retry', job_id, {'caller': caller, 'task_id': 'c0', 'reason': 'NOT READY'}))
-            self.assertLess(executed, 10, 'cold-read budget was not enforced')
+            self.assertLess(executed, 25, 'cold-read budget was not enforced')
 
-    def test_new_documents_get_four_rounds_and_legacy_loops_keep_their_remaining_five(self):
-        # New topic: the default policy snapshot (initial read plus three repairs).
-        self.assertEqual(self.rounds('rounds-new'), 4)
-        self.assertEqual(self.job_state('rounds-new')['policy']['max_repair_cycles'], 3)
+    def test_new_documents_get_the_default_rounds_and_legacy_loops_keep_their_remaining_five(self):
+        # New topic: the default policy snapshot (initial read plus max_repair_cycles repairs).
+        self.assertEqual(self.rounds('rounds-new'), 21)
+        self.assertEqual(self.job_state('rounds-new')['policy']['max_repair_cycles'], 20)
         # Legacy loop under the five-round instruction with two rounds already performed.
         self.assertEqual(self.rounds('rounds-legacy', {'max_repair_cycles': 5 - 2 - 1,
                                                         'max_artifact_bytes': 16 * 1024 * 1024}), 3)

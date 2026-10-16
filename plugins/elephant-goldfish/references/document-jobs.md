@@ -142,8 +142,7 @@ another reviewer to overturn an adverse verdict.
 A cold-read round is one executed slot. Its budget belongs to the topic or document;
 resume never resets it.
 
-- **New topics and documents.** Four rounds in total: the initial read plus three
-  repairs (`max_repair_cycles: 3`).
+- **New topics and documents.** Twelve rounds: the initial read plus eleven repairs.
 - **Existing topics with a recorded limit.** Keep the recorded limit and count.
 - **Legacy topics with no recorded limit.** Record a limit of five and the rounds already performed. Set `max_repair_cycles` to remaining rounds minus one. Stop if none remain; ask the owner if the count is unknown.
 

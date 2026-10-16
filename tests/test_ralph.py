@@ -85,7 +85,7 @@ class RalphTest(unittest.TestCase):
         return request, task_id
 
     def test_two_lineages_can_share_one_gateway_and_custom_models(self):
-        self.assertEqual(self.state['maxAttempts'], 5)
+        self.assertEqual(self.state['maxAttempts'], 20)
         self.assertEqual(self.state['implementer']['model'], 'custom/worker')
 
     def test_rejects_unknown_same_lineage_and_unavailable_targets(self):

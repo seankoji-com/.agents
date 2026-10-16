@@ -327,8 +327,11 @@ class SyntheticJobTest(unittest.TestCase):
         self.counter = 0
 
     # -- helpers -----------------------------------------------------------------------------
-    def plan(self, head12=H1):
-        return documented_plan(head12=head12, installation_id=self.caller['installation_id'])
+    def plan(self, head12=H1, max_repair_cycles=None):
+        plan = documented_plan(head12=head12, installation_id=self.caller['installation_id'])
+        if max_repair_cycles is not None:
+            plan['policy']['max_repair_cycles'] = max_repair_cycles
+        return plan
 
     def run_cli(self, script, command, payload=None, ok=True):
         argv = [sys.executable, str(self.version / 'shared' / script), command,
@@ -437,7 +440,8 @@ class SyntheticJobTest(unittest.TestCase):
 
     # -- scenarios ---------------------------------------------------------------------------
     def test_fix_review_gate_land_and_final_acceptance_at_exact_heads(self):
-        self.job('create', self.plan())
+        # This scenario spends the whole budget, so pin the cycles rather than the shipped default.
+        self.job('create', self.plan(max_repair_cycles=3))
         self.assertEqual(set(self.statuses()[0].values()), {'pending'})
         self.assertFalse(self.merge_allowed('pr-12-land'))
 
@@ -568,7 +572,8 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertIn('a stage holding a review slot cannot request merged', review.stdout + review.stderr)
 
     def test_failed_rounds_exhaust_the_budget_and_cannot_reset(self):
-        self.job('create', self.plan())
+        # Budget-exhaustion mechanism: pin the cycles so this does not track the shipped default.
+        self.job('create', self.plan(max_repair_cycles=3))
         failure = {'id': 'F1', 'severity': 'blocker', 'scenario': 'ci still fails', 'source_evidence': ['ci log']}
         self.dispatch('pr-12-maintain', status='failed', verdict='adverse', findings=[failure])
         for repair in range(3):

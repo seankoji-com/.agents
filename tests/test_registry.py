@@ -124,7 +124,7 @@ class PinSnapshotTest(unittest.TestCase):
         self.assertEqual(pin['bundle_digest'], manifest['bundle_digest'])
         self.assertEqual(pin['compatible_pinned_invocation'], f't3-plugins --job {job.absolute()} path imps')
         self.assertEqual(snap['compatible_pinned_invocations']['workflow'], pin['compatible_pinned_invocation'])
-        self.assertEqual(pin['limits'], {'max_live_workers': None, 'max_repair_cycles': 3})
+        self.assertEqual(pin['limits'], {'max_live_workers': None, 'max_repair_cycles': 20})
         effective = pin['effective_workers']['imps/stage-executor']
         self.assertIn('Shared boundary contracts', effective['bytes'])
         self.assertIn('Specialized worker definition', effective['bytes'])

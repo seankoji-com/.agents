@@ -15,7 +15,7 @@ Use JSON files with `--input FILE`; never interpolate goal text into shell code.
 ## Requests
 
 - `<goal>` or `run <goal>` starts a run. `--max-attempts N` sets the number of
-  implementation attempts, including the first, to a positive integer. Default: 5.
+  implementation attempts, including the first, to a positive integer. Default: 20.
   Ask the user to choose both models from T3's live catalog for every new run.
 - `resume <state-file>` reconciles the existing task before continuing. Retain the
   chosen pair, worktree, goal, feedback and limit. Never restart an active task.

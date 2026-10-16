@@ -37,7 +37,7 @@ with `validate_document.py --mode factual`.
    workspace access is not a security sandbox. If independent review is unavailable,
    report the document unreviewed.
 4. On NOT READY, repair the named gaps yourself, repeat the factual check on the new
-   hash, then request a fresh cold read in a new child. New documents stop after four
+   hash, then request a fresh cold read in a new child. New documents stop after twelve
    rounds in total; legacy loops keep the five-round limit they started under, minus
    the rounds already performed. A missing, failed, or ambiguous verdict is an error,
    never READY. Do not seek another reviewer simply to overturn an adverse verdict.

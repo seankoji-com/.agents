@@ -728,7 +728,7 @@ def load_workers_config(path: Path) -> dict:
     try:
         path.lstat()
     except FileNotFoundError:
-        return {'schema_version': 1, 'max_live_workers': None, 'max_repair_cycles': 3, 'overrides': []}
+        return {'schema_version': 1, 'max_live_workers': None, 'max_repair_cycles': 20, 'overrides': []}
     try: cfg = json.loads(read_regular(path, 'workers config').decode('utf-8'))
     except (OSError, ValueError, UnicodeError) as exc: raise RegistryError('workers config is malformed') from exc
     if not isinstance(cfg, dict) or cfg.get('schema_version') != 1 or set(cfg) != {'schema_version','max_live_workers','max_repair_cycles','overrides'}:

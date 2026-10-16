@@ -112,7 +112,7 @@ def initialize(data, state_path):
     brief = text_field(data.get('brief'), 'brief')
     root = snapshot.toplevel(text_field(data.get('worktree'), 'worktree'))
     require(not state_path.resolve().is_relative_to(root), 'checkpoint must be outside the worktree')
-    limit = data.get('maxAttempts', 5)
+    limit = data.get('maxAttempts', 20)
     require(type(limit) is int and limit > 0, 'maxAttempts must be a positive integer')
     caps = data.get('capabilities')
     require(isinstance(caps, dict) and isinstance(caps.get('providers'), list), 'fresh capabilities are required')

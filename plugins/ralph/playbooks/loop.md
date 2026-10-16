@@ -64,7 +64,7 @@ report it as blocked.
 
 Choose a writable checkpoint directory OUTSIDE the worktree, for example an
 approved XDG state directory or task-specific temporary directory. Report its path.
-Create `init.json` with `goal`, `brief`, `worktree`, `maxAttempts` (default 5),
+Create `init.json` with `goal`, `brief`, `worktree`, `maxAttempts` (default 20),
 `implementer`, `evaluator`, and `capabilities` (the fresh structured T3 response).
 Each target needs `providerInstanceId`, `model`, `lineage`, `lineageSource`, and
 optional `options`. Options are an object map of advertised option ID to chosen

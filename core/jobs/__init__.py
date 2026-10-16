@@ -41,7 +41,7 @@ def create_job(payload,state_root,pins):
     for key in ('max_repair_cycles','max_live_workers'):
         if key not in j.get('policy',{}) and len({canonical(pin.get('limits',{}).get(key)) for pin in pins.values()})>1:raise JobError('conflicting pin limits require explicit job policy')
     limits=next(iter(pins.values()),{}).get('limits',{})
-    for key,value in (('max_repair_cycles',limits.get('max_repair_cycles',3)),('max_artifact_bytes',16*1024*1024),('max_live_workers',limits.get('max_live_workers'))):
+    for key,value in (('max_repair_cycles',limits.get('max_repair_cycles',20)),('max_artifact_bytes',16*1024*1024),('max_live_workers',limits.get('max_live_workers'))):
         j.setdefault('policy',{}).setdefault(key,value)
     for s in j['stages']:
         s.setdefault('attempts',{'primary':0,'support':0,'review':0,'final':0});s.setdefault('acceptance',None)

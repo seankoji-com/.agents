@@ -39,7 +39,7 @@ clone, an existing output, a path in the clone or a job's `artifacts/`, and over
 - Synthesis stage (forage only): `depends_on` every research stage; its sources are
   every candidate snapshot (at most five); one `ape/synthesizer` slot with the same
   write-scope shape and `max_followups: 0`. It reads the accepted reports.
-- Policy: keep defaults (`max_repair_cycles` 3, 16 MiB artifacts) unless the owner set
+- Policy: keep defaults (`max_repair_cycles` 20, 16 MiB artifacts) unless the owner set
   others. Adding a candidate needs an owner decision and `plan-revision`.
 
 ## Worker result
