@@ -100,14 +100,21 @@ def model_name(model):
 
 def data_use_reason(proof, data, now):
     terms = proof.get('data_use', {})
+    material = data.get('permissions', {}).get('material')
     if (not isinstance(terms, dict) or terms.get('source') not in SOURCES.values()
             or not fresh(terms.get('observed_at'), now) or not text(terms.get('evidence'))
-            or any(type(terms.get(k)) is not bool for k in
-                   ('no_training', 'prompt_logging', 'confidential_allowed'))
+            or any(type(terms.get(k)) is not bool for k in ('no_training', 'prompt_logging'))
+            or 'confidential_allowed' not in terms
+            or (terms['confidential_allowed'] is not None and type(terms['confidential_allowed']) is not bool)
+            or material not in ('public', 'confidential')
             or not text(terms.get('retention'))):
         return 'data-use-unverified'
+    # Zero retention is not permission to submit confidential material. A provider
+    # prohibition cannot be waived by an owner's acceptance of retention/training.
+    if material == 'confidential' and terms['confidential_allowed'] is not True:
+        return 'data-use-disallowed'
     if (terms['no_training'] and not terms['prompt_logging']
-            and terms['confidential_allowed'] and terms['retention'] == 'zero'):
+            and terms['retention'] == 'zero'):
         return None
     # Sharing permission alone is not permission to accept model-specific terms.
     for permission in data.get('permissions', {}).get('data_use_exceptions', []):
@@ -117,6 +124,43 @@ def data_use_reason(proof, data, now):
                 and text(permission.get('authorization'))):
             return None
     return 'data-use-disallowed'
+
+
+def worktree_isolation(isolation):
+    """Recognise explicit string enums, optionally in a nullable union.
+
+    This is a small allowlist of observed schema forms, not a JSON Schema
+    evaluator. Unknown validation keywords must not imply worktree support.
+    """
+    annotations = {'description', 'title', 'default'}
+
+    def enum_branch(branch):
+        if not isinstance(branch, dict) or set(branch) - annotations - {'type', 'enum'}:
+            return None
+        if branch.get('type') == 'null' and 'enum' not in branch:
+            return []
+        values = branch.get('enum')
+        if (branch.get('type', 'string') != 'string' or not isinstance(values, list)
+                or not values or not all(isinstance(v, str) for v in values)):
+            return None
+        return values
+
+    if not isinstance(isolation, dict):
+        return False
+    if not set(isolation) - annotations - {'type', 'enum'}:
+        return 'worktree' in (enum_branch(isolation) or [])
+    for union in ('anyOf', 'oneOf'):
+        if set(isolation) - annotations != {union}:
+            continue
+        branches = isolation[union]
+        if not isinstance(branches, list) or not branches:
+            return False
+        values = [enum_branch(branch) for branch in branches]
+        if any(value is None for value in values):
+            return False
+        matches = sum('worktree' in value for value in values)
+        return matches == 1 if union == 'oneOf' else matches > 0
+    return False
 
 
 def select(data, now):
@@ -132,7 +176,7 @@ def select(data, now):
     schema = data.get('delegate_task_schema', {})
     isolation = schema.get('input_schema', {}).get('properties', {}).get('isolation', {})
     if (not fresh(schema.get('observed_at'), now) or not text(schema.get('evidence'))
-            or not isinstance(isolation.get('enum'), list) or 'worktree' not in isolation['enum']):
+            or not worktree_isolation(isolation)):
         return [], [{'reason': 'worktree-isolation-unavailable'}]
     workspace = data.get('workspace', {})
     if (not fresh(workspace.get('observed_at'), now) or workspace.get('clean') is not True
@@ -257,6 +301,7 @@ def prepare(data, now):
     selected, skipped = select(data, now)
     state = {'schema_version': 1, 'context': ctx, 'context_hash': digest(ctx), 'closed': False,
              'created_at': now.isoformat(), 'skipped': skipped, 'requests': [], 'dispositions': [],
+             'permissions': deepcopy(data.get('permissions')),
              'delegate_task_schema': deepcopy(data.get('delegate_task_schema')),
              'workspace': deepcopy(data.get('workspace'))}
     for row in selected:
@@ -393,6 +438,11 @@ def record(state, event):
     target = request['dispatch']['target']
     if any(obs.get(k) is not None and obs[k] != target[k] for k in ('providerInstanceId', 'model')):
         request['identity_mismatch'] = True
+    # A completed intake is immutable evidence at its issued snapshot. Further
+    # notifications only update handle liveness and sticky mismatch diagnostics;
+    # they cannot erase a finding referenced by a coordinator disposition.
+    if request['outcome'] == 'untrusted-evidence':
+        return
     if kind != 'status':
         if request.get('identity_mismatch') or request.get('run_mismatch') or len(request['handles']) != 1:
             request['findings'] = []

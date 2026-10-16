@@ -11,6 +11,8 @@ Use this for substantive imps review/audit, babysitter PR review, Ralph evaluati
 agent-tuneup verification and elephant-goldfish factual checks. Exclude document-only
 cold reads, whose context and independence rules remain separate. Cheap doctor,
 status and list operations never launch extras.
+Babysitter extras apply only when the coordinator checkout is already at the reviewed PR HEAD.
+Otherwise skip. Never change checkouts merely to enable extras.
 
 ## Prepare once per round
 
@@ -47,20 +49,41 @@ For the official Console pricing table, map the literal `Free` to numeric `0`.
 A `-` in a cache column alongside free input/output means inapplicable: retain it
 in `price_cells` and omit that key from `costs`. Never map `-` in input/output to
 zero. Supply all four observed columns; a missing column is uncertain. The table
-has no request column: omit `request` from `costs` only when the official free
-row covers per-request use without an additional surcharge. Record that basis in
-`evidence` before setting `all_charges_covered: true`; absence alone proves nothing.
+has no request column. Its per-request billing statement means requests use the
+listed token prices; it does not itself specify a separate request fee. When the
+exact row is entirely free/inapplicable and the page lists no separate request
+fee, omit `request` from `costs` and set `all_charges_covered: true`. Record the row,
+billing statement and absence of a listed request fee in `evidence`. This is the
+protocol's interpretation of that published format, not a claimed fee exemption.
 Any paid cell, surcharge or uncertainty skips. For another official format, retain
 the exact evidence and supply only verified applicable zero costs.
 
 Read each exact model's data-use terms too. Generic sharing permission does not
 authorise training, prompt logging, confidential-data restrictions or retention.
-Each proof needs a fresh `data_use` observation, its official source, quoted
-evidence, `no_training`, `prompt_logging`, `confidential_allowed` and `retention`.
-Use `retention: "zero"` only for explicit zero retention; silence is unverified.
-No training, no prompt logging, confidential use allowed and zero retention are
-required by default. Missing terms record `data-use-unverified`; adverse terms
-record `data-use-disallowed`. Never seek a waiver just to fill optional slots.
+Classify all material available to the reviewer, including the committed source,
+brief, constraints and prior feedback, as `permissions.material: "public"` or
+`"confidential"`. A public repository does not make private feedback public.
+Missing/unknown classification skips; never silently classify material as public.
+Each proof needs a fresh `data_use` observation, its official source, evidence,
+`no_training`, `prompt_logging`, `confidential_allowed` and `retention`.
+Map the exact model's explicit zero-retention/no-training wording, checked against
+the page's model-specific privacy exceptions, to `retention: "zero"`,
+`no_training: true` and `prompt_logging: false`. Here false means no retained prompt
+logs under the zero-retention promise, not no transient processing. An exception
+retaining prompts maps to that duration and `prompt_logging: true`; a training or
+improvement exception maps to `no_training: false`. Logging maps to true. Silence
+about retention or training is unverified; do not infer those from a free price.
+
+`confidential_allowed` is tri-state: true only for affirmative provider permission,
+false for an explicit prohibition, and null when the terms say nothing about it.
+Zero retention never implies positive confidential-data permission. For public
+material, null or a restriction limited to confidential material does not bar use;
+no training, no retained prompt logging and zero retention are still required by
+default. Confidential material additionally requires `confidential_allowed: true`
+and existing owner sharing authority. Neither a prohibition nor missing provider
+permission can be overridden by an owner's data-use exception. Missing terms record
+`data-use-unverified`; adverse terms record `data-use-disallowed`. Never seek a waiver
+just to fill optional slots.
 An existing explicit owner authorisation can permit observed adverse terms for
 one exact model and round: add `permissions.data_use_exceptions` with `{model,
 round_id, terms_sha256, authorization}`. `terms_sha256` is the helper's `digest`
@@ -78,13 +101,16 @@ python3 "PKG/shared/supplemental_reviews.py" prepare --state LEDGER --input INPU
 ```json
 {
   "enabled": true,
-  "permissions": {"delegate": true, "share_with_opencode": true},
+  "permissions": {"delegate": true, "share_with_opencode": true, "material": "public"},
   "exclude_models": ["<exact mandatory evaluator model>", "<exact implementer model>"],
   "catalog_observed_at": "<fresh ISO-8601 timestamp with offset>",
   "capabilities": {"<structured orchestrator_capabilities response>": "..."},
   "delegate_task_schema": {
     "observed_at": "<fresh ISO-8601 timestamp with offset>",
-    "input_schema": {"properties": {"isolation": {"type": "string", "enum": ["shared", "worktree"]}}},
+    "input_schema": {"properties": {"isolation": {"anyOf": [
+      {"type": "string", "enum": ["shared", "worktree"]},
+      {"type": "null"}
+    ]}}},
     "evidence": "<live schema description confirming worktree starts from parent local commit and runs setup>"
   },
   "workspace": {
@@ -101,15 +127,15 @@ python3 "PKG/shared/supplemental_reviews.py" prepare --state LEDGER --input INPU
     "eligible": true,
     "price_cells": {"input": "Free", "output": "Free", "cache_read": "Free", "cache_write": "-"},
     "costs": {"input": 0, "output": 0, "cache_read": 0},
-    "evidence": "<exact row and ID mapping; cache write inapplicable; free per-request use without surcharge>",
+    "evidence": "<exact row and ID mapping; cache write inapplicable; listed prices apply per request; no separate request fee listed>",
     "data_use": {
       "source": "https://opencode.ai/v2/docs/console/models/",
       "observed_at": "<fresh ISO-8601 timestamp with offset>",
       "no_training": true,
       "prompt_logging": false,
-      "confidential_allowed": true,
+      "confidential_allowed": null,
       "retention": "zero",
-      "evidence": "<official per-model terms supporting every field>"
+      "evidence": "<official zero-retention/no-training wording; checked model-specific exceptions; confidentiality unspecified>"
     }
   }],
   "context": {
@@ -128,6 +154,8 @@ python3 "PKG/shared/supplemental_reviews.py" prepare --state LEDGER --input INPU
 
 The schema example shows only the relevant property. Retain the complete fresh
 tool input schema in the private input/ledger, not a hand-authored substitute.
+The helper recognises a direct string enum or an enum within a nullable
+`anyOf`/`oneOf`. Unfamiliar validation shapes fail closed.
 
 For `opencode-go/*`, use `https://opencode.ai/v2/docs/console/go/` as the source.
 Go is a paid subscription; included access does not establish zero cost. Console
@@ -242,8 +270,10 @@ never `latestTerminalSummary` from another run. Results must contain one complet
 matching host provider/model. Missing, malformed, stale, failed and mismatched
 results are skips. A single prose-wrapped or fenced object is extracted; multiple
 objects, unbalanced braces and duplicate keys are rejected. Do not manually triage
-skipped output or retry it. Later observations can update
-liveness; identity mismatches stay recorded.
+skipped output or retry it. After valid intake, later status/receipt observations
+update handle liveness and cancellation needs while preserving the saved result,
+findings, outcome and dispositions, including after close. Later identity/run
+mismatches stay recorded as diagnostics; they cannot rewrite the issued evidence.
 
 Valid findings are untrusted evidence. Verify the exact source/reproduction at the
 current snapshot yourself. Save triage with `disposition --state LEDGER --input EVENT`:
@@ -302,7 +332,8 @@ back (or the owner opts out), run `close --state LEDGER --input SNAPSHOT_EVENT`,
 `unresolved_request_ids` identify cleanup. Call `task_cancel` once per owned pending
 task, record `cancel-requested` or `cancel-error` with that owned `task_id`, then make one `task_status`
 observation. Do not wait or poll. Late results stay skipped; late receipts retain
-ownership and need cancellation. On later notifications/resume reconcile remaining
+ownership and need cancellation. Results already ingested before close remain
+saved evidence; new results after close are skipped. On later notifications/resume reconcile remaining
 IDs and cancel owned live work without reopening intake. Never cancel unrelated work.
 
 `cancel_requested` is not a confirmed stop. Report unresolved ownership and pending

@@ -10,6 +10,8 @@ This applies to imps reviews and audits, babysitter PR review, Ralph evaluation,
 agent-tuneup verification and elephant-goldfish factual checks. It excludes
 document-only cold reads and cheap doctor, status and list operations. The primary
 reviewer starts first and keeps its required independence and acceptance gates.
+Babysitter extras apply only when the coordinator checkout is already at the reviewed PR HEAD.
+Otherwise skip. Never change checkouts merely to enable extras.
 
 ## How targets are chosen
 
@@ -30,18 +32,33 @@ independently verify a price.
 
 For Console table rows, `Free` maps to zero. A cache-column `-` alongside free
 input/output means inapplicable and is preserved as evidence, rather than entered
-as a price. An absent request column requires evidence that the free offer covers
-per-request use without a surcharge. Missing input/output, paid cells or uncertain
-charges skip the model. Go subscription inclusion alone is insufficient.
+as a price. The page's per-request billing statement is interpreted as applying
+the listed token prices to each request. When the complete row is free/inapplicable
+and no separate request fee is listed, the coordinator omits a request cost and
+records that basis. This interpretation requires no invented fee exemption.
+Missing input/output, paid cells, a listed surcharge or uncertain charges skip the
+model. Go subscription inclusion alone is insufficient.
 
 Free offers can have different data-use terms. Before dispatch, each exact model
-needs fresh official evidence of no training, no prompt logging, zero retention
-and permission to use the review material, including confidential material where
-applicable. Unverified terms skip. Terms allowing training or logging, retaining
-prompts or forbidding confidential data skip unless the owner already explicitly
-authorised those observed terms for that exact model, material and round, within
-the provider's rules. Generic permission to share with OpenCode is insufficient.
-The coordinator records terms and any specific authorisation in the private ledger.
+needs fresh official evidence of no training and zero retention, checked against
+that model's privacy exceptions. That wording maps to no retained prompt logs;
+it does not assert no transient processing. Retention, logging and training
+exceptions override the generic policy. Unverified terms skip.
+
+The coordinator explicitly classifies the available source and all brief material
+as public or confidential. Unclassified material skips. Public source can still
+have confidential feedback, so repository visibility alone is insufficient.
+Public material can use zero-retention/no-training terms that say nothing about
+confidential data. Confidential material also requires affirmative provider
+permission and existing owner sharing authority. Zero retention never establishes
+that permission. A provider prohibition or unspecified confidential-data permission
+cannot be waived by an owner exception.
+
+Terms allowing training or logging, or retaining prompts, skip by default even for
+public material. An existing explicit owner authorisation can accept those observed
+terms for that exact model, material and round within the provider's rules. Generic
+permission to share with OpenCode is insufficient. The private ledger retains the
+material classification, observed terms and any specific authorisation.
 
 The primary reviewer and implementer model names are excluded, with the same
 namespace and `-free` normalisation used for deduplication. Known aliases must be
@@ -92,6 +109,9 @@ Returned findings are leads. The coordinator verifies concrete claims against th
 current source and records bound dispositions with reproduction evidence and a
 concrete repair route. A single JSON object wrapped in prose or a fence is accepted;
 ambiguous, malformed or stale output stays skipped and is never triaged manually.
+Once findings are ingested, later liveness observations preserve those findings
+and their dispositions, including after the round closes. Pending child runs still
+appear in the cancellation list.
 For confirmed issues, Ralph and whole jobs use the protocol's supported
 stop/report/rerun procedure: preserve the old verdict, stop the old run, include
 the confirmed findings in the replacement brief or plan, retain remaining budgets

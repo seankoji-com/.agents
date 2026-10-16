@@ -1,6 +1,7 @@
 """Optional reviews: offline pricing, lifetime, gate isolation and installed CLI.
 
-Synthetic capabilities and prices only. No provider or GitHub calls.
+Synthetic host observations and offline published-wording fixtures only.
+No provider or GitHub calls. Published examples are not a supported model roster.
 """
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -30,11 +31,13 @@ def fixture(now=NOW):
     stamp = now.isoformat()
     return {
         'exclude_models': ['fixture/primary-reviewer', 'fixture/implementer'],
-        'permissions': {'delegate': True, 'share_with_opencode': True},
+        'permissions': {'delegate': True, 'share_with_opencode': True, 'material': 'public'},
         'catalog_observed_at': stamp,
         'delegate_task_schema': {
             'observed_at': stamp,
-            'input_schema': {'properties': {'isolation': {'type': 'string', 'enum': ['shared', 'worktree']}}},
+            'input_schema': {'properties': {'isolation': {'anyOf': [
+                {'description': 'Defaults to shared. Worktree isolation starts from the parent local commit.',
+                 'enum': ['shared', 'worktree'], 'type': 'string'}, {'type': 'null'}]}}},
             'evidence': 'Synthetic schema: isolated worktree from parent local commit; runs setup; no dirty edits copied'},
         'workspace': {'observed_at': stamp, 'head_revision': 'a' * 40, 'clean': True, 'scope_committed': True},
         'capabilities': {
@@ -49,8 +52,8 @@ def fixture(now=NOW):
                      'costs': {'input': 0, 'output': 0, 'cache_read': 0, 'cache_write': 0, 'request': 0},
                      'data_use': {'source': reviews.SOURCES['opencode'], 'observed_at': stamp,
                                   'no_training': True, 'prompt_logging': False,
-                                  'confidential_allowed': True, 'retention': 'zero',
-                                  'evidence': 'Synthetic terms: no training, logging or retention; confidential use allowed'},
+                                  'confidential_allowed': None, 'retention': 'zero',
+                                  'evidence': 'Synthetic terms: no training or retained prompt logs; zero retention; confidentiality unspecified'},
                      'evidence': 'Synthetic official row mapped to exact ID; all charges covered'} for m in models[:4]],
         'context': {'round_id': 'job-fixture/review-1', 'revision': 'a' * 40,
                     'tree_hash': 'd' * 64,
@@ -79,6 +82,28 @@ def observation(state, status='completed', summary=None, task='task-fixture'):
 
 
 class SelectionTest(unittest.TestCase):
+    def test_nullable_live_isolation_schema_and_known_alternatives(self):
+        # The default fixture retains the nullable anyOf shape reported by T3.
+        self.assertEqual(len(reviews.select(fixture(), NOW)[0]), 3)
+        for isolation in (
+                {'type': 'string', 'enum': ['shared', 'worktree']},
+                {'enum': ['shared', 'worktree']},
+                {'oneOf': [{'type': 'string', 'enum': ['shared', 'worktree']}, {'type': 'null'}]}):
+            data = fixture()
+            data['delegate_task_schema']['input_schema']['properties']['isolation'] = isolation
+            self.assertEqual(len(reviews.select(data, NOW)[0]), 3)
+        for isolation in (
+                {'anyOf': [{'type': 'string', 'enum': ['shared']}, {'type': 'null'}]},
+                {'anyOf': [{'type': 'string'}, {'type': 'null'}]},
+                {'anyOf': [{'enum': ['worktree']}, {'$ref': '#/unknown'}]},
+                {'anyOf': [{'enum': ['worktree']}], 'not': {'enum': ['worktree']}},
+                {'enum': ['shared', 'worktree'], 'allOf': [{'enum': ['shared']}]},
+                {'oneOf': [{'enum': ['worktree']}, {'enum': ['worktree']}]},
+                {'$ref': '#/worktree'}, {'anyOf': []}, {'anyOf': None}, None):
+            data = fixture()
+            data['delegate_task_schema']['input_schema']['properties']['isolation'] = isolation
+            self.assertEqual(reviews.select(data, NOW), ([], [{'reason': 'worktree-isolation-unavailable'}]))
+
     def test_worktree_support_requires_fresh_live_schema_not_catalog_flags(self):
         for change in (
                 lambda d: d.pop('delegate_task_schema'),
@@ -115,7 +140,7 @@ class SelectionTest(unittest.TestCase):
                 (lambda p: p['data_use'].update(observed_at='old'), 'data-use-unverified'),
                 (lambda p: p['data_use'].update(no_training=False), 'data-use-disallowed'),
                 (lambda p: p['data_use'].update(prompt_logging=True), 'data-use-disallowed'),
-                (lambda p: p['data_use'].update(confidential_allowed=False), 'data-use-disallowed'),
+                (lambda p: p['data_use'].pop('confidential_allowed'), 'data-use-unverified'),
                 (lambda p: p['data_use'].update(retention='30 days'), 'data-use-disallowed')):
             data = fixture()
             data['pricing'] = data['pricing'][:1]
@@ -133,13 +158,70 @@ class SelectionTest(unittest.TestCase):
             changed['permissions']['data_use_exceptions'][0][key] = ''
             self.assertEqual(reviews.select(changed, NOW)[0], [])
 
+    def test_public_and_confidential_material_require_different_permissions(self):
+        data = fixture()
+        data['pricing'] = data['pricing'][:1]
+        self.assertEqual(len(reviews.select(data, NOW)[0]), 1)
+        for material in (None, 'unknown', False):
+            changed = deepcopy(data)
+            changed['permissions']['material'] = material
+            self.assertIn('data-use-unverified', [r['reason'] for r in reviews.select(changed, NOW)[1]])
+        data['permissions']['material'] = 'confidential'
+        terms = data['pricing'][0]['data_use']
+        for allowed in (None, False):
+            terms['confidential_allowed'] = allowed
+            data['permissions']['data_use_exceptions'] = [{
+                'model': data['pricing'][0]['model'], 'round_id': data['context']['round_id'],
+                'terms_sha256': reviews.digest(terms), 'authorization': 'Owner accepts observed data-use terms'}]
+            self.assertIn('data-use-disallowed', [r['reason'] for r in reviews.select(data, NOW)[1]])
+        terms.update(confidential_allowed=True, evidence='Synthetic affirmative provider permission for confidential use')
+        self.assertEqual(len(reviews.select(data, NOW)[0]), 1)
+        # A restriction on confidential material does not itself prohibit public use.
+        data['permissions']['material'] = 'public'
+        terms['confidential_allowed'] = False
+        self.assertEqual(len(reviews.select(data, NOW)[0]), 1)
+
+    def test_published_public_free_rows_and_model_specific_privacy_exceptions(self):
+        # Offline excerpts from the Console models page, observed 16 October 2026.
+        # Runtime selection contains no model names or privacy inference scraper.
+        data = fixture()
+        models = ['opencode/deepseek-v4.1-flash-free', 'opencode/cat-jam-free',
+                  'opencode/nemotron-3.5-super-vl-free']
+        data['capabilities']['providers'][0]['models'] = [{'id': m} for m in models]
+        data['pricing'] = data['pricing'][:3]
+        for proof, model in zip(data['pricing'], models):
+            proof.update(model=model,
+                         price_cells={'input': 'Free', 'output': 'Free', 'cache_read': 'Free', 'cache_write': '-'},
+                         costs={'input': 0, 'output': 0, 'cache_read': 0},
+                         evidence='Free | Free | Free | -; page says "You are charged per request"; '
+                                  'listed token prices apply per request, no separate request fee listed')
+        data['pricing'][0]['data_use']['evidence'] = (
+            '"zero-retention policy and does not use your data for model training"; '
+            'the same model has no privacy exception; no confidentiality permission stated')
+        data['pricing'][1]['data_use'].update(
+            retention='30 days', prompt_logging=True,
+            evidence='Cat Jam: inputs excluded from training; retained for 30 days for safety')
+        data['pricing'][2]['data_use'].update(
+            no_training=False, prompt_logging=True, confidential_allowed=False, retention='logged; duration unspecified',
+            evidence='Nemotron trial: "do not submit personal or confidential data"; '
+                     'sessions logged for security and product improvement')
+        selected, skipped = reviews.select(data, NOW)
+        self.assertEqual([r['target']['model'] for r in selected], models[:1])
+        self.assertEqual([(r.get('model'), r['reason']) for r in skipped],
+                         [(m, 'data-use-disallowed') for m in models[1:]])
+        data['permissions']['material'] = 'confidential'
+        self.assertEqual(reviews.select(data, NOW)[0], [])
+        data['permissions']['material'] = 'public'
+        data['pricing'][0]['price_cells']['output'] = '$0.01'
+        self.assertEqual(reviews.select(data, NOW)[0], [])
+
     def test_official_table_shaped_cells_map_free_and_inapplicable_cache_only(self):
         data = fixture()
         data['pricing'] = data['pricing'][:1]
         proof = data['pricing'][0]
         proof.update(price_cells={'input': 'Free', 'output': 'Free', 'cache_read': 'Free', 'cache_write': '-'},
                      costs={'input': 0, 'output': 0, 'cache_read': 0},
-                     evidence='Synthetic table row: Free | Free | Free | -; request column absent; free per-request usage has no surcharge')
+                     evidence='Synthetic table row: Free | Free | Free | -; listed prices apply per request; no request fee listed')
         self.assertEqual(len(reviews.select(data, NOW)[0]), 1)
         proof['price_cells']['cache_read'] = '-'
         proof['costs'].pop('cache_read')
@@ -262,7 +344,35 @@ class LifecycleTest(unittest.TestCase):
         self.assertEqual(self.state['requests'][0]['findings'], before)
         event['observation']['model'] = 'wrong-model'
         reviews.record(self.state, event)
-        self.assertEqual(self.state['requests'][0]['findings'], [])
+        self.assertEqual(self.state['requests'][0]['findings'], before)
+        self.assertTrue(self.state['requests'][0]['identity_mismatch'])
+
+    def test_later_status_preserves_result_and_disposition_while_updating_liveness(self):
+        reviews.record(self.state, observation(self.state))
+        request = self.state['requests'][0]
+        triage = {'request_id': request['request_id'], 'finding_index': 0,
+                  'finding_sha256': reviews.digest(request['findings'][0]), 'revision': 'a' * 40,
+                  'disposition': 'confirmed', 'evidence': 'Verified fixture source',
+                  'repair_route': 'Ralph stop/report/rerun under remaining budget'}
+        reviews.disposition(self.state, triage)
+        before = deepcopy(request)
+        later = observation(self.state)
+        later['observation'].update(hasPendingChildRuns=True, summary='Later child still active')
+        reviews.record(self.state, later)
+        self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], ['task-fixture'])
+        reviews.close(self.state, {'current_tree_hash': 'd' * 64})
+        for kind in ('status', 'receipt'):
+            later = observation(self.state)
+            later['kind'] = kind
+            later['observation'].update(model='different-model', childRunId='later-run', summary='Unrelated later output')
+            reviews.record(self.state, later)
+            for key in ('findings', 'result', 'coverage', 'outcome'):
+                self.assertEqual(request[key], before[key])
+            self.assertEqual(self.state['dispositions'], [triage])
+        self.assertTrue(request['identity_mismatch'])
+        self.assertTrue(request['run_mismatch'])
+        self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], [])
+        self.assertEqual(len(request['handles'][0]['observations']), 4)
 
     def test_one_prose_wrapped_or_fenced_object_and_no_ambiguous_salvage(self):
         raw = observation(self.state)['observation']['summary']
@@ -606,7 +716,11 @@ class InstalledTest(unittest.TestCase):
             self.assertEqual(ended['dispatches'], [])
             self.assertEqual(run('prepare', data)['dispatches'], [])
             run('record', observation(saved))
-            self.assertEqual(run('status')['requests'][0]['outcome'], 'skipped-closed')
+            status = run('status')
+            self.assertEqual(status['requests'][0]['outcome'], 'untrusted-evidence')
+            self.assertEqual(status['dispositions'], [triage])
+            self.assertEqual(status['requests'][0]['findings'],
+                             json.loads(observation(saved)['observation']['summary'])['findings'])
             # Contention must skip immediately, never make optional work wait on a lock.
             with open(ledger.with_suffix('.lock'), 'a') as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -628,6 +742,13 @@ class InstalledTest(unittest.TestCase):
                 package, _ = box.install(plugin)
                 self.assertIn('PKG/shared/supplemental-reviews.md', (package / hook).read_text())
                 self.assertTrue((package / 'shared' / 'supplemental_reviews.py').is_file())
+                if plugin == 'babysitter':
+                    text = (package / hook).read_text()
+                    self.assertIn("coordinator checkout is already at the reviewed PR HEAD", text)
+                    self.assertIn("Never change checkouts merely to enable extras", text)
+            guide = (ROOT / 'docs/supplemental-reviews.md').read_text()
+            self.assertIn('coordinator checkout is already at the reviewed PR HEAD', guide)
+            self.assertIn('Never change checkouts merely to enable extras', guide)
 
 
 if __name__ == '__main__':
