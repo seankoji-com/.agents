@@ -43,19 +43,21 @@ class SetupTest(unittest.TestCase):
         self.assertNotIn('Traceback', result.stderr)
         return result
 
-    def test_default_setup_installs_catalog_and_four_roots_idempotently(self):
+    def test_default_setup_installs_catalog_and_native_roots_idempotently(self):
         first = self.call('setup')
         receipts = [json.loads(line) for line in first.stdout.splitlines()]
         install_receipts = [r for r in receipts if 'learnings_grant' not in r]
-        self.assertEqual(len(install_receipts), 30)
+        self.assertEqual(len(install_receipts), 42)
         grants = [r['learnings_grant'] for r in receipts if 'learnings_grant' in r]
         self.assertEqual(len(grants), 6)
         self.assertEqual({r['status'] for r in grants}, {'proposed', 'unavailable'})
         self.assertFalse((self.home / '.claude/settings.json').exists())
         self.assertFalse((self.home / '.codex/config.toml').exists())
-        for root in ('.agents/skills', '.claude/skills', '.gemini/config/skills', '.config/muse/skills'):
+        for root in ('.claude/skills', '.codex/skills', 'config/opencode/skills',
+                     '.gemini/config/skills', '.gemini/skills', 'config/muse/skills'):
             skill = self.home / root / 't3-imps/SKILL.md'
             self.assertIn(str(self.prefix / 'imps/current/entry.md'), skill.read_text())
+        self.assertFalse((self.home / '.agents/skills').exists())
         self.call('setup')
         self.call('doctor')
 

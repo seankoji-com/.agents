@@ -23,6 +23,16 @@ ROOT = Path(__file__).resolve().parent.parent
 RETIRED = ('offload-sidecar', 'prompt-builder')
 
 
+def default_skill_roots():
+    """Use each provider's native discovery root without a shared second copy."""
+    home = Path.home()
+    config = Path(os.environ.get('XDG_CONFIG_HOME') or home / '.config')
+    codex = Path(os.environ.get('CODEX_HOME') or home / '.codex')
+    return list(dict.fromkeys(str(root) for root in (
+        home / '.claude/skills', codex / 'skills', config / 'opencode/skills',
+        home / '.gemini/config/skills', home / '.gemini/skills', config / 'muse/skills')))
+
+
 def catalog():
     plugins = []
     for path in sorted((ROOT / 'plugins').glob('*/plugin.json')):
@@ -230,9 +240,7 @@ def main(argv=None):
                 print(f"{meta['name']:20} {meta['description']}")
             return 0
         if args.command == 'setup':
-            roots = args.root or [str(Path.home() / path) for path in
-                                  ('.agents/skills', '.claude/skills', '.gemini/config/skills',
-                                   '.config/muse/skills')]
+            roots = args.root or default_skill_roots()
             for meta in plugins:
                 code = installer.main(['--plugin', meta['name'], '--prefix', str(prefix), '--agents-root', str(agents_root)])
                 if code:
