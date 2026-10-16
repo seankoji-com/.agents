@@ -136,7 +136,7 @@ final gate) to accept every requirement at the integrated snapshot.
 
 ## 6. Repair
 
-Each stage gets the initial attempt plus `max_repair_cycles` (default 3) through
+Each stage gets the initial attempt plus `max_repair_cycles` (default 20) through
 `job_cli.py retry` (`{caller, task_id, reason, category}`, category `primary`, `support`
 or `review`). Resume, escalation and replacement never reset counters. A bounded
 same-scope follow-up uses `job_cli.py followup-prepare` (`{caller, task_id,

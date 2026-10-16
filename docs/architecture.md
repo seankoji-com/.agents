@@ -115,7 +115,7 @@ every underlying record.
 ### Repair, routing and fallback
 
 - **Attempts.** Each stage gets an initial attempt plus `max_repair_cycles` repairs
-  (default 3). Primary, support and review failures share that budget. Resume,
+  (default 20). Primary, support and review failures share that budget. Resume,
   escalation and replacement never reset it. An exhausted budget blocks for an owner
   decision.
 - **Routing.** The coordinator picks the lowest suitable configured tier with

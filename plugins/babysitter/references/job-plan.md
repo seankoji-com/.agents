@@ -90,7 +90,7 @@ are placeholders.
     "<pr-13-url>": ["read", "merge"]}},
   "constraints": ["Never force-push.", "Push only to the PR head branch."],
   "dependencies": [{"key": "babysitter", "plugin": "babysitter"}], "pins": {},
-  "policy": {"max_repair_cycles": 3, "max_artifact_bytes": 16777216},
+  "policy": {"max_repair_cycles": 20, "max_artifact_bytes": 16777216},
   "result_contract": {"schema_version": 1},
   "stages": [
     {"id": "pr-12", "depends_on": [], "requirements": ["PR-12-REVIEW"], "status": "pending",

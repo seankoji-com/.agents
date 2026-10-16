@@ -715,7 +715,9 @@ class RepairPathTest(unittest.TestCase):
         run('init', new_path, replacement)
         issued = run('next', new_path)
         self.assertIn(confirmed, issued['dispatch']['task'])
-        self.assertEqual(issued['state']['maxAttempts'], 4)
+        # The replacement inherits the original's remaining budget, not a fresh default.
+        self.assertEqual(issued['state']['maxAttempts'],
+                         case.state['maxAttempts'] - case.state['attempt'])
         self.assertFalse(issued['state']['readyForPublication'])
         self.assertEqual(case.state_path.read_bytes(), original)
 

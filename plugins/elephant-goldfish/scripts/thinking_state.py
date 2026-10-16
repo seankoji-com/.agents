@@ -60,10 +60,11 @@ DRAFT_MARKER = "<!-- thinking:draft -->"
 DRAFT_LABEL = "DRAFT. Non-executable."
 REVIEW_SCOPE = "finalise-brief"
 
-# Cold-read round budget per topic. New topics get four rounds (initial read plus three
+# Cold-read round budget per topic. New topics get twelve rounds (initial read plus eleven
 # repairs); legacy loops started under the older instruction record five plus the rounds
-# already performed. The budget never affects readiness and grants no execution authority.
-COLD_READ_FIXED_LIMITS = {"new-topic-default": 4, "legacy-five-round-policy": 5}
+# already performed. This budget is per topic and independent of the job's stage repair
+# budget. It never affects readiness and grants no execution authority.
+COLD_READ_FIXED_LIMITS = {"new-topic-default": 12, "legacy-five-round-policy": 5}
 COLD_READ_SOURCES = (*COLD_READ_FIXED_LIMITS, "recorded", "owner-decision")
 
 

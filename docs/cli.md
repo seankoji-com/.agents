@@ -85,7 +85,7 @@ means the defaults below. Routing stays in [`routing.json`](getting-started.md#m
 {
   "schema_version": 1,
   "max_live_workers": null,
-  "max_repair_cycles": 3,
+  "max_repair_cycles": 20,
   "overrides": []
 }
 ```
@@ -93,7 +93,7 @@ means the defaults below. Routing stays in [`routing.json`](getting-started.md#m
 | Field | Meaning |
 | --- | --- |
 | `max_live_workers` | `null` for no plugin cap, or a positive integer. T3 capacity still applies |
-| `max_repair_cycles` | Repairs after the initial attempt, a nonnegative integer; default `3` |
+| `max_repair_cycles` | Repairs after the initial attempt, a nonnegative integer; default `20` |
 | `overrides` | Records written by `enable-override` and `disable-override` |
 
 Booleans, fractions and unknown fields are rejected. To customize a worker:
