@@ -18,11 +18,13 @@
 #               [--expected-head <SHA>]
 #   merge-pr.sh --repo <owner/name> --pr <N> --resolve-thread <ID> --verified-head <SHA>
 #
-# --arm-always is the babysitter quick pass: when the operator has accepted that
-# auto-merge may land a PR whose review threads or conflicts are still open, it also
-# arms auto-merge for conflict, behind, unanswered_threads and incomplete_review_state
-# outcomes, and an existing auto-merge request no longer blocks unresolved threads.
-# It never relaxes the direct-merge gate: only CLEAN + SUCCESS + resolved threads merge.
+# --arm-always is the babysitter "enable auto-merge on all PRs" posture: the operator
+# has accepted that auto-merge may land a PR whose review threads or conflicts are
+# still open, so it also arms auto-merge for conflict, behind, unanswered_threads and
+# incomplete_review_state outcomes. --no-auto is the "leave auto-merge as set"
+# posture: it arms nothing. Neither mode clears an existing request or treats one as a
+# blocker. Neither relaxes the direct-merge gate: only CLEAN + SUCCESS + resolved
+# threads merge.
 #
 # --expected-head pins merge mode to a head the caller already accepted (the
 # babysitter land stage passes its reviewed head). The PR head is reread before every
@@ -58,6 +60,11 @@
 # UNSTABLE; that is reported as automerge=unavailable. Arming it changes nothing about whether THIS run considers the PR blocked; the
 # exit code and reason are unaffected.
 #
+# An existing auto-merge request is never a blocker in any mode. It stays armed,
+# is reported as automerge=preexisting, and a CLEAN PR carrying one is merged
+# directly here instead of waiting for GitHub to act on it. The old
+# automerge_already_enabled refusal made the operator disable it by hand first.
+#
 # Exit codes:
 #   0 — merged, or explicit resolution mode printed "RESOLVED <repo>#<pr> ..."
 #   2 — precondition failed (missing gh/curl/jq, bad arguments)
@@ -67,7 +74,7 @@
 #       other than CLEAN, an unresolved thread with no
 #       verified resolution yet, a head other than --expected-head, or a merge conflict. Never retried, never
 #       overridden with admin/force. (stdout: "BLOCKED <repo>#<pr> reason=<category>
-#       detail=<...> automerge=<armed|unavailable>")
+#       detail=<...> automerge=<armed|unavailable|preexisting>")
 #
 # What this script will NOT do, on purpose:
 #   - Never merges past branch protection or a ruleset. Not passing `--admin` is
@@ -396,7 +403,7 @@ blocked() {
     automerge="preexisting"
   fi
   case "$reason" in
-  head_changed | expected_head_mismatch | closed | automerge_already_enabled | verified_head_changed | thread_not_on_pr | permission_denied | validation_failed) armable=0 ;;
+  head_changed | expected_head_mismatch | closed | verified_head_changed | thread_not_on_pr | permission_denied | validation_failed) armable=0 ;;
   conflict | behind | incomplete_review_state | unanswered_threads) [ "$ARM_ALWAYS" = 1 ] || armable=0 ;;
   esac
   if [ "$armable" = 1 ]; then
@@ -461,11 +468,13 @@ if [ -n "$RESOLVE_THREAD" ]; then
   echo "RESOLVED ${REPO}#${PR_NUMBER} thread=${RESOLVE_THREAD} head=${VERIFIED_HEAD}"
   exit 0
 fi
-if jq -e '.data.repository.pullRequest.autoMergeRequest.enabledAt' >/dev/null <<<"$state"; then
-  if [ "$AUTO_MERGE" = 0 ] || { [ "$ARM_ALWAYS" = 0 ] && ! jq -e '.data.repository.pullRequest.reviewThreads | .pageInfo.hasNextPage == false and all(.nodes[]; .isResolved == true)' >/dev/null <<<"$state"; }; then
-    blocked "automerge_already_enabled" "auto-merge may land independently; disable the existing request before continuing this verification flow"
-  fi
-fi
+# An existing auto-merge request is deliberately never a blocker, in any mode. It
+# belongs to whoever armed it; this script leaves it in place and reports it as
+# automerge=preexisting (see blocked()). A CLEAN PR with one armed is still merged
+# directly here, which is simply faster than waiting for GitHub to act on it, and a
+# non-CLEAN PR reports its real blocker instead of blaming the armed request. The
+# old automerge_already_enabled refusal forced the operator to disable it by hand
+# before babysitter would work the PR at all.
 mergeable="$(jq -r '.data.repository.pullRequest.mergeable' <<<"$state")"
 merge_state="$(jq -r '.data.repository.pullRequest.mergeStateStatus' <<<"$state")"
 

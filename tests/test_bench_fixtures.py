@@ -481,7 +481,11 @@ class StageFixturesTest(unittest.TestCase):
         self.assertEqual(reviewer['candidates'], [])
         self.assertEqual([u['reason'] for u in reviewer['unavailable']], ['provider_absent'])
         workhorse = routing.resolve('workhorse', CAPABILITIES, config)
-        self.assertEqual([(c['providerInstanceId'], c['model']) for c in workhorse['candidates']], [('codex', 'gpt-luna')])
+        # The cheap-family default makes the other provider's haiku-class model work
+        # first; the parent's own model stays the last-resort `high` fallback. This case
+        # is about the reviewer, not the workhorse.
+        self.assertEqual([(c['providerInstanceId'], c['model'], c['tier']) for c in workhorse['candidates']],
+                         [('claudeAgent', 'claude-haiku', 'low'), ('codex', 'gpt-luna', 'high')])
         status = subprocess.run(['git', '-C', str(self.workspace), 'status', '--porcelain'], capture_output=True,
                                 text=True, check=True).stdout
         self.assertEqual(status, '')

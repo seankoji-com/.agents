@@ -28,14 +28,16 @@ machine or provider.
 A run has four steps:
 
 1. **Quick pass.** Before any child starts, the thread merges each targeted PR whose
-   current head is already clean: green checks, resolved threads, no conflicts. It
-   arms nothing. An armed auto-merge would land a later fixer push before anyone
-   reviewed it. If you asked for review before landing, it skips this pass.
+   current head is already clean: green checks, resolved threads, no conflicts. Under
+   *enable auto-merge on all PRs* it also arms GitHub's native auto-merge, so a PR
+   waiting only on a pending check lands on its own. If you asked for review before
+   landing, it skips this pass.
 2. **Fixers.** Each PR with work left (conflicts, failing checks, review comments)
    gets its own T3 child in a separate worktree. The child fixes the branch, replies to
    and resolves the threads it handled, and pushes. It never merges. The model comes
    from the `workhorse` role in your [routing config](../getting-started.md#model-routing),
-   cheapest tier first; a child that gets stuck hands off to the next candidate.
+   cheapest tier first, and the starting config fills that role with cheap models; a
+   child that gets stuck hands off to the next candidate.
 3. **Review, then land.** After the last push, `babysitter/pr-reviewer` reviews the
    combined change at that exact head, on a different model lineage from the fixer.
    Only an approval at that head lets the thread merge, and the merge call names the
@@ -44,17 +46,27 @@ A run has four steps:
    comment or conflict, it starts the next round, until each PR merges or needs a
    person.
 
-Two things stop it from fanning out:
+Two questions come before any child starts:
 
-- **No routing config.** Plain `t3-plugins setup` writes none. Without one, the thread
+- **Routing config.** Plain `t3-plugins setup` writes none. Without one, the thread
   asks you through the question picker before it starts any fixer. To create one, have
   the agent save T3's capabilities response to a file and run
-  `t3-plugins setup --capabilities caps.json`. The starting config makes the session
-  model the only workhorse, so add cheaper models to that role before a large run.
-  An existing config is never replaced.
-- **Auto-merge someone else armed.** A PR that already has auto-merge queued gets no
-  fixer that pushes, because GitHub would land the push before review. The thread
-  asks you to disable it first.
+  `t3-plugins setup --capabilities caps.json`. The starting config puts the cheap
+  model families it recognises at the `low` tier and makes those the workhorse
+  candidates, so its children start cheap; edit the tiers if the guess is wrong. An
+  existing config is never replaced.
+- **Auto-merge.** Before the list is frozen, the thread asks how to treat auto-merge
+  and records your answer:
+  - *Enable auto-merge on all PRs* — the default. It arms every targeted PR GitHub
+    allows, so each one lands as soon as it qualifies.
+  - *Leave auto-merge as set.* It arms nothing and clears nothing.
+  - *Ignore PRs with auto-merge.* A PR that already has auto-merge queued drops out of
+    the run entirely.
+
+  No answer withholds a fixer push or a merge because auto-merge is already queued, and
+  none disables a request you armed. The trade with the first two: GitHub can land a
+  fixer's push before `babysitter/pr-reviewer` has reviewed it — the case the old
+  "disable it first" rule stopped dead.
 
 The thread keeps one table of the targeted PRs and posts it again whenever one merges
 or a blocker changes. Its shape, with made-up PRs:

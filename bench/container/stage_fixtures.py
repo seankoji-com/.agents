@@ -215,8 +215,9 @@ def _stage_babysitter(workspace, outcome, area, result):
 def unavailable_review_routing(capabilities: dict) -> dict:
     """Owner-default routing from the frozen catalog, with only an unrunnable reviewer.
 
-    Workhorse and judgement resolve to the parent target exactly as `t3-plugins setup`
-    would write them; the reviewer role names a provider instance the catalog lacks.
+    Workhorse and judgement resolve exactly as `t3-plugins setup` would write them —
+    the advertised cheap-family models work, the parent model judges; the reviewer role
+    names a provider instance the catalog lacks.
     """
     sys.path.insert(0, str(REPO / 'scripts'))
     import routing
