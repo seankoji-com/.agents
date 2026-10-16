@@ -68,6 +68,10 @@ their review stage holds only a `review` slot reading the PR as it stands. A
 direct-stage PR that later needs a fixer is re-planned into review and land stages
 through a picker-approved plan revision before any fixer runs.
 
+A `merged` stage also needs its PR's review stage once that PR's recorded actions
+include `push`; a PR merged in the quick pass is not exempt. So record `push` only
+for a PR a fixer may push to, and plan those PRs review-gated.
+
 There is no separate integration stage: the PR stages together cover every
 requirement, and `validate-final` over all of them at fresh observations is the
 final acceptance declared in the initial plan.
@@ -154,3 +158,12 @@ with `observer: "coordinator"`, `kind: "pr-state"`, `source`, the full `content`
 canonical SHA-256 and, for several reads, strictly increasing `sequence` numbers.
 Publish it with `job_cli.py observation` and pass the returned path to
 `accept-stage` and `validate-final`.
+
+The recorded SHA-256 covers canonical bytes: sorted keys, `,` and `:` separators,
+`ensure_ascii=False`, UTF-8, and one trailing newline. Hashing the same object
+without that newline is rejected as changed bytes.
+
+`validator_argv` is `[PKG/scripts/validate_pr.py, "--input", OBSERVATION]`, whose
+first element must resolve to that script inside the stored pinned package. Never
+pass the pin's `compatible_pinned_argv`: that one is the recovery invocation
+(`t3-plugins --job JOB.json path babysitter`), and `accept-stage` refuses it.
