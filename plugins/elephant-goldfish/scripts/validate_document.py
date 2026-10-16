@@ -27,6 +27,13 @@ def main():
     document=Path(d['document_path']);_,doc_sha256=read_object(document) if document.suffix=='.json' else (None,hashlib.sha256(__import__('core.jobs.store',fromlist=['_regular'])._regular(document)).hexdigest())
     ok=(d.get('kind')=='cold-read-observation' and d.get('document_sha256')==doc_sha256 and d.get('verdict')=='ready' and bool(d.get('evidence')) and all(observation(e,'cold-read').get('document_sha256')==doc_sha256 and observation(e,'cold-read').get('verdict')=='ready' for e in d['evidence']))
    evidence=[{'observation_file':str(f),'sha256':input_sha256,'kind':d.get('kind'),'coverage':len(d.get('claims',d.get('evidence',[])))}]
+   if a.mode=='factual':
+    author_file=document.parent/'document-authors.json'
+    try:
+     author_records=json.loads(author_file.read_text()) if not author_file.is_symlink() else {}
+     author_record=author_records.get(doc_sha256) if isinstance(author_records,dict) else None
+    except (OSError,ValueError):author_record=None
+    evidence[0]['author_independence']='unverified: author unrecorded' if not isinstance(author_record,dict) or author_record.get('unknown') else 'unverified: checker identity is not bound to this validation'
   except Exception as exc:ok=False;evidence=[{'reason':f'explicit {a.mode} coordinator observation is missing or invalid: {exc}'}]
  else:ok=False;evidence=[{'reason':'unsupported mode'}]
  out={'accepted':ok,'mode':a.mode,'requirement_outcomes':{'workflow-observation':{'status':'passed' if ok else 'unverified','evidence':evidence}}};print(json.dumps(out,sort_keys=True));return 0 if ok else 1

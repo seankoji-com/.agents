@@ -206,6 +206,12 @@
           },
           "observation_ref": {
             "type": "object"
+          },
+          "independent_of_author": {
+            "type": "boolean"
+          },
+          "lineage_waiver": {
+            "type": "object"
           }
         },
         "additionalProperties": true
@@ -249,6 +255,8 @@
           ],
           "minimum": 1
         },
+        "identity": {"const": "observed"},
+        "author_independence": {"type": "boolean"},
         "waivable_requirements": {
           "type": "array",
           "items": {
@@ -436,6 +444,8 @@
           "review_required": {
             "type": "boolean"
           },
+          "independent_of_author": {"type": "boolean"},
+          "document_authors": {"type": "array", "items": {"type": "object"}},
           "role": {
             "enum": [
               "worker",

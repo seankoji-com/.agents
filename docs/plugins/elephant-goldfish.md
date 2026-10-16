@@ -6,6 +6,43 @@ acceptance criteria, and packages a brief that a fresh thread can execute. It ne
 starts the implementation. It can also check whether an existing design document still
 matches the repository.
 
+Factual and cold-read slots set `independent_of_author: true`. Their review lineage
+must be canonical and differ from every author recorded for the document SHA-256.
+When authorship or lineage is unknown, the job stops because independence cannot be checked. A known same-lineage fallback needs a hash-bound
+`lineage-waiver`; it waives no requirement. New jobs require verified host identity
+for the reviewer, subject and author-independent slot. Legacy jobs without the
+identity policy marker retain target-only acceptance semantics.
+
+Record discovery and spec authors with `thinking_state.py author` using a fresh
+`orchestrator_capabilities` file. Render handoffs and repair documents with the same
+`--capabilities FILE` input. Handoff authorship includes the renderer and both source
+hashes; missing source records remain unknown. `check` is read-only and never records
+the checker as an author. `elephant-goldfish/check` imports authors only for a matching
+document hash. Its factual slot must name the validated stage document. When authors
+are known, its factual worker needs verified identity and a different lineage, even
+when the slot lists other subjects. Unknown additional subjects preserve the
+requirement and fail closed. If hashes differ or authors are missing, the report says
+author independence is unverified. A direct check with unknown authorship may proceed
+read-only but cannot use a waiver to establish missing authorship. A direct factual
+authoring stage stays blocked when authorship is unknown.
+
+Plan revisions re-import authors and retain the job's existing author records.
+The sidecar order rule applies to records in the same directory. Copies or moves across
+directories and unrecorded edits are outside the trust boundary. Once enabled, author
+independence cannot be disabled by plan revision.
+A first record cannot identify earlier authorship for an unrecorded document. Author
+records are host evidence transcribed by the coordinator, not proof of freshness.
+
+A zero-slot factual fallback under `elephant-goldfish/elephant` sets stage
+`independent_of_author: true` and records each direct execution from fresh capabilities.
+Acceptance requires known authorship and an owner
+`lineage-waiver:stage:<stage-id>` decision bound to the latest executor, document hash
+and stage contract. Resuming under another model needs a replacement decision. Report
+`fallback: direct, same-lineage (waived)`. Adding, removing or changing either stage
+field through `plan-revision` also needs an owner decision.
+A direct cold-read stage cannot fall back to the coordinator; acceptance refuses it
+and keeps `R-COLD` blocked until a separate reader completes.
+
 ## Try it
 
 In a T3 thread attached to your repository:

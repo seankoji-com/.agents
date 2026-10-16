@@ -15,6 +15,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
+from shared.lineage import DRIVER_LINEAGE, FAMILY_LINEAGE, MULTI_LINEAGE_DRIVERS, lineage
 
 SCHEMA_VERSION = 1
 ROLES = ('workhorse', 'reviewer', 'judgement')
@@ -28,11 +29,6 @@ DEFAULT_RUNTIME_MODES = {'opencode': 'full-access'}  # by driverKind
 DEFAULT_REQUIRED_MODES = {'opencode'}  # by driverKind
 # Default lineage labels for a new config. A provider can serve several lineages,
 # so multi-model gateways are labelled from the model's family instead.
-DRIVER_LINEAGE = {'claudeAgent': 'anthropic', 'codex': 'openai', 'antigravity': 'google', 'grok': 'xai',
-                  'muse': 'meta'}
-FAMILY_LINEAGE = {'claude': 'anthropic', 'gpt': 'openai', 'o': 'openai', 'gemini': 'google', 'grok': 'xai',
-                  'muse': 'meta'}
-MULTI_LINEAGE_DRIVERS = {'opencode', 'cursor', 'pi'}
 
 
 class RoutingError(Exception):
@@ -61,15 +57,6 @@ def load_capabilities(path) -> dict:
     if not isinstance(data, dict) or not isinstance(data.get('providers'), list):
         raise RoutingError('capabilities_invalid', 'capabilities need a "providers" list from orchestrator_capabilities')
     return data
-
-
-def lineage(driver: str, model: str) -> str:
-    if driver not in MULTI_LINEAGE_DRIVERS and driver in DRIVER_LINEAGE:
-        return DRIVER_LINEAGE[driver]
-    family = re.match(r'[a-z]+', model.rsplit('/', 1)[-1].lower())
-    if not family:
-        return 'unknown'
-    return FAMILY_LINEAGE.get(family.group(0), family.group(0))
 
 
 def _runnable(provider: dict) -> bool:

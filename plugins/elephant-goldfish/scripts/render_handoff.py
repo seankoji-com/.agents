@@ -14,6 +14,7 @@ caller deciding anything at render time.
 
 Usage:
   render_handoff.py <slug> [--root DIR] [--template-dir DIR] [--stdout] [--draft] [--check]
+                    [--capabilities FILE]   (required unless --stdout or --check)
 """
 
 from __future__ import annotations
@@ -97,6 +98,7 @@ def main(argv=None) -> int:
     parser.add_argument("--stdout", action="store_true", help="print instead of writing handoff.md")
     parser.add_argument("--check", action="store_true", help="verify saved input/output hashes without writing")
     parser.add_argument("--draft", action="store_true", help="render/check a non-executable handoff.draft.md")
+    parser.add_argument("--capabilities", help="fresh orchestrator_capabilities JSON used to record this render author")
     args = parser.parse_args(argv)
 
     try:
@@ -124,6 +126,9 @@ def main(argv=None) -> int:
                 raise RenderError(problem)
             print("handoff provenance verified; operator review/readiness and execution authority not verified")
             return 0
+
+        if not args.stdout and not args.capabilities:
+            raise RenderError("writing a handoff requires --capabilities with a fresh orchestrator_capabilities response")
 
         tpl_dir = Path(args.template_dir) if args.template_dir else default_template_dir()
         tpl_file = tpl_dir / f"handoff.{output_type}.md"
@@ -167,6 +172,28 @@ def main(argv=None) -> int:
         }
         if not args.draft:
             manifest["review_sha256"] = gate["review_sha256"]
+        if not args.stdout:
+            try:
+                package_root = next((parent for parent in Path(__file__).resolve().parents
+                                     if (parent / "shared" / "document_authors.py").is_file()), None)
+                if package_root is None:
+                    raise RenderError("shared document-author helpers are unavailable")
+                sys.path.insert(0, str(package_root))
+                from shared.document_authors import append_author, locked_author_records
+                cap_path = Path(args.capabilities)
+                if cap_path.is_symlink() or not cap_path.is_file():
+                    raise RenderError("capabilities file must be a regular file")
+                capabilities = json.loads(cap_path.read_text(encoding="utf-8"))
+                source_hashes = [manifest["discovery_sha256"], manifest["spec_sha256"]]
+                with locked_author_records(tdir) as (records, save):
+                    # Record under the file this render writes, so a draft never
+                    # repoints handoff.md's history at draft bytes.
+                    records = append_author(records, out.encode("utf-8"), capabilities, source_hashes,
+                                            tdir / f"{stem}.md")
+                    save(records)
+                manifest["document_authors"] = records[manifest["handoff_sha256"]]
+            except (OSError, ValueError, TypeError, KeyError) as exc:
+                raise RenderError("cannot record handoff author lineage: " + str(exc)) from exc
         if args.stdout:
             sys.stdout.write(out)
         else:

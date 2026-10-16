@@ -353,6 +353,11 @@ class SyntheticJobTest(unittest.TestCase):
     def observe(self, task_id, kind, request, host):
         event = {'kind': kind, 'request_id': request, 'host_task_id': host, 'child_thread_id': 'thread-' + host,
                  'status': 'running', 'work_state': 'working', 'has_pending_child_runs': False}
+        if kind == 'accepted':
+            task = next(t for t in json.loads((self.state / 'bs-1' / 'job.json').read_text())['tasks']
+                        if t['task_id'] == task_id)
+            event['status_identity'] = {'providerInstanceId': task['target']['providerInstanceId'],
+                                        'model': task['target']['model']}
         if kind == 'completion':
             event.update(status='completed', work_state='result_available', completion_id=host + '-done')
         return self.job('task-observation', {'caller': self.caller, 'task_id': task_id, 'event': event})

@@ -21,6 +21,8 @@ class ReviewCommands:
         self.scratch = tempfile.TemporaryDirectory(prefix="thinking-review-test-")
         self.addCleanup(self.scratch.cleanup)
         self.root = Path(self.scratch.name) / "thinking"
+        self.capabilities = Path(self.scratch.name) / 'capabilities.json'
+        self.capabilities.write_bytes((ROOT / 'tests/fixtures/t3/capabilities.json').read_bytes())
         self.topic = self.root / "topic"
         self.state("init", "topic", "--output-type", "implementation")
         self.discovery = "# Discovery\nPrevent duplicate charges; credentials remain an owner gate.\n"
@@ -39,7 +41,7 @@ class ReviewCommands:
         return json.loads(self.command("thinking_state.py", *args, ok=ok, input_text=input_text).stdout)
 
     def render(self, *args, ok=True):
-        return self.command("render_handoff.py", "topic", *args, ok=ok)
+        return self.command("render_handoff.py", "topic", "--capabilities", str(self.capabilities), *args, ok=ok)
 
     def write(self, name, content):
         (self.topic / name).write_text(content, encoding="utf-8")
@@ -124,6 +126,13 @@ class ReviewCommands:
         self.assertIn("DRAFT. Non-executable.", text)
         self.assertNotIn("t3-plugins prompt imps", text)
         self.assertFalse((self.topic / "handoff.md").exists())
+        # The draft's author record names the draft file and never repoints handoff.md.
+        records = json.loads((self.topic / "document-authors.json").read_text())
+        draft_hash = hashlib.sha256(text.encode()).hexdigest()
+        draft_path = str((self.topic / "handoff.draft.md").resolve())
+        self.assertEqual(records[draft_hash]["document_path"], draft_path)
+        self.assertEqual(records["_document_paths"][draft_path]["sha256"], draft_hash)
+        self.assertNotIn(str((self.topic / "handoff.md").resolve()), records["_document_paths"])
         self.assertEqual(self.state("resolve", "topic")["next_phase"], "discovery_review")
         self.accept()
         self.assertEqual(self.state("resolve", "topic")["next_phase"], "spec")

@@ -37,6 +37,7 @@ class Pass9JobsTests(unittest.TestCase):
             with self.subTest(verdict=verdict), tempfile.TemporaryDirectory() as td:
                 helper = Pass8JobsTests(); helper.setUp(); store = helper.fx.store(td)
                 state = store.load(); state['tasks'][0]['review_required'] = True
+                state['tasks'][0]['target'] = {**TARGET, 'lineage': 'anthropic'}
                 _atomic(store.file, canonical(state))
                 result = helper.prepared(store); result['review_verdict'] = verdict
                 helper.ingest(store, result)
