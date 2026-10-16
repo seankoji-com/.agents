@@ -257,7 +257,7 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
     for key in ('requirements','dependencies','stages','tasks','constraints','authorization','policy'):
         if key not in new_plan:new_plan[key]=j.get(key)
     new_plan['policy']={**j['policy'],**new_plan['policy']}
-    task_contract={'task_id','stage_id','logical_slot_id','worker_id','dependency_key','target','write_scope','requirements','context_policy','document','max_followups','review_required','role','review_task_ids','reviewed_task_ids','reviewed_documents'};stage_contract={'id','depends_on','requirements','criteria','resources','validator_dependency','validator_contract','revision','outputs','stop_conditions','execution_mode','validator_limits'}
+    task_contract={'task_id','stage_id','logical_slot_id','worker_id','dependency_key','target','write_scope','requirements','context_policy','document','max_followups','review_required','role','review_task_ids','reviewed_task_ids','reviewed_documents','independent_of_author','document_authors'};stage_contract={'id','depends_on','requirements','criteria','resources','validator_dependency','validator_contract','revision','outputs','stop_conditions','execution_mode','validator_limits','independent_of_author','lineage_waiver','document_authors'}
     for kind,contract in (('tasks',task_contract),('stages',stage_contract)):
         identity='task_id' if kind=='tasks' else 'id'
         for candidate in new_plan[kind]:
@@ -285,7 +285,7 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
     if any(t.get('request_id') in requests(j) or t['task_id'] in {x['task_id'] for x in _tasks(j)} for t in new_plan['tasks'] if t['task_id'] not in old_task_ids) or (new_stage_ids-old_stage_ids)&{x['id'] for h in j['history'] for x in h.get('stages',[])}:raise JobError('new slots or stages cannot reuse a stage, task or request ID retained by job history')
     for old in j['stages']:
         new=next((s for s in new_plan['stages'] if s['id']==old['id']),None)
-        if new and (set(old['requirements'])!=set(new['requirements']) or set(old.get('depends_on',[]))!=set(new.get('depends_on',[])) or sorted(old.get('criteria',[]),key=canonical)!=sorted(new.get('criteria',[]),key=canonical) or any(old.get(k)!=new.get(k) for k in ('validator_contract','validator_dependency','execution_mode','outputs','validator_limits','stop_conditions','resources'))):required_decision=True;why.append('stage coverage, authority, criteria or dependency changed')
+        if new and (set(old['requirements'])!=set(new['requirements']) or set(old.get('depends_on',[]))!=set(new.get('depends_on',[])) or sorted(old.get('criteria',[]),key=canonical)!=sorted(new.get('criteria',[]),key=canonical) or any(old.get(k)!=new.get(k) for k in ('validator_contract','validator_dependency','execution_mode','outputs','validator_limits','stop_conditions','resources','independent_of_author','lineage_waiver'))):required_decision=True;why.append('stage coverage, authority, criteria or dependency changed')
     for old in j['tasks']:
         new=next((t for t in new_plan['tasks'] if t['task_id']==old['task_id']),None)
         if new and any(new.get(k)!=old.get(k) for k in task_contract-{'task_id'}):
@@ -297,10 +297,10 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
     if not _subset(new_auth,old_auth):required_decision=True;why.append('authority broadened')
     old_policy=j.get('policy',{});new_policy=new_plan.get('policy',old_policy)
     for key,value in old_policy.items():
-        candidate=new_policy.get(key,value)
-        if (isinstance(value,(int,float)) and not isinstance(value,bool) and isinstance(candidate,(int,float)) and not isinstance(candidate,bool) and candidate>value) or key=='max_live_workers' and value is not None and candidate is None:
+        if (key=='identity' and value=='observed' and new_policy.get(key,value)!='observed') or (key=='author_independence' and value is True and new_policy.get(key,value) is not True):raise JobError('observed identity policy is immutable' if key=='identity' else 'author independence policy is immutable once enabled')
+        if (isinstance(value,(int,float)) and not isinstance(value,bool) and isinstance(new_policy.get(key,value),(int,float)) and not isinstance(new_policy.get(key,value),bool) and new_policy.get(key,value)>value) or key=='max_live_workers' and value is not None and new_policy.get(key,value) is None:
             required_decision=True;why.append(f'limit raised: {key}')
-        elif candidate!=value and key not in ('max_repair_cycles','max_live_workers','max_artifact_bytes'):
+        elif new_policy.get(key,value)!=value and key not in ('max_repair_cycles','max_live_workers','max_artifact_bytes'):
             required_decision=True;why.append(f'policy changed: {key}')
     decision_id=revision.get('owner_decision_id');decision=next((d for d in j['decisions'] if d.get('id')==decision_id and d.get('scope')==f"plan:{revision['id']}" and _owner_current(d,j['policy']['max_artifact_bytes'])),None)
     if required_decision and decision is None:raise JobError('undeclared_expansion: owner decision required for '+', '.join(why))

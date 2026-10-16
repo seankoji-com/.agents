@@ -93,11 +93,31 @@ The reviewer comes from a different model lineage than the implementer when one 
 available. Lineage is the `lineage` field on each model in the routing config, never
 the provider name, because one provider such as OpenCode serves several lineages.
 `resolve reviewer --implementer-lineage <lineage>` lists independent candidates first;
-try each of them before any same-lineage one. Without lineage data, report reviewer
-independence as unverified.
+try each of them before any same-lineage one. Until provenance is verified, report
+`lineage per routing config (labels unverified)`.
 Fall back to the same lineage only when no other is available, never because a review
 was adverse. An adverse review is final for that revision. Explicit repository review
 policy wins over all of this.
+
+New jobs carry `policy.identity: observed`. Acceptance requires verified host identity
+for required reviewers and their subjects, and for every slot marked
+`independent_of_author`. Authoring jobs enforce lineage checks from
+`policy.author_independence` even if a slot omits its flag. Review preparation still checks declared targets before
+dispatch. Jobs without the marker keep target-only semantics.
+
+Document authorship is keyed by SHA-256. Each sidecar record has a monotonic order. Recording path P unions P's previous hash, every sidecar record written since P was last recorded, and the coordinator. Importing P uses its previous hash and later records, without adding the creating coordinator. Old records without an order count as older than ordered records. This can over-include unrelated authors and refuse legitimate work. Copies or moves across sidecars and edits that were never recorded remain outside the trust boundary. If P has no current-hash record but its pointer names a different hash, re-recording follows the same union rule. Plan revisions retain existing job authors. Once enabled, `policy.author_independence` cannot be disabled, including with an owner decision.
+A reviewer needs a canonical routing lineage different from every recorded author. If authorship or reviewer lineage is unknown, the job stops because independence cannot be checked. A `lineage-waiver` is an owner decision bound to the target,
+author list, full slot contract and document hash; it waives no requirement. These records are
+host evidence transcribed by the coordinator. Shape checks do not prove freshness or
+detect a forged capabilities file.
+For elephant-goldfish documents, record each coordinator write with fresh
+`orchestrator_capabilities`. `thinking_state.py author` records discovery and spec;
+`render_handoff.py --capabilities` unions renderer and source authors.
+`document-revision --capabilities` validates first, then unions existing new-hash
+authors, inherited authors and the repairer. Missing source provenance stays unknown.
+`record_document_author.py <path> --capabilities FILE` records `elephant.md`. The authoring policy is enabled only for `elephant-goldfish/thinking` and `elephant-goldfish/elephant`. `elephant-goldfish/check` imports matching-hash authors for its factual slot and requires a different lineage and verified identity when authors are known. A checked slot must name the stage's validated document. Unknown additional subjects make the result stricter; they never remove the author-independence requirement. A zero-slot direct factual check with recorded authors needs a `direct-execution` record and a stage-scoped waiver bound to the latest executor. With no author record, the read-only check may proceed with author independence reported as unverified; a waiver cannot establish missing authorship. Direct factual authoring stages stay blocked when authorship is unknown, even with a waiver.
+
+A direct cold-read stage is not a fallback. It cannot be accepted from the coordinator's own observation; keep `R-COLD` blocked until a separate reader completes.
 
 ## Observed execution identity
 

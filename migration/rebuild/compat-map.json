@@ -1158,6 +1158,14 @@
       "interface": "render_handoff.py SLUG [--root] [--template-dir] [--stdout|--check] [--draft]"
     },
     {
+      "path": "plugins/elephant-goldfish/scripts/record_document_author.py",
+      "kind": "python-cli",
+      "disposition": "change",
+      "stage": 4,
+      "reason": "Records elephant.md author lineage from a fresh capabilities response, keyed by the document hash.",
+      "interface": "record_document_author.py DOCUMENT --capabilities FILE"
+    },
+    {
       "path": "plugins/elephant-goldfish/scripts/thinking_state.py",
       "kind": "python-cli",
       "disposition": "change",

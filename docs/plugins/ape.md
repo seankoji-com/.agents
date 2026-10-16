@@ -72,3 +72,7 @@ existing data.
 ape stays read-only in your project. It never executes third-party code, and it never
 starts implementing a recommendation without a separate request. Unit tests don't show
 how a given model behaves; see [compatibility](../compatibility.md).
+
+Shared jobs record host execution identity and enforce author-lineage independence
+for document workflows. A first author record cannot identify earlier authors of an
+unrecorded document. Direct cold-read stages cannot fall back to the coordinator.

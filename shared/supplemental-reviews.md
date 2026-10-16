@@ -206,8 +206,9 @@ launch alongside read-only primary work; never alongside an implementation write
 Do not grant extras mandatory evidence-generation duties.
 
 Pass `current_tree_hash` from a new coordinator observation on status intake and
-close. Missing or different hashes close intake, clear optional findings and record
-`workspace_drift`; cleanup handles remain owned. Inspect changed paths and owned
+close. Missing or different hashes close intake, skip uningested requests and record
+`workspace_drift`. Already ingested results, findings, outcomes and bound dispositions
+remain evidence at the issued snapshot; cleanup handles remain owned. Inspect changed paths and owned
 task evidence to attribute drift, including suspected supplemental writes. Never
 assert attribution without evidence or restore unrelated changes. Record the cause
 in the coordinator report, cancel extras and disable them for the replacement round.

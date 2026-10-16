@@ -18,6 +18,7 @@ import json
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _SCRIPT_PATH = os.path.join(
@@ -159,6 +160,26 @@ class TestInit(unittest.TestCase):
             self.assertFalse(os.path.exists("thinking"))
 
 
+class TestDocumentAuthorRecords(unittest.TestCase):
+    def test_author_records_exact_hash_and_refuses_missing_capability_fields(self):
+        with sandbox():
+            run(["init", "topic", "--output-type", "research"])
+            write("thinking/topic/discovery.md", "A synthetic discovery.\n")
+            capabilities = os.path.join(_HERE, "fixtures", "t3", "capabilities.json")
+            code, out = run(["author", "topic", "discovery.md", "--capabilities", capabilities])
+            self.assertEqual(code, 0, out)
+            record = json.loads(Path("thinking/topic/document-authors.json").read_text(encoding="utf-8"))
+            self.assertIn(out["sha256"], record)
+            self.assertEqual(record[out["sha256"]]["authors"][0]["lineage"], "anthropic")
+            missing = "capabilities-missing.json"
+            caps = json.loads(Path(capabilities).read_text(encoding="utf-8"))
+            caps.pop("inheritedModel")
+            write(missing, json.dumps(caps))
+            code, error = run(["author", "topic", "discovery.md", "--capabilities", missing])
+            self.assertEqual(code, 1)
+            self.assertIn("inherited", error["error"])
+
+
 class TestPhaseProgression(unittest.TestCase):
     def _topic(self):
         run(["init", "t", "--output-type", "research"])
@@ -175,7 +196,8 @@ class TestPhaseProgression(unittest.TestCase):
             self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "handoff")
             import subprocess
             import sys
-            subprocess.run([sys.executable, os.path.join(os.path.dirname(_SCRIPT_PATH), "render_handoff.py"), "t"],
+            subprocess.run([sys.executable, os.path.join(os.path.dirname(_SCRIPT_PATH), "render_handoff.py"), "t",
+                            "--capabilities", os.path.join(_HERE, "fixtures", "t3", "capabilities.json")],
                            check=True, capture_output=True)
             self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "complete")
 

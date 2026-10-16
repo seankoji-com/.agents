@@ -372,8 +372,9 @@ def check_tree(state, event):
                                     'attribution': 'unverified-parent-workspace-drift'}
         state['closed'] = True
         for request in state['requests']:
-            request['findings'] = []
-            request['outcome'] = 'skipped-workspace-drift'
+            if request['outcome'] != 'untrusted-evidence':
+                request['findings'] = []
+                request['outcome'] = 'skipped-workspace-drift'
         return False
     return True
 
@@ -438,6 +439,8 @@ def record(state, event):
     target = request['dispatch']['target']
     if any(obs.get(k) is not None and obs[k] != target[k] for k in ('providerInstanceId', 'model')):
         request['identity_mismatch'] = True
+    if kind == 'status' and not state['closed'] and not check_tree(state, event):
+        return
     # A completed intake is immutable evidence at its issued snapshot. Further
     # notifications only update handle liveness and sticky mismatch diagnostics;
     # they cannot erase a finding referenced by a coordinator disposition.
@@ -449,8 +452,6 @@ def record(state, event):
             request['outcome'] = 'skipped-identity-or-handle-mismatch'
         elif request['outcome'] in ('reserved', 'skipped-launch-uncertain'):
             request['outcome'] = 'pending' if not state['closed'] else 'skipped-closed'
-        return
-    if not state['closed'] and not check_tree(state, event):
         return
     request['findings'] = []
     if state['closed']:

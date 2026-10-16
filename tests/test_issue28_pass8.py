@@ -14,6 +14,8 @@ from tests import test_jobs_review_r3 as job_fixtures
 class Pass8JobsTests(unittest.TestCase):
     def setUp(self):
         self.fx = job_fixtures.Stage3Repair5Tests(); self.fx.setUp()
+    def test_shared_issue28_fixture_carries_observed_identity_policy(self):
+        self.assertEqual(self.fx.fx.base_job()['policy']['identity'], 'observed')
     def prepared(self, store):
         ref = prepare(store, self.fx.caller(), 't0', lambda *_: True, lambda *_: True)
         brief = json.loads(Path(ref['path']).read_text())
@@ -24,7 +26,30 @@ class Pass8JobsTests(unittest.TestCase):
         result['requirements'] = [{'id':r['id'],'status':'passed','evidence':['fixture']} for r in brief['requirements']]
         return result
     def ingest(self, store, result, outer=None):
-        return record_result(store, self.fx.caller(), 't0', {'request_id':outer or result['request_id'], 'completion_id':result['request_id']+'-done','result':json.dumps(result).encode()})
+        request = result['request_id']; task = next(t for t in store.load()['tasks'] if t['task_id'] == 't0')
+        if task.get('review_required'):
+            target = task.get('target') or {'providerInstanceId':'claudeAgent','model':'claude-haiku-0','lineage':'anthropic'}
+            if not task.get('target'):
+                state = store.load(); state['tasks'][0]['target'] = target; _atomic(store.file, canonical(state))
+                task = next(t for t in store.load()['tasks'] if t['task_id'] == 't0')
+            owned = task.get('handles', []) + task.get('followups', [])
+            host = 'synthetic-' + request
+            if not any(h.get('request_id') == request for h in owned):
+                record_dispatch(store, self.fx.caller(), 't0', {'kind':'accepted','request_id':request,
+                    'host_task_id':host,'status':'running','work_state':'working',
+                    'has_pending_child_runs':False,'status_identity':{'providerInstanceId':target['providerInstanceId'],
+                    'model':target['model']}})
+            record = record_result(store, self.fx.caller(), 't0', {'request_id':outer or request,
+                'completion_id':request+'-done','result':json.dumps(result).encode()})
+            task = next(t for t in store.load()['tasks'] if t['task_id'] == 't0')
+            handle = next((h for h in task.get('handles', []) if h.get('request_id') == request), None)
+            if handle and handle.get('status') not in ('completed','failed','cancelled','interrupted'):
+                record_dispatch(store, self.fx.caller(), 't0', {'kind':'completion','request_id':request,
+                    'host_task_id':host,'completion_id':request+'-done','status':'completed',
+                    'work_state':'result_available','has_pending_child_runs':False})
+            return record
+        return record_result(store, self.fx.caller(), 't0', {'request_id':outer or result['request_id'],
+            'completion_id':result['request_id']+'-done','result':json.dumps(result).encode()})
     def test_omitted_policy_limit_is_retained_and_explicit_removal_needs_owner(self):
         with tempfile.TemporaryDirectory() as td:
             store = self.fx.store(td); state = store.load(); state['policy']['max_live_workers']=2

@@ -383,7 +383,7 @@ class LifecycleTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 reviews.result(raw, self.state['context'])
 
-    def test_workspace_drift_closes_intake_clears_findings_and_retains_cleanup(self):
+    def test_workspace_drift_closes_intake_skips_uningested_and_retains_cleanup(self):
         event = observation(self.state, status='running')
         event.update(current_tree_hash='e' * 64)
         reviews.record(self.state, event)
@@ -391,15 +391,77 @@ class LifecycleTest(unittest.TestCase):
         self.assertEqual(self.state['workspace_drift']['observed_tree_hash'], 'e' * 64)
         self.assertIn('task-fixture', reviews.overview(self.state)['cancel_task_ids'])
         self.assertTrue(all(r['outcome'] == 'skipped-workspace-drift' for r in self.state['requests']))
-        state = reviews.prepare(fixture(), NOW)
-        reviews.record(state, observation(state))
-        reviews.close(state, {'current_tree_hash': 'e' * 64})
-        self.assertEqual(state['requests'][0]['findings'], [])
-        self.assertNotIn('attempt', state)
+        self.assertNotIn('attempt', self.state)
         with self.assertRaises(ValueError):
             data = fixture()
             data['context'].pop('tree_hash')
             reviews.prepare(data, NOW)
+
+    def _ingest_bound_finding(self):
+        reviews.record(self.state, observation(self.state))
+        request = self.state['requests'][0]
+        reviews.disposition(self.state, {
+            'request_id': request['request_id'], 'finding_index': 0,
+            'finding_sha256': reviews.digest(request['findings'][0]), 'revision': 'a' * 40,
+            'disposition': 'confirmed', 'evidence': 'Verified fixture reproduction',
+            'repair_route': 'Ralph stop/report/rerun under remaining budget'})
+        return deepcopy(request), deepcopy(self.state['dispositions'])
+
+    def _assert_bound_evidence_preserved(self, saved_request, saved_dispositions):
+        request = self.state['requests'][0]
+        for key in ('result', 'findings', 'coverage', 'outcome'):
+            self.assertEqual(request[key], saved_request[key])
+        self.assertEqual(self.state['dispositions'], saved_dispositions)
+        self.assertEqual(reviews.digest(request['findings'][0]),
+                         saved_dispositions[0]['finding_sha256'])
+        self.assertTrue(self.state['closed'])
+        self.assertTrue(all(r['outcome'].startswith('skipped-') and not r['findings']
+                            for r in self.state['requests'][1:]))
+
+    def test_drifted_status_of_another_request_preserves_bound_evidence(self):
+        saved = self._ingest_bound_finding()
+        event = observation(self.state, status='running', task='other-owned-task')
+        other = self.state['requests'][1]
+        event.update(request_id=other['request_id'], current_tree_hash='e' * 64)
+        event['observation'].update(other['dispatch']['target'])
+        reviews.record(self.state, event)
+        self._assert_bound_evidence_preserved(*saved)
+        self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], ['other-owned-task'])
+        # A completion after drift remains ineligible for intake, but proves stop.
+        event['observation']['status'] = 'completed'
+        reviews.record(self.state, event)
+        self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], [])
+        self._assert_bound_evidence_preserved(*saved)
+
+    def test_drifted_close_preserves_bound_evidence(self):
+        saved = self._ingest_bound_finding()
+        reviews.close(self.state, {'current_tree_hash': 'e' * 64})
+        self._assert_bound_evidence_preserved(*saved)
+        self.assertEqual(self.state['workspace_drift']['observed_tree_hash'], 'e' * 64)
+        self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], [])
+
+    def test_drifted_status_and_repeated_close_preserve_evidence_and_liveness(self):
+        saved = self._ingest_bound_finding()
+        event = observation(self.state)
+        event.update(current_tree_hash='e' * 64)
+        event['observation'].update(hasPendingChildRuns=True, summary='Later child active')
+        reviews.record(self.state, event)
+        self._assert_bound_evidence_preserved(*saved)
+        self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], ['task-fixture'])
+        with self.assertRaises(ValueError):
+            reviews.record(self.state, {'request_id': event['request_id'],
+                                        'kind': 'cancel-requested', 'task_id': 'unowned-task'})
+        reviews.record(self.state, {'request_id': event['request_id'],
+                                    'kind': 'cancel-requested', 'task_id': 'task-fixture'})
+        for tree_hash in ('e' * 64, 'd' * 64, None):
+            reviews.close(self.state, {'current_tree_hash': tree_hash})
+            reviews.record(self.state, event)
+            self._assert_bound_evidence_preserved(*saved)
+            self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], ['task-fixture'])
+        event['observation']['hasPendingChildRuns'] = False
+        reviews.record(self.state, event)
+        self._assert_bound_evidence_preserved(*saved)
+        self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], [])
 
     def test_bound_coordinator_dispositions_have_explicit_workflow_repair_routes(self):
         reviews.record(self.state, observation(self.state))

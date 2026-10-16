@@ -81,7 +81,9 @@ checkout and verify its HEAD and base, using repository-relative scope paths.
 Extras cannot run tests, builds, installs, project code or other commands that
 write files or start processes. They inspect source only. The coordinator records
 a workspace content hash at prepare and compares fresh hashes at intake and close.
-Drift closes optional intake and retains cleanup handles. The coordinator inspects
+Drift closes optional intake and skips uningested requests. Ingested results, findings,
+outcomes and bound dispositions remain evidence at the issued snapshot, with cleanup
+handles retained. The coordinator inspects
 the changed paths and task evidence to establish the cause, then disables extras
 for any replacement round. Unexpected supplemental writes require fresh primary
 evaluation at the resolved snapshot without charging a mandatory repair attempt.

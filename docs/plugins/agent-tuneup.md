@@ -272,3 +272,5 @@ shows the supported formats.
 
 `scan --provider claude` counts tool calls in recent local transcripts. Those counts
 don't authorize permission changes. Don't share private transcripts.
+
+Jobs created through the shared CLI carry `policy.identity: observed`. Required reviewer executions, their subjects, and slots marked `independent_of_author` need verified host identity at acceptance. Authoring jobs enforce author-lineage checks from `policy.author_independence`, even if a slot omits its flag. Legacy jobs without the identity marker retain target-only acceptance semantics. A first author record cannot identify earlier authors of an unrecorded document. Direct cold-read stages cannot fall back to the coordinator.

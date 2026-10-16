@@ -26,7 +26,7 @@ class JobStateTests(unittest.TestCase):
    for marker in ('private-objective-marker','private-snapshot-marker','private-output-marker','private-requirement-marker'):self.assertNotIn(marker,text)
    self.assertEqual(brief['document'],job['tasks'][0]['document']);self.assertEqual(brief['requirements'],[{'id':'R1'}])
  def base(self):
-  return {'schema_version':1,'job_id':'job-1','installation_id':'install-1','workflow':'imps/run','owner':'coordinator','objective':'x','requirements':{'R1':'keep evidence'},'authorization':{'actions':['edit']},'constraints':['no network'],'dependencies':[{'key':'imps','plugin':'imps'}],'pins':{'imps':{'package_digest':'c'*64}},'result_contract':{'schema_version':1},'policy':{'max_repair_cycles':3,'max_artifact_bytes':16777216},'stages':[{'id':f's{i}','depends_on':[f's{i-1}'] if i else [],'requirements':['R1'],'status':'pending','attempts':{'primary':0,'support':0,'review':0,'final':0},'acceptance':None} for i in range(5)],'tasks':[{'task_id':'t0','stage_id':'s0','logical_slot_id':'primary','request_id':'req0','worker_id':'imps/stage-executor','dependency_key':'imps','status':'pending','attempt':0,'handles':[],'followups':[],'dispatch_retries':0,'dispatch_history':[]}],'decisions':[],'history':[],'metrics':{}}
+  return {'schema_version':1,'job_id':'job-1','installation_id':'install-1','workflow':'imps/run','owner':'coordinator','objective':'x','requirements':{'R1':'keep evidence'},'authorization':{'actions':['edit']},'constraints':['no network'],'dependencies':[{'key':'imps','plugin':'imps'}],'pins':{'imps':{'package_digest':'c'*64}},'result_contract':{'schema_version':1},'policy':{'identity':'observed','max_repair_cycles':3,'max_artifact_bytes':16777216},'stages':[{'id':f's{i}','depends_on':[f's{i-1}'] if i else [],'requirements':['R1'],'status':'pending','attempts':{'primary':0,'support':0,'review':0,'final':0},'acceptance':None} for i in range(5)],'tasks':[{'task_id':'t0','stage_id':'s0','logical_slot_id':'primary','request_id':'req0','worker_id':'imps/stage-executor','dependency_key':'imps','status':'pending','attempt':0,'handles':[],'followups':[],'dispatch_retries':0,'dispatch_history':[]}],'decisions':[],'history':[],'metrics':{}}
  def test_five_stage_overview_and_restart(self):
   with tempfile.TemporaryDirectory() as d:
    s=Store(d,'job-1');s.create(self.base());r=Store(d,'job-1');o=r.overview();self.assertEqual(len(o['stages']),5);self.assertEqual(o['requirement_coverage']['R1'][0]['stage'],'s0')
@@ -47,6 +47,32 @@ class JobStateTests(unittest.TestCase):
    fixture_decision(s,caller,{'id':'owner-1','quote':'approve revision','source':'operator decision','source_sha256':'d'*64,'scope':'plan:rev-1'})
    revise_plan(s,caller,{'id':'rev-1','owner_decision_id':'owner-1'},new)
    after=s.load();self.assertEqual(after['requirements']['R1'],'weakened');self.assertEqual(after['history'][-1]['requirements'],j['requirements'])
+ def test_author_lineage_stage_contract_edits_require_owner_decisions(self):
+  from core.jobs import revise_plan
+  cases=(('add-independent',{}, {'independent_of_author':True}),
+         ('remove-independent',{'independent_of_author':True},{}),
+         ('change-independent',{'independent_of_author':True},{'independent_of_author':False}),
+         ('add-waiver',{}, {'lineage_waiver':{'scope':'lineage-waiver:stage:s0'}}),
+         ('remove-waiver',{'lineage_waiver':{'scope':'lineage-waiver:stage:s0'}},{}),
+         ('change-waiver',{'lineage_waiver':{'scope':'lineage-waiver:stage:s0'}},
+          {'lineage_waiver':{'scope':'lineage-waiver:stage:s0','binding':'changed'}}))
+  for name,old_fields,new_fields in cases:
+   with self.subTest(case=name), tempfile.TemporaryDirectory() as d:
+    s=Store(d,'job-1');j=self.base();j['policy']['identity']='observed';j['stages'][0].update(old_fields)
+    j['pins']={'imps':{'package_digest':'c'*64,'compatible_pinned_invocation':'t3-plugins --job /tmp/j path imps'}}
+    s.create(j);caller={'installation_id':'install-1','workflow':'imps/run','package_digest':'c'*64,'actor':'coordinator'}
+    plan={k:json.loads(json.dumps(s.load()[k])) for k in ('requirements','dependencies','stages','tasks','constraints','authorization','policy')}
+    stage=plan['stages'][0]
+    for field in ('independent_of_author','lineage_waiver'):stage.pop(field,None)
+    stage.update(new_fields)
+    revision={'id':'lineage-'+name}
+    with self.assertRaisesRegex(JobError,'undeclared_expansion'):
+     revise_plan(s,caller,revision,plan)
+    fixture_decision(s,caller,{'id':'owner-'+name,'quote':'owner approves '+name,
+      'scope':'plan:'+revision['id'],'requirement_ids':[]})
+    revise_plan(s,caller,{**revision,'owner_decision_id':'owner-'+name},plan)
+    self.assertEqual(s.load()['stages'][0].get('independent_of_author'),new_fields.get('independent_of_author'))
+    self.assertEqual(s.load()['stages'][0].get('lineage_waiver'),new_fields.get('lineage_waiver'))
  def test_strict_json_duplicate_and_nan(self):
   from core.jobs.store import strict_load
   for raw in (b'{"x":1,"x":2}',b'{"x":NaN}'):
@@ -138,6 +164,24 @@ class JobStateTests(unittest.TestCase):
    job=self.base();job['policy']['max_artifact_bytes']=32*1024*1024;job['pins']={}
    create_job(job,d,{'imps':{'package_digest':'c'*64}});self.assertEqual(Store(d,'job-1').load()['policy']['max_artifact_bytes'],32*1024*1024)
 
+ def test_observed_identity_policy_cannot_be_removed_by_plan_revision(self):
+  from core.jobs import revise_plan
+  with tempfile.TemporaryDirectory() as d:
+   job=self.base();job['policy']['identity']='observed';store=Store(d,'job-1');store.create(job)
+   caller={'installation_id':'install-1','workflow':'imps/run','package_digest':'c'*64,'actor':'coordinator'}
+   changed=store.load();changed['policy']['identity']='legacy'
+   with self.assertRaisesRegex(JobError,'identity policy is immutable'):
+    revise_plan(store,caller,{'id':'remove-identity'},changed)
+
+ def test_author_independence_policy_cannot_be_removed_in_core_plan_revision(self):
+  from core.jobs import revise_plan
+  with tempfile.TemporaryDirectory() as d:
+   job=self.base();job['policy']['author_independence']=True;store=Store(d,'job-1');store.create(job)
+   caller={'installation_id':'install-1','workflow':'imps/run','package_digest':'c'*64,'actor':'coordinator'}
+   changed=store.load();changed['policy']['author_independence']=False
+   with self.assertRaisesRegex(JobError,'author independence policy is immutable'):
+    revise_plan(store,caller,{'id':'remove-author-independence'},changed)
+
  def test_dependency_adoption_preserves_unchanged_pins_limits_and_owner_boundary(self):
   from core.jobs import revise_plan,decision
   from shared.job_coordinator import create_pinned_job,adopt_pins,verify_all_pins
@@ -152,7 +196,7 @@ class JobStateTests(unittest.TestCase):
     target=agents/'overrides'/(worker_id+'.md');target.parent.mkdir(parents=True,exist_ok=True);target.write_text(f'---\nworker_id: {worker_id}\n---\nfixture owner enabled override\n')
     override_rows.append({'worker_id':worker_id,'base_bundle_digest':manifest['bundle_digest'],'path':worker_id+'.md','enabled':True})
    config.parent.mkdir(parents=True,exist_ok=True);config.write_text(json.dumps({'schema_version':1,'max_live_workers':2,'max_repair_cycles':3,'overrides':override_rows}))
-   job=self.base();job['pins']={};job['dependencies']=[{'key':'imps','plugin':'imps'},{'key':'babysitter','plugin':'babysitter'}];job['policy']={'max_repair_cycles':3,'max_artifact_bytes':32*1024*1024,'max_live_workers':2};job['stages'][0]['validator_dependency']='imps'
+   job=self.base();job['pins']={};job['dependencies']=[{'key':'imps','plugin':'imps'},{'key':'babysitter','plugin':'babysitter'}];job['policy']={'identity':'observed','max_repair_cycles':3,'max_artifact_bytes':32*1024*1024,'max_live_workers':2};job['stages'][0]['validator_dependency']='imps'
    create_pinned_job(job,state,prefix,agents,config);store=Store(state,'job-1');original=store.load()['pins'];caller={'installation_id':store.load()['installation_id'],'workflow':'imps/run','package_digest':original['imps']['package_digest'],'actor':'coordinator'}
    self.assertEqual(original['imps']['effective_workers']['imps/stage-executor']['override_status'],'enabled')
    self.assertEqual(original['babysitter']['effective_workers']['babysitter/pr-maintainer']['override_status'],'enabled')

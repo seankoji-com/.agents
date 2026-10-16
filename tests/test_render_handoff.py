@@ -20,6 +20,7 @@ from unittest import mock
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _PLUGIN = os.path.join(_HERE, "..", "plugins", "elephant-goldfish")
 _TEMPLATES = os.path.join(_PLUGIN, "templates")
+_CAPABILITIES = os.path.join(_HERE, "fixtures", "t3", "capabilities.json")
 
 
 def _load(name, filename):
@@ -70,6 +71,8 @@ def read(path):
 
 def run(argv):
     buf, err = io.StringIO(), io.StringIO()
+    if "--stdout" not in argv and "--check" not in argv and "--capabilities" not in argv:
+        argv = argv + ["--capabilities", _CAPABILITIES]
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(err):
         code = rh.main(argv + ["--template-dir", _TEMPLATES])
     return code, buf.getvalue(), err.getvalue()
@@ -130,6 +133,16 @@ class TestRenderCLIWithBraceContent(unittest.TestCase):
             for token in ("{{API_KEY}}", "{{USER_ID}}", "{{TOKEN}}"):
                 self.assertIn(token, body)
 
+    def test_writing_without_capabilities_is_refused_and_writes_nothing(self):
+        for extra in ([], ["--draft"]):
+            with self.subTest(extra=extra), topic():
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                    code = rh.main(["t", *extra, "--template-dir", _TEMPLATES])
+                self.assertEqual(code, 1)
+                self.assertIn("writing a handoff requires --capabilities", err.getvalue())
+                self.assertEqual(sorted(os.listdir("thinking/t")), ["discovery.md", "meta.json", "spec.md"])
+
 
 class TestRenderCLI(unittest.TestCase):
     def test_boundary_whitespace_and_line_endings_are_preserved(self):
@@ -155,6 +168,9 @@ class TestRenderCLI(unittest.TestCase):
             self.assertIn("A Title", body)
             self.assertNotIn("{{", body)
             self.assertIn("thinking/t/handoff.md", out)
+            manifest = json.loads(read("thinking/t/handoff.manifest.json"))
+            records = json.loads(read("thinking/t/document-authors.json"))
+            self.assertTrue(records[manifest["handoff_sha256"]]["unknown"])
 
     def test_research_and_implementation_use_different_templates(self):
         with topic(output_type="research"):
@@ -312,16 +328,40 @@ class TestHandoffManifest(unittest.TestCase):
 
 class TestWriteFailures(unittest.TestCase):
     def test_write_failures_return_clean_diagnostic_and_preserve_handoff(self):
-        for operation in ('mkstemp', 'replace'):
-            with self.subTest(operation=operation), topic():
+        real_replace, real_mkstemp = os.replace, tempfile.mkstemp
+
+        def replace_failing(name):
+            def replace(src, dst, *args, **kwargs):
+                if os.path.basename(str(dst)) == name:
+                    raise OSError('fixture disk failure')
+                return real_replace(src, dst, *args, **kwargs)
+            return replace
+
+        def mkstemp_failing(prefix):
+            def mkstemp(*args, **kwargs):
+                if str(kwargs.get('prefix', '')).startswith(prefix):
+                    raise OSError('fixture disk failure')
+                return real_mkstemp(*args, **kwargs)
+            return mkstemp
+
+        # Each failure point is reached in turn: the author record is written
+        # before the handoff, so the handoff cases need the record write to succeed.
+        cases = (('author record replace', rh.os, 'replace', replace_failing('document-authors.json'), True),
+                 ('author record mkstemp', rh.tempfile, 'mkstemp', mkstemp_failing('.document-authors.json.'), True),
+                 ('handoff replace', rh.os, 'replace', replace_failing('handoff.md'), False),
+                 ('handoff mkstemp', rh.tempfile, 'mkstemp', mkstemp_failing('handoff.md.'), False))
+        for label, target, operation, side_effect, in_author_record in cases:
+            with self.subTest(label), topic():
                 write('thinking/t/handoff.md', 'previous handoff')
-                target = rh.tempfile if operation == 'mkstemp' else rh.os
-                with mock.patch.object(target, operation, side_effect=OSError('fixture disk failure')):
+                with mock.patch.object(target, operation, side_effect=side_effect):
                     code, out, err = run(['t'])
                 self.assertEqual(code, 1)
-                self.assertIn('render_handoff: fixture disk failure', err)
+                expected = ('render_handoff: cannot record handoff author lineage: fixture disk failure'
+                            if in_author_record else 'render_handoff: fixture disk failure')
+                self.assertEqual(err.strip(), expected)
                 self.assertEqual(read('thinking/t/handoff.md'), 'previous handoff')
-                self.assertFalse(any(name.startswith('handoff.md.') for name in os.listdir('thinking/t')))
+                self.assertFalse(any(name.startswith(('handoff.md.', '.document-authors.json.'))
+                                     for name in os.listdir('thinking/t')))
 
 
 if __name__ == "__main__":

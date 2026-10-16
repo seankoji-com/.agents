@@ -36,7 +36,7 @@
           },
           {
             "selector": "test_supplemental_reviews.LifecycleTest",
-            "tests": 12,
+            "tests": 15,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",
