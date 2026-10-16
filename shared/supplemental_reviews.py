@@ -28,6 +28,7 @@ SOURCES = {
     'opencode-go': 'https://opencode.ai/v2/docs/console/go/',
 }
 TERMINAL = {'completed', 'failed', 'cancelled', 'interrupted'}
+OPEN_OUTCOMES = {'reserved', 'pending', 'skipped-pending'}
 MAX_RESULT_BYTES = 32768
 
 
@@ -364,7 +365,9 @@ def result(raw, ctx):
 
 
 def check_tree(state, event):
-    """Compare coordinator observations, without executing repository code."""
+    """Compare only during open intake; retain the first drift observation."""
+    if state['closed']:
+        return False
     current = event.get('current_tree_hash')
     if current != state['context'].get('tree_hash') or current is None:
         state['workspace_drift'] = {'issued_tree_hash': state['context'].get('tree_hash'),
@@ -372,7 +375,7 @@ def check_tree(state, event):
                                     'attribution': 'unverified-parent-workspace-drift'}
         state['closed'] = True
         for request in state['requests']:
-            if request['outcome'] != 'untrusted-evidence':
+            if request['outcome'] in OPEN_OUTCOMES:
                 request['findings'] = []
                 request['outcome'] = 'skipped-workspace-drift'
         return False
@@ -407,11 +410,12 @@ def record(state, event):
                 raise ValueError('cancellation must name an owned task_id')
             saved_event['task_id'] = event['task_id']
         request['events'].append(saved_event)
-        if kind == 'launch-error':
+        if kind == 'launch-error' and not state['closed']:
             request['outcome'] = 'skipped-launch-uncertain'
         elif kind in ('launch-rejected', 'not-dispatched'):
             request['no_launch'] = True
-            request['outcome'] = 'skipped-' + kind
+            if not state['closed']:
+                request['outcome'] = 'skipped-' + kind
         return
     if kind not in ('receipt', 'status'):
         raise ValueError('unknown observation kind')
@@ -441,23 +445,21 @@ def record(state, event):
         request['identity_mismatch'] = True
     if kind == 'status' and not state['closed'] and not check_tree(state, event):
         return
-    # A completed intake is immutable evidence at its issued snapshot. Further
+    # Closed intake and completed results keep their original outcomes. Further
     # notifications only update handle liveness and sticky mismatch diagnostics;
     # they cannot erase a finding referenced by a coordinator disposition.
-    if request['outcome'] == 'untrusted-evidence':
+    if state['closed'] or request['outcome'] == 'untrusted-evidence':
         return
     if kind != 'status':
         if request.get('identity_mismatch') or request.get('run_mismatch') or len(request['handles']) != 1:
             request['findings'] = []
             request['outcome'] = 'skipped-identity-or-handle-mismatch'
         elif request['outcome'] in ('reserved', 'skipped-launch-uncertain'):
-            request['outcome'] = 'pending' if not state['closed'] else 'skipped-closed'
+            request['outcome'] = 'pending'
         return
     request['findings'] = []
-    if state['closed']:
-        request['outcome'] = 'skipped-closed'
-    elif (event.get('current_revision') != state['context']['revision']
-          or event.get('current_base_revision') != state['context']['base_revision']):
+    if (event.get('current_revision') != state['context']['revision']
+            or event.get('current_base_revision') != state['context']['base_revision']):
         request['outcome'] = 'skipped-stale-revision'
     elif request.get('identity_mismatch') or request.get('run_mismatch') or len(request['handles']) != 1:
         request['outcome'] = 'skipped-identity-or-handle-mismatch'
@@ -493,10 +495,12 @@ def overview(state):
 
 
 def close(state, event):
+    if state['closed']:
+        return
     check_tree(state, event)
     state['closed'] = True
     for request in state['requests']:
-        if request['outcome'] in ('reserved', 'pending', 'skipped-pending'):
+        if request['outcome'] in OPEN_OUTCOMES:
             request['outcome'] = 'skipped-round-ended'
 
 

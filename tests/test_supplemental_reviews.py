@@ -440,6 +440,82 @@ class LifecycleTest(unittest.TestCase):
         self.assertEqual(self.state['workspace_drift']['observed_tree_hash'], 'e' * 64)
         self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], [])
 
+    def test_clean_close_is_idempotent_after_tree_changes_or_missing_hash(self):
+        saved = self._ingest_bound_finding()
+        rejected = self.state['requests'][2]
+        reviews.record(self.state, {'request_id': rejected['request_id'], 'kind': 'launch-rejected'})
+        reviews.close(self.state, {'current_tree_hash': 'd' * 64})
+        closed = deepcopy(self.state)
+        self.assertEqual([r['outcome'] for r in self.state['requests']],
+                         ['untrusted-evidence', 'skipped-round-ended', 'skipped-launch-rejected'])
+        for event in ({'current_tree_hash': 'f' * 64}, {}, {'current_tree_hash': None}):
+            reviews.close(self.state, event)
+            self.assertEqual(self.state, closed)
+            self.assertIsNone(reviews.overview(self.state)['workspace_drift'])
+        self._assert_bound_evidence_preserved(*saved)
+
+    def test_drift_preserves_terminal_skip_reasons_and_first_observation(self):
+        for kind in ('launch-rejected', 'not-dispatched', 'launch-error', 'identity-mismatch', 'malformed'):
+            with self.subTest(kind=kind):
+                state = reviews.prepare(fixture(), NOW)
+                request = state['requests'][0]
+                event = observation(state)
+                if kind in ('identity-mismatch', 'malformed'):
+                    event['observation'].update(model='wrong-model' if kind == 'identity-mismatch'
+                                                else request['dispatch']['target']['model'], summary='invalid')
+                    reviews.record(state, event)
+                else:
+                    reviews.record(state, {'request_id': request['request_id'], 'kind': kind})
+                terminal = request['outcome']
+                reviews.close(state, {'current_tree_hash': 'e' * 64})
+                self.assertEqual(request['outcome'], terminal)
+                self.assertEqual([r['outcome'] for r in state['requests'][1:]],
+                                 ['skipped-workspace-drift'] * 2)
+                closed = deepcopy(state)
+                for event in ({'current_tree_hash': 'f' * 64}, {}, {'current_tree_hash': 'd' * 64}):
+                    reviews.close(state, event)
+                    self.assertEqual(state, closed)
+                    # Direct callers also cannot replace the first drift observation.
+                    self.assertFalse(reviews.check_tree(state, event))
+                    self.assertEqual(state, closed)
+                for late_kind in ('receipt', 'status'):
+                    late = observation(state, status='running', task='late-owned-task')
+                    late.update(kind=late_kind, current_tree_hash='f' * 64)
+                    reviews.record(state, late)
+                    self.assertEqual(request['outcome'], terminal)
+                    self.assertEqual(reviews.overview(state)['cancel_task_ids'], ['late-owned-task'])
+                late['observation']['status'] = 'cancelled'
+                reviews.record(state, late)
+                self.assertEqual(request['outcome'], terminal)
+                self.assertEqual(reviews.overview(state)['cancel_task_ids'], [])
+                self.assertEqual(state['workspace_drift'], closed['workspace_drift'])
+
+    def test_late_observations_keep_closed_outcomes_and_owned_handles(self):
+        saved = self._ingest_bound_finding()
+        reviews.close(self.state, {'current_tree_hash': 'd' * 64})
+        request = self.state['requests'][1]
+        for kind in ('receipt', 'status'):
+            late = observation(self.state, status='running', task='late-owned-task')
+            late.update(request_id=request['request_id'], kind=kind, current_tree_hash='f' * 64)
+            late['observation'].update(request['dispatch']['target'])
+            reviews.record(self.state, late)
+            self.assertEqual(request['outcome'], 'skipped-round-ended')
+            self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], ['late-owned-task'])
+            self.assertIsNone(reviews.overview(self.state)['workspace_drift'])
+            self._assert_bound_evidence_preserved(*saved)
+        for kind in ('launch-error', 'launch-rejected', 'not-dispatched'):
+            reviews.record(self.state, {'request_id': request['request_id'], 'kind': kind})
+            self.assertEqual(request['outcome'], 'skipped-round-ended')
+        reviews.record(self.state, {'request_id': request['request_id'],
+                                    'kind': 'cancel-requested', 'task_id': 'late-owned-task'})
+        self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], ['late-owned-task'])
+        late['observation']['status'] = 'cancelled'
+        reviews.record(self.state, late)
+        self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], [])
+        self.assertEqual(request['outcome'], 'skipped-round-ended')
+        self.assertEqual(len(request['handles'][0]['observations']), 3)
+        self._assert_bound_evidence_preserved(*saved)
+
     def test_drifted_status_and_repeated_close_preserve_evidence_and_liveness(self):
         saved = self._ingest_bound_finding()
         event = observation(self.state)
@@ -457,6 +533,9 @@ class LifecycleTest(unittest.TestCase):
             reviews.close(self.state, {'current_tree_hash': tree_hash})
             reviews.record(self.state, event)
             self._assert_bound_evidence_preserved(*saved)
+            self.assertEqual(self.state['workspace_drift']['observed_tree_hash'], 'e' * 64)
+            self.assertEqual([r['outcome'] for r in self.state['requests'][1:]],
+                             ['skipped-workspace-drift'] * 2)
             self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], ['task-fixture'])
         event['observation']['hasPendingChildRuns'] = False
         reviews.record(self.state, event)
@@ -532,7 +611,7 @@ class LifecycleTest(unittest.TestCase):
         state = deepcopy(self.state)
         reviews.close(state, {'current_tree_hash': 'd' * 64})
         reviews.record(state, observation(state))
-        self.assertEqual(state['requests'][0]['outcome'], 'skipped-closed')
+        self.assertEqual(state['requests'][0]['outcome'], 'skipped-round-ended')
 
     def test_wrong_revision_in_result_and_invalid_finding_rejected(self):
         valid = json.loads(observation(self.state)['observation']['summary'])
@@ -776,6 +855,10 @@ class InstalledTest(unittest.TestCase):
             ended = run('close', {'current_tree_hash': 'd' * 64})
             self.assertTrue(ended['closed'])
             self.assertEqual(ended['dispatches'], [])
+            closed_ledger = ledger.read_bytes()
+            self.assertEqual(run('close', {'current_tree_hash': 'f' * 64}), ended)
+            self.assertEqual(run('close', {}), ended)
+            self.assertEqual(ledger.read_bytes(), closed_ledger)
             self.assertEqual(run('prepare', data)['dispatches'], [])
             run('record', observation(saved))
             status = run('status')

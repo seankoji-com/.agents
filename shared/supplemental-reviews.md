@@ -206,10 +206,11 @@ launch alongside read-only primary work; never alongside an implementation write
 Do not grant extras mandatory evidence-generation duties.
 
 Pass `current_tree_hash` from a new coordinator observation on status intake and
-close. Missing or different hashes close intake, skip uningested requests and record
-`workspace_drift`. Already ingested results, findings, outcomes and bound dispositions
-remain evidence at the issued snapshot; cleanup handles remain owned. Inspect changed paths and owned
-task evidence to attribute drift, including suspected supplemental writes. Never
+close while intake is open. Missing or different hashes close intake, skip pending
+intake and record `workspace_drift`. Already ingested results, findings, outcomes
+and bound dispositions remain evidence at the issued snapshot. Preserve prior
+terminal skip reasons and ownership of cleanup handles. Inspect changed paths and
+owned task evidence to attribute drift, including suspected supplemental writes. Never
 assert attribution without evidence or restore unrelated changes. Record the cause
 in the coordinator report, cancel extras and disable them for the replacement round.
 If extras changed reviewed bytes, preserve that evidence, resolve the unexpected
@@ -336,6 +337,9 @@ observation. Do not wait or poll. Late results stay skipped; late receipts retai
 ownership and need cancellation. Results already ingested before close remain
 saved evidence; new results after close are skipped. On later notifications/resume reconcile remaining
 IDs and cancel owned live work without reopening intake. Never cancel unrelated work.
+Close is idempotent: only open intake compares the tree. Repeated close calls preserve
+the first drift observation, saved evidence and skip reasons. Late observations update
+ownership and liveness without rewriting closed outcomes.
 
 `cancel_requested` is not a confirmed stop. Report unresolved ownership and pending
 runs, retain the ledger and never claim all children stopped without host evidence.
