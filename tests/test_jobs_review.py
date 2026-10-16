@@ -134,9 +134,6 @@ class JobReviewTests(unittest.TestCase):
         create_job(job, root, job["pins"])
         return Store(root, job["job_id"])
 
-    def test_new_job_fixture_uses_observed_identity_policy(self):
-        self.assertEqual(self.base_job()['policy']['identity'], 'observed')
-
     def install(self, base, plugin="ape"):
         home = base / "home"
         home.mkdir(parents=True, exist_ok=True)

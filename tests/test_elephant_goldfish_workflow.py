@@ -1432,6 +1432,45 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         self.assertEqual(prepared.returncode, 2, prepared.stdout + prepared.stderr)
         self.assertIn('differ from every document author', prepared.stderr)
 
+    def test_document_revision_writes_the_author_record_only_after_the_job_commits(self):
+        document = self.document()
+        caller = self.caller(self.WORKFLOW)
+        job_id = 'revision-commit-order'
+        self.create(self.elephant_job(job_id, document, factual=False))
+        self.dispatch(job_id, caller, 'c0', verdict='adverse', status='failed', requirement='failed',
+                      findings=self.NOT_READY, conclusion='VERDICT: NOT READY')
+        document.write_bytes(document.read_bytes() + b'\nRepaired before a failed job write.\n')
+        sidecar = document.parent / 'document-authors.json'
+        before_sidecar, before_job = sidecar.read_bytes(), self.job_state(job_id)
+        data = self.base / 'commit-order-input.json'
+        data.write_text(json.dumps({'caller': caller, 'task_id': 'c0', 'reason': 'coordinator repaired NOT READY gaps',
+                                    'document': {'path': str(document), 'sha256': sha(document.read_bytes())}}))
+        # Run the real job_cli with only the job.json write failing.
+        driver = ('import runpy, sys\n'
+                  'sys.path.insert(0, sys.argv[1])\n'
+                  'import core.jobs.store as store\n'
+                  'real = store._atomic\n'
+                  'def atomic(path, data, exclusive=False):\n'
+                  '    if str(path).endswith("job.json"):\n'
+                  '        raise OSError("fixture job write failure")\n'
+                  '    return real(path, data, exclusive)\n'
+                  'store._atomic = atomic\n'
+                  'sys.argv = sys.argv[2:]\n'
+                  'runpy.run_path(sys.argv[0], run_name="__main__")\n')
+        failed = subprocess.run([sys.executable, '-c', driver, str(self.version), str(self.version / 'shared/job_cli.py'),
+                                 'document-revision', '--state-root', str(self.state), '--job', job_id,
+                                 '--input', str(data), '--capabilities', str(self.capabilities)],
+                                capture_output=True, text=True, env=self.env)
+        self.assertNotEqual(failed.returncode, 0, failed.stdout + failed.stderr)
+        self.assertIn('fixture job write failure', failed.stdout + failed.stderr)
+        self.assertEqual(sidecar.read_bytes(), before_sidecar, 'the sidecar must not record an uncommitted revision')
+        self.assertEqual(self.job_state(job_id), before_job)
+        # Inner JobErrors keep their own message instead of the generic wrapper.
+        sidecar.write_text('[]')
+        refused = self.revise(job_id, caller, document)
+        self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+        self.assertIn('document author records must be an object', refused.stderr)
+
     def test_repair_round_rebinds_the_document_within_the_round_budget_without_an_owner_decision(self):
         document = self.document()
         job_id, caller = 'elephant-repair', self.caller(self.WORKFLOW)

@@ -328,17 +328,40 @@ class TestHandoffManifest(unittest.TestCase):
 
 class TestWriteFailures(unittest.TestCase):
     def test_write_failures_return_clean_diagnostic_and_preserve_handoff(self):
-        for operation in ('mkstemp', 'replace'):
-            with self.subTest(operation=operation), topic():
+        real_replace, real_mkstemp = os.replace, tempfile.mkstemp
+
+        def replace_failing(name):
+            def replace(src, dst, *args, **kwargs):
+                if os.path.basename(str(dst)) == name:
+                    raise OSError('fixture disk failure')
+                return real_replace(src, dst, *args, **kwargs)
+            return replace
+
+        def mkstemp_failing(prefix):
+            def mkstemp(*args, **kwargs):
+                if str(kwargs.get('prefix', '')).startswith(prefix):
+                    raise OSError('fixture disk failure')
+                return real_mkstemp(*args, **kwargs)
+            return mkstemp
+
+        # Each failure point is reached in turn: the author record is written
+        # before the handoff, so the handoff cases need the record write to succeed.
+        cases = (('author record replace', rh.os, 'replace', replace_failing('document-authors.json'), True),
+                 ('author record mkstemp', rh.tempfile, 'mkstemp', mkstemp_failing('.document-authors.json.'), True),
+                 ('handoff replace', rh.os, 'replace', replace_failing('handoff.md'), False),
+                 ('handoff mkstemp', rh.tempfile, 'mkstemp', mkstemp_failing('handoff.md.'), False))
+        for label, target, operation, side_effect, in_author_record in cases:
+            with self.subTest(label), topic():
                 write('thinking/t/handoff.md', 'previous handoff')
-                target = rh.tempfile if operation == 'mkstemp' else rh.os
-                with mock.patch.object(target, operation, side_effect=OSError('fixture disk failure')):
+                with mock.patch.object(target, operation, side_effect=side_effect):
                     code, out, err = run(['t'])
                 self.assertEqual(code, 1)
-                self.assertTrue(err.startswith('render_handoff: '), err)
-                self.assertIn('fixture disk failure', err)
+                expected = ('render_handoff: cannot record handoff author lineage: fixture disk failure'
+                            if in_author_record else 'render_handoff: fixture disk failure')
+                self.assertEqual(err.strip(), expected)
                 self.assertEqual(read('thinking/t/handoff.md'), 'previous handoff')
-                self.assertFalse(any(name.startswith('handoff.md.') for name in os.listdir('thinking/t')))
+                self.assertFalse(any(name.startswith(('handoff.md.', '.document-authors.json.'))
+                                     for name in os.listdir('thinking/t')))
 
 
 if __name__ == "__main__":

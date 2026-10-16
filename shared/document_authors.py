@@ -39,6 +39,7 @@ def locked_author_records(directory):
                     stream.flush()
                     os.fsync(stream.fileno())
                 os.replace(temporary, sidecar)
+                os.fsync(fd)  # make the rename itself durable
             finally:
                 if os.path.exists(temporary):
                     os.unlink(temporary)
@@ -55,10 +56,15 @@ def records_shape_problem(records):
     paths = records.get('_document_paths', {})
     if not isinstance(paths, dict) or not all(isinstance(v, (dict, str)) for v in paths.values()):
         return 'have an invalid path index'
-    if not isinstance(records.get('_record_order', 0), int):
+    def is_order(value):  # bool is an int subclass; true/false are not record orders
+        return isinstance(value, int) and not isinstance(value, bool)
+    if not is_order(records.get('_record_order', 0)):
         return 'have an invalid record order'
-    if not all(isinstance(v, dict) for k, v in records.items() if k not in ('_document_paths', '_record_order')):
+    entries = [v for k, v in records.items() if k not in ('_document_paths', '_record_order')]
+    if not all(isinstance(v, dict) for v in entries):
         return 'have a non-object hash record'
+    if not all(is_order(v['order']) for v in entries if 'order' in v):
+        return 'have an invalid record order'
     return None
 
 
