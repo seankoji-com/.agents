@@ -6,7 +6,10 @@ State is private, process-locked JSON outside the repository. Supply an explicit
 Run existing jobs from a stored pinned package; a current pointer never selects a
 replacement package, worker override or limit. Recovery pins retain both a quoted
 `compatible_pinned_invocation` and structured `compatible_pinned_argv`. The latter
-resolves the exact package through `t3-plugins --job JOB.json path PLUGIN`.
+resolves the exact package through `t3-plugins --job JOB.json path PLUGIN`. Both are
+recovery-only. `validator_argv` is a different shape: its first element must resolve
+to `<pin.package_dir>/scripts/<adapter>`, and the remaining flags are the ones that
+adapter accepts.
 Exit 0 means the requested state operation succeeded; exit 2 means invalid input,
 unsafe state or caller mismatch. It does not mean the job is accepted.
 
@@ -138,10 +141,11 @@ stage.validator_limits may narrow them. Timeout/output overflow retain a failed
 receipt and kill only the validator process group.
 
 Workflow observations are explicit coordinator receipts with observer, operation kind,
-source, full content and SHA-256 of canonical content. They bind reported coverage,
-head/check/thread/endstate or factual/cold-read/load observations. They establish
-record provenance and declared criteria, not external truth through a readiness
-boolean. Imps final plans list all required stage-local gates at current integrated
+source, full content and SHA-256 of canonical content (sorted keys, `,` and `:`
+separators, `ensure_ascii=False`, UTF-8, one trailing newline). They bind reported
+coverage, head/check/thread/endstate or factual/cold-read/load observations. They
+establish record provenance and declared criteria, not external truth through a
+readiness boolean. Imps final plans list all required stage-local gates at current integrated
 inputs. Final failures reopen responsible stage evidence and stale successors;
 final passes retain their separate budget. Live provider fidelity remains a separate
 gate, never inferred from these deterministic tests.

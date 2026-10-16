@@ -61,9 +61,9 @@ merge-capable call until its review stage is accepted at the exact current head.
    on the cheapest configured tier, pass its `runtimeMode`, and record the target,
    reason and ordered escalation in the slot; later candidates escalate.
    Report each `unavailable` entry once, such as a provider needing a broader mode
-   than this thread. Without routing, or with no cheapest-tier candidate, ask the
-   operator through the question picker before fanning out; a dispatched child never
-   runs above the cheapest tier. Resolve the reviewer with
+   than this thread. Without routing or a candidate, ask the operator through the
+   question picker before fanning out; a child takes the first candidate `resolve`
+   returns for its role. Resolve the reviewer with
    `t3-plugins resolve reviewer --implementer-lineage <fixer lineage>`.
 6. Dispatch per `PKG/shared/job-coordination.md`: `job_cli.py prepare`, launch
    `babysitter/pr-maintainer` with `delegate_task`, and record the handle with
