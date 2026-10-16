@@ -140,6 +140,36 @@ class RoutingCli(unittest.TestCase):
         self.assertEqual([c['model'] for c in self.resolve('reviewer')['candidates']],
                          ['model-c1', 'shared-model', 'model-x1', 'model-a2'])
 
+    def test_setup_tiers_cheap_models_low_so_children_run_cheap(self):
+        # Setup's starting config must make a delegating workflow's children land on a
+        # cheap model with no owner editing: cheap families work, the session model judges.
+        caps = {'inheritedProviderInstanceId': 'claudeAgent', 'inheritedModel': 'claude-opus-1',
+                'runtimeMode': 'full-access',
+                'providers': [provider('claudeAgent', 'claudeAgent', ['claude-opus-1', 'claude-haiku-1', 'claude-sonnet-1']),
+                              provider('codex', 'codex', ['gpt-luna-1', 'gpt-sol-1']),
+                              provider('opencode', 'opencode', ['gateway/gemini-1-flash', 'gateway/gemini-1'])]}
+        config = routing.default_config(caps)
+        self.assertEqual([(e['providerInstanceId'], e['model'], e['tier']) for e in config['roles']['workhorse']],
+                         [('claudeAgent', 'claude-haiku-1', 'low'), ('codex', 'gpt-luna-1', 'low'),
+                          ('opencode', 'gateway/gemini-1-flash', 'low'), ('claudeAgent', 'claude-opus-1', 'high')])
+        self.assertEqual(config['roles']['judgement'], [entry('claudeAgent', 'claude-opus-1', 'high', 'anthropic')])
+        # resolve() therefore offers the cheap candidates first, the session model last.
+        result = routing.resolve('workhorse', caps, config)
+        self.assertEqual([c['tier'] for c in result['candidates']], ['low', 'low', 'low', 'high'])
+        self.assertEqual((result['candidates'][0]['providerInstanceId'], result['candidates'][0]['model']),
+                         ('claudeAgent', 'claude-haiku-1'))
+        # Whole-token matching: `gemini` is not `mini`, and an unrecognised name is medium.
+        self.assertEqual(routing.model_tier('gateway/gemini-1'), 'medium')
+        self.assertEqual(routing.model_tier('claude-opus-1'), 'medium')
+        self.assertEqual(routing.model_tier('vendor/small-2'), 'low')
+
+    def test_setup_keeps_the_session_model_as_the_only_workhorse_without_cheap_families(self):
+        # A catalog with no cheap family behaves exactly as before this default.
+        caps = {'inheritedProviderInstanceId': 'claudeAgent', 'inheritedModel': 'model-c2', 'runtimeMode': 'auto',
+                'providers': [provider('claudeAgent', 'claudeAgent', ['model-c1', 'model-c2'])]}
+        self.assertEqual(routing.default_config(caps)['roles']['workhorse'],
+                         [entry('claudeAgent', 'model-c2', 'high', 'anthropic')])
+
     def test_setup_preserves_an_existing_config(self):
         mine = {'schema_version': 1, 'tiers': ['cheap', 'dear'], 'providers': {},
                 'roles': {'workhorse': [entry('codex', 'model-x2', 'cheap', 'openai')]}}

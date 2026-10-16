@@ -20,6 +20,10 @@ from shared.lineage import DRIVER_LINEAGE, FAMILY_LINEAGE, MULTI_LINEAGE_DRIVERS
 SCHEMA_VERSION = 1
 ROLES = ('workhorse', 'reviewer', 'judgement')
 TIERS = ('low', 'medium', 'high')
+# Cheap/fast model families, matched as whole tokens of the model's base name. Setup
+# uses them only to guess the starting tiers; the operator edits the config. Tokens,
+# never version-bearing IDs — and whole tokens, so `gemini` cannot match `mini`.
+CHEAP_MODEL_TOKENS = frozenset({'haiku', 'flash', 'mini', 'nano', 'lite', 'small', 'luna'})
 RUNTIME_MODES = ('approval-required', 'auto-accept-edits', 'auto', 'full-access')
 # Owner defaults written into a new config; after that the config is the source.
 DEFAULT_RUNTIME_MODE = 'auto'
@@ -95,11 +99,20 @@ def _provider_defaults(driver: str, offered=()) -> dict:
     return settings
 
 
+def model_tier(model: str) -> str:
+    """Setup's starting tier guess for one advertised model: `low` for a cheap family
+    such as a haiku-, flash-, mini- or luna-class model, `medium` otherwise. The
+    session model is placed at `high` separately. Only a guess: the operator edits it."""
+    tokens = re.split(r'[^a-z0-9]+', model.rsplit('/', 1)[-1].lower())
+    return 'low' if CHEAP_MODEL_TOKENS.intersection(tokens) else 'medium'
+
+
 def default_config(capabilities: dict) -> dict:
-    """A starting config: the session model judges and works. Reviewers are the
-    first advertised model of every other lineage, across all runnable providers
-    in catalog order, ahead of the session model as the same-lineage fallback.
-    Tiers and lineage labels are guesses the owner is expected to edit."""
+    """A starting config: the session model judges, and the cheapest advertised models
+    work. Workhorses are every cheap-family model at the `low` tier, in catalog order,
+    with the session model appended last as the only fallback; reviewers are the first
+    advertised model of every other lineage, ahead of the session model. Tiers and
+    lineage labels are guesses the owner is expected to edit."""
     providers = [p for p in capabilities['providers'] if isinstance(p, dict) and _runnable(p) and _models(p)]
     if not providers:
         raise RoutingError('no_runnable_providers', 'the capabilities list no provider that can run child tasks')
@@ -117,10 +130,21 @@ def default_config(capabilities: dict) -> dict:
                 'lineage': lineage(provider.get('driverKind', ''), model)}
 
     session = entry(home, home_model, 'high')
+    # The cheapest advertised models work, so a delegating workflow's children land on a
+    # cheap model without the owner editing anything. The session model stays last, so a
+    # catalog with no cheap family behaves exactly as before.
+    workhorse, keyed = [], {(session['providerInstanceId'], session['model'])}
+    for provider in providers:
+        for model in _models(provider):
+            key = (provider['providerInstanceId'], model)
+            if key not in keyed and model_tier(model) == 'low':
+                keyed.add(key)
+                workhorse.append(entry(provider, model, 'low'))
+    workhorse.append(session)
     reviewers, seen = [], {session['lineage']}
     for provider in providers:
         for model in _models(provider):
-            candidate = entry(provider, model, 'medium')
+            candidate = entry(provider, model, model_tier(model))
             if candidate['lineage'] not in seen and candidate['lineage'] != 'unknown':
                 seen.add(candidate['lineage'])
                 reviewers.append(candidate)
@@ -129,7 +153,7 @@ def default_config(capabilities: dict) -> dict:
         'schema_version': SCHEMA_VERSION,
         'tiers': list(TIERS),
         'providers': {pid: _provider_defaults(driver, offered[pid]) for pid, driver in sorted(drivers.items())},
-        'roles': {'workhorse': [session], 'reviewer': reviewers, 'judgement': [session]},
+        'roles': {'workhorse': workhorse, 'reviewer': reviewers, 'judgement': [session]},
     }
 
 

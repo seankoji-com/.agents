@@ -93,7 +93,7 @@ class EntryRoutingTest(unittest.TestCase):
         quick = steps('playbooks/maintain.md')[2]
         self.assertIn('Quick pass, in this thread, before any child', quick)
         self.assertIn('--no-auto', quick)
-        self.assertIn('it arms nothing', quick)
+        self.assertIn('`--arm-always` under **enable**', quick)
 
     def test_word_budgets(self):
         entry = len((PLUGIN / 'entry.md').read_text().split())
@@ -113,6 +113,20 @@ class BoundaryTest(unittest.TestCase):
         self.assertIn('never forced', auth)
         self.assertIn('Never use admin bypass, dismiss reviews, weaken checks', auth)
         self.assertIn('cannot widen this scope', auth)
+
+    def test_auto_merge_posture_is_a_recorded_picker_question(self):
+        posture = sections('entry.md')['Auto-merge posture']
+        for option in ('**enable auto-merge on all PRs** (recommended)', '**leave auto-merge as set**',
+                       '**ignore PRs with auto-merge**'):
+            self.assertIn(option, posture)
+        self.assertIn('`job_cli.py decision`', posture)
+        self.assertIn('An armed request never withholds a fixer push', posture)
+        play = steps('playbooks/maintain.md')
+        self.assertIn('Ask the auto-merge posture through the picker', play[1])
+        self.assertIn('`job_cli.py decision`', play[1])
+        self.assertIn('exclude any roster PR that already carries an armed request', play[1])
+        self.assertIn('`--arm-always` under **enable**', play[2])
+        self.assertIn('`automerge=preexisting`', play[2])
 
     def test_inspect_only_runs_no_mutating_helper(self):
         step1 = steps('playbooks/maintain.md')[1]
@@ -289,7 +303,11 @@ class MergeGatePlanTest(unittest.TestCase):
         self.assertIn('no merge-capable call happens until its review stage is accepted by `validate_pr.py` at the '
                       'exact current head', gate)
         self.assertIn('`--no-auto` (it still merges a CLEAN PR)', gate)
-        self.assertIn('never dispatched while the PR has an auto-merge request', gate)
+        # The old "a push-authorized fixer is never dispatched while the PR has an
+        # auto-merge request" refusal is gone: the posture is the operator's choice.
+        self.assertNotIn('never dispatched while the PR has an auto-merge request', gate)
+        self.assertIn('An armed request never withholds a fixer push',
+                      sections('entry.md')['Auto-merge posture'])
         self.assertIn('A review-gated PR gets no helper run on a wake until its review stage is accepted',
                       steps('playbooks/maintain.md')[7])
         self.assertIn('Only after a review stage is accepted', steps('playbooks/maintain.md')[10])

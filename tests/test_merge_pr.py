@@ -261,24 +261,38 @@ print(code, end="")
         self.assertIn("expectedHeadOid:$sha", calls[-1]["query"])
         self.assertEqual(calls[-1]["variables"]["sha"], HEAD)
 
-    def test_no_auto_prevents_arming_and_rejects_existing_request(self):
-        for mode in ("failing", "already-auto"):
-            with self.subTest(mode=mode):
-                result, calls = self.run_helper(mode, ["--no-auto"])
-                self.assertEqual(result.returncode, 4, result.stderr)
-                self.assertEqual(len(calls), 1)
-                self.assertIn("BLOCKED", result.stdout)
+    def test_no_auto_arms_nothing_and_still_merges_a_clean_armed_pr(self):
+        result, calls = self.run_helper("failing", ["--no-auto"])
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("reason=failing_checks", result.stdout)
+        self.assertFalse(any("enablePullRequestAutoMerge" in c.get("query", "") for c in calls))
+        # "leave auto-merge as set": the armed request is left alone and no longer
+        # refuses the direct merge of a PR that is already CLEAN.
+        result, calls = self.run_helper("already-auto", ["--no-auto"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("MERGED fixture/repo#1 via squash", result.stdout)
+        self.assertEqual(calls[-1], {"merge_method": "squash", "sha": HEAD})
+        self.assertFalse(any("enablePullRequestAutoMerge" in c.get("query", "") for c in calls))
 
-    def test_existing_automerge_is_not_reported_as_unavailable_or_newly_armed(self):
+    def test_existing_automerge_is_reported_never_refused_or_newly_armed(self):
+        # A PR someone else already armed reports its real blocker plus the armed
+        # request. Babysitter never stops to make the operator disable it first.
         result, calls = self.run_helper("preexisting-unresolved")
         self.assertEqual(result.returncode, 4, result.stderr)
-        self.assertIn("reason=automerge_already_enabled", result.stdout)
+        self.assertIn("reason=unanswered_threads", result.stdout)
         self.assertIn("automerge=preexisting", result.stdout)
         self.assertEqual(len(calls), 1)
+        self.assertFalse(any("enablePullRequestAutoMerge" in c.get("query", "") for c in calls))
         result, calls = self.run_helper("preexisting-failing")
         self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("reason=failing_checks", result.stdout)
         self.assertIn("automerge=preexisting", result.stdout)
         self.assertEqual(len(calls), 2)
+        # A CLEAN armed PR is merged here rather than left to GitHub's queue.
+        result, calls = self.run_helper("already-auto")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("MERGED fixture/repo#1 via squash", result.stdout)
 
     def test_merge_observed_during_refresh_reports_truth_and_original_blocker(self):
         result, calls = self.run_helper("merged-after-block")

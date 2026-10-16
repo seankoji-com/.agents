@@ -276,8 +276,13 @@ t3-plugins resolve reviewer --capabilities caps.json
 
 The config lists tiers from cheapest to most capable, a T3 `runtimeMode` per provider,
 and the `workhorse`, `reviewer` and `judgement` roles. Each role entry names a provider
-instance, a model, its tier and its `lineage`. Setup's tiers and lineage labels are
-guesses: edit them. Providers default to `auto`, except OpenCode, which defaults to
+instance, a model, its tier and its `lineage`. Setup guesses the tiers: every
+cheap-family model it recognises (a haiku-, flash-, mini-, nano-, lite-, small- or
+luna-class name) goes to `low`, and those become the `workhorse` candidates, cheapest
+first, with the session model last as the fallback. A delegating workflow's children
+therefore start on a cheap model without you editing anything. The session model judges
+at `high`. Both the tiers and the lineage labels are guesses: edit them. Providers
+default to `auto`, except OpenCode, which defaults to
 `full-access` with `"requireRuntimeMode": true` because its children otherwise stall
 on permission prompts.
 
@@ -290,6 +295,10 @@ on permission prompts.
     "opencode": {"runtimeMode": "full-access", "requireRuntimeMode": true}
   },
   "roles": {
+    "workhorse": [
+      {"providerInstanceId": "codex", "model": "MODEL_ID",
+       "tier": "low", "lineage": "openai"}
+    ],
     "reviewer": [
       {"providerInstanceId": "codex", "model": "MODEL_ID",
        "tier": "medium", "lineage": "openai"}

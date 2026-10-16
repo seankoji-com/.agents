@@ -11,6 +11,8 @@ authority is `PKG/shared/agents/jobs-contract.md`; mechanics are in
   `$XDG_STATE_HOME/t3-plugins/babysitter/requests/<job-id>.txt`. Decisions quote it.
 - Freeze the roster (step 1) and run the quick pass (step 2) first, so each stage is
   declared at the head this thread actually observed.
+- Record the auto-merge posture (step 1) as a `decisions` entry quoting the operator's
+  picker answer, so the quick pass, each wake, and the land stage share one mode.
 
 ## Job fields
 
