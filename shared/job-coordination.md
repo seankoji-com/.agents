@@ -88,8 +88,10 @@ quarantined during ingestion.
 ## 5. Acceptance
 
 At a substantive review, use `PKG/shared/supplemental-reviews.md` alongside the
-mandatory reviewer. Keep its optional ledger outside job slots and budgets. Close
-and request cleanup when the primary review ends; independently verify optional
+mandatory reviewer. Keep its optional ledger outside job slots and budgets. Skip
+extras if fresh live-schema worktree isolation or a clean committed scope is
+unavailable; never fall back to a shared checkout. Close intake and request cleanup
+when the primary review ends; independently verify optional
 findings and record their bound dispositions in the optional ledger. They have no
 job task/finding IDs; do not pass them to `finding-disposition`. Use the shared
 protocol's **Confirmed findings in whole jobs** stop/report/rerun procedure,

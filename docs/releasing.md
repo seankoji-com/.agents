@@ -34,7 +34,10 @@ until those are recorded, describe them as unverified. See the [launch kit](http
 
 Include the remaining gaps in the PR body. Offline selection and ledger tests do
 not prove free OpenCode provider compatibility, `delegate_task` idempotency by
-`clientRequestId`, or `task_cancel` behaviour. Retain separate current evidence
+`clientRequestId`, `task_cancel` behaviour, or isolated worktree setup/cleanup.
+Verify that a supported `isolation: "worktree"` launch reviews the exact parent
+local commit in its own clean checkout, never the parent path, and that setup
+failures skip without shared fallback. Retain separate current evidence
 for each before claiming support. A cancellation request or an initial status
 still showing running is not a confirmed stop; report it as unresolved and keep
 the owned handle for notification-driven reconciliation. Do not wait on optional

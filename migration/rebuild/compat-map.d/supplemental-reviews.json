@@ -26,7 +26,7 @@
         "assertions": [
           {
             "selector": "test_supplemental_reviews.SelectionTest",
-            "tests": 6,
+            "tests": 8,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",
@@ -46,7 +46,7 @@
           },
           {
             "selector": "test_supplemental_reviews.InstalledTest",
-            "tests": 3,
+            "tests": 4,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",

@@ -2,7 +2,9 @@
 
 At each issued evaluation round, the coordinator may add free supplemental reviews
 under `PKG/shared/supplemental-reviews.md`, using one optional ledger for the round.
-Dispatch the mandatory evaluator first. Keep extras out of this helper's evaluator
+Dispatch the mandatory evaluator first. Extras require host-owned
+`isolation: "worktree"` and clean committed scope; otherwise skip them without a
+shared-checkout fallback. Keep extras out of this helper's evaluator
 records and attempt budget. Close and request cancellation when the mandatory round
 ends; never wait for extras. Verify concrete findings and save bound dispositions
 in that ledger. Use its **Confirmed findings in Ralph** stop/report/rerun procedure;

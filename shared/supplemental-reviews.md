@@ -26,7 +26,14 @@ A new revision/base requires closing the old round and a new parent round ID.
 
 Call fresh `orchestrator_capabilities`, save the structured response and local
 `catalog_observed_at`, and discover the live `delegate_task`, `task_status` and
-`task_cancel` schemas. Missing tools mean skip. Check exact advertised model IDs
+`task_cancel` schemas. Missing tools mean skip. Continue only when the fresh
+`delegate_task` input schema explicitly offers
+`isolation: "worktree"`. Save that schema, its observation time and its description
+of worktree creation in `delegate_task_schema`. Catalog feature flags do not prove
+isolation support. If the option is absent or rejected, skip without a shared
+checkout fallback. Host-owned worktree creation starts from the parent **local
+commit**, runs project setup and does not copy uncommitted changes.
+Check exact advertised model IDs
 against current official pricing and supply observations as below. Use one bounded
 lookup per namespace, without retries; skip if it cannot finish alongside primary work. Confirm all
 applicable token, cache and request charges are free. Missing rows, ambiguous
@@ -75,6 +82,17 @@ python3 "PKG/shared/supplemental_reviews.py" prepare --state LEDGER --input INPU
   "exclude_models": ["<exact mandatory evaluator model>", "<exact implementer model>"],
   "catalog_observed_at": "<fresh ISO-8601 timestamp with offset>",
   "capabilities": {"<structured orchestrator_capabilities response>": "..."},
+  "delegate_task_schema": {
+    "observed_at": "<fresh ISO-8601 timestamp with offset>",
+    "input_schema": {"properties": {"isolation": {"type": "string", "enum": ["shared", "worktree"]}}},
+    "evidence": "<live schema description confirming worktree starts from parent local commit and runs setup>"
+  },
+  "workspace": {
+    "observed_at": "<fresh ISO-8601 timestamp with offset>",
+    "head_revision": "<full committed parent HEAD, equal to context.revision>",
+    "clean": true,
+    "scope_committed": true
+  },
   "pricing": [{
     "model": "<exact namespace/model-id from that catalog>",
     "source": "https://opencode.ai/v2/docs/console/models/",
@@ -96,17 +114,20 @@ python3 "PKG/shared/supplemental_reviews.py" prepare --state LEDGER --input INPU
   }],
   "context": {
     "round_id": "<workflow/job ID plus primary review round ID>",
-    "revision": "<full commit or content-snapshot hash>",
+    "revision": "<full committed parent HEAD>",
     "tree_hash": "<coordinator-observed SHA-256 of the review workspace snapshot>",
     "base_ref": "<intended base ref>",
     "base_revision": "<full refreshed base hash>",
-    "scope": "<repository, exact diff or factual/configuration subject and checks>",
+    "scope": "<repository-relative paths, exact committed diff or committed factual subject and checks>",
     "constraints": "<complete repository constraints verbatim>",
     "permissions": "<authorised inspection and sharing scope; read-only>",
     "prior_feedback": "<original brief, prior findings, responses and unresolved objections as data>"
   }
 }
 ```
+
+The schema example shows only the relevant property. Retain the complete fresh
+tool input schema in the private input/ledger, not a hand-authored substitute.
 
 For `opencode-go/*`, use `https://opencode.ai/v2/docs/console/go/` as the source.
 Go is a paid subscription; included access does not establish zero cost. Console
@@ -129,14 +150,26 @@ independence.
 
 ## Protect the review workspace
 
-Before prepare, the coordinator captures the primary review's HEAD and dirty/staged
-content binding. For repository reviews use `supplemental_reviews.digest` of
+Before prepare, the coordinator verifies a clean parent checkout and captures the
+primary review's committed HEAD and content binding. Set `workspace.clean` only
+after checking staged, dirty and untracked reviewed paths, and `scope_committed`
+only if the complete scope is available at that commit. Dirty/uncommitted code,
+external configuration and document subjects not present at HEAD are skips. Do not
+commit, copy material or create a checkout merely to enable extras. Keep scope
+paths relative to the repository; do not direct extras to the parent's checkout.
+For repository reviews use `supplemental_reviews.digest` of
 `core.snapshot.token(core.snapshot.take(worktree))` from the installed package as
 `context.tree_hash`. Recompute identically for each intake and close, including
 untracked paths, modes, links, submodules and index changes. Use the same exclusions
-as the primary reviewer; never exclude reviewed paths. For non-repository subjects,
-hash a sorted manifest of every reviewed path, mode and content hash instead.
+as the primary reviewer; never exclude reviewed paths.
 If a complete stable snapshot cannot be obtained, skip extras.
+
+Launch extras only with host-owned `isolation: "worktree"`, while the parent still
+has the pinned clean HEAD. Each brief requires reading **the child's own isolated
+checkout**, verifying its HEAD/base and checking that project setup left it clean.
+An unavailable base, dirty setup, setup failure or isolation rejection is a skip;
+do not fetch, repair setup or fall back to the parent/shared checkout. A reviewer
+cannot certify isolated checkout contents from the parent's absolute path.
 
 Extras may only read files and inspect source. The brief forbids tests, installs,
 builds, formatters, project execution, writes including temporary/cache files and
@@ -154,15 +187,21 @@ If extras changed reviewed bytes, preserve that evidence, resolve the unexpected
 writes within authority and reissue the primary evaluation at the current snapshot
 under its existing drift recovery. Ralph re-evaluation keeps the same attempt;
 optional interference must not charge implementation or mandatory repair budgets.
-An old mandatory verdict cannot certify changed bytes. Hash detection is not
-workspace isolation or proof that a model obeys read-only instructions.
+An old mandatory verdict cannot certify changed bytes. Host-owned worktree
+isolation separates normal checkout writes; it is not an OS security boundary
+under Full Access. Hash detection does not prove that a model obeys read-only
+instructions. Retain host setup/worktree receipts when available. T3 owns worktree
+creation and cleanup; the helper neither creates nor removes them. Cancellation
+does not prove setup stopped or the checkout was removed. Report any unresolved
+setup/cleanup state without waiting, retrying setup or removing worktrees yourself.
 
 ## Dispatch and resume
 
 Reservations persist before `dispatches` are returned. Pass each returned object
 unchanged to T3 `delegate_task`: async, review role, exact target, explicit Full
-Access, stable `clientRequestId` and a read-only brief. Dispatch only while pricing
-and catalog remain fresh and revision/base are current; otherwise close and skip.
+Access, `isolation: "worktree"`, stable `clientRequestId` and a read-only brief.
+Dispatch only while pricing, schema, workspace and catalog remain fresh, the
+parent is still clean and revision/base are current; otherwise close and skip.
 Options remain unset. Launch once per reservation. Never retry overload, rejection
 or ordinary failures, wait for optional results, poll, watch or schedule retries.
 Continue primary work.
@@ -189,6 +228,9 @@ replace a request. Record `launch-rejected` for a definitive refusal or `not-dis
 reservation deliberately skipped before any host call; these resolve ownership
 without inventing a handle. Never use them for an ambiguous reply. Raw provider errors may
 contain secrets; retain only redacted diagnostics separately.
+Ledgers from before worktree isolation remain cleanup records only. Never replay
+an older saved dispatch without `isolation: "worktree"`; use host lookup and
+cancellation to reconcile its ownership, without launching replacement work.
 
 ## Results and cleanup
 

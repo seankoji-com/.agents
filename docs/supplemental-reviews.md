@@ -52,6 +52,15 @@ mode. The review brief still permits inspection only. A narrower parent, disable
 provider, missing cross-provider capability or unavailable host lifecycle tool
 means skip. No permission changes or paid fallback are attempted.
 
+Extras require fresh live `delegate_task` schema evidence for
+`isolation: "worktree"`. T3 creates each isolated checkout from the parent's local
+commit and runs project setup; uncommitted edits are not copied. The parent must
+be clean and the whole review scope committed at its pinned HEAD. Dirty code or
+external configuration that cannot be reviewed from that commit is skipped.
+Missing isolation support, setup failures or a dirty child checkout also skip,
+without falling back to a shared checkout. Reviewers read their own isolated
+checkout and verify its HEAD and base, using repository-relative scope paths.
+
 Extras cannot run tests, builds, installs, project code or other commands that
 write files or start processes. They inspect source only. The coordinator records
 a workspace content hash at prepare and compares fresh hashes at intake and close.
@@ -59,8 +68,11 @@ Drift closes optional intake and retains cleanup handles. The coordinator inspec
 the changed paths and task evidence to establish the cause, then disables extras
 for any replacement round. Unexpected supplemental writes require fresh primary
 evaluation at the resolved snapshot without charging a mandatory repair attempt.
-Full Access does not enforce read-only behaviour; these checks detect drift and
-cannot guarantee isolation. Extras never run alongside an implementation writer.
+Full Access does not enforce read-only behaviour. Host-owned worktree isolation
+separates normal checkout writes but is not an OS security boundary. Extras never
+run alongside an implementation writer. T3 owns setup and worktree cleanup; a
+cancellation request does not prove either has finished. Unresolved setup/cleanup
+stays visible without retries or waits.
 
 ## What happens when extras fail
 
@@ -101,6 +113,7 @@ or scheduler is added.
 Offline tests cover selection, error handling, resume, cleanup and a relocated
 installed package. They do not prove live provider compatibility, current model
 availability, model quality or successful live cancellation.
-Live `delegate_task` idempotency by `clientRequestId` also remains unverified;
-stable IDs in an offline ledger do not prove host deduplication. See the
+Live isolated setup/cleanup and `delegate_task` idempotency by `clientRequestId`
+also remain unverified; stable IDs in an offline ledger do not prove host
+deduplication. See the
 [release evidence requirements](releasing.md#supplemental-review-live-acceptance).

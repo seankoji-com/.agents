@@ -32,6 +32,11 @@ def fixture(now=NOW):
         'exclude_models': ['fixture/primary-reviewer', 'fixture/implementer'],
         'permissions': {'delegate': True, 'share_with_opencode': True},
         'catalog_observed_at': stamp,
+        'delegate_task_schema': {
+            'observed_at': stamp,
+            'input_schema': {'properties': {'isolation': {'type': 'string', 'enum': ['shared', 'worktree']}}},
+            'evidence': 'Synthetic schema: isolated worktree from parent local commit; runs setup; no dirty edits copied'},
+        'workspace': {'observed_at': stamp, 'head_revision': 'a' * 40, 'clean': True, 'scope_committed': True},
         'capabilities': {
             'runtimeMode': 'full-access', 'inheritedProviderInstanceId': 'parent', 'parentThreadId': 'parent-thread',
             'features': {'appOwnedSubagents': True, 'asyncPolling': True, 'cancellation': True},
@@ -74,6 +79,35 @@ def observation(state, status='completed', summary=None, task='task-fixture'):
 
 
 class SelectionTest(unittest.TestCase):
+    def test_worktree_support_requires_fresh_live_schema_not_catalog_flags(self):
+        for change in (
+                lambda d: d.pop('delegate_task_schema'),
+                lambda d: d['delegate_task_schema'].update(evidence=''),
+                lambda d: d['delegate_task_schema'].update(observed_at=(NOW - timedelta(minutes=6)).isoformat()),
+                lambda d: d['delegate_task_schema'].update(observed_at=(NOW + timedelta(seconds=1)).isoformat()),
+                lambda d: d['delegate_task_schema']['input_schema']['properties'].pop('isolation'),
+                lambda d: d['delegate_task_schema']['input_schema']['properties']['isolation'].update(enum=['shared'])):
+            data = fixture()
+            change(data)
+            data['capabilities']['features']['worktreeIsolation'] = True  # Not a real capability proof.
+            selected, skipped = reviews.select(data, NOW)
+            self.assertEqual(selected, [])
+            self.assertEqual(skipped, [{'reason': 'worktree-isolation-unavailable'}])
+
+    def test_dirty_uncommitted_stale_or_different_parent_scope_skips(self):
+        for change in (
+                lambda d: d.pop('workspace'),
+                lambda d: d['workspace'].update(clean=False),
+                lambda d: d['workspace'].update(scope_committed=False),
+                lambda d: d['workspace'].update(head_revision='c' * 40),
+                lambda d: d['workspace'].update(observed_at=(NOW - timedelta(minutes=6)).isoformat()),
+                lambda d: d['workspace'].pop('head_revision')):
+            data = fixture()
+            change(data)
+            state = reviews.prepare(data, NOW)
+            self.assertEqual(state['requests'], [])
+            self.assertEqual(state['skipped'], [{'reason': 'uncommitted-or-unavailable-scope'}])
+
     def test_data_use_must_be_observed_and_allowed_or_explicitly_authorized_for_round(self):
         for change, reason in (
                 (lambda p: p.pop('data_use'), 'data-use-unverified'),
@@ -276,8 +310,13 @@ class LifecycleTest(unittest.TestCase):
         dispatch = self.state['requests'][0]['dispatch']
         self.assertEqual(dispatch['mode'], 'async')
         self.assertEqual(dispatch['runtimeMode'], 'full-access')
+        self.assertEqual(dispatch['isolation'], 'worktree')
+        self.assertEqual(self.state['delegate_task_schema'], fixture()['delegate_task_schema'])
+        self.assertEqual(self.state['workspace'], fixture()['workspace'])
         for phrase in ('read-only', 'Do not edit', 'never the required evaluator', 'No live calls.',
                        'Run no tests, builds, installs', 'do not run project code', 'temporary files',
+                       'YOUR isolated checkout', 'never the parent checkout', 'parent LOCAL COMMIT',
+                       'is clean after host project setup', 'Do not fetch, install or repair setup',
                        'origin/trunk', 'job-fixture/review-1', 'prior_feedback', 'a' * 40, 'b' * 40):
             self.assertIn(phrase, dispatch['task'])
         self.assertEqual(dispatch, reviews.prepare(fixture(), NOW)['requests'][0]['dispatch'])
@@ -452,6 +491,30 @@ class RepairPathTest(unittest.TestCase):
 
 
 class InstalledTest(unittest.TestCase):
+    def test_installed_isolation_and_committed_scope_fail_closed_without_shared_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            box = Sandbox(Path(tmp))
+            package, _ = box.install('ralph')
+            helper = package / 'shared' / 'supplemental_reviews.py'
+            source = box.private / 'input.json'
+            for index, change in enumerate((
+                    lambda d: d.pop('delegate_task_schema'),
+                    lambda d: d['delegate_task_schema']['input_schema']['properties']['isolation'].update(enum=['shared']),
+                    lambda d: d['workspace'].update(clean=False),
+                    lambda d: d['workspace'].update(scope_committed=False))):
+                data = fixture(datetime.now(timezone.utc))
+                change(data)
+                source.write_text(json.dumps(data))
+                ledger = box.private / ('skipped-' + str(index) + '.json')
+                proc = box.run([sys.executable, helper, 'prepare', '--state', ledger, '--input', source])
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                output = json.loads(proc.stdout)
+                self.assertEqual(output['dispatches'], [])
+                self.assertEqual(output['requests'], [])
+                self.assertEqual(output['mandatory_acceptance'], 'unchanged')
+                self.assertTrue(output['skipped'])
+                self.assertEqual(json.loads(ledger.read_text())['requests'], [])
+
     def test_symlinked_ancestor_allowed_but_ledger_and_lock_leaves_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -518,6 +581,8 @@ class InstalledTest(unittest.TestCase):
             data = fixture(datetime.now(timezone.utc))
             first = run('prepare', data)
             self.assertEqual(len(first['dispatches']), 3)
+            self.assertTrue(all(d['isolation'] == 'worktree' for d in first['dispatches']))
+            self.assertTrue(all('YOUR isolated checkout' in d['task'] for d in first['dispatches']))
             saved = json.loads(ledger.read_text())
             self.assertEqual(run('prepare', data)['dispatches'], [])
             self.assertEqual(json.loads(ledger.read_text())['requests'], saved['requests'])

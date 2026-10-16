@@ -128,6 +128,18 @@ def select(data, now):
     permissions = data.get('permissions', {})
     if permissions.get('delegate') is not True or permissions.get('share_with_opencode') is not True:
         return [], [{'reason': 'not-authorized'}]
+    # Isolation is a delegate_task schema option, not an invented catalog feature.
+    schema = data.get('delegate_task_schema', {})
+    isolation = schema.get('input_schema', {}).get('properties', {}).get('isolation', {})
+    if (not fresh(schema.get('observed_at'), now) or not text(schema.get('evidence'))
+            or not isinstance(isolation.get('enum'), list) or 'worktree' not in isolation['enum']):
+        return [], [{'reason': 'worktree-isolation-unavailable'}]
+    workspace = data.get('workspace', {})
+    if (not fresh(workspace.get('observed_at'), now) or workspace.get('clean') is not True
+            or workspace.get('scope_committed') is not True
+            or not text(workspace.get('head_revision'))
+            or workspace['head_revision'] != data.get('context', {}).get('revision')):
+        return [], [{'reason': 'uncommitted-or-unavailable-scope'}]
     excludes = data.get('exclude_models')
     if not isinstance(excludes, list) or not excludes or not all(text(m) for m in excludes):
         return [], [{'reason': 'primary-models-unreported'}]
@@ -205,7 +217,7 @@ def context(data):
     required = ('round_id', 'revision', 'base_revision', 'base_ref', 'scope', 'constraints', 'permissions', 'prior_feedback')
     if not isinstance(value, dict) or not all(text(value.get(k)) for k in required):
         raise ValueError('context needs round_id, exact revision/base_revision, base_ref, scope, constraints, permissions')
-    # Require immutable SHA bindings, including a content snapshot for dirty/document reviews.
+    # Reviews must be reproducible from the parent's committed HEAD in isolation.
     if any(not re.fullmatch(r'[a-f0-9]{40}|[a-f0-9]{64}', value[k]) for k in ('revision', 'base_revision')):
         raise ValueError('revision and base_revision must be full immutable hashes')
     if not isinstance(value.get('tree_hash'), str) or not re.fullmatch(r'[a-f0-9]{64}', value['tree_hash']):
@@ -216,7 +228,13 @@ def context(data):
 def brief(ctx):
     return (
         'Supplemental opportunistic read-only review. You are never the required evaluator.\n'
-        'Inspect only the pinned scope below. Verify the revision/base before reading; if unavailable or changed, '
+        'T3 must launch you with isolation: worktree. Read only YOUR isolated checkout, '
+        'never the parent checkout or another active worktree, even if a report names its absolute path. '
+        'The isolated checkout starts from the parent LOCAL COMMIT; uncommitted parent edits are not copied. '
+        'Verify your own HEAD equals revision, the pinned base commit exists locally, and your checkout '
+        'is clean after host project setup. Do not fetch, install or repair setup. '
+        'Inspect only the pinned committed scope below; if isolation, HEAD, base or clean setup '
+        'cannot be verified, return no findings and report the gap. If revision/base changed, '
         'return no findings and report the gap. Do not edit, commit, push, publish, send messages, delegate, '
         'call live models, or change settings. Full Access is a host launch mode, not write authority. '
         'Run no tests, builds, installs, formatters or other commands that write files (including caches '
@@ -238,11 +256,13 @@ def prepare(data, now):
     ctx = context(data)
     selected, skipped = select(data, now)
     state = {'schema_version': 1, 'context': ctx, 'context_hash': digest(ctx), 'closed': False,
-             'created_at': now.isoformat(), 'skipped': skipped, 'requests': [], 'dispositions': []}
+             'created_at': now.isoformat(), 'skipped': skipped, 'requests': [], 'dispositions': [],
+             'delegate_task_schema': deepcopy(data.get('delegate_task_schema')),
+             'workspace': deepcopy(data.get('workspace'))}
     for row in selected:
         rid = 'supplemental-' + digest([ctx['round_id'], digest(ctx), row['target']])[:40]
         dispatch = {'clientRequestId': rid, 'target': row['target'], 'runtimeMode': 'full-access',
-                    'mode': 'async', 'role': 'review', 'task': brief(ctx)}
+                    'isolation': 'worktree', 'mode': 'async', 'role': 'review', 'task': brief(ctx)}
         state['requests'].append({'request_id': rid, 'dispatch': dispatch, 'pricing': row['pricing'],
                                   'handles': [], 'events': [], 'outcome': 'reserved', 'findings': []})
     return state
@@ -304,7 +324,7 @@ def check_tree(state, event):
     if current != state['context'].get('tree_hash') or current is None:
         state['workspace_drift'] = {'issued_tree_hash': state['context'].get('tree_hash'),
                                     'observed_tree_hash': current,
-                                    'attribution': 'unverified-shared-workspace-drift'}
+                                    'attribution': 'unverified-parent-workspace-drift'}
         state['closed'] = True
         for request in state['requests']:
             request['findings'] = []
