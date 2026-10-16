@@ -5,6 +5,8 @@ Synthetic capabilities and prices only. No provider or GitHub calls.
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import fcntl
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -27,6 +29,7 @@ def fixture(now=NOW):
               'opencode/sample-d-free', 'opencode/paid', 'opencode-go/included']
     stamp = now.isoformat()
     return {
+        'exclude_models': ['fixture/primary-reviewer', 'fixture/implementer'],
         'permissions': {'delegate': True, 'share_with_opencode': True},
         'catalog_observed_at': stamp,
         'capabilities': {
@@ -39,8 +42,13 @@ def fixture(now=NOW):
         'pricing': [{'model': m, 'source': reviews.SOURCES[m.split('/')[0]], 'observed_at': stamp,
                      'all_charges_covered': True, 'eligible': True,
                      'costs': {'input': 0, 'output': 0, 'cache_read': 0, 'cache_write': 0, 'request': 0},
+                     'data_use': {'source': reviews.SOURCES['opencode'], 'observed_at': stamp,
+                                  'no_training': True, 'prompt_logging': False,
+                                  'confidential_allowed': True, 'retention': 'zero',
+                                  'evidence': 'Synthetic terms: no training, logging or retention; confidential use allowed'},
                      'evidence': 'Synthetic official row mapped to exact ID; all charges covered'} for m in models[:4]],
         'context': {'round_id': 'job-fixture/review-1', 'revision': 'a' * 40,
+                    'tree_hash': 'd' * 64,
                     'base_revision': 'b' * 40, 'base_ref': 'origin/trunk',
                     'scope': 'Synthetic repository combined diff; inspect source and callers',
                     'constraints': 'Read only. No live calls. Preserve unrelated work.',
@@ -58,6 +66,7 @@ def observation(state, status='completed', summary=None, task='task-fixture'):
                                             'evidence': 'Fixture reproduces missing validation',
                                             'suggestion': 'Validate the input'}]})
     return {'request_id': request['request_id'], 'kind': 'status',
+            'current_tree_hash': 'd' * 64,
             'current_revision': 'a' * 40, 'current_base_revision': 'b' * 40,
             'observation': {'taskId': task, 'childThreadId': 'child-fixture', 'childRunId': 'run-fixture',
                             **request['dispatch']['target'], 'status': status, 'workState': 'result_available',
@@ -65,6 +74,65 @@ def observation(state, status='completed', summary=None, task='task-fixture'):
 
 
 class SelectionTest(unittest.TestCase):
+    def test_data_use_must_be_observed_and_allowed_or_explicitly_authorized_for_round(self):
+        for change, reason in (
+                (lambda p: p.pop('data_use'), 'data-use-unverified'),
+                (lambda p: p['data_use'].update(no_training=None), 'data-use-unverified'),
+                (lambda p: p['data_use'].update(observed_at='old'), 'data-use-unverified'),
+                (lambda p: p['data_use'].update(no_training=False), 'data-use-disallowed'),
+                (lambda p: p['data_use'].update(prompt_logging=True), 'data-use-disallowed'),
+                (lambda p: p['data_use'].update(confidential_allowed=False), 'data-use-disallowed'),
+                (lambda p: p['data_use'].update(retention='30 days'), 'data-use-disallowed')):
+            data = fixture()
+            data['pricing'] = data['pricing'][:1]
+            change(data['pricing'][0])
+            selected, skipped = reviews.select(data, NOW)
+            self.assertEqual(selected, [])
+            self.assertIn(reason, [s['reason'] for s in skipped])
+        data['permissions']['data_use_exceptions'] = [{
+            'model': data['pricing'][0]['model'], 'round_id': data['context']['round_id'],
+            'terms_sha256': reviews.digest(data['pricing'][0]['data_use']),
+            'authorization': 'Synthetic owner explicitly permits these observed retention terms for this round'}]
+        self.assertEqual(len(reviews.select(data, NOW)[0]), 1)
+        for key in ('round_id', 'model', 'terms_sha256', 'authorization'):
+            changed = deepcopy(data)
+            changed['permissions']['data_use_exceptions'][0][key] = ''
+            self.assertEqual(reviews.select(changed, NOW)[0], [])
+
+    def test_official_table_shaped_cells_map_free_and_inapplicable_cache_only(self):
+        data = fixture()
+        data['pricing'] = data['pricing'][:1]
+        proof = data['pricing'][0]
+        proof.update(price_cells={'input': 'Free', 'output': 'Free', 'cache_read': 'Free', 'cache_write': '-'},
+                     costs={'input': 0, 'output': 0, 'cache_read': 0},
+                     evidence='Synthetic table row: Free | Free | Free | -; request column absent; free per-request usage has no surcharge')
+        self.assertEqual(len(reviews.select(data, NOW)[0]), 1)
+        proof['price_cells']['cache_read'] = '-'
+        proof['costs'].pop('cache_read')
+        self.assertEqual(len(reviews.select(data, NOW)[0]), 1)
+        for key in ('input', 'output', 'cache_read', 'cache_write'):
+            changed = deepcopy(data)
+            changed['pricing'][0]['price_cells'][key] = '$0.01'
+            self.assertEqual(reviews.select(changed, NOW)[0], [])
+        proof['price_cells']['input'] = '-'
+        self.assertEqual(reviews.select(data, NOW)[0], [])
+
+    def test_primary_models_excluded_and_duplicate_and_cap_skips_recorded(self):
+        data = fixture()
+        data['exclude_models'] = ['opencode-go/SAMPLE-A', 'sample-b-free']
+        selected, skipped = reviews.select(data, NOW)
+        self.assertEqual(len(selected), 2)
+        self.assertEqual(sum(s['reason'] == 'primary-lineage' for s in skipped), 2)
+        data.pop('exclude_models')
+        self.assertEqual(reviews.select(data, NOW)[0], [])
+        data = fixture()
+        duplicate = deepcopy(data['capabilities']['providers'][0])
+        duplicate['providerInstanceId'] = 'another'
+        data['capabilities']['providers'].append(duplicate)
+        _, skipped = reviews.select(data, NOW)
+        self.assertEqual(sum(s['reason'] == 'duplicate-model' for s in skipped), 4)
+        self.assertEqual(sum(s['reason'] == 'round-cap' for s in skipped), 1)
+
     def test_dynamic_selection_three_total_and_no_fixed_roster(self):
         data = fixture()
         selected, skipped = reviews.select(data, NOW)
@@ -147,11 +215,69 @@ class LifecycleTest(unittest.TestCase):
     def setUp(self):
         self.state = reviews.prepare(fixture(), NOW)
 
+    def test_receipt_after_result_preserves_evidence_including_after_close(self):
+        event = observation(self.state)
+        reviews.record(self.state, event)
+        before = deepcopy(self.state['requests'][0]['findings'])
+        event['kind'] = 'receipt'
+        reviews.record(self.state, event)
+        self.assertEqual(self.state['requests'][0]['outcome'], 'untrusted-evidence')
+        self.assertEqual(self.state['requests'][0]['findings'], before)
+        reviews.close(self.state, {'current_tree_hash': 'd' * 64})
+        reviews.record(self.state, event)
+        self.assertEqual(self.state['requests'][0]['findings'], before)
+        event['observation']['model'] = 'wrong-model'
+        reviews.record(self.state, event)
+        self.assertEqual(self.state['requests'][0]['findings'], [])
+
+    def test_one_prose_wrapped_or_fenced_object_and_no_ambiguous_salvage(self):
+        raw = observation(self.state)['observation']['summary']
+        for wrapped in ('Review complete.\n' + raw + '\nDone.', '```json\n' + raw + '\n```'):
+            self.assertEqual(reviews.result(wrapped, self.state['context'])['findings'][0]['line'], 3)
+        for raw in (raw + '\n' + raw, '```json\n' + raw + '\n```\n{}',
+                    '{ broken ' + raw, raw + '}', '{"revision":1,"revision":2}'):
+            with self.assertRaises(ValueError):
+                reviews.result(raw, self.state['context'])
+
+    def test_workspace_drift_closes_intake_clears_findings_and_retains_cleanup(self):
+        event = observation(self.state, status='running')
+        event.update(current_tree_hash='e' * 64)
+        reviews.record(self.state, event)
+        self.assertTrue(self.state['closed'])
+        self.assertEqual(self.state['workspace_drift']['observed_tree_hash'], 'e' * 64)
+        self.assertIn('task-fixture', reviews.overview(self.state)['cancel_task_ids'])
+        self.assertTrue(all(r['outcome'] == 'skipped-workspace-drift' for r in self.state['requests']))
+        state = reviews.prepare(fixture(), NOW)
+        reviews.record(state, observation(state))
+        reviews.close(state, {'current_tree_hash': 'e' * 64})
+        self.assertEqual(state['requests'][0]['findings'], [])
+        self.assertNotIn('attempt', state)
+        with self.assertRaises(ValueError):
+            data = fixture()
+            data['context'].pop('tree_hash')
+            reviews.prepare(data, NOW)
+
+    def test_bound_coordinator_dispositions_have_explicit_workflow_repair_routes(self):
+        reviews.record(self.state, observation(self.state))
+        for route in ('Ralph: stop old run; report; rerun with confirmed finding in brief',
+                      'Jobs: cancel old job; report; rerun plan with confirmed finding in criteria'):
+            event = {'request_id': self.state['requests'][0]['request_id'], 'finding_index': 0,
+                     'finding_sha256': reviews.digest(self.state['requests'][0]['findings'][0]),
+                     'revision': 'a' * 40, 'disposition': 'confirmed', 'evidence': 'Verified fixture reproduction',
+                     'repair_route': route}
+            reviews.disposition(self.state, event)
+            self.assertEqual(self.state['dispositions'][-1], event)
+            event['revision'] = 'b' * 40
+            with self.assertRaises(ValueError):
+                reviews.disposition(self.state, event)
+        self.assertNotIn('evaluation', self.state)
+
     def test_brief_pins_authority_scope_base_feedback_and_request(self):
         dispatch = self.state['requests'][0]['dispatch']
         self.assertEqual(dispatch['mode'], 'async')
         self.assertEqual(dispatch['runtimeMode'], 'full-access')
         for phrase in ('read-only', 'Do not edit', 'never the required evaluator', 'No live calls.',
+                       'Run no tests, builds, installs', 'do not run project code', 'temporary files',
                        'origin/trunk', 'job-fixture/review-1', 'prior_feedback', 'a' * 40, 'b' * 40):
             self.assertIn(phrase, dispatch['task'])
         self.assertEqual(dispatch, reviews.prepare(fixture(), NOW)['requests'][0]['dispatch'])
@@ -168,7 +294,7 @@ class LifecycleTest(unittest.TestCase):
         self.assertNotIn('attempt', self.state)
         self.assertEqual(reviews.overview(self.state)['mandatory_acceptance'], 'unchanged')
         self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], [])
-        reviews.close(self.state)
+        reviews.close(self.state, {'current_tree_hash': 'd' * 64})
         self.assertEqual(request['result']['findings'][0]['path'], 'module.py')
 
     def test_failures_malformed_stale_late_and_pending_are_skips(self):
@@ -193,7 +319,7 @@ class LifecycleTest(unittest.TestCase):
             self.assertTrue(state['requests'][0]['outcome'].startswith('skipped-'))
             self.assertEqual(state['requests'][0]['findings'], [])
         state = deepcopy(self.state)
-        reviews.close(state)
+        reviews.close(state, {'current_tree_hash': 'd' * 64})
         reviews.record(state, observation(state))
         self.assertEqual(state['requests'][0]['outcome'], 'skipped-closed')
 
@@ -222,7 +348,7 @@ class LifecycleTest(unittest.TestCase):
         later['observation']['hasPendingChildRuns'] = True
         reviews.record(self.state, later)
         self.assertEqual(len(request['handles']), 2)
-        reviews.close(self.state)
+        reviews.close(self.state, {'current_tree_hash': 'd' * 64})
         reviews.record(self.state, {'request_id': request['request_id'], 'kind': 'cancel-requested',
                                     'task_id': 'conflicting-task'})
         self.assertEqual(reviews.overview(self.state)['cancel_task_ids'], ['conflicting-task'])
@@ -250,7 +376,7 @@ class LifecycleTest(unittest.TestCase):
         request = self.state['requests'][0]
         event = {'request_id': request['request_id'], 'kind': 'launch-error', 'error': 'do-not-store-secret'}
         reviews.record(self.state, event)
-        reviews.close(self.state)
+        reviews.close(self.state, {'current_tree_hash': 'd' * 64})
         self.assertIn(request['request_id'], reviews.overview(self.state)['unresolved_request_ids'])
         self.assertNotIn('do-not-store-secret', json.dumps(self.state))
         # Late recovered receipt stays owned and needs cleanup, never result intake.
@@ -263,7 +389,103 @@ class LifecycleTest(unittest.TestCase):
         self.assertNotIn(second['request_id'], reviews.overview(self.state)['unresolved_request_ids'])
 
 
+class RepairPathTest(unittest.TestCase):
+    def test_ralph_success_can_be_stopped_and_restarted_with_confirmed_finding(self):
+        from tests.test_ralph import RalphTest
+        case = RalphTest()
+        case.setUp()
+        self.addCleanup(case.doCleanups)
+        case.implementation()
+        case.review()
+        self.assertEqual(case.state['phase'], 'evaluated')
+        old_verdict = deepcopy(case.state['tasks'][-1]['evaluation'])
+        case.state_path.parent.mkdir()
+        case.state_path.write_text(json.dumps(case.state))
+
+        def run(command, state_path, data=None):
+            argv = [sys.executable, ROOT / 'plugins/ralph/cli.py', command, '--state', state_path]
+            if data is not None:
+                source = case.base / 'input.json'
+                source.write_text(json.dumps(data))
+                argv += ['--input', source]
+            proc = subprocess.run(argv, cwd=case.repo, text=True, capture_output=True, timeout=15)
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            return json.loads(proc.stdout)
+
+        stopped = run('stop', case.state_path)
+        self.assertEqual(stopped['state']['phase'], 'cancelled')
+        self.assertFalse(stopped['state']['readyForPublication'])
+        self.assertEqual(stopped['state']['tasks'][-1]['evaluation'], old_verdict)
+        original = case.state_path.read_bytes()
+        replacement = deepcopy(case.init)
+        confirmed = 'Confirmed supplemental finding: fixture module.py:3 missing validation; reproduced at pinned revision'
+        replacement['brief'] += '\n' + confirmed + '\nPredecessor: ' + str(case.state_path)
+        replacement['maxAttempts'] = case.state['maxAttempts'] - case.state['attempt']
+        new_path = case.base / 'replacement.json'
+        run('init', new_path, replacement)
+        issued = run('next', new_path)
+        self.assertIn(confirmed, issued['dispatch']['task'])
+        self.assertEqual(issued['state']['maxAttempts'], 4)
+        self.assertFalse(issued['state']['readyForPublication'])
+        self.assertEqual(case.state_path.read_bytes(), original)
+
+    def test_installed_job_cancel_and_replacement_plan_preserve_confirmed_evidence(self):
+        from tests.test_rebuild_integration import ApeJob
+        with tempfile.TemporaryDirectory() as tmp:
+            box = Sandbox(Path(tmp))
+            job = ApeJob(self, box, 'original')
+            job.create()
+            confirmed = 'Confirmed supplemental finding module.py:3; pinned revision; reproduced missing validation'
+            box.job(job.pkg, 'cancel', job.job_id, {'caller': job.caller, 'reason': confirmed})
+            self.assertEqual(box.state_of(job.job_id)['status'], 'cancelled')
+            original = (box.jobs / job.job_id / 'job.json').read_bytes()
+            plan = job.plan()
+            plan['job_id'] = 'replacement'
+            plan['constraints'] += [confirmed, 'Predecessor original; remaining total executions capped at original limits']
+            plan['policy']['max_repair_cycles'] = 2
+            box.create(job.pkg, plan)
+            prepared = box.job(job.pkg, 'prepare', 'replacement',
+                               {'caller': job.caller, 'task_id': 's1-research', 'target_reason': 'fixture review repair'})
+            self.assertIn(confirmed, Path(prepared['path']).read_text())
+            self.assertEqual(box.state_of('replacement')['policy']['max_repair_cycles'], 2)
+            self.assertEqual((box.jobs / job.job_id / 'job.json').read_bytes(), original)
+
+
 class InstalledTest(unittest.TestCase):
+    def test_symlinked_ancestor_allowed_but_ledger_and_lock_leaves_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real = root / 'real'
+            real.mkdir()
+            link = root / 'link'
+            link.symlink_to(real, target_is_directory=True)
+            ledger = link / 'new-directory' / 'ledger.json'
+            source = root / 'input.json'
+            source.write_text(json.dumps(fixture(datetime.now(timezone.utc))))
+
+            def run(command):
+                with contextlib.redirect_stdout(io.StringIO()) as out:
+                    code = reviews.main([command, '--state', str(ledger), '--input', str(source)])
+                self.assertEqual(code, 0)
+                return json.loads(out.getvalue())
+
+            self.assertEqual(len(run('prepare')['dispatches']), 3)
+            self.assertEqual(run('status')['requests'][0]['outcome'], 'reserved')
+            original = ledger.read_bytes()
+            ledger.unlink()
+            target = root / 'target.json'
+            target.write_bytes(original)
+            ledger.symlink_to(target)
+            self.assertIn('optional_error', run('status'))
+            self.assertEqual(target.read_bytes(), original)
+            ledger.unlink()
+            ledger.write_bytes(original)
+            lock = ledger.with_suffix('.lock')
+            lock.unlink()
+            lock.symlink_to(target)
+            self.assertIn('optional_error', run('prepare'))
+            self.assertEqual(target.read_bytes(), original)
+
     def test_relocated_installed_round_resume_failure_cleanup_and_mandatory_bytes_unchanged(self):
         with tempfile.TemporaryDirectory() as tmp:
             box = Sandbox(Path(tmp))
@@ -303,9 +525,18 @@ class InstalledTest(unittest.TestCase):
             bad = deepcopy(data)
             bad['context']['revision'] = 'c' * 40
             self.assertIn('optional_error', run('prepare', bad))
-            event = observation(saved, status='failed')
-            run('record', event)
-            ended = run('close')
+            event = observation(saved)
+            event['observation']['summary'] = 'Review complete.\n```json\n' + event['observation']['summary'] + '\n```'
+            self.assertEqual(run('record', event)['requests'][0]['outcome'], 'untrusted-evidence')
+            receipt = deepcopy(event)
+            receipt['kind'] = 'receipt'
+            self.assertEqual(run('record', receipt)['requests'][0]['outcome'], 'untrusted-evidence')
+            triage = {'request_id': saved['requests'][0]['request_id'], 'finding_index': 0,
+                      'finding_sha256': reviews.digest(json.loads(observation(saved)['observation']['summary'])['findings'][0]),
+                      'revision': 'a' * 40, 'disposition': 'confirmed', 'evidence': 'Verified fixture source',
+                      'repair_route': 'Ralph stop/report/rerun under remaining budget'}
+            self.assertEqual(run('disposition', triage)['dispositions'], [triage])
+            ended = run('close', {'current_tree_hash': 'd' * 64})
             self.assertTrue(ended['closed'])
             self.assertEqual(ended['dispatches'], [])
             self.assertEqual(run('prepare', data)['dispatches'], [])

@@ -4,8 +4,12 @@ At each issued evaluation round, the coordinator may add free supplemental revie
 under `PKG/shared/supplemental-reviews.md`, using one optional ledger for the round.
 Dispatch the mandatory evaluator first. Keep extras out of this helper's evaluator
 records and attempt budget. Close and request cancellation when the mandatory round
-ends; never wait for extras. Verify concrete findings before adding confirmed issues
-to the normal feedback/repair path. Required independence, fresh full-scope
+ends; never wait for extras. Verify concrete findings and save bound dispositions
+in that ledger. Use its **Confirmed findings in Ralph** stop/report/rerun procedure;
+this helper cannot append supplemental findings to an evaluator verdict. Preserve
+the old verdict, carry remaining attempts into the replacement brief and require
+fresh full-scope review. Supplemental workspace drift uses the existing fresh
+evaluation path at the same attempt, with extras disabled. Required independence, fresh full-scope
 acceptance and pending-run gates stay unchanged.
 
 ## Start and pin the contract

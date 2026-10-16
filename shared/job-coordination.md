@@ -90,7 +90,10 @@ quarantined during ingestion.
 At a substantive review, use `PKG/shared/supplemental-reviews.md` alongside the
 mandatory reviewer. Keep its optional ledger outside job slots and budgets. Close
 and request cleanup when the primary review ends; independently verify optional
-findings before routing confirmed issues through step 6. Optional failures never
+findings and record their bound dispositions in the optional ledger. They have no
+job task/finding IDs; do not pass them to `finding-disposition`. Use the shared
+protocol's **Confirmed findings in whole jobs** stop/report/rerun procedure,
+preserving remaining budgets and all mandatory validators. Optional failures never
 charge a retry or supply acceptance. All required validators still apply.
 
 A terminal task is not an accepted stage. Freeze coordinator-observed input with

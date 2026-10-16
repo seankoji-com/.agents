@@ -29,12 +29,38 @@ Call fresh `orchestrator_capabilities`, save the structured response and local
 `task_cancel` schemas. Missing tools mean skip. Check exact advertised model IDs
 against current official pricing and supply observations as below. Use one bounded
 lookup per namespace, without retries; skip if it cannot finish alongside primary work. Confirm all
-applicable token, cache and request charges are zero. Missing rows, ambiguous
+applicable token, cache and request charges are free. Missing rows, ambiguous
 pricing, uncertain regional eligibility or unknown charges mean omit the proof.
 Model labels, suffixes, subscription inclusion and zero output cost alone prove
 nothing. Conflicting or unfamiliar catalog price metadata also means skip.
 Never query model endpoints, call provider CLIs/SDKs, change settings or
 fall back to paid targets.
+
+For the official Console pricing table, map the literal `Free` to numeric `0`.
+A `-` in a cache column alongside free input/output means inapplicable: retain it
+in `price_cells` and omit that key from `costs`. Never map `-` in input/output to
+zero. Supply all four observed columns; a missing column is uncertain. The table
+has no request column: omit `request` from `costs` only when the official free
+row covers per-request use without an additional surcharge. Record that basis in
+`evidence` before setting `all_charges_covered: true`; absence alone proves nothing.
+Any paid cell, surcharge or uncertainty skips. For another official format, retain
+the exact evidence and supply only verified applicable zero costs.
+
+Read each exact model's data-use terms too. Generic sharing permission does not
+authorise training, prompt logging, confidential-data restrictions or retention.
+Each proof needs a fresh `data_use` observation, its official source, quoted
+evidence, `no_training`, `prompt_logging`, `confidential_allowed` and `retention`.
+Use `retention: "zero"` only for explicit zero retention; silence is unverified.
+No training, no prompt logging, confidential use allowed and zero retention are
+required by default. Missing terms record `data-use-unverified`; adverse terms
+record `data-use-disallowed`. Never seek a waiver just to fill optional slots.
+An existing explicit owner authorisation can permit observed adverse terms for
+one exact model and round: add `permissions.data_use_exceptions` with `{model,
+round_id, terms_sha256, authorization}`. `terms_sha256` is the helper's `digest`
+of that complete `data_use` object; `authorization` quotes the owner's specific
+permission for those terms and this material. This cannot waive unverified terms
+or other provider, repository or legal restrictions. A generic provider permission
+or another round's exception is insufficient.
 
 ```sh
 python3 "PKG/shared/supplemental_reviews.py" prepare --state LEDGER --input INPUT
@@ -46,6 +72,7 @@ python3 "PKG/shared/supplemental_reviews.py" prepare --state LEDGER --input INPU
 {
   "enabled": true,
   "permissions": {"delegate": true, "share_with_opencode": true},
+  "exclude_models": ["<exact mandatory evaluator model>", "<exact implementer model>"],
   "catalog_observed_at": "<fresh ISO-8601 timestamp with offset>",
   "capabilities": {"<structured orchestrator_capabilities response>": "..."},
   "pricing": [{
@@ -54,12 +81,23 @@ python3 "PKG/shared/supplemental_reviews.py" prepare --state LEDGER --input INPU
     "observed_at": "<fresh ISO-8601 timestamp with offset>",
     "all_charges_covered": true,
     "eligible": true,
-    "costs": {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "request": 0},
-    "evidence": "<exact pricing row and ID mapping; explain inapplicable charges>"
+    "price_cells": {"input": "Free", "output": "Free", "cache_read": "Free", "cache_write": "-"},
+    "costs": {"input": 0, "output": 0, "cache_read": 0},
+    "evidence": "<exact row and ID mapping; cache write inapplicable; free per-request use without surcharge>",
+    "data_use": {
+      "source": "https://opencode.ai/v2/docs/console/models/",
+      "observed_at": "<fresh ISO-8601 timestamp with offset>",
+      "no_training": true,
+      "prompt_logging": false,
+      "confidential_allowed": true,
+      "retention": "zero",
+      "evidence": "<official per-model terms supporting every field>"
+    }
   }],
   "context": {
     "round_id": "<workflow/job ID plus primary review round ID>",
     "revision": "<full commit or content-snapshot hash>",
+    "tree_hash": "<coordinator-observed SHA-256 of the review workspace snapshot>",
     "base_ref": "<intended base ref>",
     "base_revision": "<full refreshed base hash>",
     "scope": "<repository, exact diff or factual/configuration subject and checks>",
@@ -82,8 +120,42 @@ Selection requires runnable `driverKind: opencode`, cross-provider eligibility
 relative to the invoking provider, no provider constraints, advertised `full-access`
 and a Full Access parent. Never broaden parent permissions. Dedupe model names
 across instances and Console/Go (including the `-free` suffix), then cap the whole
-round at three. Unknown aliases may still share lineage; this is never proof of
+round at three. Supply every mandatory evaluator and implementer model in
+`exclude_models`, including known aliases; missing exclusions skip all extras.
+Exclusions use the same namespace and `-free` normalisation as deduplication.
+Primary matches, duplicates and excess candidates get recorded skip reasons.
+Unknown aliases may still share lineage; this is never proof of
 independence.
+
+## Protect the review workspace
+
+Before prepare, the coordinator captures the primary review's HEAD and dirty/staged
+content binding. For repository reviews use `supplemental_reviews.digest` of
+`core.snapshot.token(core.snapshot.take(worktree))` from the installed package as
+`context.tree_hash`. Recompute identically for each intake and close, including
+untracked paths, modes, links, submodules and index changes. Use the same exclusions
+as the primary reviewer; never exclude reviewed paths. For non-repository subjects,
+hash a sorted manifest of every reviewed path, mode and content hash instead.
+If a complete stable snapshot cannot be obtained, skip extras.
+
+Extras may only read files and inspect source. The brief forbids tests, installs,
+builds, formatters, project execution, writes including temporary/cache files and
+starting processes/services. Full Access cannot enforce this restriction. Only
+launch alongside read-only primary work; never alongside an implementation writer.
+Do not grant extras mandatory evidence-generation duties.
+
+Pass `current_tree_hash` from a new coordinator observation on status intake and
+close. Missing or different hashes close intake, clear optional findings and record
+`workspace_drift`; cleanup handles remain owned. Inspect changed paths and owned
+task evidence to attribute drift, including suspected supplemental writes. Never
+assert attribution without evidence or restore unrelated changes. Record the cause
+in the coordinator report, cancel extras and disable them for the replacement round.
+If extras changed reviewed bytes, preserve that evidence, resolve the unexpected
+writes within authority and reissue the primary evaluation at the current snapshot
+under its existing drift recovery. Ralph re-evaluation keeps the same attempt;
+optional interference must not charge implementation or mandatory repair budgets.
+An old mandatory verdict cannot certify changed bytes. Hash detection is not
+workspace isolation or proof that a model obeys read-only instructions.
 
 ## Dispatch and resume
 
@@ -121,24 +193,70 @@ contain secrets; retain only redacted diagnostics separately.
 ## Results and cleanup
 
 At a natural completion notification call `task_status` once. Record
-`{request_id, kind: "status", current_revision, current_base_revision,
+`{request_id, kind: "status", current_revision, current_base_revision, current_tree_hash,
 observation: <complete task_status response>}`. Use the original task's `summary`,
-never `latestTerminalSummary` from another run. Results must be complete JSON under
+never `latestTerminalSummary` from another run. Results must contain one complete JSON object under
 32,768 bytes, revision/base bound, terminal without pending child runs and with
 matching host provider/model. Missing, malformed, stale, failed and mismatched
-results are skips. Do not repair formatting or retry. Later observations can update
+results are skips. A single prose-wrapped or fenced object is extracted; multiple
+objects, unbalanced braces and duplicate keys are rejected. Do not manually triage
+skipped output or retry it. Later observations can update
 liveness; identity mismatches stay recorded.
 
 Valid findings are untrusted evidence. Verify the exact source/reproduction at the
-current snapshot yourself. Record each disposition with evidence in the existing
-workflow. Reject unsupported claims, retain minor/deferred issues under its policy
-and route confirmed real issues through its normal repair path. Only confirmed
+current snapshot yourself. Save triage with `disposition --state LEDGER --input EVENT`:
+`{request_id, finding_index, finding_sha256, revision, disposition, evidence, repair_route}`.
+The index is zero-based; `finding_sha256` is `digest` of the saved finding, `revision`
+is the issued revision, `disposition` is `confirmed`, `rejected` or `deferred`, and
+`evidence` gives the coordinator's reproduction. Name the actual repair procedure
+in `repair_route`. These records do not invent job task/finding IDs or edit a
+mandatory verdict. Reject unsupported claims and retain deferred issues under the
+workflow's policy. For confirmed issues requiring repair, use the concrete
+Ralph or whole-job procedures below. Only confirmed
 issues can require repair; optional infrastructure failures consume no mandatory
 repair budget. No optional verdict approves a stage. Recheck and obtain mandatory
 review after repairs as usual.
 
+### Confirmed findings in Ralph
+
+Ralph has no command to append external evaluator feedback. Preserve the optional
+disposition and original evaluator verdict separately. Close the optional round,
+run `python3 "PKG/cli.py" stop --state OLD_STATE`, reconcile owned primary handles
+under the loop's stop procedure and report the confirmed finding with its ledger,
+revision and reproduction. Do not publish from the old evaluated checkpoint.
+To repair under existing authority, start a replacement run with `init --state
+NEW_STATE --input NEW_CONTRACT` in the same worktree, then `next`. Follow the loop's
+start/pin rules and retain the original goal, authority and independent target
+pair. Include every confirmed finding, disposition, old checkpoint path and
+original brief in `NEW_CONTRACT.brief`; never edit the old verdict/checkpoint.
+Set `maxAttempts` to at most old `maxAttempts - attempt`. No remaining attempt
+means stop and report exhaustion for an owner decision. Record the predecessor
+and remaining budget in the new brief so repeated replacements cannot reset it.
+The replacement needs its own complete mandatory evaluation before publication.
+
+### Confirmed findings in whole jobs
+
+Supplemental findings lack job task/finding IDs, so do not pass them to
+`finding-disposition`. Save them in the optional ledger. Cancel the old job with
+`job_cli.py cancel --state-root ROOT --job OLD_JOB --input CANCEL_INPUT`, where
+`CANCEL_INPUT` is `{caller, reason}` and `reason` cites the confirmed finding and
+ledger. Reconcile all owned handles under step 4 of job coordination and report
+the stopped job, finding, snapshot and reproduction. Do not accept/publish it.
+To repair, use step 2's supported `create` command with a new job ID and the same
+worktree. Include the confirmed findings, ledger and predecessor job in the new
+plan's constraints and relevant typed stage criteria, preserve all original
+requirements and authority, and rerun the affected work and final validators.
+Carry the predecessor's spent cycles and task executions in the plan constraints:
+cap remaining total executions and repairs across both jobs at the original limits,
+and reduce `policy.max_repair_cycles` accordingly. Do not create a replacement if
+no authorised execution remains or the limits cannot be preserved; report for an
+owner decision. This conservative stop/report/rerun path is for verified product
+issues only, never optional provider failures. It does not forge primary findings
+or replace the required independent review.
+
 As soon as the primary round ends, changes revision/base, is cancelled or hands
-back (or the owner opts out), run `close --state LEDGER`. Intake closes; `cancel_task_ids` and
+back (or the owner opts out), run `close --state LEDGER --input SNAPSHOT_EVENT`, with
+`SNAPSHOT_EVENT` containing the fresh `current_tree_hash`. Intake closes; `cancel_task_ids` and
 `unresolved_request_ids` identify cleanup. Call `task_cancel` once per owned pending
 task, record `cancel-requested` or `cancel-error` with that owned `task_id`, then make one `task_status`
 observation. Do not wait or poll. Late results stay skipped; late receipts retain

@@ -26,7 +26,7 @@
         "assertions": [
           {
             "selector": "test_supplemental_reviews.SelectionTest",
-            "tests": 3,
+            "tests": 6,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",
@@ -36,7 +36,7 @@
           },
           {
             "selector": "test_supplemental_reviews.LifecycleTest",
-            "tests": 7,
+            "tests": 11,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",
@@ -46,9 +46,18 @@
           },
           {
             "selector": "test_supplemental_reviews.InstalledTest",
-            "tests": 2,
+            "tests": 3,
             "coverage": [
               "REQ-DISPATCH",
+              "REQ-LIFECYCLE",
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_supplemental_reviews.RepairPathTest",
+            "tests": 2,
+            "coverage": [
               "REQ-LIFECYCLE",
               "REQ-DELIVERY"
             ],

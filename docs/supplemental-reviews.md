@@ -28,10 +28,39 @@ missing or stale pricing means skip. Catalog and pricing observations last five
 minutes. The helper trusts these coordinator observations; it does not fetch or
 independently verify a price.
 
+For Console table rows, `Free` maps to zero. A cache-column `-` alongside free
+input/output means inapplicable and is preserved as evidence, rather than entered
+as a price. An absent request column requires evidence that the free offer covers
+per-request use without a surcharge. Missing input/output, paid cells or uncertain
+charges skip the model. Go subscription inclusion alone is insufficient.
+
+Free offers can have different data-use terms. Before dispatch, each exact model
+needs fresh official evidence of no training, no prompt logging, zero retention
+and permission to use the review material, including confidential material where
+applicable. Unverified terms skip. Terms allowing training or logging, retaining
+prompts or forbidding confidential data skip unless the owner already explicitly
+authorised those observed terms for that exact model, material and round, within
+the provider's rules. Generic permission to share with OpenCode is insufficient.
+The coordinator records terms and any specific authorisation in the private ledger.
+
+The primary reviewer and implementer model names are excluded, with the same
+namespace and `-free` normalisation used for deduplication. Known aliases must be
+excluded too. Duplicate and over-cap candidates have recorded skip reasons.
+
 OpenCode must advertise Full Access support and the parent must already have that
 mode. The review brief still permits inspection only. A narrower parent, disabled
 provider, missing cross-provider capability or unavailable host lifecycle tool
 means skip. No permission changes or paid fallback are attempted.
+
+Extras cannot run tests, builds, installs, project code or other commands that
+write files or start processes. They inspect source only. The coordinator records
+a workspace content hash at prepare and compares fresh hashes at intake and close.
+Drift closes optional intake and retains cleanup handles. The coordinator inspects
+the changed paths and task evidence to establish the cause, then disables extras
+for any replacement round. Unexpected supplemental writes require fresh primary
+evaluation at the resolved snapshot without charging a mandatory repair attempt.
+Full Access does not enforce read-only behaviour; these checks detect drift and
+cannot guarantee isolation. Extras never run alongside an implementation writer.
 
 ## What happens when extras fail
 
@@ -48,8 +77,15 @@ the report and ledger for later reconciliation. A cancellation request alone is
 not proof that work stopped. Existing pending-run gates still apply unchanged.
 
 Returned findings are leads. The coordinator verifies concrete claims against the
-current source, records dispositions and sends confirmed real issues through the
-normal repair path. An optional review never supplies approval, replaces the
+current source and records bound dispositions with reproduction evidence and a
+concrete repair route. A single JSON object wrapped in prose or a fence is accepted;
+ambiguous, malformed or stale output stays skipped and is never triaged manually.
+For confirmed issues, Ralph and whole jobs use the protocol's supported
+stop/report/rerun procedure: preserve the old verdict, stop the old run, include
+the confirmed findings in the replacement brief or plan, retain remaining budgets
+and rerun mandatory checks and review. If no authorised budget remains, report
+exhaustion for an owner decision. Optional failures never trigger this procedure.
+An optional review never supplies approval, replaces the
 mandatory evaluator or establishes independence for an unknown model lineage.
 Repairs still need the workflow's required checks and review.
 
@@ -65,3 +101,6 @@ or scheduler is added.
 Offline tests cover selection, error handling, resume, cleanup and a relocated
 installed package. They do not prove live provider compatibility, current model
 availability, model quality or successful live cancellation.
+Live `delegate_task` idempotency by `clientRequestId` also remains unverified;
+stable IDs in an offline ledger do not prove host deduplication. See the
+[release evidence requirements](releasing.md#supplemental-review-live-acceptance).
