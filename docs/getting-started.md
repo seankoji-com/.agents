@@ -35,9 +35,9 @@ It doesn't change provider settings or overwrite skills you edited. `doctor` sho
 print one line per plugin with `"ok": true` and exit 0. It checks the installed files,
 not T3 or your model.
 
-This is what those two commands printed in an empty home directory, from the current
-source. Long lines are cut with `…` here; the [full transcript](assets/recordings/quickstart.txt)
-is unedited.
+Example output below uses the current skill paths and cuts long lines with `…`.
+The [full transcript](assets/recordings/quickstart.txt) preserves the original
+installation demonstration, which used the earlier default paths.
 
 ```console
 $ t3-plugins setup
