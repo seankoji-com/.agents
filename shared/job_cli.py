@@ -9,14 +9,14 @@ from shared.worker_registry import job_agents_roots,record_job_root
 from core.jobs.store import Store,JobError,strict_load
 
 def main(argv=None):
- p=argparse.ArgumentParser();p.add_argument('command',choices=['create','overview','status','prepare','result','task-observation','followup-prepare','observation','direct-execution','finding-disposition','decision','plan-revision','document-revision','retry','cancel','discard']);p.add_argument('--state-root',required=True);p.add_argument('--job',required=True);p.add_argument('--input');p.add_argument('--prefix');p.add_argument('--agents-root');p.add_argument('--config');p.add_argument('--capabilities')
+ p=argparse.ArgumentParser();p.add_argument('command',choices=['create','overview','status','prepare','result','task-observation','followup-prepare','observation','direct-execution','finding-disposition','decision','plan-revision','upgrade-package','document-revision','retry','cancel','discard']);p.add_argument('--state-root',required=True);p.add_argument('--job',required=True);p.add_argument('--input');p.add_argument('--prefix');p.add_argument('--agents-root');p.add_argument('--config');p.add_argument('--capabilities')
  a=p.parse_args(argv)
  try:
   store=pinned_store(a.state_root,a.job)  # unsafe job IDs are invalid input, refused before any state access
   if a.command=='create' and (not a.prefix or not a.agents_root):raise JobError('create requires --prefix and --agents-root')
   if a.command!='create':
    job=verify_all_pins(store)
-   if not any(os.path.realpath(pin['package_dir'])==os.path.realpath(Path(__file__).resolve().parents[1]) for pin in job['pins'].values()):raise JobError('pin_mismatch: wrong executing package; use the stored pinned package recovery argv')
+   if a.command!='upgrade-package' and not any(os.path.realpath(pin['package_dir'])==os.path.realpath(Path(__file__).resolve().parents[1]) for pin in job['pins'].values()):raise JobError('pin_mismatch: wrong executing package; use the stored pinned package recovery argv')
   if a.input:
    from core.jobs.store import _regular
    data=strict_load(_regular(Path(a.input),max_bytes=16*1024*1024))
@@ -52,6 +52,9 @@ def main(argv=None):
   elif a.command=='finding-disposition':out=dispose_finding(store,data['caller'],data['task_id'],data['finding_id'],data['disposition'],data['evidence'],data.get('finding_sha256'))
   elif a.command=='task-observation':out=record_observation(store,data['caller'],data['task_id'],data['event'])
   elif a.command=='retry':out=retry_task(store,data['caller'],data['task_id'],data['reason'],data.get('category','primary'))
+  elif a.command=='upgrade-package':
+   from shared.job_upgrade import upgrade_package
+   out=upgrade_package(store,data['caller'],data['revision'],data['dependency_key'],data['expected_state_sha256'],data['expected_package_digest'],Path(__file__).resolve().parents[1],a.prefix,a.agents_root,a.config)
   elif a.command=='plan-revision':
    def adopt(job,deps):
     pins=adopt_pins(job,deps,a.state_root,a.prefix or '',a.agents_root or '',a.config,data['revision'].get('adopt_keys',[]))

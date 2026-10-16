@@ -85,6 +85,40 @@ Never hand-edit a run's version number. Activation changes only the selected pac
 it does not migrate state. The [migration record](../imps-gate-migration.md) explains
 the removed APIs and retained evidence boundaries.
 
+### Upgrading a whole job
+
+A whole job pins its installed packages. Activating a newer version leaves those
+pins unchanged. If a required plan revision reaches the older package's 16 MiB
+state ceiling, keep the complete job and old package intact. New packages allow
+64 MiB of job state; input and artifact limits remain unchanged.
+
+After every owned task is reconciled and its result ingested, record an owner
+decision scoped to `plan:<revision-id>` through the pinned package. From the
+reviewed newer installed package, run:
+
+```sh
+python3 "$NEW_PACKAGE/shared/job_cli.py" upgrade-package \
+  --state-root "$JOBS" --job "$JOB_ID" \
+  --prefix "$PREFIX" --agents-root "$AGENTS_ROOT" --input upgrade.json
+```
+
+The input contains `caller` from the existing job, `dependency_key`,
+`expected_state_sha256` for the exact current `job.json`,
+`expected_package_digest` from the new installation receipt, and
+`revision: {id, owner_decision_id, reason}`. The chosen dependency must resolve to
+the executing package in the same installation. The command verifies both sets
+of package files and worker bundles and keeps an immutable, private copy of the
+old state under `migrations/`, named by its hash.
+
+The job ID, evidence history, handles, findings, decisions and repair counters
+survive. Dependent acceptance becomes stale and requires fresh validators.
+Resolve the new pinned path with `t3-plugins --job "$JOBS/$JOB_ID/job.json" path imps`
+and use its receipt digest for subsequent caller metadata. A changed state hash,
+missing owner decision, pending work, wrong installation or altered package
+refuses the upgrade. Ordinary commands still refuse an unpinned package.
+Older packages cannot read a job that has grown beyond their ceiling. Never
+patch installed code, truncate history or change a pin by hand.
+
 ## Limits
 
 imps costs more turns than a direct request. It pays off when you need the evidence,
