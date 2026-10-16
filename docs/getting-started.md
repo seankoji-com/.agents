@@ -25,9 +25,12 @@ t3-plugins setup
 t3-plugins doctor
 ```
 
-`setup` copies each workflow into `~/.local/share/t3-plugins/` and writes a slash-menu
-skill for it into `~/.agents/skills`, `~/.claude/skills`, `~/.gemini/config/skills`
-and Muse's `~/.config/muse/skills`.
+`setup` copies each workflow into `~/.local/share/t3-plugins/` and writes its skill
+into each provider's native directory: `~/.claude/skills`, `~/.codex/skills`,
+`~/.config/opencode/skills`, `~/.gemini/config/skills` (AGY), `~/.gemini/skills`
+(Gemini CLI), and `~/.config/muse/skills`. `CODEX_HOME` overrides `~/.codex`;
+`XDG_CONFIG_HOME` overrides `~/.config`. Setup preserves existing shared skills
+under `~/.agents/skills`; review stale copies before removing them.
 It doesn't change provider settings or overwrite skills you edited. `doctor` should
 print one line per plugin with `"ok": true` and exit 0. It checks the installed files,
 not T3 or your model.
@@ -39,7 +42,7 @@ is unedited.
 ```console
 $ t3-plugins setup
 {"ok": true, "data": {"action": "install", "plugin": "agent-tuneup", "version": "1.1.2+gc93f8a7d6b0c", …, "files": 73}}
-{"name": "t3-agent-tuneup", "path": "~/.agents/skills/t3-agent-tuneup/SKILL.md", …}
+{"name": "t3-agent-tuneup", "path": "~/.claude/skills/t3-agent-tuneup/SKILL.md", …}
 …
 {"learnings_grant": {"provider": "claudeAgent", "status": "proposed", …}}
 $ t3-plugins doctor
@@ -190,7 +193,7 @@ snapshots don't depend on the checkout staying where it is.
 
 Other setup forms: `t3-plugins setup imps` installs one plugin and its skills;
 `t3-plugins install ape` installs a snapshot without skills; repeated `--root PATH`
-replaces the four default skill folders.
+replaces the default skill folders.
 
 ## Paths and remote environments
 

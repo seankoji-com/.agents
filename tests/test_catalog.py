@@ -55,6 +55,48 @@ class CatalogTest(unittest.TestCase):
         self.call('install', '--dry-run')
         self.assertFalse(self.prefix.exists())
 
+    def test_setup_uses_native_skill_roots_and_preserves_shared_copies(self):
+        self.env.pop('CODEX_HOME', None)
+        self.env.pop('XDG_CONFIG_HOME', None)
+        home = Path(self.tmp.name)
+        shared = home / '.agents/skills/t3-ape/SKILL.md'
+        shared.parent.mkdir(parents=True)
+        shared.write_text('operator-owned shared copy')
+        self.call('setup', 'ape')
+        roots = (home / '.claude/skills', home / '.codex/skills',
+                 home / '.config/opencode/skills', home / '.gemini/config/skills',
+                 home / '.gemini/skills', home / '.config/muse/skills')
+        for root in roots:
+            self.assertTrue((root / 't3-ape/SKILL.md').is_file(), str(root))
+        self.assertEqual(shared.read_text(), 'operator-owned shared copy')
+        self.assertEqual(list(shared.parent.parent.iterdir()), [shared.parent])
+
+    def test_setup_respects_provider_overrides_and_deduplicates_roots(self):
+        home = Path(self.tmp.name)
+        # Codex deliberately shares Claude's root; setup should write it once.
+        self.env['CODEX_HOME'] = str(home / '.claude')
+        self.env['XDG_CONFIG_HOME'] = str(home / 'custom config')
+        result = self.call('setup', 'ape')
+        receipts = [json.loads(line) for line in result.stdout.splitlines()]
+        adapters = [row['path'] for row in receipts if row.get('name') == 't3-ape']
+        self.assertEqual(len(adapters), 5)
+        self.assertEqual(len(set(adapters)), 5)
+        for provider in ('opencode', 'muse'):
+            self.assertTrue((home / 'custom config' / provider / 'skills/t3-ape/SKILL.md').is_file())
+        self.assertFalse((home / '.codex/skills').exists())
+        self.assertFalse((home / 'config/opencode/skills').exists())
+        self.assertFalse((home / '.agents/skills').exists())
+
+    def test_setup_explicit_root_replaces_native_defaults(self):
+        self.env.pop('CODEX_HOME', None)
+        root = Path(self.tmp.name) / 'chosen skills'
+        self.call('setup', 'ape', '--root', str(root))
+        self.assertTrue((root / 't3-ape/SKILL.md').is_file())
+        for name in ('.claude/skills', '.codex/skills', 'config/opencode/skills',
+                     '.gemini/config/skills', '.gemini/skills', 'config/muse/skills',
+                     '.agents/skills'):
+            self.assertFalse((Path(self.tmp.name) / name).exists(), name)
+
     def test_healthy_old_snapshot_is_reported_and_cli_warns_without_rewriting(self):
         self.call('install', 'imps')
         command = [sys.executable, str(ROOT / 'scripts/run_imps.py'), '--help']

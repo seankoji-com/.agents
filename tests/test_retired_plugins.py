@@ -13,7 +13,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 RETIRED = ('offload-sidecar', 'prompt-builder')
 MARKER = '.t3-plugins-skill.json'
-DEFAULT_ROOTS = ('.agents/skills', '.claude/skills', '.gemini/config/skills', '.config/muse/skills')
+DEFAULT_ROOTS = ('.claude/skills', '.codex/skills', '.config/opencode/skills',
+                 '.gemini/config/skills', '.gemini/skills', '.config/muse/skills')
 
 
 def owned_adapter(root, plugin, text=None):
@@ -52,8 +53,9 @@ class RetiredAdapters(unittest.TestCase):
         self.home.mkdir()
         self.prefix = self.base / 'prefix'
         self.agents = self.base / 'managed-agents'
-        self.env = {**os.environ, 'HOME': str(self.home), 'XDG_CONFIG_HOME': str(self.base / 'config'),
+        self.env = {**os.environ, 'HOME': str(self.home), 'XDG_CONFIG_HOME': str(self.home / '.config'),
                     'XDG_STATE_HOME': str(self.base / 'state')}
+        self.env.pop('CODEX_HOME', None)
 
     def call(self, *args, code=0):
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/catalog.py'), '--prefix', str(self.prefix),
