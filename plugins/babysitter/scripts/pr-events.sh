@@ -93,6 +93,13 @@ esac
 # sub-30-second latency to be handled "immediately" in any meaningful sense.
 [ "$INTERVAL" -ge 30 ] || die "--interval must be at least 30 seconds"
 [ "${#PASSTHROUGH[@]}" -gt 0 ] || die "no target given — pass --org <org> or --repo/--pr"
+# A 100-thread page per PR makes a 100-PR sweep cost about 106 GraphQL points; polled
+# every 60 s that exceeds GitHub's 5,000-point hourly budget. Cap the watch at 50 PRs
+# unless the caller set --limit explicitly (see list-prs.sh "Query cost").
+case " ${PASSTHROUGH[*]} " in
+*" --limit "*) ;;
+*) PASSTHROUGH+=(--limit 50) ;;
+esac
 
 # Explicit templates, and a checked failure. BSD/macOS mktemp is happiest with a
 # template, and under a restricted TMPDIR it can fail outright — in which case

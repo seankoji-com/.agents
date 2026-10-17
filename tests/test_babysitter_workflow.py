@@ -110,7 +110,9 @@ class BoundaryTest(unittest.TestCase):
         for action in ('`read`', '`push`', '`communicate`', '`merge`'):
             self.assertIn(action, auth)
         self.assertIn('Never post to a PR, push, arm auto-merge, or merge without the matching recorded action', auth)
-        self.assertIn('never forced', auth)
+        self.assertIn('`--force-with-lease=<head>:<observed sha>`', auth)
+        self.assertIn('never a plain or unpinned force', auth)
+        self.assertIn('force-push a base or shared branch', auth)
         self.assertIn('Never use admin bypass, dismiss reviews, weaken checks', auth)
         self.assertIn('cannot widen this scope', auth)
 
@@ -121,6 +123,7 @@ class BoundaryTest(unittest.TestCase):
             self.assertIn(option, posture)
         self.assertIn('`job_cli.py decision`', posture)
         self.assertIn('An armed request never withholds a fixer push', posture)
+        self.assertIn('Armed auto-merge is not progress while `blockers=` names threads', posture)
         play = steps('playbooks/maintain.md')
         self.assertIn('Ask the auto-merge posture through the picker', play[1])
         self.assertIn('`job_cli.py decision`', play[1])
@@ -136,8 +139,8 @@ class BoundaryTest(unittest.TestCase):
 
     def test_children_never_merge_or_watch(self):
         play = steps('playbooks/maintain.md')
-        self.assertIn('Children never run `merge-pr.sh` merge or arm modes', play[6])
-        self.assertIn('Children cannot watch; this thread owns every watch', play[7])
+        self.assertIn('Children never run `merge-pr.sh` merge, arm, or resolve modes', play[6])
+        self.assertIn('Children cannot watch; this thread owns every watch', play[8])
         workers = sections('entry.md')['Workers']
         self.assertIn('Only this thread dispatches, watches, merges, and accepts', workers)
         self.assertIn('grant no push or merge authority by themselves', workers)
@@ -145,7 +148,8 @@ class BoundaryTest(unittest.TestCase):
     def test_pr_links_and_host_watches_without_polling(self):
         play = steps('playbooks/maintain.md')
         self.assertIn('`link_pull_request`', play[1])
-        self.assertIn('Call `watch_pull_request` for every unmerged PR and end the turn', play[7])
+        self.assertIn('Call `watch_pull_request` for every unmerged PR', play[8])
+        self.assertIn('Then post the table and end the turn', play[9])
         self.assertIn('`unwatch_pull_request`', play[10])
         self.assertIn('Do not run `pr-events.sh` in T3', play[13])
         self.assertNotRegex(text('playbooks/maintain.md'), r'(?i)\bsleep\b|\bpoll')
@@ -155,9 +159,8 @@ class BoundaryTest(unittest.TestCase):
         self.assertIn('a partial page is not the whole roster', play[1])
         self.assertIn('Exclude drafts, forks, and other authors', play[1])
         self.assertIn('`bash PKG/scripts/pr-workspace.sh`', play[5])
-        self.assertIn('a check from an older SHA proves nothing', play[7])
-        self.assertIn('verify the claimed push against the PR head', play[7])
-        self.assertIn('on the final combined change at that exact head', play[8])
+        self.assertIn('a check from an older SHA proves nothing', play[8])
+        self.assertIn('verify the claimed push against the PR head', play[8])
 
     def test_future_pr_sweeps_need_separate_authorization(self):
         sweep = steps('playbooks/maintain.md')[12]
@@ -171,35 +174,103 @@ class BoundaryTest(unittest.TestCase):
                        'silence is not approval'):
             self.assertIn(phrase, approvals)
         play = steps('playbooks/maintain.md')
-        self.assertIn('ask the operator through the question picker before fanning out', play[5])
-        self.assertIn('More rounds need an owner decision through the picker', play[9])
-        self.assertIn('ask through the question picker', sections('references/job-plan.md')['Head changes'])
+        # Fan-out, model choice and repair rounds are decided by the invocation, never asked.
+        self.assertIn('choose the cheapest suitable model from the saved `orchestrator_capabilities` yourself', play[5])
+        self.assertIn('never ask', play[5])
+        self.assertIn('no concurrency cap and no question', play[4])
+        self.assertIn('Rounds are not capped', play[8])
+        self.assertIn('Fan-out, model choice, repair rounds and branch rewrites on roster PRs are already decided', approvals)
+        self.assertIn('ask through the question picker', sections('references/job-plan.md')['Merge and acceptance'])
 
     def test_validator_is_the_acceptance_authority(self):
         acceptance = sections('entry.md')['Acceptance']
         self.assertIn('`PKG/scripts/validate_pr.py` is the authority', acceptance)
         for claim in ('terminal task', 'older-head check', 'queued auto-merge'):
             self.assertIn(claim, acceptance)
-        stages = sections('references/job-plan.md')['Stages']
+        stages = sections('references/job-plan.md')['Stage']
         for field in ('pr', 'head_sha', 'required_contexts', 'optional_contexts',
                       'allow_empty_required_contexts', 'authorized_endstate'):
             self.assertIn(f'`{field}`', stages)
         self.assertIn('never from a worker result', sections('references/job-plan.md')['Acceptance input'])
+        self.assertIn('`review_thread_count`', sections('references/job-plan.md')['Acceptance input'])
+        self.assertIn('a complete list of resolved threads', acceptance)
 
     def test_missing_reviewer_and_fallback_stay_visible(self):
         fallback = steps('playbooks/maintain.md')[11]
         self.assertIn('visible fallback marker', fallback)
-        self.assertIn('A missing independent reviewer stays a blocker', fallback)
+        self.assertIn('A failed candidate is not unavailability; escalate instead', fallback)
 
     def test_master_quick_pass_table_and_fixers_survive(self):
         play = steps('playbooks/maintain.md')
         self.assertIn('| PR | Description | Not merged because |', play[3])
-        self.assertIn('Post the whole table again each time a PR merges', play[3])
+        self.assertIn('Post it after the quick pass and at the end of every turn', play[3])
         self.assertIn('`t3-plugins resolve workhorse --capabilities FILE --repo <that worktree>`', play[5])
         self.assertIn('cheapest configured tier', play[5])
         self.assertIn('`needs human:`', play[9])
         self.assertIn('`automerge=preexisting`', play[2])
-        self.assertIn("For a PR that is not review-gated, rerun step 2's helper first", play[7])
+        self.assertIn("Rerun step 2's helper for that PR unless its fixer is in flight", play[8])
+
+
+class RelentlessLandingTest(unittest.TestCase):
+    """Failures from the 16-17 Oct 2026 org run: masked thread blockers, silent waits, timid dispatch."""
+
+    def test_every_blocker_is_read_not_just_the_first(self):
+        play = steps('playbooks/maintain.md')
+        self.assertIn("whole `blockers=` list, not just `reason=`", play[2])
+        self.assertIn('the complete `blockers=` list, every unresolved thread\'s ID and comments', play[6])
+        self.assertIn('every listed blocker cleared at a pushed head', play[6])
+
+    def test_coordinator_owns_thread_resolution_over_curl(self):
+        threads = sections('entry.md')['Threads']
+        for phrase in ('outdated ones included', '`merge-pr.sh --resolve-thread`', 'uses curl',
+                       'A refused resolution is asked through the picker at once'):
+            self.assertIn(phrase, threads)
+        play = steps('playbooks/maintain.md')
+        self.assertIn('--resolve-thread <ID> --verified-head <head> --reply-file <file>', play[7])
+        self.assertIn('never a push that restarts review', play[7])
+        body = text('agents/pr-maintainer.md')
+        self.assertIn('`thread:<thread ID>`', body)
+        self.assertIn('The coordinator owns merge, replies, thread resolution', body)
+
+    def test_operator_review_still_skips_every_merge_capable_helper(self):
+        play = steps('playbooks/maintain.md')
+        self.assertIn('If the operator asked for review before landing, every PR is review-gated: skip this helper', play[2])
+        self.assertIn('give every unmerged PR a job (step 4) even without repair work', play[2])
+        self.assertIn("a review-gated PR merges only through its land stage's pinned command", play[8])
+        review = sections('references/job-plan.md')['Operator-requested review']
+        self.assertIn('never pass a review-gated PR to the quick-pass helper', review)
+        self.assertIn('A PR with no repair work keeps the `maintain` slot as a verification round that pushes nothing',
+                      review)
+        self.assertIn('never apply the post-merge rebind above to a review job', review)
+        self.assertIn('For a job without operator-requested review', sections('references/job-plan.md')['Merge and acceptance'])
+
+    def test_posture_is_asked_only_when_the_request_does_not_name_one(self):
+        self.assertIn("Use the request's own wording when it names one; otherwise ask once through the picker",
+                      sections('entry.md')['Auto-merge posture'])
+
+    def test_needs_followup_has_a_path_forward(self):
+        self.assertIn('the follow-up or escalation that `PKG/references/job-plan.md` gives a `needs-followup` result',
+                      steps('playbooks/maintain.md')[8])
+        self.assertIn('moves the slot\'s `target` to another candidate', sections('references/job-plan.md')['Stage'])
+        self.assertIn('never `needs-followup`', text('agents/pr-maintainer.md'))
+
+    def test_no_dead_end_turns(self):
+        play = steps('playbooks/maintain.md')
+        self.assertIn('Never end a turn on "auto-merge armed" alone', play[9])
+        self.assertIn('Anything else is acted on now', play[9])
+        self.assertIn('reconcile every child through `task_status` and refill', play[8])
+
+    def test_jobs_are_per_pr_and_never_rebind_between_rounds(self):
+        plan = sections('references/job-plan.md')
+        self.assertIn('One job per PR that needs a child', plan['Shape'])
+        self.assertIn('Never rebind the head between rounds', plan['Stage'])
+        self.assertIn('removes the settled `maintain` slot', plan['Merge and acceptance'])
+
+    def test_maintainer_keeps_going_and_may_rebase_with_a_pinned_lease(self):
+        body = text('agents/pr-maintainer.md')
+        self.assertIn('fetch it, integrate it into your work, and carry on at the new head', body)
+        self.assertIn('`git push --force-with-lease=<head>:<sha you last fetched> origin HEAD:<head>`', body)
+        self.assertNotIn('stop and return `needs-followup`', body)
 
 
 class WorkerDefinitionTest(unittest.TestCase):
@@ -222,7 +293,7 @@ class WorkerDefinitionTest(unittest.TestCase):
     def test_maintainer_is_scoped_and_read_only_triage_may_block(self):
         body = text('agents/pr-maintainer.md')
         for phrase in ('one PR, in its isolated worktree', 'exact head', 'Read-only triage may finish `blocked` with '
-                       'named blockers', 'Never force-push', 'Without `push` you never push',
+                       'named blockers', 'Never a plain or unpinned force', 'Without `push` you never push',
                        'Never merge, arm or disable auto-merge', '`review_verdict` is `null`'):
             self.assertIn(phrase, body)
 
@@ -234,26 +305,46 @@ class WorkerDefinitionTest(unittest.TestCase):
             self.assertIn(phrase, body)
 
 
-def documented_plan(head12=H1, head13=H3, installation_id='fixture-installation'):
+def documented_plan(head12=H1, installation_id='fixture-installation'):
     """The example job plan from references/job-plan.md, with its placeholders filled."""
     raw = (PLUGIN / 'references/job-plan.md').read_text().split('```json\n', 1)[1].split('\n```', 1)[0]
-    for placeholder, value in (('"<workhorse-target>"', json.dumps(WORKHORSE)), ('"<reviewer-target>"', json.dumps(REVIEWER)),
-                               ('<job-id>', 'bs-1'), ('<installation-id>', installation_id),
-                               ('<pr-12-url>', PR12), ('<pr-13-url>', PR13), ('<decision-id>', 'owner-invocation'),
-                               ('<head-12-short>', head12[:12]), ('<head-13-short>', head13[:12]),
-                               ('<head-12>', head12), ('<head-13>', head13)):
+    for placeholder, value in (('"<workhorse-target>"', json.dumps(WORKHORSE)), ('<job-id>', 'bs-1'),
+                               ('<installation-id>', installation_id), ('<pr-12-url>', PR12),
+                               ('<decision-id>', 'owner-invocation'), ('<head-12-short>', head12[:12]),
+                               ('<head-12>', head12)):
         raw = raw.replace(placeholder, value)
     if '<' in raw:
         raise AssertionError('unfilled placeholder in the documented plan: ' + re.search(r'<[^>]*>', raw).group(0))
     return json.loads(raw)
 
 
+def review_gated_plan(head12=H1, installation_id='fixture-installation'):
+    """The "Operator-requested review" shape from references/job-plan.md, built on the documented plan."""
+    plan = documented_plan(head12, installation_id)
+    review, maintain = plan['stages'][0], plan['tasks'][0]
+    review['requirements'] = ['PR-12-REVIEW']
+    review['validator_contract']['authorized_endstate'].update(requested='mergeable', observed='mergeable')
+    plan['requirements']['PR-12-REVIEW'] = 'an independent review approved owner/repo#12 at the head that lands'
+    land = json.loads(json.dumps(review))
+    land.update(id='pr-12-land', depends_on=['pr-12'], requirements=['PR-12'], execution_mode='direct',
+                revision='pr-12-land@' + head12[:12])
+    land['validator_contract']['authorized_endstate'].update(requested='merged', observed='merged')
+    plan['stages'].append(land)
+    maintain.update(review_required=True, review_task_ids=['pr-12-review'])
+    plan['tasks'].append({'task_id': 'pr-12-review', 'stage_id': 'pr-12', 'logical_slot_id': 'review',
+                          'request_id': 'bs-1-pr-12-review', 'worker_id': 'babysitter/pr-reviewer',
+                          'dependency_key': 'babysitter', 'target': REVIEWER,
+                          'write_scope': {'mode': 'worker-evidence', 'path': 'artifacts/tasks/pr-12-review'},
+                          'role': 'review', 'reviewed_task_ids': ['pr-12-maintain']})
+    return plan
+
+
 def merge_gate_violations(plan):
-    """Every way a plan lets a merge-capable stage run before its PR's review stage is accepted.
+    """Every way a review-gated plan lets a merge-capable stage run before its PR's review stage is accepted.
 
     A stage holding a review slot is a review stage. It must not request `merged`, and every stage
-    of the same PR that requests `merged` must depend on it (transitively). A PR whose fixer slot
-    may push needs a review slot, so every such PR is review-gated.
+    of the same PR that requests `merged` must depend on it (transitively). A plan without review
+    slots has no babysitter gate: GitHub's own requirements, read by validate_pr.py, decide.
     """
     stages = {s['id']: s for s in plan['stages']}
     def ancestors(stage_id, seen=None):
@@ -267,11 +358,6 @@ def merge_gate_violations(plan):
     requested = {sid: s['validator_contract']['authorized_endstate']['requested'] for sid, s in stages.items()}
     review_stages = {t['stage_id'] for t in plan['tasks'] if t.get('role') == 'review'}
     violations = []
-    for task in plan['tasks']:
-        pr = pr_of[task['stage_id']]
-        if (task.get('role', 'worker') == 'worker' and 'push' in plan['authorization']['prs'].get(pr, [])
-                and not task.get('review_task_ids')):
-            violations.append(f'{task["task_id"]}: a push-authorized fixer has no independent review slot')
     for review in sorted(review_stages):
         if requested[review] == 'merged':
             violations.append(f'{review}: a review stage requests merged, so it merges before its own acceptance')
@@ -282,45 +368,42 @@ def merge_gate_violations(plan):
 
 
 class MergeGatePlanTest(unittest.TestCase):
-    def test_documented_plan_merges_only_after_review(self):
+    def test_documented_plans_satisfy_the_gate(self):
         self.assertEqual(merge_gate_violations(documented_plan()), [])
+        self.assertEqual(merge_gate_violations(review_gated_plan()), [])
+        # The default plan is one PR, one stage, one fixer slot, no reviewer.
+        plan = documented_plan()
+        self.assertEqual([s['id'] for s in plan['stages']], ['pr-12'])
+        self.assertEqual([t['worker_id'] for t in plan['tasks']], ['babysitter/pr-maintainer'])
+        self.assertNotIn('review_required', plan['tasks'][0])
+        self.assertEqual(plan['stages'][0]['validator_contract']['authorized_endstate']['requested'], 'merged')
 
     def test_gate_checker_rejects_every_early_merge_shape(self):
         mutations = {
             'land stage without the review dependency': lambda p: p['stages'][1].update(depends_on=[]),
             'review stage requesting merged': lambda p: p['stages'][0]['validator_contract']['authorized_endstate'].update(
                 requested='merged', observed='merged'),
-            'fixer without a review slot': lambda p: p['tasks'][0].pop('review_task_ids'),
         }
         for name, mutate in mutations.items():
             with self.subTest(name):
-                plan = documented_plan()
+                plan = review_gated_plan()
                 mutate(plan)
                 self.assertNotEqual(merge_gate_violations(plan), [])
 
     def test_gate_is_stated_where_the_coordinator_reads_it(self):
-        gate = sections('entry.md')['Review gate']
-        self.assertIn('no merge-capable call happens until its review stage is accepted by `validate_pr.py` at the '
-                      'exact current head', gate)
-        self.assertIn('`--no-auto` (it still merges a CLEAN PR)', gate)
-        # The old "a push-authorized fixer is never dispatched while the PR has an
-        # auto-merge request" refusal is gone: the posture is the operator's choice.
-        self.assertNotIn('never dispatched while the PR has an auto-merge request', gate)
-        self.assertIn('An armed request never withholds a fixer push',
-                      sections('entry.md')['Auto-merge posture'])
-        self.assertIn('A review-gated PR gets no helper run on a wake until its review stage is accepted',
-                      steps('playbooks/maintain.md')[7])
-        self.assertIn('Only after a review stage is accepted', steps('playbooks/maintain.md')[10])
-        # The land stage pins the review-accepted head, so an author push after review cannot land.
-        self.assertIn('`merge-pr.sh --no-auto --expected-head <accepted head>`', steps('playbooks/maintain.md')[10])
-        self.assertIn('always passing the head the review stage was accepted at', steps('playbooks/maintain.md')[10])
-        self.assertIn('`merge-pr.sh --no-auto --expected-head <accepted head>`', gate)
-        self.assertIn('always with `--expected-head <head_sha>`', sections('references/job-plan.md')['Stages'])
-        self.assertIn('No stage that holds a `review` slot may request `merged`', sections('references/job-plan.md')['Stages'])
+        gate = sections('entry.md')['Landing gate']
+        self.assertIn("GitHub's own requirements are the gate", gate)
+        self.assertIn('unless the operator asks for review before landing', gate)
+        self.assertIn('UNSTABLE PRs whose every required check succeeded at the head', gate)
+        self.assertNotIn('never dispatched while the PR has an auto-merge request', text('entry.md'))
+        self.assertIn('An armed request never withholds a fixer push', sections('entry.md')['Auto-merge posture'])
+        review = sections('references/job-plan.md')['Operator-requested review']
+        self.assertIn('`merge-pr.sh --no-auto --expected-head <head_sha>`', review)
+        self.assertIn('No stage that holds a `review` slot may request `merged`', review)
 
 
 class SyntheticJobTest(unittest.TestCase):
-    """The documented plan driven through the installed helpers: fixer, review gate, land, final acceptance."""
+    """The documented plan driven through the installed helpers: fixer rounds, merge, one rebind, acceptance."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -345,8 +428,9 @@ class SyntheticJobTest(unittest.TestCase):
         self.counter = 0
 
     # -- helpers -----------------------------------------------------------------------------
-    def plan(self, head12=H1, max_repair_cycles=None):
-        plan = documented_plan(head12=head12, installation_id=self.caller['installation_id'])
+    def plan(self, head12=H1, max_repair_cycles=None, gated=False):
+        build = review_gated_plan if gated else documented_plan
+        plan = build(head12=head12, installation_id=self.caller['installation_id'])
         if max_repair_cycles is not None:
             plan['policy']['max_repair_cycles'] = max_repair_cycles
         return plan
@@ -386,7 +470,7 @@ class SyntheticJobTest(unittest.TestCase):
     def dispatch(self, task_id, *, status='ready-for-acceptance', verdict=None, findings=(), changes=()):
         """prepare -> (synthetic delegate_task) -> accepted handle -> result -> completion, via the CLI."""
         self.counter += 1
-        host = f'host-{task_id}-{self.counter}'
+        host = self.last_host = f'host-{task_id}-{self.counter}'
         ref = self.job('prepare', {'caller': self.caller, 'task_id': task_id, 'target_reason': 'cheapest suitable tier'})
         self.assertLessEqual({'path', 'sha256', 'bytes'}, set(ref))
         raw = Path(ref['path']).read_bytes()
@@ -410,17 +494,20 @@ class SyntheticJobTest(unittest.TestCase):
     def stage_contract(self, stage_id):
         return next(s for s in self.job('overview')['stages'] if s['id'] == stage_id)['validator_contract']
 
-    def publish(self, stage_id, *, head=None, check_head=None, conclusion='success', endstate=None):
+    def publish(self, stage_id, *, head=None, check_head=None, conclusion='success', endstate=None,
+                threads=None, thread_count=None):
         """A coordinator host read of the PR, content-bound as validate_pr.py requires."""
         contract = self.stage_contract(stage_id)
         head = head or contract['head_sha']
         data = {**contract, 'head_sha': head,
                 'required_checks': [{'context': 'ci', 'conclusion': conclusion, 'head_sha': check_head or head}],
-                'review_threads': [{'resolved': True, 'head_sha': head}]}
+                'review_threads': threads if threads is not None else [{'id': 'T1', 'resolved': True, 'head_sha': head}]}
+        data['review_thread_count'] = len(data['review_threads']) if thread_count is None else thread_count
         data['authorized_endstate'] = dict(data['authorized_endstate'],
                                            observed=endstate or data['authorized_endstate']['requested'])
         content = {k: data[k] for k in ('pr', 'head_sha', 'required_contexts', 'required_checks', 'review_threads',
-                                        'authorized_endstate', 'allow_empty_required_contexts', 'optional_contexts')}
+                                        'review_thread_count', 'authorized_endstate', 'allow_empty_required_contexts',
+                                        'optional_contexts')}
         data['host_observations'] = [{'observer': 'coordinator', 'kind': 'pr-state', 'source': 'fixture host read',
                                       'content': content, 'sha256': hashlib.sha256(canonical(content)).hexdigest()}]
         self.counter += 1
@@ -437,14 +524,20 @@ class SyntheticJobTest(unittest.TestCase):
             'input_file': published, 'revision': revision}, ok=False)
         return proc, argv, published
 
-    def rebind_head(self, revision_id, head):
-        """A verified push inside recorded authority moves the head: owner-sourced plan revision."""
+    def rebind_head(self, revision_id, head, gated=False, drop_slots=False, ok=True):
+        """Owner-sourced plan revision to a new head; after a merge it also drops the settled fixer slot."""
         self.job('decision', {'caller': self.caller, 'decision': {
             'id': 'owner-' + revision_id, 'quote': self.request.read_text().strip(), 'source': str(self.request),
             'source_sha256': hashlib.sha256(self.request.read_bytes()).hexdigest(), 'scope': 'plan:' + revision_id}})
-        return self.job('plan-revision', {'caller': self.caller, 'new_plan': {'stages': [{k: v for k, v in stage.items() if k != 'status'}
-                                                                  for stage in self.plan(head)['stages']]},
-                                          'revision': {'id': revision_id, 'owner_decision_id': 'owner-' + revision_id}})
+        stages = [{k: v for k, v in stage.items() if k != 'status'} for stage in self.plan(head, gated=gated)['stages']]
+        new_plan = {'stages': stages}
+        if drop_slots:
+            for stage in stages:
+                stage['execution_mode'] = 'direct'
+            new_plan['tasks'] = []
+        return self.job('plan-revision', {'caller': self.caller, 'new_plan': new_plan,
+                                          'revision': {'id': revision_id, 'owner_decision_id': 'owner-' + revision_id}},
+                        ok=ok)
 
     def statuses(self):
         overview = self.job('overview')
@@ -457,137 +550,133 @@ class SyntheticJobTest(unittest.TestCase):
         return all(stages[dep]['status'] == 'accepted-at-snapshot' for dep in stages[stage_id]['depends_on'])
 
     # -- scenarios ---------------------------------------------------------------------------
-    def test_fix_review_gate_land_and_final_acceptance_at_exact_heads(self):
-        # This scenario spends the whole budget, so pin the cycles rather than the shipped default.
-        self.job('create', self.plan(max_repair_cycles=3))
-        self.assertEqual(set(self.statuses()[0].values()), {'pending'})
-        self.assertFalse(self.merge_allowed('pr-12-land'))
-
-        # A merge observed before the review stage is accepted can never land the stage.
-        early, *_ = self.accept('pr-12-land')
-        self.assertNotEqual(early.returncode, 0)
-        self.assertIn('dependency lacks current authoritative acceptance', early.stderr + early.stdout)
-
-        # The reviewer cannot be prepared before the maintainer's execution exists.
-        self.assertNotEqual(self.job('prepare', {'caller': self.caller, 'task_id': 'pr-12-review'}, ok=False).returncode, 0)
-
-        # Pass 0: the maintainer fixes the failing check and pushes H2. Its brief carries the recorded actions.
+    def test_fixer_rounds_then_one_rebind_accepts_the_merge(self):
+        self.job('create', self.plan())
         brief = self.dispatch('pr-12-maintain', changes=[{'path': 'src/widget.py', 'pushed_head': H2}])
         self.assertEqual(brief['authorization']['prs'][PR12], ['read', 'push', 'communicate', 'merge'])
         self.assertIn('worker_id: babysitter/pr-maintainer', json.dumps(brief['effective_definition']))
+        # A new bot thread lands at H2: the next round is a plain retry, with no head rebind between rounds.
+        self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'new thread at H2'})
+        self.dispatch('pr-12-maintain', changes=[{'path': 'src/widget.py', 'pushed_head': H3}])
+        self.assertEqual(self.stage_contract('pr-12')['head_sha'], H1)
+        # GitHub merges H3. The stage still binds H1, so an H3 read is not acceptance yet.
+        self.assertNotEqual(self.accept('pr-12', head=H3)[0].returncode, 0)
+        # One owner-sourced rebind to the merged head drops the settled fixer slot: no verify-only round.
+        self.rebind_head('merged-h3', H3, drop_slots=True)
+        self.assertEqual(self.stage_contract('pr-12')['head_sha'], H3)
+        # A push-authorized PR with no review stage reaches merged on GitHub's own gate.
+        landed, argv, published = self.accept('pr-12')
+        self.assertEqual(landed.returncode, 0, landed.stdout + landed.stderr)
+        final = self.run_cli('job_acceptance_cli.py', 'validate-final', {
+            'caller': self.caller, 'validator_argv_by_stage': {'pr-12': argv},
+            'input_file_by_stage': {'pr-12': published}}, ok=False)
+        self.assertEqual(final.returncode, 0, final.stdout + final.stderr)
+        self.assertTrue(json.loads(final.stdout)['accepted'])
 
-        # The worker's claim is not acceptance: the stage still binds H1, so an H2 read is refused.
-        self.assertNotEqual(self.accept('pr-12', head=H2)[0].returncode, 0)
+    def test_incomplete_thread_list_or_open_thread_is_refused(self):
+        self.job('create', self.plan())
+        self.dispatch('pr-12-maintain', changes=[{'path': 'src/widget.py', 'pushed_head': H2}])
+        self.rebind_head('merged-h2', H2, drop_slots=True)
+        # Only the first page of threads was read: 1 entry against GitHub's total of 55.
+        partial, *_ = self.accept('pr-12', thread_count=55)
+        self.assertNotEqual(partial.returncode, 0)
+        self.assertIn('review thread list is incomplete', partial.stdout + partial.stderr)
+        open_thread, *_ = self.accept('pr-12', threads=[{'id': 'T1', 'resolved': False, 'head_sha': H2}])
+        self.assertNotEqual(open_thread.returncode, 0)
+        # Two copies of a resolved thread cannot stand in for an unresolved second one.
+        duplicated, *_ = self.accept('pr-12', threads=[{'id': 'T1', 'resolved': True, 'head_sha': H2}] * 2)
+        self.assertNotEqual(duplicated.returncode, 0)
+        self.assertIn('distinct host thread IDs', duplicated.stdout + duplicated.stderr)
+        anonymous, *_ = self.accept('pr-12', threads=[{'resolved': True, 'head_sha': H2}])
+        self.assertNotEqual(anonymous.returncode, 0)
 
-        # The coordinator verified the push, rebinds review and land stages, and reruns the maintainer (pass 1).
-        self.rebind_head('head-h2', H2)
-        self.assertEqual(self.statuses()[0]['pr-12'], 'stale')
-        self.assertEqual(self.stage_contract('pr-12-land')['head_sha'], H2)
-        self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'head moved to the pushed fix'})
-        self.dispatch('pr-12-maintain')
+    def test_neutral_and_skipped_required_checks_pass_as_they_merge(self):
+        # merge-pr.sh merges on NEUTRAL/SKIPPED required checks; acceptance must agree or a merged PR strands.
+        self.job('create', self.plan())
+        self.dispatch('pr-12-maintain', changes=[{'path': 'src/widget.py', 'pushed_head': H2}])
+        self.rebind_head('merged-h2', H2, drop_slots=True)
+        for conclusion in ('neutral', 'skipped'):
+            with self.subTest(conclusion):
+                landed, *_ = self.accept('pr-12', conclusion=conclusion)
+                self.assertEqual(landed.returncode, 0, landed.stdout + landed.stderr)
+        for conclusion in ('failure', 'cancelled', 'SUCCESS'):
+            with self.subTest(conclusion):
+                self.assertNotEqual(self.accept('pr-12', conclusion=conclusion)[0].returncode, 0)
 
-        # An adverse independent review blocks the review stage, so the land stage still cannot merge.
-        finding = {'id': 'R1', 'severity': 'major', 'scenario': 'the fix drops input validation',
-                   'source_evidence': ['src/widget.py at ' + H2]}
-        self.dispatch('pr-12-review', verdict='adverse', findings=[finding])
-        self.assertNotEqual(self.accept('pr-12')[0].returncode, 0)
-        self.assertFalse(self.merge_allowed('pr-12-land'))
-        self.assertNotEqual(self.accept('pr-12-land')[0].returncode, 0)
-        self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'review finding R1'})
-        self.dispatch('pr-12-maintain')
-        evidence = self.base / 'owner' / 'r1-fixed.txt'
-        evidence.write_text('validation restored; fixture test passes at ' + H2 + '\n')
-        self.job('finding-disposition', {'caller': self.caller, 'task_id': 'pr-12-review', 'finding_id': 'R1',
+    def followup(self, brief, parent, status):
+        """One tracked same-child follow-up of the maintain slot, through the CLI."""
+        request = brief['request_id'] + '-fu1'
+        staged = self.job('followup-prepare', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'request_id': request})
+        fu_brief = json.loads(Path(staged['path']).read_text())
+        host = parent + '-fu1'
+        scope = {'mode': 'worker-evidence', 'path': 'artifacts/tasks/pr-12-maintain'}
+        for event in ({'kind': 'followup', 'request_id': request, 'host_task_id': host, 'parent_host_task_id': parent,
+                       'child_thread_id': 'thread-' + parent, 'target': WORKHORSE, 'scope': scope},
+                      {'kind': 'completion', 'request_id': request, 'host_task_id': host, 'completion_id': host + '-done',
+                       'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False}):
+            self.job('task-observation', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'event': event})
+        result = {'schema_version': 1, **{k: fu_brief[k] for k in ('job_id', 'stage_id', 'logical_slot_id', 'request_id',
+                                                                     'worker_id', 'effective_brief_sha256', 'revision')},
+                  'status': status, 'conclusion': 'synthetic follow-up', 'requirements': [
+                      {'id': r['id'], 'status': 'passed', 'evidence': ['fixture']} for r in fu_brief['requirements']],
+                  'review_verdict': None, 'findings': [], 'gaps': [], 'uncertainties': [], 'changes': [],
+                  'commands': [], 'artifacts': [], 'binding': fu_brief['snapshot'], 'extra_work_requests': [],
+                  'metrics': {}}
+        self.job('result', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'request_id': request,
+                            'completion_id': host + '-done', 'result': {'json': json.dumps(result)}})
+
+    def test_repeated_needs_followup_escalates_instead_of_stranding_the_slot(self):
+        self.job('create', self.plan())
+        brief = self.dispatch('pr-12-maintain', status='needs-followup')
+        self.followup(brief, self.last_host, 'needs-followup')
+        # The one declared follow-up is spent, and an awaiting-followup slot cannot be retried or removed.
+        spent = self.job('followup-prepare', {'caller': self.caller, 'task_id': 'pr-12-maintain',
+                                              'request_id': brief['request_id'] + '-fu2'}, ok=False)
+        self.assertNotEqual(spent.returncode, 0)
+        self.assertNotEqual(self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain',
+                                               'reason': 'again'}, ok=False).returncode, 0)
+        # Escalation: an owner-sourced revision moves the slot to the next candidate, staling it, so retry works.
+        self.job('decision', {'caller': self.caller, 'decision': {
+            'id': 'owner-escalate', 'quote': self.request.read_text().strip(), 'source': str(self.request),
+            'source_sha256': hashlib.sha256(self.request.read_bytes()).hexdigest(), 'scope': 'plan:escalate'}})
+        tasks = [{k: v for k, v in t.items() if k != 'request_id'} for t in self.plan()['tasks']]
+        tasks[0]['target'] = dict(WORKHORSE, providerInstanceId='fixture-stronger', model='fixture-medium')
+        self.job('plan-revision', {'caller': self.caller, 'new_plan': {'tasks': tasks},
+                                   'revision': {'id': 'escalate', 'owner_decision_id': 'owner-escalate'}})
+        self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'escalated candidate'})
+        # The strongest candidate also returns needs-followup: the slot's follow-up is spent for good, so the
+        # next escalation cycles the target back down the list, which stales the slot again.
+        self.dispatch('pr-12-maintain', status='needs-followup')
+        self.assertNotEqual(self.job('followup-prepare', {'caller': self.caller, 'task_id': 'pr-12-maintain',
+                                                          'request_id': 'late-fu'}, ok=False).returncode, 0)
+        self.job('decision', {'caller': self.caller, 'decision': {
+            'id': 'owner-cycle', 'quote': self.request.read_text().strip(), 'source': str(self.request),
+            'source_sha256': hashlib.sha256(self.request.read_bytes()).hexdigest(), 'scope': 'plan:cycle'}})
+        tasks[0]['target'] = WORKHORSE
+        self.job('plan-revision', {'caller': self.caller, 'new_plan': {'tasks': tasks},
+                                   'revision': {'id': 'cycle', 'owner_decision_id': 'owner-cycle'}})
+        self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'cycled candidate'})
+        self.dispatch('pr-12-maintain', changes=[{'path': 'src/widget.py', 'pushed_head': H2}])
+        self.rebind_head('merged-h2', H2, drop_slots=True)
+        landed, *_ = self.accept('pr-12')
+        self.assertEqual(landed.returncode, 0, landed.stdout + landed.stderr)
+
+    def test_dropping_a_fixer_slot_needs_its_blockers_disposed(self):
+        self.job('create', self.plan())
+        finding = {'id': 'F1', 'severity': 'blocker', 'scenario': 'ci fails at ' + H1, 'source_evidence': ['ci log']}
+        self.dispatch('pr-12-maintain', status='failed', verdict='adverse', findings=[finding])
+        refused = self.rebind_head('merged-h2', H2, drop_slots=True, ok=False)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn('unresolved blocker or major finding', refused.stderr)
+        evidence = self.base / 'owner' / 'f1-fixed.txt'
+        evidence.write_text('ci green at ' + H2 + '\n')
+        self.job('finding-disposition', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'finding_id': 'F1',
                                          'disposition': 'fixed', 'evidence': {
                                              'path': str(evidence), 'bytes': evidence.stat().st_size,
                                              'sha256': hashlib.sha256(evidence.read_bytes()).hexdigest()}})
-        self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-review', 'reason': 'fresh review round',
-                           'category': 'review'})
-        self.dispatch('pr-12-review', verdict='approve')
-
-        # A check from the older head proves nothing; the refused pass stays charged.
-        refused, *_ = self.accept('pr-12', check_head=H1)
-        self.assertEqual(refused.returncode, 1, refused.stdout + refused.stderr)
-        self.assertNotEqual(self.accept('pr-12')[0].returncode, 0)  # next pass needs a charged repair
-        self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'checks rerun at head'})
-        self.dispatch('pr-12-maintain')
-        self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-review', 'reason': 'review the final head',
-                           'category': 'review'})
-        self.dispatch('pr-12-review', verdict='approve')
-
-        # The review stage is accepted as mergeable (not merged) at H2; only now may the land stage merge.
-        reviewed, argv12, input12 = self.accept('pr-12')
-        self.assertEqual(reviewed.returncode, 0, reviewed.stdout + reviewed.stderr)
-        self.assertTrue(self.merge_allowed('pr-12-land'))
-        landed, argv12l, input12l = self.accept('pr-12-land')
+        self.rebind_head('merged-h2-disposed', H2, drop_slots=True)
+        landed, *_ = self.accept('pr-12')
         self.assertEqual(landed.returncode, 0, landed.stdout + landed.stderr)
-
-        # The quick-pass merge of PR 13 (no babysitter change, not review-gated) is accepted directly.
-        direct, argv13, input13 = self.accept('pr-13')
-        self.assertEqual(direct.returncode, 0, direct.stdout + direct.stderr)
-
-        # The initial plan's final acceptance covers every requirement at fresh observations.
-        final = self.run_cli('job_acceptance_cli.py', 'validate-final', {
-            'caller': self.caller,
-            'validator_argv_by_stage': {'pr-12': argv12, 'pr-12-land': argv12l, 'pr-13': argv13},
-            'input_file_by_stage': {'pr-12': input12, 'pr-12-land': input12l, 'pr-13': input13}}, ok=False)
-        self.assertEqual(final.returncode, 0, final.stdout + final.stderr)
-        self.assertTrue(json.loads(final.stdout)['accepted'])
-        self.assertEqual(set(self.statuses()[0].values()), {'accepted-at-snapshot'})
-
-        # The stage repair budget (initial pass plus three) is now spent; no fifth pass.
-        refused = self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'one more'}, ok=False)
-        self.assertNotEqual(refused.returncode, 0)
-        self.assertIn('budget exhausted', refused.stderr)
-
-    def test_head_moving_after_review_reopens_the_gate(self):
-        self.job('create', self.plan())
-        self.dispatch('pr-12-maintain')
-        self.dispatch('pr-12-review', verdict='approve')
-        self.assertEqual(self.accept('pr-12')[0].returncode, 0)
-        self.assertTrue(self.merge_allowed('pr-12-land'))
-        # The author pushes H2 after the review: rebinding stales the review stage and closes the gate again.
-        self.rebind_head('author-push', H2)
-        self.assertFalse(self.merge_allowed('pr-12-land'))
-        self.assertNotEqual(self.accept('pr-12-land')[0].returncode, 0)
-
-    def test_merged_acceptance_requires_the_review_stage_upstream_at_the_same_head(self):
-        def land_without_review_dependency(plan):
-            plan['stages'][1]['depends_on'] = []
-        def land_at_another_head(plan):
-            plan['stages'][1]['validator_contract']['head_sha'] = H2
-            plan['stages'][1]['revision'] = 'pr-12-land@' + H2[:12]
-        for name, mutate, reason in (('no dependency', land_without_review_dependency, 'does not depend on review stage'),
-                                     ('other head', land_at_another_head, 'bound to a different head')):
-            with self.subTest(name):
-                self.state = self.base / ('state-' + name.replace(' ', '-'))
-                plan = self.plan()
-                mutate(plan)
-                self.job('create', plan)
-                self.dispatch('pr-12-maintain')
-                self.dispatch('pr-12-review', verdict='approve')
-                reviewed, *_ = self.accept('pr-12')
-                self.assertEqual(reviewed.returncode, 0, reviewed.stdout + reviewed.stderr)
-                refused, *_ = self.accept('pr-12-land')
-                self.assertNotEqual(refused.returncode, 0)
-                self.assertIn('review_gate', refused.stdout + refused.stderr)
-                self.assertIn(reason, refused.stdout + refused.stderr)
-                self.assertNotEqual(self.statuses()[0]['pr-12-land'], 'accepted-at-snapshot')
-
-    def test_merged_acceptance_refuses_review_stages_and_unreviewed_pushable_prs(self):
-        plan = self.plan()
-        plan['authorization']['prs'][PR13] = ['read', 'push', 'merge']
-        plan['authorization']['actions'] = sorted(set(plan['authorization']['actions']) | {'push'})
-        plan['stages'][0]['validator_contract']['authorized_endstate'].update(requested='merged', observed='merged')
-        self.job('create', plan)
-        pushable, *_ = self.accept('pr-13')
-        self.assertNotEqual(pushable.returncode, 0)
-        self.assertIn('push-authorized PR cannot reach merged without a review stage', pushable.stdout + pushable.stderr)
-        self.dispatch('pr-12-maintain')
-        self.dispatch('pr-12-review', verdict='approve')
-        review, *_ = self.accept('pr-12')
-        self.assertNotEqual(review.returncode, 0)
-        self.assertIn('a stage holding a review slot cannot request merged', review.stdout + review.stderr)
 
     def test_failed_rounds_exhaust_the_budget_and_cannot_reset(self):
         # Budget-exhaustion mechanism: pin the cycles so this does not track the shipped default.
@@ -601,20 +690,14 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertNotEqual(refused.returncode, 0)
         self.assertIn('budget exhausted', refused.stderr)
         self.assertEqual(self.statuses()[1]['pr-12-maintain'], 'failed')
-        self.assertFalse(self.merge_allowed('pr-12-land'))
+        self.assertNotEqual(self.statuses()[0]['pr-12'], 'accepted-at-snapshot')
 
-    def test_reviewer_on_the_maintainers_lineage_is_refused(self):
-        plan = self.plan()
-        plan['tasks'][1]['target'] = dict(WORKHORSE, providerInstanceId='fixture-other', model='fixture-other')
-        self.job('create', plan)
-        self.dispatch('pr-12-maintain')
-        refused = self.job('prepare', {'caller': self.caller, 'task_id': 'pr-12-review'}, ok=False)
-        self.assertNotEqual(refused.returncode, 0)
-        self.assertIn('lineage', refused.stderr)
+    def test_shipped_plan_does_not_cap_rounds_in_practice(self):
+        self.assertGreaterEqual(self.plan()['policy']['max_repair_cycles'], 1000)
 
     def test_read_only_triage_ends_with_named_blockers_not_acceptance(self):
         plan = self.plan()
-        plan['authorization'] = {'actions': ['read'], 'prs': {PR12: ['read'], PR13: ['read']}}
+        plan['authorization'] = {'actions': ['read'], 'prs': {PR12: ['read']}}
         for stage in plan['stages']:
             stage['validator_contract']['authorized_endstate'] = {
                 'requested': 'open', 'observed': 'open', 'authorization_ref': 'owner-invocation'}
@@ -647,6 +730,104 @@ class SyntheticJobTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertNotEqual(self.job(command, payload, ok=False).returncode, 0)
 
+    # -- operator-requested review before landing ---------------------------------------------
+    def test_review_gated_merge_waits_for_review_at_the_exact_head(self):
+        self.job('create', self.plan(gated=True))
+        early, *_ = self.accept('pr-12-land')
+        self.assertNotEqual(early.returncode, 0)
+        self.assertIn('dependency lacks current authoritative acceptance', early.stderr + early.stdout)
+        self.assertNotEqual(self.job('prepare', {'caller': self.caller, 'task_id': 'pr-12-review'}, ok=False).returncode, 0)
+        self.dispatch('pr-12-maintain')
+        finding = {'id': 'R1', 'severity': 'major', 'scenario': 'the fix drops input validation',
+                   'source_evidence': ['src/widget.py at ' + H1]}
+        self.dispatch('pr-12-review', verdict='adverse', findings=[finding])
+        self.assertNotEqual(self.accept('pr-12')[0].returncode, 0)
+        self.assertFalse(self.merge_allowed('pr-12-land'))
+        self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'review finding R1'})
+        self.dispatch('pr-12-maintain')
+        evidence = self.base / 'owner' / 'r1-fixed.txt'
+        evidence.write_text('validation restored at ' + H1 + '\n')
+        self.job('finding-disposition', {'caller': self.caller, 'task_id': 'pr-12-review', 'finding_id': 'R1',
+                                         'disposition': 'fixed', 'evidence': {
+                                             'path': str(evidence), 'bytes': evidence.stat().st_size,
+                                             'sha256': hashlib.sha256(evidence.read_bytes()).hexdigest()}})
+        self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-review', 'reason': 'fresh review round',
+                           'category': 'review'})
+        self.dispatch('pr-12-review', verdict='approve')
+        reviewed, argv, published = self.accept('pr-12')
+        self.assertEqual(reviewed.returncode, 0, reviewed.stdout + reviewed.stderr)
+        self.assertTrue(self.merge_allowed('pr-12-land'))
+        # The pinned land command merged the reviewed head: accept land directly, with no post-merge rebind.
+        landed, argv_land, published_land = self.accept('pr-12-land')
+        self.assertEqual(landed.returncode, 0, landed.stdout + landed.stderr)
+        final = self.run_cli('job_acceptance_cli.py', 'validate-final', {
+            'caller': self.caller, 'validator_argv_by_stage': {'pr-12': argv, 'pr-12-land': argv_land},
+            'input_file_by_stage': {'pr-12': published, 'pr-12-land': published_land}}, ok=False)
+        self.assertEqual(final.returncode, 0, final.stdout + final.stderr)
+        self.assertTrue(json.loads(final.stdout)['accepted'])
+
+    def test_review_only_pr_lands_after_its_review(self):
+        # Operator asked for review before landing; this PR needs no repair, so the maintain slot only verifies.
+        self.job('create', self.plan(gated=True))
+        self.assertNotEqual(self.accept('pr-12-land')[0].returncode, 0)
+        brief = self.dispatch('pr-12-maintain')
+        self.assertEqual(brief['revision'], 'pr-12@' + H1[:12])
+        self.dispatch('pr-12-review', verdict='approve')
+        reviewed, *_ = self.accept('pr-12')
+        self.assertEqual(reviewed.returncode, 0, reviewed.stdout + reviewed.stderr)
+        landed, *_ = self.accept('pr-12-land')
+        self.assertEqual(landed.returncode, 0, landed.stdout + landed.stderr)
+
+    def test_head_moving_after_review_reopens_the_gate(self):
+        self.job('create', self.plan(gated=True))
+        self.dispatch('pr-12-maintain')
+        self.dispatch('pr-12-review', verdict='approve')
+        self.assertEqual(self.accept('pr-12')[0].returncode, 0)
+        self.assertTrue(self.merge_allowed('pr-12-land'))
+        self.rebind_head('author-push', H2, gated=True)
+        self.assertFalse(self.merge_allowed('pr-12-land'))
+        self.assertNotEqual(self.accept('pr-12-land')[0].returncode, 0)
+
+    def test_merged_acceptance_requires_the_review_stage_upstream_at_the_same_head(self):
+        def land_without_review_dependency(plan):
+            plan['stages'][1]['depends_on'] = []
+        def land_at_another_head(plan):
+            plan['stages'][1]['validator_contract']['head_sha'] = H2
+            plan['stages'][1]['revision'] = 'pr-12-land@' + H2[:12]
+        for name, mutate, reason in (('no dependency', land_without_review_dependency, 'does not depend on review stage'),
+                                     ('other head', land_at_another_head, 'bound to a different head')):
+            with self.subTest(name):
+                self.state = self.base / ('state-' + name.replace(' ', '-'))
+                plan = self.plan(gated=True)
+                mutate(plan)
+                self.job('create', plan)
+                self.dispatch('pr-12-maintain')
+                self.dispatch('pr-12-review', verdict='approve')
+                reviewed, *_ = self.accept('pr-12')
+                self.assertEqual(reviewed.returncode, 0, reviewed.stdout + reviewed.stderr)
+                refused, *_ = self.accept('pr-12-land')
+                self.assertNotEqual(refused.returncode, 0)
+                self.assertIn('review_gate', refused.stdout + refused.stderr)
+                self.assertIn(reason, refused.stdout + refused.stderr)
+
+    def test_review_stage_cannot_request_merged(self):
+        plan = self.plan(gated=True)
+        plan['stages'][0]['validator_contract']['authorized_endstate'].update(requested='merged', observed='merged')
+        self.job('create', plan)
+        self.dispatch('pr-12-maintain')
+        self.dispatch('pr-12-review', verdict='approve')
+        review, *_ = self.accept('pr-12')
+        self.assertNotEqual(review.returncode, 0)
+        self.assertIn('a stage holding a review slot cannot request merged', review.stdout + review.stderr)
+
+    def test_reviewer_on_the_maintainers_lineage_is_refused(self):
+        plan = self.plan(gated=True)
+        plan['tasks'][1]['target'] = dict(WORKHORSE, providerInstanceId='fixture-other', model='fixture-other')
+        self.job('create', plan)
+        self.dispatch('pr-12-maintain')
+        refused = self.job('prepare', {'caller': self.caller, 'task_id': 'pr-12-review'}, ok=False)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn('lineage', refused.stderr)
 
 if __name__ == '__main__':
     unittest.main()

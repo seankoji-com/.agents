@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "stage": 5,
+  "inventory": {
+    "tests": [
+      {
+        "path": "tests/test_babysitter_workflow.py",
+        "assertions": [
+          {
+            "selector": "test_babysitter_workflow.RelentlessLandingTest",
+            "tests": 8,
+            "coverage": [
+              "REQ-BOUNDARIES",
+              "REQ-REPAIR",
+              "G-BS-SCOPE",
+              "G-BS-EXACT-HEAD"
+            ],
+            "survives": true
+          }
+        ]
+      }
+    ]
+  }
+}

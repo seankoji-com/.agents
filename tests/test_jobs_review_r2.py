@@ -181,8 +181,9 @@ class R2ReviewSupportTests(unittest.TestCase):
                       {"context": "optional", "conclusion": "failure", "head_sha": head}]
             data = {"pr": "fixture/1", "head_sha": head, "required_contexts": ["ci"],
                     "required_checks": checks, "optional_contexts": ["optional"],
-                    "allow_empty_required_contexts": False, "review_threads": [], "authorized_endstate": endstate}
-            fields = ("pr", "head_sha", "required_contexts", "required_checks", "review_threads",
+                    "allow_empty_required_contexts": False, "review_threads": [], "review_thread_count": 0,
+                    "authorized_endstate": endstate}
+            fields = ("pr", "head_sha", "required_contexts", "required_checks", "review_threads", "review_thread_count",
                       "authorized_endstate", "allow_empty_required_contexts", "optional_contexts")
             content = {k: data[k] for k in fields}
             data["host_observations"] = [{"observer": "coordinator", "kind": "pr-state", "source": "synthetic",

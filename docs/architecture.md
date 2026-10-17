@@ -154,7 +154,7 @@ plugin's own commands load them.
 | `elephant-goldfish/factual-checker` | Verify repository and command claims |
 | `elephant-goldfish/cold-reader` | Judge one document's usability with no other context |
 | `babysitter/pr-maintainer` | Authorized triage or repair of one PR at an exact head |
-| `babysitter/pr-reviewer` | Independent review of the final combined PR change |
+| `babysitter/pr-reviewer` | Independent review of the final combined PR change, when the operator asks for one |
 | `agent-tuneup/config-researcher` | Provider format, scope and precedence with sources |
 | `agent-tuneup/config-verifier` | Parse, load and enforcement evidence for authorized changes |
 

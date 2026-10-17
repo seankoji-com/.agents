@@ -17,14 +17,20 @@
 #   merge-pr.sh --repo <owner/name> --pr <N> [--method squash|merge|rebase] [--no-auto | --arm-always]
 #               [--expected-head <SHA>]
 #   merge-pr.sh --repo <owner/name> --pr <N> --resolve-thread <ID> --verified-head <SHA>
+#               [--reply-file <path>]
 #
-# --arm-always is the babysitter "enable auto-merge on all PRs" posture: the operator
-# has accepted that auto-merge may land a PR whose review threads or conflicts are
-# still open, so it also arms auto-merge for conflict, behind, unanswered_threads and
-# incomplete_review_state outcomes. --no-auto is the "leave auto-merge as set"
-# posture: it arms nothing. Neither mode clears an existing request or treats one as a
-# blocker. Neither relaxes the direct-merge gate: only CLEAN + SUCCESS + resolved
-# threads merge.
+# --arm-always is the babysitter "enable auto-merge on all PRs" posture. Arming is a
+# convenience, not a decision to land the PR: it also arms auto-merge for conflict,
+# behind, unanswered_threads and incomplete_review_state outcomes, but GitHub's
+# auto-merge fires only once every merge requirement on the base branch holds. Where
+# the branch requires conversation resolution, it never lands a PR with an unresolved
+# thread; it never lands a conflicting PR or one whose required checks fail. So
+# `automerge=armed` next to conflict, unanswered_threads or failing_checks in
+# `blockers=` is still blocked: the caller keeps working those blockers. (Where the
+# branch does NOT require conversation resolution, an armed PR can land with threads
+# open, which is why only --arm-always arms for them.) --no-auto is the "leave
+# auto-merge as set" posture: it arms nothing. Neither mode clears an existing request
+# or treats one as a blocker. Neither relaxes the direct-merge gate below.
 #
 # --expected-head pins merge mode to a head the caller already accepted (the
 # babysitter land stage passes its reviewed head). The PR head is reread before every
@@ -35,20 +41,44 @@
 # Without the flag the checked head is pinned the same way, but any head is accepted.
 #
 # The resolution mode is a separate, explicit action after the agent verifies the
-# finding and posts its evidence. It checks thread ownership and the verified head,
-# resolves that one thread, and exits without attempting a merge or auto-merge.
+# finding. It checks thread ownership and the verified head, then, with --reply-file,
+# posts that file's contents verbatim as a reply on the thread
+# (addPullRequestReviewThreadReply; nothing is prefixed, so the caller writes the
+# body), then resolves that one thread and exits without attempting a merge or
+# auto-merge. The reply is sent once, never retried: a retried mutation whose first
+# attempt landed would post twice. An empty (or whitespace-only) file or one over 60 KB
+# is refused before any network call. An armed auto-merge request does not block
+# resolution. Prints "RESOLVED <repo>#<pr> thread=<id> head=<sha>", plus " replied=1"
+# when a reply was posted.
 #
 # Without --method, tries squash, then merge, then rebase, stopping at the first the
 # repository accepts — GitHub's own error names any method the repo disallows, which
 # is simpler and more current than caching each repo's `allowed_merge_methods` here.
 #
-# The REST merge call is only attempted when GitHub reports mergeStateStatus CLEAN
-# and the head commit's check rollup is SUCCESS. Any other state — a check still
-# PENDING/EXPECTED, no rollup yet (a fresh head whose checks have not registered),
-# a BLOCKED/UNSTABLE/HAS_HOOKS/UNKNOWN merge state — is reported as blocked
-# (checks_pending / not_clean / branch_protection) instead of merged, and auto-merge
-# is armed where GitHub allows it. See "What this script will NOT do" below for why
-# that gate cannot be left to GitHub.
+# The REST merge call is only attempted in two states, and in both only with a
+# complete, fully resolved review-thread page, no conflict, and no REVIEW_REQUIRED or
+# CHANGES_REQUESTED review decision:
+#   - mergeStateStatus CLEAN and the head commit's check rollup SUCCESS.
+#   - mergeStateStatus UNSTABLE and every *required* status context at the exact head
+#     green. GitHub computes UNSTABLE only once the base branch's own requirements are
+#     met; the red or pending contexts that make it unstable are ones the branch does
+#     not require. The script does not take that on trust (see the implicit ruleset
+#     bypass under "What this script will NOT do"): it reads
+#     statusCheckRollup.contexts(first:100) with isRequired(pullRequestNumber:) and
+#     merges only when the page is complete (hasNextPage false), at least one context
+#     is required, every required CheckRun concluded SUCCESS, NEUTRAL or SKIPPED and
+#     every required StatusContext is SUCCESS. A required context that failed, is
+#     still running or EXPECTED, a context page cut at 100, or no required context at
+#     all ("no required contexts to verify") keeps the PR unmerged. A required check
+#     that has not registered at all is not in the rollup; GitHub holds such a PR at
+#     BLOCKED rather than UNSTABLE, so it never reaches this path.
+# Both paths pin the merge PUT to the checked head SHA. Any other state — a check still
+# PENDING/EXPECTED, no rollup yet (a fresh head whose checks have not registered), a
+# BLOCKED/HAS_HOOKS/UNKNOWN merge state — is reported as blocked (checks_pending /
+# not_clean / branch_protection) instead of merged, and auto-merge is armed where
+# GitHub allows it. See "What this script will NOT do" below for why that gate cannot
+# be left to GitHub. A successful UNSTABLE merge prints
+# "MERGED <repo>#<pr> via <method> merge_state=UNSTABLE".
 #
 # Eligible BLOCKED outcomes also try arming GitHub's native auto-merge before it
 # reports — the courtesy costs one extra mutation and means a PR blocked only on
@@ -75,8 +105,20 @@
 #       approval, a code-scanning threshold, a check still running, a merge state
 #       other than CLEAN, an unresolved thread with no
 #       verified resolution yet, a head other than --expected-head, or a merge conflict. Never retried, never
-#       overridden with admin/force. (stdout: "BLOCKED <repo>#<pr> reason=<category>
-#       detail=<...> automerge=<armed|unavailable|preexisting>")
+#       overridden with admin/force. stdout is one line:
+#         BLOCKED <repo>#<pr> reason=<first> blockers=<all>[ changes_requested_by=<logins>]
+#           detail=<...> automerge=<armed|unavailable|preexisting>
+#       reason= is the first blocker in the historical gate order, kept for callers
+#       that key on it. blockers= is a comma list of EVERY condition visible in the
+#       one state read the decision used, so a conflict or BEHIND no longer hides open
+#       threads and open threads no longer hide failing checks. Its tokens: conflict,
+#       behind, incomplete_review_state, unanswered_threads:<count> (isResolved false,
+#       outdated included; a lower bound when incomplete_review_state is also set),
+#       failing_checks, checks_pending, changes_requested, review_required, not_clean.
+#       A reason outside that vocabulary (head_changed, expected_head_mismatch,
+#       closed, permission_denied, ...) leads the list. changes_requested_by= lists
+#       each latest review in CHANGES_REQUESTED, bots suffixed [bot]; it is omitted
+#       when there are none.
 #
 # What this script will NOT do, on purpose:
 #   - Never merges past branch protection or a ruleset. Not passing `--admin` is
@@ -87,7 +129,8 @@
 #     happened in practice: an org-admin token merged a PR whose check rollup was
 #     still PENDING, with nothing in the response saying a bypass was used. The
 #     guard is this script's own: merge only when mergeStateStatus is CLEAN and the
-#     rollup is SUCCESS (the rollup does not depend on who is asking), and hand
+#     rollup is SUCCESS, or UNSTABLE with every required context verified green at the
+#     head (neither the rollup nor isRequired depends on who is asking), and hand
 #     everything else to auto-merge. The merge PUT pins the checked head SHA, so a new
 #     commit is refused (409); a check re-queued on the SAME head between the read and
 #     the PUT is a residual window REST merge cannot close. A required check, a required reviewer, or an org ruleset exists on
@@ -112,6 +155,7 @@ PR_NUMBER=""
 METHOD=""
 RESOLVE_THREAD=""
 VERIFIED_HEAD=""
+REPLY_FILE=""
 EXPECTED_HEAD=""
 AUTO_MERGE=1
 ARM_ALWAYS=0
@@ -167,6 +211,11 @@ while [ $# -gt 0 ]; do
     VERIFIED_HEAD="$2"
     shift 2
     ;;
+  --reply-file)
+    [ $# -ge 2 ] || die "--reply-file requires a value"
+    REPLY_FILE="$2"
+    shift 2
+    ;;
   --expected-head)
     [ $# -ge 2 ] || die "--expected-head requires a value"
     EXPECTED_HEAD="$2"
@@ -218,6 +267,22 @@ if [ -n "$RESOLVE_THREAD" ] || [ -n "$VERIFIED_HEAD" ]; then
   [ -z "$METHOD" ] || die "resolution mode cannot also select a merge method"
   [ "$ARM_ALWAYS" = 0 ] || die "resolution mode cannot also arm auto-merge"
 fi
+# The reply is validated and encoded before any network call, so a bad file costs
+# nothing and can never leave a thread half-handled.
+REPLY_MUTATION=""
+if [ -n "$REPLY_FILE" ]; then
+  [ -n "$RESOLVE_THREAD" ] || die "--reply-file requires --resolve-thread"
+  [ -f "$REPLY_FILE" ] && [ -r "$REPLY_FILE" ] || die "--reply-file is not a readable file: ${REPLY_FILE}"
+  reply_bytes="$(wc -c <"$REPLY_FILE" | tr -d '[:space:]')"
+  [ "$reply_bytes" -le 61440 ] || die "--reply-file is ${reply_bytes} bytes; the limit is 60 KB (61440 bytes)"
+  jq -e -Rs 'test("[^[:space:]]")' <"$REPLY_FILE" >/dev/null 2>&1 || die "--reply-file is empty; write the reply body first"
+  REPLY_MUTATION="$(jq -n --arg id "$RESOLVE_THREAD" --rawfile body "$REPLY_FILE" '{
+    query: "mutation($id:ID!,$body:String!){ addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id, body:$body}){ comment{ id } } }",
+    variables: { id: $id, body: $body }
+  }')" || die "could not encode --reply-file as JSON"
+  # The body travels as one curl argument; Linux caps a single argument at 128 KiB.
+  [ "$(printf '%s' "$REPLY_MUTATION" | wc -c | tr -d '[:space:]')" -le 120000 ] || die "--reply-file is too large once JSON-encoded; shorten it"
+fi
 [ "$ARM_ALWAYS" = 0 ] || [ "$AUTO_MERGE" = 1 ] || die "--arm-always and --no-auto are mutually exclusive"
 if [ -n "$EXPECTED_HEAD" ]; then
   [[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]] || die "--expected-head must be a full lowercase commit SHA"
@@ -241,8 +306,9 @@ gh_token() {
 # POSTs a GraphQL body with two retries after 2 and 4 seconds. Like
 # list-prs.sh, uses curl for TLS compatibility, but keeps fixed retry delays
 # and sends failure details to stderr; stdout contains successful JSON only.
+# An optional second argument caps the attempts: 1 for a non-idempotent mutation.
 curl_graphql_retry() {
-  local body="$1" attempt=1 code="" content="" tmp errfile token
+  local body="$1" max_attempts="${2:-3}" attempt=1 code="" content="" tmp errfile token
   token="$(gh_token)" || return 1
   tmp="$(mktemp "${TMPDIR:-/tmp}/babysitter-graphql.XXXXXX")" || return 1
   errfile="${tmp}.err"
@@ -262,7 +328,7 @@ curl_graphql_retry() {
       return 0
     fi
     content="$(cat "$tmp" "$errfile" 2>/dev/null)"
-    if [ "$attempt" -ge 3 ]; then
+    if [ "$attempt" -ge "$max_attempts" ]; then
       printf '%s' "$content" >&2
       rm -f "$tmp" "$errfile"
       return 1
@@ -318,7 +384,7 @@ curl_rest() {
 fetch_state() {
   local query resp
   query=$(jq -n --arg owner "$OWNER" --arg name "$NAME" --argjson number "$PR_NUMBER" '{
-    query: "query($owner:String!,$name:String!,$number:Int!){ repository(owner:$owner,name:$name){ pullRequest(number:$number){ id state headRefOid mergeable mergeStateStatus reviewDecision baseRefName headRefName autoMergeRequest{ enabledAt } reviewThreads(first:100){ pageInfo{ hasNextPage } nodes{ id isResolved } } commits(last:1){ nodes{ commit{ statusCheckRollup{ state } } } } } } }",
+    query: "query($owner:String!,$name:String!,$number:Int!){ repository(owner:$owner,name:$name){ pullRequest(number:$number){ id state headRefOid mergeable mergeStateStatus reviewDecision baseRefName headRefName autoMergeRequest{ enabledAt } reviewThreads(first:100){ pageInfo{ hasNextPage } nodes{ id isResolved } } latestReviews(first:50){ nodes{ state author{ login __typename } } } commits(last:1){ nodes{ commit{ statusCheckRollup{ state contexts(first:100){ pageInfo{ hasNextPage } nodes{ __typename ... on CheckRun{ name status conclusion isRequired(pullRequestNumber:$number) } ... on StatusContext{ context state isRequired(pullRequestNumber:$number) } } } } } } } } } }",
     variables: { owner: $owner, name: $name, number: $number }
   }')
   resp="$(curl_graphql_retry "$query")" || { echo "merge-pr.sh: state query failed (details above)" >&2; return 1; }
@@ -331,6 +397,77 @@ fetch_state() {
     return 1
   fi
   echo "$resp"
+}
+
+# Every merge blocker visible in one state read, computed together so the report
+# lists all of them: the gates below still stop at the first, but a conflict or a
+# BEHIND branch no longer hides open threads, and open threads no longer hide red
+# checks. `check_status` is the rollup verdict for every state except UNSTABLE, where
+# it is the verdict over the contexts marked isRequired for this PR (see the header).
+read -r -d '' CONDITIONS_JQ <<'JQ' || true
+def ctx_name: if .__typename == "CheckRun" then (.name // "?") else (.context // "?") end;
+def ctx_ok:
+  if .__typename == "CheckRun" then ((.conclusion // "") | IN("SUCCESS", "NEUTRAL", "SKIPPED"))
+  else .state == "SUCCESS" end;
+def ctx_pending:
+  if .__typename == "CheckRun" then .conclusion == null
+  else (.state == null or (.state | IN("PENDING", "EXPECTED"))) end;
+def reviewer:
+  (.author.login // "ghost") as $login
+  | if .author.__typename == "Bot" and ($login | endswith("[bot]") | not)
+    then $login + "[bot]" else $login end;
+.data.repository.pullRequest as $pr
+| ($pr.mergeStateStatus // "UNKNOWN") as $ms
+| ($pr.commits.nodes[0].commit.statusCheckRollup // null) as $rollup
+| ($rollup.state // "NONE") as $checks
+| ($pr.reviewDecision // "NONE") as $decision
+| [$pr.reviewThreads.nodes[]? | select(.isResolved != true)] as $open
+| ($rollup.contexts // null) as $ctx
+| [$ctx.nodes[]? | select(.isRequired == true)] as $required
+| [$required[] | select((ctx_ok | not) and (ctx_pending | not)) | ctx_name] as $req_failing
+| [$required[] | select(ctx_pending) | ctx_name] as $req_pending
+| ($ctx != null and $ctx.pageInfo.hasNextPage == false) as $ctx_complete
+| (if $ms == "UNSTABLE" then
+     if ($req_failing | length) > 0 then "failing_checks"
+     elif ($ctx_complete | not) or ($req_pending | length) > 0 then "checks_pending"
+     elif ($required | length) == 0 then "no_required"
+     else "ok" end
+   elif ($checks | IN("FAILURE", "ERROR")) then "failing_checks"
+   elif $checks == "SUCCESS" then "ok"
+   else "checks_pending" end) as $check_status
+| {
+    merge_state: $ms,
+    checks: $checks,
+    decision: $decision,
+    conflict_mergeable: ($pr.mergeable == "CONFLICTING"),
+    dirty: ($ms == "DIRTY"),
+    behind: ($ms == "BEHIND"),
+    incomplete: ($pr.reviewThreads.pageInfo.hasNextPage == true),
+    open_count: ($open | length),
+    open_ids: ($open | map(.id) | join(",")),
+    check_status: $check_status,
+    ctx_complete: $ctx_complete,
+    required_failing: ($req_failing | unique | join(",")),
+    required_pending: ($req_pending | unique | join(",")),
+    changes_requested_by: ([$pr.latestReviews.nodes[]? | select(.state == "CHANGES_REQUESTED") | reviewer] | unique | join(",")),
+    blockers: ([
+      (if $pr.mergeable == "CONFLICTING" or $ms == "DIRTY" then "conflict" else empty end),
+      (if $ms == "BEHIND" then "behind" else empty end),
+      (if $pr.reviewThreads.pageInfo.hasNextPage == true then "incomplete_review_state" else empty end),
+      (if ($open | length) > 0 then "unanswered_threads:\($open | length)" else empty end),
+      (if $check_status == "failing_checks" then "failing_checks" else empty end),
+      (if $check_status == "checks_pending" then "checks_pending" else empty end),
+      (if $decision == "CHANGES_REQUESTED" then "changes_requested" else empty end),
+      (if $decision == "REVIEW_REQUIRED" then "review_required" else empty end),
+      (if ($ms | IN("CLEAN", "UNSTABLE", "DIRTY", "BEHIND") | not) or $check_status == "no_required"
+       then "not_clean" else empty end)
+    ] | join(","))
+  }
+JQ
+
+# Reads one field of the conditions computed by apply_merge_gates.
+cond() {
+  jq -r ".$1" <<<"$CONDS"
 }
 
 # PUTs the update-branch endpoint (server-side merge of base into head — the same
@@ -399,15 +536,39 @@ enable_automerge() {
 # outside this run's control — a required check still to pass, a review still
 # needed — resolves on its own without another call to this script. Exit code and
 # reason are the same whether or not auto-merge could be armed.
+#
+# blockers= is recomputed from the same $state the decision used (merge mode, open PR
+# only), so it lists every condition, not just the one that stopped this run. The
+# reason always appears in it: as itself, as its counted form, or for
+# branch_protection as the review/merge-state tokens that explain it.
 blocked() {
-  local reason="$1" detail="$2" automerge="unavailable" arm_rc armable="$AUTO_MERGE"
+  local reason="$1" detail="$2" automerge="unavailable" arm_rc armable="$AUTO_MERGE" conds blockers="" cr_by=""
   if jq -e '.data.repository.pullRequest.autoMergeRequest.enabledAt' >/dev/null 2>&1 <<<"${state:-}"; then
     automerge="preexisting"
   fi
+  if [ -z "$RESOLVE_THREAD" ] && jq -e '.data.repository.pullRequest.state == "OPEN"' >/dev/null 2>&1 <<<"${state:-}"; then
+    conds="$(jq -c "$CONDITIONS_JQ" <<<"$state")" || conds='{}'
+    blockers="$(jq -r '.blockers // ""' <<<"$conds")"
+    cr_by="$(jq -r '.changes_requested_by // ""' <<<"$conds")"
+  fi
+  case ",${blockers}," in
+  *",${reason},"* | *",${reason}:"*) ;;
+  *)
+    if [ "$reason" != "branch_protection" ] || [ -z "$blockers" ]; then
+      blockers="${reason}${blockers:+,${blockers}}"
+    fi
+    ;;
+  esac
   case "$reason" in
   head_changed | expected_head_mismatch | closed | verified_head_changed | thread_not_on_pr | permission_denied | validation_failed) armable=0 ;;
-  conflict | behind | incomplete_review_state | unanswered_threads) [ "$ARM_ALWAYS" = 1 ] || armable=0 ;;
   esac
+  # Arming for conflicts, a stale base or open threads is the --arm-always posture
+  # only, whichever blocker happens to lead.
+  if [ "$ARM_ALWAYS" != 1 ]; then
+    case ",${blockers}," in
+    *,conflict,* | *,behind,* | *,incomplete_review_state,* | *,unanswered_threads:*) armable=0 ;;
+    esac
+  fi
   if [ "$armable" = 1 ]; then
     if enable_automerge "$reason"; then
       automerge="armed"
@@ -416,7 +577,7 @@ blocked() {
       [ "$arm_rc" != 2 ] || automerge="preexisting"
     fi
   fi
-  echo "BLOCKED ${REPO}#${PR_NUMBER} reason=${reason} detail=${detail} automerge=${automerge}"
+  echo "BLOCKED ${REPO}#${PR_NUMBER} reason=${reason} blockers=${blockers}${cr_by:+ changes_requested_by=${cr_by}} detail=${detail} automerge=${automerge}"
   exit 4
 }
 
@@ -464,10 +625,18 @@ if [ -n "$RESOLVE_THREAD" ]; then
   thread_state="$(curl_graphql_retry "$query")" || die "thread query failed" 3
   pr_id="$(jq -r '.data.repository.pullRequest.id' <<<"$state")"
   jq -e --arg id "$pr_id" --arg sha "$VERIFIED_HEAD" '.errors == null and .data.node.pullRequest.id == $id and .data.node.pullRequest.headRefOid == $sha' >/dev/null <<<"$thread_state" || blocked "thread_not_on_pr" "thread is not on this PR at the verified head; refresh its identity and the finding"
+  # Reply before resolving, once: a retry after an ambiguous failure could post the
+  # reply twice, and a failed reply leaves the thread open for the caller to retry.
+  replied=""
+  if [ -n "$REPLY_MUTATION" ]; then
+    reply="$(curl_graphql_retry "$REPLY_MUTATION" 1)" || die "thread reply outcome unknown; check the thread for the reply before retrying (thread not resolved)" 3
+    jq -e '.errors == null and (.data.addPullRequestReviewThreadReply.comment.id | type == "string")' >/dev/null 2>&1 <<<"$reply" || die "thread reply failed (thread not resolved): $(jq -c '.errors // .' <<<"$reply" 2>/dev/null | head -c 400)" 3
+    replied=" replied=1"
+  fi
   mutation=$(jq -n --arg id "$RESOLVE_THREAD" '{query:"mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{id isResolved}}}",variables:{id:$id}}')
-  resolution="$(curl_graphql_retry "$mutation")" || die "thread resolution outcome unknown; refresh before retrying" 3
-  jq -e '.errors == null and .data.resolveReviewThread.thread.isResolved == true' >/dev/null <<<"$resolution" || die "thread resolution failed" 3
-  echo "RESOLVED ${REPO}#${PR_NUMBER} thread=${RESOLVE_THREAD} head=${VERIFIED_HEAD}"
+  resolution="$(curl_graphql_retry "$mutation")" || die "thread resolution outcome unknown; refresh before retrying${replied:+ (the reply was posted; do not post it again)}" 3
+  jq -e '.errors == null and .data.resolveReviewThread.thread.isResolved == true' >/dev/null <<<"$resolution" || die "thread resolution failed${replied:+ (the reply was posted; do not post it again)}" 3
+  echo "RESOLVED ${REPO}#${PR_NUMBER} thread=${RESOLVE_THREAD} head=${VERIFIED_HEAD}${replied}"
   exit 0
 fi
 # An existing auto-merge request is deliberately never a blocker, in any mode. It
@@ -495,20 +664,34 @@ if [ "$merge_state" = "BEHIND" ]; then
   handle_terminal_state
 fi
 
-# Every direct-merge gate, applied to the current $state snapshot.
+# Every direct-merge gate, applied to the current $state snapshot. The gates stop at
+# the first hit, in the historical order that reason= has always reported; blocked()
+# lists the rest from the same snapshot. Sets MERGE_NOTE when the UNSTABLE path passes.
 apply_merge_gates() {
+  local detail
+  CONDS="$(jq -c "$CONDITIONS_JQ" <<<"$state")"
+  MERGE_NOTE=""
+  expected_head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
+  merge_state="$(cond merge_state)"
+  checks_state="$(cond checks)"
+  review_decision="$(cond decision)"
+
+  if [ "$(cond conflict_mergeable)" = true ]; then
+    blocked "conflict" "merge conflicts against the base branch; resolve in a worktree first, not here"
+  fi
+  # Only reachable when the branch fell behind again after update-branch, or on the
+  # --expected-head reread; either way this run will not update it a second time.
+  if [ "$(cond behind)" = true ]; then
+    blocked "behind" "mergeStateStatus=BEHIND at the gate read; not merging a head that is behind its base"
+  fi
   # A bounded query must not silently certify a partial review snapshot.
-  if jq -e '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' >/dev/null <<<"$state"; then
+  if [ "$(cond incomplete)" = true ]; then
     blocked "incomplete_review_state" "more than 100 review threads; inspect all pages and merge through the host's verified PR flow"
   fi
-  unanswered_count="$(jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved != true)] | length' <<<"$state")"
-
+  unanswered_count="$(cond open_count)"
   if [ "$unanswered_count" -gt 0 ]; then
-    thread_ids="$(jq -r '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved != true) | .id] | join(",")' <<<"$state")"
-    blocked "unanswered_threads" "${unanswered_count} unresolved review thread(s); threads=${thread_ids}; verify each finding and explicitly resolve it before merging"
+    blocked "unanswered_threads" "${unanswered_count} unresolved review thread(s); threads=$(cond open_ids); verify each finding and explicitly resolve it before merging"
   fi
-
-  expected_head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
 
   # Checked here, after fixing what could be fixed, rather than at the very top: base
   # drift or an unanswered thread can be the reason a required check never ran at all
@@ -518,37 +701,61 @@ apply_merge_gates() {
   #
   # This is the gate that stops the implicit admin bypass (see the header): GitHub
   # would accept a merge here for a ruleset-bypass actor whatever the rollup says, so
-  # nothing short of CLEAN + SUCCESS reaches try_merge. A null rollup is treated as
-  # pending, not green: right after update-branch (or any push) the new head has no
-  # check suites yet, and a bypass-capable token must not merge into that gap.
-  checks_state="$(jq -r '.data.repository.pullRequest.commits.nodes[0].commit.statusCheckRollup.state // "NONE"' <<<"$state")"
-  merge_state="$(jq -r '.data.repository.pullRequest.mergeStateStatus // "UNKNOWN"' <<<"$state")"
-  if [ "$merge_state" = "DIRTY" ]; then
+  # nothing short of CLEAN + SUCCESS, or UNSTABLE with every required context verified
+  # green, reaches try_merge. A null rollup is treated as pending, not green: right
+  # after update-branch (or any push) the new head has no check suites yet, and a
+  # bypass-capable token must not merge into that gap.
+  if [ "$(cond dirty)" = true ]; then
     blocked "conflict" "mergeStateStatus=DIRTY; resolve in a worktree first, not here"
   fi
-  case "$checks_state" in
-  FAILURE | ERROR)
+  case "$(cond check_status)" in
+  failing_checks)
+    if [ "$merge_state" = "UNSTABLE" ]; then
+      blocked "failing_checks" "required check(s) red at the head: $(cond required_failing) (mergeStateStatus=UNSTABLE, rollup=${checks_state}) — that is a code/CI fix, not something this script can resolve"
+    fi
     blocked "failing_checks" "required status checks are red (rollup=${checks_state}) — that is a code/CI fix, not something this script can resolve"
     ;;
-  PENDING | EXPECTED | NONE)
-    blocked "checks_pending" "checks have not finished (rollup=${checks_state}, mergeStateStatus=${merge_state}); not merging until they pass"
-    ;;
-  SUCCESS) ;;
-  *)
+  checks_pending)
+    if [ "$merge_state" = "UNSTABLE" ]; then
+      if [ "$(cond ctx_complete)" != true ]; then
+        detail="the head has more than 100 status contexts (or none were returned), so every required one cannot be verified"
+      else
+        detail="required check(s) not finished: $(cond required_pending)"
+      fi
+      blocked "checks_pending" "${detail} (mergeStateStatus=UNSTABLE, rollup=${checks_state}); not merging until each required context is green"
+    fi
+    case "$checks_state" in
+    PENDING | EXPECTED | NONE)
+      blocked "checks_pending" "checks have not finished (rollup=${checks_state}, mergeStateStatus=${merge_state}); not merging until they pass"
+      ;;
+    esac
     blocked "checks_pending" "unrecognised check rollup (rollup=${checks_state}, mergeStateStatus=${merge_state}); not merging until it reads SUCCESS"
     ;;
   esac
-  review_decision="$(jq -r '.data.repository.pullRequest.reviewDecision // "NONE"' <<<"$state")"
-  if [ "$merge_state" = "BLOCKED" ]; then
-    case "$review_decision" in
-    REVIEW_REQUIRED | CHANGES_REQUESTED)
-      blocked "branch_protection" "mergeStateStatus=BLOCKED with reviewDecision=${review_decision}; a required human review is outstanding"
-      ;;
+  case "$review_decision" in
+  CHANGES_REQUESTED)
+    detail="changes requested by $(cond changes_requested_by)"
+    [ -n "$(cond changes_requested_by)" ] || detail="changes requested, but no latest review names the reviewer"
+    case ",$(cond changes_requested_by)," in
+    *"[bot],"*) detail="${detail}; a [bot] reviewer is an automated review to address or dismiss, not a missing human approval" ;;
     esac
+    blocked "branch_protection" "mergeStateStatus=${merge_state} with reviewDecision=CHANGES_REQUESTED; ${detail}"
+    ;;
+  REVIEW_REQUIRED)
+    blocked "branch_protection" "mergeStateStatus=${merge_state} with reviewDecision=REVIEW_REQUIRED; a required approving review is outstanding"
+    ;;
+  esac
+  if [ "$merge_state" = "CLEAN" ]; then
+    return 0
   fi
-  if [ "$merge_state" != "CLEAN" ]; then
-    blocked "not_clean" "mergeStateStatus=${merge_state} (rollup=${checks_state}); merging now could apply a ruleset bypass, so only CLEAN is merged directly"
+  if [ "$merge_state" = "UNSTABLE" ]; then
+    if [ "$(cond check_status)" = ok ]; then
+      MERGE_NOTE=" merge_state=UNSTABLE"
+      return 0
+    fi
+    blocked "not_clean" "mergeStateStatus=UNSTABLE (rollup=${checks_state}); no required contexts to verify, so an UNSTABLE PR is not merged directly"
   fi
+  blocked "not_clean" "mergeStateStatus=${merge_state} (rollup=${checks_state}); merging now could apply a ruleset bypass, so only CLEAN, or UNSTABLE with every required context green, is merged directly"
 }
 
 apply_merge_gates
@@ -570,7 +777,7 @@ last_code=""
 for m in "${methods[@]}"; do
   out="$(try_merge "$m")" || die "merge request failed; outcome unknown, refresh PR state before retrying" 3
   if [[ "$out" == MERGED* ]]; then
-    echo "$out"
+    echo "${out}${MERGE_NOTE}"
     exit 0
   fi
   if [ "$out" = "409" ]; then

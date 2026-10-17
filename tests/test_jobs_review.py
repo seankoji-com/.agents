@@ -237,13 +237,13 @@ class JobReviewTests(unittest.TestCase):
             inp = base / "pr-observation.json"
             head = "a" * 40
             def observation(data):
-                content = {k: data[k] for k in ("pr", "head_sha", "required_contexts", "required_checks", "review_threads", "authorized_endstate", "optional_contexts", "allow_empty_required_contexts")}
+                content = {k: data[k] for k in ("pr", "head_sha", "required_contexts", "required_checks", "review_threads", "review_thread_count", "authorized_endstate", "optional_contexts", "allow_empty_required_contexts")}
                 return {"observer": "coordinator", "kind": "pr-state", "source": "fixture-host-snapshot", "content": content,
                         "sha256": hashlib.sha256(canonical(content)).hexdigest()}
             valid = {
                 "pr": "fixture/1", "head_sha": head, "required_contexts": ["ci"], "optional_contexts": ["optional"], "allow_empty_required_contexts": False,
                 "required_checks": [{"context": "ci", "conclusion": "success", "head_sha": head}],
-                "review_threads": [],
+                "review_threads": [], "review_thread_count": 0,
                 "authorized_endstate": {"requested": "mergeable", "observed": "mergeable", "authorization_ref": "decision-fixture"},
             }
             valid["host_observations"] = [observation(valid)]
@@ -257,7 +257,7 @@ class JobReviewTests(unittest.TestCase):
             optional_failed = {**valid, "required_checks": [*valid["required_checks"], {"context": "optional", "conclusion": "failure", "head_sha": head}]}
             optional_failed["host_observations"] = [observation(optional_failed)]
             self.assertEqual(run(optional_failed).returncode, 0)
-            stale = {**valid, "review_threads": [{"resolved": False, "head_sha": head}]}
+            stale = {**valid, "review_threads": [{"resolved": False, "head_sha": head}], "review_thread_count": 1}
             stale["host_observations"] = [observation(valid), observation(stale)]
             self.assertNotEqual(run(stale).returncode, 0)
 

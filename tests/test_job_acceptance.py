@@ -58,19 +58,21 @@ class PinnedAcceptanceTests(unittest.TestCase):
    version=Path(json.loads(proc.stdout)['data']['version_dir']);manifest=json.loads((version/'install-manifest.json').read_text());pin=manifest['package_digest']
    job={'schema_version':1,'job_id':'baby-1','installation_id':manifest['installation_id'],'workflow':'babysitter/pr','owner':{'id':'owner'},'objective':'review evidence','requirements':{'R1':'all required checks'},'authorization':{'actions':['read']},'constraints':['no writes'],'dependencies':[{'key':'babysitter','plugin':'babysitter'}],'pins':{},'policy':{'max_repair_cycles':3,'max_artifact_bytes':16777216},'stages':[{'id':'pr','depends_on':[],'requirements':['R1'],'status':'pending','execution_mode':'direct','validator_dependency':'babysitter'}],'tasks':[],'decisions':[],'history':[],'metrics':{},'result_contract':{'schema_version':1}}
    create_pinned_job(job,state,prefix,agents,base/'config/workers.json');caller={'installation_id':manifest['installation_id'],'workflow':'babysitter/pr','package_digest':pin,'actor':'coordinator'};validator=version/'scripts/validate_pr.py';inp=base/'pr.json'
-   valid={'pr':'https://example.invalid/pr/1','head_sha':'a'*40,'required_contexts':['ci','lint'],'allow_empty_required_contexts':False,'optional_contexts':[],'required_checks':[{'context':x,'conclusion':'success','head_sha':'a'*40} for x in ('ci','lint')],'review_threads':[],'authorized_endstate':{'requested':'mergeable','observed':'mergeable','authorization_ref':'coord-1'}}
+   valid={'pr':'https://example.invalid/pr/1','head_sha':'a'*40,'required_contexts':['ci','lint'],'allow_empty_required_contexts':False,'optional_contexts':[],'required_checks':[{'context':x,'conclusion':'success','head_sha':'a'*40} for x in ('ci','lint')],'review_threads':[],'review_thread_count':0,'authorized_endstate':{'requested':'mergeable','observed':'mergeable','authorization_ref':'coord-1'}}
    def bind_host(data):
-    content={key:data[key] for key in ('pr','head_sha','required_contexts','required_checks','review_threads','authorized_endstate','allow_empty_required_contexts','optional_contexts')}
+    content={key:data[key] for key in ('pr','head_sha','required_contexts','required_checks','review_threads','review_thread_count','authorized_endstate','allow_empty_required_contexts','optional_contexts') if key in data}
     data['host_observations']=[{'observer':'coordinator','kind':'pr-state','source':'fixture-host-snapshot','content':content,'sha256':hashlib.sha256(canonical(content)).hexdigest()}]
     return data
    bind_host(valid)
    inp.write_text(json.dumps(valid));args=[sys.executable,str(validator),'--input',str(inp)];self.assertEqual(subprocess.run(args,capture_output=True).returncode,0)
    explicit_empty=bind_host({**valid,'required_contexts':[],'required_checks':[],'allow_empty_required_contexts':True});explicit_empty['host_observations'][0]['content']['allow_empty_required_contexts']=True;explicit_empty['host_observations'][0]['sha256']=hashlib.sha256(canonical(explicit_empty['host_observations'][0]['content'])).hexdigest();inp.write_text(json.dumps(explicit_empty));self.assertEqual(subprocess.run(args,capture_output=True).returncode,0)
    unresolved=bind_host({**valid,'review_threads':[{'resolved':False,'head_sha':'a'*40}]})
+   incomplete=bind_host({**valid,'review_thread_count':55})  # first page read as the whole list
+   uncounted=bind_host({k:v for k,v in valid.items() if k not in ('review_thread_count','host_observations')})
    missing_context=bind_host({**valid,'required_contexts':['ci','release']})
    unauthorized=bind_host({**valid,'authorized_endstate':{'requested':'merged','observed':'open','authorization_ref':'coord-1'}})
    content_mismatch={**valid,'host_observations':[dict(valid['host_observations'][0],content={**valid['host_observations'][0]['content'],'head_sha':'c'*40})]}
-   for bad in ({**valid,'required_checks':[]},{**valid,'required_checks':[{'context':'ci','conclusion':'failure','head_sha':'a'*40},{'context':'lint','conclusion':'success','head_sha':'a'*40}]},{**valid,'head_sha':'c'*40},unresolved,missing_context,unauthorized,content_mismatch):
+   for bad in ({**valid,'required_checks':[]},{**valid,'required_checks':[{'context':'ci','conclusion':'failure','head_sha':'a'*40},{'context':'lint','conclusion':'success','head_sha':'a'*40}]},{**valid,'head_sha':'c'*40},unresolved,incomplete,uncounted,missing_context,unauthorized,content_mismatch):
     inp.write_text(json.dumps(bad));self.assertNotEqual(subprocess.run(args,capture_output=True).returncode,0)
 
 
