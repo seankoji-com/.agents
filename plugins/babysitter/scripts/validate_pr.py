@@ -5,6 +5,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from shared.validator_observations import read_object, observation, emit
 
+PASSING = ('success', 'neutral', 'skipped')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', required=True)
@@ -30,15 +33,23 @@ def main():
         by_name = {c.get('context'): c for c in checks}
         if len(by_name) != len(checks) or not set(required) <= set(by_name):
             raise ValueError('required check coverage is missing or duplicated')
-        if any(by_name[name].get('conclusion') != 'success' or by_name[name].get('head_sha') != data['head_sha'] for name in required):
+        # GitHub treats a neutral or skipped required check as passing; merge-pr.sh agrees.
+        if any(by_name[name].get('conclusion') not in PASSING or by_name[name].get('head_sha') != data['head_sha'] for name in required):
             raise ValueError('required checks failed or refer to a different head')
         if not isinstance(threads, list) or any(not isinstance(t, dict) or t.get('resolved') is not True or t.get('head_sha') != data['head_sha'] for t in threads):
             raise ValueError('unresolved or stale review threads remain')
+        # An empty or first-page list proves nothing: bind distinct host thread IDs to GitHub's own total.
+        count = data['review_thread_count']
+        ids = [t.get('id') for t in threads]
+        if any(not isinstance(i, str) or not i for i in ids) or len(set(ids)) != len(ids):
+            raise ValueError('review threads need distinct host thread IDs')
+        if type(count) is not int or count != len(ids):
+            raise ValueError('review thread list is incomplete: review_thread_count must equal the observed threads')
         end = data['authorized_endstate']
         if not isinstance(end, dict) or end.get('requested') not in ('mergeable', 'merged', 'open') or end.get('observed') != end['requested'] or not end.get('authorization_ref'):
             raise ValueError('requested and observed authorized endstate differ')
         snapshots = [observation(row, 'pr-state') for row in data['host_observations']]
-        fields = ('pr', 'head_sha', 'required_contexts', 'required_checks', 'review_threads', 'authorized_endstate', 'allow_empty_required_contexts', 'optional_contexts')
+        fields = ('pr', 'head_sha', 'required_contexts', 'required_checks', 'review_threads', 'review_thread_count', 'authorized_endstate', 'allow_empty_required_contexts', 'optional_contexts')
         if not snapshots or not all(snapshots[-1].get(key) == data.get(key) for key in fields):
             raise ValueError('host observation does not bind the complete current PR state')
         if len(snapshots) > 1 and (any(type(row.get('sequence')) is not int for row in data['host_observations']) or any(left['sequence'] >= right['sequence'] for left, right in zip(data['host_observations'], data['host_observations'][1:]))):

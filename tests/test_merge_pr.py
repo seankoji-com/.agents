@@ -27,6 +27,8 @@ assert not any("fixture-token" in arg for arg in a), "credential leaked in argv"
 assert "@-" in a, "header must be read from stdin"
 assert sys.stdin.read().strip() == "Authorization: bearer fixture-token"
 mode = os.environ["MERGE_FIXTURE_MODE"]
+def empty_contexts():
+    return {"pageInfo":{"hasNextPage":False}, "nodes":[]}
 body = json.loads(a[a.index("--data")+1]) if "--data" in a else {}
 with open(os.environ["MERGE_FIXTURE_LOG"], "a") as log:
     log.write(json.dumps(body)+"\\n")
@@ -37,19 +39,19 @@ if "node(id:" in query:
     payload = {"data":{"node":{"id":"T1", "pullRequest":{"id":"OTHER" if mode=="foreign" else "PR1", "headRefOid":"a"*40}}}}
 elif query.startswith("query"):
     threads = []
-    if mode in ("marker", "preexisting-unresolved") or (mode == "flow" and not state_file.exists()):
+    if mode in ("marker", "preexisting-unresolved", "conflict-threads", "threads-failing", "behind-threads") or (mode == "flow" and not state_file.exists()):
         threads = [{"id":"T1", "isResolved":False, "comments":{"nodes":[{"body":"[babysitter] fixed"}]}}]
     pr = {"id":"PR1", "state":"OPEN", "headRefOid":"a"*40, "mergeable":"MERGEABLE",
           "mergeStateStatus":"CLEAN", "autoMergeRequest":None,
           "reviewThreads":{"nodes":threads,"pageInfo":{"hasNextPage":mode=="truncated"}},
-          "commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]}}
+          "commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS", "contexts":empty_contexts()}}}]}}
     if mode in ("merged", "closed"): pr = {"state":mode.upper()}
-    if mode == "conflict": pr["mergeable"] = "CONFLICTING"
+    if mode in ("conflict", "conflict-threads"): pr["mergeable"] = "CONFLICTING"
     if mode == "behind":
         pr["mergeStateStatus"] = "BEHIND"
         if state_file.exists(): pr["headRefOid"] = "b"*40
     if mode == "null": pr = None
-    if mode in ("failing", "preexisting-failing", "merged-after-block", "closed-after-block"): pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["state"] = "FAILURE"
+    if mode in ("failing", "preexisting-failing", "merged-after-block", "closed-after-block", "threads-failing"): pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["state"] = "FAILURE"
     if mode in ("already-auto", "preexisting-unresolved", "preexisting-failing"): pr["autoMergeRequest"] = {"enabledAt":"fixture-time"}
     rollup, merge_state = {
         "pending": ("PENDING", "BLOCKED"), "expected": ("EXPECTED", "BLOCKED"),
@@ -60,7 +62,32 @@ elif query.startswith("query"):
     }.get(mode, (0, 0))
     if merge_state:
         pr["mergeStateStatus"] = merge_state
-        pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"] = rollup and {"state":rollup}
+        pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"] = rollup and {"state":rollup, "contexts":empty_contexts()}
+    if mode == "behind-threads":
+        pr["mergeStateStatus"] = "BEHIND"
+    if mode.startswith("unstable-"):
+        # A non-required lint run is red, so GitHub reports UNSTABLE; the required
+        # contexts below decide whether the helper may merge.
+        pr["mergeStateStatus"] = "UNSTABLE"
+        build = {"__typename":"CheckRun", "name":"build", "status":"COMPLETED", "conclusion":"SUCCESS", "isRequired":True}
+        status = {"__typename":"StatusContext", "context":"ci/legacy", "state":"SUCCESS", "isRequired":True}
+        lint = {"__typename":"CheckRun", "name":"lint", "status":"COMPLETED", "conclusion":"FAILURE", "isRequired":False}
+        if mode == "unstable-required-failing": build["conclusion"] = "TIMED_OUT"
+        if mode == "unstable-required-pending": build.update(status="IN_PROGRESS", conclusion=None)
+        if mode == "unstable-status-expected": status["state"] = "EXPECTED"
+        nodes = [lint] if mode == "unstable-zero-required" else [build, status, lint]
+        pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"] = {"state":"FAILURE", "contexts":{
+            "pageInfo":{"hasNextPage":mode == "unstable-page-incomplete"}, "nodes":nodes}}
+        if mode == "unstable-threads": pr["reviewThreads"]["nodes"] = [{"id":"T9", "isResolved":False}]
+        if mode == "unstable-review-required": pr["reviewDecision"] = "REVIEW_REQUIRED"
+    if mode in ("bot-changes", "human-changes"):
+        pr["mergeStateStatus"] = "BLOCKED"
+        pr["reviewDecision"] = "CHANGES_REQUESTED"
+        bot = {"login":"coderabbitai", "__typename":"Bot"}
+        human = {"login":"octo-reviewer", "__typename":"User"}
+        pr["latestReviews"] = {"nodes":[
+            {"state":"APPROVED", "author":human if mode == "bot-changes" else bot},
+            {"state":"CHANGES_REQUESTED", "author":bot if mode == "bot-changes" else human}]}
     if mode == "review-required": pr["reviewDecision"] = "REVIEW_REQUIRED"
     if mode == "behind-then-fresh":
         # update-branch lands a new head whose checks have not registered yet.
@@ -84,6 +111,11 @@ elif query.startswith("query"):
                 pr["reviewDecision"] = "CHANGES_REQUESTED"
         state_file.write_text("queried")
     payload = {"data":{"repository":{"pullRequest":pr}}}
+elif "addPullRequestReviewThreadReply" in query:
+    if mode == "reply-fails":
+        payload = {"data":None, "errors":[{"message":"fixture reply refused"}]}
+    else:
+        payload = {"data":{"addPullRequestReviewThreadReply":{"comment":{"id":"C1"}}}}
 elif "resolveReviewThread" in query:
     if mode == "flow": state_file.write_text("resolved")
     payload = {"data":{"resolveReviewThread":{"thread":{"id":"T1", "isResolved":True}}}}
@@ -428,6 +460,161 @@ print(code, end="")
                 result, calls = self.run_helper("success", flags)
                 self.assertEqual(result.returncode, 2)
                 self.assertEqual(calls, [])
+
+    def reply_file(self, body):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / "reply.md"
+        path.write_bytes(body if isinstance(body, bytes) else body.encode())
+        return str(path)
+
+    def test_blockers_list_every_condition_from_one_state_read(self):
+        for mode, flags, reason, blockers in (
+            ("conflict-threads", [], "conflict", "conflict,unanswered_threads:1"),
+            ("threads-failing", [], "unanswered_threads", "unanswered_threads:1,failing_checks"),
+            ("behind-threads", ["--expected-head", HEAD], "behind", "behind,unanswered_threads:1"),
+            ("behind", ["--expected-head", HEAD], "behind", "behind"),
+        ):
+            with self.subTest(mode=mode):
+                result, calls = self.run_helper(mode, flags)
+                self.assertEqual(result.returncode, 4, result.stderr)
+                self.assertEqual(result.stdout.count("\n"), 1, result.stdout)
+                self.assertTrue(result.stdout.startswith(
+                    f"BLOCKED fixture/repo#1 reason={reason} blockers={blockers} detail="), result.stdout)
+                self.assertTrue(result.stdout.rstrip().endswith("automerge=unavailable"), result.stdout)
+                self.assertEqual(len(calls), 1)
+        # --arm-always still arms, but the line keeps every blocker visible.
+        result, calls = self.run_helper("conflict-threads", ["--arm-always"])
+        self.assertIn("blockers=conflict,unanswered_threads:1 ", result.stdout)
+        self.assertIn("automerge=armed", result.stdout)
+        self.assertFalse(any("merge_method" in c for c in calls))
+
+    def test_every_blocked_line_carries_blockers(self):
+        for mode, reason, blockers in (
+            ("pending", "checks_pending", "checks_pending,not_clean"),
+            ("state-blocked", "not_clean", "not_clean"),
+            ("review-required", "branch_protection", "review_required,not_clean"),
+            ("race", "head_changed", "head_changed"),
+            ("closed", "closed", "closed"),
+        ):
+            with self.subTest(mode=mode):
+                result, calls = self.run_helper(mode, ["--no-auto"])
+                self.assertEqual(result.returncode, 4, result.stderr)
+                self.assertIn(f"reason={reason} blockers={blockers} detail=", result.stdout)
+        result, calls = self.run_helper("success", ["--no-auto", "--resolve-thread", "T1", "--verified-head", "b" * 40])
+        self.assertIn("reason=verified_head_changed blockers=verified_head_changed detail=", result.stdout)
+
+    def test_unstable_with_every_required_context_green_merges_the_pinned_head(self):
+        for flags in ([], ["--no-auto", "--expected-head", HEAD]):
+            with self.subTest(flags=flags):
+                result, calls = self.run_helper("unstable-green", flags)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(result.stdout, "MERGED fixture/repo#1 via squash merge_state=UNSTABLE\n")
+                self.assertEqual(calls[-1], {"merge_method": "squash", "sha": HEAD})
+                self.assertIn("isRequired(pullRequestNumber:$number)", calls[0]["query"])
+                self.assertFalse(any("enablePullRequestAutoMerge" in c.get("query", "") for c in calls))
+
+    def test_unstable_without_verified_required_contexts_is_not_merged(self):
+        for mode, reason, needle in (
+            ("unstable-required-failing", "failing_checks", "required check(s) red at the head: build"),
+            ("unstable-required-pending", "checks_pending", "required check(s) not finished: build"),
+            ("unstable-status-expected", "checks_pending", "required check(s) not finished: ci/legacy"),
+            ("unstable-page-incomplete", "checks_pending", "more than 100 status contexts"),
+            ("unstable-zero-required", "not_clean", "no required contexts to verify"),
+            ("unstable-threads", "unanswered_threads", "threads=T9"),
+            ("unstable-review-required", "branch_protection", "reviewDecision=REVIEW_REQUIRED"),
+        ):
+            with self.subTest(mode=mode):
+                result, calls = self.run_helper(mode, ["--no-auto"])
+                self.assertEqual(result.returncode, 4, result.stderr)
+                self.assertIn(f"reason={reason} blockers=", result.stdout)
+                self.assertIn(needle, result.stdout)
+                self.assertFalse(any("merge_method" in c for c in calls))
+                self.assertEqual(len(calls), 1)
+
+    def test_changes_requested_names_the_reviewers_and_marks_bots(self):
+        result, calls = self.run_helper("bot-changes", ["--no-auto"])
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("reason=branch_protection blockers=changes_requested,not_clean "
+                      "changes_requested_by=coderabbitai[bot] detail=", result.stdout)
+        self.assertIn("changes requested by coderabbitai[bot]", result.stdout)
+        self.assertIn("not a missing human approval", result.stdout)
+        self.assertNotIn("human review is outstanding", result.stdout)
+        self.assertIn("latestReviews(first:50)", calls[0]["query"])
+        result, calls = self.run_helper("human-changes", ["--no-auto"])
+        self.assertIn("changes_requested_by=octo-reviewer detail=", result.stdout)
+        self.assertIn("changes requested by octo-reviewer", result.stdout)
+        self.assertNotIn("[bot]", result.stdout)
+
+    def test_reply_is_posted_once_after_ownership_checks_and_before_resolving(self):
+        body = "[babysitter] Fixed in the verified head.\n\nEvidence: `tests pass`.\n"
+        args = ["--resolve-thread", "T1", "--verified-head", HEAD, "--reply-file", self.reply_file(body)]
+        result, calls = self.run_helper("resolve", args)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, f"RESOLVED fixture/repo#1 thread=T1 head={HEAD} replied=1\n")
+        self.assertEqual(len(calls), 4)
+        self.assertTrue(calls[0]["query"].startswith("query"))
+        self.assertIn("node(id:", calls[1]["query"])
+        self.assertIn("addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id, body:$body})", calls[2]["query"])
+        self.assertEqual(calls[2]["variables"], {"id": "T1", "body": body})
+        self.assertIn("resolveReviewThread", calls[3]["query"])
+        # Without a reply file nothing is posted and the line is unchanged.
+        result, calls = self.run_helper("resolve", args[:4])
+        self.assertEqual(result.stdout, f"RESOLVED fixture/repo#1 thread=T1 head={HEAD}\n")
+        self.assertFalse(any("addPullRequestReviewThreadReply" in c.get("query", "") for c in calls))
+
+    def test_unmarked_reply_gets_the_babysitter_marker_once(self):
+        # list-prs.sh ignores [babysitter] replies; an unmarked one would wake the watch and re-dispatch a fixer.
+        args = ["--resolve-thread", "T1", "--verified-head", HEAD, "--reply-file", self.reply_file("Answered with evidence.\n")]
+        result, calls = self.run_helper("resolve", args)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        reply = next(c for c in calls if "addPullRequestReviewThreadReply" in c.get("query", ""))
+        self.assertEqual(reply["variables"]["body"], "[babysitter] Answered with evidence.\n")
+
+    def test_failed_reply_is_not_retried_and_leaves_the_thread_open(self):
+        args = ["--resolve-thread", "T1", "--verified-head", HEAD, "--reply-file", self.reply_file("done\n")]
+        result, calls = self.run_helper("reply-fails", args)
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertIn("thread not resolved", result.stderr)
+        self.assertNotIn("RESOLVED", result.stdout)
+        self.assertEqual(sum("addPullRequestReviewThreadReply" in c.get("query", "") for c in calls), 1)
+        self.assertFalse(any("resolveReviewThread" in c.get("query", "") for c in calls))
+
+    def test_reply_waits_for_thread_ownership_and_verified_head(self):
+        reply = self.reply_file("done\n")
+        for mode, head, reason in (("foreign", HEAD, "thread_not_on_pr"), ("resolve", "b" * 40, "verified_head_changed")):
+            with self.subTest(mode=mode):
+                result, calls = self.run_helper(mode, ["--resolve-thread", "T1", "--verified-head", head, "--reply-file", reply])
+                self.assertEqual(result.returncode, 4, result.stderr)
+                self.assertIn("reason=" + reason, result.stdout)
+                self.assertFalse(any("addPullRequestReviewThreadReply" in c.get("query", "") for c in calls))
+
+    def test_reply_file_is_validated_before_any_network_call(self):
+        resolve = ["--resolve-thread", "T1", "--verified-head", HEAD]
+        for name, flags in (
+            ("empty", [*resolve, "--reply-file", self.reply_file("")]),
+            ("whitespace", [*resolve, "--reply-file", self.reply_file(" \n\t\n")]),
+            ("oversized", [*resolve, "--reply-file", self.reply_file(b"x" * 61441)]),
+            ("missing", [*resolve, "--reply-file", "/nonexistent/reply.md"]),
+            ("no-thread", ["--reply-file", self.reply_file("done\n")]),
+        ):
+            with self.subTest(name=name):
+                result, calls = self.run_helper("resolve", flags)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertEqual(calls, [])
+        result, calls = self.run_helper("resolve", [*resolve, "--reply-file", self.reply_file(b"x" * 61440)])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("replied=1", result.stdout)
+
+    def test_reply_and_resolve_work_with_automerge_armed(self):
+        # The old automerge_already_enabled refusal must not come back in resolution mode.
+        args = ["--resolve-thread", "T1", "--verified-head", HEAD, "--reply-file", self.reply_file("done\n")]
+        result, calls = self.run_helper("preexisting-unresolved", args)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("RESOLVED fixture/repo#1 thread=T1", result.stdout)
+        self.assertIn("replied=1", result.stdout)
+        self.assertNotIn("automerge_already_enabled", result.stdout + result.stderr)
+        self.assertFalse(any("merge_method" in c or "enablePullRequestAutoMerge" in c.get("query", "") for c in calls))
 
 
 if __name__ == "__main__":

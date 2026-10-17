@@ -72,7 +72,8 @@ class SiblingWorkCheckTest(unittest.TestCase):
         for status in ('failed', 'cancelled', 'interrupted', 'rolled_back'):
             self.assertNotIn(f'`{status}`', self.rule)
         maintain = flat((ROOT / 'plugins/babysitter/playbooks/maintain.md').read_text())
-        self.assertIn('Call `watch_pull_request` for every unmerged PR and end the turn', maintain)
+        self.assertIn('Call `watch_pull_request` for every unmerged PR', maintain)
+        self.assertIn('Then post the table and end the turn', maintain)
 
     def test_missing_tool_is_reported_not_blocking(self):
         self.assertIn('reported as `sibling check unavailable` and does not block the run', self.rule)

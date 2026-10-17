@@ -391,9 +391,10 @@ def _bounded_run(argv, cwd, limits):
 def _babysitter_merge_gate(job, stage):
     """A `merged` stage of a review-gated PR needs that PR's review stage upstream at the same head.
 
-    A review stage holds a `role: review` slot. A PR is review-gated when it has one or when a
-    fixer may push to it. The review stage's own current acceptance is checked through the
-    dependency chain by accept_stage and validate_stage.
+    A review stage holds a `role: review` slot; a PR is review-gated only when the plan gives it
+    one (the operator asked for review before landing). Otherwise GitHub's own requirements, read
+    by validate_pr.py, are the gate. The review stage's own current acceptance is checked through
+    the dependency chain by accept_stage and validate_stage.
     """
     contract = stage.get('validator_contract', {})
     if not isinstance(contract.get('authorized_endstate'), dict) or contract['authorized_endstate'].get('requested') != 'merged':
@@ -405,11 +406,7 @@ def _babysitter_merge_gate(job, stage):
     reviews = [other for other in job['stages'] if other['id'] in review_ids
                and other.get('validator_dependency') == stage.get('validator_dependency')
                and other.get('validator_contract', {}).get('pr') == pr]
-    prs = job.get('authorization', {}).get('prs', {})
-    pushable = isinstance(prs, dict) and 'push' in (prs.get(pr) or [])
     if not reviews:
-        if pushable:
-            raise AcceptanceError('review_gate: a push-authorized PR cannot reach merged without a review stage')
         return
     by_id = {other['id']: other for other in job['stages']}
     ancestors, frontier = set(), list(stage.get('depends_on', []))

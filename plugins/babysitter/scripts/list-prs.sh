@@ -31,8 +31,26 @@
 #                      we usually cannot push to a fork's branch)
 #   --all-authors      keep PRs by anyone (default: only the authenticated user and bots)
 #   --limit <N>        max PRs to return in --org / --repo sweep mode (default 100,
-#                      GitHub caps a search page at 100 and this does not paginate;
-#                      a truncated result warns on stderr)
+#                      max 100: GitHub caps a search page at 100 and this does not
+#                      paginate; a truncated result warns on stderr)
+#
+# Review state per PR: the first 100 review threads (with the last 5 comments of
+# each), the thread totalCount, and whether that page is the whole set. A PR with
+# more than 100 threads reports review_threads_complete: false, and its
+# unresolved_threads / unresolved_outdated_threads counts are lower bounds; read the
+# remaining pages before treating it as clear. review_decision is GitHub's
+# reviewDecision; changes_requested_by lists the latest reviews in CHANGES_REQUESTED
+# (bots suffixed [bot]).
+#
+# Query cost: GitHub prices a GraphQL call by the connection requests it could need,
+# from the first/last arguments, not the rows actually returned. The thread comments
+# dominate: limit x 100 threads. At the old 20 threads a 100-PR page cost about 25
+# points; at 100 threads it would cost about 106, so a pr-events.sh watch polling
+# every 60 s would spend about 6,400 points an hour against GitHub's 5,000-point
+# hourly GraphQL budget. A one-off roster sweep keeps the 100-PR default (at most
+# about 70,000 nodes per response, far below the 500,000-node cap) so a large org is
+# not silently cut short; pr-events.sh passes --limit 50 to its poll loop (about 53
+# points, about 3,200 an hour at 60 s) unless its caller chose a limit.
 #
 # Exit codes:
 #   0 — snapshot written to stdout (possibly zero lines)
@@ -263,7 +281,11 @@ fragment PRState on PullRequest {
   # reply the newest id and re-trigger a COMMENT event on the following poll.
   comments(last: 10) { nodes { databaseId body } }
   reviews(last: 1) { nodes { databaseId state } }
-  reviewThreads(first: 20) {
+  reviewDecision
+  latestReviews(first: 50) { nodes { state author { login __typename } } }
+  reviewThreads(first: 100) {
+    totalCount
+    pageInfo { hasNextPage }
     nodes {
       isResolved
       isOutdated
@@ -376,6 +398,13 @@ printf '%s' "$RAW" | jq -c \
   def is_own_reply:
     ((.body // "") | startswith("[babysitter]"));
 
+  # Bot logins come back without the [bot] suffix in GraphQL; add it so the names
+  # match what the merge helper and the GitHub UI show.
+  def reviewer:
+    (.author.login // "ghost") as $login
+    | if .author.__typename == "Bot" and ($login | endswith("[bot]") | not)
+      then $login + "[bot]" else $login end;
+
   def is_bot($login):
     $login != null and (
       ($login | endswith("[bot]"))
@@ -461,6 +490,15 @@ printf '%s' "$RAW" | jq -c \
           unresolved_outdated_threads: (
             [.reviewThreads.nodes[]? | select(.isResolved == false and .isOutdated == true)]
             | length
+          ),
+          # Both counts above cover the first 100 threads only. A real PR carried 55
+          # threads when this read 20, and reported most of them as absent. Compared
+          # with == false, not //, because jq treats a false value as missing.
+          review_threads_complete: (.reviewThreads.pageInfo.hasNextPage == false),
+          review_thread_total: (.reviewThreads.totalCount // null),
+          review_decision: (.reviewDecision // null),
+          changes_requested_by: (
+            [.latestReviews.nodes[]? | select(.state == "CHANGES_REQUESTED") | reviewer] | unique
           ),
           last_thread_comment_id: (
             [ .reviewThreads.nodes[]?.comments.nodes[]?
