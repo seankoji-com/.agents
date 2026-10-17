@@ -22,8 +22,8 @@ sys.path.insert(0, str(ROOT))
 from core.jobs.store import canonical  # noqa: E402
 
 PLUGIN = ROOT / 'plugins' / 'babysitter'
-WORKHORSE = {'providerInstanceId': 'fixture-workhorse', 'model': 'fixture-small', 'lineage': 'lineage-a'}
-REVIEWER = {'providerInstanceId': 'fixture-reviewer', 'model': 'fixture-review', 'lineage': 'lineage-b'}
+WORKHORSE = {'providerInstanceId': 'claudeAgent', 'model': 'claude-haiku-5-5', 'lineage': 'anthropic'}
+REVIEWER = {'providerInstanceId': 'codex', 'model': 'gpt-6.1-sol', 'lineage': 'openai'}
 PR12, PR13 = 'https://github.com/fixture/widgets/pull/12', 'https://github.com/fixture/widgets/pull/13'
 H1, H2, H3 = '1' * 40, '2' * 40, '3' * 40
 
@@ -645,7 +645,7 @@ class SyntheticJobTest(unittest.TestCase):
             'id': 'owner-escalate', 'quote': self.request.read_text().strip(), 'source': str(self.request),
             'source_sha256': hashlib.sha256(self.request.read_bytes()).hexdigest(), 'scope': 'plan:escalate'}})
         tasks = [{k: v for k, v in t.items() if k != 'request_id'} for t in self.plan()['tasks']]
-        tasks[0]['target'] = dict(WORKHORSE, providerInstanceId='fixture-stronger', model='fixture-medium')
+        tasks[0]['target'] = dict(WORKHORSE, model='claude-opus-5-5')
         self.job('plan-revision', {'caller': self.caller, 'new_plan': {'tasks': tasks},
                                    'revision': {'id': 'escalate', 'owner_decision_id': 'owner-escalate'}})
         self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'escalated candidate'})
@@ -847,7 +847,7 @@ class SyntheticJobTest(unittest.TestCase):
 
     def test_reviewer_on_the_maintainers_lineage_is_refused(self):
         plan = self.plan(gated=True)
-        plan['tasks'][1]['target'] = dict(WORKHORSE, providerInstanceId='fixture-other', model='fixture-other')
+        plan['tasks'][1]['target'] = dict(WORKHORSE, providerInstanceId='opencode', model='opencode/anthropic/claude-sonnet-5-5')
         self.job('create', plan)
         self.dispatch('pr-12-maintain')
         refused = self.job('prepare', {'caller': self.caller, 'task_id': 'pr-12-review'}, ok=False)

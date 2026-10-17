@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "stage": 5,
+  "inventory": {
+    "tests": [
+      {
+        "path": "tests/test_review_lineage.py",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Issue 57 items 1-2: code and document reviews derive reviewer lineage from provider and model, refuse a disagreeing or non-canonical label, and resolve a custom instance through a supplied capabilities catalog.",
+        "assertions": [
+          {
+            "selector": "test_review_lineage.CodeReviewLineageTests",
+            "tests": 4,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_review_lineage.CatalogDriverKindTests",
+            "tests": 3,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_review_lineage.ReviewPreparationTests",
+            "tests": 1,
+            "coverage": [
+              "REQ-JOB",
+              "REQ-LIFECYCLE",
+              "REQ-EVIDENCE"
+            ],
+            "survives": true
+          }
+        ]
+      }
+    ]
+  }
+}

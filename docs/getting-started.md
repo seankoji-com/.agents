@@ -284,7 +284,8 @@ cheap-family model it recognises (a haiku-, flash-, mini-, nano-, lite-, small- 
 luna-class name) goes to `low`, and those become the `workhorse` candidates, cheapest
 first, with the session model last as the fallback. A delegating workflow's children
 therefore start on a cheap model without you editing anything. The session model judges
-at `high`. Both the tiers and the lineage labels are guesses: edit them. Providers
+at `high`. The tiers are guesses: edit them. Lineage labels follow each provider's
+driver and model, and required reviews refuse a label that disagrees. Providers
 default to `auto`, except OpenCode, which defaults to
 `full-access` with `"requireRuntimeMode": true` because its children otherwise stall
 on permission prompts.

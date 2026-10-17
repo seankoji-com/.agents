@@ -234,7 +234,7 @@ def _lineage(task, handle=None):
         target = (handle or {}).get('target')
     if not isinstance(target, dict) or any(not isinstance(target.get(key), str) or not target[key] for key in ('providerInstanceId', 'model', 'lineage')):
         raise AcceptanceError('required_review_unavailable: review lineage is unknown; independent review is unverified')
-    return target['providerInstanceId'], target['model'], target['lineage']
+    return target['providerInstanceId'], target['model'], target_lineage(target)
 
 def canonical_lineage(value):
     from shared.lineage import DRIVER_LINEAGE, FAMILY_LINEAGE
@@ -242,6 +242,28 @@ def canonical_lineage(value):
     if value not in allowed:
         raise AcceptanceError('author lineage is unknown or non-canonical; author independence is unverified')
     return value
+
+def target_lineage(target, capabilities=None):
+    """Derive a target's canonical lineage from provider and model; refuse a disagreeing label.
+
+    With a capabilities catalog the provider row's driverKind names the driver, as for
+    authors and routing labels; without one the instance ID stands in for the driver."""
+    driver = target['providerInstanceId']
+    if capabilities is not None:
+        rows = capabilities.get('providers', []) if isinstance(capabilities, dict) else []
+        row = next((p for p in rows if isinstance(p, dict) and p.get('providerInstanceId') == driver), {})
+        if not isinstance(row.get('driverKind'), str) or not any(
+                isinstance(m, dict) and m.get('id') == target['model'] for m in row.get('models', [])):
+            raise AcceptanceError('review target is absent from the capabilities catalog; lineage is unknown')
+        driver = row['driverKind']
+    from shared.lineage import lineage
+    label = lineage(driver, target['model'])
+    if target.get('lineage') is not None and target['lineage'] != label:
+        raise AcceptanceError('declared target lineage disagrees with provider and model')
+    try:
+        return canonical_lineage(label)
+    except AcceptanceError:
+        raise AcceptanceError('target lineage is unknown or non-canonical; independence is unverified') from None
 
 def independent_of_authors(task, reviewer):
     authors = task.get('document_authors')
@@ -251,11 +273,7 @@ def independent_of_authors(task, reviewer):
     if not isinstance(target, dict) or any(not isinstance(target.get(key), str) or not target[key]
                                             for key in ('providerInstanceId', 'model')):
         raise AcceptanceError('reviewer lineage is unknown; author independence is unverified')
-    from shared.lineage import lineage as derive_lineage
-    lineage = derive_lineage(target['providerInstanceId'], target['model'])
-    if target.get('lineage') is not None and target['lineage'] != lineage:
-        raise AcceptanceError('declared reviewer lineage disagrees with provider and model')
-    canonical_lineage(lineage)
+    lineage = target_lineage(target)
     for author in authors:
         author_lineage = author.get('lineage')
         canonical_lineage(author_lineage)
@@ -264,7 +282,7 @@ def independent_of_authors(task, reviewer):
 
 
 def independent_lineage(worker, reviewer, worker_handle=None, reviewer_handle=None):
-    """Refuse a required review on the worker's target or model lineage."""
+    """Refuse a required review on the worker's target or derived model lineage."""
     original, peer = _lineage(worker, worker_handle), _lineage(reviewer, reviewer_handle)
     if original[:2] == peer[:2] or original[2] == peer[2]:
         raise AcceptanceError('required review must use a different model target and a known different lineage')

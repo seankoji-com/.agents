@@ -248,9 +248,10 @@ Current malformed completions charge once and retain their raw transport.
 
 Required reviews compare recorded targets. The worker and each reviewer need a
 known `providerInstanceId`, `model` and routing `lineage` on the declared target
-and the owned handle; a follow-up handle inherits its parent's target. Review
-preparation and acceptance refuse a reviewer on the same provider/model, on the
-same lineage, or with unknown lineage. The target is the coordinator's record,
+and the owned handle; a follow-up handle inherits its parent's target. Lineage is
+derived from provider and model; a label that disagrees, or a non-canonical lineage,
+is refused. Review preparation and acceptance refuse a reviewer on the same
+provider/model, on the same lineage, or with unknown lineage. The target is the coordinator's record,
 not host proof of the model that ran.
 
 A review slot (`role: review`) names exactly one subject form. `reviewed_task_ids`

@@ -111,8 +111,8 @@ def default_config(capabilities: dict) -> dict:
     """A starting config: the session model judges, and the cheapest advertised models
     work. Workhorses are every cheap-family model at the `low` tier, in catalog order,
     with the session model appended last as the only fallback; reviewers are the first
-    advertised model of every other lineage, ahead of the session model. Tiers and
-    lineage labels are guesses the owner is expected to edit."""
+    advertised model of every other lineage, ahead of the session model. Tiers are
+    guesses the owner is expected to edit; lineage labels follow driver and model."""
     providers = [p for p in capabilities['providers'] if isinstance(p, dict) and _runnable(p) and _models(p)]
     if not providers:
         raise RoutingError('no_runnable_providers', 'the capabilities list no provider that can run child tasks')
