@@ -1,6 +1,6 @@
 {
   "name": "ape",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Research transferable patterns in open-source repositories.",
   "argument_hint": "doctor | forage [focus] | study <GitHub URL> [focus] | clean <workspace> [--all]",
   "entry": "entry.md",
