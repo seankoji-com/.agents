@@ -796,6 +796,18 @@ class StartRunnerTest(unittest.TestCase):
             startctl.main(['list'])
         self.assertEqual(len(out.getvalue().splitlines()), 24)
 
+    def test_five_stage_seed_starts_no_background_git_maintenance(self):
+        # Issue #58: a detached `git maintenance run --auto` deleted the seed's maintenance.lock mid-copy.
+        trace, seed = self.root / 'git-trace', self.root / 'seed'
+        start = {'scenario': 'engineering-five-stage'}
+        with patch.dict(os.environ, {'GIT_TRACE': str(trace)}):
+            before = dict(os.environ)
+            startctl.seed_inputs(start, seed, self.root)
+            self.assertEqual(dict(os.environ), before)
+        text = trace.read_text()
+        self.assertIn('built-in: git commit', text)
+        self.assertNotRegex(text, r'run_command: git (maintenance|gc)\b')
+
     def test_interrupt_repetition_runs_the_whole_lifecycle_in_order(self):
         harness = FakeHarness(self.root)
         clock = Clock()

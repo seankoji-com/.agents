@@ -1017,8 +1017,9 @@ def trust_bundle(ca_paths, out: Path) -> Path:
 
 def _git(*args, cwd=None, env=None):
     full = dict(os.environ, **GIT_IDENTITY, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull, **(env or {}))
-    return subprocess.run(['git', *args], cwd=cwd, env=full, check=True, capture_output=True,
-                          timeout=60).stdout.decode().strip()
+    # No detached auto maintenance: its maintenance.lock can vanish mid-way through the local bare clone (#58).
+    return subprocess.run(['git', '-c', 'maintenance.auto=false', '-c', 'gc.auto=0', *args], cwd=cwd, env=full,
+                          check=True, capture_output=True, timeout=60).stdout.decode().strip()
 
 
 def build_fixture_repository(directory: Path, scenario: dict) -> dict:

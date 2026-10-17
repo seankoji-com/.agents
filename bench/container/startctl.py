@@ -180,8 +180,12 @@ def seed_inputs(start, seed, private, fixtures=None, capabilities=None):
         spec = importlib.util.spec_from_file_location('bench_v2_prepare_workspace', V2 / 'tools' / 'prepare_workspace.py')
         prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(prepare)
+        import stage_fixtures
+        # The seed is copied into the run workspace; no background git maintenance may touch it (#58).
+        with stage_fixtures.quiet_git():
+            prepared = prepare.prepare(seed)
         info = normalise_stage({})
-        info['record']['five_stage'] = {k: v for k, v in prepare.prepare(seed).items() if k != 'workspace'}
+        info['record']['five_stage'] = {k: v for k, v in prepared.items() if k != 'workspace'}
         return info
     fixtures = fixtures if fixtures is not None else optional_module('stage_fixtures')
     if fixtures is None or not hasattr(fixtures, 'stage'):
