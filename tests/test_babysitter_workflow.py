@@ -110,7 +110,7 @@ class BoundaryTest(unittest.TestCase):
         for action in ('`read`', '`push`', '`communicate`', '`merge`'):
             self.assertIn(action, auth)
         self.assertIn('Never post to a PR, push, arm auto-merge, or merge without the matching recorded action', auth)
-        self.assertIn('`--force-with-lease=<head>:<observed sha>`', auth)
+        self.assertIn('`--force-with-lease=<branch>:<observed sha>`', auth)
         self.assertIn('never a plain or unpinned force', auth)
         self.assertIn('force-push a base or shared branch', auth)
         self.assertIn('Never use admin bypass, dismiss reviews, weaken checks', auth)
@@ -249,8 +249,12 @@ class RelentlessLandingTest(unittest.TestCase):
                       sections('entry.md')['Auto-merge posture'])
 
     def test_needs_followup_has_a_path_forward(self):
-        self.assertIn('the follow-up or escalation that `PKG/references/job-plan.md` gives a `needs-followup` result',
-                      steps('playbooks/maintain.md')[8])
+        play = steps('playbooks/maintain.md')
+        self.assertIn('(`needs-followup` follows `PKG/references/job-plan.md`)', play[8])
+        # An unfinished `failed` round is retried, not escalated; escalation needs blocked, malformed or a repeat.
+        self.assertIn('when a child returns `blocked` or a malformed result, or the same blocker survives two rounds',
+                      play[8])
+        self.assertIn('A required human review with nothing left to fix is `needs human:`', play[4])
         self.assertIn('moves the slot\'s `target` to another candidate', sections('references/job-plan.md')['Stage'])
         self.assertIn('never `needs-followup`', text('agents/pr-maintainer.md'))
 
@@ -263,13 +267,14 @@ class RelentlessLandingTest(unittest.TestCase):
     def test_jobs_are_per_pr_and_never_rebind_between_rounds(self):
         plan = sections('references/job-plan.md')
         self.assertIn('One job per PR that needs a child', plan['Shape'])
-        self.assertIn('Never rebind the head between rounds', plan['Stage'])
+        self.assertIn('In a job without operator-requested review, never rebind the head between rounds', plan['Stage'])
+        self.assertIn('A review-gated job rebinds both stages to each pushed head', plan['Stage'])
         self.assertIn('removes the settled `maintain` slot', plan['Merge and acceptance'])
 
     def test_maintainer_keeps_going_and_may_rebase_with_a_pinned_lease(self):
         body = text('agents/pr-maintainer.md')
         self.assertIn('fetch it, integrate it into your work, and carry on at the new head', body)
-        self.assertIn('`git push --force-with-lease=<head>:<sha you last fetched> origin HEAD:<head>`', body)
+        self.assertIn('`git push --force-with-lease=<branch>:<sha you last fetched> origin HEAD:<branch>`', body)
         self.assertNotIn('stop and return `needs-followup`', body)
 
 
@@ -777,6 +782,26 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertEqual(reviewed.returncode, 0, reviewed.stdout + reviewed.stderr)
         landed, *_ = self.accept('pr-12-land')
         self.assertEqual(landed.returncode, 0, landed.stdout + landed.stderr)
+
+    def test_review_gated_fixer_push_rebinds_and_lands_at_the_reviewed_head(self):
+        self.job('create', self.plan(gated=True))
+        self.dispatch('pr-12-maintain', changes=[{'path': 'src/widget.py', 'pushed_head': H2}])
+        # The fixer pushed H2: rebind both stages, which stales the maintainer, then verify and review at H2.
+        self.rebind_head('fixer-push', H2, gated=True)
+        self.assertEqual(self.stage_contract('pr-12')['head_sha'], H2)
+        self.assertNotEqual(self.accept('pr-12')[0].returncode, 0)
+        self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'verify pushed head'})
+        self.dispatch('pr-12-maintain')
+        self.dispatch('pr-12-review', verdict='approve')
+        reviewed, argv, published = self.accept('pr-12')
+        self.assertEqual(reviewed.returncode, 0, reviewed.stdout + reviewed.stderr)
+        landed, argv_land, published_land = self.accept('pr-12-land')
+        self.assertEqual(landed.returncode, 0, landed.stdout + landed.stderr)
+        self.assertEqual(self.stage_contract('pr-12-land')['head_sha'], H2)
+        final = self.run_cli('job_acceptance_cli.py', 'validate-final', {
+            'caller': self.caller, 'validator_argv_by_stage': {'pr-12': argv, 'pr-12-land': argv_land},
+            'input_file_by_stage': {'pr-12': published, 'pr-12-land': published_land}}, ok=False)
+        self.assertEqual(final.returncode, 0, final.stdout + final.stderr)
 
     def test_head_moving_after_review_reopens_the_gate(self):
         self.job('create', self.plan(gated=True))

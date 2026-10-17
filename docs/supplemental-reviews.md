@@ -6,7 +6,7 @@ with OpenCode are already authorised. Say **"no supplemental reviews"** to opt o
 for a run. Asking for extras does not authorise sharing private material with a new
 provider; without that authority, the coordinator skips them.
 
-This applies to imps reviews and audits, babysitter PR review, Ralph evaluation,
+This applies to imps reviews and audits, babysitter PR review (when the operator asks for one), Ralph evaluation,
 agent-tuneup verification and elephant-goldfish factual checks. It excludes
 document-only cold reads and cheap doctor, status and list operations. The primary
 reviewer starts first and keeps its required independence and acceptance gates.

@@ -52,18 +52,24 @@ against the published input:
 - `allow_empty_required_contexts`: `true` only when the stage explicitly permits a
   PR with no required checks and the latest host observation confirms that policy.
 - `authorized_endstate`: `{"requested": E, "observed": E, "authorization_ref": ID}`
-  where E is `merged`, or `open` for inspect-only, and ID names the recorded owner
+  where E is `merged`, `mergeable` for an operator-requested review stage, or `open`
+  for inspect-only, and ID names the recorded owner
   decision for that scope.
 
 It holds one `maintain` slot: `babysitter/pr-maintainer`, `target` from `resolve
 workhorse` with `providerInstanceId`, `model` and `lineage`, and `write_scope`
 `worker-evidence` under `artifacts/tasks/<task-id>`. Each round is a `retry` of that
-slot. A `needs-followup` result gets the slot's one tracked follow-up; any later one
-escalates: an owner-sourced plan revision (as below) moves the slot's `target` to
-another candidate (the next, or back down the list from the strongest), which stales
-it, then `retry`. With a single candidate, the row is `needs human:`. In every round the `delegate_task` text adds the round's head, `blockers=` list, thread IDs
-and prior findings beside the brief path. Never rebind the head between rounds:
-rebinding stales the slot and forces a round that only re-verifies.
+slot. The maintainer reports unfinished work as `failed`, never `needs-followup`; if
+one still arrives it gets the slot's one tracked follow-up. A review slot cannot be
+followed up. Any later `needs-followup`, or one from a review slot, escalates: an
+owner-sourced plan revision (as below) moves the slot's `target` to another candidate
+(the next, or back down the list from the strongest), which stales it, then `retry`.
+With a single candidate, the row is `needs human:`. In every round the `delegate_task`
+text adds the round's head, `blockers=` list, thread IDs and prior findings beside the
+brief path. In a job without operator-requested review, never rebind the head between
+rounds: rebinding stales the slot and forces a round that only re-verifies. A
+review-gated job rebinds both stages to each pushed head, which stales the slot too;
+that verification round is the cost of the requested review.
 
 ## Merge and acceptance
 
@@ -137,8 +143,9 @@ One PR (12) with fixer work. Angle-bracket strings are placeholders.
 
 Build the validator input only from host reads this thread made (GitHub tools or
 `list-prs.sh`), never from a worker result. It repeats the contract fields and adds
-`required_checks` (`context`, lowercase `conclusion` where `success`, `neutral` and
-`skipped` pass, as in `merge-pr.sh`, and `head_sha`), `review_threads` (one entry per
+`required_checks` (`context`; `conclusion` lowercased from GitHub's uppercase values,
+where `success`, `neutral` and `skipped` pass, the set `merge-pr.sh` treats as green;
+and `head_sha`), `review_threads` (one entry per
 thread with its host `id`, `resolved` and `head_sha`), `review_thread_count`
 (GitHub's total, which must equal the number of distinct IDs), and `host_observations`: one or more
 coordinator records with `observer: "coordinator"`, `kind: "pr-state"`, `source`, the

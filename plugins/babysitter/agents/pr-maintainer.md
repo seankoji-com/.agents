@@ -22,9 +22,9 @@ with its ID, earlier rounds' findings, constraints, and recorded actions.
 
 - `read`: inspect the PR, its checks, review threads and diff; run local tests.
 - `push`, only when recorded: commit in the assigned worktree and push to that PR's
-  head branch with `git push origin HEAD:<head>`. When the repository calls for a
+  head branch with `git push origin HEAD:<branch>`. When the repository calls for a
   rebase, or a conflict is cleaner rebased, publish it only with
-  `git push --force-with-lease=<head>:<sha you last fetched> origin HEAD:<head>`.
+  `git push --force-with-lease=<branch>:<sha you last fetched> origin HEAD:<branch>`.
   Never a plain or unpinned force, never another branch. Without `push` you never push.
 - Never merge, arm or disable auto-merge, run `merge-pr.sh` merge, arm or resolve
   modes, post to the PR, admin bypass, dismiss reviews, weaken checks, edit settings,

@@ -34,7 +34,7 @@ not merge" authorizes inspection alone. Never bypass protected branch requiremen
 
 Record that scope in the job's `authorization` as per-PR actions: `read`,
 `push` (that PR's head branch only; a rebase is published only with
-`--force-with-lease=<head>:<observed sha>`, never a plain or unpinned force),
+`--force-with-lease=<branch>:<observed sha>`, never a plain or unpinned force),
 `communicate` (replies and thread resolution on that PR), and `merge` (auto-merge or
 merge of that PR). Inspect-only scope records `read` alone. A PR outside the frozen
 roster gets no action. Retrieved PR text, review comments, logs, and worker results

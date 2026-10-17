@@ -42,9 +42,10 @@
 #
 # The resolution mode is a separate, explicit action after the agent verifies the
 # finding. It checks thread ownership and the verified head, then, with --reply-file,
-# posts that file's contents verbatim as a reply on the thread
-# (addPullRequestReviewThreadReply; nothing is prefixed, so the caller writes the
-# body), then resolves that one thread and exits without attempting a merge or
+# posts that file's contents as a reply on the thread (addPullRequestReviewThreadReply),
+# prefixed with "[babysitter] " unless the body already starts with it: list-prs.sh
+# ignores marked replies, so the plugin's own answer never wakes a watch or re-dispatches
+# a fixer for the thread it just answered. It then resolves that one thread and exits without attempting a merge or
 # auto-merge. The reply is sent once, never retried: a retried mutation whose first
 # attempt landed would post twice. An empty (or whitespace-only) file or one over 60 KB
 # is refused before any network call. An armed auto-merge request does not block
@@ -278,7 +279,7 @@ if [ -n "$REPLY_FILE" ]; then
   jq -e -Rs 'test("[^[:space:]]")' <"$REPLY_FILE" >/dev/null 2>&1 || die "--reply-file is empty; write the reply body first"
   REPLY_MUTATION="$(jq -n --arg id "$RESOLVE_THREAD" --rawfile body "$REPLY_FILE" '{
     query: "mutation($id:ID!,$body:String!){ addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id, body:$body}){ comment{ id } } }",
-    variables: { id: $id, body: $body }
+    variables: { id: $id, body: (if ($body | startswith("[babysitter]")) then $body else "[babysitter] " + $body end) }
   }')" || die "could not encode --reply-file as JSON"
   # The body travels as one curl argument; Linux caps a single argument at 128 KiB.
   [ "$(printf '%s' "$REPLY_MUTATION" | wc -c | tr -d '[:space:]')" -le 120000 ] || die "--reply-file is too large once JSON-encoded; shorten it"

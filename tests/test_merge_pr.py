@@ -563,6 +563,14 @@ print(code, end="")
         self.assertEqual(result.stdout, f"RESOLVED fixture/repo#1 thread=T1 head={HEAD}\n")
         self.assertFalse(any("addPullRequestReviewThreadReply" in c.get("query", "") for c in calls))
 
+    def test_unmarked_reply_gets_the_babysitter_marker_once(self):
+        # list-prs.sh ignores [babysitter] replies; an unmarked one would wake the watch and re-dispatch a fixer.
+        args = ["--resolve-thread", "T1", "--verified-head", HEAD, "--reply-file", self.reply_file("Answered with evidence.\n")]
+        result, calls = self.run_helper("resolve", args)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        reply = next(c for c in calls if "addPullRequestReviewThreadReply" in c.get("query", ""))
+        self.assertEqual(reply["variables"]["body"], "[babysitter] Answered with evidence.\n")
+
     def test_failed_reply_is_not_retried_and_leaves_the_thread_open(self):
         args = ["--resolve-thread", "T1", "--verified-head", HEAD, "--reply-file", self.reply_file("done\n")]
         result, calls = self.run_helper("reply-fails", args)

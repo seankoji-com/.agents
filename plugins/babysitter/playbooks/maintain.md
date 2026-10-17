@@ -46,7 +46,8 @@ a time. Push hard: every PR with fixable work has a child on it, every turn.
    helper could not update, failing checks, unresolved threads that need code, and
    requested changes, from bots or humans. Coordinator work: threads whose fix already
    landed or that need only an answer (step 7). Waiting only: checks running on the
-   current head, or a required human review with nothing left to fix. Every PR with
+   current head. A required human review with nothing left to fix is `needs human:`
+   (step 8). Every PR with
    child work gets a fixer now, all at once, with no concurrency cap and no question.
    Create one job per such PR with `PKG/references/job-plan.md`; PRs without child work
    need no job.
@@ -79,10 +80,10 @@ a time. Push hard: every PR with fixable work has a child on it, every turn.
    `job_cli.py result`, verify the claimed push against the PR head, and dispose every
    finding with evidence. Then reconcile every child through `task_status` and refill:
    each PR with child work and no child in flight gets its next round now through
-   `job_cli.py retry` with the prior findings, or the follow-up or escalation that
-   `PKG/references/job-plan.md` gives a `needs-followup` result. Escalate to the next candidate when a
-   child returns `blocked`, `failed` or a malformed result, or a blocker survives its
-   round; re-request a malformed result immediately, naming the schema error. Rounds
+   `job_cli.py retry` with the prior findings (`needs-followup` follows
+   `PKG/references/job-plan.md`). Escalate to the next candidate when a child returns
+   `blocked` or a malformed result, or the same blocker survives two rounds; re-request
+   a malformed result immediately, naming the schema error. Rounds
    are not capped. Mark a row `needs human:` and ask through the picker only when the
    same blocker survives the strongest candidate twice or only a human can clear it.
 9. Before ending any turn, check for dead ends. Every unmerged row must have a child in
