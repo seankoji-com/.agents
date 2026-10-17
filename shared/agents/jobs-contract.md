@@ -320,8 +320,9 @@ Observed identity may use `status_identity`, `receipt_identity` and
 `configuration` (`thread-configuration` is an alias); unknown source names are
 rejected. Each source is retained separately. Any present provider or model that
 differs from the pinned target makes that execution mismatched, and the mismatch is
-sticky for the charged pass in which it was recorded; a same-pass follow-up cannot
-clear it. Only a charged retry whose new execution is non-mismatched clears it.
+sticky for the charged pass that ran that execution, even when observed after a
+retry; a same-pass follow-up cannot clear it. Only a charged retry whose new
+execution is non-mismatched clears it.
 Verification requires the
 status source to report the target provider and at least one source to report the
 target model; incomplete evidence is unreported. A redelivered completion ignores its

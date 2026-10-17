@@ -73,8 +73,8 @@ is an alias), and corresponding `*_identity` event fields. Unknown sources are
 rejected. Keep each source separate on the handle. Identity is mismatched if any reported provider or model in
 any source differs from the pinned target. It is verified only when status reports the
 target provider and some source reports the target model. Otherwise it is unreported.
-A mismatch is sticky for its charged pass, retains the handle and blocks acceptance
-after reconciliation. A same-pass follow-up cannot clear it; only a charged,
+A mismatch is sticky for its execution's charged pass, retains the handle and blocks
+acceptance after reconciliation. A same-pass follow-up cannot clear it; only a charged,
 non-mismatched retry can. A redelivered completion ignores new identity data;
 `reconciled` carries observed identity and terminal state.
 Doctor reports recorded unreported providers separately from configured providers
