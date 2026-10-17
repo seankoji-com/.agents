@@ -811,6 +811,14 @@ class StartRunnerTest(unittest.TestCase):
         self.assertIn('built-in: git commit', text)
         self.assertNotRegex(text, r'run_command: git (maintenance|gc)\b')
 
+    def test_seed_preparation_failure_is_an_infrastructure_invalid_start(self):
+        with patch.dict(os.environ, {'GIT_CONFIG_COUNT': 'invalid'}):
+            summary = startctl.run_start(self.cfg(), FakeHarness(self.root), clock=Clock(), sleep=lambda _s: None)
+        self.assertEqual(summary['status'], 'blocked')
+        self.assertTrue(summary['infrastructure_invalid_candidate'])
+        self.assertEqual(len(summary['failures']), 1)
+        self.assertTrue(summary['failures'][0].startswith('RuntimeError: prepare_workspace exited with'), summary)
+
     def test_interrupt_repetition_runs_the_whole_lifecycle_in_order(self):
         harness = FakeHarness(self.root)
         clock = Clock()

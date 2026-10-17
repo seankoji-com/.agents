@@ -82,7 +82,8 @@ def prepare_five_stage(workspace: Path) -> dict:
     done = subprocess.run([sys.executable, str(V2 / 'tools' / 'prepare_workspace.py'), str(workspace)], env=env,
                           capture_output=True, text=True, timeout=120)
     if done.returncode:
-        raise SystemExit(done.stderr.strip() or f'prepare_workspace exited with {done.returncode}')
+        # RuntimeError, not SystemExit: the runner records it as an infrastructure-invalid start.
+        raise RuntimeError(f'prepare_workspace exited with {done.returncode}: {done.stderr.strip()}')
     return json.loads(done.stdout)
 
 
