@@ -1,4 +1,5 @@
 """Observed host identity and non-accepting continued-review regressions."""
+import hashlib
 import json
 import tempfile
 import unittest
@@ -132,6 +133,103 @@ class ObservedIdentityTests(unittest.TestCase):
                 'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
             with self.assertRaisesRegex(AcceptanceError, 'sticky observed host identity mismatch'):
                 _check_slots(store, store.load(), store.load()['stages'][0])
+
+    def _verified_retry_after_unreported_original(self, td, name):
+        fixture = job_fixture(); job = fixture.base_job(name); job['tasks'][0]['target'] = TARGET
+        job['pins']['ape']['effective_workers'] = {'ape/source-researcher': {'bytes': 'synthetic worker', 'sha256': 'b' * 64}}
+        create_job(job, td, job['pins']); store = Store(td, job['job_id']); caller = fixture.caller()
+        brief = prepare(store, caller, 't0', lambda *_: True, lambda *_: True)
+        record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': 'req0', 'host_task_id': 'host0'})
+        record_result(store, caller, 't0', {'request_id': 'req0', 'completion_id': 'done-original', 'result': self._valid_result(fixture, brief)})
+        record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': 'req0', 'host_task_id': 'host0',
+            'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
+        retry_task(store, caller, 't0', 'replace unreported execution')
+        brief = prepare(store, caller, 't0', lambda *_: True, lambda *_: True)
+        request = store.load()['tasks'][0]['request_id']
+        record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': request, 'host_task_id': 'host1',
+            'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False, 'status_identity': STATUS})
+        record_result(store, caller, 't0', {'request_id': request, 'completion_id': 'done-retry', 'result': self._valid_result(fixture, brief)})
+        record_dispatch(store, caller, 't0', {'kind': 'completion', 'request_id': request, 'host_task_id': 'host1', 'completion_id': 'notify-retry',
+            'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
+        _check_slots(store, store.load(), store.load()['stages'][0])
+        return store, caller, request
+
+    def test_late_mismatch_on_retired_handle_keeps_verified_retry(self):
+        # Issue #54: the blocker carries the retired execution's cycle, so the verified current pass stays acceptable.
+        with tempfile.TemporaryDirectory() as td:
+            store, caller, _ = self._verified_retry_after_unreported_original(td, 'late-retired-mismatch')
+            record_dispatch(store, caller, 't0', {'kind': 'identity', 'request_id': 'req0', 'host_task_id': 'host0',
+                'status_identity': {'providerInstanceId': 'provider-b', 'model': 'model-a'}})
+            job = store.load(); _check_slots(store, job, job['stages'][0])
+            blockers = [b for b in job['blockers'] if b['kind'] == 'identity-mismatch']
+            self.assertEqual([(b['request_id'], b['cycle']) for b in blockers], [('req0', 0)])
+            self.assertEqual(([h['cycle'] for h in job['tasks'][0]['handles']], job['tasks'][0]['cycle']), ([0, 1], 1))
+
+    def test_late_mismatch_on_current_handle_still_refuses(self):
+        with tempfile.TemporaryDirectory() as td:
+            store, caller, request = self._verified_retry_after_unreported_original(td, 'late-current-mismatch')
+            record_dispatch(store, caller, 't0', {'kind': 'identity', 'request_id': request, 'host_task_id': 'host1',
+                'status_identity': {'providerInstanceId': 'provider-b', 'model': 'model-a'}})
+            self.assertEqual([b['cycle'] for b in store.load()['blockers'] if b['kind'] == 'identity-mismatch'], [1])
+            with self.assertRaisesRegex(AcceptanceError, 'sticky observed host identity mismatch'):
+                _check_slots(store, store.load(), store.load()['stages'][0])
+
+    def test_legacy_handle_without_cycle_falls_back_to_task_cycle(self):
+        # Ledgers written before handles carried a cycle keep loading and keep the conservative refusal.
+        with tempfile.TemporaryDirectory() as td:
+            store, caller, _ = self._verified_retry_after_unreported_original(td, 'legacy-handle-cycle')
+            store.mutate(caller, lambda job: [handle.pop('cycle', None) for handle in job['tasks'][0]['handles']] and None)
+            record_dispatch(store, caller, 't0', {'kind': 'identity', 'request_id': 'req0', 'host_task_id': 'host0',
+                'status_identity': {'providerInstanceId': 'provider-b', 'model': 'model-a'}})
+            self.assertEqual([b['cycle'] for b in store.load()['blockers'] if b['kind'] == 'identity-mismatch'], [1])
+            with self.assertRaisesRegex(AcceptanceError, 'mismatch is a sticky blocker'):
+                _check_slots(store, store.load(), store.load()['stages'][0])
+
+    def _late_forbidden_mismatch(self, td, name, parent_host, legacy=False):
+        # A document-only slot passes a verified retry, then a mismatched forbidden continuation of parent_host is observed.
+        fixture = job_fixture(); job = fixture.base_job(name); document = Path(td) / 'document.md'; document.write_text('# Supplied document\n')
+        job['tasks'][0].update(context_policy='document-only', target=TARGET,
+                               document={'path': str(document), 'sha256': hashlib.sha256(document.read_bytes()).hexdigest()})
+        job['pins']['ape'].update(bundle_digest='b' * 64, effective_workers={'ape/source-researcher': {'bytes': 'synthetic worker', 'sha256': 'b' * 64}})
+        create_job(job, td, job['pins']); store = Store(td, job['job_id']); caller = fixture.caller()
+        brief = prepare(store, caller, 't0', lambda *_: True, lambda *_: True)
+        record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': 'req0', 'host_task_id': 'host0'})
+        record_result(store, caller, 't0', {'request_id': 'req0', 'completion_id': 'done-original', 'result': self._valid_result(fixture, brief)})
+        record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': 'req0', 'host_task_id': 'host0',
+            'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
+        retry_task(store, caller, 't0', 'replace unreported execution')
+        brief = prepare(store, caller, 't0', lambda *_: True, lambda *_: True)
+        request = store.load()['tasks'][0]['request_id']
+        record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': request, 'host_task_id': 'host1',
+            'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False, 'status_identity': STATUS})
+        record_result(store, caller, 't0', {'request_id': request, 'completion_id': 'done-retry', 'result': self._valid_result(fixture, brief)})
+        record_dispatch(store, caller, 't0', {'kind': 'completion', 'request_id': request, 'host_task_id': 'host1', 'completion_id': 'notify-retry',
+            'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
+        _check_slots(store, store.load(), store.load()['stages'][0])
+        if legacy:
+            store.mutate(caller, lambda job: [handle.pop('cycle', None) for handle in job['tasks'][0]['handles']] and None)
+        record_observation(store, caller, 't0', {'kind': 'followup', 'request_id': 'req-forbidden', 'host_task_id': 'host-f',
+            'parent_host_task_id': parent_host, 'target': TARGET, 'scope': job['tasks'][0]['write_scope'],
+            'status_identity': {'providerInstanceId': 'provider-b', 'model': 'model-a'}})
+        record_result(store, caller, 't0', {'request_id': 'req-forbidden', 'completion_id': 'done-f', 'result': b'{"review_verdict":"approve"}'})
+        record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': 'req-forbidden', 'host_task_id': 'host-f',
+            'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
+        job = store.load()
+        return store, job, [b['cycle'] for b in job['blockers'] if b['kind'] == 'identity-mismatch']
+
+    def test_late_forbidden_continuation_of_retired_parent_keeps_verified_retry(self):
+        with tempfile.TemporaryDirectory() as td:
+            store, job, cycles = self._late_forbidden_mismatch(td, 'late-forbidden-retired', 'host0')
+            self.assertEqual((cycles, job['tasks'][0]['followups'][0]['cycle']), ([0], 0))
+            _check_slots(store, job, job['stages'][0])
+
+    def test_forbidden_continuation_of_current_or_legacy_parent_still_refuses(self):
+        for parent, legacy in (('host1', False), ('host0', True)):
+            with self.subTest(parent=parent, legacy=legacy), tempfile.TemporaryDirectory() as td:
+                store, job, cycles = self._late_forbidden_mismatch(td, 'late-forbidden-' + parent, parent, legacy)
+                self.assertEqual(cycles, [1])
+                with self.assertRaisesRegex(AcceptanceError, 'identity mismatch'):
+                    _check_slots(store, job, job['stages'][0])
 
     def test_nonterminal_reconciliation_cannot_clear_obligation(self):
         fixture = job_fixture(); job = fixture.base_job('nonterminal-reconcile'); job['tasks'][0]['target'] = TARGET
