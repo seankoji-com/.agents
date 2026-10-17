@@ -797,10 +797,13 @@ class StartRunnerTest(unittest.TestCase):
         self.assertEqual(len(out.getvalue().splitlines()), 24)
 
     def test_five_stage_seed_starts_no_background_git_maintenance(self):
-        # Issue #58: a detached `git maintenance run --auto` deleted the seed's maintenance.lock mid-copy.
+        # Issue #58: a detached `git maintenance run --auto` deleted the seed's maintenance.lock mid-copy,
+        # even when the caller's inherited git configuration asks for maintenance.
         trace, seed = self.root / 'git-trace', self.root / 'seed'
         start = {'scenario': 'engineering-five-stage'}
-        with patch.dict(os.environ, {'GIT_TRACE': str(trace)}):
+        hostile = {'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'maintenance.auto', 'GIT_CONFIG_VALUE_0': 'true',
+                   'GIT_CONFIG_PARAMETERS': "'maintenance.auto=true' 'gc.auto=256'", 'GIT_TRACE': str(trace)}
+        with patch.dict(os.environ, hostile):
             before = dict(os.environ)
             startctl.seed_inputs(start, seed, self.root)
             self.assertEqual(dict(os.environ), before)

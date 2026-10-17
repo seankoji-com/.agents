@@ -40,6 +40,8 @@ import workflow_contract  # noqa: E402
 import routing  # noqa: E402
 
 HAVE_OPENSSL = shutil.which('openssl') is not None
+HOSTILE_GIT_CONFIG = {'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'maintenance.auto', 'GIT_CONFIG_VALUE_0': 'true',
+                      'GIT_CONFIG_PARAMETERS': "'maintenance.auto=true' 'gc.auto=256'"}
 CONTRACTS = json.loads((WORKFLOWS / 'contracts.json').read_text())
 
 
@@ -420,10 +422,13 @@ class StageFixturesTest(unittest.TestCase):
                          ('2', 'safe.directory', '/bench/sources/repo-beta'))
 
     def git_trace(self, name, build):
-        # Issue #58: a detached `git maintenance run --auto` mutates .git after staging returns.
+        # Issue #58: a detached `git maintenance run --auto` mutates .git after staging returns. The caller's
+        # inherited configuration asks for maintenance through both GIT_CONFIG_COUNT and GIT_CONFIG_PARAMETERS.
         trace = self.workspace.parent / f'git-trace-{name}'
-        with patch.dict(os.environ, {'GIT_TRACE': str(trace)}):
+        with patch.dict(os.environ, dict(HOSTILE_GIT_CONFIG, GIT_TRACE=str(trace))):
+            before = dict(os.environ)
             build()
+            self.assertEqual(dict(os.environ), before)
         text = trace.read_text()
         self.assertNotRegex(text, r'run_command: git (maintenance|gc)\b')
         return text
@@ -440,18 +445,6 @@ class StageFixturesTest(unittest.TestCase):
         scenario = github_sidecar.scenario_from_fixture(BABYSITTER)
         text = self.git_trace('sidecar', lambda: github_sidecar.build_fixture_repository(self.results / 'repo', scenario))
         self.assertIn('built-in: git clone', text)
-
-    def test_quiet_git_appends_to_and_restores_the_caller_git_config_env(self):
-        caller = {'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'safe.directory', 'GIT_CONFIG_VALUE_0': '*'}
-        with patch.dict(os.environ, caller):
-            before = dict(os.environ)
-            with stage_fixtures.quiet_git():
-                self.assertEqual(os.environ['GIT_CONFIG_COUNT'], '3')
-                self.assertEqual(os.environ['GIT_CONFIG_KEY_0'], 'safe.directory')
-                self.assertEqual((os.environ['GIT_CONFIG_KEY_1'], os.environ['GIT_CONFIG_VALUE_1']),
-                                 ('maintenance.auto', 'false'))
-                self.assertEqual((os.environ['GIT_CONFIG_KEY_2'], os.environ['GIT_CONFIG_VALUE_2']), ('gc.auto', '0'))
-            self.assertEqual(dict(os.environ), before)
 
     def test_tuneup_target_is_an_editable_copy_inside_the_workspace(self):
         result = stage_fixtures.stage('workflow-agent-tuneup', self.workspace, self.results)
