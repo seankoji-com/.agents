@@ -796,6 +796,29 @@ class StartRunnerTest(unittest.TestCase):
             startctl.main(['list'])
         self.assertEqual(len(out.getvalue().splitlines()), 24)
 
+    def test_five_stage_seed_starts_no_background_git_maintenance(self):
+        # Issue #58: a detached `git maintenance run --auto` deleted the seed's maintenance.lock mid-copy,
+        # even when the caller's inherited git configuration asks for maintenance.
+        trace, seed = self.root / 'git-trace', self.root / 'seed'
+        start = {'scenario': 'engineering-five-stage'}
+        hostile = {'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'maintenance.auto', 'GIT_CONFIG_VALUE_0': 'true',
+                   'GIT_CONFIG_PARAMETERS': "'maintenance.auto=true' 'gc.auto=256'", 'GIT_TRACE': str(trace)}
+        with patch.dict(os.environ, hostile):
+            before = dict(os.environ)
+            startctl.seed_inputs(start, seed, self.root)
+            self.assertEqual(dict(os.environ), before)
+        text = trace.read_text()
+        self.assertIn('built-in: git commit', text)
+        self.assertNotRegex(text, r'run_command: git (maintenance|gc)\b')
+
+    def test_seed_preparation_failure_is_an_infrastructure_invalid_start(self):
+        with patch.dict(os.environ, {'GIT_CONFIG_COUNT': 'invalid'}):
+            summary = startctl.run_start(self.cfg(), FakeHarness(self.root), clock=Clock(), sleep=lambda _s: None)
+        self.assertEqual(summary['status'], 'blocked')
+        self.assertTrue(summary['infrastructure_invalid_candidate'])
+        self.assertEqual(len(summary['failures']), 1)
+        self.assertTrue(summary['failures'][0].startswith('RuntimeError: prepare_workspace exited with'), summary)
+
     def test_interrupt_repetition_runs_the_whole_lifecycle_in_order(self):
         harness = FakeHarness(self.root)
         clock = Clock()

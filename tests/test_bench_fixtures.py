@@ -24,6 +24,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTAINER = ROOT / 'bench' / 'container'
@@ -39,6 +40,8 @@ import workflow_contract  # noqa: E402
 import routing  # noqa: E402
 
 HAVE_OPENSSL = shutil.which('openssl') is not None
+HOSTILE_GIT_CONFIG = {'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'maintenance.auto', 'GIT_CONFIG_VALUE_0': 'true',
+                      'GIT_CONFIG_PARAMETERS': "'maintenance.auto=true' 'gc.auto=256'"}
 CONTRACTS = json.loads((WORKFLOWS / 'contracts.json').read_text())
 
 
@@ -417,6 +420,31 @@ class StageFixturesTest(unittest.TestCase):
         env = result['agent_env']
         self.assertEqual((env['GIT_CONFIG_COUNT'], env['GIT_CONFIG_KEY_0'], env['GIT_CONFIG_VALUE_1']),
                          ('2', 'safe.directory', '/bench/sources/repo-beta'))
+
+    def git_trace(self, name, build):
+        # Issue #58: a detached `git maintenance run --auto` mutates .git after staging returns. The caller's
+        # inherited configuration asks for maintenance through both GIT_CONFIG_COUNT and GIT_CONFIG_PARAMETERS.
+        trace = self.workspace.parent / f'git-trace-{name}'
+        with patch.dict(os.environ, dict(HOSTILE_GIT_CONFIG, GIT_TRACE=str(trace))):
+            before = dict(os.environ)
+            build()
+            self.assertEqual(dict(os.environ), before)
+        text = trace.read_text()
+        self.assertNotRegex(text, r'run_command: git (maintenance|gc)\b')
+        return text
+
+    def test_staged_git_repositories_start_no_background_maintenance(self):
+        for scenario, commits in (('workflow-ape', 2), ('negative-missing-delegation', 1)):
+            with self.subTest(scenario=scenario):
+                workspace = self.workspace / scenario
+                workspace.mkdir()
+                text = self.git_trace(scenario, lambda: stage_fixtures.stage(scenario, workspace, self.results))
+                self.assertEqual(text.count('built-in: git commit'), commits)
+
+    def test_sidecar_fixture_repository_starts_no_background_maintenance(self):
+        scenario = github_sidecar.scenario_from_fixture(BABYSITTER)
+        text = self.git_trace('sidecar', lambda: github_sidecar.build_fixture_repository(self.results / 'repo', scenario))
+        self.assertIn('built-in: git clone', text)
 
     def test_tuneup_target_is_an_editable_copy_inside_the_workspace(self):
         result = stage_fixtures.stage('workflow-agent-tuneup', self.workspace, self.results)

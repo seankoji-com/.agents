@@ -48,6 +48,12 @@ OUTCOME_DIRS = {'workflow-ape': 'ape', 'workflow-elephant-goldfish': 'elephant-g
                 'negative-missing-delegation': 'negative-missing-delegation',
                 'negative-unavailable-required-review': 'negative-unavailable-required-review'}
 NEGATIVES = ('negative-missing-delegation', 'negative-unavailable-required-review')
+# A commit can start a detached `git maintenance run --auto` that holds .git/objects/maintenance.lock
+# after git returns, then deletes it while the seed is copied or locked down (#58). Runner-created
+# repositories never start it. `-c` appends to GIT_CONFIG_PARAMETERS, which git reads after
+# GIT_CONFIG_COUNT with the last entry winning, so these values override anything inherited.
+QUIET_GIT = {'maintenance.auto': 'false', 'gc.auto': '0'}
+QUIET_GIT_ARGS = tuple(arg for key, value in QUIET_GIT.items() for arg in ('-c', f'{key}={value}'))
 SCENARIOS = tuple(OUTCOME_DIRS)
 
 
@@ -65,8 +71,20 @@ def contract(scenario_id: str) -> dict:
 
 def _git(path: Path, *args) -> str:
     env = dict(os.environ, **IDENTITY, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull)
-    return subprocess.run(['git', '-C', str(path), *args], env=env, check=True, capture_output=True,
-                          text=True, timeout=60).stdout.strip()
+    return subprocess.run(['git', *QUIET_GIT_ARGS, '-C', str(path), *args], env=env, check=True,
+                          capture_output=True, text=True, timeout=60).stdout.strip()
+
+
+def prepare_five_stage(workspace: Path) -> dict:
+    """Run the frozen prepare_workspace in a child whose git carries QUIET_GIT; it only forwards its environment."""
+    params = [os.environ.get('GIT_CONFIG_PARAMETERS', ''), *(f"'{key}={value}'" for key, value in QUIET_GIT.items())]
+    env = dict(os.environ, GIT_CONFIG_PARAMETERS=' '.join(filter(None, params)))
+    done = subprocess.run([sys.executable, str(V2 / 'tools' / 'prepare_workspace.py'), str(workspace)], env=env,
+                          capture_output=True, text=True, timeout=120)
+    if done.returncode:
+        # RuntimeError, not SystemExit: the runner records it as an infrastructure-invalid start.
+        raise RuntimeError(f'prepare_workspace exited with {done.returncode}: {done.stderr.strip()}')
+    return json.loads(done.stdout)
 
 
 def _private(path: Path) -> Path:
@@ -117,7 +135,7 @@ def _five_stage(workspace: Path) -> dict:
             raise ValueError('existing workspace is not the frozen five-stage fixture')
         return {'workspace': str(workspace), 'head': _git(workspace, 'rev-parse', 'HEAD'),
                 'fixture_tree_sha256': expected, 'reused': True}
-    return prepare_workspace.prepare(workspace)
+    return prepare_five_stage(workspace)
 
 
 def _source_repo(root: Path, meta: dict) -> dict:
