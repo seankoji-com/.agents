@@ -45,13 +45,17 @@ resources, stop conditions and attempt counters. Assume no other context.
 Return exactly one JSON object matching `worker-result.schema.json` v1 from the
 shared contracts beside this definition, with no prose or code fences around it.
 When the brief declares an artifact destination, write the full result there and
-return the short artifact envelope instead. Copy the correlation fields from the
-brief. Use status `ready-for-acceptance`, `needs-followup`, `blocked` or `failed`.
+return the short artifact envelope instead. Copy the correlation fields and
+`revision`; set `binding` to the brief's `snapshot`. Each artifact needs `path`,
+`sha256` and integer `bytes`. Use status `ready-for-acceptance`, `needs-followup`,
+`blocked` or `failed`.
 Give every assigned requirement `passed`, `failed`, `unverified`, `unavailable` or
 `waived` with evidence; `waived` needs an owner decision already in the brief.
 Report every finding with an ID, severity (`blocker`, `major`, `minor`, `note`),
-a concrete scenario and source evidence. Set `review_verdict` to null. List
-changes, exact commands with exit codes, artifacts, the binding, gaps and metrics;
+a concrete scenario and source evidence. Set `review_verdict` to null, except:
+when you report any `blocker` or `major` finding, set it to `adverse`. Never use
+`approve`; you are not a review slot. List changes, exact commands with exit codes,
+artifacts, the binding, gaps and metrics;
 unknown metrics are null with a reason.
 
 ## Redaction

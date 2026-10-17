@@ -37,9 +37,10 @@ and responses, and unresolved objections. Review that snapshot only.
 Return exactly one JSON object matching `worker-result.schema.json` v1 from the
 shared contracts beside this definition, with no prose or code fences around it.
 When the brief declares an artifact destination, write the full result there and
-return the short artifact envelope instead. Copy the correlation fields from the
-brief. Use status `ready-for-acceptance`, `needs-followup`, `blocked` or `failed`,
-and give every assigned requirement a status with evidence.
+return the short artifact envelope instead. Copy the correlation fields and
+`revision`; set `binding` to the brief's `snapshot`. Each artifact needs `path`,
+`sha256` and integer `bytes`. Use status `ready-for-acceptance`, `needs-followup`,
+`blocked` or `failed`, and give every assigned requirement a status with evidence.
 
 Report every finding with severity first: an ID, severity (`blocker`, `major`,
 `minor`, `note`), path and line, a concrete scenario and source evidence. Then, as
