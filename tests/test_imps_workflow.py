@@ -163,6 +163,10 @@ class WorkerDefinitionTest(unittest.TestCase):
                 self.assertRegex(text, r'Do not accept (your own work|the change or your own review)')
                 for status in ('ready-for-acceptance', 'needs-followup', 'blocked', 'failed'):
                     self.assertIn(f'`{status}`', text)
+                for field in ('revision', 'binding', 'snapshot', 'path', 'sha256', 'bytes'):
+                    self.assertIn(f'`{field}`', text)
+                self.assertIn("`binding` to the brief's `snapshot`", text)
+                self.assertIn('integer `bytes`', text)
                 for severity in ('blocker', 'major', 'minor', 'note'):
                     self.assertIn(f'`{severity}`', text)
                 self.assertIn('grants', text)  # no definition grants push/merge/settings edits
@@ -172,6 +176,8 @@ class WorkerDefinitionTest(unittest.TestCase):
                     self.assertIn('as a separate step, set `review_verdict`', text)
                 else:
                     self.assertIn('Set `review_verdict` to null', text)
+                    self.assertIn('`blocker` or `major` finding, set it to `adverse`', text)
+                    self.assertIn('Never use `approve`', text)
 
     def test_stage_executor_is_the_bounded_verification_slot(self):
         text = ' '.join((PLUGIN / 'agents/stage-executor.md').read_text().split())
