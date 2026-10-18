@@ -38,7 +38,8 @@ can run. It changes no files.
 <p align="center">
   <img src="docs/assets/demo.svg" alt="Terminal recording: t3-plugins list, setup, doctor, the installed skills, and the prompt for T3. Real output in an empty home directory." width="760">
 </p>
-<p align="center"><sub>Real output from an empty home directory, recorded 13 Oct 2026 (<a href="docs/assets/quickstart.mp4">MP4</a>, <a href="docs/assets/recordings/quickstart.txt">transcript</a>). Only the typing is simulated.</sub></p>
+
+*Real output from an empty home directory, recorded 13 Oct 2026 ([MP4](docs/assets/quickstart.mp4), [transcript](docs/assets/recordings/quickstart.txt)). Only the typing is simulated.*
 
 Checked on Linux x86_64 and in the tap's macOS CI;
 [what was checked](docs/getting-started.md#homebrew-release-channel). Without

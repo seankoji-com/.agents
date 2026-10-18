@@ -21,7 +21,7 @@ The repository does not implement another model client, task scheduler or dispat
 | `bench/` | Frozen benchmark protocols, fixtures and graders | Not installed; live runs need separate authorization |
 | `conformance/` | Dated live-provider observations and the pre-merge review rounds under `review/` | Separate from unit-test success |
 | `migration/` | Source provenance and the issue #28 compatibility map | Data for maintainers, not agent instructions |
-| `thinking/` | Discovery notes and handoff artifacts | Project documents, not executable instructions |
+| `docs/design/` | Design notes, including the `imps-t3` discovery, spec and handoff that shaped version 1 | Project documents, not executable instructions |
 | `docs/` | Human guides and GitHub Pages source; the field guide data and bundled fonts | Documentation dependencies are build-time only |
 | `overrides/` | MkDocs Material templates for the homepage and page metadata | Reads only `config.extra` filled by the site hook |
 | `launch/` | Announcement drafts and repository-settings commands | Not installed, not published |

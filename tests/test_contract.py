@@ -319,7 +319,9 @@ class NoMachinePathsTest(CoreTestCase):
         # Per-user temporary directories too: a sandbox's /tmp/<tool>-<uid> or macOS /var/folders.
         pattern = re.compile('/' + 'Users/|/' + 'home/|/tmp/[A-Za-z0-9._-]+-[0-9]+/|/var/' + 'folders/')
         for path, text in text_files():
-            if path.relative_to(ROOT).parts[0] in ('thinking', '.git'):
+            # The archived imps-t3 brief quotes this very grep pattern in its rubric.
+            rel = path.relative_to(ROOT)
+            if rel.parts[0] == '.git' or rel.parts[:3] == ('docs', 'design', 'imps-t3'):
                 continue
             self.assertIsNone(pattern.search(text), f'{path.relative_to(ROOT)} contains a machine path')
 

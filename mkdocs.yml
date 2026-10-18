@@ -42,6 +42,7 @@ hooks:
   - scripts/field_guide.py
 exclude_docs: |
   field-guide.json
+  design/imps-t3/
 markdown_extensions:
   - admonition
   - attr_list

@@ -4,7 +4,6 @@ tests/ export-ignore
 conformance/ export-ignore
 docs/ export-ignore
 overrides/ export-ignore
-thinking/ export-ignore
 migration/ export-ignore
 launch/ export-ignore
 .github/ export-ignore
