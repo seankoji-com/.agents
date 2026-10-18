@@ -97,7 +97,8 @@ is not acceptance. A PR that cannot reach its endstate becomes a named blocker.
 
 Ask every owner decision through the native question picker described in
 `PKG/shared/t3-runtime.md`, recommended option first, and record it with
-`job_cli.py decision`. Fan-out, model choice, repair rounds and branch rewrites on
-roster PRs are already decided and never asked. Ask only for a scheduled sweep, a
-product decision a fixer returned, a refused host action, or a blocker only a human
-can clear. Until answered the action stays unapproved; silence is not approval.
+`job_cli.py decision`. Fan-out, model choice, repair rounds, branch rewrites, and a
+roster PR's tests and regressions with the setup they need are decided: never ask,
+always yes. Ask only for a scheduled sweep, a product decision a fixer returned, a
+refused host action, or a blocker only a human can clear. Until answered the action
+stays unapproved; silence is not approval.

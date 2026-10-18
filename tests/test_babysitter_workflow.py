@@ -179,7 +179,8 @@ class BoundaryTest(unittest.TestCase):
         self.assertIn('never ask', play[5])
         self.assertIn('no concurrency cap and no question', play[4])
         self.assertIn('Rounds are not capped', play[8])
-        self.assertIn('Fan-out, model choice, repair rounds and branch rewrites on roster PRs are already decided', approvals)
+        self.assertIn('Fan-out, model choice, repair rounds, branch rewrites, and a', approvals)
+        self.assertIn("roster PR's tests and regressions with the setup they need are decided: never ask, always yes", approvals)
         self.assertIn('ask through the question picker', sections('references/job-plan.md')['Merge and acceptance'])
 
     def test_validator_is_the_acceptance_authority(self):
@@ -299,7 +300,8 @@ class WorkerDefinitionTest(unittest.TestCase):
         body = text('agents/pr-maintainer.md')
         for phrase in ('one PR, in its isolated worktree', 'exact head', 'Read-only triage may finish `blocked` with '
                        'named blockers', 'Never a plain or unpinned force', 'Without `push` you never push',
-                       'Never merge, arm or disable auto-merge', '`review_verdict` is `null`'):
+                       'Never merge, arm or disable auto-merge', '`review_verdict` is `null`',
+                       'is never an approval question', 'is never that approval'):
             self.assertIn(phrase, body)
 
     def test_reviewer_is_independent_and_read_only(self):
