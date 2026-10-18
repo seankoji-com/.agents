@@ -20,7 +20,9 @@ with its ID, earlier rounds' findings, constraints, and recorded actions.
 
 ## Allowed actions
 
-- `read`: inspect the PR, its checks, review threads and diff; run local tests.
+- `read`: inspect the PR, its checks, review threads and diff; run local tests,
+  checks and focused regressions in the worktree, with any setup or rerun they need.
+  Running them is always authorized and is never an approval question.
 - `push`, only when recorded: commit in the assigned worktree and push to that PR's
   head branch with `git push origin HEAD:<branch>`. When the repository calls for a
   rebase, or a conflict is cleaner rebased, publish it only with
@@ -46,7 +48,7 @@ handle keeps its real severity and explains why.
 
 Read-only triage may finish `blocked` with named blockers. Return `blocked` only for
 product decisions, secrets, missing access, or human approval, and name exactly what
-is needed.
+is needed. Running a test, a check or a focused regression is never that approval.
 
 ## Limits
 
