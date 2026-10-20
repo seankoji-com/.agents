@@ -20,15 +20,15 @@
 #               [--reply-file <path>]
 #
 # --arm-always is the babysitter "enable auto-merge on all PRs" posture. Arming is a
-# convenience, not a decision to land the PR: it also arms auto-merge for conflict,
-# behind, unanswered_threads and incomplete_review_state outcomes, but GitHub's
+# convenience, not a decision to land the PR: it also arms auto-merge for conflict
+# and behind outcomes, but only with a complete, resolved thread list. GitHub's
 # auto-merge fires only once every merge requirement on the base branch holds. Where
 # the branch requires conversation resolution, it never lands a PR with an unresolved
 # thread; it never lands a conflicting PR or one whose required checks fail. So
-# `automerge=armed` next to conflict, unanswered_threads or failing_checks in
-# `blockers=` is still blocked: the caller keeps working those blockers. (Where the
+# `automerge=armed` next to conflict or failing_checks in
+# `blockers=` is still blocked: the caller keeps working those blockers. Where the
 # branch does NOT require conversation resolution, an armed PR can land with threads
-# open, which is why only --arm-always arms for them.) --no-auto is the "leave
+# open, so no mode arms with unresolved or incompletely read threads. --no-auto is the "leave
 # auto-merge as set" posture: it arms nothing. Neither mode clears an existing request
 # or treats one as a blocker. Neither relaxes the direct-merge gate below.
 #
@@ -45,7 +45,8 @@
 # posts that file's contents as a reply on the thread (addPullRequestReviewThreadReply),
 # prefixed with "[babysitter] " unless the body already starts with it: list-prs.sh
 # ignores marked replies, so the plugin's own answer never wakes a watch or re-dispatches
-# a fixer for the thread it just answered. It then resolves that one thread and exits without attempting a merge or
+# a fixer for the thread it just answered. It rechecks the verified head after the
+# reply, then resolves that one thread and exits without attempting a merge or
 # auto-merge. The reply is sent once, never retried: a retried mutation whose first
 # attempt landed would post twice. An empty (or whitespace-only) file or one over 60 KB
 # is refused before any network call. An armed auto-merge request does not block
@@ -513,7 +514,7 @@ enable_automerge() {
   handle_terminal_state "${1:-}"
   expected_head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
   [ -z "$EXPECTED_HEAD" ] || [ "$expected_head" = "$EXPECTED_HEAD" ] || return 1
-  [ "$ARM_ALWAYS" = 1 ] || jq -e '.data.repository.pullRequest.reviewThreads | .pageInfo.hasNextPage == false and all(.nodes[]; .isResolved == true)' >/dev/null <<<"$state" || return 1
+  jq -e '.data.repository.pullRequest.reviewThreads | .pageInfo.hasNextPage == false and all(.nodes[]; .isResolved == true)' >/dev/null <<<"$state" || return 1
   pr_id="$(jq -r '.data.repository.pullRequest.id // empty' <<<"$state")"
   [ -n "$pr_id" ] || return 1
   already="$(jq -r '.data.repository.pullRequest.autoMergeRequest.enabledAt // empty' <<<"$state")"
@@ -563,11 +564,15 @@ blocked() {
   case "$reason" in
   head_changed | expected_head_mismatch | closed | verified_head_changed | thread_not_on_pr | permission_denied | validation_failed) armable=0 ;;
   esac
-  # Arming for conflicts, a stale base or open threads is the --arm-always posture
-  # only, whichever blocker happens to lead.
+  # A branch without conversation-resolution rules could merge immediately after
+  # arming. Thread completion therefore gates arming in every posture.
+  case ",${blockers}," in
+  *,incomplete_review_state,* | *,unanswered_threads:*) armable=0 ;;
+  esac
+  # Arming for conflicts or a stale base is the --arm-always posture only.
   if [ "$ARM_ALWAYS" != 1 ]; then
     case ",${blockers}," in
-    *,conflict,* | *,behind,* | *,incomplete_review_state,* | *,unanswered_threads:*) armable=0 ;;
+    *,conflict,* | *,behind,*) armable=0 ;;
     esac
   fi
   if [ "$armable" = 1 ]; then
@@ -633,10 +638,14 @@ if [ -n "$RESOLVE_THREAD" ]; then
     reply="$(curl_graphql_retry "$REPLY_MUTATION" 1)" || die "thread reply outcome unknown; check the thread for the reply before retrying (thread not resolved)" 3
     jq -e '.errors == null and (.data.addPullRequestReviewThreadReply.comment.id | type == "string")' >/dev/null 2>&1 <<<"$reply" || die "thread reply failed (thread not resolved): $(jq -c '.errors // .' <<<"$reply" 2>/dev/null | head -c 400)" 3
     replied=" replied=1"
+    # Posting the reply can take long enough for another push to invalidate the
+    # fix. A posted reply is not permission to resolve against a different head.
+    thread_state="$(curl_graphql_retry "$query")" || die "thread recheck failed (the reply was posted; thread not resolved); refresh before retrying" 3
+    jq -e --arg id "$pr_id" --arg sha "$VERIFIED_HEAD" '.errors == null and .data.node.pullRequest.id == $id and .data.node.pullRequest.headRefOid == $sha' >/dev/null <<<"$thread_state" || blocked "verified_head_changed" "thread identity or PR head changed after reply; the reply was posted but thread not resolved; re-verify before retrying"
   fi
   mutation=$(jq -n --arg id "$RESOLVE_THREAD" '{query:"mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{id isResolved}}}",variables:{id:$id}}')
   resolution="$(curl_graphql_retry "$mutation")" || die "thread resolution outcome unknown; refresh before retrying${replied:+ (the reply was posted; do not post it again)}" 3
-  jq -e '.errors == null and .data.resolveReviewThread.thread.isResolved == true' >/dev/null <<<"$resolution" || die "thread resolution failed${replied:+ (the reply was posted; do not post it again)}" 3
+  jq -e --arg id "$RESOLVE_THREAD" '.errors == null and .data.resolveReviewThread.thread.id == $id and .data.resolveReviewThread.thread.isResolved == true' >/dev/null <<<"$resolution" || die "thread resolution failed${replied:+ (the reply was posted; do not post it again)}: $(jq -c '.errors // .' <<<"$resolution" 2>/dev/null | head -c 400)" 3
   echo "RESOLVED ${REPO}#${PR_NUMBER} thread=${RESOLVE_THREAD} head=${VERIFIED_HEAD}${replied}"
   exit 0
 fi
@@ -738,7 +747,7 @@ apply_merge_gates() {
     detail="changes requested by $(cond changes_requested_by)"
     [ -n "$(cond changes_requested_by)" ] || detail="changes requested, but no latest review names the reviewer"
     case ",$(cond changes_requested_by)," in
-    *"[bot],"*) detail="${detail}; a [bot] reviewer is an automated review to address or dismiss, not a missing human approval" ;;
+    *"[bot],"*) detail="${detail}; a [bot] reviewer is an automated review to address and request re-review, not a missing human approval; never dismiss a review to clear this gate" ;;
     esac
     blocked "branch_protection" "mergeStateStatus=${merge_state} with reviewDecision=CHANGES_REQUESTED; ${detail}"
     ;;
