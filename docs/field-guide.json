@@ -59,5 +59,15 @@
     "habitat": "One T3 parent thread and a retained worktree, with checkpoints outside the repository.",
     "diet": "A goal, a chosen pair of different model lineages, and an attempt limit.",
     "field_marks": "Fresh context for every task. All feedback triggers repair. Five attempts by default. Successful code changes finish with a normal PR."
+  },
+  "focus-group": {
+    "plate": "VII",
+    "binomial": "Grex dissentiens",
+    "summary": "Test a product with an editable panel of invented personas across several models.",
+    "use_when": "You want to know what to fix, build and keep in a product or prototype, and you will treat the answers as hypotheses rather than customer evidence.",
+    "try": "$t3-focus-group plan https://staging.example/welcome first-run experience for busy parents",
+    "habitat": "A T3 thread with a live model catalog, a private study directory and shared captures of the product.",
+    "diet": "An audience, a decision to inform, a target or capture pack, and an approved panel and task ceiling.",
+    "field_marks": "Planning launches nothing. Every revision is approved by hash. Unknown capabilities stay unknown until a pilot. Results are synthetic hypotheses, never demand."
   }
 }

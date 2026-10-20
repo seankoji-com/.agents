@@ -104,6 +104,7 @@ and runs the pinned validator:
 | elephant-goldfish | `thinking_state.py gate`, `render_handoff.py --check`, `scripts/validate_document.py` (factual and cold-read stay separate) |
 | babysitter | `scripts/validate_pr.py` at the observed current head |
 | agent-tuneup | `scripts/validate_audit.py` |
+| focus-group | `scripts/validate_study.py` |
 
 Validators check provenance, coverage and declared criteria, not the truth of
 arbitrary prose. The final stage is declared in the first plan. Final readiness

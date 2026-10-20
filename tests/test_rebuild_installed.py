@@ -297,9 +297,9 @@ class InstalledArtifactTest(unittest.TestCase):
     def test_agents_list_and_show_inspect_installed_bundles_read_only(self):
         before = tree_digest(self.box.prefix, self.box.agents, self.box.base / 'config')
         rows = json_lines(self.box.t3('agents', 'list').stdout)
-        expected = {w['id']: (p, w['role']) for p in FIVE for w in meta(p)['workers']}
+        expected = {w['id']: (p, w['role']) for p in (*FIVE, 'focus-group') for w in meta(p)['workers']}
         self.assertEqual({r['id'] for r in rows}, set(expected))
-        self.assertEqual(len(expected), 12)
+        self.assertEqual(len([w for w in expected if w.split('/')[0] in FIVE]), 12)
         for row in rows:
             plugin, role = expected[row['id']]
             version, manifest = self.package(plugin)

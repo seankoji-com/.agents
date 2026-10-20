@@ -1,0 +1,98 @@
+{
+  "name": "focus-group",
+  "version": "0.1.0",
+  "description": "Plan and run an editable multi-model persona panel that tests a product and returns synthetic findings and a build/fix backlog.",
+  "short_description": "Multi-model persona panels for product research",
+  "argument_hint": "plan <product-or-brief> | plan <study> | run <study> | resume <study> | status <study> | cancel <study> | doctor",
+  "entry": "entry.md",
+  "operations": [
+    "plan",
+    "run",
+    "resume",
+    "status",
+    "cancel",
+    "doctor"
+  ],
+  "kind": "workflow",
+  "compatibility": "experimental",
+  "workers": [
+    {
+      "id": "focus-group/participant",
+      "path": "agents/participant.md",
+      "operations": [
+        "run",
+        "resume"
+      ],
+      "role": "workhorse",
+      "responsibility": "Act as one invented persona on approved product material. Report reactions, observations and inferences separately without seeing other cells."
+    },
+    {
+      "id": "focus-group/analyst",
+      "path": "agents/analyst.md",
+      "operations": [
+        "run",
+        "resume"
+      ],
+      "role": "judgement",
+      "responsibility": "Synthesise only accepted participant evidence into cited findings, dissent and a prioritised backlog. Never invent quotes or demand."
+    },
+    {
+      "id": "focus-group/fidelity-reviewer",
+      "path": "agents/fidelity-reviewer.md",
+      "operations": [
+        "run",
+        "resume"
+      ],
+      "role": "reviewer",
+      "responsibility": "Check the exact report against its pinned accepted inputs for faithful quotes, support counts and preserved dissent."
+    }
+  ],
+  "worker_shared": [
+    "boundaries.md",
+    "manifest.schema.json",
+    "workers-config.schema.json",
+    "job.schema.json",
+    "stage.schema.json",
+    "worker-brief.schema.json",
+    "worker-result.schema.json",
+    "result-envelope.schema.json",
+    "acceptance.schema.json",
+    "jobs-contract.md"
+  ],
+  "picker": [
+    "plan",
+    "run",
+    "status",
+    "doctor"
+  ],
+  "routes": [
+    {
+      "pattern": "^doctor$",
+      "operation": "doctor"
+    },
+    {
+      "pattern": "^plan(?:\\s+[\\s\\S]+)?$",
+      "operation": "plan"
+    },
+    {
+      "pattern": "^run\\s+[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "operation": "run"
+    },
+    {
+      "pattern": "^resume\\s+[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "operation": "resume"
+    },
+    {
+      "pattern": "^status\\s+[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "operation": "status"
+    },
+    {
+      "pattern": "^cancel\\s+[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "operation": "cancel"
+    },
+    {
+      "pattern": "^(?i:https?://\\S+)(?:\\s+[\\s\\S]*)?$",
+      "operation": "plan"
+    }
+  ]
+}

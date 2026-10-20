@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "kind": "capture",
+  "attempt": {"number": 1, "previous_manifest_sha256": null},
+  "context": {
+    "class": "fresh-anonymous",
+    "reference": "HOST-CAPTURE-CONTEXT-REFERENCE",
+    "freshness": {"verified": true, "method": "new host browser context with empty storage", "observed_at": "2029-05-31T22:59:00Z"},
+    "pre_existing_state": {"cookies": [], "storage": [], "onboarding": "none"},
+    "user_state": "new",
+    "approval": null
+  },
+  "request": {
+    "requested_url": "https://staging.pantry-planner.example/welcome",
+    "final_url": "https://staging.pantry-planner.example/welcome",
+    "http_status": "unavailable-from-mechanism"
+  },
+  "supplied": null,
+  "captured_at": "2029-05-31T23:00:00Z",
+  "profile": {"label": "phone", "viewport": {"width": 390, "height": 844}, "extra_views": ["recipe detail", "shopping list"]},
+  "readiness": {"state": "ready", "signal": "main heading visible", "observed_at": "2029-05-31T23:00:00Z"},
+  "files": [
+    {"name": "a1-initial-viewport.png", "role": "initial-viewport", "view": null, "path": "/ABSOLUTE/PATH/TO/PACK/a1-initial-viewport.png", "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0, "media_type": "image/png"},
+    {"name": "a1-welcome.txt", "role": "text", "view": null, "path": "/ABSOLUTE/PATH/TO/PACK/a1-welcome.txt", "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 0, "media_type": "text/plain"}
+  ],
+  "limits": {"max_files": 8, "max_file_bytes": 4194304},
+  "device_access_not_exercised": ["screen reader", "switch access"],
+  "inspection": {
+    "inspector": "coordinator",
+    "inspected_at": "2029-05-31T23:10:00Z",
+    "files": {
+      "a1-initial-viewport.png": {"viewed": false, "blank": false, "error_page": false, "secrets_visible": false, "personal_data_visible": false},
+      "a1-welcome.txt": {"viewed": false, "blank": false, "error_page": false, "secrets_visible": false, "personal_data_visible": false}
+    }
+  },
+  "derived_from": null
+}

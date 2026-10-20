@@ -278,7 +278,8 @@ def _current_authority(job, task, stage):
                'max_attempts': 1 + job['policy']['max_repair_cycles']}
     if task.get('context_policy') == 'document-only':
         current.update(document=task.get('document', {}), requirements=[{'id': r} for r in requirements],
-                       authorization={'read': [task.get('document', {}).get('path')], 'write': task.get('write_scope', {})},
+                       authorization={'read': [task.get('document', {}).get('path')] + [f.get('path') for f in task.get('context_files') or []],
+                                      'write': task.get('write_scope', {})},
                        revision=None)
     else:
         current.update(target=task.get('target'), authorization=job['authorization'], constraints=job['constraints'],
