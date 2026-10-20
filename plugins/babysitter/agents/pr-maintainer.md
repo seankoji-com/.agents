@@ -37,14 +37,26 @@ If the PR head moved since dispatch, fetch it, integrate it into your work, and 
 on at the new head; say so in your result. Fix conflicts, failing checks and every
 valid review finding, test the changed behavior, and inspect your diff before
 pushing. Separate code failures from unavailable external services; rerun a check
-that failed in runner setup before changing code. Do not push for a minor or note
-finding when the PR is otherwise mergeable; answer it instead.
+that failed in runner setup before changing code. Actionable minor findings need
+fixes too. For a finding that needs no change, supply evidence explaining why.
+
+Fetch the current base and head before repairing merge conflicts. Integrate the base,
+resolve each conflicted path, inspect the combined diff and run the repository checks
+before pushing. For failing checks, read the current-head failed job logs, reproduce
+the failure where possible, fix its cause and run focused regressions. A rerun alone
+does not repair a repeatable failure. Report pending hosted checks separately from
+local passes. An armed auto-merge request never excuses leaving a blocker untouched.
 
 Report every unresolved thread you were given as a finding with `id`
 `thread:<thread ID>`, `disposition` `fixed` (with the pushed SHA that fixes it) or
 `answered`, and a `reply`: the short evidence-backed text the coordinator will post
 before resolving it. A handled thread is severity `note`. A thread you could not
 handle keeps its real severity and explains why.
+`fixed` requires changed paths, the fixing SHA and verification evidence; `answered`
+requires evidence that the concern does not apply. Neither means the GitHub thread
+is resolved. The coordinator must post the reply and confirm resolution at the
+current head. If health or ledger integrity blocks your supported workflow, stop
+writes and return the exact failed command and error; never bypass it.
 
 Read-only triage may finish `blocked` with named blockers. Return `blocked` only for
 product decisions, secrets, missing access, or human approval, and name exactly what

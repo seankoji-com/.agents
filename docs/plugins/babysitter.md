@@ -40,11 +40,11 @@ A run keeps going until every targeted PR has merged or needs a person:
    [routing config](../getting-started.md#model-routing), cheapest tier first. Without
    a config the thread picks a cheap model itself. A child that gets stuck hands off
    to the next candidate, with no cap on rounds.
-3. **Threads.** The child returns a disposition for every unresolved review thread.
-   The thread then posts each reply and resolves the thread over curl, outdated
-   threads included, since conversation resolution blocks merges. Minor nits get a
-   reasoned reply, not a push. If GitHub or the host refuses a resolution, you're
-   asked straight away.
+3. **Threads.** Before another merge attempt or watch, the coordinator inspects every
+   unresolved thread at the current head, including outdated ones. It verifies the
+   fix, posts an evidence-based reply and resolves the thread. Findings that need no
+   change get a reply explaining why. Actionable minor findings still need fixes.
+   A reply alone does not count as resolution. A refused action is reported at once.
 4. **Land and watch.** GitHub's own requirements are the gate. Babysitter adds no
    review of its own unless you ask for review before landing. The thread merges each
    PR as soon as GitHub allows it, watches the rest, and refills fixers on every wake.
@@ -55,15 +55,14 @@ One question comes before any child starts:
 - **Auto-merge.** Before the list is frozen, the thread asks how to treat auto-merge
   and records your answer:
   - *Enable auto-merge on all PRs*, the default. It arms every targeted PR GitHub
-    allows, so each one lands as soon as it qualifies.
+    allows after every review thread is resolved, so each one lands as soon as it qualifies.
   - *Leave auto-merge as set.* It arms nothing and clears nothing.
   - *Ignore PRs with auto-merge.* A PR that already has auto-merge queued drops out of
     the run entirely.
 
   No answer withholds a fixer push or a merge because auto-merge is already queued, and
   none disables a request you armed. Armed auto-merge never counts as progress while
-  threads, conflicts or red checks remain: GitHub won't fire it, so the PR still gets
-  a fixer.
+  threads, conflicts or red checks remain, so babysitter keeps repairing them.
 
 The thread keeps one table of the targeted PRs and posts it at the end of every turn.
 Its shape, with made-up PRs:
@@ -75,6 +74,12 @@ Its shape, with made-up PRs:
 
 A green local test, an approved review and an actual merge are three different things.
 The table reports only merges it has seen.
+
+Thread resolution, the latest review state, required checks and mergeability are
+separate gates. Resolving a thread does not remove a requested-changes review.
+Babysitter never dismisses a review to clear that gate. If package health or job
+ledger integrity blocks the supported workflow, it reports the exact failure and
+stops writes for that PR. It does not bypass the workflow to land it.
 
 ## Operations
 
