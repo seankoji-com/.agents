@@ -1,4 +1,8 @@
 # Ralph for T3 Code
+
+Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
+Use `PKG/shared/adopter-planning.md` and `PKG/references/adopter-review-rubric.md`
+for public admission and receipt gates through `PKG/scripts/plan_review.py`.
 Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
 Implement, evaluate, and retry in T3 child tasks. Implementations and full reviews
@@ -17,7 +21,7 @@ Use JSON files with `--input FILE`; never interpolate goal text into shell code.
 - `<goal>` or `run <goal>` starts a run. `--max-attempts N` sets the number of
   implementation attempts, including the first, to a positive integer. Default: 20.
   Ask the user to choose both models from T3's live catalog for every new run.
-- `resume <state-file>` reconciles the existing task before continuing. Retain the
+- `resume <state-file>` asks retain-or-stop for the pinned pair/options, then reconciles the existing task before continuing. Retain the
   chosen pair, worktree, goal, feedback and limit. Never restart an active task.
   Resolved result/provider failures use the helper's `recover` operation with a
   recorded reason. Unverified identity cannot be waived through recovery.

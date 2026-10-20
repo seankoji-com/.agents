@@ -1,12 +1,10 @@
 # Maintain pull requests
 
-At an operator-requested final-head PR review, use `PKG/shared/supplemental-reviews.md`
-only when the coordinator checkout is already at the reviewed PR HEAD; otherwise skip.
-Never change checkouts merely to enable extras. Keep extras outside mandatory slots.
+At an operator-requested final-head PR review, use `PKG/shared/supplemental-reviews.md` only with consent and when the coordinator checkout is already at the reviewed PR HEAD.
+Never change checkouts merely to enable extras.
 
-This thread is the coordinator. It owns the roster, the PR table, every watch, every
-merge, every thread resolution, and every acceptance. Children own one PR's repair at
-a time. Push hard: every PR with fixable work has a child on it, every turn.
+The coordinator owns the roster, PR table, watches, merges, resolutions and acceptance.
+Children repair one PR at a time. Every PR with fixable work has a child each turn.
 
 1. Ask the auto-merge posture through the picker unless the request names one, and
    record it with `job_cli.py decision` (entry); under **ignore**, exclude any roster PR that already carries an
@@ -51,12 +49,10 @@ a time. Push hard: every PR with fixable work has a child on it, every turn.
    child work gets a fixer now, all at once, with no concurrency cap and no question.
    Create one job per such PR with `PKG/references/job-plan.md`; PRs without child work
    need no job.
-5. Route each fixer: prepare its worktree with `bash PKG/scripts/pr-workspace.sh`,
-   then run `t3-plugins resolve workhorse --capabilities FILE --repo <that worktree>`.
-   Start on the cheapest configured tier and record the ordered escalation. Without
-   routing or a candidate, choose the cheapest suitable model from the saved
-   `orchestrator_capabilities` yourself and record why; never ask. Report each
-   `unavailable` entry once.
+5. Prepare each fixer's worktree with `bash PKG/scripts/pr-workspace.sh`. Recommend
+   the cheapest suitable tier within role floors; use upfront selected work
+   target/options and approved replacements. Show live-catalog choices without
+   routing. Never infer an answer; report `unavailable` entries.
 6. Dispatch per `PKG/shared/job-coordination.md`: `job_cli.py prepare`, launch
    `babysitter/pr-maintainer` with `delegate_task`, and record the handle with
    `task-observation`. The brief carries the PR URL, its worktree, the head at
@@ -81,8 +77,9 @@ a time. Push hard: every PR with fixable work has a child on it, every turn.
    finding with evidence. Then reconcile every child through `task_status` and refill:
    each PR with child work and no child in flight gets its next round now through
    `job_cli.py retry` with the prior findings (`needs-followup` follows
-   `PKG/references/job-plan.md`). Escalate to the next candidate when a child returns
-   `blocked` or a malformed result, or the same blocker survives two rounds; re-request
+   `PKG/references/job-plan.md`). A child returning `blocked`, a malformed result or a
+   repeated blocker does not authorise escalation: use only the approved work chain
+   or obtain a new choice. Review replacement authority is separate. Re-request
    a malformed result immediately, naming the schema error. Rounds
    are not capped. Mark a row `needs human:` and ask through the picker only when the
    same blocker survives the strongest candidate twice or only a human can clear it.
@@ -95,9 +92,9 @@ a time. Push hard: every PR with fixable work has a child on it, every turn.
     publish per `PKG/references/job-plan.md`, then `job_acceptance_cli.py
     accept-stage` with the pinned `validate_pr.py`. Update the table and
     `unwatch_pull_request`. Report a merge as pending until observed.
-11. If `delegate_task` itself is unavailable, record it and run the fixer directly in
-    this thread under the same brief and actions, with a visible fallback marker. A
-    failed candidate is not unavailability; escalate instead.
+11. If `delegate_task` is unavailable, record it. Direct fixing needs approved work
+    authority or a new choice. Keep the brief, actions, counters and visible fallback marker.
+    A failed candidate alone grants no target substitution.
 12. Org/repo discovery of future PRs needs an explicitly authorized T3 scheduled sweep;
     watching today's PRs does not discover tomorrow's. Use the host scheduler only
     when requested, bounded in scope and cadence. Report its ID and stop command.
@@ -106,3 +103,5 @@ a time. Push hard: every PR with fixable work has a child on it, every turn.
     stopped through `task_status`, and remove only clean, task-owned worktrees. Post the
     final table. Never claim all landed from an empty or partial response. Do not run
     `pr-events.sh` in T3; it is retained only as a legacy standalone adapter.
+
+Written strategies require `PKG/shared/adopter-planning.md`.

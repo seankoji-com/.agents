@@ -23,10 +23,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from core.jobs.store import canonical  # noqa: E402
+from tests.thinking_plan_review_fixtures import ThinkingPlanFixture, init_selection_args
 
 PLUGIN = ROOT / 'plugins' / 'elephant-goldfish'
 OPERATIONS = ['doctor', 'thinking', 'elephant', 'check']
-WORKERS = {'elephant-goldfish/factual-checker', 'elephant-goldfish/cold-reader'}
+WORKERS = {'elephant-goldfish/factual-checker', 'elephant-goldfish/cold-reader', 'elephant-goldfish/plan-reviewer'}
 
 
 def sha(data: bytes) -> str:
@@ -95,7 +96,7 @@ class InstructionContractTests(unittest.TestCase):
         who = section(self.entry, '## Who does what')
         self.assertIn('Interactive discovery is never delegated', who)
         runs = section(self.thinking, '## Who runs each step')
-        self.assertIn('You run steps 1 to 6 yourself', runs)
+        self.assertIn('You coordinate steps 1 to 6', runs)
         self.assertIn('never conduct discovery', runs)
         self.assertIn('Only you prepare, dispatch, ingest and accept', self.entry)
 
@@ -194,6 +195,8 @@ class InstalledJobFixture(unittest.TestCase):
         self.capabilities = self.base / 'capabilities.json'
         caps = json.loads((ROOT / 'tests/fixtures/t3/capabilities.json').read_text())
         self.capabilities.write_text(json.dumps(caps))
+        self.plan_fixture = ThinkingPlanFixture(self.base / 'plan-fixture')
+        self.plan_fixture.box.env = dict(self.env)
 
     # -- installed helpers -------------------------------------------------
     def caller(self, workflow):
@@ -201,6 +204,13 @@ class InstalledJobFixture(unittest.TestCase):
                 'package_digest': self.install['package_digest'], 'actor': 'coordinator'}
 
     def run_helper(self, tool, command, job_id, data=None, **flags):
+        if command == 'create' and data is not None:
+            from tests.model_selection_fixtures import attach_selection
+            active = json.loads(self.capabilities.read_text())
+            attach_selection(data, {'providerInstanceId': active['inheritedProviderInstanceId'], 'model': active['inheritedModel']})
+        if command == 'plan-revision' and data is not None:
+            from tests.model_selection_fixtures import attach_revision
+            attach_revision(data, self.job_state(job_id))
         argv = [sys.executable, str(self.version / 'shared' / tool), command,
                 '--state-root', str(self.state), '--job', job_id]
         if data is not None:
@@ -217,8 +227,13 @@ class InstalledJobFixture(unittest.TestCase):
         return json.loads(proc.stdout) if proc.stdout.strip() else None
 
     def thinking_state(self, root, *args):
+        if args[0] == 'init':
+            args = (*args, *init_selection_args(self.base, args[1]))
         return subprocess.run([sys.executable, str(self.scripts / 'thinking_state.py'), '--root', str(root), *args],
                               capture_output=True, text=True, env=self.env)
+
+    def review_plan(self, root, slug):
+        self.plan_fixture.approve(self.scripts, root, slug)
 
     def create(self, job):
         self.ok(self.run_helper('job_cli.py', 'create', job['job_id'], job, prefix=self.prefix,
@@ -229,6 +244,27 @@ class InstalledJobFixture(unittest.TestCase):
 
     def job_state(self, job_id):
         return json.loads((self.state / job_id / 'job.json').read_text())
+
+    def choose_direct_work(self, job_id, caller, capabilities, stage_id):
+        """An explicit fixture model answer, separate from the lineage waiver."""
+        from tests.model_selection_fixtures import attach_selection
+        state = self.job_state(job_id)
+        candidate = copy.deepcopy(state)
+        candidate.pop('model_selection', None)
+        attach_selection(candidate, {'providerInstanceId': capabilities['inheritedProviderInstanceId'],
+                                     'model': capabilities['inheritedModel']})
+        label = 'choose-direct-' + str(self.counter)
+        source = self.base / (label + '.txt')
+        quote = ('Fixture owner chooses current-context work for ' + stage_id + ': ' +
+                 capabilities['inheritedProviderInstanceId'] + '/' + capabilities['inheritedModel'] +
+                 ', accepting actual or unreported session settings.')
+        source.write_text(quote)
+        decision = {'id': label, 'scope': 'plan:' + label, 'quote': quote, 'source': str(source),
+                    'source_sha256': sha(source.read_bytes())}
+        self.ok(self.run_helper('job_cli.py', 'decision', job_id, {'caller': caller, 'decision': decision}))
+        plan = {name: candidate[name] for name in ('tasks', 'stages', 'model_selection', 'model_selection_sha256')}
+        self.ok(self.run_helper('job_cli.py', 'plan-revision', job_id, {'caller': caller, 'new_plan': plan,
+                                'revision': {'id': label, 'owner_decision_id': label}}))
 
     def base_job(self, job_id, workflow, requirements, stages, tasks, policy=None):
         for task in tasks:
@@ -249,6 +285,9 @@ class InstalledJobFixture(unittest.TestCase):
     def dispatch(self, job_id, caller, task_id, *, verdict=None, status='ready-for-acceptance',
                  requirement='passed', findings=(), conclusion='checked', report_identity=True):
         """prepare -> accepted handle -> ingested result -> terminal observation."""
+        if task_id == 'c0':
+            from tests.adopter_plan_review_fixtures import ensure_legacy_elephant_design
+            ensure_legacy_elephant_design(self,job_id)
         ref = self.ok(self.run_helper('job_cli.py', 'prepare', job_id, {'caller': caller, 'task_id': task_id}))
         self.assertEqual(set(ref), {'path', 'sha256', 'bytes', 'provenance'})
         raw = Path(ref['path']).read_bytes()
@@ -337,6 +376,7 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         caps_a_path.write_text(json.dumps(caps_a)); caps_b_path.write_text(json.dumps(caps_b))
         for name in ('discovery.md', 'spec.md'):
             self.assertEqual(self.thinking_state(root, 'author', slug, name, '--capabilities', str(caps_a_path)).returncode, 0)
+        self.review_plan(root, slug)
         render = subprocess.run([sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root),
                                  '--capabilities', str(caps_b_path)], capture_output=True, text=True, env=self.env)
         self.assertEqual(render.returncode, 0, render.stdout + render.stderr)
@@ -383,6 +423,7 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
             '--operator-statement', 'I accept the edited discovery.').returncode, 0)
         self.assertEqual(self.thinking_state(root, 'author', slug, 'discovery.md', '--capabilities', str(caps_c_path)).returncode, 0)
         self.assertEqual(self.thinking_state(root, 'author', slug, 'spec.md', '--capabilities', str(caps_c_path)).returncode, 0)
+        self.review_plan(root, slug)
         render = subprocess.run([sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root),
                                  '--capabilities', str(caps_b_path)], capture_output=True, text=True, env=self.env)
         self.assertEqual(render.returncode, 0, render.stdout + render.stderr)
@@ -417,6 +458,7 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         self.dispatch(unknown_job, caller, 'unknown-source')
         first_missing_spec = '# Spec\n\n[REQ-RETRY] Retry once, as written by an unrecorded source.\n'
         (topic / 'spec.md').write_text(first_missing_spec + '\nA further repair with no author receipt.\n')
+        self.review_plan(root, slug)
         render = subprocess.run([sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root),
                                  '--capabilities', str(caps_b_path)], capture_output=True, text=True, env=self.env)
         self.assertEqual(render.returncode, 0, render.stdout + render.stderr)
@@ -455,6 +497,7 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
                                        '--discovery-sha256', sha(discovery.encode()), '--evidence-ref', 'msg:2',
                                        '--operator-statement-file', self.write_statement(topic, 'I accept this discovery.'))
         self.assertEqual(reviewed.returncode, 0, reviewed.stdout)
+        self.review_plan(root, slug)
         render = subprocess.run([sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root), '--capabilities', str(self.capabilities)],
                                 capture_output=True, text=True, env=self.env)
         self.assertEqual(render.returncode, 0, render.stdout + render.stderr)
@@ -511,9 +554,11 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
                                              '--discovery-sha256', sha(discovery.encode()), '--evidence-ref', 'msg:1',
                                              '--operator-statement-file',
                                              self.write_statement(topic, 'I accept this discovery.')).returncode, 0)
-        render = lambda: self.assertEqual(subprocess.run(
-            [sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root), '--capabilities', str(self.capabilities)],
-            capture_output=True, text=True, env=self.env).returncode, 0)
+        def render():
+            self.review_plan(root, slug)
+            self.assertEqual(subprocess.run(
+                [sys.executable, str(self.scripts / 'render_handoff.py'), slug, '--root', str(root), '--capabilities', str(self.capabilities)],
+                capture_output=True, text=True, env=self.env).returncode, 0)
         render()
         handoff = topic / 'handoff.md'
         job_id, workflow = 'thinking-cold-handoff', 'elephant-goldfish/thinking'
@@ -1027,6 +1072,7 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         capabilities.update(inheritedProviderInstanceId='codex', inheritedModel='gpt-6.1-sol',
                             parentThreadId='synthetic-direct-checker')
         caps_path = self.base / 'check-direct-capabilities.json'; caps_path.write_text(json.dumps(capabilities))
+        self.choose_direct_work(job_id, caller, capabilities, 'check')
         executed = self.run_helper('job_cli.py', 'direct-execution', job_id,
                                    {'caller': caller, 'stage_id': 'check'}, capabilities=caps_path)
         self.ok(executed)
@@ -1298,7 +1344,8 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         requirements['R-COLD'] = 'a fresh reader finds no blocking gap'
         stages.append({'id': 'cold-read', 'depends_on': ['factual'] if factual else [], 'requirements': ['R-COLD'],
                        'status': 'pending', 'validator_dependency': 'eg',
-                       'validator_contract': self.contract(document, 'cold-read', digest)})
+                       'validator_contract': self.contract(document, 'cold-read', digest),
+                       'resources':{'adopter_design_file':str(self.base/(job_id+'-design.json'))}})
         tasks.append(self.cold_slot(document, role=cold_role, digest=digest))
         return self.base_job(job_id, self.WORKFLOW, requirements, stages, tasks, policy)
 
@@ -1561,7 +1608,7 @@ class ElephantDocumentJobTests(InstalledJobFixture):
                 # Resume cannot reset the count: a fresh preparation is refused as well.
                 again = self.run_helper('job_cli.py', 'prepare', job_id, {'caller': caller, 'task_id': 'c0'})
                 self.assertNotEqual(again.returncode, 0)
-                self.assertEqual(self.job_state(job_id)['decisions'], [])
+                self.assertTrue(all(d['scope'].startswith('plan:design-') for d in self.job_state(job_id)['decisions']))
                 return executed
             self.assertEqual(json.loads(revised.stdout)['rounds_performed'], executed)
             self.ok(self.run_helper('job_cli.py', 'retry', job_id, {'caller': caller, 'task_id': 'c0', 'reason': 'NOT READY'}))
@@ -1707,6 +1754,7 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         resumed = json.loads(self.capabilities.read_text())
         resumed.update(inheritedProviderInstanceId='codex', inheritedModel='gpt-6.1-sol',
                        parentThreadId='synthetic-resumed-executor')
+        self.choose_direct_work(job_id, caller, resumed, 'factual')
         record_executor(resumed)
         stale = self.accept(job_id, caller, 'factual', argv, observation_path, 'direct-r1')
         self.assertNotEqual(stale.returncode, 0)
@@ -1745,6 +1793,7 @@ class ElephantDocumentJobTests(InstalledJobFixture):
         factual = next(row for row in converted['stages'] if row['id'] == 'factual')
         self.assertEqual((factual['execution_mode'], factual['independent_of_author']), ('direct', True))
         caps = json.loads(self.capabilities.read_text())
+        self.choose_direct_work(job_id, caller, caps, 'factual')
         record_path = self.base / 'conversion-capabilities.json'; record_path.write_text(json.dumps(caps))
         observed = self.run_helper('job_cli.py', 'direct-execution', job_id,
                                    {'caller': caller, 'stage_id': 'factual'}, capabilities=record_path)

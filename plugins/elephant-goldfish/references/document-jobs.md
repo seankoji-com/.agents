@@ -3,7 +3,11 @@
 Protocol: `PKG/shared/job-coordination.md`; helpers: `job_cli.py`, `job_acceptance_cli.py`;
 validator: `PKG/scripts/validate_document.py`.
 
-Optional factual-only extras: `PKG/shared/supplemental-reviews.md`; never cold reads or required acceptance.
+Optional factual-only extras: `PKG/shared/supplemental-reviews.md`; never required acceptance.
+
+Thinking uses `PKG/references/thinking-plan-review.md`. Elephant uses
+`PKG/shared/adopter-planning.md`: accept factual repairs, then design review, then
+cold-read. Declare `resources.adopter_design_file`; publish validated evidence there. Check remains factual-only.
 
 ## Plan
 
@@ -53,8 +57,7 @@ and author-independent slots. Legacy jobs without the marker keep target-only ru
 `thinking` and `elephant` also set `policy.author_independence`.
 
 Record each author from fresh `orchestrator_capabilities` using `--capabilities FILE`.
-The response needs inherited provider, model and parent thread; the model must be in
-that provider's catalog. Use `thinking_state.py author` for discovery/spec,
+Use `thinking_state.py author` for discovery/spec,
 `render_handoff.py --capabilities FILE` for handoffs,
 `record_document_author.py <path> --capabilities FILE` for `elephant.md`, and
 `job_cli.py document-revision --capabilities FILE` for repairs. A handoff includes
@@ -93,8 +96,7 @@ The cold reader returns one worker result. Its `conclusion` starts with
 `VERDICT: READY` or `VERDICT: NOT READY`. Map READY to `review_verdict: approve` and
 `ready-for-acceptance`; map NOT READY to `adverse`, `failed` and failed `R-COLD`. Each gap is a
 finding: `blocker` when it stops a newcomer, `minor` otherwise. Any blocker forces NOT
-READY. A missing, failed or ambiguous verdict is `unavailable` or a failed result,
-never READY.
+READY. A missing or ambiguous verdict never means READY.
 
 After you inspect the result, freeze a coordinator observation with `observation` and
 accept the stage with `accept-stage`:

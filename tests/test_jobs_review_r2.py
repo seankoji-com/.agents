@@ -106,24 +106,11 @@ class R2ReviewSupportTests(unittest.TestCase):
         """R2-04: installed validator consumes source bytes and findings, not plan status."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            version, manifest, prefix, agents, state_root = self.fx.install(root, "ape")
-            validator = version / "scripts" / "validate_report.py"
-            from tests.test_ape_validate_report import pin_source, study_descriptor
-            source_pin = pin_source(root, "S-1")
-            criteria = [{"id": "provenance", "kind": "source-provenance"},
-                        {"id": "coverage", "kind": "finding-source-coverage"}]
-            job = self.fx.base_job("ape-pins-r2")
-            job["installation_id"] = manifest["installation_id"]
-            job["pins"] = {}
-            job["stages"][0]["criteria"] = criteria
-            job["stages"][0]["validator_contract"] = {"sources": [source_pin]}
-            from shared.job_coordinator import create_pinned_job, pinned_store, publish_observation
-            create_pinned_job(job, state_root, prefix, agents, root / "config" / "workers.json")
-            store = pinned_store(state_root, job["job_id"])
-            caller = {"installation_id": manifest["installation_id"], "workflow": job["workflow"],
-                      "package_digest": manifest["package_digest"], "actor": "coordinator"}
-            report = root / "report.json"
-            data = study_descriptor(root, source_pin, job["stages"][0]["requirements"], criteria)
+            version, manifest, state_root, store, caller, published, argv = self.fx.ape_acceptance_fixture(root)
+            validator = version / 'scripts/validate_report.py'
+            from shared.job_coordinator import publish_observation
+            report = root / 'report.json'
+            data = json.loads(published.read_text())
             def run():
                 report.write_text(json.dumps(data))
                 ref = publish_observation(store, caller, "s0", str(report))

@@ -79,10 +79,21 @@ class Installed:
         return path
 
     def job(self, command, job_id, data, check=True, **flags):
+        if command == 'create':
+            from tests.model_selection_fixtures import attach_selection
+            attach_selection(data, {'providerInstanceId':'fixture-provider','model':'gpt-fixture'})
         extra = [f'--{k.replace("_", "-")}={v}' for k, v in flags.items()]
         proc = self.run('shared/job_cli.py', command, '--state-root', self.state, '--job', job_id,
                         '--input', self.payload(f'{job_id}-{command}-{len(os.listdir(self.base))}.json', data),
                         *extra, check=check)
+        if command == 'create' and proc.returncode == 0:
+            selected=data['model_selection']
+            caps=dict(selected['capabilities'], parentThreadId='fixture-parent',
+                inheritedProviderInstanceId=selected['coordinator']['providerInstanceId'],inheritedModel=selected['coordinator']['model'])
+            for stage in data['stages']:
+                if stage.get('execution_mode')=='direct' and not any(t['stage_id']==stage['id'] for t in data['tasks']):
+                    self.job('direct-execution',job_id,{'caller':self.caller(data['workflow']),'stage_id':stage['id']},
+                             capabilities=self.payload('direct-capabilities.json',caps))
         return json.loads(proc.stdout) if proc.returncode == 0 else proc
 
     def accept(self, action, job_id, data):
@@ -268,7 +279,7 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertEqual(brief['worker_id'], declared['worker_id'])
         host = 'host-' + task_id
         event = {'request_id': brief['request_id'], 'host_task_id': host, 'child_thread_id': 'child-' + host,
-                 'has_pending_child_runs': False}
+                 'has_pending_child_runs': False, 'status_identity':{k:brief['target'].get(k,{} if k=='options' else None) for k in ('providerInstanceId','model','options')}}
         self.inst.job('task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
             **event, 'kind': 'accepted', 'status': 'running', 'work_state': 'working'}})
         self.inst.job('task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
@@ -288,6 +299,11 @@ class SyntheticJobTest(unittest.TestCase):
                                                 'result': {'json': json.dumps(result)}})
 
     def publish(self, job_id, caller, stage_id, data):
+        state=self.state(job_id)
+        if state['workflow'] in ('agent-tuneup/audit','agent-tuneup/align') and not any(stage_id in s['depends_on'] for s in state['stages']):
+            from tests.adopter_plan_review_fixtures import review_existing_tuneup_report
+            data={**data,'adopter_output':review_existing_tuneup_report(self.inst.pkg,self.inst.manifest,self.inst.env,
+                self.inst.state,job_id,data,self.base)}
         source = self.base / 'coordinator' / f'{stage_id}-{sha(canonical(data))[:12]}.json'
         source.parent.mkdir(exist_ok=True)
         source.write_text(json.dumps(data))
@@ -321,7 +337,7 @@ class SyntheticJobTest(unittest.TestCase):
         smuggled = self.publish('tuneup-audit', caller, 'inspect', {**report, 'changes': [{'id': 'x'}]})
         refused = self.accept('tuneup-audit', caller, 'inspect', smuggled)
         self.assertNotEqual(refused.returncode, 0)
-        direct = subprocess.run([str(self.inst.validator), '--input', smuggled], capture_output=True, text=True)
+        direct = subprocess.run([str(self.inst.validator), '--input', smuggled], capture_output=True, text=True, env=self.inst.env)
         self.assertEqual(direct.returncode, 1)
         self.assertIn('report-only audit cannot accept settings changes', direct.stdout)
 
@@ -382,6 +398,12 @@ class SyntheticJobTest(unittest.TestCase):
                                            '--out', plan_file).stdout)
         self.assertEqual(planned['settings_writes'], 0)
 
+        from tests.imps_plan_review_fixtures import legacy_box
+        from tests.adopter_plan_review_fixtures import reviewed_apply_context
+        box=legacy_box(self.base/'proposal-review',self.inst.pkg,self.inst.manifest,self.inst.env)
+        apply_context=reviewed_apply_context(box,self.inst.pkg,self.inst.manifest,json.loads(plan_file.read_text()))
+        context_file=self.inst.payload('apply-context.json',apply_context)
+
         # The owner question is pending: an approval wait blocks acceptance.
         wait = {'kind': 'approval-wait', 'request_id': 'verify-1-r0', 'wait_id': 'apply-change-1',
                 'question': 'apply change-1?'}
@@ -400,7 +422,7 @@ class SyntheticJobTest(unittest.TestCase):
         shutil.copyfile(target, before)
         backup = private / 'backup.json'
         applied = json.loads(self.inst.run('scripts/align.py', 'apply', '--plan', plan_file, '--approval',
-                                           planned['approval_digest'], '--backup', backup).stdout)
+                                           planned['approval_digest'], '--backup', backup,'--context',context_file).stdout)
         self.assertTrue(applied['ok'])
         self.assertEqual(target.read_bytes(), candidate.read_bytes())
         parse = self.inst.run('scripts/audit.py', '--provider', 'claude', '--settings', target, check=False)
@@ -414,7 +436,7 @@ class SyntheticJobTest(unittest.TestCase):
                                   'source': 'synthetic fresh-session load fixture', 'content': content,
                                   'sha256': sha(canonical(content))}}
         report = {'criteria': APPLY_CRITERIA, 'audit_exit_code': 0, 'findings': [], 'changes': [change],
-                  'authorization_records': [owner]}
+                  'authorization_records': [owner], 'apply_context':apply_context, 'applied_plan':json.loads(plan_file.read_text())}
         self.run_worker('tuneup-apply', caller, 'verify-1')
         observed = self.publish('tuneup-apply', caller, 'apply', report)
         waiting = self.accept('tuneup-apply', caller, 'apply', observed)
@@ -429,7 +451,7 @@ class SyntheticJobTest(unittest.TestCase):
             mutate(data)
             path = self.base / 'coordinator' / 'negative.json'
             path.write_text(json.dumps(data))
-            proc = subprocess.run([str(self.inst.validator), '--input', str(path)], capture_output=True, text=True)
+            proc = subprocess.run([str(self.inst.validator), '--input', str(path)], capture_output=True, text=True, env=self.inst.env)
             self.assertEqual(proc.returncode, 1, reason)
             self.assertIn(reason, proc.stdout)
 

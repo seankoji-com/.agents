@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Separate coordinator planning self-review observation",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "pass_id",
+    "identity",
+    "identity_reference",
+    "snapshot_sha256",
+    "selection_sha256",
+    "requirements",
+    "review_verdict",
+    "findings",
+    "assessment"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "planning-direct"
+    },
+    "pass_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identity": {
+      "type": "object",
+      "required": [
+        "providerInstanceId",
+        "model",
+        "observed_options"
+      ],
+      "properties": {
+        "providerInstanceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observed_options": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "identity_reference": {
+      "type": "string",
+      "minLength": 1
+    },
+    "snapshot_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "selection_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "evidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "unverified"
+            ]
+          },
+          "evidence": {}
+        },
+        "additionalProperties": false
+      }
+    },
+    "review_verdict": {
+      "enum": [
+        "approve",
+        "adverse"
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "required": [
+        "coverage",
+        "inspected_paths",
+        "responses"
+      ],
+      "properties": {
+        "coverage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "outcome",
+              "evidence"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "outcome": {
+                "enum": [
+                  "supported",
+                  "contradicted",
+                  "unverified"
+                ]
+              },
+              "evidence": {}
+            },
+            "additionalProperties": false
+          }
+        },
+        "inspected_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "responses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "finding_key",
+              "status",
+              "evidence"
+            ],
+            "properties": {
+              "finding_key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "enum": [
+                  "fixed",
+                  "rebuttal-agreed",
+                  "rejected",
+                  "deferred",
+                  "open"
+                ]
+              },
+              "evidence": {},
+              "impact": {
+                "type": "string",
+                "minLength": 1
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1
+              },
+              "next_action": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

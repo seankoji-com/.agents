@@ -30,25 +30,18 @@ class PinnedAcceptanceTests(unittest.TestCase):
   return version,manifest,prefix,agents,state,env
 
  def test_actual_ape_validator_receipt_is_pin_and_input_bound(self):
+  from tests.test_rebuild_installed import Sandbox
+  from tests.ape_plan_review_fixtures import ApePlanFixture
   with tempfile.TemporaryDirectory() as td:
-   base=Path(td);home=base/'home';home.mkdir();prefix=base/'prefix';agents=base/'agents';state=base/'state'
-   env={**os.environ,'HOME':str(home),'XDG_CONFIG_HOME':str(base/'config'),'XDG_STATE_HOME':str(state)}
-   proc=subprocess.run([sys.executable,str(ROOT/'scripts/install.py'),'--plugin','ape','--prefix',str(prefix),'--agents-root',str(agents)],capture_output=True,text=True,env=env)
-   self.assertEqual(proc.returncode,0,proc.stdout+proc.stderr)
-   version=Path(json.loads(proc.stdout)['data']['version_dir']);manifest=json.loads((version/'install-manifest.json').read_text())
-   job={'schema_version':1,'job_id':'accept-1','installation_id':manifest['installation_id'],'workflow':'ape/study','owner':'coordinator','objective':'research','requirements':{'R1':'retain provenance'},'authorization':{'actions':['read']},'constraints':['no target writes'],'snapshot':{'sha256':'a'*64},'dependencies':[{'key':'ape','plugin':'ape'}],'pins':{},'policy':{'max_repair_cycles':3,'max_artifact_bytes':16777216},'stages':[{'id':'research','depends_on':[],'requirements':['R1'],'status':'pending','execution_mode':'direct','validator_dependency':'ape','criteria':[{'id':'C1','kind':'source-provenance'}],'revision':'source-1'}],'tasks':[],'decisions':[],'history':[],'metrics':{},'result_contract':{'schema_version':1}}
-   source_pin=source_fixture(base,job)
-   created=create_pinned_job(job,state,prefix,agents,base/'config/workers.json');self.assertTrue(Path(created['job']).exists())
-   self.assertEqual(Store(state,'accept-1').load()['policy']['identity'],'observed')
-   inp=base/'report.json';inp.write_text(json.dumps(ape_report(base,source_pin)))
-   caller={'installation_id':manifest['installation_id'],'workflow':'ape/study','package_digest':manifest['package_digest'],'actor':'coordinator'}
-   validator=version/'scripts/validate_report.py'
-   inp=Path(publish_observation(Store(state,'accept-1'),caller,'research',str(inp))['path'])
-   receipt=accept_stage(Store(state,'accept-1'),caller,'research',[str(validator),'--input',str(inp)],str(inp),'source-1')
-   self.assertTrue(receipt['accepted']);self.assertTrue(validate_stage(Store(state,'accept-1'),'research')['accepted'])
-   (version/'scripts/validate_report.py').chmod(0o644)
+   box=Sandbox(Path(td));version,manifest=box.install('ape')
+   f=ApePlanFixture(box,version,manifest,installed=True);f.work();f.approve();f.accept()
+   from unittest.mock import patch
+   with patch.dict(os.environ,box.env,clear=True):
+    self.assertTrue(validate_stage(Store(box.jobs,f.job_id),f.final_stage)['accepted'])
+   validator=version/'scripts/validate_report.py';validator.chmod(0o644)
    validator.write_text(validator.read_text()+'\n# mutation\n')
-   self.assertFalse(validate_stage(Store(state,'accept-1'),'research')['accepted'])
+   with patch.dict(os.environ,box.env,clear=True):
+    self.assertFalse(validate_stage(Store(box.jobs,f.job_id),f.final_stage)['accepted'])
 
  def test_installed_babysitter_rejects_missing_failed_and_stale_observations(self):
   from core.jobs.store import canonical
@@ -101,7 +94,8 @@ class PinnedAcceptanceTests(unittest.TestCase):
    for i in range(5):
     case=CoreTestCase(methodName='runTest');case.setUp();self.addCleanup(case.doCleanups)
     case.state_root=state_root/f's{i}'
-    repo=case.make_repo();run=case.init(case.plan(repo,policy={'review':{'required':True,'role':'reviewer'},'checks':[{'name':'unit','argv':[sys.executable,'-m','unittest','discover','-s','tests'],'cwd':str(repo)}]}));self.assertIsInstance(run,Run)
+    from tests.imps_plan_review_fixtures import admitted_gate
+    repo=case.make_repo();run=admitted_gate(case,version,manifest,env,case.plan(repo,policy={'review':{'required':True,'role':'reviewer'},'checks':[{'name':'unit','argv':[sys.executable,'-m','unittest','discover','-s','tests'],'cwd':str(repo)}]}));self.assertIsInstance(run,Run)
     # Accepted gates are produced by the existing real evidence/review/check API.
     for req in run.state['brief']['requirements']:
      artifact=run.scratch(f's{i}-{req["id"]}.txt','verified fixture evidence\n')
@@ -140,11 +134,21 @@ class PinnedAcceptanceTests(unittest.TestCase):
  def test_installed_tuneup_audit_accepts_reported_findings_and_rejects_unavailable_live_requirement(self):
   from core.jobs.store import canonical
   with tempfile.TemporaryDirectory() as td:
-   base=Path(td);version,*_=self._install(base,'agent-tuneup');validator=version/'scripts/validate_audit.py';inp=base/'audit.json'
+   base=Path(td);version,manifest,*_=self._install(base,'agent-tuneup');validator=version/'scripts/validate_audit.py';inp=base/'audit.json'
    findings={'findings':[{'code':'broad_execution_allow','location':'permissions.allow[0]'}],'changes':[],'criteria':{'operation':'audit','findings_allowed':True,'live_enforcement_required':False},'audit_exit_code':1}
    inp.write_text(json.dumps(findings));good=subprocess.run([sys.executable,str(validator),'--input',str(inp)],capture_output=True,text=True)
    self.assertEqual(good.returncode,0,good.stdout);self.assertTrue(json.loads(good.stdout)['accepted']);self.assertEqual(json.loads(good.stdout)['findings_count'],1)
-   before=base/'before.json'; backup=base/'backup.json'; before.write_text('synthetic settings before edit'); backup.write_bytes(before.read_bytes()); before_sha=hashlib.sha256(before.read_bytes()).hexdigest()
+   from tests.imps_plan_review_fixtures import legacy_box
+   from tests.adopter_plan_review_fixtures import AdopterFixture
+   from unittest.mock import patch
+   box=legacy_box(base/'review-state',version,manifest,{**os.environ,'HOME':str(base/'home'),'XDG_STATE_HOME':str(base/'state')})
+   f=AdopterFixture(box,version,manifest);f.proposal();f.approve();context=f.apply_context(f.owner_approve())
+   isolated=patch.dict(os.environ,box.env,clear=True);isolated.start();self.addCleanup(isolated.stop)
+   before=f.before;backup=base/'backup.json'
+   box.run([sys.executable,version/'scripts/align.py','apply','--plan',f.plan_file,
+       '--approval',f.plan['approval_digest'],'--backup',backup,'--context',box.payload(context)])
+   before_sha=hashlib.sha256(before.read_bytes()).hexdigest()
+   findings.update(apply_context=context,applied_plan=f.plan)
    findings['authorization_records']=[{'id':'owner-1','quote':'Authorize synthetic settings change','source':'synthetic-owner-record','source_sha256':'b'*64,'scope':'settings-change:edit-1'}]
    change_content={'authorization_ref':'owner-1','backup_sha256':before_sha,'backup_path':str(backup),'before_path':str(before),'before_sha256':before_sha,'parse_result':'passed','load_result':'passed','enforcement_result':'not-required'}
    findings['criteria']={'operation':'apply','findings_allowed':True,'live_enforcement_required':False};findings['audit_exit_code']=0
@@ -161,24 +165,32 @@ class PinnedAcceptanceTests(unittest.TestCase):
    self.assertNotEqual(bad.returncode,0,bad.stdout);self.assertFalse(json.loads(bad.stdout)['accepted'])
 
  def test_installed_acceptance_failures_consume_four_shared_cycles_and_refuse_fifth(self):
-  from shared.job_acceptance import AcceptanceError
+  from tests.test_rebuild_installed import Sandbox
+  from tests.ape_plan_review_fixtures import ApePlanFixture
   with tempfile.TemporaryDirectory() as td:
-   base=Path(td);version,manifest,prefix,agents,state,env=self._install(base,'ape')
-   job={'schema_version':1,'job_id':'budget-1','installation_id':manifest['installation_id'],'workflow':'ape/study','owner':{'id':'owner'},'objective':'bounded audit','requirements':{'R1':'source provenance'},'authorization':{'actions':['read']},'constraints':['read only'],'dependencies':[{'key':'ape','plugin':'ape'}],'pins':{},'policy':{'max_repair_cycles':3,'max_artifact_bytes':16777216},'stages':[{'id':'research','depends_on':[],'requirements':['R1'],'status':'pending','execution_mode':'direct','validator_dependency':'ape','criteria':[],'attempts':{'primary':0,'support':0,'review':0,'final':0}}],'tasks':[],'decisions':[],'history':[],'metrics':{},'result_contract':{'schema_version':1}}
-   source_pin=source_fixture(base,job)
-   create_pinned_job(job,state,prefix,agents,base/'config/workers.json');store=Store(state,'budget-1');caller={'installation_id':manifest['installation_id'],'workflow':'ape/study','package_digest':manifest['package_digest'],'actor':'coordinator'};validator=version/'scripts/validate_report.py';inp=base/'empty-report.json';inp.write_text(json.dumps(ape_report(base,source_pin,quote='invented nonexistent quote')));inp=Path(publish_observation(store,caller,'research',str(inp))['path']);argv=[str(validator),'--input',str(inp)]
-   for _ in range(4):self.assertFalse(accept_stage(store,caller,'research',argv,str(inp))['accepted'])
-   self.assertEqual(store.load()['stages'][0]['acceptance_runs'],4)
-   with self.assertRaisesRegex(AcceptanceError,'budget exhausted'):accept_stage(store,caller,'research',argv,str(inp))
+   box=Sandbox(Path(td));version,manifest=box.install('ape')
+   f=ApePlanFixture(box,version,manifest,installed=True,direct_work=True);f.work();f.approve()
+   f.descriptor['findings'][0]['quote']='invented nonexistent quote'
+   for _ in range(4):f.accept(ok=False)
+   self.assertEqual(box.state_of(f.job_id)['stages'][0]['acceptance_runs'],4)
+   self.assertIn('budget exhausted',f.accept(ok=False).stderr)
 
  def test_installed_elephant_handoff_and_distinct_observation_gates(self):
   from core.jobs.store import canonical
+  from tests.thinking_plan_review_fixtures import ThinkingPlanFixture, init_selection_args
+  from unittest.mock import patch
   with tempfile.TemporaryDirectory() as td:
    base=Path(td);version,manifest,prefix,agents,state,env=self._install(base,'elephant-goldfish');validator=version/'scripts/validate_document.py';root=base/'thinking';topic=root/'fixture-topic';topic.mkdir(parents=True)
+   planning=ThinkingPlanFixture(base/'planning-fixture')
+   planning.command(version/'scripts',root,'fixture-topic','init','--output-type','research')
    discovery='# Discovery\n\nA specific problem.\n';spec='# Spec\n\n[REQ-ONE] Confirm this criterion.\n'
    (topic/'discovery.md').write_text(discovery);(topic/'spec.md').write_text(spec)
    meta={'output_type':'research','title':'Fixture','published':{},'review':{'schema':1,'status':'accepted','scope':'finalise-brief','evidence_ref':'review-1','operator_statement':'Reviewed fixture discovery','recorded_at':'2026-10-12T00:00:00Z','discovery_sha256':hashlib.sha256(discovery.encode()).hexdigest()}}
-   (topic/'meta.json').write_text(json.dumps(meta));capabilities=base/'capabilities.json';capabilities.write_bytes((ROOT/'tests/fixtures/t3/capabilities.json').read_bytes());render=subprocess.run([sys.executable,str(version/'scripts/render_handoff.py'),'fixture-topic','--root',str(root),'--capabilities',str(capabilities)],capture_output=True,text=True)
+   meta['model_admission']=json.loads((topic/'meta.json').read_text())['model_admission']
+   (topic/'meta.json').write_text(json.dumps(meta))
+   isolated=patch.dict(os.environ,planning.box.env,clear=True);isolated.start();self.addCleanup(isolated.stop)
+   planning.approve(version/'scripts',root,'fixture-topic')
+   capabilities=base/'capabilities.json';capabilities.write_bytes((ROOT/'tests/fixtures/t3/capabilities.json').read_bytes());render=subprocess.run([sys.executable,str(version/'scripts/render_handoff.py'),'fixture-topic','--root',str(root),'--capabilities',str(capabilities)],capture_output=True,text=True)
    self.assertEqual(render.returncode,0,render.stdout+render.stderr)
    state_gate=subprocess.run([sys.executable,str(version/'scripts/thinking_state.py'),'--root',str(root),'gate','fixture-topic','--require','discovery,spec,handoff'],capture_output=True,text=True)
    self.assertEqual(state_gate.returncode,0,state_gate.stdout+state_gate.stderr)
@@ -199,6 +211,8 @@ class PinnedAcceptanceTests(unittest.TestCase):
    confirmed_content={'document_sha256':doc_hash,'claim_id':'C1','outcome':'confirmed'};confirmed_row={'observer':'coordinator','kind':'factual-claim','source':'fixture claim inspection','content':confirmed_content,'sha256':hashlib.sha256(canonical(confirmed_content)).hexdigest()};factual.write_text(json.dumps({'kind':'factual-observation','document_path':str(doc_path),'document_sha256':doc_hash,'claims':[{'claim_id':'C1','outcome':'confirmed','evidence':[confirmed_row]}]}))
    factual_result=subprocess.run(factual_args,capture_output=True,text=True);self.assertEqual(factual_result.returncode,0,factual_result.stdout);self.assertIn('author unrecorded',factual_result.stdout);self.assertNotIn(doc_hash,json.loads((topic/'document-authors.json').read_text()))
    check_job={'schema_version':1,'job_id':'check-author-provenance','installation_id':manifest['installation_id'],'workflow':'elephant-goldfish/check','owner':{'id':'owner'},'objective':'check a factual document','requirements':{'R1':'factual observations are valid'},'authorization':{'actions':['read']},'constraints':['synthetic fixture'],'dependencies':[{'key':'elephant','plugin':'elephant-goldfish'}],'pins':{},'policy':{'max_repair_cycles':3,'max_artifact_bytes':16777216},'stages':[{'id':'check','depends_on':[],'requirements':['R1'],'status':'pending','execution_mode':'direct','validator_dependency':'elephant','revision':'check-r1','validator_contract':{'root':str(root),'slug':'fixture-topic','mode':'factual','document_path':str(doc_path),'document_sha256':doc_hash}}],'tasks':[],'decisions':[],'history':[],'metrics':{},'result_contract':{'schema_version':1}}
+   from tests.model_selection_fixtures import attach_selection
+   attach_selection(check_job)
    create_pinned_job(check_job,state,prefix,agents,base/'config/workers.json');check_store=Store(state,'check-author-provenance');check_caller={'installation_id':manifest['installation_id'],'workflow':'elephant-goldfish/check','package_digest':manifest['package_digest'],'actor':'coordinator'};check_input=Path(publish_observation(check_store,check_caller,'check',str(factual))['path'])
    check_argv=[str(validator),'--root',str(root),'--slug','fixture-topic','--mode','factual','--input',str(check_input)]
    check_receipt=accept_stage(check_store,check_caller,'check',check_argv, str(check_input),'check-r1')

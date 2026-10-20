@@ -154,13 +154,20 @@ class JobReviewTests(unittest.TestCase):
         manifest = json.loads((version / "install-manifest.json").read_text())
         return version, manifest, prefix, agents, state
 
-    def ape_acceptance_fixture(self, base, *, two_tasks=False):
+    def ape_acceptance_fixture(self, base, *, two_tasks=False, one_stage=False, limits=None):
         version, manifest, prefix, agents, state_root = self.install(base, "ape")
         job = self.base_job("acceptance-review", two_tasks=two_tasks)
+        if one_stage:
+            job['stages'] = job['stages'][:1]
+        if limits:
+            job['stages'][0]['validator_limits'] = limits
         job["installation_id"] = manifest["installation_id"]
         job["pins"] = {}
         source_pin = pin_source(base, 'src')
         job['stages'][0]['validator_contract'] = {'sources': [source_pin]}
+        data = study_descriptor(base, source_pin, ["R1"], [{"id": "C1", "kind": "source-provenance"}])
+        from tests.plan_review_migration_fixtures import admit_ape, review_ape
+        admit_ape(job, base, state_root, data)
         create_pinned_job(job, state_root, prefix, agents, base / "config" / "workers.json")
         store = Store(state_root, job["job_id"])
         caller = {
@@ -170,8 +177,11 @@ class JobReviewTests(unittest.TestCase):
             "actor": "coordinator",
         }
         report = base / "report.json"
-        report.write_text(json.dumps(study_descriptor(base, source_pin, ["R1"], [{"id": "C1", "kind": "source-provenance"}])))
         self.ingest_ready(store, caller, "t0")
+        if two_tasks:
+            self.ingest_ready(store, caller, "t1")
+        review_ape(version, manifest, state_root, job['job_id'], 's0', data, base)
+        report.write_text(json.dumps(data))
         report = Path(publish_observation(store, caller, "s0", str(report))["path"])
         argv = [str(version / "scripts" / "validate_report.py"), "--input", str(report)]
         return version, manifest, state_root, store, caller, report, argv
@@ -187,7 +197,13 @@ class JobReviewTests(unittest.TestCase):
         result['requirements'] = [{'id': row['id'], 'status': 'passed', 'evidence': ['fixture']} for row in brief['requirements']]
         result['findings'] = findings or []
         result['review_verdict'] = 'adverse' if findings else None
+        from core.jobs import record_dispatch
+        host = {'request_id': brief['request_id'], 'host_task_id': 'host-' + brief['request_id'],
+                'status_identity': brief.get('target'), 'has_pending_child_runs': False}
+        record_dispatch(store, caller, task_id, {**host, 'kind':'accepted', 'status':'running', 'work_state':'working'})
         record_result(store, caller, task_id, {'result': json.dumps(result).encode(), 'completion_id': brief['request_id'] + '-done', 'request_id': brief['request_id']})
+        record_dispatch(store, caller, task_id, {**host, 'kind':'completion', 'completion_id':brief['request_id']+'-done',
+            'status':'completed', 'work_state':'result_available'})
 
     def test_acceptance_requires_every_current_slot_and_disposed_blocking_findings(self):
         """R01: acceptance cannot pass failed, pending, stale, or unresolved slots."""
@@ -518,24 +534,10 @@ class JobReviewTests(unittest.TestCase):
         """R21: actual acceptance invocation must terminate a hanging validator."""
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
-            version, manifest, prefix, agents, state_root = self.install(base, "ape")
-            job = self.base_job("hang-review")
-            job["tasks"] = []
-            job["stages"][0]["execution_mode"] = "direct"
-            source_pin = pin_source(base, "src")
-            job["stages"][0]["validator_contract"] = {"sources":[source_pin]}
-            job["stages"][0].update(validator_limits={"timeout_seconds": 1, "max_output_bytes": 1024}, criteria=[{"id": "C1", "kind": "source-provenance"}])
-            job["installation_id"] = manifest["installation_id"]
-            job["pins"] = {}
-            create_pinned_job(job, state_root, prefix, agents, base / "config" / "workers.json")
-            store = Store(state_root, job["job_id"])
-            caller = {"installation_id": manifest["installation_id"], "workflow": job["workflow"], "package_digest": manifest["package_digest"], "actor": "coordinator"}
-            validator = version / "scripts" / "validate_report.py"
+            version, manifest, state_root, store, caller, report, argv = self.ape_acceptance_fixture(
+                base, limits={"timeout_seconds": 1, "max_output_bytes": 1024})
+            validator = version / 'scripts/validate_report.py'
             original = validator.read_text()
-            report = base / "report.json"
-            report.write_text(json.dumps(study_descriptor(base, source_pin, ["R1"], [{"id": "C1", "kind": "source-provenance"}])))
-            report = Path(publish_observation(store, caller, "s0", str(report))["path"])
-            argv = [str(validator), "--input", str(report)]
             hook = base / "sitecustomize.py"
             hook.write_text("import time\ntime.sleep(20)\n")
             env = dict(os.environ, PYTHONPATH=str(base) + os.pathsep + os.environ.get("PYTHONPATH", ""))
@@ -546,6 +548,8 @@ class JobReviewTests(unittest.TestCase):
                     self.assertFalse(receipt['accepted'])
                     self.assertIn('timeout', receipt.get('error', ''))
                 self.assertLess(time.monotonic() - started, 10)
+                retry_task(store, caller, 't0', 'next validator failure probe after charged timeout')
+                self.ingest_ready(store, caller, 't0')
                 hook.write_text("print('x' * 5000)\n")
                 with mock.patch.dict(os.environ, env):
                     flooded = accept_stage(store, caller, 's0', argv, str(report), 's0-r1')

@@ -1,11 +1,14 @@
 # babysitter
+
+Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
+Public admission: `PKG/scripts/plan_review.py`; contract: `PKG/shared/adopter-planning.md`;
+criteria: `PKG/references/adopter-review-rubric.md`.
 Read `PKG/shared/learnings.md` and load this plugin's lessons first.
 
 Land pull requests. Every roster PR ends merged or as a named `needs human:` blocker;
 waiting is never an outcome. Read `PKG/shared/t3-runtime.md`.
 Multi-PR and repair work follows `PKG/shared/job-coordination.md`; delegation follows
-`PKG/shared/delegation.md`. This entry adds only babysitter policy; load what the
-chosen operation needs.
+`PKG/shared/delegation.md`. Load only the chosen operation.
 
 ## Operations
 
@@ -97,7 +100,8 @@ is not acceptance. A PR that cannot reach its endstate becomes a named blocker.
 
 Ask every owner decision through the native question picker described in
 `PKG/shared/t3-runtime.md`, recommended option first, and record it with
-`job_cli.py decision`. Fan-out, model choice, repair rounds, branch rewrites, and a
+`job_cli.py decision`. Model choices and work replacements follow the upfront
+selection contract; do not infer them from maintenance authority. Fan-out, repair rounds, branch rewrites, and a
 roster PR's tests and regressions with the setup they need are decided: never ask,
 always yes. Ask only for a scheduled sweep, a product decision a fixer returned, a
 refused host action, or a blocker only a human can clear. Until answered the action

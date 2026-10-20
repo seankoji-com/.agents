@@ -66,6 +66,7 @@ nav:
       - CLI reference: cli.md
       - Safety and data: safety.md
       - Free supplemental reviews: supplemental-reviews.md
+      - Planning review: plan-review.md
       - Learnings and harvest: learnings.md
       - Troubleshooting: troubleshooting.md
   - Plugins:

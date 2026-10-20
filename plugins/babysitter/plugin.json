@@ -28,7 +28,9 @@
         "org"
       ],
       "role": "workhorse",
-      "responsibility": "Maintain only the assigned PR within explicit authorization. Bind every claim to exact-head evidence."
+      "responsibility": "Maintain only the assigned PR within explicit authorization. Bind every claim to exact-head evidence.",
+      "allowed_scope": "brief-authorized",
+      "output_contract": "worker-result.schema.json"
     },
     {
       "id": "babysitter/pr-reviewer",
@@ -39,7 +41,9 @@
         "org"
       ],
       "role": "reviewer",
-      "responsibility": "Independently review the final combined PR changes at the exact head; do not modify or merge."
+      "responsibility": "Independently review the final combined PR changes at the exact head; do not modify or merge.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     }
   ],
   "worker_shared": [
@@ -52,7 +56,15 @@
     "worker-result.schema.json",
     "result-envelope.schema.json",
     "acceptance.schema.json",
-    "jobs-contract.md"
+    "jobs-contract.md",
+    "reviewer-standard.md",
+    "model-selection.schema.json",
+    "model-authority.schema.json",
+    "planning-policy.schema.json",
+    "planning-job.schema.json",
+    "planning-subject.schema.json",
+    "planning-assessment.schema.json",
+    "planning-direct.schema.json"
   ],
   "picker": [
     "pr",
@@ -85,5 +97,35 @@
       "pattern": "^org\\s+[A-Za-z0-9_.-]+$",
       "operation": "org"
     }
-  ]
+  ],
+  "planning_review": {
+    "schema_version": 1,
+    "purpose": "planning-review",
+    "output_types": [
+      "strategy"
+    ],
+    "worker_id": "babysitter/pr-reviewer"
+  },
+  "operation_review": {
+    "doctor": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Local readiness has no synthesis."
+    },
+    "pr": {
+      "selection": "upfront",
+      "planning": "written-strategy",
+      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+    },
+    "repo": {
+      "selection": "upfront",
+      "planning": "written-strategy",
+      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+    },
+    "org": {
+      "selection": "upfront",
+      "planning": "written-strategy",
+      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+    }
+  }
 }

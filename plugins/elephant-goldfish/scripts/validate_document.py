@@ -2,12 +2,13 @@
 """Run existing content-bound handoff provenance/readiness checks."""
 import argparse,json,subprocess,sys,hashlib
 from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0,str(next(p for p in Path(__file__).resolve().parents if (p/'shared/validator_observations.py').is_file())))
 from shared.validator_observations import read_object,observation
 def main():
- p=argparse.ArgumentParser();p.add_argument('--root',default='thinking');p.add_argument('--slug',required=True);p.add_argument('--mode',choices=['handoff','factual','cold-read'],default='handoff');p.add_argument('--input');a=p.parse_args();script=Path(__file__).resolve().parent
- if a.mode=='handoff':
-  checks=[[sys.executable,str(script/'thinking_state.py'),'--root',a.root,'gate',a.slug,'--require','discovery,spec,handoff'],[sys.executable,str(script/'render_handoff.py'),a.slug,'--root',a.root,'--check']]
+ p=argparse.ArgumentParser();p.add_argument('--root',default='thinking');p.add_argument('--slug',required=True);p.add_argument('--mode',choices=['handoff','plan-review','factual','cold-read'],default='handoff');p.add_argument('--input');a=p.parse_args();script=Path(__file__).resolve().parent
+ if a.mode in ('handoff','plan-review'):
+  checks=[[sys.executable,str(script/'thinking_state.py'),'--root',a.root,'gate',a.slug,'--require','discovery,spec,plan_review' + (',handoff' if a.mode=='handoff' else '')]]
+  if a.mode=='handoff':checks.append([sys.executable,str(script/'render_handoff.py'),a.slug,'--root',a.root,'--check'])
   runs=[subprocess.run(c,capture_output=True,text=True) for c in checks];ok=all(r.returncode==0 for r in runs);evidence=[{'argv':c,'exit_code':r.returncode,'output':r.stdout[-2000:]} for c,r in zip(checks,runs)]
  elif a.mode in ('factual','cold-read'):
   try:

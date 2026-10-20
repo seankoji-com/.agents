@@ -27,23 +27,35 @@ except ImportError:  # pragma: no cover - unsupported platform is reported on us
 
 SCHEMA_VERSION = 1
 DEFAULT_AGENTS_ROOT = '~/.agents/agents/t3-plugins'
-SHARED_REQUIRED = ('boundaries.md',)
+SHARED_REQUIRED = ('boundaries.md', 'reviewer-standard.md', 'model-selection.schema.json', 'model-authority.schema.json')
 WORKER_CATALOG = {
     'imps': {
         'stage-executor': ('engineering stage completion and verification preparation', ['run']),
         'investigator': ('read-only cited investigation', ['issues', 'discussion']),
         'auditor': ('evidence-based audit and refutation', ['audit', 'blast-radius']),
-        'reviewer': ('independent exact-snapshot change review', ['run', 'prs']),
+        'reviewer': ('exact-snapshot code review and separate planning assessment',
+                     ['run', 'prs', 'audit', 'blast-radius', 'issues', 'checklist', 'discussion', 'verification-init']),
     },
     'ape': {'source-researcher': ('pinned source comparison and transferable proposals', ['forage', 'study']),
-           'synthesizer': ('accepted report comparison and bounded experiment proposals', ['forage'])},
+           'synthesizer': ('accepted report comparison and bounded experiment proposals', ['forage', 'study'])},
     'elephant-goldfish': {'factual-checker': ('repository and command claim verification', ['elephant', 'check']),
+                          'plan-reviewer': ('read-only source-plan challenge and planning coverage', ['thinking', 'elephant']),
                           'cold-reader': ('document-only usability and evidence verdict', ['thinking', 'elephant'])},
+    'ralph': {'strategy-reviewer': ('read-only written-strategy planning assessment', ['run', 'resume'])},
     'babysitter': {'pr-maintainer': ('one scoped PR triage and authorized repair', ['pr', 'repo', 'org']),
                    'pr-reviewer': ('independent final combined PR review', ['pr', 'repo', 'org'])},
     'agent-tuneup': {'config-researcher': ('provider-format and scope research with sources', ['audit', 'align']),
                      'config-verifier': ('authorized configuration change verification', ['audit', 'align', 'apply'])},
 }
+
+# Scope is a ceiling, never an action grant. The immutable brief narrows it.
+WORKER_SCOPES = {
+    f'{plugin}/{name}': ('brief-authorized' if (plugin, name) in {
+        ('imps', 'stage-executor'), ('babysitter', 'pr-maintainer'),
+        ('agent-tuneup', 'config-verifier')} else 'read-only')
+    for plugin, workers in WORKER_CATALOG.items() for name in workers
+}
+WORKER_OUTPUT = 'worker-result.schema.json'
 
 
 class RegistryError(ValueError):
@@ -206,12 +218,19 @@ def load_manifest(plugin_dir: Path) -> dict:
         raise RegistryError(f'{path}: plugin name does not match its directory')
     if not isinstance(meta.get('operations', []), list) or any(not isinstance(op, str) for op in meta.get('operations', [])):
         raise RegistryError(f'{path}: operations must be a string list')
+    matrix_path = Path(__file__).parent / 'operation-matrix.json'
+    matrix = json.loads(read_regular(matrix_path, 'operation matrix'))['plugins']
+    expected = matrix.get(meta['name'])
+    if (expected is not None and (set(expected) != set(meta['operations']) or meta.get('operation_review') != expected)
+            or expected is None and (meta.get('workers') or meta.get('planning_review'))):
+        raise RegistryError(f'{path}: full operation review matrix is missing or inconsistent')
     workers = meta.get('workers', [])
     if not isinstance(workers, list): raise RegistryError(f'{path}: workers must be a list')
     expected_ids = {f'{meta.get("name")}/{name}' for name in WORKER_CATALOG.get(meta.get('name'), {})}
     seen = set()
     for item in workers:
-        if not isinstance(item, dict) or set(item) != {'id', 'path', 'operations', 'role', 'responsibility'}:
+        if not isinstance(item, dict) or set(item) != {'id', 'path', 'operations', 'role', 'responsibility',
+                                                     'allowed_scope', 'output_contract'}:
             raise RegistryError(f'{path}: malformed worker declaration')
         wid, rel, ops, role = item['id'], item['path'], item['operations'], item['role']
         if (not isinstance(wid, str) or wid in seen or
@@ -229,8 +248,21 @@ def load_manifest(plugin_dir: Path) -> dict:
                 role not in ('workhorse', 'reviewer', 'judgement') or
                 not isinstance(item['responsibility'], str) or not item['responsibility'].strip()):
             raise RegistryError(f'{path}: invalid worker operation mapping or role')
+        if (item['allowed_scope'] != WORKER_SCOPES.get(wid) or
+                item['output_contract'] != WORKER_OUTPUT or
+                set(ops) != set(WORKER_CATALOG.get(meta['name'], {}).get(wid.split('/')[-1], ('', []))[1])):
+            raise RegistryError(f'{path}: worker scope, output contract or catalog operations mismatch')
     if workers and expected_ids and seen != expected_ids:
         raise RegistryError(f'{path}: worker catalog is incomplete or has unexpected IDs')
+    if 'planning_review' in meta:
+        from core.schema import errors, load_schema_file
+        policy = meta['planning_review']
+        schema = load_schema_file(Path(__file__).parent / 'agents/planning-policy.schema.json')
+        if errors(policy, schema) or policy['worker_id'] not in seen:
+            raise RegistryError(f'{path}: invalid planning purpose policy or undeclared worker')
+        worker = next(w for w in workers if w['id'] == policy['worker_id'])
+        if worker['role'] not in ('reviewer', 'judgement'):
+            raise RegistryError(f'{path}: planning review requires a judgement-capable worker')
     return meta
 
 
@@ -247,7 +279,9 @@ def declared_assets(plugin_dir: Path, shared_dir: Path):
         rel = f"workers/{worker['id'].split('/', 1)[1]}.md"
         assets.append((rel, data, {'id': worker['id'], 'source': worker['path'],
                                                'operations': worker['operations'], 'role': worker['role'],
-                                               'responsibility': worker['responsibility']}))
+                                               'responsibility': worker['responsibility'],
+                                               'allowed_scope': worker['allowed_scope'],
+                                               'output_contract': worker['output_contract']}))
     shared = meta.get('worker_shared', list(SHARED_REQUIRED))
     if (not isinstance(shared, list) or any(not isinstance(rel, str) for rel in shared) or
             len(set(shared)) != len(shared) or not set(SHARED_REQUIRED) <= set(shared)):

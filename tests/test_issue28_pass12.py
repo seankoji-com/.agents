@@ -142,36 +142,13 @@ class Pass12ValidationRaceTests(unittest.TestCase):
         """One-stage job whose single slot has a terminal result_available host handle and current acceptance."""
         base = self.base / job_id
         base.mkdir()
-        job = self.fx.base_job(job_id)
-        job['stages'] = job['stages'][:1]
-        job['installation_id'] = self.manifest['installation_id']
-        job['pins'] = {}
-        pin = pin_source(base, 'src')
-        job['stages'][0]['validator_contract'] = {'sources': [pin]}
-        create_pinned_job(job, self.state_root, self.prefix, self.agents, self.base / 'config' / 'workers.json')
-        store = Store(self.state_root, job_id)
-        caller = {'installation_id': self.manifest['installation_id'], 'workflow': job['workflow'],
-                  'package_digest': self.manifest['package_digest'], 'actor': 'coordinator'}
-        verify_all_pins(store)
-        brief = json.loads(Path(prepare(store, caller, 't0', verify_pinned_dependency, ok)['path']).read_text())
-        host = {'request_id': brief['request_id'], 'host_task_id': 'host0', 'child_thread_id': 'child-host0',
-                'has_pending_child_runs': False}
-        record_dispatch(store, caller, 't0', {**host, 'kind': 'accepted', 'status': 'running', 'work_state': 'working'})
-        result = self.fx.valid_result()
-        for key in ('job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256', 'revision'):
-            result[key] = brief[key]
-        result['binding'] = brief['snapshot']
-        result['requirements'] = [{'id': r['id'], 'status': 'passed', 'evidence': ['fixture']} for r in brief['requirements']]
-        record_result(store, caller, 't0', {'result': json.dumps(result).encode(), 'completion_id': 'host0-done',
-                                            'request_id': brief['request_id']})
-        record_dispatch(store, caller, 't0', {**host, 'kind': 'completion', 'completion_id': 'host0-done',
-                                              'status': 'completed', 'work_state': 'result_available'})
-        report = base / 'report.json'
-        report.write_text(json.dumps(study_descriptor(base, pin, ['R1'], [{'id': 'C1', 'kind': 'source-provenance'}])))
-        report = Path(publish_observation(store, caller, 's0', str(report))['path'])
-        argv = [str(self.version / 'scripts' / 'validate_report.py'), '--input', str(report)]
+        version, manifest, state_root, store, caller, report, argv = self.fx.ape_acceptance_fixture(base, one_stage=True)
         self.assertTrue(accept_stage(store, caller, 's0', argv, str(report), 's0-r1')['accepted'])
-        self.assertTrue(validate_stage(store, 's0')['accepted'])  # positive control
+        self.assertTrue(validate_stage(store, 's0')['accepted'])
+        task = store.load()['tasks'][0]
+        handle = task['handles'][0]
+        host = {'request_id': task['request_id'], 'host_task_id': handle['task_id'],
+                'has_pending_child_runs': False}
         return store, caller, argv, report, host
 
     def during_invoke(self, call_number, change):

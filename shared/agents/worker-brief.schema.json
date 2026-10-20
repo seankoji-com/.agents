@@ -149,6 +149,9 @@
     },
     "review_inputs": {
       "type": "object"
+    },
+    "model_selection": {
+      "type": "object"
     }
   },
   "additionalProperties": true

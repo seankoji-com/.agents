@@ -255,8 +255,12 @@
           ],
           "minimum": 1
         },
-        "identity": {"const": "observed"},
-        "author_independence": {"type": "boolean"},
+        "identity": {
+          "const": "observed"
+        },
+        "author_independence": {
+          "type": "boolean"
+        },
         "waivable_requirements": {
           "type": "array",
           "items": {
@@ -444,8 +448,15 @@
           "review_required": {
             "type": "boolean"
           },
-          "independent_of_author": {"type": "boolean"},
-          "document_authors": {"type": "array", "items": {"type": "object"}},
+          "independent_of_author": {
+            "type": "boolean"
+          },
+          "document_authors": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
           "role": {
             "enum": [
               "worker",
@@ -545,6 +556,113 @@
     "final_passes": {
       "type": "integer",
       "minimum": 0
+    },
+    "model_selection": {
+      "type": "object"
+    },
+    "model_selection_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "invocation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_selection_history": {
+      "type": "object"
+    },
+    "planning": {
+      "type": "object",
+      "required": [
+        "purpose",
+        "dependency_key",
+        "output_type",
+        "subject_file",
+        "snapshot",
+        "passes",
+        "attempts",
+        "round",
+        "attempts_per_candidate",
+        "data_classes",
+        "policy_sha256",
+        "technical_limit",
+        "sharing_revocations"
+      ],
+      "properties": {
+        "purpose": {
+          "const": "planning-review"
+        },
+        "dependency_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "output_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshot": {
+          "type": "object"
+        },
+        "passes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "round": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "attempts_per_candidate": {
+          "type": "integer",
+          "const": 2
+        },
+        "data_classes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "explicit_data_classes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "technical_limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sharing_revocations": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": true,

@@ -1,5 +1,7 @@
 # Trace a change beyond its diff
 
+Apply `PKG/references/planning-review.md` before substantive work. Preserve the
+upfront selection through aliases, source stages and repairs.
 Read `PKG/shared/t3-runtime.md`. This operation is read-only; do not fix findings.
 Delegate it as one read-only `imps/investigator` stage under
 `PKG/references/jobs.md`; a small diff may stay direct.
@@ -21,3 +23,8 @@ the smallest proposed check and label the risk unproven.
 Report change/invariants, confirmed consumers, risks with severity and proof level,
 cleared edges, and remaining pre-merge verification. A missing harness is not a proven
 product defect; passing unit tests do not clear untested consumers.
+
+Review the final integrated conclusions through the separate planning job, including
+zero findings/no-risk/no-change. Pin the final document and run requirements, then
+submit its actual receipt through `finalize` before `validate`/`report`. This adds
+no authority to fix, execute a write, publish or waive a stronger review gate.

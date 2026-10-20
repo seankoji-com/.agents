@@ -119,3 +119,14 @@ organization needs a separately authorized scheduled sweep. Unit tests don't sho
 given model behaves; see [compatibility](../compatibility.md).
 
 Jobs created through the shared CLI carry `policy.identity: observed`. Required reviewer executions, their subjects, and slots marked `independent_of_author` need verified host identity at acceptance. Authoring jobs enforce author-lineage checks from `policy.author_independence`, even if a slot omits its flag. Legacy jobs without the identity marker retain target-only acceptance semantics. A first author record cannot identify earlier authors of an unrecorded document. Direct cold-read stages cannot fall back to the coordinator.
+
+## Choices and written strategies
+
+Delegating maintenance asks for work/review choices upfront and reuses them on
+automatic wakes. Ordinary maintenance adds no planning artifact or evaluator. An
+actual written repair or landing strategy receives planning review before dependent
+actions. Merge authority, requested final-head review and the coordinator's native
+PR watch remain separate requirements.
+
+See [planning review](../plan-review.md) for default triggers, model choices,
+receipt freshness, fallback labels and requester reporting.

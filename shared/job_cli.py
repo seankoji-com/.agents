@@ -23,6 +23,13 @@ def main(argv=None):
   else:data={}
   if a.command=='create':
    if data.get('job_id')!=a.job:raise JobError('--job differs from create input job_id')
+   from shared.model_selection import validate, gate
+   from shared.job_coordinator import selection_for_task
+   selected=validate(data.get('model_selection'),data.get('model_selection_sha256'))
+   if not data.get('model_selection_sha256'):raise JobError('producing model_selection_sha256 required')
+   gate(selected,invocation_id=data.get('invocation_id'),scope_id=data.get('scope_id'))
+   data.setdefault('policy',{})['model_selection_required']=True
+   for task in data.get('tasks',[]):selection_for_task(data,task)
    out=create_pinned_job(data,a.state_root,a.prefix,a.agents_root,a.config)
   elif a.command in ('overview','status'):
    job=store.load();invalid=[]
@@ -60,8 +67,12 @@ def main(argv=None):
     pins=adopt_pins(job,deps,a.state_root,a.prefix or '',a.agents_root or '',a.config,data['revision'].get('adopt_keys',[]))
     record_job_root(job_agents_roots(pins),a.state_root,a.job);return pins  # index new owning roots before the revision is written
    from shared.document_authors import refresh_new_task_authors
+   from shared.job_coordinator import selection_plan_revision
+   selection_plan_revision(store.load(), data['new_plan'])
    current_policy=store.load().get('policy', {})
    proposed_policy=data['new_plan'].get('policy', current_policy)
+   if current_policy.get('model_selection_required') is True and proposed_policy.get('model_selection_required',True) is not True:
+    raise JobError('model selection policy is immutable once enabled')
    if current_policy.get('author_independence') is True and proposed_policy.get('author_independence', True) is not True:
     raise JobError('author independence policy is immutable once enabled')
    refresh_new_task_authors(store.load(),data['new_plan'])

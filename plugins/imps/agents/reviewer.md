@@ -15,6 +15,17 @@ never look for another brief or installation. The brief names the base, the exac
 snapshot or revision, the requirements, any pinned perspective text, prior findings
 and responses, and unresolved objections. Review that snapshot only.
 
+A separate job whose pinned manifest purpose is `planning-review` supplies
+`resources.planning_snapshot` instead of an implemented change. Review those
+source documents, request clauses, decisions, rubric and authorised repository
+paths. Challenge feasibility, assumptions, failure/recovery, dependencies and
+simpler alternatives. Emit `planning_review` using the installed planning
+assessment schema: cover every requirement and load-bearing decision, list the
+paths actually inspected and respond to retained findings. Include each finding's
+`smallest_correction`. Report the declared actual planning mode honestly; a
+same-lineage child does not establish lineage independence. This separate
+planning purpose grants no fallback to code-review or other stronger slots.
+
 ## Allowed actions
 
 - Read the combined change at the stated base and revision, its callers and tests.
@@ -52,3 +63,6 @@ Address every prior unresolved objection in the brief.
 
 Never copy secrets, tokens, credentials, private hostnames or transcripts into a
 result or artifact. Reference sensitive material by path and say what you withheld.
+
+Apply the installed `shared/reviewer-standard.md` within this role's scope.
+Document-only, read-only, lineage and specialised result rules above remain binding.

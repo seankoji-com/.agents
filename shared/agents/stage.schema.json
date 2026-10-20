@@ -98,6 +98,9 @@
     },
     "observation_ref": {
       "type": "object"
+    },
+    "selection_binding": {
+      "type": "object"
     }
   },
   "additionalProperties": true,

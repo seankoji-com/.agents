@@ -15,6 +15,9 @@ import hashlib
 import os
 import tempfile
 import unittest
+from pathlib import Path
+import re
+from tests.thinking_plan_review_fixtures import ThinkingPlanFixture, upfront_selection
 from unittest import mock
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -32,15 +35,23 @@ def _load(name, filename):
 
 rh = _load("render_handoff", "render_handoff.py")
 gp = _load("gh_publish", "gh_publish.py")
+_active_plan_fixture = None
 
 
 @contextlib.contextmanager
 def topic(output_type="research", discovery="DISCOVERY BODY", spec="SPEC BODY", title="A Title"):
+    global _active_plan_fixture
     prev = os.getcwd()
     with tempfile.TemporaryDirectory() as tmp:
         os.chdir(tmp)
+        previous_fixture = _active_plan_fixture
+        _active_plan_fixture = ThinkingPlanFixture(Path(tmp) / 'plan-fixture')
+        environment = mock.patch.dict(os.environ, _active_plan_fixture.box.env)
+        environment.start()
         os.makedirs("thinking/t")
         meta = {"slug": "t", "title": title, "output_type": output_type, "github": {"mode": "none"}, "published": {}}
+        from thinking_plan_review import admission
+        meta['model_admission'] = admission('t', upfront_selection('t'), 'fixture:request:t')
         if discovery:
             meta["review"] = {"schema": 1, "status": "accepted", "scope": "finalise-brief",
                               "discovery_sha256": hashlib.sha256(discovery.encode()).hexdigest(),
@@ -52,10 +63,14 @@ def topic(output_type="research", discovery="DISCOVERY BODY", spec="SPEC BODY", 
         if discovery is not None:
             write("thinking/t/discovery.md", discovery)
         if spec is not None:
+            if spec.strip() and not re.search(r'\[REQ-[A-Z0-9_-]+\]', spec):
+                spec += '\n[REQ-FIXTURE] Preserve the supplied fixture text.\n'
             write("thinking/t/spec.md", spec)
         try:
             yield tmp
         finally:
+            environment.stop()
+            _active_plan_fixture = previous_fixture
             os.chdir(prev)
 
 
@@ -73,6 +88,13 @@ def run(argv):
     buf, err = io.StringIO(), io.StringIO()
     if "--stdout" not in argv and "--check" not in argv and "--capabilities" not in argv:
         argv = argv + ["--capabilities", _CAPABILITIES]
+    if '--check' not in argv and '--draft' not in argv and argv[0] == 't':
+        discovery, spec = Path('thinking/t/discovery.md'), Path('thinking/t/spec.md')
+        meta = json.loads(Path('thinking/t/meta.json').read_text())
+        if (meta.get('output_type') in ('research', 'implementation') and discovery.is_file() and spec.is_file()
+                and discovery.read_text().strip() and spec.read_text().strip()
+                and not Path('thinking/t/handoff.md').is_symlink()):
+            _active_plan_fixture.approve(Path(_PLUGIN).resolve() / 'scripts', Path('thinking').absolute(), 't')
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(err):
         code = rh.main(argv + ["--template-dir", _TEMPLATES])
     return code, buf.getvalue(), err.getvalue()

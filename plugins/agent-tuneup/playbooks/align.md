@@ -1,5 +1,9 @@
 # Align T3 providers
 
+Before inventory, complete upfront selection and admission using
+`PKG/shared/adopter-planning.md`. Review integrated conclusions, including no-change,
+and each private proposal before requesting concrete apply approval.
+
 ## Inventory and comparison
 
 1. Discover `orchestrator_capabilities` and retain its current response as private
@@ -119,7 +123,10 @@ The settings files must be owned regular files without hard links or group/other
 
 ## Apply approved changes
 
-An `align` request authorizes inventory and preparation. `apply` needs owner approval
+An `align` request authorizes inventory and preparation. The proposal planning
+receipt must pass before concrete owner approval; changed candidate bytes reopen both.
+Use `plan_review.py approve`, then provide the returned approval with the apply
+admission as `--context FILE`. `apply` needs owner approval
 of the concrete plan and its digest, unless that exact plan was already authorized.
 A digest is an integrity check, not evidence that the owner approved it. Repeat no
 approval already given for the same unchanged plan. Stop on a denied write and
@@ -130,7 +137,7 @@ rewrite their configuration. Apply is POSIX-only, one existing file per invocati
 
 ```sh
 python3 PKG/scripts/align.py apply --plan /absolute/private-plan.json \
-  --approval APPROVED_DIGEST --backup /absolute/new-backup
+  --approval APPROVED_DIGEST --backup /absolute/new-backup --context /absolute/apply-context.json
 ```
 
 The helper revalidates original/candidate bytes, changed keys, identity and mode,

@@ -131,7 +131,7 @@ def main(argv=None) -> int:
             raise RenderError("writing a handoff requires --capabilities with a fresh orchestrator_capabilities response")
 
         tpl_dir = Path(args.template_dir) if args.template_dir else default_template_dir()
-        tpl_file = tpl_dir / f"handoff.{output_type}.md"
+        tpl_file = Path(os.path.abspath(tpl_dir)) / f"handoff.{output_type}.md"
         if not tpl_file.exists():
             raise RenderError(f"missing template {tpl_file}")
 
@@ -151,17 +151,27 @@ def main(argv=None) -> int:
                    f"## Problem definition\n\n{values['DISCOVERY']}\n\n"
                    f"## Proposed evaluation criteria\n\n{values['SPEC']}\n")
         else:
+            cmd_gate(argparse.Namespace(root=args.root, slug=args.slug,
+                                        require='discovery', draft=False))
+            from thinking_plan_review import state as plan_state, helpers
+            planning = plan_state(tdir, meta, tpl_dir)
+            if not planning['ready']:
+                raise RenderError(planning['reason'])
             gate = cmd_gate(argparse.Namespace(root=args.root, slug=args.slug,
-                                              require="discovery,spec", draft=False))
+                                              require="discovery,spec,plan_review", draft=False,
+                                              template_dir=tpl_dir))
             for key, filename in (("DISCOVERY", "discovery.md"), ("SPEC", "spec.md")):
                 if hashlib.sha256(values[key].encode()).hexdigest() != gate["input_hashes"][filename]:
                     raise RenderError("inputs changed during readiness check; retry from reviewed inputs")
             out = render(tpl_file.read_text(encoding="utf-8"), values)
             out = (f"Review status: {gate['review']['status']}. Scope: finalise-brief.\n"
                    "This handoff does not authorise execution. A separate user instruction is required.\n\n"
+                   f"Plan review: accepted ({', '.join(planning['modes'])}); "
+                   f"rounds {planning['rounds_used']}/{planning['round_limit']}.\n"
+                   "The manifest binds the reviewed source snapshot and actual planning receipt.\n\n"
                    + out)
         manifest = {
-            "schema": 2,
+            "schema": 2 if args.draft else 3,
             "status": "draft" if args.draft else "final",
             "topic": args.slug,
             "output_type": output_type,
@@ -172,6 +182,9 @@ def main(argv=None) -> int:
         }
         if not args.draft:
             manifest["review_sha256"] = gate["review_sha256"]
+            manifest['plan_review'] = meta['plan_review']
+            manifest['template'] = helpers().file_descriptor(tpl_file.absolute())
+            manifest['rubric'] = helpers().file_descriptor(Path(__file__).resolve().parents[1] / 'references/plan-review-rubric.md')
         if not args.stdout:
             try:
                 package_root = next((parent for parent in Path(__file__).resolve().parents

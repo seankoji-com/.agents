@@ -222,12 +222,13 @@ class Pass22AdapterToPinnedFinalGateTests(unittest.TestCase):
         version = Path(json.loads(proc.stdout)['data']['version_dir'])
         return version, json.loads((version / 'install-manifest.json').read_text())
 
-    def _run(self, state_root, sid):
+    def _run(self, state_root, sid, version, manifest, env):
         from tests.support import CoreTestCase
         case = CoreTestCase(methodName='runTest'); case.setUp(); self.addCleanup(case.doCleanups)
         case.state_root = state_root / sid
         repo = case.make_repo()
-        run = case.init(case.plan(repo, policy={'review': {'required': True, 'role': 'reviewer'}, 'checks': [
+        from tests.imps_plan_review_fixtures import admitted_gate
+        run = admitted_gate(case, version, manifest, env, case.plan(repo, policy={'review': {'required': True, 'role': 'reviewer'}, 'checks': [
             {'name': 'unit', 'argv': [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'], 'cwd': str(repo)}]}))
         for req in run.state['brief']['requirements']:
             run.evidence(req['id'], run.scratch(f'{sid}-{req["id"]}.txt', 'verified fixture evidence\n'))
@@ -246,7 +247,8 @@ class Pass22AdapterToPinnedFinalGateTests(unittest.TestCase):
             state_root = base / 'stage-state'; state_root.mkdir()
             final = version / 'scripts/validate_stage.py'
             stage_hash = hashlib.sha256(final.read_bytes()).hexdigest()
-            runs = {sid: self._run(state_root, sid) for sid in ('s', 't')}
+            env = {**os.environ, 'HOME': str(base / 'home'), 'XDG_CONFIG_HOME': str(base / 'config'), 'XDG_STATE_HOME': str(base / 'state')}
+            runs = {sid: self._run(state_root, sid, version, manifest, env) for sid in ('s', 't')}
             rows = [{'id': sid, 'state_subdir': sid, 'run_id': runs[sid][0].run_id, 'stage_sha256': stage_hash} for sid in ('s', 't')]
             job_state = base / 'job-state'
             caller = {'installation_id': manifest['installation_id'], 'workflow': 'imps/issue',

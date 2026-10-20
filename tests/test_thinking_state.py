@@ -18,6 +18,8 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
+from tests.thinking_plan_review_fixtures import ThinkingPlanFixture, init_selection_args
 from pathlib import Path
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -56,6 +58,8 @@ def write(path, text):
 
 def run(argv):
     """Invoke main() and return (exit_code, parsed_stdout_or_None)."""
+    if argv and argv[0] == "init" and "/" not in argv[1] and "\n" not in argv[1]:
+        argv = [*argv, *init_selection_args(Path.cwd(), argv[1])]
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         code = ts.main(argv)
@@ -192,14 +196,17 @@ class TestPhaseProgression(unittest.TestCase):
             self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "discovery_review")
             accept()
             self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "spec")
-            write("thinking/t/spec.md", "s")
-            self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "handoff")
+            write("thinking/t/spec.md", "[REQ-ONE] s")
+            self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "plan_review")
             import subprocess
             import sys
-            subprocess.run([sys.executable, os.path.join(os.path.dirname(_SCRIPT_PATH), "render_handoff.py"), "t",
-                            "--capabilities", os.path.join(_HERE, "fixtures", "t3", "capabilities.json")],
-                           check=True, capture_output=True)
-            self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "complete")
+            fixture = ThinkingPlanFixture(Path.cwd() / 'plan-fixture')
+            fixture.approve(Path(_SCRIPT_PATH).resolve().parent, Path('thinking').absolute(), 't')
+            with mock.patch.dict(os.environ, fixture.box.env):
+                subprocess.run([sys.executable, os.path.join(os.path.dirname(_SCRIPT_PATH), "render_handoff.py"), "t",
+                                "--capabilities", os.path.join(_HERE, "fixtures", "t3", "capabilities.json")],
+                               check=True, capture_output=True)
+                self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "complete")
 
     def test_reports_only_the_three_pipeline_artifacts(self):
         # handoff.md is the output of the process; nothing else is tracked. A stray
@@ -303,11 +310,15 @@ class TestGate(unittest.TestCase):
         with sandbox():
             run(["init", "t", "--output-type", "research"])
             write("thinking/t/discovery.md", "d")
-            write("thinking/t/spec.md", "s")
+            write("thinking/t/spec.md", "[REQ-ONE] s")
             accept()
-            code, out = run(["gate", "t", "--require", "discovery,spec"])
-            self.assertEqual(code, 0)
-            self.assertEqual(out["gate"], "pass")
+            self.assertEqual(run(["gate", "t", "--require", "discovery,spec"])[0], 1)
+            fixture = ThinkingPlanFixture(Path.cwd() / 'plan-fixture')
+            fixture.approve(Path(_SCRIPT_PATH).resolve().parent, Path('thinking').absolute(), 't')
+            with mock.patch.dict(os.environ, fixture.box.env):
+                code, out = run(["gate", "t", "--require", "discovery,spec"])
+                self.assertEqual(code, 0)
+                self.assertEqual(out["gate"], "pass")
 
     def test_empty_and_whitespace_only_artifacts_do_not_pass(self):
         # A 0-byte discovery.md is an interrupted phase, not a completed one. Letting it

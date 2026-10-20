@@ -2,7 +2,7 @@
 """Validate exact-head PR state from content-bound coordinator host observations."""
 import argparse, json, re, sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents if (p/'shared/adopter_planning.py').is_file())))
 from shared.validator_observations import read_object, observation, emit
 
 PASSING = ('success', 'neutral', 'skipped')
@@ -56,6 +56,9 @@ def main():
             raise ValueError('host observations need strictly increasing coordinator sequence numbers')
         if not required and snapshots[-1].get('allow_empty_required_contexts') is not True:
             raise ValueError('latest host policy must confirm empty required contexts')
+        if data.get('adopter_output'):
+            from shared.adopter_planning import validate
+            validate(data['adopter_output'], Path(__file__).resolve().parents[1])
         result = emit(True, 'exact-head-required-checks', {'input': args.input, 'sha256': sha})
     except (OSError, ValueError, KeyError, TypeError) as exc:
         result = emit(False, 'exact-head-required-checks', {'reason': str(exc)})

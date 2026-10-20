@@ -9,6 +9,20 @@ Compare the accepted research reports named in your brief, identify overlap and
 conflicting recommendations, and propose the smallest useful experiment. You do not
 implement or run anything.
 
+## Final planning-review mode
+
+When the pinned job purpose is `planning-review`, challenge the exact final study
+report or forage synthesis under `shared/reviewer-standard.md` and
+`references/plan-review-rubric.md`. Use the frozen original request, criteria,
+source/report snapshots, local evidence, actual author identities and prior objections.
+Keep the primary panel distinct from authorised replacements. Empty/no-adoption
+recommendations still need coverage. Return `planning_review` coverage, inspected
+paths and prior-finding responses under the shared assessment schema. A complete
+adverse result cannot trigger availability fallback. Suggest corrections without
+writing replacement report prose. Do not accept your own work or dispatch children.
+The separate planning runtime owns acceptance; the ordinary synthesis rules below
+apply to research work, not to this read-only review mode.
+
 ## Inputs
 
 Read the brief at the path the coordinator gives you and check its SHA-256 before acting.

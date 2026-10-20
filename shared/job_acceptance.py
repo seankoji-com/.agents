@@ -30,6 +30,22 @@ def _caller(job, caller):
         raise AcceptanceError(str(exc)) from exc
 
 def _semantic_binding(job, stage):
+    # Validate the producing record, not a newly preferred panel. Its digest is
+    # already part of each immutable slot/brief and therefore this semantic hash.
+    if job.get('policy', {}).get('model_selection_required') or job.get('model_selection'):
+        from shared.model_selection import validate, SelectionError
+        producers = [task for task in job['tasks'] if task['stage_id'] == stage['id']]
+        if stage.get('direct_execution_history'):
+            producers.append(stage)
+        for task in producers:
+            producing = (task.get('selection_binding') or {}).get('selection_sha256')
+            record = (job.get('model_selection_history') or {}).get(producing, job.get('model_selection'))
+            try:
+                if not producing:
+                    raise SelectionError('producing selection binding missing')
+                validate(record, producing)
+            except SelectionError as exc:
+                raise AcceptanceError('producing model selection invalid: ' + str(exc)) from exc
     contract = {key: job.get(key) for key in (
         'installation_id', 'workflow', 'objective', 'requirements', 'authorization',
         'constraints', 'snapshot', 'dependencies', 'pins', 'policy')}
@@ -442,15 +458,19 @@ def _adapter(job, stage, argv, input_file):
     data = strict_load(raw)
     contract = stage.get('validator_contract', {})
     if dep['plugin'] == 'ape':
+        from shared.ape_planning import validate_job
+        validate_job(job)
         criteria = stage.get('criteria', [])
         if not criteria or any(not isinstance(row, dict) or not isinstance(row.get('id'), str) or not row['id'] or 'status' in row or row.get('kind') not in ('source-provenance', 'finding-source-coverage') for row in criteria):
             raise AcceptanceError('ape stage criteria must declare checks, never result statuses')
         if not isinstance(data.get('criteria'), list) or sorted(data['criteria'],key=canonical) != sorted(criteria,key=canonical) or not contract.get('sources') or data.get('sources') != contract['sources']:
             raise AcceptanceError('report source pins or criteria differ from the declared stage')
         # The validator checks coverage of what the report declares; bind that declaration to the stage.
-        # A research stage may be ordered after another; only synthesis needs (and consumes) dependencies.
-        synthesis = bool(stage.get('depends_on'))
-        operations = {'ape/study': {'study'}, 'ape/forage': {'forage-research', 'forage-synthesis'} if synthesis else {'forage-research'}}
+        # The admitted stage defines its output; ordered research may also have dependencies.
+        synthesis = (stage.get('resources', {}).get('ape_output_type') == 'forage-synthesis' or
+                     any(t['stage_id'] == stage['id'] and t['worker_id'] == 'ape/synthesizer'
+                         for t in job.get('tasks', [])))
+        operations = {'ape/study': {'study'}, 'ape/forage': {'forage-synthesis'} if synthesis else {'forage-research'}}
         if job['workflow'] in operations and data.get('operation') not in operations[job['workflow']]:
             raise AcceptanceError('ape report operation differs from the job workflow and stage')
         declared = data.get('requirements')
@@ -461,6 +481,26 @@ def _adapter(job, stage, argv, input_file):
             consumed = data.get('consumed_reports')
             if not isinstance(consumed, list) or any(not isinstance(row, dict) for row in consumed) or sorted(map(str, (row.get('path') for row in consumed))) != outputs:
                 raise AcceptanceError('ape synthesis must consume exactly the accepted dependency outputs')
+        if data.get('operation') in ('study', 'forage-synthesis'):
+            from shared.planning_review import current_file
+            reference = data.get('planning_review')
+            if not isinstance(reference, dict):
+                raise AcceptanceError('final ape report requires planning review metadata')
+            current_file(reference)
+            metadata = strict_load(_regular(Path(reference['path'])))
+            if metadata.get('job_file') != str(inp.parent.parent / 'job.json') or metadata.get('stage_id') != stage['id']:
+                raise AcceptanceError('ape planning metadata belongs to another producing job/stage')
+    from shared.adopter_planning import validate_job as validate_adopter_job, validate as validate_adopter_output
+    validate_adopter_job(job, stage['id'])
+    if dep['plugin'] == 'agent-tuneup':
+        # The last integrated audit/proposal always reviews even no-change output.
+        successors = [s for s in job['stages'] if stage['id'] in s['depends_on']]
+        if not successors and job['workflow'] in ('agent-tuneup/align', 'agent-tuneup/audit'):
+            desc = data.get('adopter_output')
+            if not isinstance(desc, dict) or desc.get('admission') != job.get('adopter_admission'):
+                raise AcceptanceError('integrated tuneup conclusions require the producing planning descriptor')
+            from shared.adopter_planning import validate_observation
+            validate_observation(data, desc, Path(pin['package_dir']))
     if dep['plugin'] in ('babysitter', 'agent-tuneup'):
         required = ({'pr', 'head_sha', 'required_contexts', 'allow_empty_required_contexts', 'optional_contexts', 'authorized_endstate'} if dep['plugin'] == 'babysitter' else {'criteria'})
         if not required <= set(contract) or any(data.get(key) != value for key, value in contract.items()):
@@ -516,11 +556,11 @@ def _adapter(job, stage, argv, input_file):
         if contract.get('root') != flags['--root'] or contract.get('slug') != flags['--slug'] or contract.get('mode') != flags.get('--mode', 'handoff'):
             raise AcceptanceError('document invocation differs from declared root/slug/mode')
         mode = flags.get('--mode', 'handoff')
-        if mode == 'handoff':
+        if mode in ('handoff', 'plan-review'):
             descriptor = strict_load(raw)
             if not isinstance(descriptor, dict) or any(
                 descriptor.get(key[2:].replace('-', '_')) != value for key, value in flags.items()):
-                raise AcceptanceError('handoff inputs are not bound to the descriptor')
+                raise AcceptanceError('handoff/plan-review inputs are not bound to the descriptor')
         elif mode in ('factual', 'cold-read'):
             required = {'root', 'slug', 'mode', 'document_path', 'document_sha256'}
             if not required <= set(contract) or not Path(contract['document_path']).is_absolute() or any(data.get(key) != value for key, value in contract.items() if key not in ('root', 'slug', 'mode')):

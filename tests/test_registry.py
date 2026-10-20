@@ -182,7 +182,7 @@ class PinSnapshotTest(unittest.TestCase):
                 self.assertIn(worker['role'], allowed)
                 self.assertTrue(worker['responsibility'].strip())
                 roles.append(worker['role'])
-        self.assertEqual(len(roles), 12)
+        self.assertEqual(len(roles), 13)
         import shutil
         scratch = self.base / 'malformed-plugin' / 'imps'
         scratch.parent.mkdir()
