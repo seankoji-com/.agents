@@ -1,7 +1,7 @@
 # Maintain pull requests
 
-For requested final-head review, use `PKG/shared/supplemental-reviews.md` only with
-consent and an existing reviewed-head checkout; never move checkouts for extras.
+At an operator-requested final-head PR review, use `PKG/shared/supplemental-reviews.md` only with consent and when the coordinator checkout is already at the reviewed PR HEAD.
+Never change checkouts merely to enable extras.
 
 The coordinator owns discovery, watches, merges, resolutions and acceptance.
 Children repair one PR each.
@@ -109,7 +109,6 @@ Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop ru
     every row must be merged, owned elsewhere or `needs human:`. Run `job_acceptance_cli.py
     validate-final` per job with fresh observations, unwatch PRs, confirm every child
     stopped through `task_status`, and remove only clean, task-owned worktrees. Post the
-    final table. Empty or partial responses prove nothing. Do not run
-    `pr-events.sh` in T3; it is a legacy standalone adapter.
+    final table. Do not run `pr-events.sh` in T3.
 
 Written strategies require `PKG/shared/adopter-planning.md`.
