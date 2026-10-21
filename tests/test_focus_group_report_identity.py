@@ -1,7 +1,7 @@
 """Owner-accepted identity evidence through analysis, review and portable report export.
 
 Kept in its own module so these full-workflow cases and the other reporting cases each
-retain the test runner's unchanged per-module timeout. Every host observation is invented.
+retain the unchanged per-module timeout. Every host observation is invented.
 """
 import json
 import sys
