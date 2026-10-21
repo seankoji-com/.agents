@@ -54,7 +54,7 @@ def generated_briefs():
     return briefs
 
 
-def handoff_briefs():
+def handoff_briefs(*, temporary_root=None):
     plugin = ROOT / 'plugins/elephant-goldfish'
     spec = importlib.util.spec_from_file_location('render_handoff_hygiene', plugin / 'scripts/render_handoff.py')
     module = importlib.util.module_from_spec(spec)
@@ -62,7 +62,8 @@ def handoff_briefs():
     rendered = {}
     previous = os.getcwd()
     for output_type in ('research', 'implementation'):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=temporary_root) as tmp:
+            tmp = Path(tmp).resolve()
             os.chdir(tmp)
             try:
                 topic = Path('thinking/t')
@@ -119,6 +120,19 @@ class InstructionHygiene(unittest.TestCase):
         for name, text in briefs.items():
             self.assertTrue(text.strip(), name)
             self.assertEqual(banned_in(text), [], name)
+
+    def test_handoffs_use_the_same_review_root_through_a_temporary_directory_alias(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real = root / 'real'
+            real.mkdir()
+            alias = root / 'alias'
+            alias.symlink_to(real, target_is_directory=True)
+            briefs = handoff_briefs(temporary_root=alias)
+        self.assertEqual(set(briefs), {'handoff:research', 'handoff:implementation'})
+        for text in briefs.values():
+            self.assertTrue(text.strip())
+            self.assertEqual(banned_in(text), [])
 
     def test_catalog_prompt_contains_no_banned_phrases(self):
         with tempfile.TemporaryDirectory() as tmp:
