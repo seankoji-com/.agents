@@ -874,7 +874,7 @@ def payload_spec(stage, cell_id, revision, write_path, pack, plan, journey=None)
         'For incomplete work use status "blocked", "failed" or "needs-followup" and accurate requirement outcomes; '
         'unverified/unavailable outcomes require a reason. Never claim a pass to satisfy the transport.',
         f'artifacts must include {{"path":"{write_path}/payload.json","sha256":"SHA-256 of the payload file",'
-        '"bytes":123}}. Replace 123 with the exact integer byte count, never size, a string or a boolean. '
+        '"bytes":123}. Replace 123 with the exact integer byte count, never size, a string or a boolean. '
         'Paths are relative to the job root, inside your task subtree. Hash the final bytes before returning. '
         'The shared parser rejects malformed output; the coordinator must preserve it unchanged.'])
 

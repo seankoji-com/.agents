@@ -281,6 +281,15 @@ class Swap:
 class RelocatedInstallTest(unittest.TestCase):
     """One package installed by the catalog, moved to a new prefix and adopted, then used without the source."""
 
+    def assert_artifact_example(self, run):
+        expected_output = run['text'].split('## Expected output\n', 1)[1]
+        fragment = expected_output.split('artifacts must include ', 1)[1].split('. Replace 123', 1)[0]
+        artifact = json.loads(fragment)
+        self.assertEqual(set(artifact), {'path', 'sha256', 'bytes'})
+        self.assertEqual(artifact['path'], f'artifacts/tasks/{run["task"]}/payload.json')
+        self.assertEqual(artifact['sha256'], 'SHA-256 of the payload file')
+        self.assertIs(type(artifact['bytes']), int)
+
     @property
     def inst(self):
         return STATE['relocated']
@@ -468,6 +477,7 @@ class RelocatedInstallTest(unittest.TestCase):
             h.start(mode='capture-only')
             for n in range(len(h.view['cells'])):
                 run = h.begin(n)
+                self.assert_artifact_example(run)
                 brief = run['brief']
                 files = h.stimulus(h.view['study_id'])['files']
                 expected = [{k: f[k] for k in ('path', 'sha256')}
@@ -532,6 +542,7 @@ class RelocatedInstallTest(unittest.TestCase):
             h.declare_journeys()
             for n in range(len(h.view['cells'])):
                 run = h.begin(n, stage='journey')
+                self.assert_artifact_example(run)
                 payload = run['payload']
                 self.assertEqual(payload['goals'], [])
                 self.assertEqual([g['journey_id'] for g in payload['gaps']], ['plan-three-dinners'])
