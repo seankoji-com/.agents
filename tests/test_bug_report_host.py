@@ -449,15 +449,16 @@ class HostWorkflow(unittest.TestCase):
                         private_path='/'+'home'+'/synthetic/private-source'
                         self.c.call('init', {'incident_key':'synthetic-context:1', 'owner_thread':'invoker',
                             'private_values':['PRIVATE_RESUME_SENTINEL']})
-                        secret='PRIVATE_TRANSCRIPT_SENTINEL PRIVATE_SOURCE_SENTINEL PRIVATE_RESUME_SENTINEL hidden.corp.invalid token=synthetic-secret '+private_path
+                        # Fixed synthetic markers exercise redaction; no credentials are read.
+                        synthetic_input='PRIVATE_TRANSCRIPT_SENTINEL PRIVATE_SOURCE_SENTINEL PRIVATE_RESUME_SENTINEL hidden.corp.invalid token=synthetic-secret '+private_path
                         p=problem(outcome='t3-improvement' if kind=='idea' else 't3-defect')
-                        p['evidence']['actual']+=' '+secret
+                        p['evidence']['actual']+=' '+synthetic_input
                         self.c.call('problem',p)
                         draft=self.c.search(selected=URL if kind=='comment' else None,
-                            reason='Compared candidate scope '+secret)['draft']
+                            reason='Compared candidate scope '+synthetic_input)['draft']
                         self.launch()
                         self.post(kind,**({'target':URL} if kind=='comment' else {}),
-                            payload={'body':draft,**({'title':'Report '+secret} if kind in {'issue','idea'} else {})})
+                            payload={'body':draft,**({'title':'Report '+synthetic_input} if kind in {'issue','idea'} else {})})
                         url=IDEA if kind=='idea' else next(iter(self.host.objects))
                         self.assertIn('Search assessment: Compared candidate scope',
                                       self.host.observed(url)['payload']['body'])
@@ -466,13 +467,13 @@ class HostWorkflow(unittest.TestCase):
                         artifact=Path(self.c.tmp.name)/'public-artifact.json'
                         artifact.write_text(json.dumps(exported))
                         inp=Path(self.c.tmp.name)/'private-input.json'
-                        inp.write_text(json.dumps({'kind':'credentials','payload':{'body':secret}}))
+                        inp.write_text(json.dumps({'kind':'credentials','payload':{'body':synthetic_input}}))
                         result=subprocess.run([sys.executable,str(fixtures.SCRIPT),'prepare','--session','case',
                             '--state-root',str(self.c.root),'--input',str(inp)],capture_output=True,text=True,timeout=10)
                         self.assertEqual(result.returncode,2)
                         logs=result.stdout+result.stderr
                         malformed=Path(self.c.tmp.name)/'malformed-input.json'
-                        malformed.write_text(json.dumps({'kind':'issue','payload':[secret]}))
+                        malformed.write_text(json.dumps({'kind':'issue','payload':[synthetic_input]}))
                         bad=subprocess.run([sys.executable,str(fixtures.SCRIPT),'prepare','--session','case',
                             '--state-root',str(self.c.root),'--input',str(malformed)],capture_output=True,text=True,timeout=10)
                         self.assertEqual(bad.returncode,2)
