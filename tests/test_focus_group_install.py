@@ -570,11 +570,8 @@ class ArchitectureTest(unittest.TestCase):
         credential = re.compile(r'(?i)\b(?:gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})\b')
         plugin_files = [p for p in self.package.rglob('*') if p.is_file() and p.parts[len(self.package.parts)] not in
                         ('core', 'shared') and p.name != 'install-manifest.json']
-        fixtures = [ROOT / 'tests' / name for name in ('focus_group_fixtures.py', 'test_focus_group_plan.py',
-                                                         'test_focus_group_evidence.py', 'test_focus_group_lifecycle.py',
-                                                         'test_focus_group_report.py', 'test_focus_group_report_identity.py',
-                                                         'test_focus_group_workflow.py',
-                                                         'test_focus_group_install.py')]
+        fixtures = [ROOT / 'tests' / 'focus_group_fixtures.py'] + sorted(
+            (ROOT / 'tests').glob('test_focus_group*.py'))
         for path in plugin_files + [f for f in fixtures if f.exists()]:
             text = path.read_text(errors='replace')
             with self.subTest(path=path.name):

@@ -3,6 +3,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -125,6 +126,59 @@ class RunTestsTest(unittest.TestCase):
         self.assertNotIn('test_bad', out)
         with self.assertRaises(SystemExit):
             self.run_main('test_nothing_matches')
+
+    def test_shards_run_every_filtered_module_once_and_keep_failures(self):
+        self.suite(test_selected_one=PASSING, test_selected_two=PASSING,
+                   test_selected_bad=FAILING, test_selected_empty=EMPTY,
+                   test_selected_hang=HANGING, test_omitted=FAILING)
+        expected = runner.modules(['test_selected*'])
+        executed, failures, total = [], [], 0
+        for index in range(3):
+            with patch.object(runner, 'run', wraps=runner.run) as run:
+                code, out, err = self.run_main('--shard-index', str(index), '--shard-count', '3',
+                                               '--timeout', '1', 'test_selected*')
+            paths = [call.args[0] for call in run.call_args_list]
+            self.assertCountEqual(paths, expected[index::3])
+            executed.extend(paths)
+            total += int(out.split(' tests in ')[0].splitlines()[-1])
+            if code:
+                failures.append(err)
+        self.assertCountEqual(executed, expected)
+        self.assertEqual(len(executed), len(set(executed)))
+        self.assertEqual(total, 5)
+        self.assertIn('planted', '\n'.join(failures))
+        self.assertIn('===== test_selected_empty =====', '\n'.join(failures))
+        self.assertIn('stopped after 1s', '\n'.join(failures))
+
+    def test_invalid_or_empty_shards_fail_before_running_tests(self):
+        self.suite(test_one=PASSING)
+        for flags in (('--shard-count', '0'), ('--shard-index', '-1'),
+                      ('--shard-index', '1'), ('--shard-index', '2', '--shard-count', '2'),
+                      ('--shard-index', '1', '--shard-count', '2')):
+            with self.subTest(flags=flags), patch.object(runner, 'run') as run:
+                with self.assertRaises(SystemExit) as raised:
+                    self.run_main(*flags)
+                self.assertEqual(raised.exception.code, 2)
+                run.assert_not_called()
+
+    def test_ci_matrix_covers_every_shard_consumed_by_the_test_command(self):
+        workflow = (ROOT / '.github' / 'workflows' / 'test.yml').read_text()
+
+        def check(text):
+            matrix = re.search(r'(?m)^        shard: (\[[^\n]+\])$', text)
+            command = re.search(r'(?m)^        run: python3 scripts/run_tests.py '
+                                r'--shard-index "\$TEST_SHARD_INDEX" --shard-count (\d+)$', text)
+            self.assertIsNotNone(matrix, 'CI must declare every shard index')
+            self.assertIsNotNone(command, 'CI must run the full shard without test filters')
+            self.assertIn('TEST_SHARD_INDEX: ${{ matrix.shard }}', text)
+            self.assertEqual(sorted(json.loads(matrix.group(1))), list(range(int(command.group(1)))))
+
+        check(workflow)
+        # Removing the highest shard leaves every remaining index valid to the
+        # runner, but silently omits tests unless the workflow contract catches it.
+        indices = re.search(r'(?m)^        shard: (\[[^\n]+\])$', workflow).group(1)
+        with self.assertRaises(AssertionError):
+            check(workflow.replace(indices, json.dumps(json.loads(indices)[:-1])))
 
 
 if __name__ == '__main__':
