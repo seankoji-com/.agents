@@ -530,7 +530,8 @@ class ArchitectureTest(unittest.TestCase):
                         ('core', 'shared') and p.name != 'install-manifest.json']
         fixtures = [ROOT / 'tests' / name for name in ('focus_group_fixtures.py', 'test_focus_group_plan.py',
                                                          'test_focus_group_evidence.py', 'test_focus_group_lifecycle.py',
-                                                         'test_focus_group_report.py', 'test_focus_group_workflow.py',
+                                                         'test_focus_group_report.py', 'test_focus_group_report_identity.py',
+                                                         'test_focus_group_workflow.py',
                                                          'test_focus_group_install.py')]
         for path in plugin_files + [f for f in fixtures if f.exists()]:
             text = path.read_text(errors='replace')

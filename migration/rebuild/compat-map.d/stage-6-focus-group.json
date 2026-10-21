@@ -94,6 +94,7 @@
     {"path": "plugins/focus-group/scripts/validate_study.py", "stage": 6, "kind": "helper", "reason": "Pinned study validator adapter for shared stage acceptance (FG-4)."},
     {"path": "plugins/focus-group/references/report-contract.md", "stage": 6, "kind": "reference", "reason": "Synthesis, bundle, review and export record shapes (FG-4)."},
     {"path": "tests/test_focus_group_report.py", "stage": 6, "kind": "test", "reason": "FG-4 report, evidence, counts, priority, fidelity and export fixtures through the installed job and acceptance helpers and an invented host; no model, browser, T3 or GitHub calls."},
+    {"path": "tests/test_focus_group_report_identity.py", "stage": 6, "kind": "test", "reason": "Owner-accepted identity projection cases split unchanged from the reporting module to retain the test runner's per-module timeout; no model, browser, T3 or GitHub calls."},
     {"path": "tests/test_focus_group_install.py", "stage": 6, "kind": "test", "reason": "FG-5 installed, relocated and adopted package: doctor, digests, worker bundle, damaged-package refusals and an invented study run from the moved prefix under an audit hook; no model, browser, T3 or GitHub calls."},
     {"path": "tests/test_focus_group_workflow.py", "stage": 6, "kind": "test", "reason": "FG-5 integration stage: invented studies through every coordinator and helper boundary with a loopback isolation probe, interruptions, provider gaps and an adverse review; no model, browser, T3 or GitHub calls."}
   ]
