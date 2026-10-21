@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -13,7 +14,7 @@ HEAD = "a" * 40
 
 @unittest.skipUnless(shutil.which("jq"), "jq required by the shipped helper")
 class MergeTest(unittest.TestCase):
-    def run_helper(self, mode, extra_args=(), followups=()):
+    def run_helper(self, mode, extra_args=(), followups=(), followup_modes=()):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name, body in {
@@ -36,10 +37,11 @@ state_file = Path(os.environ["MERGE_FIXTURE_LOG"]).with_suffix(".state")
 query = body.get("query", "")
 code = "200"
 if "node(id:" in query:
-    payload = {"data":{"node":{"id":"T1", "pullRequest":{"id":"OTHER" if mode=="foreign" else "PR1", "headRefOid":"a"*40}}}}
+    sha = "b"*40 if mode == "moves-after-reply" and state_file.exists() else "a"*40
+    payload = {"data":{"node":{"id":"T1", "pullRequest":{"id":"OTHER" if mode=="foreign" else "PR1", "headRefOid":sha}}}}
 elif query.startswith("query"):
     threads = []
-    if mode in ("marker", "preexisting-unresolved", "conflict-threads", "threads-failing", "behind-threads") or (mode == "flow" and not state_file.exists()):
+    if mode in ("marker", "preexisting-unresolved", "conflict-threads", "threads-failing", "behind-threads") or (mode in ("flow", "repair-conflict", "repair-failing", "repair-review") and not state_file.exists()):
         threads = [{"id":"T1", "isResolved":False, "comments":{"nodes":[{"body":"[babysitter] fixed"}]}}]
     pr = {"id":"PR1", "state":"OPEN", "headRefOid":"a"*40, "mergeable":"MERGEABLE",
           "mergeStateStatus":"CLEAN", "autoMergeRequest":None,
@@ -58,7 +60,7 @@ elif query.startswith("query"):
         "pending-dirty": ("PENDING", "DIRTY"), "no-checks": (None, "CLEAN"),
         "state-blocked": ("SUCCESS", "BLOCKED"), "state-unstable": ("SUCCESS", "UNSTABLE"),
         "state-has_hooks": ("SUCCESS", "HAS_HOOKS"), "state-unknown": ("SUCCESS", "UNKNOWN"),
-        "review-required": ("SUCCESS", "BLOCKED"),
+        "review-required": ("SUCCESS", "BLOCKED"), "threads-before-arm": ("PENDING", "BLOCKED"),
     }.get(mode, (0, 0))
     if merge_state:
         pr["mergeStateStatus"] = merge_state
@@ -89,6 +91,18 @@ elif query.startswith("query"):
             {"state":"APPROVED", "author":human if mode == "bot-changes" else bot},
             {"state":"CHANGES_REQUESTED", "author":bot if mode == "bot-changes" else human}]}
     if mode == "review-required": pr["reviewDecision"] = "REVIEW_REQUIRED"
+    if mode == "threads-before-arm":
+        if state_file.exists(): pr["reviewThreads"]["nodes"] = [{"id":"T1", "isResolved":False}]
+        state_file.write_text("queried")
+    if mode == "repair-conflict":
+        pr["mergeable"] = "CONFLICTING"
+        pr["mergeStateStatus"] = "DIRTY"
+    if mode == "repair-failing":
+        pr["mergeStateStatus"] = "BLOCKED"
+        pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["state"] = "FAILURE"
+    if mode == "repair-review":
+        pr["mergeStateStatus"] = "BLOCKED"
+        pr["reviewDecision"] = "CHANGES_REQUESTED"
     if mode == "behind-then-fresh":
         # update-branch lands a new head whose checks have not registered yet.
         pr["mergeStateStatus"] = "UNKNOWN" if state_file.exists() else "BEHIND"
@@ -112,13 +126,17 @@ elif query.startswith("query"):
         state_file.write_text("queried")
     payload = {"data":{"repository":{"pullRequest":pr}}}
 elif "addPullRequestReviewThreadReply" in query:
+    if mode == "moves-after-reply": state_file.write_text("pushed")
     if mode == "reply-fails":
         payload = {"data":None, "errors":[{"message":"fixture reply refused"}]}
     else:
         payload = {"data":{"addPullRequestReviewThreadReply":{"comment":{"id":"C1"}}}}
 elif "resolveReviewThread" in query:
-    if mode == "flow": state_file.write_text("resolved")
-    payload = {"data":{"resolveReviewThread":{"thread":{"id":"T1", "isResolved":True}}}}
+    if mode in ("flow", "repair-conflict", "repair-failing", "repair-review"): state_file.write_text("resolved")
+    if mode == "resolution-fails":
+        payload = {"data":None, "errors":[{"message":"fixture resolution refused"}]}
+    else:
+        payload = {"data":{"resolveReviewThread":{"thread":{"id":"OTHER" if mode == "wrong-resolution" else "T1", "isResolved":mode != "resolution-open"}}}}
 elif "enablePullRequestAutoMerge" in query:
     payload = {"data":{"enablePullRequestAutoMerge":{"pullRequest":{"autoMergeRequest":{"enabledAt":"fixture-time"}}}}}
 elif query:
@@ -141,9 +159,13 @@ print(code, end="")
             env = {**os.environ, "PATH": str(root) + os.pathsep + os.environ["PATH"],
                    "MERGE_FIXTURE_MODE": mode, "MERGE_FIXTURE_LOG": str(log)}
             results = []
-            for flags in (extra_args, *followups):
-                result = subprocess.run(["bash", str(SCRIPT), "--repo", "fixture/repo", "--pr", "1", *flags],
-                                        env=env, capture_output=True, text=True, timeout=20)
+            all_flags = (extra_args, *followups)
+            modes = (mode, *followup_modes) if followup_modes else (mode,) * len(all_flags)
+            self.assertEqual(len(modes), len(all_flags))
+            for current_mode, flags in zip(modes, all_flags):
+                result = subprocess.run(["bash", str(getattr(self, 'script', SCRIPT)), "--repo", "fixture/repo", "--pr", "1", *flags],
+                                        env={**env, 'MERGE_FIXTURE_MODE': current_mode},
+                                        capture_output=True, text=True, timeout=20)
                 results.append(result)
 
             calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
@@ -338,16 +360,32 @@ print(code, end="")
         self.assertIn("prior_blocker=failing_checks", result.stdout)
         self.assertEqual(len(calls), 2)
 
-    def test_arm_always_arms_open_threads_and_conflicts_without_merging(self):
-        for mode, reason in (("marker", "unanswered_threads"), ("conflict", "conflict"),
+    def test_arm_always_requires_complete_resolved_threads_even_without_branch_rules(self):
+        for mode, reason in (("marker", "unanswered_threads"), ("conflict-threads", "conflict"),
+                             ("threads-failing", "unanswered_threads"),
                              ("truncated", "incomplete_review_state")):
             with self.subTest(mode=mode):
                 result, calls = self.run_helper(mode, ["--arm-always"])
                 self.assertEqual(result.returncode, 4, result.stderr)
                 self.assertIn("reason=" + reason, result.stdout)
-                self.assertIn("automerge=armed", result.stdout)
+                self.assertIn("automerge=unavailable", result.stdout)
                 self.assertFalse(any("merge_method" in c for c in calls))
-                self.assertEqual(calls[-1]["variables"]["sha"], HEAD)
+                self.assertFalse(any("enablePullRequestAutoMerge" in c.get("query", "") for c in calls))
+
+    def test_arm_always_can_arm_conflicts_with_no_thread_work(self):
+        result, calls = self.run_helper("conflict", ["--arm-always"])
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("automerge=armed", result.stdout)
+        self.assertEqual(calls[-1]["variables"]["sha"], HEAD)
+        self.assertFalse(any("merge_method" in c for c in calls))
+
+    def test_arm_always_rechecks_threads_immediately_before_arming(self):
+        result, calls = self.run_helper("threads-before-arm", ["--arm-always"])
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("automerge=unavailable", result.stdout)
+        self.assertEqual(len(calls), 2)
+        self.assertFalse(any("enablePullRequestAutoMerge" in c.get("query", "") for c in calls))
+        self.assertFalse(any("merge_method" in c for c in calls))
 
     def test_arm_always_reports_threads_behind_existing_automerge(self):
         result, calls = self.run_helper("preexisting-unresolved", ["--arm-always"])
@@ -483,10 +521,11 @@ print(code, end="")
                     f"BLOCKED fixture/repo#1 reason={reason} blockers={blockers} detail="), result.stdout)
                 self.assertTrue(result.stdout.rstrip().endswith("automerge=unavailable"), result.stdout)
                 self.assertEqual(len(calls), 1)
-        # --arm-always still arms, but the line keeps every blocker visible.
+        # --arm-always cannot let a branch without resolution rules skip threads.
         result, calls = self.run_helper("conflict-threads", ["--arm-always"])
         self.assertIn("blockers=conflict,unanswered_threads:1 ", result.stdout)
-        self.assertIn("automerge=armed", result.stdout)
+        self.assertIn("automerge=unavailable", result.stdout)
+        self.assertFalse(any("enablePullRequestAutoMerge" in c.get("query", "") for c in calls))
         self.assertFalse(any("merge_method" in c for c in calls))
 
     def test_every_blocked_line_carries_blockers(self):
@@ -552,12 +591,13 @@ print(code, end="")
         result, calls = self.run_helper("resolve", args)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, f"RESOLVED fixture/repo#1 thread=T1 head={HEAD} replied=1\n")
-        self.assertEqual(len(calls), 4)
+        self.assertEqual(len(calls), 5)
         self.assertTrue(calls[0]["query"].startswith("query"))
         self.assertIn("node(id:", calls[1]["query"])
         self.assertIn("addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id, body:$body})", calls[2]["query"])
         self.assertEqual(calls[2]["variables"], {"id": "T1", "body": body})
-        self.assertIn("resolveReviewThread", calls[3]["query"])
+        self.assertIn("node(id:", calls[3]["query"])  # the reply must not resolve a different head
+        self.assertIn("resolveReviewThread", calls[4]["query"])
         # Without a reply file nothing is posted and the line is unchanged.
         result, calls = self.run_helper("resolve", args[:4])
         self.assertEqual(result.stdout, f"RESOLVED fixture/repo#1 thread=T1 head={HEAD}\n")
@@ -615,6 +655,74 @@ print(code, end="")
         self.assertIn("replied=1", result.stdout)
         self.assertNotIn("automerge_already_enabled", result.stdout + result.stderr)
         self.assertFalse(any("merge_method" in c or "enablePullRequestAutoMerge" in c.get("query", "") for c in calls))
+
+    def test_head_change_after_reply_leaves_thread_open_without_reposting(self):
+        args = ["--resolve-thread", "T1", "--verified-head", HEAD,
+                "--reply-file", self.reply_file("Fixed with test evidence.\n")]
+        result, calls = self.run_helper("moves-after-reply", args)
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("reason=verified_head_changed", result.stdout)
+        self.assertIn("the reply was posted but thread not resolved", result.stdout)
+        self.assertEqual(sum("addPullRequestReviewThreadReply" in c.get("query", "") for c in calls), 1)
+        self.assertFalse(any("resolveReviewThread" in c.get("query", "") for c in calls))
+        self.assertFalse(any("merge_method" in c for c in calls))
+
+    def test_resolution_failure_keeps_exact_error_and_never_reports_success(self):
+        args = ["--resolve-thread", "T1", "--verified-head", HEAD,
+                "--reply-file", self.reply_file("Verified fix.\n")]
+        for mode in ("resolution-fails", "resolution-open", "wrong-resolution"):
+            with self.subTest(mode=mode):
+                result, calls = self.run_helper(mode, args)
+                self.assertEqual(result.returncode, 3, result.stderr)
+                self.assertIn("thread resolution failed", result.stderr)
+                self.assertIn("the reply was posted; do not post it again", result.stderr)
+                if mode == "resolution-fails":
+                    self.assertIn("fixture resolution refused", result.stderr)
+                self.assertNotIn("RESOLVED", result.stdout)
+                self.assertEqual(sum("addPullRequestReviewThreadReply" in c.get("query", "") for c in calls), 1)
+                self.assertFalse(any("merge_method" in c for c in calls))
+
+    def test_installed_repair_cycle_resolves_threads_and_rechecks_each_landing_gate(self):
+        # Simulated host transitions exercise the shipped helper, not a live model.
+        # A conflict repair and passing CI are separate from reply/resolution and approval.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / 'home'
+            home.mkdir()
+            prefix = root / 'prefix'
+            proc = subprocess.run(
+                [sys.executable, str(SCRIPT.parents[3] / 'scripts/install.py'), '--plugin', 'babysitter',
+                 '--prefix', str(prefix), '--agents-root', str(root / 'agents')],
+                env={**os.environ, 'HOME': str(home), 'XDG_STATE_HOME': str(root / 'state'),
+                     'XDG_CONFIG_HOME': str(root / 'config')}, capture_output=True, text=True, timeout=120)
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            version = Path(json.loads(proc.stdout)['data']['version_dir'])
+            relocated = root / 'relocated'
+            prefix.rename(relocated)
+            self.script = relocated / version.relative_to(prefix) / 'scripts/merge-pr.sh'
+            try:
+                resolve = ['--resolve-thread', 'T1', '--verified-head', HEAD,
+                           '--reply-file', self.reply_file('Fixed and verified at the current head.\n')]
+                results, calls = self.run_helper('repair-conflict', ['--no-auto'], followups=(
+                    ['--no-auto'], resolve, ['--no-auto'], ['--no-auto'],
+                    ['--no-auto', '--expected-head', HEAD]), followup_modes=(
+                        'repair-failing', 'repair-failing', 'repair-failing', 'repair-review', 'success'))
+            finally:
+                del self.script
+            self.assertEqual([r.returncode for r in results], [4, 4, 0, 4, 4, 0],
+                             '\n'.join(r.stdout + r.stderr for r in results))
+            self.assertIn('blockers=conflict,unanswered_threads:1', results[0].stdout)
+            self.assertIn('unanswered_threads:1,failing_checks', results[1].stdout)
+            self.assertIn('RESOLVED', results[2].stdout)
+            self.assertIn('replied=1', results[2].stdout)
+            self.assertIn('reason=failing_checks', results[3].stdout)
+            self.assertIn('changes_requested', results[4].stdout)
+            self.assertIn('MERGED', results[5].stdout)
+            mutations = [c for c in calls if not c.get('query', '').startswith('query')]
+            self.assertEqual(len(mutations), 3)
+            self.assertIn('addPullRequestReviewThreadReply', mutations[0]['query'])
+            self.assertIn('resolveReviewThread', mutations[1]['query'])
+            self.assertEqual(mutations[2], {'merge_method': 'squash', 'sha': HEAD})
 
 
 if __name__ == "__main__":
