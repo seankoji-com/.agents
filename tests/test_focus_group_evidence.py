@@ -27,7 +27,9 @@ from tests.test_focus_group_plan import BEFORE, DELIVERED, PLUGIN, TEMPLATE, Wor
 
 EVIDENCE = PLUGIN / 'scripts' / 'evidence.py'
 LATER = '2029-06-01T00:05:00Z'
-SECRET = 'FAKE-INVENTED-0123456789abcdef'  # an invented marker; never a real credential
+# Deliberately written into temporary artifacts to test quarantine and redaction.
+# This invented marker is public test data, not a credential.
+SYNTHETIC_MARKER = 'FAKE-INVENTED-0123456789abcdef'
 
 
 # ----------------------------------------------------------------------------- loopback browser fixture
@@ -531,12 +533,12 @@ class CaptureTest(EvidenceCase):
         self.assertIn('test_context_unapproved', self.problems(out))
 
     def test_planted_secret_is_quarantined_before_any_disclosure_without_echoing_its_value(self):
-        text = fixtures.PAGE_TEXT + f'debug: api_key={SECRET}\nContact jo.invented@example.test\n'
-        image = fixtures.png(390, 844, text_chunks=[('Comment', f'token={SECRET}')])
+        text = fixtures.PAGE_TEXT + f'debug: api_key={SYNTHETIC_MARKER}\nContact jo.invented@example.test\n'
+        image = fixtures.png(390, 844, text_chunks=[('Comment', f'token={SYNTHETIC_MARKER}')])
         files = fixtures.write_pack(self.lab.base / 'secret-pack', text=text, initial=image)
         code, out = self.lab.validate_pack('pantry-planner-onboarding', fixtures.manifest(files))
         self.assertEqual((code, out['error']['code']), (1, 'pack_quarantined'), out)
-        self.assertNotIn(SECRET, self.lab.last_output)
+        self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
         self.assertNotIn('jo.invented', self.lab.last_output)
         classes = {(h['location'].split(':')[0], h['class']) for h in out['data']['secret_findings']}
         self.assertTrue({('welcome.txt', 'credential-assignment'), ('welcome.txt', 'email-address'),
@@ -551,7 +553,7 @@ class CaptureTest(EvidenceCase):
         code, out = self.lab.ev('disclosure', '--state-root', self.lab.root, '--study', view['study_id'],
                                 '--consumer', 'export')
         self.assertEqual((code, out['error']['code']), (1, 'disclosure_blocked'))
-        self.assertNotIn(SECRET, json.dumps(out))
+        self.assertNotIn(SYNTHETIC_MARKER, json.dumps(out))
         # A sanitised derivative keeps the parent's provenance, gets new hashes and needs a new approval.
         parent = out['data']
         quarantined = json.loads(next((self.lab.root / view['study_id'] / 'focus-group' / 'evidence' / 'packs')
@@ -606,12 +608,12 @@ class CaptureTest(EvidenceCase):
 
     def test_page_text_is_scanned_whole_and_a_non_png_view_never_clears(self):
         # A marker after a long clean prefix is still found: no unscanned tail is cleared.
-        text = fixtures.PAGE_TEXT + 'Fresh herbs keep longer in a jar of water. ' * 8000 + f'api_key={SECRET}\n'
+        text = fixtures.PAGE_TEXT + 'Fresh herbs keep longer in a jar of water. ' * 8000 + f'api_key={SYNTHETIC_MARKER}\n'
         files = fixtures.write_pack(self.lab.base / 'long-text', text=text)
         self.assertGreater(len(text), 256 * 1024)
         code, out = self.lab.validate_pack('long-text', fixtures.manifest(files))
         self.assertEqual((code, out['error']['code']), (1, 'pack_quarantined'), out)
-        self.assertNotIn(SECRET, self.lab.last_output)
+        self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
         # v1 reads PNG only, so another image format's metadata is never silently cleared.
         files = self.files('gif-')
         data = b'GIF89a' + b'\0' * 32
@@ -623,7 +625,7 @@ class CaptureTest(EvidenceCase):
 
     def test_png_text_is_decoded_and_unsupported_png_metadata_never_clears(self):
         # FG2-A3-1: compressed iTXt is inflated and scanned; a chunk v1 does not decode is refused.
-        marker = f'api_key={SECRET}'.encode()
+        marker = f'api_key={SYNTHETIC_MARKER}'.encode()
         for name, chunk, code_name in (
                 ('itxt', b'Comment\0\1\0\0\0' + zlib.compress(marker), 'pack_quarantined'),
                 ('private', marker, 'pack_failed')):
@@ -637,7 +639,7 @@ class CaptureTest(EvidenceCase):
                 self.assertEqual((code, out['error']['code']), (1, code_name), out)
                 if name == 'private':
                     self.assertIn('image_unsupported', self.problems(out))
-                self.assertNotIn(SECRET, self.lab.last_output)
+                self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
 
     def test_dispatch_rehashes_the_approved_pack(self):
         view = self.approved()
@@ -1206,7 +1208,7 @@ class TraceTest(IsolationHarness):
         # A leaky attempt is quarantined and retained; it was never accepted.
         leaky = self.journey_payload(view, 0, self.brief_task(view, 0, 'journey', 'jr-01')['document']['sha256'],
                                      bindings[0], 'jr-01')
-        leaky['goals'][0]['observed_events'].append(f'the page printed Authorization: Bearer {SECRET}')
+        leaky['goals'][0]['observed_events'].append(f'the page printed Authorization: Bearer {SYNTHETIC_MARKER}')
         code, out = self.check(view, 0, 'journey', 'jr-01', self.write_payload(view, 'jr-01', leaky, 'leaky.json'))
         self.assertEqual((code, out['error']['code']), (1, 'payload_quarantined'))
         # The accepted journey's screenshot drifts after acceptance.
@@ -1521,11 +1523,11 @@ class JourneyTest(IsolationHarness):
     def test_secret_markers_quarantine_the_attempt_and_fail_acceptance_and_export(self):
         view, bindings, first, brief = self.ready()
         payload = self.journey_payload(view, 0, brief['document']['sha256'], bindings[0], 'jr-01')
-        payload['goals'][0]['observed_events'].append(f'the page printed Authorization: Bearer {SECRET}')
+        payload['goals'][0]['observed_events'].append(f'the page printed Authorization: Bearer {SYNTHETIC_MARKER}')
         ref = self.write_payload(view, 'jr-01', payload)
         code, out = self.check(view, 0, 'journey', 'jr-01', ref)
         self.assertEqual((code, out['error']['code']), (1, 'payload_quarantined'))
-        self.assertNotIn(SECRET, self.lab.last_output)
+        self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
         context = {'class': 'fresh-anonymous', 'reference': 'fixture-context-0', 'binding_sha256': bindings[0]}
         code, out = self.record(view, 0, 'journey', 'jr-01', ref, context=context,
                                 predecessors=[sha(Path(first['ref']['path']).read_bytes())])
@@ -1538,12 +1540,12 @@ class JourneyTest(IsolationHarness):
         self.assertIn('credential-field', {h['class'] for h in out['data']['findings']})
         # A text evidence file is scanned as well.
         note = self.task_dir(view, 'jr-01') / 'page.txt'
-        note.write_text(f'session_id={SECRET}\n')
+        note.write_text(f'session_id={SYNTHETIC_MARKER}\n')
         leaky = self.journey_payload(view, 0, brief['document']['sha256'], bindings[0], 'jr-01')
         leaky['goals'][0]['evidence'].append({'kind': 'text', 'path': str(note), 'sha256': sha(note.read_bytes())})
         code, out = self.check(view, 0, 'journey', 'jr-01', self.write_payload(view, 'jr-01', leaky, 'leaky.json'))
         self.assertEqual(out['error']['code'], 'payload_quarantined')
-        self.assertNotIn(SECRET, self.lab.last_output)
+        self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
         code, out = self.lab.ev('disclosure', '--state-root', self.lab.root, '--study', view['study_id'],
                                 '--consumer', 'export')
         self.assertEqual(code, 0, out)  # quarantined attempts were never accepted, so nothing disclosed is blocked
@@ -1799,7 +1801,7 @@ class IngestionTest(IsolationHarness):
         bindings = self.isolated(view, (0, 1))
         first = self.accepted_first(view, 0)
         doc_sha = self.brief(view, 0, 'journey')['document']['sha256']
-        marker = f'api_key={SECRET}'
+        marker = f'api_key={SYNTHETIC_MARKER}'
 
         def journey(*items, name):
             payload = self.journey_payload(view, 0, doc_sha, bindings[0], 'jr-01')
@@ -1818,12 +1820,12 @@ class IngestionTest(IsolationHarness):
         log = self.material(view, 'jr-01', 'events.jsonl', f'{{"event": "load"}}\n{{"debug": "{marker}"}}\n'.encode())
         code, out = self.check(view, 0, 'journey', 'jr-01', journey(('event-log', log), name='event-secret.json'))
         self.assertEqual((code, out['error']['code']), (1, 'payload_quarantined'))
-        self.assertNotIn(SECRET, self.lab.last_output)
+        self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
         log2 = self.material(view, 'jr-01', 'events-2.jsonl', f'{{"debug": "{marker}"}}\n'.encode())
         direct = journey(('event-log', log2), name='event-secret-direct.json')
         code, out = record(direct)
         self.assertEqual((code, out['error']['code']), (1, 'payload_quarantined'))
-        self.assertNotIn(SECRET, self.lab.last_output)
+        self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
         self.assertEqual(out['data']['sha256'], direct['sha256'])
         self.assertTrue(any('events-2.jsonl' in h['location'] and h['class'] == 'credential-assignment'
                             for h in out['data']['findings']))
@@ -1832,7 +1834,7 @@ class IngestionTest(IsolationHarness):
         long_text = self.material(view, 'jr-01', 'page-long.txt', ('Clean line. ' * 30000 + marker).encode())
         code, out = record(journey(('text', long_text), name='long-text.json'))
         self.assertEqual((code, out['error']['code']), (1, 'payload_quarantined'))
-        self.assertNotIn(SECRET, self.lab.last_output)
+        self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
         # Oversize, undecodable and non-PNG material is refused unscanned, never cleared.
         cases = ((('event-log', self.material(view, 'jr-01', 'huge.log', b'a' * (8 * 1024 * 1024 + 1))),
                   'oversize_artifact'),
@@ -1873,7 +1875,7 @@ class IngestionTest(IsolationHarness):
             code, out = self.lab.ev('disclosure', '--state-root', self.lab.root, '--study', view['study_id'],
                                     '--consumer', consumer)
             self.assertEqual((code, out['error']['code']), (1, 'disclosure_blocked'))
-            self.assertNotIn(SECRET, self.lab.last_output)
+            self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
 
     # FG2-A3-1 ---------------------------------------------------------------------------------
 
@@ -1884,7 +1886,7 @@ class IngestionTest(IsolationHarness):
         doc_sha = self.brief(view, 0, 'journey')['document']['sha256']
         self.assertEqual(self.lab.admit(view, 'jr-01-r0', 'journey', view['cells'][0]['cell_id'])[0], 0)
         base = fixtures.png(390, 844, ((255, 255, 255), (10, 120, 200), (0, 0, 0)))
-        marker = f'api_key={SECRET}'.encode()
+        marker = f'api_key={SYNTHETIC_MARKER}'.encode()
         accepted = self.accepted_names(view)
 
         def record(data, name):
@@ -1897,14 +1899,14 @@ class IngestionTest(IsolationHarness):
         code, out = record(fixtures.with_chunk(base, b'iTXt', b'Comment\0\1\0\0\0' + zlib.compress(marker)), 'itxt.png')
         self.assertEqual((code, out['error']['code']), (1, 'payload_quarantined'), out)
         self.assertTrue(any('itxt.png:text-chunks' in h['location'] for h in out['data']['findings']))
-        self.assertNotIn(SECRET, self.lab.last_output)
+        self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
         # A chunk v1 does not decode, or bytes after IEND, is refused by location and format only.
         for data, name in ((fixtures.with_chunk(base, b'prVt', marker), 'private.png'), (base + marker, 'trailing.png')):
             with self.subTest(name=name):
                 code, out = record(data, name)
                 self.assertEqual((code, out['error']['code']), (1, 'payload_invalid'), out)
                 self.assertIn('evidence_unsupported', {p['code'] for p in out['data']['problems']})
-                self.assertNotIn(SECRET, self.lab.last_output)
+                self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
         self.assertEqual(self.accepted_names(view), accepted)  # nothing above entered accepted state
         # Valid control: standard chunks and clean compressed iTXt metadata still clear.
         clean = fixtures.with_chunk(fixtures.with_chunk(base, b'pHYs', b'\0\0\x0b\x13\0\0\x0b\x13\1'), b'iTXt',
@@ -1946,11 +1948,11 @@ class IngestionTest(IsolationHarness):
                          'out_of_scope_artifact')
         # A planted marker is quarantined at the boundary, without its value, and its bytes never return.
         leak = self.write_payload(view, 'fi-01', self.first_payload(view, 0, brief, claims=[
-            {'id': 'c1', 'kind': 'textual', 'statement': f'The footer shows token={SECRET}', 'files': ['welcome.txt']}]),
+            {'id': 'c1', 'kind': 'textual', 'statement': f'The footer shows token={SYNTHETIC_MARKER}', 'files': ['welcome.txt']}]),
             name='leak.json')
         code, out = record(leak)
         self.assertEqual((code, out['error']['code']), (1, 'payload_quarantined'))
-        self.assertNotIn(SECRET, self.lab.last_output)
+        self.assertNotIn(SYNTHETIC_MARKER, self.lab.last_output)
         self.assertEqual(record(leak)[1]['error']['code'], 'result_quarantined')
         self.assertEqual(self.accepted_names(view), [])
         self.assertEqual(self.attempts(view, 'record'), 6)  # an identical re-presentation shares its attempt record
