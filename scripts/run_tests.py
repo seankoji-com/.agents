@@ -11,8 +11,11 @@ test file that runs nothing is a mistake, and unittest before 3.12 exits 0 on it
 and a module that runs past --timeout seconds is stopped and fails.
 
 Usage: python3 scripts/run_tests.py [-j N] [--timeout S] [pattern ...]
+       python3 scripts/run_tests.py --shard-index I --shard-count N [pattern ...]
 Patterns filter module file names (``test_review*``). Exit status is 1 if any
-module fails, with that module's full output printed.
+module fails, with that module's full output printed. Zero-based shards partition
+the selected ordered modules: run every index in range(N) for the complete suite.
+Sharding changes neither test discovery within a module nor its failure deadline.
 """
 from __future__ import annotations
 
@@ -79,15 +82,24 @@ def main(argv: list[str] | None = None) -> int:
                         help='modules to run at once (default: CPU count)')
     parser.add_argument('--timeout', type=float, default=600,
                         help='seconds before a module is stopped and counted as failed (default: 600)')
+    parser.add_argument('--shard-index', type=int, default=0,
+                        help='zero-based shard to run (default: 0)')
+    parser.add_argument('--shard-count', type=int, default=1,
+                        help='number of disjoint module shards (default: 1, the complete suite)')
     parser.add_argument('patterns', nargs='*', help='module file name patterns, e.g. test_review*')
     args = parser.parse_args(argv)
     if args.jobs < 1:
         parser.error('--jobs must be at least 1')
     if args.timeout <= 0:
         parser.error('--timeout must be positive')
+    if args.shard_count < 1 or not 0 <= args.shard_index < args.shard_count:
+        parser.error('--shard-count must be positive and 0 <= --shard-index < --shard-count')
     selected = modules(args.patterns)
     if not selected:
         parser.error(f'no test modules match {args.patterns}')
+    selected = selected[args.shard_index::args.shard_count]
+    if not selected:
+        parser.error('selected shard contains no test modules')
 
     started = time.monotonic()
     failed, total = [], 0

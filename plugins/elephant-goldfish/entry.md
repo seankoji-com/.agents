@@ -1,4 +1,8 @@
 # elephant-goldfish
+
+Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
+Use `PKG/shared/adopter-planning.md` and `PKG/references/adopter-review-rubric.md`
+for public admission and receipt gates through `PKG/scripts/plan_review.py`.
 Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
 Turn an uncertain problem into a testable brief, or check a durable design document.
@@ -10,7 +14,7 @@ Load only the row for the requested operation.
 | Request | Meaning | Load |
 | --- | --- | --- |
 | `doctor` | Local readiness check | Run it directly with `python3 PKG/scripts/doctor.py`. |
-| `thinking <topic>` or `thinking list` | Interactive discovery, rubric and deterministic handoff | `PKG/playbooks/thinking.md` |
+| `thinking <topic>` or `thinking list` | Interactive discovery, reviewed source plan and deterministic handoff | `PKG/playbooks/thinking.md` |
 | `elephant [failure report]` | Write or revise `elephant.md`, then verify facts and cold readability separately | `PKG/playbooks/elephant.md` |
 | `check` | Factual drift pass on `elephant.md` only; no edits, no cold read | The `check` section of `PKG/playbooks/elephant.md` |
 
@@ -38,6 +42,9 @@ provider catalog. `gh` is needed only for optional publishing.
   a worker cannot hear the operator, so it cannot accept discovery.
 - **`elephant-goldfish/factual-checker`.** Checks a document's repository and command
   claims against cited evidence. Read-only.
+- **`elephant-goldfish/plan-reviewer`.** Challenges thinking's exact discovery/spec,
+  declared attachments and authorised repository evidence before handoff generation.
+  Read-only; follows `PKG/references/thinking-plan-review.md` in a separate planning job.
 - **`elephant-goldfish/cold-reader`.** Reads one document in a fresh child with no
   other context and reports whether a newcomer could act on it. It never inspects
   the repository.
@@ -51,7 +58,8 @@ A finished task is not an accepted stage. These pinned helpers decide acceptance
 
 | Verdict | Authority |
 | --- | --- |
-| Discovery review and final readiness | `thinking_state.py gate <slug> --require discovery,spec,handoff` (content-bound review receipt) |
+| Discovery review and final readiness | `thinking_state.py gate <slug> --require discovery,spec,plan_review,handoff` (separate owner and planning evidence) |
+| Source-plan review | `scripts/validate_document.py --mode plan-review` dereferences actual accepted delegated/direct planning evidence |
 | Handoff provenance | `render_handoff.py <slug> --check` |
 | Factual verification | `scripts/validate_document.py --mode factual` on a coordinator factual observation |
 | Cold readability | `scripts/validate_document.py --mode cold-read` on a coordinator cold-read observation |

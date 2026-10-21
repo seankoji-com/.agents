@@ -7,6 +7,106 @@ import json
 import os
 import shlex
 
+
+def selection_for_task(job, task):
+    """New CLI jobs require choices; old immutable jobs retain their old contract.
+
+    Low-level core fixture/import APIs remain format-neutral. Adoption adapters
+    must use the CLI admission boundary or explicitly supply this policy marker.
+    """
+    from shared.model_selection import validate, dispatch, SelectionError
+    if not job.get('policy', {}).get('model_selection_required') and not job.get('model_selection'):
+        return None
+    try:
+        binding = task.get('selection_binding') or {}
+        producing = binding.get('selection_sha256')
+        record = validate((job.get('model_selection_history') or {}).get(producing, job.get('model_selection')), producing)
+        if binding.get('selection_sha256') != record['selection_sha256']:
+            raise SelectionError('task producing selection binding missing/mismatched')
+        from core.jobs import _unsettled
+        plan = dispatch(record, role=binding['role'], slot_id=binding.get('slot_id'),
+                        target=binding.get('target'), data_classes=binding.get('data_classes', ['repository']),
+                        unavailable=binding.get('unavailable'), expected=producing,
+                        live_tasks=[t['task_id'] for t in job['tasks'] if _unsettled(job, t)])
+        actual = task.get('target') or {}
+        if any(actual.get(k, {} if k == 'options' else None) != plan['target'].get(k, {} if k == 'options' else None)
+               for k in ('providerInstanceId', 'model', 'options', 'runtimeMode')):
+            raise SelectionError('task target/options differ from frozen selection')
+        if plan['execution'] != 'child':
+            raise SelectionError('current-context choice cannot dispatch a child')
+        return {'record': record, 'binding': binding, 'dispatch': plan}
+    except (SelectionError, KeyError, TypeError) as exc:
+        raise JobError('model_selection: ' + str(exc)) from exc
+
+
+def selection_plan_revision(current, proposed):
+    """Validate prospective choices before the ordinary owner-bound plan revision.
+
+    The core persists these generic contract fields in the same transaction as the
+    task revision. Existing findings, rounds and history are never replaced here.
+    """
+    if not current.get('policy', {}).get('model_selection_required'):
+        return
+    from shared.model_selection import validate, prospective
+    from core.jobs import _unsettled
+    from copy import deepcopy
+    if 'model_selection' in proposed:
+        if not proposed.get('model_selection_sha256'):
+            raise JobError('new choice needs its separately retained model_selection_sha256')
+        chosen = validate(proposed['model_selection'], proposed.get('model_selection_sha256'))
+        live = [t['task_id'] for t in current['tasks'] if _unsettled(current, t)]
+        prospective(current['model_selection'], chosen, {'live_tasks': live})
+        archive = deepcopy(current.get('model_selection_history', {}))
+        archive[current['model_selection_sha256']] = current['model_selection']
+        proposed['model_selection_history'] = archive
+    merged = {**current, **proposed}
+    if current.get('workflow') in ('focus-group/run', 'focus-group/resume'):
+        from shared.adopter_planning import validate_job as validate_adopter_job
+        merged['policy'] = {**current['policy'], **proposed.get('policy', {})}
+        validate_adopter_job(merged, previous=current)
+    for task in proposed.get('tasks', []):
+        selection_for_task(merged, task)
+    if current.get('policy', {}).get('imps_planning_required'):
+        from shared.imps_planning import validate_job, job_contract
+        changed = job_contract(current) != job_contract(merged)
+        if changed:
+            if 'imps_initial_plan' not in proposed:
+                raise JobError('changed authored stages require a new initial planning receipt')
+            from copy import deepcopy
+            merged['stages'] = deepcopy(merged['stages'])
+            for stage in merged['stages']:
+                stage.get('resources', {}).pop('imps_initial_review', None)
+        if merged.get('policy', {}).get('imps_planning_required') is not True:
+            raise JobError('imps planning policy is immutable once enabled')
+        validate_job(merged, before_execution=changed)
+        if changed:
+            merged['stages'][0].setdefault('resources', {})['imps_initial_review'] = {
+                'descriptor': proposed['imps_initial_plan'], 'check': merged.get('imps_initial_check')}
+            proposed['stages'] = merged['stages']
+
+
+def selection_for_direct_stage(job, stage, identity):
+    """An identity observation is not permission for delegated-to-direct fallback."""
+    if not job.get('policy', {}).get('model_selection_required') and not job.get('model_selection'):
+        return None
+    from shared.model_selection import validate, dispatch, correlate, SelectionError
+    try:
+        binding = stage.get('selection_binding') or {}
+        producing = binding.get('selection_sha256')
+        if not producing:
+            raise SelectionError('direct stage needs an explicit current-context work binding')
+        record = validate((job.get('model_selection_history') or {}).get(producing, job.get('model_selection')), producing)
+        from core.jobs import _unsettled
+        plan = dispatch(record, role=binding['role'], target=binding.get('target'),
+                        unavailable=binding.get('unavailable'), data_classes=binding.get('data_classes', ['repository']),
+                        live_tasks=[t['task_id'] for t in job['tasks'] if _unsettled(job, t)], expected=producing)
+        if plan['execution'] != 'current-context':
+            raise SelectionError('chosen work execution requires a child; direct fallback not authorised')
+        observation = correlate(plan, identity)
+        return {'selection_sha256': producing, 'dispatch': plan, 'observation': observation}
+    except (SelectionError, KeyError, TypeError) as exc:
+        raise JobError('model_selection: ' + str(exc)) from exc
+
 def _recovery_invocations(pins,job,state_root):
     by_key={d['key']:d['plugin'] for d in job['dependencies']}
     for key,pin in pins.items():
@@ -61,6 +161,21 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
     job=__import__('copy').deepcopy(job)
     job.setdefault('policy', {})['identity']='observed'
     workflow = str(job.get('workflow', ''))
+    if workflow.startswith('imps/') and workflow != 'imps/planning-review':
+        from shared.imps_planning import validate_job
+        validate_job(job, Path(state_root).absolute() / job['job_id'] / 'job.json', before_execution=True)
+        job['policy']['model_selection_required'] = True
+        job['policy']['imps_planning_required'] = True
+    if workflow in ('ape/study', 'ape/forage'):
+        from shared.ape_planning import validate_job
+        validate_job(job)
+        job['policy']['model_selection_required'] = True
+    from shared.adopter_planning import validate_job as validate_adopter_job
+    if workflow in ('focus-group/run', 'focus-group/resume'):
+        job['policy']['model_selection_required'] = True
+    validate_adopter_job(job, creating=True)
+    if workflow.partition('/')[0] in ('agent-tuneup', 'babysitter') or workflow in ('elephant-goldfish/elephant','elephant-goldfish/check'):
+        job['policy']['model_selection_required'] = True
     if workflow.startswith('elephant-goldfish/'):
         if workflow.endswith(('/thinking', '/elephant')):
             job.setdefault('policy', {})['author_independence'] = True
@@ -141,6 +256,9 @@ def verify_all_pins(store,caller=None):
     """Resolve and verify stored absolute pins before validating a caller identity."""
     store.verify_pins=verify_job_pins
     job=store.verified_load()
+    if job.get('policy', {}).get('imps_planning_required'):
+        from shared.imps_planning import validate_job
+        validate_job(job, store.file)
     if caller is not None:
         from core.jobs.store import _authorize
         _authorize(job,caller,'mutate')
@@ -164,7 +282,23 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
     if not callable(verify_pin) or any(verify_pin(d, store.load()['pins'][d['key']]) is not True for d in store.load()['dependencies']):
         raise JobError('pinned dependency verifier is required before review preparation')
     def bind(job):
+        if job.get('policy', {}).get('imps_planning_required'):
+            from shared.imps_planning import validate_job
+            validate_job(job, store.file)
+        if job['workflow'] in ('ape/study', 'ape/forage'):
+            from shared.ape_planning import validate_job
+            validate_job(job)
         task = next(t for t in job['tasks'] if t['task_id'] == task_id)
+        from shared.document_authors import validate_cold_reader_scope
+        validate_cold_reader_scope(task)
+        from shared.adopter_planning import validate_job as validate_adopter_job
+        validate_adopter_job(job)
+        selected = selection_for_task(job, task)
+        if selected:
+            # Prepared choices are included in the immutable brief and its hash.
+            # Cold readers receive only procedural choices, not prior findings.
+            task['model_selection'] = {'selection_sha256': selected['record']['selection_sha256'],
+                                       'binding': selected['binding'], 'dispatch': selected['dispatch']}
         if task.get('role') == 'review':
             if _live_handles(task) or task.get('status') not in ('pending', 'stale', 'blocked'):
                 raise JobError('review inputs cannot be rebound after dispatch')
@@ -189,6 +323,7 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
                             raise
             except AcceptanceError as exc:
                 raise JobError(str(exc)) from exc
+        validate_adopter_job(job, task.get('stage_id'))
     store.transact(caller, bind, 'prepare')
     return prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason)
 
@@ -276,6 +411,8 @@ def _current_authority(job, task, stage):
                'worker_id': task['worker_id'], 'role': task.get('role', 'worker'), 'write_scope': scope,
                'effective_definition': pin['effective_workers'].get(task['worker_id']),
                'max_attempts': 1 + job['policy']['max_repair_cycles']}
+    if task.get('model_selection'):
+        current['model_selection'] = task['model_selection']
     if task.get('context_policy') == 'document-only':
         current.update(document=task.get('document', {}), requirements=[{'id': r} for r in requirements],
                        authorization={'read': [task.get('document', {}).get('path')] + [f.get('path') for f in task.get('context_files') or []],
@@ -297,6 +434,7 @@ def prepare_followup(store, caller, task_id, request_id):
     def apply(job):
         task = next(t for t in job['tasks'] if t['task_id'] == task_id)
         stage = next(s for s in job['stages'] if s['id'] == task['stage_id'])
+        selection_for_task(job, task)
         if task.get('role') == 'review':
             raise JobError('review rounds require a fresh declared execution, not a same-child follow-up')
         if task.get('context_policy') == 'document-only':
@@ -403,10 +541,18 @@ def record_direct_execution(store, caller, stage_id, capabilities):
     except (JobError, TypeError, ValueError) as exc:
         raise JobError('direct execution requires a fresh, catalog-correlated capabilities response') from exc
     def apply(job):
+        if job.get('policy', {}).get('imps_planning_required'):
+            from shared.imps_planning import validate_job
+            validate_job(job, store.file)
         stage = next((row for row in job['stages'] if row['id'] == stage_id), None)
         if stage is None or stage.get('execution_mode') != 'direct' or any(t['stage_id'] == stage_id for t in job['tasks']):
             raise JobError('direct execution observation requires a zero-slot direct stage')
+        from shared.adopter_planning import validate_job as validate_adopter_job
+        validate_adopter_job(job, stage_id)
+        selected = selection_for_direct_stage(job, stage, author)
         observation = {'identity': author, 'recorded_at': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()}
+        if selected:
+            observation['model_selection'] = selected
         stage.setdefault('direct_execution_history', []).append(observation)
         stage['status'] = 'pending'
         stage['acceptance'] = None

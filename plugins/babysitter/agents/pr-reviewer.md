@@ -37,3 +37,10 @@ findings block is the coordinator's step. `review_verdict` is `approve`, `advers
 `unavailable`; any blocker or major finding forces `adverse`. List the commands you
 ran as `argv` arrays with outcomes, and gaps you could not check. Redact tokens,
 secrets and private paths; excerpt logs instead of pasting them whole.
+
+Apply the installed `shared/reviewer-standard.md` within this role's scope.
+Document-only, read-only, lineage and specialised result rules above remain binding.
+
+In a separate planning job, challenge an actually written repair/landing strategy
+under the strategy rubric. This creates no optional code review by itself and
+supplies neither final-head acceptance nor merge authority.

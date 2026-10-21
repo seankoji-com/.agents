@@ -1,5 +1,7 @@
 # Seed a run from a GitHub Discussion
 
+Apply `PKG/references/planning-review.md` before substantive work. Preserve the
+upfront selection through aliases, source stages and repairs.
 Read `PKG/shared/t3-runtime.md`. Resolve a GitHub Discussion URL (discard its query
 and fragment) or `discussion N`. For a bare number, inspect the repository identity
 with `gh repo view --json nameWithOwner`. Use a connected GitHub tool when it supports

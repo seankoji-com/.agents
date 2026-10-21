@@ -256,7 +256,12 @@ class JobStateTests(unittest.TestCase):
     override_rows.append({'worker_id':worker_id,'base_bundle_digest':manifest['bundle_digest'],'path':worker_id+'.md','enabled':True})
    config.parent.mkdir(parents=True,exist_ok=True);config.write_text(json.dumps({'schema_version':1,'max_live_workers':2,'max_repair_cycles':3,'overrides':override_rows}))
    job=self.base();job['pins']={};job['dependencies']=[{'key':'imps','plugin':'imps'},{'key':'babysitter','plugin':'babysitter'}];job['policy']={'identity':'observed','max_repair_cycles':3,'max_artifact_bytes':32*1024*1024,'max_live_workers':2};job['stages'][0]['validator_dependency']='imps'
-   create_pinned_job(job,state,prefix,agents,config);store=Store(state,'job-1');original=store.load()['pins'];caller={'installation_id':store.load()['installation_id'],'workflow':'imps/run','package_digest':original['imps']['package_digest'],'actor':'coordinator'}
+   from tests.imps_plan_review_fixtures import select_legacy_imps_job
+   version=Path(manifests['imps']['version_dir']);manifest=json.loads((version/'install-manifest.json').read_text())
+   select_legacy_imps_job(job,base,version,manifest,env)
+   from unittest.mock import patch
+   with patch.dict(os.environ,env):create_pinned_job(job,state,prefix,agents,config)
+   store=Store(state,'job-1');original=store.load()['pins'];caller={'installation_id':store.load()['installation_id'],'workflow':'imps/run','package_digest':original['imps']['package_digest'],'actor':'coordinator'}
    self.assertEqual(original['imps']['effective_workers']['imps/stage-executor']['override_status'],'enabled')
    self.assertEqual(original['babysitter']['effective_workers']['babysitter/pr-maintainer']['override_status'],'enabled')
    import shutil
@@ -294,17 +299,23 @@ class JobStateTests(unittest.TestCase):
   from core.jobs.store import canonical,digest,_atomic
   from shared.job_acceptance import accept_stage,validate_stage
   from shared.job_coordinator import create_pinned_job,publish_observation
-  from tests.test_job_acceptance import ape_report, source_fixture
+  from tests.test_rebuild_installed import Sandbox
+  from tests.ape_plan_review_fixtures import ApePlanFixture
   with tempfile.TemporaryDirectory() as td:
-   base=Path(td);home=base/'home';home.mkdir();prefix=base/'prefix';agents=base/'agents';state=base/'state';env={**os.environ,'HOME':str(home),'XDG_CONFIG_HOME':str(base/'config'),'XDG_STATE_HOME':str(state)}
-   proc=subprocess.run([sys.executable,str(ROOT/'scripts/install.py'),'--plugin','ape','--prefix',str(prefix),'--agents-root',str(agents)],capture_output=True,text=True,env=env);self.assertEqual(proc.returncode,0,proc.stdout+proc.stderr)
-   version=Path(json.loads(proc.stdout)['data']['version_dir']);manifest=json.loads((version/'install-manifest.json').read_text());job={'schema_version':1,'job_id':'forgery-1','installation_id':manifest['installation_id'],'workflow':'ape/study','owner':{'id':'owner'},'objective':'report','requirements':{'R1':'source evidence'},'authorization':{'actions':['read']},'constraints':[],'dependencies':[{'key':'ape','plugin':'ape'}],'pins':{},'result_contract':{'schema_version':1},'policy':{},'stages':[{'id':'report','depends_on':[],'requirements':['R1'],'status':'pending','execution_mode':'direct','validator_dependency':'ape','criteria':[{'id':'C1','kind':'source-provenance'}]}],'tasks':[],'decisions':[],'history':[],'metrics':{}}
-   source_pin=source_fixture(base,job)
-   create_pinned_job(job,state,prefix,agents,base/'config/workers.json');caller={'installation_id':manifest['installation_id'],'workflow':'ape/study','package_digest':manifest['package_digest'],'actor':'coordinator'};inp=base/'report.json';inp.write_text(json.dumps(ape_report(base,source_pin)));inp=Path(publish_observation(Store(state,'forgery-1'),caller,'report',str(inp))['path']);validator=version/'scripts/validate_report.py';receipt=accept_stage(Store(state,'forgery-1'),caller,'report',[str(validator),'--input',str(inp)],str(inp))
-   store=Store(state,'forgery-1');job_now=store.load();job_now['stages'][0]['status']='accepted-at-snapshot';_atomic(store.file,canonical(job_now));self.assertTrue(validate_stage(store,'report')['accepted'])
+   box=Sandbox(Path(td));version,manifest=box.install('ape')
+   f=ApePlanFixture(box,version,manifest,installed=True);f.work();f.approve()
+   receipt=json.loads(f.accept().stdout);state=box.jobs
+   store=Store(state,f.job_id);job_now=store.load()
+   job_now['stages'][0]['status']='accepted-at-snapshot';_atomic(store.file,canonical(job_now))
+   from unittest.mock import patch
+   with patch.dict(os.environ,box.env,clear=True):self.assertTrue(validate_stage(store,f.final_stage)['accepted'])
    path=Path(receipt['input_file']);path.write_text('{}')
-   forged=dict(receipt);forged['accepted']=True;forged['receipt_sha256']=None;forged['receipt_sha256']=digest(canonical(forged));job_now=store.load();receipt_path=Path(job_now['stages'][0]['acceptance']['path']);_atomic(receipt_path,canonical(forged));job_now['stages'][0]['acceptance']['sha256']=forged['receipt_sha256'];_atomic(store.file,canonical(job_now))
-   verdict=validate_stage(store,'report');self.assertFalse(verdict['accepted']);self.assertTrue(any(word in verdict.get('reason','').lower() for word in ('input','validator','receipt')),verdict)
+   forged=dict(receipt);forged['accepted']=True;forged['receipt_sha256']=None;forged['receipt_sha256']=digest(canonical(forged))
+   job_now=store.load();receipt_path=Path(job_now['stages'][0]['acceptance']['path']);_atomic(receipt_path,canonical(forged))
+   job_now['stages'][0]['acceptance']['sha256']=forged['receipt_sha256'];_atomic(store.file,canonical(job_now))
+   with patch.dict(os.environ,box.env,clear=True):verdict=validate_stage(store,f.final_stage)
+   self.assertFalse(verdict['accepted'])
+   self.assertTrue(any(word in verdict.get('reason','').lower() for word in ('input','validator','receipt')),verdict)
 
  def test_worker_result_denial_does_not_expand_scope_and_duplicate_completion_is_idempotent(self):
   from tests.support import CoreTestCase
@@ -359,6 +370,8 @@ class JobStateTests(unittest.TestCase):
    proc=subprocess.run([sys.executable,str(ROOT/'scripts/install.py'),'--plugin','imps','--prefix',str(prefix),'--agents-root',str(agents)],capture_output=True,text=True,env=env);self.assertEqual(proc.returncode,0,proc.stdout+proc.stderr)
    version=Path(json.loads(proc.stdout)['data']['version_dir']);manifest=json.loads((version/'install-manifest.json').read_text())
    job={'schema_version':1,'job_id':'result-once','installation_id':manifest['installation_id'],'workflow':'imps/run','owner':{'id':'owner'},'objective':'bounded stage','requirements':{'R1':'preserve evidence'},'authorization':{'actions':['read']},'constraints':['no writes'],'dependencies':[{'key':'imps','plugin':'imps'}],'pins':{'imps':{'package_digest':'c'*64}},'result_contract':{'schema_version':1},'policy':{'max_repair_cycles':3,'max_artifact_bytes':16777216},'stages':[{'id':'stage','depends_on':[],'requirements':['R1'],'status':'pending','execution_mode':'direct','validator_dependency':'imps'}],'tasks':[{'task_id':'slot-1','stage_id':'stage','logical_slot_id':'primary','request_id':'request-1','worker_id':'imps/stage-executor','dependency_key':'imps','write_scope':{'mode':'coordinator-only'}}],'result_contract':{'schema_version':1},'decisions':[],'history':[],'metrics':{}}
+   from tests.imps_plan_review_fixtures import select_legacy_imps_job
+   select_legacy_imps_job(job,base,version,manifest,env)
    create_pinned_job(job,state,prefix,agents,base/'config/workers.json');store=Store(state,'result-once');caller={'installation_id':manifest['installation_id'],'workflow':'imps/run','package_digest':manifest['package_digest'],'actor':'coordinator'}
    before=store.load()
    with self.assertRaises(JobError):prepare(store,caller,'slot-1',lambda dep,pin:False,lambda stage_id:True)

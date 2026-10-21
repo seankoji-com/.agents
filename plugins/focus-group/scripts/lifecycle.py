@@ -238,7 +238,7 @@ def identity_evidence(study, record, job=_UNREAD):
     and resolutions: a repeated or equivalent reading keeps it; a new association, or a changed resolution
     (such as another status provider), changes it."""
     job = load_job(study) if job is _UNREAD else job
-    requested = {k: record['bindings']['requested_target'][k] for k in ('providerInstanceId', 'model')}
+    requested = fg.identity_request(record['bindings']['requested_target'])
     task = task_for_request(job, record['request_id'])
     handle = handle_for(task, record['request_id']) if task else None
     if handle is None:
@@ -269,7 +269,7 @@ def identity_evidence(study, record, job=_UNREAD):
     missing = [k for k, v in canonical.items() if v is None]
     observed, hold, kind = None, None, None
     if not missing and providers == [canonical['providerInstanceId']] and models == [canonical['model']]:
-        if canonical == requested:
+        if canonical == model_of(requested):
             hold = 'the shared identity rules did not verify this execution, and no reading names another model'
         else:
             observed, kind = dict(canonical), 'wrong-model'
@@ -357,7 +357,7 @@ def session_failures(study, request_ids):
 def pilot_state(study, plan, revision, pilot, stage, accepted, ledger, job=_UNREAD):
     """Gate state of one model's pilot for one stage. `passed` needs the pilot's own (or carried) result,
     usable now, with verified or owner-accepted identity now; for a journey it must also hold hands-on goals."""
-    base = {'model': {k: pilot['target'][k] for k in ('providerInstanceId', 'model', 'options')},
+    base = {'model': dict(pilot['target']),
             'pilot_cell': pilot['cell_id'], 'stage': stage}
     record, via = effective_record(study, revision, pilot['cell_id'], stage, accepted)
     if record is not None:
@@ -503,7 +503,7 @@ def op_accept_identity(args):
         raise
     body = {'schema_version': 1, 'record_sha256': record['record_sha256'], 'cell_id': record['cell_id'],
             'stage': record['stage'], 'recorded_identity': record['identity'], 'current_identity': now['state'],
-            'identity_source': now['source'], 'requested': {k: requested[k] for k in ('providerInstanceId', 'model')},
+            'identity_source': now['source'], 'requested': fg.identity_request(requested),
             'observed': found['observed'], 'discrepancy': {k: found[k] for k in (
                 'kind', 'request_id', 'host_task_id', 'shared_status', 'associations', 'resolutions', 'canonical',
                 'missing', 'readings', 'current_sources')}, 'discrepancy_sha256': found['discrepancy_sha256'],
@@ -1006,7 +1006,7 @@ def slot_view(study, plan, revision, cell, stage, accepted, ledger, job, now, ca
     retry = request_id in ledger['requests'] or bool(prepared(study, task, request_id)
                                                      and (task.get('inputs_stale') or task.get('status') == 'stale'))
     probe = f"{task['task_id']}-resume-probe" if retry else request_id
-    target = {k: cell['target'][k] for k in ('providerInstanceId', 'model', 'options')}
+    target = dict(cell['target'])
     attempt = {'revision': revision, 'request_id': probe, 'stage': stage, 'cell_id': cell['cell_id'], 'target': target,
                'material_classes': sorted(fg.required_classes(stage, plan['mode'])), 'purpose': 'resume'}
     try:
@@ -1179,6 +1179,20 @@ def new_slot(task_id, stage, target, document):
 def owner_inputs(study, job, revision, kind, new_plan):
     """The owner decision and plan revision that record `new_plan` in the shared job. The decision quotes the
     owner's approval of this exact study revision; nothing here asks the owner again."""
+    record = fg.planning_gate(study, revision, run=True)
+    plan = study.plan(revision)['plan']
+    for task in new_plan.get('tasks', []):
+        if not _unsettled(job, task) and not task.get('selection_binding'):
+            task['selection_binding'] = fg.planning_module().task_binding(plan, record, task)
+    # The generic revision route retains producing choices for already executing slots.
+    selected = record['selection']
+    if selected['selection_sha256'] != job.get('model_selection_sha256'):
+        new_plan.update(model_selection=selected, model_selection_sha256=selected['selection_sha256'],
+                        invocation_id=record['invocation_id'], scope_id=record['scope_id'])
+    stages = new_plan.setdefault('stages', copy.deepcopy(job['stages']))
+    for stage in stages:
+        stage.setdefault('resources', {}).update(focus_group_plan=fg.planning_module().descriptor(study, revision),
+                                                focus_group_admission=record)
     last = study.approvals(revision)[-1]
     tag = sha({'revision': revision, 'kind': kind, 'plan': new_plan})[:16]
     revision_id = decision_id = f'fg-{kind}-{tag}'

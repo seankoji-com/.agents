@@ -1,10 +1,24 @@
 # Plan a study
 
 `plan` prepares one exact, approvable revision. It writes only study records under
-the private job root. It never prepares a brief, calls `delegate_task`, schedules
-anything or changes the product.
+the private job root. It schedules nothing and changes no product. Its separate planning review
+precedes owner approval; participant work stays held until both gates pass.
 
-## 1. Record the brief
+## 1. Collect choices and record the brief
+
+Follow `PKG/shared/model-selection.md`. Batch work/review choices before
+substantive drafting, capture or investigation. Resolve exact live targets/options and any required runtime mode:
+`workhorse` for planning (judgement floor 2), `participant-01`, `participant-02`,
+and so on in participant-model order (floor 1), `analysis` (judgement floor 2),
+and a required independent `fidelity` review slot (judgement floor 2). These are
+role names, never provider/model defaults. Validate the fidelity choice jointly
+against all prospective authors. Preserve the selected per-cell models.
+
+Freeze the selection with the shared chooser, then use `plan_review.py admit`
+with operation `plan`, stable request_reference/output_name, invocation_id,
+selection and its separately retained selection_sha256. Save its result as
+`admission.json`. Explicit supplied choices count. Capability/identity preflight
+may precede this answer; substantive work may not.
 
 Write a draft from `PKG/templates/study-draft.example.json`. Record the intended
 audience, the decision the study should inform, the target URL or supplied pack,
@@ -20,7 +34,7 @@ operator asks for.
 Save a fresh `orchestrator_capabilities` response, then:
 
 ```sh
-python3 PKG/scripts/study.py suggest --input draft.json --capabilities caps.json
+python3 PKG/scripts/study.py suggest --input draft.json --capabilities caps.json --admission admission.json
 ```
 
 Write four invented personas yourself, each with one goal, priorities, relevant
@@ -28,7 +42,7 @@ experience and constraints, marked `invented: true`. Describe one person; for a
 time-poor parent, say what this parent needs, not what parents want. The helper
 refuses a few common phrasings of a group preference ("all parents want",
 "parents always prefer", a clause opening "Parents want"); it is a narrow lint, so
-read every persona yourself. `suggest` fills
+read every persona yourself. `suggest` only recommends candidates; adopt them only after explicit choice. It fills
 missing participant models with the first runnable model of the first two known
 catalog lineages, the analyst with the first participant model, and the reviewer
 with a model of a different known lineage. It writes nothing. Show the operator the
@@ -62,12 +76,24 @@ which provider instances may receive each class; do not assume.
 
 ```sh
 python3 PKG/scripts/study.py plan --state-root ROOT --study ID --input draft.json \
-  --capabilities caps.json [--observations observations.json]
+  --capabilities caps.json --admission admission.json [--observations observations.json]
 ```
 
 `--observations` lists capability facts you read from tool schemas before dispatch
 (`image_delivery`, `browser_tools`, `isolation`, `hard_stop`, each `available` or
 `unavailable` with its source). Never record `verified`; only a pilot verifies.
+
+The draft remains non-ready. Before approval, call `plan_review.py prepare` with
+`{state_root, study, inputs, metadata_file}`. Inputs use the shared adopter contract:
+verbatim request/decisions with complete clause mappings, the returned fixed
+requirements, repository_root and authorised evidence_paths. Use its snapshot
+with `PKG/shared/planning_review_cli.py` in a separate manifest-pinned planning
+job. Follow `PKG/shared/planning-review.md` for host evidence, findings, finite
+repair rounds and acceptance. Call `plan_review.py attach` with
+`{state_root, study, metadata_file, receipt}` only after actual acceptance.
+`plan_review.py validate` rechecks it. Each changed revision needs a compatible
+receipt; missing, adverse, stale and transplanted receipts block `approve` and
+every dependent admission. A review cannot approve the study for the owner.
 
 Show the operator, without paraphrasing the numbers:
 

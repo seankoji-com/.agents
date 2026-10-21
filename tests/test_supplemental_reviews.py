@@ -29,7 +29,15 @@ def fixture(now=NOW):
     models = ['opencode/sample-a-free', 'opencode/sample-b-free', 'opencode/sample-c-free',
               'opencode/sample-d-free', 'opencode/paid', 'opencode-go/included']
     stamp = now.isoformat()
+    from tests.model_selection_fixtures import selection_input, answer
+    from shared.model_selection import freeze
+    choices = selection_input()
+    choices['supplemental'] = {'kind': 'class', 'options': {}, 'providers': ['gateway'], 'maximum': 3,
+                               'data_classes': ['public', 'confidential'],
+                               'source': answer('Permit up to three zero-price checked extras on the fixture gateway.')}
+    selection = freeze(choices)
     return {
+        'model_selection': selection, 'selection_sha256': selection['selection_sha256'],
         'exclude_models': ['fixture/primary-reviewer', 'fixture/implementer'],
         'permissions': {'delegate': True, 'share_with_opencode': True, 'material': 'public'},
         'catalog_observed_at': stamp,
@@ -165,7 +173,7 @@ class SelectionTest(unittest.TestCase):
         for material in (None, 'unknown', False):
             changed = deepcopy(data)
             changed['permissions']['material'] = material
-            self.assertIn('data-use-unverified', [r['reason'] for r in reviews.select(changed, NOW)[1]])
+            self.assertIn('no-supplemental-consent', [r['reason'] for r in reviews.select(changed, NOW)[1]])
         data['permissions']['material'] = 'confidential'
         terms = data['pricing'][0]['data_use']
         for allowed in (None, False):
@@ -245,6 +253,10 @@ class SelectionTest(unittest.TestCase):
         duplicate = deepcopy(data['capabilities']['providers'][0])
         duplicate['providerInstanceId'] = 'another'
         data['capabilities']['providers'].append(duplicate)
+        from shared.model_selection import freeze
+        data['model_selection']['supplemental']['providers'].append('another')
+        data['model_selection'] = freeze(data['model_selection'])
+        data['selection_sha256'] = data['model_selection']['selection_sha256']
         _, skipped = reviews.select(data, NOW)
         self.assertEqual(sum(s['reason'] == 'duplicate-model' for s in skipped), 4)
         self.assertEqual(sum(s['reason'] == 'round-cap' for s in skipped), 1)

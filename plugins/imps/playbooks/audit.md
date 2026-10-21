@@ -1,5 +1,7 @@
 # Audit a repository
 
+Apply `PKG/references/planning-review.md` before substantive work. Preserve the
+upfront selection through aliases, source stages and repairs.
 Read `PKG/shared/t3-runtime.md`. Inspect the project profile: purpose, users, entry
 points, architecture, tests, CI, deployment, and current dirty changes. Resolve focus
 from the request. Audit relevant dimensions of correctness, security, operability,
@@ -41,3 +43,8 @@ and `Done when:` lines for the checklist playbook. A proposed check should fail 
 the defect and pass on the fixed state; label untested checks as proposed. Do not
 claim a check failed unless you ran it. List missing acceptance separately instead
 of inventing commands. Deletion proposals belong in an operator-decision section.
+
+Review the final integrated conclusions through the separate planning job, including
+zero findings/no-risk/no-change. Pin the final document and run requirements, then
+submit its actual receipt through `finalize` before `validate`/`report`. This adds
+no authority to fix, execute a write, publish or waive a stronger review gate.

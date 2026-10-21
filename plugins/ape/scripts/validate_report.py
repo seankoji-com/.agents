@@ -14,7 +14,8 @@ Exit 0 accepted, 1 rejected, 2 usage.
 import argparse, hashlib, json, re, sys
 from pathlib import Path
 from urllib.parse import unquote
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
+                            if (p / 'shared/ape_planning.py').is_file())))
 from shared.validator_observations import read_object
 from core.jobs.store import _regular, strict_load
 
@@ -43,7 +44,7 @@ OPERATIONS = {
                          'max_words': None, 'consumes': True, 'cites': False},
 }
 KEYS = {'operation', 'sources', 'requirements', 'fingerprint', 'report', 'findings', 'inspections', 'criteria',
-        'consumed_reports'}
+        'consumed_reports', 'planning_review'}
 CRITERIA = ('source-provenance', 'finding-source-coverage')
 
 
@@ -448,7 +449,7 @@ def check_criteria(data):
     return criteria
 
 
-def evaluate(path):
+def check_domain(path):
     data, descriptor_sha = read_object(path)
     unknown = sorted(set(data) - KEYS)
     if unknown:
@@ -478,7 +479,18 @@ def evaluate(path):
             'source_revision': {s['id']: s['revision'] for s in sources},
             'consumed_report_sha256': {rid: row['sha256'] for rid, row in consumed.items()},
             'requirements': requirements, 'finding_count': len(findings), 'inspection_receipts': receipts}}
-    return {'accepted': all(row['status'] == 'passed' for row in outcomes.values()), 'requirement_outcomes': outcomes}
+    return data, outcomes
+
+
+def evaluate(path):
+    data, outcomes = check_domain(path)
+    accepted = all(row['status'] == 'passed' for row in outcomes.values())
+    if accepted and data['operation'] in ('study', 'forage-synthesis'):
+        from shared.ape_planning import validate
+        evidence = validate(data, Path(__file__).resolve().parents[1] / 'references/plan-review-rubric.md')
+        for row in outcomes.values():
+            row['evidence']['planning_review'] = evidence
+    return {'accepted': accepted, 'requirement_outcomes': outcomes}
 
 
 def main():

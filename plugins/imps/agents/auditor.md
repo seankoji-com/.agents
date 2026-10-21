@@ -56,3 +56,6 @@ a review slot. Put coverage gaps in `gaps`.
 
 Never copy secrets, tokens, credentials, private hostnames or transcripts into a
 result or artifact. Reference sensitive material by path and say what you withheld.
+
+Apply the installed `shared/reviewer-standard.md` within this role's scope.
+Document-only, read-only, lineage and specialised result rules above remain binding.

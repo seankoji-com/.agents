@@ -196,9 +196,16 @@ class CatalogTest(unittest.TestCase):
                                 cwd=project, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         digest = json.loads(result.stdout)['approval_digest']
+        from tests.imps_plan_review_fixtures import legacy_box
+        from tests.adopter_plan_review_fixtures import reviewed_apply_context
+        version = script.parents[1].resolve()
+        manifest = json.loads((version / 'install-manifest.json').read_text())
+        box = legacy_box(project / 'review-state', version, manifest, self.env)
+        context = reviewed_apply_context(box, version, manifest, json.loads(plan.read_text()))
         result = subprocess.run([sys.executable, '-I', str(script), 'apply', '--plan', str(plan),
-                                 '--approval', digest, '--backup', str(project / 'backup')],
-                                cwd=project, capture_output=True, text=True, timeout=10)
+                                 '--approval', digest, '--backup', str(project / 'backup'),
+                                 '--context', str(box.payload(context))],
+                                cwd=project, capture_output=True, text=True, timeout=10, env=box.env)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(target.read_bytes(), candidate.read_bytes())
         self.assertEqual((project / 'backup').read_text(), '{"permissions":{"allow":["Read(*)"]}}')

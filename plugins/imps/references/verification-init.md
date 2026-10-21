@@ -4,6 +4,11 @@ Creates `.agents/skills/verify-<project>/` in the current repository. It holds a
 
 Do not start production services, send real messages, or use production credentials to prove behaviour. If the only way to exercise the product is against production, stop and report that.
 
+Apply `PKG/references/planning-review.md` before discovery. Obtain work/review
+choices upfront. After authoring facts, prepare a verification-recipe descriptor
+and obtain the separate manifest-pinned planning receipt. Review launch, feature
+selection, observation, failure recovery and cleanup decisions.
+
 ## 1. Discover
 
 Inspect the repository to learn how the product:
@@ -25,6 +30,12 @@ python3 PKG/cli.py recipe-scaffold --repo <repo root> --input scratch/facts.json
 ```
 
 This writes `SKILL.md`, `recipe.json` (status `draft`), `features/index.md` and one document per feature. Run `recipe-check --recipe <dir>/recipe.json`. It rejects placeholder text and undeclared variables.
+
+Scaffold/check is deterministic and adds no recursive review. Before any authored
+launch, drive or cleanup, call planning `recipe-ready` with the reviewed descriptor
+and `recipe_file`. It refuses missing/stale review or executable fields changed
+from facts. Use verification-init admission in the runtime gate context. This
+check grants no action authority and launches nothing.
 
 ## 3. Prove one feature
 

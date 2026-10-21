@@ -41,6 +41,8 @@ class RalphTest(unittest.TestCase):
                                      'options': {'effort': 'high'}},
                      'evaluator': {'providerInstanceId': 'gateway', 'model': 'custom/evaluator',
                                    'lineage': 'family-b', 'lineageSource': 'owner-confirmed'}}
+        from tests.adopter_plan_review_fixtures import ralph_admission
+        self.init['admission'] = ralph_admission(self.init)
         self.state = ralph.initialize(self.init, self.state_path)
 
     def git(self, *args):
@@ -344,6 +346,8 @@ class RalphTest(unittest.TestCase):
         self.git('add', '--', 'script.sh', 'committed.txt', 'already-dirty.sh')
         self.git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'files')
         os.chmod(self.repo / 'already-dirty.sh', 0o755)
+        from tests.adopter_plan_review_fixtures import ralph_admission
+        self.init['admission'] = ralph_admission(self.init)
         self.state = ralph.initialize(self.init, self.state_path)
         self.implementation()
         self.review(feedback=[{'severity': 'minor', 'message': 'Make the script executable'}])
@@ -367,6 +371,8 @@ class RalphTest(unittest.TestCase):
         self.git('add', '--', 'script.sh')
         self.git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'script')
         os.chmod(script, 0o755)
+        from tests.adopter_plan_review_fixtures import ralph_admission
+        self.init['admission'] = ralph_admission(self.init)
         self.state = ralph.initialize(self.init, self.state_path)
         self.implementation()
         self.review(feedback=[{'severity': 'minor', 'message': 'Restrict the script'}])
@@ -374,6 +380,8 @@ class RalphTest(unittest.TestCase):
         self.assertEqual(self.delta_paths(), ['script.sh'])
         # With core.fileMode=false Git ignores the chmod and the revision does not move either.
         self.git('config', 'core.fileMode', 'false')
+        from tests.adopter_plan_review_fixtures import ralph_admission
+        self.init['admission'] = ralph_admission(self.init)
         self.state = ralph.initialize(self.init, self.state_path)
         self.implementation()
         self.review(feedback=[{'severity': 'minor', 'message': 'Gap'}])
@@ -398,12 +406,16 @@ class RalphTest(unittest.TestCase):
         self.review(achieved=False)
         self.implementation()
         self.assertIn('"reviewScope": "full"', ralph.advance(self.state)['dispatch']['task'])
+        from tests.adopter_plan_review_fixtures import ralph_admission
+        self.init['admission'] = ralph_admission(self.init)
         self.state = ralph.initialize(self.init, self.state_path)
         self.implementation()
         self.review(feedback=[{'severity': 'minor', 'message': 'Gap'}])
         self.state['tasks'][-1].pop('reviewBaseline')  # a review recorded before scoped re-review
         self.implementation()
         self.assertIn('"reviewScope": "full"', ralph.advance(self.state)['dispatch']['task'])
+        from tests.adopter_plan_review_fixtures import ralph_admission
+        self.init['admission'] = ralph_admission(self.init)
         self.state = ralph.initialize(self.init, self.state_path)
         self.implementation()
         self.review()
@@ -419,6 +431,8 @@ class RalphTest(unittest.TestCase):
         ralph.observe(self.state, self.response(task_id))
         self.assertTrue(self.state['tasks'][-1]['stale'])
         self.assertIn('"reviewScope": "full"', ralph.advance(self.state)['dispatch']['task'])
+        from tests.adopter_plan_review_fixtures import ralph_admission
+        self.init['admission'] = ralph_admission(self.init)
         self.state = ralph.initialize(self.init, self.state_path)
         self.implementation()
         self.review(feedback=[{'severity': 'major', 'message': 'Earlier rejection'}])
@@ -1210,6 +1224,8 @@ class RalphTest(unittest.TestCase):
                 state['tasks'][-1][field] = value
                 cases.append(state)
         # A pending dispatch must be safe to replay and attach, even before a handle exists.
+        from tests.adopter_plan_review_fixtures import ralph_admission
+        self.init['admission'] = ralph_admission(self.init)
         self.state = ralph.initialize(self.init, self.state_path)
         self.issue()
         for dispatch in ({}, {'clientRequestId': ''}, {'clientRequestId': []},
@@ -1322,6 +1338,8 @@ class RalphTest(unittest.TestCase):
             model.setdefault('options', []).append({'id': 'enabled', 'type': 'boolean'})
         for role in ('implementer', 'evaluator'):
             self.init[role].setdefault('options', {})['enabled'] = False
+        from tests.adopter_plan_review_fixtures import ralph_admission
+        self.init['admission'] = ralph_admission(self.init)
         self.state = ralph.initialize(self.init, self.state_path)
         for role in ('implementation', 'review'):
             request = ralph.advance(self.state)['dispatch']
@@ -1378,6 +1396,8 @@ class RalphTest(unittest.TestCase):
         self.git('add', 'tracked.txt')
         self.git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
                  'commit', '-qm', 'tracked file')
+        from tests.adopter_plan_review_fixtures import ralph_admission
+        self.init['admission'] = ralph_admission(self.init)
         self.state = ralph.initialize(self.init, self.state_path)
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         self.state_path.write_text(json.dumps(self.state))

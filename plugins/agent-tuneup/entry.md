@@ -1,4 +1,8 @@
 # agent-tuneup
+
+Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
+Use `PKG/shared/adopter-planning.md` and `PKG/references/adopter-review-rubric.md`
+for public admission and receipt gates through `PKG/scripts/plan_review.py`.
 Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
 Audit and align agent configuration without weakening permissions. Read

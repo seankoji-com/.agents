@@ -32,10 +32,13 @@ from tests.test_model_ids import MODEL_ID  # noqa: E402
 
 CATALOG = ROOT / 'scripts' / 'catalog.py'
 SOURCE_PLUGIN = ROOT / 'plugins' / 'focus-group'
-PLUGIN_MODULES = {'study', 'evidence', 'lifecycle', 'report', 'validate_study', 'core', 'shared'}
+PLUGIN_MODULES = {'study', 'evidence', 'lifecycle', 'report', 'validate_study', 'plan_review', 'core', 'shared'}
 SHARED_CONTRACTS = ('boundaries.md', 'manifest.schema.json', 'workers-config.schema.json', 'job.schema.json',
                     'stage.schema.json', 'worker-brief.schema.json', 'worker-result.schema.json',
-                    'result-envelope.schema.json', 'acceptance.schema.json', 'jobs-contract.md')
+                    'result-envelope.schema.json', 'acceptance.schema.json', 'jobs-contract.md',
+                    'reviewer-standard.md', 'model-selection.schema.json', 'model-authority.schema.json',
+                    'planning-policy.schema.json', 'planning-job.schema.json', 'planning-subject.schema.json',
+                    'planning-assessment.schema.json', 'planning-direct.schema.json')
 # Loaded by every audited helper process through PYTHONPATH. It never changes behaviour: it records each path the
 # process opens, lists or imports from inside the forbidden root, and appends one JSON line per process at exit.
 AUDIT_HOOK = r'''
@@ -149,6 +152,7 @@ class InstalledHost(fg4.ReportHost):
     def __init__(self, base, package):
         super().__init__(base)
         self.package = package
+        self.policy_env = {'XDG_STATE_HOME': os.environ['XDG_STATE_HOME']}
         self.helper = package / 'scripts' / 'study.py'
 
     def draft(self, **changes):
@@ -566,11 +570,8 @@ class ArchitectureTest(unittest.TestCase):
         credential = re.compile(r'(?i)\b(?:gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})\b')
         plugin_files = [p for p in self.package.rglob('*') if p.is_file() and p.parts[len(self.package.parts)] not in
                         ('core', 'shared') and p.name != 'install-manifest.json']
-        fixtures = [ROOT / 'tests' / name for name in ('focus_group_fixtures.py', 'test_focus_group_plan.py',
-                                                         'test_focus_group_evidence.py', 'test_focus_group_lifecycle.py',
-                                                         'test_focus_group_report.py', 'test_focus_group_report_identity.py',
-                                                         'test_focus_group_workflow.py',
-                                                         'test_focus_group_install.py')]
+        fixtures = [ROOT / 'tests' / 'focus_group_fixtures.py'] + sorted(
+            (ROOT / 'tests').glob('test_focus_group*.py'))
         for path in plugin_files + [f for f in fixtures if f.exists()]:
             text = path.read_text(errors='replace')
             with self.subTest(path=path.name):
@@ -589,7 +590,7 @@ class ArchitectureTest(unittest.TestCase):
                           'requirements.txt', 'package.json'):
             self.assertFalse(any(forbidden in n for n in names), forbidden)
         self.assertEqual(sorted(p.suffix for p in (self.package / 'scripts').iterdir() if p.is_file()),
-                         ['.py'] * 5)
+                         ['.py'] * 6)
 
 
 if __name__ == '__main__':

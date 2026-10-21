@@ -201,6 +201,91 @@
               }
             ]
           }
+        },
+        "planning_review": {
+          "type": "object",
+          "required": [
+            "coverage",
+            "inspected_paths",
+            "responses"
+          ],
+          "properties": {
+            "coverage": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "outcome",
+                  "evidence"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "outcome": {
+                    "enum": [
+                      "supported",
+                      "contradicted",
+                      "unverified"
+                    ]
+                  },
+                  "evidence": {}
+                },
+                "additionalProperties": false
+              }
+            },
+            "inspected_paths": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "responses": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "finding_key",
+                  "status",
+                  "evidence"
+                ],
+                "properties": {
+                  "finding_key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "status": {
+                    "enum": [
+                      "fixed",
+                      "rebuttal-agreed",
+                      "rejected",
+                      "deferred",
+                      "open"
+                    ]
+                  },
+                  "evidence": {},
+                  "impact": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "owner": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "next_action": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

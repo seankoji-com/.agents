@@ -95,7 +95,8 @@ class ImpsRoutingTest(unittest.TestCase):
             self.assertIn('direct', text.lower(), marker)
             for launch in ('delegate_task', 'prepare', 'create'):
                 self.assertNotIn(launch, text, marker)
-        self.assertIn('doctor, status and verification-init stay direct', entry)
+        self.assertIn('doctor and status stay direct', entry)
+        self.assertIn('authored facts need review', entry)
         self.assertIn('never create a job or launch an agent', ' '.join(JOBS_REF.read_text().split()))
 
 
@@ -212,7 +213,8 @@ class ImpsWholeJobTest(CoreTestCase):
         # The coordinator creates the stage gate run itself (parent thread recorded in the plan).
         self.state_root = gates / 'impl'
         repo = self.make_repo()
-        run = self.init(self.plan(repo, policy={'review': {'required': True, 'role': 'reviewer'}}))
+        from tests.imps_plan_review_fixtures import admitted_gate, select_legacy_imps_job
+        run = admitted_gate(self, version, manifest, env, self.plan(repo, policy={'review': {'required': True, 'role': 'reviewer'}}))
         self.assertEqual(run.state['host']['parent_thread_id'], 'thread-parent-0001')
         validator = version / 'scripts' / 'validate_stage.py'
         stage_hash = hashlib.sha256(validator.read_bytes()).hexdigest()
@@ -260,6 +262,8 @@ class ImpsWholeJobTest(CoreTestCase):
         def jobs_call(command, payload=None, *extra):
             return call(job_cli, command, '--state-root', str(jobs), '--job', 'imps-e2e', *extra, payload=payload)
 
+        from tests.model_selection_fixtures import attach_selection
+        select_legacy_imps_job(job, base, version, manifest, env)
         created = jobs_call('create', job, '--prefix', str(base / 'prefix'), '--agents-root', str(base / 'agents'),
                             '--config', str(base / 'config' / 'workers.json'))
         self.assertEqual(created.returncode, 0, created.stderr)

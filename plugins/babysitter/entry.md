@@ -1,10 +1,14 @@
 # babysitter
+
+Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
+Public admission: `PKG/scripts/plan_review.py`; contract: `PKG/shared/adopter-planning.md`;
+criteria: `PKG/references/adopter-review-rubric.md`.
 Read `PKG/shared/learnings.md` and load this plugin's lessons first.
 
 Every roster PR ends merged or as a named `needs human:` blocker.
 Read `PKG/shared/t3-runtime.md`.
 Multi-PR and repair work follows `PKG/shared/job-coordination.md`; delegation follows
-`PKG/shared/delegation.md`.
+`PKG/shared/delegation.md`. Load only the chosen operation.
 
 ## Operations
 
@@ -20,8 +24,8 @@ For `pr`, `repo`, and `org`, read `PKG/playbooks/maintain.md`. Read
 listing, PR inspection, the quick merge pass, the PR table, and status reads stay
 direct in this thread.
 
-When another workflow pins babysitter (for example imps `prs`), resolve `PKG`
-through `t3-plugins --job JOB path babysitter`, never the current path.
+When a workflow pins babysitter, resolve `PKG` through
+`t3-plugins --job JOB path babysitter`, never the current path.
 
 ## Authorization
 
@@ -75,15 +79,15 @@ resolution is asked through the picker at once, never left behind an armed auto-
 
 ## Workers
 
-- `babysitter/pr-maintainer` (workhorse): one scoped PR's authorized triage or
-  repair in that PR's isolated worktree, with exact-head evidence. Read-only triage
+- `babysitter/pr-maintainer` (workhorse): one PR's authorized triage/repair in its
+  isolated worktree, with exact-head evidence. Read-only triage
   may finish `blocked` with named blockers.
-- `babysitter/pr-reviewer` (reviewer): only when the operator asked for review
-  before landing; independent review at the exact pushed head.
+- `babysitter/pr-reviewer` (reviewer): operator-requested review before landing;
+  independent at the exact pushed head.
 
 Only this thread dispatches, watches, merges, and accepts. Workers never dispatch,
-watch, merge, or accept their own work, and their definitions grant no push or merge
-authority by themselves; each brief narrows its role to the recorded actions.
+watch, merge or self-accept. Definitions grant no push or merge
+authority by themselves; briefs narrow roles to recorded actions.
 
 ## Acceptance
 
@@ -100,7 +104,8 @@ writes for that PR. Never bypass the supported workflow to land it.
 
 Ask every owner decision through the native question picker described in
 `PKG/shared/t3-runtime.md`, recommended option first, and record it with
-`job_cli.py decision`. Fan-out, model choice, repair rounds, branch rewrites, and a
+`job_cli.py decision`. Model choices and work replacements follow the upfront
+selection contract; do not infer them from maintenance authority. Fan-out, repair rounds, branch rewrites, and a
 roster PR's tests and regressions with the setup they need are decided: never ask,
 always yes. Ask only for a scheduled sweep, a product decision a fixer returned, a
 refused host action, or a blocker only a human can clear. Until answered the action

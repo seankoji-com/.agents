@@ -155,6 +155,7 @@ class Installed:
         self.version = Path(json.loads(proc.stdout)['data']['version_dir'])
         self.manifest = json.loads((self.version / 'install-manifest.json').read_text())
         self.validator = self.version / 'scripts' / 'validate_report.py'
+        self.env = env
         self.case = case
         self.seq = 0
 
@@ -169,11 +170,25 @@ class Installed:
         return path
 
     def cli(self, script, command, job, data=None, expect=0, extra=()):
+        if script == 'job_cli.py' and command == 'plan-revision' and data is not None:
+            from tests.model_selection_fixtures import attach_revision
+            current=json.loads((self.state/job/'job.json').read_text())
+            for task in data['new_plan'].get('tasks',[]):
+                if not task.get('selection_binding'):
+                    role='judgement' if task['worker_id']=='ape/synthesizer' else 'workhorse'
+                    task['target']=current['model_selection']['work'][role]
+                    task['selection_binding']={'role':role,'selection_sha256':current['model_selection_sha256']}
         argv = [sys.executable, str(self.version / 'shared' / script), command,
                 '--state-root', str(self.state), '--job', job, *extra]
         if data is not None:
             argv += ['--input', str(self.write(command, data))]
-        proc = subprocess.run(argv, capture_output=True, text=True, timeout=120)
+        if script == 'job_cli.py' and command == 'task-observation' and data is not None:
+            event = data['event']
+            task = next(t for t in json.loads((self.state/job/'job.json').read_text())['tasks']
+                        if t['task_id'] == data['task_id'])
+            event.setdefault('status_identity', {k: task['target'][k] for k in ('providerInstanceId','model','options')})
+            argv[-1] = str(self.write(command, data))
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=120, env=self.env)
         self.case.assertEqual(proc.returncode, expect, (command, proc.stdout, proc.stderr))
         self.stderr = proc.stderr
         return json.loads(proc.stdout) if proc.stdout.strip() else None
@@ -185,15 +200,17 @@ class Installed:
         return self.cli('job_acceptance_cli.py', *args, **kw)
 
     def create(self, job):
+        from tests.ape_plan_review_fixtures import select_legacy_ape_fixture
+        select_legacy_ape_fixture(job, self.base, self.state)
         return self.job('create', job['job_id'], job, extra=('--prefix', str(self.prefix), '--agents-root',
                                                              str(self.agents), '--config',
                                                              str(self.base / 'config' / 'workers.json')))
 
     def validate(self, report):
         path = self.write('direct-report', report)
-        proc = subprocess.run([sys.executable, str(self.validator), '--input', str(path)],
-                              capture_output=True, text=True, timeout=60)
-        return proc.returncode, json.loads(proc.stdout)
+        from tests.test_ape_validate_report import run_validator
+        code, result, error = run_validator(path, self.validator)
+        return code, result
 
 
 from tests.test_ape_validate_report import (CRITERIA, descriptor, fingerprint, pin_source,  # noqa: E402
@@ -278,6 +295,14 @@ class ApeSyntheticJobTests(unittest.TestCase):
         return prepared, Path(report['path'])
 
     def freeze(self, ins, job_id, workflow, stage_id, data):
+        if data.get('operation') in ('study', 'forage-synthesis'):
+            current=json.loads((ins.state/job_id/'job.json').read_text())
+            assigned=next(s for s in current['stages'] if s['id']==stage_id)
+            expected_outputs=sorted(p for s in current['stages'] if s['id'] in assigned['depends_on'] for p in s.get('outputs',[]))
+            if (sorted(r['id'] for r in data['requirements'])==sorted(assigned['requirements']) and
+                    sorted(r['path'] for r in data.get('consumed_reports',[]))==expected_outputs):
+                from tests.ape_plan_review_fixtures import review_legacy_ape_fixture
+                review_legacy_ape_fixture(ins,job_id,stage_id,data)
         path = ins.write('descriptor-' + stage_id, data)
         return ins.job('observation', job_id, {'caller': ins.caller(workflow), 'stage_id': stage_id,
                                                'input_file': str(path)})['path']
@@ -310,7 +335,7 @@ class ApeSyntheticJobTests(unittest.TestCase):
             self.assertEqual(fu_brief['worker_id'], 'ape/source-researcher')
             # A second follow-up in the same slot exceeds the one declared follow-up.
             event = {'kind': 'followup', 'request_id': 'req-source-1-fu1', 'host_task_id': 'host-1-fu',
-                     'parent_host_task_id': 'host-1', 'child_thread_id': 'thread-host-1', 'target': None,
+                     'parent_host_task_id': 'host-1', 'child_thread_id': 'thread-host-1', 'target': fu_brief['target'],
                      'scope': {'mode': 'worker-evidence', 'path': 'artifacts/tasks/source-1'}}
             ins.job('task-observation', 'ape-study', {'caller': caller, 'task_id': 'source-1', 'event': event})
             ins.job('task-observation', 'ape-study', {'caller': caller, 'task_id': 'source-1', 'event': {
@@ -371,6 +396,8 @@ class ApeSyntheticJobTests(unittest.TestCase):
             ins = Installed(self, base)
             sources = [pin_source(base, f'src-{n}') for n in (1, 2)]
             stages = [stage(f'research-{n}', [f'R-SRC-{n}'], [sources[n - 1]]) for n in (1, 2)]
+            # Ordered research remains research; dependencies alone do not make synthesis.
+            stages[1]['depends_on'] = ['research-1']
             for n in (1, 2):
                 stages[n - 1]['outputs'] = [str(ins.state / 'ape-forage' / f'artifacts/tasks/source-{n}/report.md')]
             # Synthesis pins every candidate snapshot up front, so its contract never changes mid-job.

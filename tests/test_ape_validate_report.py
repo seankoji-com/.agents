@@ -1,4 +1,6 @@
-"""Ape acceptance authority: validate_report.py and the snapshot_source.py pinning helper.
+"""Ape domain citation checks and the snapshot_source.py pinning helper.
+
+Final public acceptance including actual planning receipts is in test_plan_review_ape.py.
 
 The module-level builders write synthetic pinned sources, fingerprints, reports and
 coordinator inspection receipts; other ape tests reuse them. Each negative case breaks
@@ -183,7 +185,19 @@ def tearDownModule():
 
 
 def run_validator(path, validator=None):
-    proc = subprocess.run([sys.executable, str(validator or INSTALL['validator']), '--input', str(path)],
+    # These regressions isolate the unchanged citation/inspection domain checks.
+    # No production CLI flag can bypass final review. S-APE tests exercise that CLI
+    # and accept-stage/validate-final with actual pinned planning jobs and receipts.
+    program = """import json,runpy,sys
+ns=runpy.run_path(sys.argv[1])
+try:
+ data,outcomes=ns['check_domain'](sys.argv[2])
+ result={'accepted':all(r['status']=='passed' for r in outcomes.values()),'requirement_outcomes':outcomes}
+except Exception as exc:
+ result={'accepted':False,'requirement_outcomes':{'report-acceptance':{'status':'failed','evidence':{'check':getattr(exc,'check','input'),'reason':str(exc)}}}}
+print(json.dumps(result));sys.exit(0 if result['accepted'] else 1)
+"""
+    proc = subprocess.run([sys.executable, '-c', program, str(validator or INSTALL['validator']), str(path)],
                           capture_output=True, text=True, timeout=60)
     return proc.returncode, (json.loads(proc.stdout) if proc.stdout.strip() else None), proc.stderr
 

@@ -247,11 +247,17 @@ def effective_config(user_path=None, repo=None) -> tuple[dict, list]:
     return config, sources
 
 
-def resolve(role: str, capabilities: dict, config: dict, implementer_lineage: str | None = None) -> dict:
+def resolve(role: str, capabilities: dict, config: dict | None, implementer_lineage: str | None = None,
+            profiles: dict | None = None) -> dict:
     """With `implementer_lineage`, every candidate says whether it is independent of the
     implementer: true for another known lineage, false for the same one, null when either
     lineage is `unknown`. Independent candidates come first, then unverified, then the
     same lineage, each group in tier order."""
+    if profiles is not None:
+        from shared.model_selection import discover
+        return dict(discover(capabilities, profiles, config, role), role=role, recommendation_only=True)
+    if config is None:
+        raise RoutingError('profiles_missing', 'no config: supply a sourced suitability profile for catalog recommendations')
     if role not in config['roles'] or not config['roles'][role]:
         raise RoutingError('role_missing', f'role {role!r} is not configured')
     catalog = {p.get('providerInstanceId'): p for p in capabilities['providers'] if isinstance(p, dict)}

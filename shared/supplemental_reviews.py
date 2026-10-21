@@ -171,6 +171,20 @@ def select(data, now):
     if data.get('enabled', True) is not True:
         return [], [{'reason': 'disabled'}]
     permissions = data.get('permissions', {})
+    # Ordinary delegation/sharing permission is not consent to extra reviewers.
+    from shared.model_selection import validate, validate_target, source, SelectionError
+    try:
+        selection = validate(data.get('model_selection'), data.get('selection_sha256'))
+        consent = selection.get('supplemental') or {}
+        source(consent.get('source'))
+        if (consent.get('kind') not in ('named', 'class') or
+                type(consent.get('maximum')) is not int or not 1 <= consent['maximum'] <= 3 or
+                not isinstance(consent.get('options'), dict) or
+                not isinstance(consent.get('providers'), list) or not consent['providers'] or
+                permissions.get('material') not in consent.get('data_classes', [])):
+            raise SelectionError('missing bounded supplemental consent')
+    except (SelectionError, KeyError, TypeError, ValueError):
+        return [], [{'reason': 'no-supplemental-consent'}]
     if permissions.get('delegate') is not True or permissions.get('share_with_opencode') is not True:
         return [], [{'reason': 'not-authorized'}]
     # Isolation is a delegate_task schema option, not an invented catalog feature.
@@ -206,7 +220,9 @@ def select(data, now):
             continue
         pid = provider.get('providerInstanceId')
         reason = None
-        if not text(pid) or provider.get('canRunChildTask') is not True or provider.get('constraints'):
+        if pid not in consent['providers']:
+            reason = 'provider-outside-supplemental-consent'
+        elif not text(pid) or provider.get('canRunChildTask') is not True or provider.get('constraints'):
             reason = 'provider-unavailable'
         elif pid != parent and provider.get('canRunCrossProviderChildTask') is not True:
             reason = 'cross-provider-unavailable'
@@ -218,6 +234,16 @@ def select(data, now):
         for model in provider.get('models', []):
             mid = model.get('id') if isinstance(model, dict) else None
             if not isinstance(mid, str) or not re.fullmatch(r'(?:opencode|opencode-go)/[a-zA-Z0-9._-]+', mid):
+                continue
+            if consent['kind'] == 'named' and {'providerInstanceId': pid, 'model': mid} not in consent.get('targets', []):
+                skipped.append({'provider': pid, 'model': mid, 'reason': 'model-outside-supplemental-consent'})
+                continue
+            chosen_target = {'providerInstanceId': pid, 'model': mid, 'options': deepcopy(consent['options']),
+                             'runtimeMode': 'full-access'}
+            try:
+                validate_target(chosen_target, cap)
+            except SelectionError:
+                skipped.append({'provider': pid, 'model': mid, 'reason': 'supplemental-options-unsupported'})
                 continue
             if model_name(mid) in excluded_names:
                 skipped.append({'provider': pid, 'model': mid, 'reason': 'primary-lineage'})
@@ -237,7 +263,10 @@ def select(data, now):
             if reason:
                 skipped.append({'provider': pid, 'model': mid, 'reason': reason})
                 continue
-            selected.append({'target': {'providerInstanceId': pid, 'model': mid}, 'pricing': proof})
+            selected_target = {'providerInstanceId': pid, 'model': mid}
+            if consent['options']:
+                selected_target['options'] = deepcopy(consent['options'])
+            selected.append({'target': selected_target, 'pricing': proof})
     # Deterministic order, independent of catalog order. The cap is per round, not per provider.
     selected.sort(key=lambda row: (row['target']['model'], row['target']['providerInstanceId']))
     distinct, seen = [], set()
@@ -246,7 +275,7 @@ def select(data, now):
         name = model_name(row['target']['model'])
         if name in seen:
             skipped.append({**row['target'], 'reason': 'duplicate-model'})
-        elif len(distinct) >= 3:
+        elif len(distinct) >= consent['maximum']:
             skipped.append({**row['target'], 'reason': 'round-cap'})
             seen.add(name)
         else:

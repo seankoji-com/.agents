@@ -38,6 +38,14 @@
 5. Do not write `t3.json`, call `t3_project_update`, or edit any project. Importing
    scripts is a separate owner action; an audit request does not authorize it.
 
+## Integrated conclusions
+
+Before cross-scope investigation, delegation or substantive bootstrap recommendation,
+collect choices and admit using `PKG/shared/adopter-planning.md`. Raw single-file
+diagnostics and mechanical bootstrap templates stay direct. Review the integrated
+conclusions, including no-change, before acceptance. Publish `adopter_output` with
+the actual reviewed descriptor. Keep private settings authority explicit.
+
 ## Audit job
 
 Create the job from `PKG/references/job-plan.md`: an `inspect` stage the coordinator

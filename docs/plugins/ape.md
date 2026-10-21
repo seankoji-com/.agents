@@ -19,6 +19,13 @@ five. Send `$t3-ape doctor` first on a new machine or provider.
 
 ## What you get
 
+Before research, choose work and review models together. A URL alias reuses that
+answer once. Final study reports and forage synthesis receive planning review by
+default, including no-adoption recommendations. The report records the actual
+review mode, coverage, feedback, remaining findings and rounds used. A permitted
+same-lineage or coordinator self-review is labelled as such. Missing, stale or
+adverse review evidence prevents final acceptance; citation checks still apply.
+
 A report pinned to the source commit, with these sections: Provenance, Overlap, Adopt,
 Adapt, Reject and Command case. Each recommendation names the local files it would
 touch, its effort and tradeoffs, and a bounded experiment with conditions for keeping
@@ -54,7 +61,8 @@ text at its resolved commit with `scripts/snapshot_source.py`.
   for `study`, up to five for `forage`. A `study` slot may use one follow-up on the
   same source and focus.
 - `ape/synthesizer` compares the accepted `forage` reports and proposes bounded
-  experiments.
+  experiments. Its managed planning-review mode also challenges final study and
+  forage recommendations read-only, using the shared review contract and local rubric.
 
 A report is accepted only when `scripts/validate_report.py` finds its sections, pinned
 revisions and snapshot hashes, line-numbered citations, coverage of every candidate
@@ -76,3 +84,6 @@ how a given model behaves; see [compatibility](../compatibility.md).
 Shared jobs record host execution identity and enforce author-lineage independence
 for document workflows. A first author record cannot identify earlier authors of an
 unrecorded document. Direct cold-read stages cannot fall back to the coordinator.
+
+See [planning review](../plan-review.md) for default triggers, model choices,
+receipt freshness, fallback labels and requester reporting.
