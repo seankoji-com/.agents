@@ -74,6 +74,13 @@ class SurfaceTest(CoreTestCase):
 
     def test_top_level_thread_tools_appear_only_as_prohibitions(self):
         for path, text in [*text_files('plugins'), *text_files('shared')]:
+            if path == ROOT / 'plugins/bug-report/playbooks/report.md':
+                # Issue #84 explicitly requests an ordinary reporting conversation.
+                # Other plugin/worker uses remain prohibited by the shared contract.
+                self.assertIn('`scratch:true`', text)
+                self.assertIn('No child delegation', text)
+                self.assertNotIn('create_threads', text)
+                continue
             for line in text.splitlines():
                 if 'create_threads' in line or 't3_thread_launch' in line:
                     self.assertRegex(line.lower(), r'never|prohibited', f'{path}: {line}')

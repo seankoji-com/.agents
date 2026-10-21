@@ -361,6 +361,9 @@ def main(argv=None):
                     request = ' '.join(args.request).strip()
                     if request:
                         print(f'Read {entry} and run: {request}')
+                    elif meta.get('context_on_empty'):
+                        print(f'Read {entry} and use relevant current conversation context. '
+                              'Ask only for missing facts; do not invent a symptom.')
                     else:
                         options = ', '.join(meta['picker'])
                         print(f'Read {entry}. Ask through the host\'s native question picker. '
