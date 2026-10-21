@@ -40,14 +40,17 @@ class Pass23AcceptanceCommitBindingTests(unittest.TestCase):
                                '--agents-root', str(base / 'agents')], capture_output=True, text=True, env=env)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         version = Path(json.loads(proc.stdout)['data']['version_dir'])
+        self.install_env = env
         return version, json.loads((version / 'install-manifest.json').read_text())
 
-    def _run(self, state_root):
+    def _run(self, state_root, version, manifest):
         from tests.support import CoreTestCase
         case = CoreTestCase(methodName='runTest'); case.setUp(); self.addCleanup(case.doCleanups)
         case.state_root = state_root
         repo = case.make_repo()
-        run = case.init(case.plan(repo, policy={'review': {'required': True, 'role': 'reviewer'}, 'checks': [
+        from tests.imps_plan_review_fixtures import admitted_gate
+        run = admitted_gate(case, version, manifest, self.install_env, case.plan(repo,
+            policy={'review': {'required': True, 'role': 'reviewer'}, 'checks': [
             {'name': 'unit', 'argv': [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'], 'cwd': str(repo)}]}))
         for req in run.state['brief']['requirements']:
             run.evidence(req['id'], run.scratch(f'{req["id"]}.txt', 'verified fixture evidence\n'))
@@ -65,7 +68,7 @@ class Pass23AcceptanceCommitBindingTests(unittest.TestCase):
             version, manifest = self._install(base)
             gate = version / 'scripts/validate_stage.py'
             stage_root = base / 'stage-state' / 's'
-            run = self._run(stage_root)
+            run = self._run(stage_root, version, manifest)
             run_file = run.run_dir / 'run.json'
             original_run = run_file.read_bytes()
             requirement_ids = [r['id'] for r in run.state['brief']['requirements']]

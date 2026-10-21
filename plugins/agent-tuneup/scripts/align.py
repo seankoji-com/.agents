@@ -47,7 +47,7 @@ SAFE_ERRORS = {
     'absolute_path_required', 'symlink_refused', 'unsafe_file', 'unsafe_source',
     'new_risky_permission_patterns', 'unsupported_or_empty_change',
     'changed_keys_do_not_match', 'stale_or_unapproved_plan', 'stale_plan',
-    'invalid_backup', 'protective_setting_weakened',
+    'invalid_backup', 'protective_setting_weakened', 'reviewed_proposal_and_owner_approval_required',
 }
 
 
@@ -498,7 +498,12 @@ def write_private(path, raw):
         os.close(parent)
 
 
-def apply(document, approval, backup):
+def apply(document, approval, backup, context=None):
+    sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents if (p / "shared/adopter_planning.py").is_file())))
+    from shared.adopter_planning import apply_ready
+    if context is None:
+        raise ValueError("reviewed_proposal_and_owner_approval_required")
+    apply_ready(context, document, Path(__file__).resolve().parents[1])
     current, before, after = prepare(document['adapter'], document['target'], document['candidate'], document['changed_keys'])
     if current != document or approval != document['approval_digest']:
         raise ValueError('stale_or_unapproved_plan')
@@ -556,6 +561,7 @@ def main(argv=None):
     apply_cmd.add_argument('--plan', type=Path, required=True)
     apply_cmd.add_argument('--approval', required=True)
     apply_cmd.add_argument('--backup', required=True)
+    apply_cmd.add_argument('--context', type=Path)
     args = parser.parse_args(argv)
     started_apply = args.operation == 'apply'
     try:
@@ -572,7 +578,8 @@ def main(argv=None):
                        'risk_patterns_after': document['risk_patterns_after'],
                        'permission_semantics': document['permission_semantics']}
         else:
-            receipt = apply(json.loads(args.plan.read_text()), args.approval, args.backup)
+            receipt = apply(json.loads(args.plan.read_text()), args.approval, args.backup,
+                            json.loads(args.context.read_text()) if args.context else None)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         # Neither native parser errors nor paths/keys belong in public receipts.
         receipt = {'ok': False, 'error': str(exc) if isinstance(exc, ValueError) and str(exc) in SAFE_ERRORS else 'invalid_unsafe_stale_or_unapproved_input',

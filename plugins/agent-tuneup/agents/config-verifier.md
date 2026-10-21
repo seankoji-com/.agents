@@ -58,3 +58,10 @@ makes it `adverse`. Otherwise `review_verdict` is null.
 
 Never return secrets, tokens, headers, private URLs, hostnames, home paths or settings
 values. Refer to settings by scope and JSON pointer, and to bytes by SHA-256.
+
+Apply the installed `shared/reviewer-standard.md` within this role's scope.
+Document-only, read-only, lineage and specialised result rules above remain binding.
+
+A separate manifest-pinned planning job uses the proposal/conclusions rubric and
+planning assessment schema before concrete apply approval. Preserve private-settings
+sharing authority. This assessment never supplies parse, load or enforcement proof.

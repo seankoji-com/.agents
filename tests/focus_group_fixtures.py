@@ -80,3 +80,169 @@ def manifest(files, url='https://staging.pantry-planner.example/welcome', **chan
         'inspection': inspection([f['name'] for f in files]), 'derived_from': None}
     value.update(changes)
     return value
+
+# Real planning acceptance for the original domain fixtures. Only the host result
+# is synthetic. No validator, receipt or independence check is mocked.
+_POLICY_INSTALL = {}
+
+
+def policy_install(helper):
+    import atexit
+    import tempfile
+    from tests.test_rebuild_installed import Sandbox
+    package = helper.parent.parent
+    if (package / 'install-manifest.json').exists():
+        meta = json.loads((package / 'install-manifest.json').read_text())
+        return package, meta, package.parents[1], Path(meta['agents_root'])
+    if not _POLICY_INSTALL:
+        tmp = tempfile.TemporaryDirectory()
+        atexit.register(tmp.cleanup)
+        box = Sandbox(Path(tmp.name))
+        installed, meta = box.install('focus-group')
+        _POLICY_INSTALL.update(tmp=tmp, box=box, package=installed, meta=meta)
+    box = _POLICY_INSTALL['box']
+    return _POLICY_INSTALL['package'], _POLICY_INSTALL['meta'], box.prefix, box.agents
+
+
+def policy_selection(ws, draft, caps=None, operation='plan'):
+    from copy import deepcopy
+    from shared import model_selection as models, adopter_planning as adopter, planning_review as planning
+    from shared.lineage import lineage
+    from tests.model_selection_fixtures import answer
+    catalog = deepcopy(caps or json.loads(ws.caps.read_text()))
+    catalog['runtimeMode'] = 'auto'
+    for provider in catalog['providers']:
+        provider['canRunCrossProviderChildTask'] = True
+        if provider['providerInstanceId'] == 'fixture-c':provider['driverKind'] = 'antigravity'
+        if provider['providerInstanceId'] == 'fixture-b':provider['driverKind'] = 'claudeAgent'
+        for model in provider['models']:
+            for option in model.get('options', []):
+                if option.get('type') == 'select' and not (isinstance(option.get('options'), list) and
+                        all(isinstance(v, dict) and isinstance(v.get('id'), str) for v in option['options'])):
+                    option['options'] = []
+    def target(value):
+        if not value or any(value.get('providerInstanceId') == p['providerInstanceId'] and
+            (not p.get('canRunChildTask') or not any(m['id'] == value.get('model') for m in p['models']))
+            for p in catalog['providers']) or not any(p['providerInstanceId'] == value.get('providerInstanceId') for p in catalog['providers']):
+            value = {'providerInstanceId':'fixture-a','model':'alpha-swift','options':{}}
+        value = deepcopy(value)
+        # Invalid draft options are exercised by the domain catalog check, before role matching.
+        try:
+            models.validate_target(value, catalog)
+        except ValueError:
+            value['options'] = {}
+        return value
+    catalog['providers'].append({'providerInstanceId':'fixture-coordinator','driverKind':'codex',
+        'canRunChildTask':True,'canRunCrossProviderChildTask':True,'models':[{'id':'gpt-fixture','options':[]}]})
+    planner = {'providerInstanceId':'fixture-coordinator','model':'gpt-fixture','options':{}}
+    catalog.update(parentThreadId='fixture-actual-parent', inheritedProviderInstanceId=planner['providerInstanceId'],
+                   inheritedModel=planner['model'])
+    work = {'workhorse':planner, 'analysis':target(draft.get('analysis'))}
+    work.update({f'participant-{n:02d}':target(t) for n,t in enumerate(draft['participant_models'],1)})
+    reviewer = target(draft.get('review'))
+    rows = {models.key(t):t for t in [*work.values(),reviewer]}
+    profiles = {'roles':{role:{'minimum':2,'judgement':True} if role in ('workhorse','analysis') else {'minimum':1}
+                         for role in work}, 'models':[]}
+    profiles['roles']['reviewer'] = {'minimum':2,'judgement':True}
+    for t in rows.values():
+        provider = next(p for p in catalog['providers'] if p['providerInstanceId'] == t['providerInstanceId'])
+        profiles['models'].append({'target':t, 'quality':2, 'judgement':True,
+            'reason':'Invented bounded study fixture suitability.', 'fixed_effort_reason':'Invented fixed-effort study fixture.',
+            'lineage':lineage(provider['driverKind'],t['model']), 'lineage_source':'fixture:catalog'})
+    reference = 'fixture:focus-request:' + str(ws.base)
+    output = draft['study_id'] + '/study-plan'
+    family = lambda t: next(r['lineage'] for r in profiles['models'] if models.key(r['target']) == models.key(t))
+    # Deliberately invalid domain tests retain their supplied model and are refused by choices().
+    independent = family(reviewer) not in {family(t) for role,t in work.items() if not role.startswith('participant-')}
+    data = {'project_id':'focus-fixture-'+sha(str(ws.base).encode())[:16], 'operation':'focus-group/'+operation,
+        'invocation_id':'focus-'+draft['study_id']+'-'+operation, 'scope_id':planning.logical_output_id(reference,output),
+        'source':answer('Use these exact invented per-cell, analyst and fidelity targets for this invocation.'),
+        'coordinator':dict(planner,lineage=family(planner),observed_options={}), 'capabilities':catalog,
+        'routing':None,'profiles':profiles,'work':work,
+        'review_panel':[{'slot_id':'fidelity','role':'reviewer','coverage':['FG-PLAN','FG-AUTHORITY','FG-REVIEW'],
+                         'required':True,'independent':independent,'target':reviewer}],
+        'work_replacements':[],'review_replacements':[]}
+    selected = models.freeze(data)
+    return adopter.admit('focus-group',{'operation':operation,'request_reference':reference,'output_name':output,
+        'invocation_id':data['invocation_id'],'selection':selected,'selection_sha256':selected['selection_sha256']})
+
+
+def policy_review(ws, view, *, adverse=False, attach=True):
+    """Use the same pinned separate planning lifecycle as public CLI, without spawning each deterministic step."""
+    import os
+    import subprocess
+    from copy import deepcopy
+    from unittest.mock import patch
+    from shared import adopter_planning as adopter, planning_review as planning
+    from shared.job_coordinator import pinned_store
+    from tests.test_rebuild_installed import worker_result
+    package, manifest, prefix, agents = policy_install(ws.helper)
+    directory = ws.root / view['study_id'] / 'focus-group'
+    descriptor_file = directory / 'planning' / view['revision'] / 'descriptor.json'
+    desc = json.loads(descriptor_file.read_text())
+    metadata = ws.inputs / ('planning-'+view['revision']+'.json')
+    project = ws.base / 'policy-project'
+    if not project.exists():
+        project.mkdir()
+        for argv in (['git','init','-q',str(project)],['git','-C',str(project),'-c','user.name=Fixture',
+                '-c','user.email=fixture@example.invalid','commit','--allow-empty','-qm','fixture']):
+            p = subprocess.run(argv, capture_output=True,text=True)
+            assert p.returncode == 0,p.stderr
+    request = ws.inputs / 'policy-request.txt'
+    if not request.exists():request.write_text('Assess the invented study protocol, authority and independent review before panel work.')
+    inputs = {'requests':[{'path':str(request),'reference':desc['admission']['request_reference'],
+        'clauses':[{'start':0,'end':len(request.read_text()),'requirement':'FG-PLAN'}]}],
+        'decisions':[],'requirements':desc['requirements'],'load_bearing_decisions':[],
+        'repository_root':str(project),'evidence_paths':list(getattr(ws,'policy_evidence',[]))}
+    with patch.dict(os.environ, ws.policy_env):
+        # Use installed policy bytes for installed fixtures; the same source adapter for source fixtures.
+        executing = ws.helper.parent.parent
+        if not (executing / 'plugin.json').exists():raise AssertionError(executing)
+        prepared = adopter.prepare(desc,inputs,str(metadata),executing)
+        if json.loads(metadata.read_text()).get('reference'):
+            return
+        snap = prepared['snapshot']
+        job_id = 'plan-'+view['revision'][:24]
+        made = planning.create({'job_id':job_id,'installation_id':manifest['installation_id'],'plugin':'focus-group',
+            'project_id':desc['admission']['selection']['project_id'],'owner':'fixture-owner',
+            'invocation_id':desc['admission']['invocation_id'],'scope_id':desc['admission']['scope_id'],
+            'selection':desc['admission']['selection'],'snapshot':snap},ws.root,prefix,agents)
+        store=pinned_store(ws.root,job_id);caller=made['caller']
+        planning.begin(store,caller)
+        launched=planning.launch(store,caller,'fidelity',job_id+'-review')
+        planning.host_event(store,caller,launched['task_id'],{'kind':'accepted','request_id':launched['request_id'],
+            'host_task_id':'host-'+job_id,'child_thread_id':'child-'+job_id,'status':'completed',
+            'work_state':'result_available','has_pending_child_runs':False,'status_identity':launched['target']})
+        brief=json.loads(Path(launched['path']).read_text());result=json.loads(worker_result(brief))
+        result['requirements']=[{'id':r,'status':'passed','evidence':'fixture:request-protocol-failure-recovery'} for r in desc['requirements']]
+        result['planning_review']={'coverage':[{'id':r,'outcome':'supported','evidence':'fixture:request-protocol-failure-recovery'}
+            for r in desc['requirements']],'inspected_paths':snap['declared_paths'],'responses':[]}
+        result['review_verdict']='adverse' if adverse else 'approve'
+        if adverse:result['findings']=[{'id':'FG-ADVERSE','severity':'major','scenario':'Protocol recovery omitted.',
+            'source_evidence':'fixture:protocol','smallest_correction':'Define recovery.'}]
+        planning.ingest(store,caller,launched['task_id'],json.dumps(result).encode(),'done-'+job_id)
+        finished=planning.finish_round(store,caller)
+        planning.release(store,caller)
+        ws.planning_receipt=finished['reference'];ws.planning_metadata=metadata
+        if attach:
+            attached=adopter.attach(desc,metadata,finished['reference']['path'],executing)
+            desc['planning_review']=attached['metadata']
+            descriptor_file.write_text(json.dumps(desc))
+    return finished
+
+
+def policy_run(ws, draft):
+    from unittest.mock import patch
+    import os
+    from shared import model_selection as models, adopter_planning as adopter
+    from copy import deepcopy
+    data = deepcopy(ws.plan_admission)
+    selected = deepcopy(data['selection']);selected['operation']='focus-group/run'
+    selected['invocation_id'] += '-run';selected=models.freeze(selected)
+    record=adopter.admit('focus-group',{'operation':'run','request_reference':data['request_reference'],
+        'output_name':data['output_name'],'invocation_id':selected['invocation_id'],
+        'selection':selected,'selection_sha256':selected['selection_sha256']})
+    directory=ws.root / draft['study_id'] / 'focus-group'
+    revision=json.loads((directory/'current.json').read_text())['revision']
+    path=directory/'planning'/revision/'run.json';path.write_text(json.dumps(record))
+    return record

@@ -14,7 +14,7 @@ new user instruction to execute. If intent is materially ambiguous, clarify befo
 dependent implementation. A clear user request to leave thinking can change the
 workflow: record the exact request, source message reference, and authorised scope
 under `meta.json`'s `execution_request` using `set`, then follow that scope. The
-helper never grants execution authority; that record is for the next agent to inspect.
+helper never grants execution authority.
 `resolve` exposes `has_execution_request`; the request itself is in `meta`.
 This agent-writable record is unvalidated context, not an authenticated grant. The
 next agent must inspect the actual user instruction and scope before acting.
@@ -25,7 +25,10 @@ next agent must inspect the actual user instruction and scope before acting.
    stop. For an existing slug, use `resolve <slug>` and resume its `next_phase`.
 2. For a new topic, settle output type (`implementation` or `research`) and a kebab-case
    slug. Default to local storage. Use
-   `init <slug> --output-type <type> --title <title> --github none`.
+   `init <slug> --output-type <type> --title <title> --github none --selection <sealed-selection.json> --request-reference <source-message-reference>`.
+   Bind the upfront selection scope to that reference and named output
+   `thinking/<slug>/handoff.md` before drafting. Keep its producing selection
+   for planning creation; init refuses missing choices or existing drafts.
    GitHub issue/discussion publishing is optional and requires explicit authorization
    for the destination and content. The helper `gh_publish.py` supports `ensure` and
    `post`; inspect its help before use. A publishing failure must not lose local work.
@@ -75,19 +78,27 @@ next agent must inspect the actual user instruction and scope before acting.
    examples and inline quotations of the marker stay inert.
 6. After you write or repair `discovery.md` or `spec.md`, record that hash's author
    with `thinking_state.py author <slug> discovery.md --capabilities <fresh-capabilities.json>`
-   (and repeat for `spec.md`). Run `thinking_state.py gate <slug> --require discovery,spec`,
-   then `render_handoff.py <slug> --capabilities <fresh-capabilities.json>` and
+   (and repeat for `spec.md`). Follow `PKG/references/thinking-plan-review.md`:
+   use `PKG/references/plan-review-rubric.md` with the spec's domain criteria;
+   freeze source/request/decisions/evidence, review with the selected
+   `elephant-goldfish/plan-reviewer` in a separate planning job, repair findings and
+   attach the actual accepted receipt. `plan_review` is required between spec and
+   handoff. Discovery changes reopen owner acceptance; spec-only repairs keep it.
+   Then run
+   `thinking_state.py gate <slug> --require discovery,spec,plan_review`,
+   `render_handoff.py <slug> --capabilities <fresh-capabilities.json>` and
    `render_handoff.py <slug> --check`. The author record is host-reported evidence; a
    missing source record makes the handoff author unknown.
    The renderer copies source documents verbatim and records hashes. Never replace
    that deterministic step with a model-written summary.
    For an explicitly requested draft, use `gate <slug> --require discovery,spec --draft`
    and `render_handoff.py <slug> --draft --capabilities <fresh-capabilities.json>`.
-   It writes `handoff.draft.md` and a separate draft manifest, never a final completion. `--check` (or `--draft --check`) verifies
-   provenance only; the gate checks current review/readiness independently. Old topics
-   without valid evidence need review even when spec and handoff already exist.
-   Changing a receipt, including acceptance to an owner override, requires re-rendering
-   the final handoff even when discovery content is unchanged.
+   Drafts write `handoff.draft.md` and a separate manifest. `--check` verifies
+   provenance only; the gate checks current review/readiness independently. Historical
+   complete topics retain `complete` with `plan_review.status: legacy-unreviewed`.
+   That label supplies no current-policy readiness. New, changed or rerendered plans
+   require an actual planning receipt. Never rewrite an old plan merely to label it.
+   A changed owner receipt requires source-plan review and then a new handoff.
 7. Optional cold read. Only when the user authorises one, check that a fresh reader
    can act on `handoff.md`. Follow `PKG/references/document-jobs.md`: a job with a
    direct `handoff` stage accepted by `validate_document.py --mode handoff`, then a
@@ -96,16 +107,17 @@ next agent must inspect the actual user instruction and scope before acting.
    Repairs go back through discovery or spec, so edited discovery reopens review and
    the handoff is re-rendered. The cold-read verdict is reported beside readiness. It
    never replaces the gate and never grants execution.
-8. Deliver `handoff.md`, its manifest, remaining unknowns, and the intended next step.
+8. Deliver `handoff.md`, its manifest, review mode/coverage, models/options,
+   substitutions, rounds, material changes, findings/dispositions, limits and next actions.
    The user can give it to a fresh T3 thread or imps. Do not start that work here.
 
 ## Who runs each step
 
-You run steps 1 to 6 yourself. The interview needs the operator, and discovery
-acceptance needs their actual words, so a worker can never conduct discovery,
-summarise answers into acceptance, or record a review receipt. Only the optional cold
-read in step 7 runs in a child. A child result never reaches readiness except through
-the gate and `render_handoff.py --check`.
+You coordinate steps 1 to 6; workers never conduct discovery or accept it for the
+owner. Plan reviewers critique read-only; you repair and attach validated evidence.
+Only planning permits labelled fallback. Cold reads require fresh document-only
+children, stricter independence and no direct fallback. Readiness requires the
+applicable validator, gate and provenance check.
 
 ## Regression scenarios
 
@@ -124,6 +136,5 @@ the gate and `render_handoff.py --check`.
   is a new instruction. Record its source and exact scope before starting that work;
   it does not authorise publication, deployment, or unrelated changes.
 
-These instructions guide the agent. The helpers enforce receipt shape, content binding,
-draft separation, and provenance. They cannot measure interview quality, authenticate
-the supplied statement, or prevent every unauthorised tool call.
+Helpers enforce receipt shape, content binding, drafts and provenance. They cannot measure interview quality,
+authenticate statements or prevent unauthorised calls.

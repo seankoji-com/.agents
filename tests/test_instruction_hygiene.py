@@ -54,7 +54,7 @@ def generated_briefs():
     return briefs
 
 
-def handoff_briefs():
+def handoff_briefs(*, temporary_root=None):
     plugin = ROOT / 'plugins/elephant-goldfish'
     spec = importlib.util.spec_from_file_location('render_handoff_hygiene', plugin / 'scripts/render_handoff.py')
     module = importlib.util.module_from_spec(spec)
@@ -62,15 +62,19 @@ def handoff_briefs():
     rendered = {}
     previous = os.getcwd()
     for output_type in ('research', 'implementation'):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=temporary_root) as tmp:
+            tmp = Path(tmp).resolve()
             os.chdir(tmp)
             try:
                 topic = Path('thinking/t')
                 topic.mkdir(parents=True)
+                from tests.thinking_plan_review_fixtures import upfront_selection
+                from thinking_plan_review import admission
+                admitted = admission('t', upfront_selection('t'), 'fixture:request:t')
                 (topic / 'meta.json').write_text(json.dumps({'slug': 't', 'title': 'A topic', 'output_type': output_type,
-                                                             'github': {'mode': 'none'}, 'published': {}}))
+                                                             'github': {'mode': 'none'}, 'published': {}, 'model_admission': admitted}))
                 (topic / 'discovery.md').write_text('# Discovery\n\nThe problem, stated.\n')
-                (topic / 'spec.md').write_text('# Spec\n\nPass when the output matches.\n')
+                (topic / 'spec.md').write_text('# Spec\n\n[REQ-ONE] Pass when the output matches.\n')
                 from thinking_state import main as thinking_main, sha256_of
                 with contextlib.redirect_stdout(io.StringIO()):
                     review_code = thinking_main(['review', 't', '--decision', 'accepted', '--scope', 'finalise-brief',
@@ -79,8 +83,13 @@ def handoff_briefs():
                                                  '--operator-statement', 'I accept this discovery as presented.'])
                 if review_code:
                     raise AssertionError('fixture discovery review could not be recorded')
+                from tests.thinking_plan_review_fixtures import ThinkingPlanFixture
+                from unittest.mock import patch
+                fixture = ThinkingPlanFixture(Path(tmp) / 'review-fixture')
+                with patch.dict(os.environ, fixture.box.env, clear=True):
+                    fixture.approve(plugin / 'scripts', Path(tmp) / 'thinking', 't')
                 out = io.StringIO()
-                with contextlib.redirect_stdout(out):
+                with patch.dict(os.environ, fixture.box.env, clear=True), contextlib.redirect_stdout(out):
                     code = module.main(['t', '--stdout', '--template-dir', str(plugin / 'templates')])
                 if code not in (0, None):
                     raise AssertionError(f'render_handoff exited {code} for {output_type}')
@@ -111,6 +120,19 @@ class InstructionHygiene(unittest.TestCase):
         for name, text in briefs.items():
             self.assertTrue(text.strip(), name)
             self.assertEqual(banned_in(text), [], name)
+
+    def test_handoffs_use_the_same_review_root_through_a_temporary_directory_alias(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real = root / 'real'
+            real.mkdir()
+            alias = root / 'alias'
+            alias.symlink_to(real, target_is_directory=True)
+            briefs = handoff_briefs(temporary_root=alias)
+        self.assertEqual(set(briefs), {'handoff:research', 'handoff:implementation'})
+        for text in briefs.values():
+            self.assertTrue(text.strip())
+            self.assertEqual(banned_in(text), [])
 
     def test_catalog_prompt_contains_no_banned_phrases(self):
         with tempfile.TemporaryDirectory() as tmp:

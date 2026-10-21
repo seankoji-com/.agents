@@ -52,12 +52,13 @@ class ApeJob:
                 'requirements': [f'R{i}' for i in range(1, 5)] if stage_id == 'final' else ['R' + stage_id[1]],
                 'status': 'pending', 'execution_mode': 'direct' if stage_id == 'final' else 'workers',
                 'validator_dependency': 'ape', 'revision': stage_id + '-r1', 'criteria': CRITERIA,
-                'outputs': [str(self.outputs[stage_id])], 'validator_contract': {'sources': sources}}
+                'outputs': [str(self.outputs[stage_id])], 'validator_contract': {'sources': sources},
+                **({'resources':{'ape_output_type':'forage-synthesis'}} if stage_id == 'final' else {})}
 
     def plan(self):
         tasks = [{'task_id': f'{s}-research', 'stage_id': s, 'logical_slot_id': 'primary',
                   'request_id': f'{s}-research-r0', 'dependency_key': 'ape', 'status': 'pending', 'attempt': 0,
-                  'worker_id': 'ape/synthesizer' if s == 's4' else 'ape/source-researcher',
+                  'worker_id': 'ape/source-researcher',
                   'handles': [], 'followups': [], 'dispatch_retries': 0,
                   'write_scope': {'mode': 'worker-evidence', 'path': f'artifacts/tasks/{s}-research'}}
                  for s in self.STAGES[:4]]
@@ -98,7 +99,13 @@ class ApeJob:
 
     def accept(self, stage_id, pkg=None):
         pkg = pkg or self.pkg
-        observed = self.box.publish(pkg, self.job_id, self.caller, stage_id, self.report(stage_id))
+        data = self.report(stage_id)
+        if stage_id == 'final':
+            from tests.plan_review_migration_fixtures import observe_direct_ape, review_ape
+            observe_direct_ape(self.box, pkg, self.job_id, self.caller, stage_id)
+            review_ape(pkg, self.manifest, self.box.jobs, self.job_id, stage_id, data, self.box.private, self.box.env)
+            self.box.env['XDG_STATE_HOME'] = str(self.box.jobs)
+        observed = self.box.publish(pkg, self.job_id, self.caller, stage_id, data)
         proc = self.box.accept(pkg, 'accept-stage', self.job_id, {
             'caller': self.caller, 'stage_id': stage_id, 'revision': stage_id + '-r1', 'input_file': observed,
             'validator_argv': [str(self.validator), '--input', observed]})

@@ -59,7 +59,10 @@ and locations, never settings values.
 
 ## Apply sequence
 
-1. Confirm the plan file and digest are unchanged with `align.py`'s own checks.
+1. Validate the actual proposal planning receipt before concrete approval using
+   `PKG/shared/adopter-planning.md`. Retain the before snapshot, private sharing
+   authority, source request, domain criteria and stable subject record.
+   Confirm the plan file and digest are unchanged with `align.py`'s own checks.
 2. Ask the owner through the native question picker, with the recommended option
    first. Show the redacted diff, every changed key, its access effect, the target and
    the backup location. Record a pending approval as an `approval-wait` task
@@ -107,5 +110,6 @@ of kind `live-enforcement` whose content has `"result": "passed"`.
 - Load `failed` or `unverified`: the apply stage cannot be accepted. Report the applied
   file, its backup, and the restoration you propose; restore only with approval.
 - A later file fails: report the files already applied and keep every backup.
-- Verifier unavailable: run the read-only checks directly with a visible fallback
-  marker and report independence as unverified.
+- Verifier unavailable: preserve the required slot. A work-target change or direct
+  fallback needs its own selected work chain or a new choice; review fallback alone
+  grants none. Existing parse/load/enforcement requirements remain.

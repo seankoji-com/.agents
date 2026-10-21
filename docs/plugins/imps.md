@@ -64,12 +64,32 @@ Multi-stage work runs as one [job](../architecture.md#whole-jobs). Your thread s
 the coordinator and fresh T3 tasks run the `imps/stage-executor`,
 `imps/investigator`, `imps/auditor` and `imps/reviewer` workers. Each engineering
 stage keeps its own gate run, and that run's `validate` decides acceptance; a
-worker's claim does not. `doctor`, `status` and `verification-init` stay direct. A
-single bounded change can stay one direct run.
+worker's claim does not. `doctor` and `status` stay direct. Verification-init reviews authored facts and
+recipe decisions before execution; scaffold/check remains direct. A single bounded
+change can stay one direct run.
 
 `prs` pins babysitter inside the same job and loads it through
 [`--job JOB path babysitter`](../cli.md#pinned-job-paths). For a job, `status` prints
 the overview and `resume` starts from it.
+
+## Plan and conclusion review
+
+Before substantive work, choose the work and review models together. Aliases reuse
+that answer once; automatic continuations keep it. An explicit resume shows the
+pinned choices and asks whether to retain them or stop.
+
+Audit, investigation and blast-radius review their final integrated conclusions,
+including zero findings and no-change recommendations. Initial run/issues/checklist/
+discussion plans are reviewed before execution when they contain a write, multiple
+stages or a synthesis output. Verification-init reviews the authored launch,
+feature selection, drive and cleanup decisions before those steps run.
+
+A separate planning job records the actual review mode, rounds and findings against
+the original request, criteria and source bytes. Missing or stale receipts block
+readiness. Later engineering and persona reviews retain their own stricter gates.
+Planning review grants no permission to execute a command or publish a change.
+Raw lookups, deterministic scaffold/check and unchanged reviewed recipes add no
+new review. Historical runs retain their evidence as legacy-unreviewed.
 
 ## Previous runs
 
@@ -128,3 +148,6 @@ tests cover the state engine, not whether a given model follows the workflow; se
 [compatibility](../compatibility.md).
 
 Jobs created through the shared CLI carry `policy.identity: observed`. Required reviewer executions, their subjects, and slots marked `independent_of_author` need verified host identity at acceptance. Authoring jobs enforce author-lineage checks from `policy.author_independence`, even if a slot omits its flag. Legacy jobs without the identity marker retain target-only acceptance semantics. A first author record cannot identify earlier authors of an unrecorded document. Direct cold-read stages cannot fall back to the coordinator.
+
+See [planning review](../plan-review.md) for default triggers, model choices,
+receipt freshness, fallback labels and requester reporting.

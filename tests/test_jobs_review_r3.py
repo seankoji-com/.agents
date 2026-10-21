@@ -123,30 +123,16 @@ class Stage3Repair5Tests(unittest.TestCase):
     def test_r3_04_accept_stage_timeout_writes_failed_receipt_and_keeps_charge(self):
         from tests.test_jobs_review import JobReviewTests
         with tempfile.TemporaryDirectory() as td:
-            root = Path(td); fx = JobReviewTests(); version, manifest, prefix, agents, state_root = fx.install(root, "ape")
-            job = fx.base_job("timeout-receipt"); job["installation_id"] = manifest["installation_id"]
-            job["pins"] = {}; job["dependencies"] = [{"key": "ape", "plugin": "ape"}]
-            job["tasks"] = []; job["stages"] = [job["stages"][0]]
-            job["stages"][0].update(execution_mode="direct", validator_dependency="ape", revision="r1")
-            from tests.test_ape_validate_report import pin_source, study_descriptor
-            job["stages"][0]["validator_contract"] = {"sources": [pin_source(root, "src")]}
-            from shared.job_coordinator import create_pinned_job, publish_observation
-            from core.jobs.store import Store
-            create_pinned_job(job, state_root, prefix, agents, root / "config/workers.json")
-            store = Store(state_root, job["job_id"])
-            caller = {"installation_id": manifest["installation_id"], "workflow": job["workflow"],
-                "package_digest": manifest["package_digest"], "actor": "coordinator"}
-            obs = root / "observation.json"; obs.write_text(json.dumps(study_descriptor(
-                root, job["stages"][0]["validator_contract"]["sources"][0], job["stages"][0]["requirements"],
-                job["stages"][0]["criteria"])))
-            ref = publish_observation(store, caller, "s0", str(obs))
-            validator = version / "scripts/validate_report.py"
+            root = Path(td); fx = JobReviewTests()
+            version, manifest, state_root, store, caller, published, argv = fx.ape_acceptance_fixture(root)
+            ref = {'path': str(published)}
+            validator = version / 'scripts/validate_report.py'
             from shared import job_acceptance
             def eof_then_hang(job_data, stage, argv, input_file, binding):
                 _bounded_run([sys.executable, "-c", "import os,time; os.close(1); os.close(2); time.sleep(5)"],
                     root, {"timeout_seconds": 0.2, "max_output_bytes": 1024})
             with mock.patch.object(job_acceptance, "_invoke", side_effect=eof_then_hang):
-                result = accept_stage(store, caller, "s0", [str(validator), "--input", ref["path"]], ref["path"], "r1")
+                result = accept_stage(store, caller, "s0", [str(validator), "--input", ref["path"]], ref["path"], "s0-r1")
             self.assertFalse(result["accepted"], result)
             after = store.load(); self.assertEqual(after["stages"][0]["status"], "failed")
             self.assertEqual(after["stages"][0]["acceptance_runs"], 1)

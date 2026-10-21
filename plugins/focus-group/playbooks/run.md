@@ -1,5 +1,19 @@
 # Run, resume or cancel a study
 
+Before substantive `run`, collect a fresh upfront selection as in the plan
+playbook, with operation `run`, exact matrix/analyst/fidelity targets and options.
+Admit it with `plan_review.py admit`, then record it using `plan_review.py run`
+with `{state_root, study, admission}`. This revalidates the exact study-plan
+receipt. The public job create/prepare/direct/accept boundaries also enforce it,
+even when a caller omits the policy marker. A generic work choice cannot replace
+a participant model or analyst.
+
+Explicit `resume` shows pinned choices and asks retain-or-stop. Use a `resume`
+admission with event `resume`, `retain: true`, then `plan_review.py run` with
+`retain: true`. Declining stops; changed models need a new study revision, review
+and approval. Automatic wakes reuse the active invocation without another chooser.
+Read-only status/doctor/cancel and nested helper calls stay direct.
+
 Every launch passes `study.py` admission first. The helper charges budgets and
 refuses; T3 owns dispatch, status and cancellation. Never write a polling loop or
 start a watcher; T3 completion notifications wake you.
@@ -251,6 +265,13 @@ A stage already accepted before the addition needs a charged pass for the new sl
 first execution (`job_cli.py retry` on that slot); unchanged slots are never re-run.
 
 ## Synthesis, fidelity review and export
+
+The operation matrix deliberately retains this existing stronger final review:
+it checks the exact integrated report against all accepted inputs, omitted
+contradictions, quotes, support, dissent and current author identity. No duplicate
+planning pass is added to that same synthesis. It remains a separate fidelity
+slot, with a fresh distinct-lineage child and its existing repair budget; a
+planning fallback receipt can never stand in for it.
 
 Record shapes are in `PKG/references/report-contract.md`.
 

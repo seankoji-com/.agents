@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Persistent planning review subject",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "sha256",
+    "project_id",
+    "logical_output_id",
+    "request_reference",
+    "output_name",
+    "requirements",
+    "round_limit",
+    "rounds_used",
+    "technical_limit",
+    "technical_used",
+    "active_job",
+    "jobs",
+    "revisions",
+    "rounds",
+    "findings",
+    "decisions",
+    "receipts",
+    "sharing_revocations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "logical_output_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "request_reference": {
+      "type": "string",
+      "minLength": 1
+    },
+    "output_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requirements": {
+      "type": "object"
+    },
+    "round_limit": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rounds_used": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "technical_limit": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "technical_used": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "active_job": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "jobs": {
+      "type": "array"
+    },
+    "revisions": {
+      "type": "object"
+    },
+    "rounds": {
+      "type": "array"
+    },
+    "findings": {
+      "type": "object"
+    },
+    "decisions": {
+      "type": "array"
+    },
+    "receipts": {
+      "type": "array"
+    },
+    "sharing_revocations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "additionalProperties": false
+}

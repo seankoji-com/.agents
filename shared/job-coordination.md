@@ -1,9 +1,8 @@
 # Whole-job coordination
 
-Shared whole-job protocol. Plugin entries add
-only their own policy: stages, workers, validator and boundaries. Exact helper inputs
-and limits are in `PKG/shared/agents/jobs-contract.md`; model choice, allowed tools and
-brief content are in `PKG/shared/delegation.md`; approvals follow `PKG/shared/t3-runtime.md`.
+Plugin entries add domain stages, workers and boundaries. Helper inputs/limits:
+`PKG/shared/agents/jobs-contract.md`. Delegation: `PKG/shared/delegation.md`.
+Approvals: `PKG/shared/t3-runtime.md`.
 
 The coordinator is the main agent. It alone plans, dispatches, ingests, accepts and asks
 the owner. Workers execute one slot, return one result and never dispatch, accept their
@@ -37,10 +36,13 @@ the job and its pin.
 
 ## 3. Dispatch
 
+`PKG/shared/model-selection.md` governs upfront choices, escalation and direct
+fallback. CLI jobs require frozen selection/digest and per-task `selection_binding`;
+preparation refuses missing choices or changed targets/options.
+
 Per slot: `job_cli.py prepare` with `{caller, task_id, target_reason}` returns only path,
-SHA-256, bytes and provenance. Choose the target with `t3-plugins resolve ROLE
---capabilities FILE`: the lowest suitable configured tier, a recorded reason and an
-ordered escalation. Reviewers need a reviewer or judgement tier and a known different
+SHA-256, bytes and provenance. Recommend within sourced role floors; dispatch the
+user's exact target/options. Reviewers need a reviewer or judgement tier and a known different
 lineage (`--implementer-lineage`). Launch T3 `delegate_task` asynchronously with the exact
 target, options and role, and `clientRequestId` set to the slot's `request_id`. The
 bootstrap tells the worker to read the brief at its path and stop if the SHA-256 differs.
@@ -152,8 +154,8 @@ Exhausted budgets block for an owner decision (`attempt_budget_exhausted`).
 
 ## 7. Fallback
 
-If T3 or every suitable target is unavailable, record the bounded discovery and errors,
-then run the stage directly under the same contract, counters and gate. For an
+Record bounded unavailability evidence. Direct fallback needs approved work authority
+or a new choice; review fallback grants none. Keep the contract, counters and gate. For an
 author-independent factual stage, set `independent_of_author: true`, record each start
 or resume with fresh capabilities, and obtain a stage-scoped owner waiver bound to the
 latest executor. Show `fallback: direct, same-lineage (waived)` in the checklist.

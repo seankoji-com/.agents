@@ -51,6 +51,10 @@ class RegistryGapTest(unittest.TestCase):
         return self.box.run(argv, check=False)
 
     def create(self, pkg, root, job):
+        from tests.model_selection_fixtures import attach_selection
+        from tests.imps_plan_review_fixtures import select_legacy_imps_job
+        manifest = json.loads((Path(pkg) / 'install-manifest.json').read_text())
+        select_legacy_imps_job(job, self.box.private, Path(pkg), manifest, self.box.env)
         return self.job(pkg, 'create', root, job['job_id'], job,
                         extra=('--prefix', self.box.prefix, '--agents-root', self.box.agents,
                                '--config', self.box.config / 't3-plugins' / 'workers.json'))

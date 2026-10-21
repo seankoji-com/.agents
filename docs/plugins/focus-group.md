@@ -15,6 +15,19 @@ never evidence of what real customers want or how many of them want it.
     not with a live study. Whether a given model can view images or drive a browser
     is still a live check.
 
+
+Before substantive planning or execution, choose the planner, each participant
+model, the analyst and reviewers together. The exact study revision needs a real
+planning-review receipt before owner approval or panel work. Changed revisions
+reopen that review while retaining prior findings, budgets and unchanged evidence.
+Explicit resume shows pinned choices and asks retain-or-stop.
+
+The final report retains its separate fidelity gate: a fresh reviewer of a
+different known lineage checks the exact bundle against accepted inputs, citations,
+counts, omitted contradictions and dissent. That stronger existing gate is the
+operation matrix's concrete exception to a duplicate final planning assessment.
+It cannot be relabelled as a planning fallback pass.
+
 ## Try it
 
 ```text
@@ -77,7 +90,10 @@ revision hash:
   and "add recipes to a plan", and the ones it must not, such as "create an account"
   or "place a grocery order". An excluded action becomes a gap in the report.
 - **Models.** One model per cell column, plus the analyst and the reviewer. The
-  reviewer's lineage must differ from every author of the synthesis.
+  reviewer's lineage must differ from every author of the synthesis. An explicitly
+  selected runtime mode stays bound to the target and report request; changing it
+  needs a new reviewed revision and approval. An unreported observed mode stays
+  unknown, and modes of one model do not count as different models.
 - **Sharing.** Which provider instance may receive which material: the captures,
   personas, participant answers, journey evidence and the report. A task whose
   provider lacks the grant is refused before it starts.

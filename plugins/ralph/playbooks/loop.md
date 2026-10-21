@@ -65,7 +65,8 @@ report it as blocked.
 Choose a writable checkpoint directory OUTSIDE the worktree, for example an
 approved XDG state directory or task-specific temporary directory. Report its path.
 Create `init.json` with `goal`, `brief`, `worktree`, `maxAttempts` (default 20),
-`implementer`, `evaluator`, and `capabilities` (the fresh structured T3 response).
+`implementer`, `evaluator`, `admission` from `scripts/plan_review.py admit`, and
+`capabilities` (the fresh structured T3 response).
 Each target needs `providerInstanceId`, `model`, `lineage`, `lineageSource`, and
 optional `options`. Options are an object map of advertised option ID to chosen
 string or boolean value, not the catalog's option-definition array. Omitted or
@@ -140,7 +141,10 @@ receipt exists. Reconcile the host/status response before proceeding. `attach`
 can retain a task handle from a partial receipt so the parent can query or cancel
 it; that partial receipt does not waive the status provider requirement.
 
-After addressing a result/provider failure, `resume` calls
+For explicit resume, show the pinned pair/options and ask retain-or-stop. Run
+`resume --state FILE --input FILE` with `{admission, retain: true}` before further
+work; decline stops without rotating targets or resetting feedback/budgets. Automatic
+wakes reuse the active record. After addressing a result/provider failure, resume calls
 `recover --state FILE --input FILE` with `{"reason":"Describe the resolved cause"}`.
 Recovery requires verified identities and no pending work, retains the original
 pair and contract, and issues a fresh task through the next `next` call. Repeating
@@ -244,3 +248,12 @@ a format 2 checkpoint as format 3 with every review marked full, and saves it as
 format 3 on its next write. Earlier helpers refuse format 3, so they cannot accept
 a delta review. Older checkpoints require their original installed snapshot; do
 not rewrite their state.
+
+## Written strategies
+
+Ordinary maintenance/iterations add no artificial planning artifact or duplicate
+evaluator. If you actually write a substantial repair, landing or implementation
+strategy, use `PKG/shared/adopter-planning.md`: review it in a separate pinned job
+before dependent actions. Retain the producing selection, source request, actual
+author lineages, domain criteria and persistent subject. Changed content reopens
+review with retained findings/budget. Planning acceptance grants no action authority.

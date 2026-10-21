@@ -3,6 +3,9 @@
 Discovery runs directly in the coordinator because the plan's slot count depends on it.
 Comparison and synthesis run as delegated stages. Job shape: `PKG/references/research-job.md`.
 
+Before step 1, complete `PKG/references/planning-review.md` admission for workhorse
+research, judgement synthesis and the final review panel.
+
 1. Inspect the current project and write a short fingerprint of its stack, relevant
    weaknesses, and techniques it already uses. Resolve the focus from the request.
 2. Run `bash PKG/scripts/init-workspace.sh` from the project. Use the returned workspace
@@ -25,5 +28,8 @@ Comparison and synthesis run as delegated stages. Job shape: `PKG/references/res
    evidence against it. It builds on the accepted reports, not fresh source research;
    its descriptor pins every candidate snapshot and accepted report, quotes the text
    those reports cited, and carries your receipts for Conflicts and the experiment.
-7. Accept synthesis, run `validate-final` over every stage, and save the reports in the
+7. Review the final synthesis under `PKG/references/planning-review.md`, even when
+   it recommends no experiment. Attach the actual planning receipt to its metadata
+   and descriptor. Include actual researcher, synthesizer and coordinator lineages.
+   Accept synthesis, run `validate-final` over every stage, and save the reports in the
    workspace. Do not modify the target project or start any experiment.

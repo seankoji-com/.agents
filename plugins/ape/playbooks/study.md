@@ -3,6 +3,10 @@
 The coordinator prepares the pinned inputs directly, delegates the comparison as one
 stage, then inspects and accepts it. Job shape: `PKG/references/research-job.md`.
 
+Before step 1, complete `PKG/references/planning-review.md` admission and keep
+its selection/admission in the job. A bare GitHub URL forwards that choice once.
+Raw source fetch itself remains a deterministic helper.
+
 1. Run `bash PKG/scripts/study-repo.sh <URL>` with the operator's GitHub URL as one
    quoted argument. It validates the URL, resolves the ref and subdirectory, prepares
    the clone, and prints its revision and report path. Stop on nonzero exit.
@@ -26,8 +30,10 @@ stage, then inspects and accepts it. Job shape: `PKG/references/research-job.md`
    grammar in `PKG/references/research-job.md`, or `None.`.
 6. Ingest the result. Read the report, open the cited lines for every Adopt and Adapt
    proposal, and record an inspection receipt for each. Use the follow-up slot for a
-   same-scope gap; otherwise repair with `retry`. Freeze the report descriptor with
-   `observation` and run `accept-stage`.
+   same-scope gap; otherwise repair with `retry`. For the final report, prepare its planning snapshot, complete the separate
+   shared planning job and attach its real receipt as described in
+   `PKG/references/planning-review.md`, including no-adoption reports. Then freeze
+   the report descriptor with `observation` and run `accept-stage`.
 7. Run `validate-final`, copy the accepted report to the returned report path, and
    deliver it with the source revision. Experiments are proposals until the owner asks
    for one; do not claim measured improvements from source inspection.

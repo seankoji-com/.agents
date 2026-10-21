@@ -36,6 +36,8 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 DEFAULT_ROOT = "thinking"
 
 # Source and final artifact filenames. Draft handoffs are deliberately separate.
@@ -55,7 +57,7 @@ SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 # a bare `$ARGUMENTS` that is either the word `list` or a topic slug, and a topic actually
 # named `list` makes that undecidable. Reserve the subcommand names so the collision cannot
 # be created in the first place.
-RESERVED_SLUGS = frozenset({"list", "resolve", "init", "set", "gate", "review", "author"})
+RESERVED_SLUGS = frozenset({"list", "resolve", "init", "set", "gate", "review", "author", "plan-review"})
 DRAFT_MARKER = "<!-- thinking:draft -->"
 DRAFT_LABEL = "DRAFT. Non-executable."
 REVIEW_SCOPE = "finalise-brief"
@@ -237,7 +239,7 @@ def handoff_problem(tdir: Path, meta: dict, *, draft: bool = False,
         if path.is_symlink():
             return "handoff manifest may not be a symlink"
         saved = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(saved, dict) or saved.get("schema") != 2:
+        if not isinstance(saved, dict) or saved.get("schema") not in (2, 3):
             return "missing or legacy handoff provenance; re-render"
         expected = {"topic": tdir.name, "output_type": meta.get("output_type"),
                     "status": "draft" if draft else "final",
@@ -253,13 +255,39 @@ def handoff_problem(tdir: Path, meta: dict, *, draft: bool = False,
                 return "handoff provenance mismatch; re-render"
         if check_review and saved.get("review_sha256") != review_digest(meta):
             return "review receipt changed since handoff rendering; re-render"
-    except (OSError, ValueError):
+        if saved.get('schema') == 3 and not draft:
+            if check_review and saved.get('plan_review') != meta.get('plan_review'):
+                return 'plan review reference changed since handoff rendering; re-render'
+            from thinking_plan_review import helpers
+            p = helpers()
+            for field in ('template', 'rubric'):
+                p.current_file(saved[field])
+    except (OSError, ValueError, KeyError, TypeError):
         return "missing or malformed handoff provenance; re-render"
     return None
 
 
+def plan_review_state(tdir: Path, meta: dict) -> dict:
+    from thinking_plan_review import state
+    return state(tdir, meta)
+
+
+def legacy_complete(tdir: Path, meta: dict) -> bool:
+    """Read historical provenance without writing or claiming current-policy review."""
+    if any(key in meta for key in ('plan_review_policy', 'plan_review', 'plan_review_inputs')):
+        return False
+    try:
+        if is_draft((tdir / 'handoff.md').read_text(encoding='utf-8')):
+            return False
+        saved = json.loads((tdir / 'handoff.manifest.json').read_text(encoding='utf-8'))
+        return saved.get('schema') == 2 and handoff_problem(tdir, meta, check_review=True) is None
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def phase_state(tdir: Path, meta: dict, artifacts: dict) -> dict:
     review = review_state(meta, artifacts)
+    planning = plan_review_state(tdir, meta)
     phase, reason = "complete", None
     if not artifacts["discovery.md"].get("nonempty"):
         phase, reason = "discovery", "missing or empty discovery.md"
@@ -269,13 +297,17 @@ def phase_state(tdir: Path, meta: dict, artifacts: dict) -> dict:
         phase, reason = "discovery_review", review["reason"]
     elif not artifacts["spec.md"].get("nonempty") or artifacts["spec.md"].get("draft"):
         phase, reason = "spec", "missing, empty, or draft spec.md"
+    elif not planning['ready'] and legacy_complete(tdir, meta):
+        planning = dict(planning, status='legacy-unreviewed', reason='historical completion; current planning policy unreviewed')
+    elif not planning['ready']:
+        phase, reason = 'plan_review', planning['reason']
     elif not artifacts["handoff.md"].get("nonempty") or artifacts["handoff.md"].get("draft"):
         phase, reason = "handoff", "missing, empty, or draft handoff.md"
     else:
         reason = handoff_problem(tdir, meta, check_review=True)
         if reason:
             phase = "handoff"
-    return {"next_phase": phase, "hold_reason": reason, "review": review,
+    return {"next_phase": phase, "hold_reason": reason, "review": review, 'plan_review': planning,
             "workflow": "thinking", "execution_authorized": False,
             "has_execution_request": "execution_request" in meta}
 
@@ -391,6 +423,17 @@ def cmd_init(args) -> dict:
             "use `set` to change fields, or pick a different slug"
         )
 
+    if any((tdir / name).exists() for name in ARTIFACTS):
+        raise StateError('cannot add a retroactive selection to drafted topic documents; start an admitted topic')
+
+    try:
+        from thinking_plan_review import admission
+        if not args.selection or not args.request_reference:
+            raise ValueError('upfront selection and request reference required before thinking drafting')
+        selected = json.loads(Path(args.selection).read_text(encoding='utf-8'))
+        admitted = admission(args.slug, selected, args.request_reference)
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        raise StateError('cannot admit thinking: ' + str(exc)) from exc
     meta = {
         "slug": args.slug,
         "title": args.title or args.slug.replace("-", " "),
@@ -398,6 +441,8 @@ def cmd_init(args) -> dict:
         "created_at": utcnow(),
         "github": {"mode": args.github, "repo": None, "number": None, "url": None, "category": None},
         "published": {},
+        "plan_review_policy": 1,
+        "model_admission": admitted,
         "cold_read": {"max_rounds": COLD_READ_FIXED_LIMITS["new-topic-default"], "rounds_performed": 0,
                       "limit_source": "new-topic-default"},
     }
@@ -418,6 +463,9 @@ def set_dotted(meta: dict, key: str, value):
         )
     if key == "review" or key.startswith("review."):
         raise StateError("use `review` to record operator evidence; `set` cannot grant review")
+    if any(key == prefix or key.startswith(prefix + '.') for prefix in
+           ('plan_review', 'plan_review_policy', 'plan_review_inputs', 'model_admission')):
+        raise StateError('use `plan-review` to bind source inputs and actual planning receipt evidence')
     parts = key.split(".")
     cursor = meta
     for part in parts[:-1]:
@@ -484,6 +532,11 @@ def cmd_review(args) -> dict:
 def cmd_author(args) -> dict:
     """Record the coordinator identity for the current hash of a written topic document."""
     tdir = topic_dir(Path(args.root), args.slug)
+    try:
+        from thinking_plan_review import check_admission
+        check_admission(read_meta(tdir), args.slug)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise StateError('upfront thinking admission required before authorship: ' + str(exc)) from exc
     if args.document not in ARTIFACTS:
         raise StateError("author records are limited to discovery.md, spec.md and handoff.md")
     target = tdir / args.document
@@ -532,9 +585,10 @@ def cmd_gate(args) -> dict:
     required = [r.strip() for r in args.require.split(",") if r.strip()]
     if not required:
         raise StateError('at least one known artifact is required')
-    names = [req if req.endswith('.md') else f'{req}.md' for req in required]
+    wants_plan_review = 'plan_review' in required
+    names = [req if req.endswith('.md') else f'{req}.md' for req in required if req != 'plan_review']
     if any(name not in ARTIFACTS for name in names):
-        raise StateError('required artifacts must be discovery, spec, or handoff')
+        raise StateError('required artifacts must be discovery, spec, plan_review, or handoff')
     missing, empty = [], []
     for name in names:
         path = tdir / name
@@ -556,21 +610,57 @@ def cmd_gate(args) -> dict:
         )
     meta = read_meta(tdir)
     artifacts = artifact_state(tdir, meta)
+    from thinking_plan_review import state as planning_state
+    planning = planning_state(tdir, meta, getattr(args, 'template_dir', None))
+    gate_status = 'draft' if args.draft else 'pass'
     if not args.draft:
         review = review_state(meta, artifacts)
         if not review["ready"]:
             raise StateError(review["reason"])
-        if any(artifacts[name].get("draft") for name in set(names) | {"discovery.md"}):
+        if any(artifacts[name].get("draft") for name in set(names) | {"discovery.md"} |
+               ({'spec.md'} if wants_plan_review else set())):
             raise StateError("draft artifacts cannot pass final readiness")
+        if wants_plan_review or set(names) & {'spec.md', 'handoff.md'}:
+            if not planning['ready']:
+                if not wants_plan_review and legacy_complete(tdir, meta):
+                    gate_status = 'legacy-unreviewed'
+                    planning = dict(planning, status='legacy-unreviewed')
+                else:
+                    raise StateError(planning['reason'])
         if "handoff.md" in names:
             problem = handoff_problem(tdir, meta, check_review=True)
             if problem:
                 raise StateError(problem)
-    return {"slug": args.slug, "gate": "draft" if args.draft else "pass", "required": required,
+    return {"slug": args.slug, "gate": gate_status, "required": required, 'plan_review': planning,
             "review": review_state(meta, artifacts),
             "review_sha256": review_digest(meta),
             "input_hashes": {name: state.get("sha256") for name, state in artifacts.items()},
             "execution_authorized": False}
+
+
+def cmd_plan_review(args) -> dict:
+    from thinking_plan_review import prepare, attach
+    root = Path(args.root)
+    tdir = topic_dir(root, args.slug)
+    meta = read_meta(tdir)
+    artifacts = artifact_state(tdir, meta)
+    owner = review_state(meta, artifacts)
+    if not owner['ready'] or any(not artifacts[n].get('nonempty') or artifacts[n].get('draft')
+                                 for n in ('discovery.md', 'spec.md')):
+        raise StateError('finalise discovery/spec and obtain content-bound owner discovery acceptance first')
+    try:
+        if args.input:
+            from thinking_plan_review import helpers
+            helpers()
+            from core.jobs.store import strict_load, _regular
+            snapshot = prepare(tdir, meta, strict_load(_regular(Path(args.input))), args.template_dir)
+            write_meta(tdir, meta)
+            return {'snapshot': snapshot, 'plan_review': meta['plan_review'], 'execution_authorized': False}
+        result = attach(tdir, meta, args.receipt, args.template_dir)
+        write_meta(tdir, meta)
+        return result
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        raise StateError('cannot bind planning review: ' + str(exc)) from exc
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -588,6 +678,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--output-type", required=True, choices=OUTPUT_TYPES)
     p_init.add_argument("--title", default=None)
     p_init.add_argument("--github", default="none", choices=GITHUB_MODES)
+    p_init.add_argument('--selection', help='sealed upfront model selection JSON')
+    p_init.add_argument('--request-reference', help='actual source request reference bound to this topic')
 
     p_set = sub.add_parser("set", help="update meta fields (dotted keys allowed)")
     p_set.add_argument("slug")
@@ -608,6 +700,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_author.add_argument("document", choices=ARTIFACTS)
     p_author.add_argument("--capabilities", required=True, help="fresh orchestrator_capabilities JSON")
 
+    p_plan = sub.add_parser('plan-review', help='freeze source plan or attach an actual accepted planning receipt')
+    p_plan.add_argument('slug')
+    p_plan.add_argument('--template-dir')
+    source = p_plan.add_mutually_exclusive_group(required=True)
+    source.add_argument('--input', help='verbatim requests/decisions, attachments and relevant evidence JSON')
+    source.add_argument('--receipt', help='actual accepted planning receipt file, not a boolean or summary')
+
     p_gate = sub.add_parser("gate", help="check artifacts and operator discovery review")
     p_gate.add_argument("slug")
     p_gate.add_argument("--require", required=True, help="comma-separated artifact names")
@@ -624,6 +723,7 @@ HANDLERS = {
     "gate": cmd_gate,
     "review": cmd_review,
     "author": cmd_author,
+    'plan-review': cmd_plan_review,
 }
 
 

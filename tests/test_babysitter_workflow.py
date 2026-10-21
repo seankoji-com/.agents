@@ -174,12 +174,12 @@ class BoundaryTest(unittest.TestCase):
                        'silence is not approval'):
             self.assertIn(phrase, approvals)
         play = steps('playbooks/maintain.md')
-        # Fan-out, model choice and repair rounds are decided by the invocation, never asked.
-        self.assertIn('choose the cheapest suitable model from the saved `orchestrator_capabilities` yourself', play[5])
-        self.assertIn('never ask', play[5])
+        # Model choice is upfront; fan-out, setup and repair authority remain intact.
+        self.assertIn('upfront selected work target/options', play[5])
+        self.assertIn('Never infer an answer', play[5])
         self.assertIn('no concurrency cap and no question', play[4])
         self.assertIn('Rounds are not capped', play[8])
-        self.assertIn('Fan-out, model choice, repair rounds, branch rewrites, and a', approvals)
+        self.assertIn('Fan-out, repair rounds, branch rewrites, and a', approvals)
         self.assertIn("roster PR's tests and regressions with the setup they need are decided: never ask, always yes", approvals)
         self.assertIn('ask through the question picker', sections('references/job-plan.md')['Merge and acceptance'])
 
@@ -199,14 +199,14 @@ class BoundaryTest(unittest.TestCase):
     def test_missing_reviewer_and_fallback_stay_visible(self):
         fallback = steps('playbooks/maintain.md')[11]
         self.assertIn('visible fallback marker', fallback)
-        self.assertIn('A failed candidate is not unavailability; escalate instead', fallback)
+        self.assertIn('A failed candidate alone grants no target substitution', fallback)
 
     def test_master_quick_pass_table_and_fixers_survive(self):
         play = steps('playbooks/maintain.md')
         self.assertIn('| PR | Description | Not merged because |', play[3])
         self.assertIn('Post it after the quick pass and at the end of every turn', play[3])
-        self.assertIn('`t3-plugins resolve workhorse --capabilities FILE --repo <that worktree>`', play[5])
-        self.assertIn('cheapest configured tier', play[5])
+        self.assertIn('Show live-catalog choices without routing', play[5])
+        self.assertIn('cheapest suitable tier', play[5])
         self.assertIn('`needs human:`', play[9])
         self.assertIn('`automerge=preexisting`', play[2])
         self.assertIn("Rerun step 2's helper for that PR unless its fixer is in flight", play[8])
@@ -253,7 +253,7 @@ class RelentlessLandingTest(unittest.TestCase):
         play = steps('playbooks/maintain.md')
         self.assertIn('(`needs-followup` follows `PKG/references/job-plan.md`)', play[8])
         # An unfinished `failed` round is retried, not escalated; escalation needs blocked, malformed or a repeat.
-        self.assertIn('when a child returns `blocked` or a malformed result, or the same blocker survives two rounds',
+        self.assertIn('does not authorise escalation: use only the approved work chain or obtain a new choice',
                       play[8])
         self.assertIn('A required human review with nothing left to fix is `needs human:`', play[4])
         self.assertIn('moves the slot\'s `target` to another candidate', sections('references/job-plan.md')['Stage'])
@@ -496,6 +496,12 @@ class SyntheticJobTest(unittest.TestCase):
         return plan
 
     def run_cli(self, script, command, payload=None, ok=True):
+        if command == 'create' and payload is not None:
+            from tests.model_selection_fixtures import attach_selection
+            attach_selection(payload)
+        if command == 'plan-revision' and payload is not None:
+            from tests.model_selection_fixtures import attach_revision
+            attach_revision(payload, json.loads((self.state/'bs-1/job.json').read_text()))
         argv = [sys.executable, str(self.version / 'shared' / script), command,
                 '--state-root', str(self.state), '--job', 'bs-1']
         if command == 'create':

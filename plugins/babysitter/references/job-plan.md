@@ -95,13 +95,13 @@ against the published input:
   for inspect-only, and ID names the recorded owner
   decision for that scope.
 
-It holds one `maintain` slot: `babysitter/pr-maintainer`, `target` from `resolve
-workhorse` with `providerInstanceId`, `model` and `lineage`, and `write_scope`
+It holds one `maintain` slot: `babysitter/pr-maintainer`, the upfront chosen `target`
+with `providerInstanceId`, `model`, exact options and `lineage`, and `write_scope`
 `worker-evidence` under `artifacts/tasks/<task-id>`. Each round is a `retry` of that
 slot. The maintainer reports unfinished work as `failed`, never `needs-followup`; if
 one still arrives it gets the slot's one tracked follow-up. A review slot cannot be
-followed up. Any later `needs-followup`, or one from a review slot, escalates: an
-owner-sourced plan revision (as below) moves the slot's `target` to another candidate
+followed up. Later `needs-followup` needs an authorised replacement or new choice,
+never automatic escalation. An owner-sourced plan revision (as below) moves the slot's `target` to another candidate
 (the next, or back down the list from the strongest), which stales it, then `retry`.
 With a single candidate, the row is `needs human:`. In every round the `delegate_task`
 text adds the round's head, `blockers=` list, thread IDs and prior findings beside the

@@ -1,0 +1,1030 @@
+{
+  "schema_version": 1,
+  "stage": 5,
+  "added": [
+    {
+      "path": "plugins/babysitter/scripts/plan_review.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/babysitter/references/adopter-review-rubric.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/ralph/agents/strategy-reviewer.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/ralph/scripts/plan_review.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/ralph/references/adopter-review-rubric.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/agent-tuneup/scripts/plan_review.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/agent-tuneup/references/adopter-review-rubric.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/imps/scripts/plan_review.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/imps/references/plan-review-rubric.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/imps/references/planning-review.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/elephant-goldfish/agents/plan-reviewer.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/elephant-goldfish/scripts/thinking_plan_review.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/elephant-goldfish/scripts/plan_review.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/elephant-goldfish/references/thinking-plan-review.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/elephant-goldfish/references/adopter-review-rubric.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/elephant-goldfish/references/plan-review-rubric.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/ape/scripts/plan_review.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/ape/references/plan-review-rubric.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "plugins/ape/references/planning-review.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/planning_review.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/ape_planning.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/planning_review_cli.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/imps_planning.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/operation-matrix.json",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/adopter_planning.py",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/planning-review.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/adopter-planning.md",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/agents/planning-assessment.schema.json",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/agents/planning-job.schema.json",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/agents/planning-direct.schema.json",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/agents/planning-policy.schema.json",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    },
+    {
+      "path": "shared/agents/planning-subject.schema.json",
+      "stage": 5,
+      "reason": "Installed planning review contracts and adopter public acceptance integration."
+    }
+  ],
+  "inventory": {
+    "tests": [
+      {
+        "path": "tests/test_capture_site.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_capture_site.CaptureSiteTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_capture_site.DevToolsPipeTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_bench_startctl.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_bench_startctl.BenchctlStartInputTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_startctl.CanaryPromptLiteralTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_startctl.DriverResumeTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_startctl.FixtureStartTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_startctl.FixtureWiringTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_startctl.ObservationContextTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_startctl.PackageArmTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_startctl.StartRunnerTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_startctl.ThreadSettlementTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_thinking_plan_review.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_thinking_plan_review.TestThinkingPlanReviewInstalled",
+            "tests": 11,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_thinking_plan_review.TestThinkingPlanReviewSource",
+            "tests": 11,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_thinking_plan_review.ThinkingPlanReviewCommands",
+            "tests": 11,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_plan_review_imps.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_plan_review_imps.ImpsReviewTests",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_capture_terminal.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_capture_terminal.RecordTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_capture_terminal.RedactionTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_bench_v2.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_bench_v2.FixtureTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_v2.FrozenTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_v2.HiddenCheckTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_v2.ModelPolicyTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_v2.PlanTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_v2.UsageParserTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_plan_review_ape.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_plan_review_ape.ApePlanningTests",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_planning_review.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_planning_review.PlanningReviewTests",
+            "tests": 41,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_bench_container.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_bench_container.DriverPagingTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.GatewayFixture",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.HeaderSplittingTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.HostObservationTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.Pass10ContainerRepairTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.Pass11ContainerRepairTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.Pass12ContainerRepairTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.Pass13ContainerRepairTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.Pass13GatewayLogDamageTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.Pass14ContainerRepairTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.Pass14ParentSweepTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.Pass15ContainerRepairTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.Pass16ContainerRepairTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.Pass18ContainerRepairTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.Pass19ContainerRepairTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_container.PolicyAndIsolationTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_plan_review_installed_matrix.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_plan_review_installed_matrix.PackagingAcceptance",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_bench_fixtures.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_bench_fixtures.AgentHostMappingTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_fixtures.BabysitterScriptsAgainstSidecarTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_fixtures.McpShimProxyTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_fixtures.McpShimRewriteTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_fixtures.SidecarGraphQLTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_fixtures.SidecarObservationTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_fixtures.SidecarRestTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_fixtures.SidecarScenarioTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_fixtures.SidecarTlsTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_bench_fixtures.StageFixturesTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_plan_review_adopters.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_plan_review_adopters.AdoptersTest",
+            "tests": 14,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_sync_reference_repos.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source and installed planning acceptance, adverse and stale evidence regression coverage.",
+        "assertions": [
+          {
+            "selector": "test_sync_reference_repos.RepositoryConfigTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_sync_reference_repos.SyncReferenceReposTest",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_plan_review_installed_adopters.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "The unchanged source and relocated installed public acceptance and adversarial matrix, split by domain for bounded module runtime.",
+        "assertions": [
+          {
+            "selector": "test_plan_review_installed_adopters.RelocatedAdopters",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_plan_review_installed_imps.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "The unchanged source and relocated installed public acceptance and adversarial matrix, split by domain for bounded module runtime.",
+        "assertions": [
+          {
+            "selector": "test_plan_review_installed_imps.RelocatedImps",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_plan_review_installed_ape.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "The unchanged source and relocated installed public acceptance and adversarial matrix, split by domain for bounded module runtime.",
+        "assertions": [
+          {
+            "selector": "test_plan_review_installed_ape.RelocatedApe",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_plan_review_installed_thinking.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "The unchanged source and relocated installed public acceptance and adversarial matrix, split by domain for bounded module runtime.",
+        "assertions": [
+          {
+            "selector": "test_plan_review_installed_thinking.SourceThinking",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_plan_review_installed_thinking.RelocatedThinking",
+            "tests": 1,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_plan_review_installed_panel.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Relocated installed panel union coverage and clearing provenance regressions.",
+        "assertions": [
+          {
+            "selector": "test_plan_review_installed_panel.RelocatedPlanningPanel",
+            "tests": 41,
+            "coverage": [
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      }
+    ],
+    "cli_subcommands": [
+      {
+        "id": "t3-plugins:planning-review",
+        "path": "scripts/catalog.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source-plan receipt admission and validation."
+      },
+      {
+        "id": "thinking_state:plan-review",
+        "path": "plugins/elephant-goldfish/scripts/thinking_state.py",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Public source-plan receipt admission and validation."
+      }
+    ],
+    "manifest_fields": [
+      {
+        "id": "plugin.json:operation_review",
+        "field": "operation_review",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.align",
+        "field": "operation_review.align",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.apply",
+        "field": "operation_review.apply",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.audit",
+        "field": "operation_review.audit",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.blast-radius",
+        "field": "operation_review.blast-radius",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.cancel",
+        "field": "operation_review.cancel",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.check",
+        "field": "operation_review.check",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.checklist",
+        "field": "operation_review.checklist",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.clean",
+        "field": "operation_review.clean",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.discussion",
+        "field": "operation_review.discussion",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.doctor",
+        "field": "operation_review.doctor",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.elephant",
+        "field": "operation_review.elephant",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.forage",
+        "field": "operation_review.forage",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.issues",
+        "field": "operation_review.issues",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.org",
+        "field": "operation_review.org",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.pr",
+        "field": "operation_review.pr",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.prs",
+        "field": "operation_review.prs",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.repo",
+        "field": "operation_review.repo",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.resume",
+        "field": "operation_review.resume",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.run",
+        "field": "operation_review.run",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.scan",
+        "field": "operation_review.scan",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.status",
+        "field": "operation_review.status",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.study",
+        "field": "operation_review.study",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.thinking",
+        "field": "operation_review.thinking",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:operation_review.verification-init",
+        "field": "operation_review.verification-init",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:planning_review",
+        "field": "planning_review",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:planning_review.output_types",
+        "field": "planning_review.output_types",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:planning_review.purpose",
+        "field": "planning_review.purpose",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:planning_review.schema_version",
+        "field": "planning_review.schema_version",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      },
+      {
+        "id": "plugin.json:planning_review.worker_id",
+        "field": "planning_review.worker_id",
+        "stage": 5,
+        "disposition": "change",
+        "reason": "Exhaustive operation triggers and pinned planning purpose."
+      }
+    ]
+  }
+}

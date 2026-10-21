@@ -1,10 +1,18 @@
 # Free supplemental reviews
 
 T3 coordinators can add up to three free OpenCode model points of view alongside
-the required reviewer. This is opportunistic by default when delegation and sharing
-with OpenCode are already authorised. Say **"no supplemental reviews"** to opt out
-for a run. Asking for extras does not authorise sharing private material with a new
-provider; without that authority, the coordinator skips them.
+the required reviewer with upfront consent. Choose named models or permit a bounded
+class of up to three free models on named providers, with exact option overrides
+and a data scope. An empty option map explicitly permits catalog defaults, whose
+actual execution settings may remain unreported. Without consent, extras are skipped.
+General delegation or sharing permission alone does not enable them.
+
+The coordinator asks for work and review models together before substantive work
+on a delegating or planning command. Explicit choices already in the request count;
+deterministic helpers stay direct. Primary reviewer slots, permitted replacements
+and optional extras are separate choices. Selecting a review preference does not
+enable an otherwise optional review stage. New recipients or confidential material
+still need their specific sharing authority.
 
 This applies to imps reviews and audits, babysitter PR review (when the operator asks for one), Ralph evaluation,
 agent-tuneup verification and elephant-goldfish factual checks. It excludes
@@ -19,7 +27,9 @@ The coordinator reads fresh `orchestrator_capabilities` and verifies the exact
 advertised model IDs against current official pricing. It selects at most three
 distinct model names across all runnable OpenCode instances, including the Console
 `opencode/*` and Go `opencode-go/*` namespaces. There is no bundled model roster.
-The same named model through both namespaces counts once.
+The same named model through both namespaces counts once. Every target must fit the
+recorded named/class consent and support its exact chosen options. Unsupported
+options are skipped rather than dropped; no hidden effort increase is permitted.
 
 [Console pricing](https://opencode.ai/v2/docs/console/models/) and
 [Go pricing](https://opencode.ai/v2/docs/console/go/) distinguish free offers from

@@ -1,5 +1,7 @@
 # Verify a checklist
 
+Apply `PKG/references/planning-review.md` before substantive work. Preserve the
+upfront selection through aliases, source stages and repairs.
 Read `PKG/shared/t3-runtime.md`. Write the user's request as `{"text": "checklist PATH"}`
 to a scratch JSON file and run `python3 PKG/scripts/input.py --input FILE`. This parses
 claims and prints JSON. It never executes `Verify:` text. Checked items and malformed

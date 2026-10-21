@@ -287,7 +287,7 @@ def evidence_view(study, plan, revision, job):
             'personas': [{k: p[k] for k in ('id', 'label', 'goal', 'priorities', 'experience', 'constraints')}
                          for p in plan['personas']],
             'cells': [{'cell_id': c['cell_id'], 'persona_id': c['persona_id'], 'pilot': c['pilot'],
-                       'requested': {k: c['target'][k] for k in ('providerInstanceId', 'model', 'options')},
+                       'requested': dict(c['target']),
                        'requested_lineage': lineage_of(c['target'])} for c in fg.cells(plan)],
             'pack': {'manifest_sha256': pack['manifest_sha256'],
                      'files': [{k: f[k] for k in ('name', 'role', 'view', 'sha256', 'bytes', 'media_type')}

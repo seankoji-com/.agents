@@ -131,6 +131,10 @@ def main(argv=None):
     parser.add_argument('--job', metavar='JOB', help='resolve package paths from this pinned job.json')
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('list', help='list bundled plugins')
+    selection = sub.add_parser('selection', help='validate frozen upfront model choices; no dispatch')
+    selection.add_argument('selection_args', nargs=argparse.REMAINDER)
+    planning = sub.add_parser('planning-review', help='pinned planning review jobs and receipts; no dispatch')
+    planning.add_argument('planning_args', nargs=argparse.REMAINDER)
     adoption = sub.add_parser('adopt', help='verify and adopt a relocated installation receipt')
     adoption.add_argument('--from-prefix', required=True)
     adoption.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
@@ -158,6 +162,7 @@ def main(argv=None):
     resolve.add_argument('--repo', default='.', help='repository whose .t3-plugins/routing.json takes precedence')
     resolve.add_argument('--implementer-lineage', metavar='LINEAGE',
                          help='list candidates of other lineages first and mark each as independent or not')
+    resolve.add_argument('--profiles', metavar='FILE', help='sourced model suitability and per-role quality floors')
     adapters = sub.add_parser('skills', help='install or remove T3 slash-menu skill adapters')
     adapters.add_argument('action', choices=('install', 'uninstall'))
     adapters.add_argument('plugin', nargs='?')
@@ -190,11 +195,23 @@ def main(argv=None):
     activate.add_argument('version')
     activate.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.command == 'selection':
+        from shared.model_selection_cli import main as selection_main
+        return selection_main(args.selection_args)
+    if args.command == 'planning-review':
+        from shared.planning_review_cli import main as planning_main
+        return planning_main(args.planning_args)
     try:
         if args.command == 'resolve':
-            config, sources = routing.effective_config(repo=Path(args.repo).absolute())
+            try:
+                config, sources = routing.effective_config(repo=Path(args.repo).absolute())
+            except routing.RoutingError as exc:
+                if exc.code != 'config_missing' or not args.profiles:
+                    raise
+                config, sources = None, []
+            profiles = json.loads(Path(args.profiles).read_text()) if args.profiles else None
             result = routing.resolve(args.role, routing.load_capabilities(args.capabilities), config,
-                                     args.implementer_lineage)
+                                     args.implementer_lineage, profiles)
             print(json.dumps(dict(result, sources=sources)))
             return 0 if result['candidates'] else 1
         prefix = Path(args.prefix).expanduser().absolute()
