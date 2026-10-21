@@ -1992,6 +1992,8 @@ def validate_observation(path):
     job_dir = path.parent.parent
     study = Study(job_dir.parent, job_dir.name)
     observation = strict_load(_regular(path, max_bytes=16 * 1024 * 1024))
+    if not isinstance(observation, dict):
+        raise ValueError('observation must be an object')
     job = lifecycle.load_job(study)
     stage = next((s for s in (job or {}).get('stages', []) if s['id'] == (observation or {}).get('stage')), None)
     if stage is None or not isinstance(observation, dict):
@@ -2022,7 +2024,7 @@ def validate_observation(path):
         else:
             problems.append({'code': 'unknown_stage'})
     except StudyError as exc:
-        problems.append({'code': exc.code, 'detail': str(exc)})
+        problems.append({'code': exc.code})
     status = 'failed' if problems else 'passed'
     evidence_row = {'stage': kind, 'study_revision': revision, 'problems': problems,
                     'checked': 'coordinator observation, shared job receipts and study records'}

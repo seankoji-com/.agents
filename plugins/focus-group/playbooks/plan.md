@@ -38,6 +38,9 @@ reduced diversity.
 
 ## 3. Capture, validate and inspect material
 
+Combined mode requires a URL target for live journeys. For a supplied pack target,
+choose `capture-only`; the helper refuses a combined pack-target plan before creating it.
+
 Plan-time capture is read-only and happens before approval. Follow
 `PKG/playbooks/capture.md`: capture in a safe context or take a supplied pack, look
 at every image and text file yourself, and validate the pack with

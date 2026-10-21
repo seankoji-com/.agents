@@ -138,6 +138,7 @@
     "context_files": {
       "type": "array",
       "maxItems": 256,
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "required": [

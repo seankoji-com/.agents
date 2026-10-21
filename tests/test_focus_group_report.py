@@ -950,6 +950,16 @@ class FidelityTest(ReportCase):
         execution = next(t for t in h.job_state()['tasks'] if t['task_id'] == 'review')['execution_history'][-1]
         self.assertTrue(execution.get('malformed'), execution)
         self.assertIn('review_not_ingested', {p['code'] for p in problems})
+        # A known validation exception keeps its stable code, never arbitrary exception text.
+        from unittest import mock
+        report = load_report_module()
+        marker = 'INVENTED-VALIDATOR-DETAIL'
+        with mock.patch.object(report, 'review_stage', side_effect=report.StudyError('fixture_rejection', marker)):
+            checked = report.validate_observation(frozen)
+        self.assertFalse(checked['accepted'])
+        self.assertNotIn(marker, json.dumps(checked))
+        self.assertIn({'code': 'fixture_rejection'},
+                      checked['requirement_outcomes']['STUDY-REVIEW']['evidence']['problems'])
 
     def test_a_reviewer_without_a_verified_observed_lineage_never_accepts(self):
         h = self.h

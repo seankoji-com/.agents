@@ -1455,6 +1455,53 @@ class JourneyTest(IsolationHarness):
         brief = self.brief(view, 0, 'journey')
         return view, bindings, first, brief
 
+    def test_task_relative_journey_files_are_reopened_without_allowing_scope_escapes(self):
+        view, bindings, first, brief = self.ready()
+        payload = self.journey_payload(view, 0, brief['document']['sha256'], bindings[0], 'jr-01')
+        job_dir = self.lab.root / view['study_id']
+        folder = self.task_dir(view, 'jr-01')
+        note = folder / 'notes.txt'
+        note.write_text('The recipe list opened.\n')
+        events = folder / 'events.jsonl'
+        events.write_text('{"event": "tap", "target": "recipes"}\n')
+        payload['goals'][0]['evidence'] += [
+            {'kind': kind, 'path': str(path), 'sha256': sha(path.read_bytes())}
+            for kind, path in (('text', note), ('event-log', events))]
+        absolute = self.write_payload(view, 'jr-01', payload, name='absolute.json')
+        self.assertEqual(self.check(view, 0, 'journey', 'jr-01', absolute)[0], 0)
+        for item in payload['goals'][0]['evidence']:
+            item['path'] = str(Path(item['path']).relative_to(job_dir))
+        relative = self.write_payload(view, 'jr-01', payload, name='relative.json')
+        self.assertEqual(self.check(view, 0, 'journey', 'jr-01', relative)[0], 0)
+        other = self.task_dir(view, 'jr-02') / 'notes.txt'
+        other.write_bytes(note.read_bytes())
+        (folder / 'linked.txt').symlink_to(note)
+        (folder / 'linked-directory').symlink_to(folder, target_is_directory=True)
+        for n, bad_path in enumerate(('artifacts/tasks/jr-01/../jr-01/notes.txt',
+                                       'artifacts/tasks/jr-02/notes.txt', 'notes.txt',
+                                       'artifacts/tasks/jr-01/linked.txt',
+                                       'artifacts/tasks/jr-01/linked-directory/notes.txt')):
+            with self.subTest(path=bad_path):
+                bad = copy.deepcopy(payload)
+                bad['goals'][0]['evidence'][1]['path'] = bad_path
+                ref = self.write_payload(view, 'jr-01', bad, name=f'escaped-{n}.json')
+                code, out = self.check(view, 0, 'journey', 'jr-01', ref)
+                self.assertEqual((code, out['error']['code']), (1, 'payload_invalid'), out)
+                self.assertIn('out_of_scope_artifact', {p['code'] for p in out['data']['problems']})
+        context = {'class': 'fresh-anonymous', 'reference': 'fixture-context-0', 'binding_sha256': bindings[0]}
+        code, out = self.record(view, 0, 'journey', 'jr-01', relative,
+                                predecessors=[first['ref']['sha256']], context=context)
+        self.assertEqual(code, 0, out)
+        record_sha = out['data']['record_sha256']
+        request = {'record_sha256': record_sha, 'payload': relative}
+        self.assertEqual(self.lab.ev(*self.lab.study_args(view['study_id'], 'accept-journey', request))[0], 0)
+        self.assertEqual(self.lab.ev('disclosure', '--state-root', self.lab.root,
+                                     '--study', view['study_id'], '--consumer', 'export')[0], 0)
+        note.write_text('Changed after acceptance.\n')
+        code, out = self.lab.ev(*self.lab.study_args(view['study_id'], 'accept-journey', request))
+        self.assertEqual((code, out['error']['code']), (1, 'material_unusable'), out)
+        self.assertIn('hash_mismatch', {p['code'] for p in out['data']['problems']})
+
     def test_a_valid_child_driven_journey_is_accepted_as_labelled_fixture_evidence(self):
         view, bindings, first, brief = self.ready()
         doc = Path(brief['document']['path']).read_text()

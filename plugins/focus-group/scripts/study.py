@@ -308,6 +308,8 @@ def normalise(draft):
     mode = draft.get('mode')
     if mode not in MODES:
         invalid('invalid_plan', f'mode must be one of {MODES}')
+    if mode == 'combined' and target['kind'] != 'url':
+        invalid('invalid_plan', 'combined mode requires a URL target; use capture-only for a supplied pack')
     plan['mode'] = mode
     journeys = draft.get('journeys', [])
     if not isinstance(journeys, list) or (mode == 'combined' and not journeys):
@@ -651,6 +653,8 @@ class Study:
         these same bytes, so nothing is checked on one read and consumed from another."""
         scope = self.job_dir / 'artifacts' / 'tasks' / record['task_id']
         path = Path(record['result']['path'])
+        if not path.is_absolute():
+            path = self.job_dir / path
         if not path.is_absolute() or '..' in path.parts or path == scope or not path.is_relative_to(scope):
             return None, ('out_of_scope_artifact', 'artifact is outside its task artifact scope')
         try:

@@ -24,8 +24,8 @@ def main(argv=None):
     try:
         import report
         result = report.validate_observation(args.input)
-    except Exception as exc:  # any unreadable or unsafe state is a rejection, never an acceptance
-        result = {'accepted': False, 'requirement_outcomes': {}, 'error': f'{type(exc).__name__}: {exc}'}
+    except (OSError, ValueError):  # expected invalid or unreadable state; exception text is not protocol data
+        result = {'accepted': False, 'requirement_outcomes': {}, 'error': 'validator_failure'}
     print(json.dumps(result, sort_keys=True))
     return 0 if result.get('accepted') is True else 1
 

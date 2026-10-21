@@ -425,6 +425,17 @@ class CommandTest(FixtureCase):
 class PlanTest(FixtureCase):
     """REQ-PLAN: editable personas, exact revisions, sharing authority and approval."""
 
+    def test_a_pack_target_is_refused_in_combined_mode_and_accepted_in_capture_only(self):
+        draft = self.ws.draft(target={'kind': 'pack', 'environment': 'fixture', 'label': 'Invented supplied pack'})
+        before = self.ws.files()
+        code, out = self.ws.plan(draft, expect=2)
+        self.assertEqual((code, out['error']['code']), (2, 'invalid_plan'), out)
+        self.assertIn('combined mode requires a URL target', out['error']['message'])
+        self.assertEqual(self.ws.files(), before)
+        draft.update(mode='capture-only', journeys=[])
+        view = self.ws.plan(draft)
+        self.assertEqual(view['expected_mode'], 'capture-only')
+
     def test_plan_records_brief_and_presents_revision_ceiling_mode_and_limits(self):
         view = self.ws.plan(self.ws.draft())
         self.assertRegex(view['revision'], r'^[0-9a-f]{64}$')

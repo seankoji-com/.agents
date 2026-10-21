@@ -115,7 +115,8 @@ limit is `unverified`, never clean; this is not a shell parser or a sandbox.
 Compliance is `unverified` without a trace or with any limit, `clean-in-trace` with
 only recorded clean traces, and `contaminated` once any inspection of that request
 found contamination; a later clean trace never clears it. Identical result bytes
-from a distinct request never join another execution. `record-acceptance` refuses a
+from a distinct request never join another execution. `inspect-trace` reports newly
+found contamination as `contaminated_attempt`. `record-acceptance` refuses a
 contaminated execution (`attempt_contaminated`) or a result other than the one its
 trace bound (`trace_result_mismatch`), and keeps it as an attempt. A trace found
 after acceptance leaves the accepted record untouched but makes it unusable. A
@@ -161,7 +162,9 @@ the study lock it:
    symlinks, exact SHA-256) and refuses a quarantined hash;
 2. parses those bytes as one strict payload; a worker-result envelope or any other
    shape is refused, and no member reference is followed;
-3. reopens every journey evidence file the same way (at most 8 MiB), scans text
+3. reopens every journey evidence file the same way (at most 8 MiB).
+   Paths may be absolute or relative to the study's job directory; both must stay
+   inside `artifacts/tasks/<task-id>/`, without `..` or symlinks. It scans text
    and event logs whole as UTF-8, and scans PNG screenshots' text chunks. It clears
    screenshot pixels only from `material_inspection {inspector: coordinator,
    inspected_at, files {sha256: {viewed, secrets_visible, personal_data_visible}}}`.

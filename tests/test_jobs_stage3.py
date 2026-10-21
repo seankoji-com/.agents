@@ -40,6 +40,11 @@ class JobStateTests(unittest.TestCase):
    store=job_with('job-files',context_policy='document-only',document={'path':str(document),'sha256':digest(document)},context_files=files)
    brief=json.loads(Path(prepare(store,caller,'t0',lambda dep,saved:saved==pin,lambda stage:False)['path']).read_text())
    self.assertEqual((brief['context_files'],brief['authorization']['read']),(files,[str(document),str(image),str(notes)]))
+   from core import schema
+   brief_schema=schema.load_schema_file(ROOT/'shared/agents/worker-brief.schema.json')
+   self.assertEqual(schema.errors(brief,brief_schema),[])
+   duplicated={**brief,'context_files':files+[dict(files[0])]}
+   self.assertTrue(any('unique' in error.lower() for error in schema.errors(duplicated,brief_schema)))
    self.assertIn('declared context files',brief['constraints'][0])
    # A changed file, an undeclared kind of task or a relative path never widens the read scope.
    notes.write_text('changed\n')

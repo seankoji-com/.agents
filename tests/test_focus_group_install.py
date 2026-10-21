@@ -500,6 +500,44 @@ class ArchitectureTest(unittest.TestCase):
     def package(self):
         return STATE['relocated']['package']
 
+    def test_pinned_validator_rejects_bad_input_without_serializing_exception_text(self):
+        import contextlib
+        import importlib.util
+        import io
+        import types
+        from unittest import mock
+        program = self.package / 'scripts/validate_study.py'
+        expected = {'accepted': False, 'requirement_outcomes': {}, 'error': 'validator_failure'}
+        marker = 'INVENTED-VALIDATOR-MARKER'
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            malformed = base / 'malformed.json'
+            malformed.write_text('{"unfinished":')
+            non_object = base / 'list.json'
+            non_object.write_text(json.dumps([marker]))
+            for path in (base / marker, malformed, non_object):
+                with self.subTest(input=path.name):
+                    proc = subprocess.run([sys.executable, str(program), '--input', str(path)],
+                                          capture_output=True, text=True, timeout=60)
+                    self.assertEqual((proc.returncode, json.loads(proc.stdout)), (1, expected))
+                    self.assertNotIn(marker, proc.stdout + proc.stderr)
+                    self.assertNotIn(str(base), proc.stdout + proc.stderr)
+        spec = importlib.util.spec_from_file_location('fixture_study_validator', program)
+        validator = importlib.util.module_from_spec(spec)
+        with mock.patch.object(sys, 'path', list(sys.path)):
+            spec.loader.exec_module(validator)
+        for error in (ValueError(marker), OSError(marker), RuntimeError(marker)):
+            fake_report = types.SimpleNamespace(validate_observation=mock.Mock(side_effect=error))
+            output = io.StringIO()
+            with mock.patch.dict(sys.modules, {'report': fake_report}), contextlib.redirect_stdout(output):
+                if isinstance(error, RuntimeError):
+                    with self.assertRaises(RuntimeError):
+                        validator.main(['--input', 'unused-observation.json'])
+                    self.assertEqual(output.getvalue(), '')
+                else:
+                    self.assertEqual(validator.main(['--input', 'unused-observation.json']), 1)
+                    self.assertEqual(json.loads(output.getvalue()), expected)
+
     def test_helpers_are_standard_library_python_3_10_without_launchers_pollers_or_schedulers(self):
         banned = {'subprocess', 'socket', 'threading', 'multiprocessing', 'asyncio', 'sched', 'selectors', 'http',
                   'urllib.request', 'webbrowser', 'concurrent'}
