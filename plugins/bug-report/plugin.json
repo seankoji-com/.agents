@@ -10,6 +10,28 @@
   "context_on_empty": true,
   "kind": "workflow",
   "compatibility": "experimental",
+  "operation_review": {
+    "run": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Current-context incident investigation and reporting has no delegated workers or separate implementation strategy; evidence, publication authority and finite monitoring guards still apply."
+    },
+    "resume": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Reconcile the existing incident in the current context without worker dispatch, resetting budgets or extending the original monitoring deadline."
+    },
+    "status": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Read-only incident inspection has no synthesis or dispatch."
+    },
+    "cancel": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Record cancellation and reconcile only the incident's owned monitoring task; no worker dispatch or unrelated cleanup."
+    }
+  },
   "routes": [
     {"pattern": "^resume\\s+\\S+$", "operation": "resume"},
     {"pattern": "^status\\s+\\S+$", "operation": "status"},
