@@ -23,6 +23,9 @@ IDEA = 'https://github.com/pingdotgg/t3code/discussions/456'
 def private_fixture():
     # A host can itself check out a repository in the normal temp directory.
     for base in [Path(tempfile.gettempdir()), Path('/var/tmp')]:
+        # macOS exposes its temporary root through /var -> /private/var.
+        # Canonicalize the fixture, preserving the ledger's no-symlink rule.
+        base = base.resolve()
         if base.is_dir() and not any((p/'.git').exists() for p in (base,*base.parents)):
             return tempfile.TemporaryDirectory(dir=base)
     raise unittest.SkipTest('no temporary directory outside repositories')
@@ -54,6 +57,19 @@ class Reporting(unittest.TestCase):
 
     def call(self, action, data=None, sid='case'):
         return self.store.apply(sid, action, data or {})
+
+    def test_private_fixture_canonicalizes_system_temp_alias(self):
+        base = Path(self.tmp.name).resolve()
+        alias = base / 'system-temp-alias'
+        alias.symlink_to(base, target_is_directory=True)
+        with patch.object(tempfile, 'gettempdir', return_value=str(alias)):
+            with private_fixture() as name:
+                fixture = Path(name)
+                self.assertEqual(fixture, fixture.resolve())
+                store = ledger.Store(fixture / 'private-state')
+                store.apply('alias-case', 'init', {'incident_key': 'fixture:temp-alias',
+                                                 'owner_thread': 'invoker'})
+                self.assertEqual(store.status('alias-case')['owner_thread'], 'invoker')
 
     def ready(self, pid='p1', outcome='t3-defect', selected=None):
         self.call('problem', problem(pid, outcome))
