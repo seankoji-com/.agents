@@ -180,21 +180,32 @@ class InstalledHost(fg4.ReportHost):
 class HandoffHost(InstalledHost):
     """Issue 85: use the actual generated example and record both required brief reads."""
 
-    def begin(self, n=0, request=None):
-        task = f'fi-{n + 1:02d}'
+    def __init__(self, base, package):
+        super().__init__(base, package)
+        self.first_hosts = {}
+
+    def begin(self, n=0, request=None, stage='first-impression'):
+        task = f'{"fi" if stage == "first-impression" else "jr"}-{n + 1:02d}'
         request = request or f'{task}-r0'
-        code, out = self.admit_slot(n, 'first-impression', request,
+        code, out = self.admit_slot(n, stage, request,
                                      purpose='initial' if request.endswith('-r0') else 'repair')
         assert code == 0, out
         brief = self.prepare(task)
         host = self.launch(task, request, n=n)
-        document = self.documents[task]
+        document = (self.documents if stage == 'first-impression' else self.journey_documents)[task]
         text = Path(document['path']).read_text()
         example = re.search(r'```json\n(.*?)\n```', text.split('## Expected output\n')[1], re.S)
         payload = json.loads(example[1])
         # Instantiate the document's example before the fixture worker writes/returns anything.
         payload['brief_sha256'] = document['sha256']
+        if stage == 'journey':
+            payload['environment_drift']['detail'] = f'Fixture {task}: drift could not be observed.'
+            for gap in payload['gaps']:
+                gap['detail'] = f'Fixture {task}: stopped before attempting {gap["journey_id"]}.'
+        if stage == 'first-impression':
+            self.first_hosts[n] = host
         return {'task': task, 'request': request, 'host': host, 'brief': brief, 'document': document,
+                'stage': stage, 'n': n,
                 'text': text, 'payload': payload}
 
     def trace(self, run, extra=()):
@@ -207,9 +218,10 @@ class HandoffHost(InstalledHost):
         self.counter += 1
         return self.call_evidence(*self.study('inspect-trace'), '--input', self.write(
             f'trace-{self.counter}.json', {'revision': self.view['revision'], 'cell_id': run['payload']['cell_id'],
-                                         'stage': 'first-impression', 'task_id': run['task'],
+                                         'stage': run['stage'], 'task_id': run['task'],
                                          'request_id': run['request'], 'host_task_id': run['host'],
-                                         'brief': run['document'], 'first_host_task_id': None,
+                                         'brief': run['document'], 'first_host_task_id':
+                                             self.first_hosts[run['n']] if run['stage'] == 'journey' else None,
                                          'trace': {'source': 'invented OpenCode host read receipts',
                                                    'events': events + list(extra)}}))
 
@@ -223,9 +235,13 @@ class HandoffHost(InstalledHost):
         run.update(transport=path, completion=f'done-{run["request"]}')
         assert self.complete(run['task'], run['request'], run['host'], run['completion'])[0] == 0
         delivered = self.deliver(run['task'], run['request'], run['completion'], path)
-        outcome = self.ingest(run['task'], run['request'], run['completion'], path,
-                              image_delivery=delivery or {'state': 'delivered',
-                                  'source': 'invented OpenCode host read events: Image read successfully for each PNG'})
+        if run['stage'] == 'journey':
+            evidence = {'context': {'class': 'fresh-anonymous',
+                                    **self.bound_context(self.view, self.cell(run['n']))}}
+        else:
+            evidence = {'image_delivery': delivery or {'state': 'delivered',
+                'source': 'invented OpenCode host read events: Image read successfully for each PNG'}}
+        outcome = self.ingest(run['task'], run['request'], run['completion'], path, **evidence)
         self.reconcile()
         return delivered, outcome
 
@@ -485,6 +501,63 @@ class RelocatedInstallTest(unittest.TestCase):
             code, gate = h.accept('first-impression')
             self.assertEqual((code, gate.get('accepted')), (0, True), gate)
             self.assertEqual(h.charged()['first'], len(h.view['cells']))
+        rows = audit_rows(base)
+        self.assertIn('validate_study.py', {Path(r['script']).name for r in rows})
+        self.assertEqual(sorted({hit for row in rows for hit in row['hits']}), [])
+
+    def test_5b_combined_generated_journey_with_credential_gap_reaches_pinned_stage_acceptance(self):
+        self.adopt()
+        base = STATE['base'] / 'handoff-combined'
+        base.mkdir()
+        with Swap(self.inst, audited(self.inst['env'], base), base):
+            h = HandoffHost(base, self.inst['package'])
+            journeys = h.draft()['journeys'] + [
+                {'id': 'save-plan', 'goal': 'Log in and save the plan to an account.',
+                 'permitted_actions': ['sign in with a test account'], 'excluded_actions': []}]
+            # One cell per model: the all-gap example makes each journey pilot unavailable,
+            # so further cells on that model must remain held by the existing pilot gate.
+            h.start(personas=1, mode='combined', journeys=journeys)
+            self.assertFalse(any(t['stage_id'] == 'journey' for t in h.job_state()['tasks']))
+            first_material = {}
+            for n in range(len(h.view['cells'])):
+                run = h.begin(n)
+                first_material[n] = run['brief']['context_files']
+                self.assertEqual(h.trace(run)[0], 0)
+                delivered, outcome = h.finish(run)
+                self.assertEqual((delivered[0], outcome[0]), (0, 0), (delivered, outcome))
+            code, gate = h.accept('first-impression')
+            self.assertEqual((code, gate.get('accepted')), (0, True), gate)
+
+            # Real journey-slots, owner decision and plan revision, using installed helpers.
+            h.declare_journeys()
+            for n in range(len(h.view['cells'])):
+                run = h.begin(n, stage='journey')
+                payload = run['payload']
+                self.assertEqual(payload['goals'], [])
+                self.assertEqual([g['journey_id'] for g in payload['gaps']], ['plan-three-dinners'])
+                self.assertIn('do not repeat them in goals or gaps', run['text'])
+                briefs = h.root / h.view['study_id'] / 'focus-group/evidence/briefs'
+                metadata = next(json.loads(p.read_text()) for p in briefs.glob('*.json')
+                                if json.loads(p.read_text())['document'] == run['document'])
+                self.assertEqual([g['journey_id'] for g in metadata['gaps']], ['save-plan'])
+                self.assertEqual(run['brief']['context_files'], first_material[n])
+                self.assertEqual(run['brief']['authorization']['read'],
+                                 [run['document']['path']] + [f['path'] for f in run['brief']['context_files']])
+                code, trace = h.trace(run)
+                self.assertEqual((code, trace['data']['attempt_compliance']), (0, 'clean-in-trace'), trace)
+                traces = h.root / h.view['study_id'] / 'focus-group/evidence/traces'
+                bound = next(json.loads(p.read_text()) for p in traces.glob('*.json')
+                             if json.loads(p.read_text())['request_id'] == run['request'])
+                self.assertEqual(bound['document'], run['document'])
+                self.assertEqual(bound['prepared_brief']['sha256'],
+                                 sha(Path(bound['prepared_brief']['path']).read_bytes()))
+                delivered, outcome = h.finish(run)
+                self.assertEqual((delivered[0], outcome[0]), (0, 0), (delivered, outcome))
+                # Ingest preserves exactly what the fixture child returned, with no gap repair.
+                self.assertEqual(json.loads((h.root / h.view['study_id'] / run['item']['path']).read_text()), payload)
+            code, gate = h.accept('journey')
+            self.assertEqual((code, gate.get('accepted')), (0, True), gate)
+            self.assertEqual(h.charged(), {'first': 2 * len(h.view['cells'])})
         rows = audit_rows(base)
         self.assertIn('validate_study.py', {Path(r['script']).name for r in rows})
         self.assertEqual(sorted({hit for row in rows for hit in row['hits']}), [])
