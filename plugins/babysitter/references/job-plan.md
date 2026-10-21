@@ -10,6 +10,45 @@ One job per PR that needs a child, so one PR's ledger, failures and revisions ne
 stall or bloat another's. A PR that merges without a child needs no job; the table
 and the observed merge are its record.
 
+## Repair cycle
+
+Run this cycle on initial triage, every PR wake and every fixer completion. A watch
+or an armed auto-merge request never substitutes for an available action.
+
+1. Before PR writes, check the installed package and worker bundle with
+   `t3-plugins doctor babysitter` and `t3-plugins agents list babysitter`. For an
+   existing job, read `job_cli.py overview` from its pinned package and reconcile
+   owned handles. A package, bundle or ledger integrity failure stops writes for
+   that PR, including replies, resolutions, pushes and merge/auto-merge mutations.
+   Report the exact command, exit code and error as `needs human:`. Never edit the
+   ledger by hand, create a replacement job to evade it, or fall back to untracked
+   GitHub mutations. Direct fallback applies only to unavailable delegation.
+2. Ingest a completed fixer result before retrying a merge. Read the live PR head
+   and every page of unresolved review threads, including outdated threads. Compare
+   IDs with the result's dispositions. A missing disposition or a newly arrived
+   thread needs inspection now; it cannot disappear from the work list.
+3. Verify each claimed fix at that head with its changed paths and test evidence.
+   For no-change findings, verify the evidence explaining why the concern does not
+   apply. Severity, an approval, an outdated marker or a worker's `fixed` label is
+   insufficient. Reply and resolve through step 7, then re-read the thread to confirm
+   it is resolved. If the head changes, re-verify before resolving. If a reply or
+   resolution fails, report the exact failure and stop writes for that PR. For an
+   ambiguous reply outcome, inspect the thread before retrying so no duplicate is
+   posted. Never mark resolution complete from a reply alone.
+4. Dispatch remaining actionable threads, merge conflicts and failing checks to the
+   fixer with the complete blocker list. Conflicts require integrating the current
+   base, resolving files and testing the combined result. Failing checks require
+   reading current-head logs, repairing the cause and verifying the repair. Retry
+   infrastructure failures within a bounded attempt count; missing access or an
+   external outage becomes a named blocker. Local success does not prove hosted CI.
+5. Read four independent landing gates at the current head: thread resolution,
+   latest review state, required checks and mergeability. Resolve addressed threads
+   even while CI is red or a new review is required. A resolved thread does not clear
+   `CHANGES_REQUESTED`; request the reviewer's re-review and wait for the required
+   approval without dismissing their review. Never land with an actionable blocking
+   thread open. Retry the guarded merge helper only after available resolutions;
+   then repair remaining blockers before watching. Report the gaps separately.
+
 ## Before `create`
 
 - Save the operator's request verbatim to an owner-source file outside the job

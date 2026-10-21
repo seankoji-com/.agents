@@ -5,8 +5,8 @@ Public admission: `PKG/scripts/plan_review.py`; contract: `PKG/shared/adopter-pl
 criteria: `PKG/references/adopter-review-rubric.md`.
 Read `PKG/shared/learnings.md` and load this plugin's lessons first.
 
-Land pull requests. Every roster PR ends merged or as a named `needs human:` blocker;
-waiting is never an outcome. Read `PKG/shared/t3-runtime.md`.
+Every roster PR ends merged or as a named `needs human:` blocker.
+Read `PKG/shared/t3-runtime.md`.
 Multi-PR and repair work follows `PKG/shared/job-coordination.md`; delegation follows
 `PKG/shared/delegation.md`. Load only the chosen operation.
 
@@ -20,12 +20,12 @@ Multi-PR and repair work follows `PKG/shared/job-coordination.md`; delegation fo
 - `org <owner>`: eligible open PRs across an organization.
 
 For `pr`, `repo`, and `org`, read `PKG/playbooks/maintain.md`. Read
-`PKG/references/job-plan.md` only when the playbook reaches job creation. Roster
+`PKG/references/job-plan.md`'s repair cycle before writes; load its job fields at creation. Roster
 listing, PR inspection, the quick merge pass, the PR table, and status reads stay
 direct in this thread.
 
-When another workflow pins babysitter (for example imps `prs`), resolve `PKG`
-through `t3-plugins --job JOB path babysitter`, never the current path.
+When a workflow pins babysitter, resolve `PKG` through
+`t3-plugins --job JOB path babysitter`, never the current path.
 
 ## Authorization
 
@@ -56,36 +56,38 @@ set**, or **ignore PRs with auto-merge**. An armed request never withholds a fix
 push, a resolution, or a CLEAN PR's merge; reported as `automerge=preexisting`.
 Enable and leave accept that GitHub may land a fixer push. Armed auto-merge is not
 progress while `blockers=` names threads, conflicts, failing checks or requested
-changes: GitHub will not fire it, so the PR still needs work.
+changes: the PR still needs work.
 
 ## Landing gate
 
-GitHub's own requirements are the gate: required checks, required reviews, rulesets
-and conversation resolution. Babysitter adds no review of its own fixes unless the
-operator asks for review before landing; then follow the review-gated plan in
+Thread resolution, latest review state, required checks and mergeability are separate
+gates. Inspect every unresolved thread at the current head, even without a branch
+resolution rule. Never dismiss a review to clear a gate. Babysitter adds no review
+unless the operator asks for review before landing; then follow
 `PKG/references/job-plan.md`. `merge-pr.sh` merges CLEAN PRs, and UNSTABLE PRs whose
 every required check succeeded at the head, with resolved threads, pinned to the
 checked head.
 
 ## Threads
 
-Unresolved review threads block merges under conversation resolution, outdated ones
-included. Every thread ends fixed or answered with evidence, then resolved. This
+Unresolved review threads block landing, outdated ones included. Fix and verify every
+actionable finding; reply with evidence when no change applies. Then resolve each
+addressed thread before another merge attempt or watch. Severity never excuses a fix. This
 thread posts replies and resolves through `merge-pr.sh --resolve-thread`, which uses
-curl; GitHub connector and `gh` resolution have failed in practice. A refused
+curl. A refused
 resolution is asked through the picker at once, never left behind an armed auto-merge.
 
 ## Workers
 
-- `babysitter/pr-maintainer` (workhorse): one scoped PR's authorized triage or
-  repair in that PR's isolated worktree, with exact-head evidence. Read-only triage
+- `babysitter/pr-maintainer` (workhorse): one PR's authorized triage/repair in its
+  isolated worktree, with exact-head evidence. Read-only triage
   may finish `blocked` with named blockers.
-- `babysitter/pr-reviewer` (reviewer): only when the operator asked for review
-  before landing; independent review at the exact pushed head.
+- `babysitter/pr-reviewer` (reviewer): operator-requested review before landing;
+  independent at the exact pushed head.
 
 Only this thread dispatches, watches, merges, and accepts. Workers never dispatch,
-watch, merge, or accept their own work, and their definitions grant no push or merge
-authority by themselves; each brief narrows its role to the recorded actions.
+watch, merge or self-accept. Definitions grant no push or merge
+authority by themselves; briefs narrow roles to recorded actions.
 
 ## Acceptance
 
@@ -94,7 +96,9 @@ accepts a stage only from a coordinator observation of the current head, every r
 check green there, a complete list of resolved threads, and the authorized endstate
 (`merged`, `mergeable`, or `open`) observed, with host receipts.
 A worker saying "pushed", a terminal task, an older-head check, or queued auto-merge
-is not acceptance. A PR that cannot reach its endstate becomes a named blocker.
+is not acceptance.
+If health or ledger integrity fails, report the exact command and error and stop
+writes for that PR. Never bypass the supported workflow to land it.
 
 ## Approvals
 

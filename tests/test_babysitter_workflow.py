@@ -127,7 +127,7 @@ class BoundaryTest(unittest.TestCase):
         play = steps('playbooks/maintain.md')
         self.assertIn('Ask the auto-merge posture through the picker', play[1])
         self.assertIn('`job_cli.py decision`', play[1])
-        self.assertIn('exclude any roster PR that already carries an armed request', play[1])
+        self.assertIn('under **ignore**, exclude PRs with an armed request', play[1])
         self.assertIn('`--arm-always` under **enable**', play[2])
         self.assertIn('`automerge=preexisting`', play[2])
 
@@ -228,7 +228,7 @@ class RelentlessLandingTest(unittest.TestCase):
             self.assertIn(phrase, threads)
         play = steps('playbooks/maintain.md')
         self.assertIn('--resolve-thread <ID> --verified-head <head> --reply-file <file>', play[7])
-        self.assertIn('never a push that restarts review', play[7])
+        self.assertIn('Actionable minor findings need fixes too', play[7])
         body = text('agents/pr-maintainer.md')
         self.assertIn('`thread:<thread ID>`', body)
         self.assertIn('The coordinator owns merge, replies, thread resolution', body)
@@ -277,6 +277,59 @@ class RelentlessLandingTest(unittest.TestCase):
         self.assertIn('fetch it, integrate it into your work, and carry on at the new head', body)
         self.assertIn('`git push --force-with-lease=<branch>:<sha you last fetched> origin HEAD:<branch>`', body)
         self.assertNotIn('stop and return `needs-followup`', body)
+
+    def test_completed_fixer_dispositions_are_resolved_before_merge_or_watch(self):
+        play = steps('playbooks/maintain.md')
+        wake = play[8]
+        self.assertLess(wake.index('`job_cli.py result`'), wake.index('perform step 7'))
+        self.assertLess(wake.index('perform step 7'), wake.index("Rerun step 2's helper"))
+        self.assertLess(wake.index('perform step 7'), wake.index('Call `watch_pull_request`'))
+        for phrase in ('every unresolved thread at the current head', 'including all pages',
+                       'Verify fixes there or establish why no change applies',
+                       'Re-read to confirm resolution', 'severity alone never justifies an answer'):
+            self.assertIn(phrase, play[7])
+        cycle = sections('references/job-plan.md')['Repair cycle']
+        for phrase in ('A missing disposition or a newly arrived thread needs inspection now',
+                       'Never mark resolution complete from a reply alone',
+                       'Resolve addressed threads even while CI is red or a new review is required'):
+            self.assertIn(phrase, cycle)
+
+    def test_conflicts_and_failed_checks_have_explicit_repair_requirements(self):
+        worker = text('agents/pr-maintainer.md')
+        for phrase in ('Fetch the current base and head before repairing merge conflicts',
+                       'resolve each conflicted path', 'testing the combined result'):
+            # The cycle and worker together bind dispatch to the required repair work.
+            self.assertIn(phrase, worker + ' ' + sections('references/job-plan.md')['Repair cycle'])
+        for phrase in ('read the current-head failed job logs', 'reproduce the failure where possible',
+                       'fix its cause and run focused regressions',
+                       'A rerun alone does not repair a repeatable failure',
+                       'Report pending hosted checks separately from local passes'):
+            self.assertIn(phrase, worker)
+        self.assertIn('each PR with child work and no child in flight gets its next round now',
+                      steps('playbooks/maintain.md')[8])
+
+    def test_health_and_ledger_errors_stop_supported_writes_without_bypass(self):
+        cycle = sections('references/job-plan.md')['Repair cycle']
+        for phrase in ('`t3-plugins doctor babysitter`', '`t3-plugins agents list babysitter`',
+                       '`job_cli.py overview`', 'integrity failure stops writes for that PR',
+                       'exact command, exit code and error', 'Never edit the ledger by hand',
+                       'create a replacement job to evade it',
+                       'Direct fallback applies only to unavailable delegation'):
+            self.assertIn(phrase, cycle)
+        for rel in ('entry.md', 'agents/pr-maintainer.md'):
+            self.assertIn('stop writes', text(rel))
+        self.assertIn('repair cycle before writes', text('entry.md'))
+
+    def test_review_state_checks_threads_and_mergeability_remain_separate(self):
+        cycle = sections('references/job-plan.md')['Repair cycle']
+        self.assertIn('four independent landing gates at the current head', cycle)
+        self.assertIn('A resolved thread does not clear `CHANGES_REQUESTED`', cycle)
+        self.assertIn("request the reviewer's re-review", cycle)
+        self.assertIn('without dismissing their review', cycle)
+        self.assertIn('Never land with an actionable blocking thread open', cycle)
+        worker = text('agents/pr-maintainer.md')
+        self.assertIn('Actionable minor findings need fixes too', worker)
+        self.assertIn('Neither means the GitHub thread is resolved', worker)
 
 
 class WorkerDefinitionTest(unittest.TestCase):
@@ -399,7 +452,7 @@ class MergeGatePlanTest(unittest.TestCase):
 
     def test_gate_is_stated_where_the_coordinator_reads_it(self):
         gate = sections('entry.md')['Landing gate']
-        self.assertIn("GitHub's own requirements are the gate", gate)
+        self.assertIn('Thread resolution, latest review state, required checks and mergeability are separate gates', gate)
         self.assertIn('unless the operator asks for review before landing', gate)
         self.assertIn('UNSTABLE PRs whose every required check succeeded at the head', gate)
         self.assertNotIn('never dispatched while the PR has an auto-merge request', text('entry.md'))
