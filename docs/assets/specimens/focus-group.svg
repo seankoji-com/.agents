@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" class="specimen-mark" role="img" aria-label="focus-group: a small flock of birds flying one way, with one bird turning the other way">
+<defs><g id="sp-focus-group">
+<g id="sp-focus-group-bird">
+<path d="M-12 -4 Q-6 -11 0 -1 Q6 -11 12 -4 Q6 -4 0 4 Q-6 -4 -12 -4 Z" fill="var(--sp-ink,#1f2a24)"/>
+<ellipse cx="1" cy="1" rx="6" ry="3" fill="var(--sp-ink,#1f2a24)"/>
+<circle cx="7" cy="-0.5" r="2.4" fill="var(--sp-ink,#1f2a24)"/>
+<path d="M-5 1 L-11 -1 L-10 4 Z" fill="var(--sp-ink,#1f2a24)"/>
+</g>
+<use href="#sp-focus-group-bird" transform="translate(22 30)"/>
+<use href="#sp-focus-group-bird" transform="translate(48 22)"/>
+<use href="#sp-focus-group-bird" transform="translate(40 50)"/>
+<use href="#sp-focus-group-bird" transform="translate(70 40)"/>
+<g transform="translate(64 72) scale(-1 1)">
+<path d="M-12 -4 Q-6 -11 0 -1 Q6 -11 12 -4 Q6 -4 0 4 Q-6 -4 -12 -4 Z" fill="var(--sp-ochre,#b8862b)"/>
+<ellipse cx="1" cy="1" rx="6" ry="3" fill="var(--sp-ochre,#b8862b)"/>
+<circle cx="7" cy="-0.5" r="2.4" fill="var(--sp-ochre,#b8862b)"/>
+<path d="M-5 1 L-11 -1 L-10 4 Z" fill="var(--sp-ochre,#b8862b)"/>
+</g>
+</g></defs>
+<use href="#sp-focus-group" transform="translate(2.5 2.5)" style="--sp-ink:var(--sp-fern,#2f6b4f);--sp-paper:transparent;--sp-ochre:var(--sp-fern,#2f6b4f)"/>
+<use href="#sp-focus-group"/>
+</svg>

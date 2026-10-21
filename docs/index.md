@@ -1,7 +1,7 @@
 ---
 template: home.html
 title: Overview
-description: "Six workflows for coding agents in T3 Code: fix a bug with checks tied to the files you receive, write a brief, cite another repo, finish a PR. Install with Homebrew on macOS or Linux."
+description: "Seven workflows for coding agents in T3 Code: fix a bug with checks tied to the files you receive, write a brief, cite another repo, finish a PR. Install with Homebrew on macOS or Linux."
 hide:
   - toc
   - navigation

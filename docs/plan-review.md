@@ -15,7 +15,15 @@ doctor, status, list and formatting helpers stay direct.
 | imps verification-init | Authored launch, drive and cleanup recipe before execution |
 | agent-tuneup | Conclusions, concrete alignment proposals and substantive bootstrap proposals |
 | elephant | Repaired design after factual checking, before cold readability |
+| focus-group | Exact study revision before owner approval and panel work; final report retains the separate stronger fidelity review |
 | Ralph or babysitter | An actually written strategy before dependent actions |
+
+Focus-group keeps per-model participant choices, a judgement analyst and a selected
+independent fidelity reviewer. A new study revision reopens planning review and
+owner approval. Its final fidelity gate already checks the integrated synthesis
+against accepted inputs, omitted contradictions, citations, support and dissent;
+the operation matrix therefore adds no duplicate planning pass over that report.
+An explicit resume retains pinned targets/options or stops.
 
 Routine Ralph loops and PR maintenance retain their existing review gates. An
 unchanged reviewed apply plan needs no duplicate planning pass. Raw fetches and

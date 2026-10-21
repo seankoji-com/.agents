@@ -15,12 +15,34 @@ from core.jobs import _owner_current, _live_handles, _open_dispatch, _uningested
 class AcceptanceError(ValueError):
     pass
 
+
+def identity_exception_binding(task, handle):
+    """The one mismatched execution an owner identity exception names; any later reading changes it."""
+    target = handle.get('target') or task.get('target') or {}
+    return {'task_id': task['task_id'], 'request_id': handle.get('request_id'),
+            'host_task_id': handle.get('task_id', handle.get('host_task_id')),
+            'target': {key: target.get(key) for key in ('providerInstanceId', 'model')},
+            'observed_identity_sha256': digest(canonical(handle.get('observed_identity') or {}))}
+
+
+def has_current_identity_exception(job, task, handle):
+    """An exact, current owner decision accepting this one mismatched execution as unverified evidence. It never
+    relabels or clears the mismatch, and it never covers a review, review-required or author-independent slot,
+    whose observed identity must still be verified."""
+    policy = job.get('policy', {})
+    if task.get('role') == 'review' or task.get('review_required') or task.get('independent_of_author') or policy.get('author_independence'):
+        return False
+    expected = identity_exception_binding(task, handle)
+    return any(d.get('scope') == 'identity-exception:task:' + task['task_id'] and d.get('binding') == expected and
+               _owner_current(d, policy['max_artifact_bytes']) for d in job.get('decisions', []))
+
 ADAPTERS = {
     'imps': 'validate_stage.py',
     'ape': 'validate_report.py',
     'babysitter': 'validate_pr.py',
     'elephant-goldfish': 'validate_document.py',
     'agent-tuneup': 'validate_audit.py',
+    'focus-group': 'validate_study.py',
 }
 
 def _caller(job, caller):
@@ -126,6 +148,11 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
     for task in job['tasks']:
         if task['stage_id'] != stage['id'] or task_ids is not None and task['task_id'] not in task_ids:
             continue
+        from shared.document_authors import validate_cold_reader_scope
+        try:
+            validate_cold_reader_scope(task)
+        except JobError as exc:
+            raise AcceptanceError(str(exc)) from exc
         if job.get('policy', {}).get('identity') == 'observed' and (task.get('role') == 'review' or task.get('review_required') or task.get('independent_of_author') or job.get('policy', {}).get('author_independence')):
             current = [h for h in task.get('handles', []) + task.get('followups', []) if h.get('request_id') == task.get('request_id')]
             if not current or current[0].get('observed_identity', {}).get('status') != 'verified':
@@ -146,10 +173,14 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
             raise AcceptanceError(_open_dispatch(task))
         if any(b.get('kind') == 'conflicting-host-handle' and b.get('task_id') == task['task_id'] and not b.get('reconciled') for b in job.get('blockers', [])):
             raise AcceptanceError('a conflicting host handle remains unreconciled in job blockers')
-        if any(h.get('request_id') == task.get('request_id') and h.get('observed_identity', {}).get('status') == 'mismatched' for h in owned):
+        if any(h.get('request_id') == task.get('request_id') and h.get('observed_identity', {}).get('status') == 'mismatched' and not has_current_identity_exception(job, task, h) for h in owned):
             raise AcceptanceError('current execution has a sticky observed host identity mismatch')
-        if any(b.get('kind') == 'identity-mismatch' and b.get('task_id') == task['task_id'] and (b.get('cycle') == task.get('cycle', 0) or b.get('cycle') is None and b.get('request_id') == task.get('request_id')) for b in job.get('blockers', [])):
-            raise AcceptanceError('observed host identity mismatch is a sticky blocker')
+        for b in job.get('blockers', []):
+            if b.get('kind') == 'identity-mismatch' and b.get('task_id') == task['task_id'] and (b.get('cycle') == task.get('cycle', 0) or b.get('cycle') is None and b.get('request_id') == task.get('request_id')):
+                # The blocker stays; only an exact owner exception for its own execution lets acceptance proceed.
+                handle = next((h for h in owned if h.get('request_id') == b.get('request_id') and h.get('task_id', h.get('host_task_id')) == b.get('host_task_id')), None)
+                if handle is None or not has_current_identity_exception(job, task, handle):
+                    raise AcceptanceError('observed host identity mismatch is a sticky blocker')
         if _live_handles(task):
             raise AcceptanceError('every owned host handle must be terminal with work_state result_available and no pending runs')
         if _uningested(task):
@@ -501,8 +532,9 @@ def _adapter(job, stage, argv, input_file):
                 raise AcceptanceError('integrated tuneup conclusions require the producing planning descriptor')
             from shared.adopter_planning import validate_observation
             validate_observation(data, desc, Path(pin['package_dir']))
-    if dep['plugin'] in ('babysitter', 'agent-tuneup'):
-        required = ({'pr', 'head_sha', 'required_contexts', 'allow_empty_required_contexts', 'optional_contexts', 'authorized_endstate'} if dep['plugin'] == 'babysitter' else {'criteria'})
+    if dep['plugin'] in ('babysitter', 'agent-tuneup', 'focus-group'):
+        required = ({'pr', 'head_sha', 'required_contexts', 'allow_empty_required_contexts', 'optional_contexts', 'authorized_endstate'} if dep['plugin'] == 'babysitter'
+                    else {'criteria'} if dep['plugin'] == 'agent-tuneup' else {'study_revision', 'stage'})
         if not required <= set(contract) or any(data.get(key) != value for key, value in contract.items()):
             raise AcceptanceError('workflow criteria differ from the complete declared stage contract')
     if dep['plugin'] == 'babysitter':
@@ -513,7 +545,7 @@ def _adapter(job, stage, argv, input_file):
         raise AcceptanceError('validator options must be unique flag/value pairs')
     flags = dict(zip(args[::2], args[1::2]))
     extra = {}
-    if dep['plugin'] in ('ape', 'babysitter', 'agent-tuneup'):
+    if dep['plugin'] in ('ape', 'babysitter', 'agent-tuneup', 'focus-group'):
         if flags != {'--input': str(inp)}:
             raise AcceptanceError('validator input differs from the pre-check input')
     elif dep['plugin'] == 'imps':
@@ -596,6 +628,9 @@ def _adapter(job, stage, argv, input_file):
                 'elephant-goldfish': ['workflow-observation']}.get(dep['plugin'])
     if dep['plugin'] == 'ape':
         expected = [row['id'] for row in stage['criteria']]
+    elif dep['plugin'] == 'focus-group':
+        # The study validator reports one outcome per requirement the stage declares.
+        expected = [str(row) for row in stage.get('requirements', [])]
     elif dep['plugin'] == 'imps':
         if '--final-plan' in flags:
             expected = ['imps-stage-' + sid for sid in final_plan['required_stages']]

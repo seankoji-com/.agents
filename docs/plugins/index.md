@@ -11,6 +11,7 @@ workflow when you want its checks or the files it leaves behind.
 | A PR stuck on reviews, checks or conflicts | [babysitter](babysitter.md) | `$t3-babysitter pr URL` |
 | Providers with different permissions, MCPs or plugins | [agent-tuneup](agent-tuneup.md) | `$t3-agent-tuneup align` |
 | A goal you want built by one model and graded by another | [ralph](ralph.md) | `$t3-ralph GOAL` |
+| A product or prototype you want tested by a panel of invented personas | [focus-group](focus-group.md) | `$t3-focus-group plan URL` |
 
 Common chains: elephant-goldfish writes the brief, then imps or ralph implements it.
 ape finds the approach before you commit to one. babysitter takes over once a PR

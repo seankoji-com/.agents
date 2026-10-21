@@ -49,6 +49,10 @@ matching `plan:<revision-id>` decision. Narrowing and harmless reordering do not
 `revision.adopt_keys` explicitly adopts updated definitions/overrides for declared
 dependencies; the adapter snapshots only changed keys and keeps other pins byte for
 byte. Affected acceptance and briefs, including transitive successors, become stale.
+Adding a slot changes only its stage's membership: that stage's acceptance and every
+successor become stale, but unchanged sibling slots keep their briefs, requests and
+results. A changed slot, stage contract, dependency or job-wide field still stales
+every task of its stage and successors.
 
 `prepare` input names a task and optional target reason. Its output is only path,
 SHA-256, byte count and compact provenance. Each attempt brief is immutable and
@@ -58,6 +62,10 @@ A `document-only` task supplies a document path/hash. Its brief omits the job ob
 predecessor reports, resource context, requirement statements and other definitions;
 it carries only procedural role/output instructions, the document and opaque correlation
 fields. A job-specific task contract is forbidden for this isolated context.
+It may also declare `context_files`: at most 256 distinct absolute `{path, sha256}`
+records. Preparation rehashes each through the same non-following read, adds the
+paths to the brief's read authority and copies the list into the brief. Changing
+the list is a task contract change. Other task kinds refuse it.
 
 `result` input has a completion ID and either `result: {json: FULL_JSON_STRING}` or
 `result: {path: TRANSPORT_FILE}`. The complete bytes pass the strict parser with the
@@ -322,7 +330,13 @@ rejected. Each source is retained separately. Any present provider or model that
 differs from the pinned target makes that execution mismatched, and the mismatch is
 sticky for the charged pass that ran that execution, even when observed after a
 retry; a same-pass follow-up cannot clear it. Only a charged retry whose new
-execution is non-mismatched clears it.
+execution is non-mismatched clears it. Stage acceptance can still take that one
+execution as unverified evidence under a current owner decision scoped
+`identity-exception:task:<task-id>` whose `binding` equals
+`identity_exception_binding(task, handle)`: task, request, host task, target and the
+hash of the handle's whole `observed_identity`. The handle stays `mismatched` and
+the blocker stays. Any later reading changes the binding and voids the decision.
+It never covers review, review-required or author-independent slots.
 Verification requires the
 status source to report the target provider and at least one source to report the
 target model; incomplete evidence is unreported. A redelivered completion ignores its

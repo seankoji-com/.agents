@@ -25,6 +25,65 @@ class JobStateTests(unittest.TestCase):
    text=Path(prepared['path']).read_text();brief=json.loads(text)
    for marker in ('private-objective-marker','private-snapshot-marker','private-output-marker','private-requirement-marker'):self.assertNotIn(marker,text)
    self.assertEqual(brief['document'],job['tasks'][0]['document']);self.assertEqual(brief['requirements'],[{'id':'R1'}])
+ def test_document_only_context_files_are_exact_declared_read_only_inputs(self):
+  import hashlib
+  from core.jobs import create_job,prepare
+  digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+  with tempfile.TemporaryDirectory() as d:
+   root=Path(d);document=root/'document.md';document.write_text('# Evaluate this document and its files\n')
+   image=root/'capture.png';image.write_bytes(b'\x89PNG fixture');notes=root/'notes.txt';notes.write_text('notes\n')
+   files=[{'path':str(image),'sha256':digest(image)},{'path':str(notes),'sha256':digest(notes)}]
+   pin={'package_digest':'c'*64,'bundle_digest':'b'*64,'task_contract':None,'effective_workers':{'imps/stage-executor':{'bytes':'procedural definition only','sha256':'a'*64}},'limits':{}}
+   caller={'actor':'coordinator','installation_id':'install-1','workflow':'imps/run','package_digest':'c'*64}
+   def job_with(name,**task):
+    job=self.base();job['job_id']=name;job['tasks'][0].update(task);create_job(job,root/'state',{'imps':pin});return Store(root/'state',name)
+   store=job_with('job-files',context_policy='document-only',document={'path':str(document),'sha256':digest(document)},context_files=files)
+   brief=json.loads(Path(prepare(store,caller,'t0',lambda dep,saved:saved==pin,lambda stage:False)['path']).read_text())
+   self.assertEqual((brief['context_files'],brief['authorization']['read']),(files,[str(document),str(image),str(notes)]))
+   from core import schema
+   brief_schema=schema.load_schema_file(ROOT/'shared/agents/worker-brief.schema.json')
+   self.assertEqual(schema.errors(brief,brief_schema),[])
+   duplicated={**brief,'context_files':files+[dict(files[0])]}
+   self.assertTrue(any('unique' in error.lower() for error in schema.errors(duplicated,brief_schema)))
+   self.assertIn('declared context files',brief['constraints'][0])
+   # A changed file, an undeclared kind of task or a relative path never widens the read scope.
+   notes.write_text('changed\n')
+   store=job_with('job-changed',context_policy='document-only',document={'path':str(document),'sha256':digest(document)},context_files=files)
+   with self.assertRaisesRegex(JobError,'context file bytes differ'):prepare(store,caller,'t0',lambda dep,saved:saved==pin,lambda stage:False)
+   store=job_with('job-whole',context_files=[{'path':str(image),'sha256':digest(image)}])
+   with self.assertRaisesRegex(JobError,'belong only to a document-only task'):prepare(store,caller,'t0',lambda dep,saved:saved==pin,lambda stage:False)
+   store=job_with('job-relative',context_policy='document-only',document={'path':str(document),'sha256':digest(document)},context_files=[{'path':'capture.png','sha256':digest(image)}])
+   with self.assertRaisesRegex(JobError,'context file bytes differ'):prepare(store,caller,'t0',lambda dep,saved:saved==pin,lambda stage:False)
+ def test_an_added_slot_keeps_unchanged_executed_siblings_and_stales_stage_acceptance_and_successors(self):
+  from core.jobs import revise_plan
+  with tempfile.TemporaryDirectory() as d:
+   s=Store(d,'job-1');j=self.base()
+   executed={'status':'awaiting-acceptance','attempt':1,'cycle':0,'execution_history':[{'request_id':'req0','completion_id':'c0'}]}
+   j['tasks'][0].update(executed,target={'providerInstanceId':'p','model':'m'})
+   j['tasks'].append(dict(j['tasks'][0],task_id='t1',stage_id='s1',logical_slot_id='primary',request_id='req1',execution_history=[{'request_id':'req1','completion_id':'c1'}]))
+   j['tasks'].append(dict(j['tasks'][0],task_id='live',logical_slot_id='live',request_id='req-live',status='running',attempt=0,execution_history=[],handles=[{'task_id':'host-live','request_id':'req-live','status':'running','work_state':'working','has_pending_child_runs':False}]))
+   j['stages'][0].update(status='accepted-at-snapshot',acceptance={'sha256':'e'*64})
+   s.create(j);caller={'installation_id':'install-1','workflow':'imps/run','package_digest':'c'*64,'actor':'coordinator'}
+   def revise(rid,plan):
+    fixture_decision(s,caller,{'id':'owner-'+rid,'quote':'approve '+rid,'source':'x','source_sha256':'d'*64,'scope':'plan:'+rid})
+    revise_plan(s,caller,{'id':rid,'owner_decision_id':'owner-'+rid},plan)
+    return s.load()
+   before=s.load();tasks=before['tasks']+[{'task_id':'t2','stage_id':'s0','logical_slot_id':'second','request_id':'req2','worker_id':'imps/stage-executor','dependency_key':'imps'}]
+   after=revise('add',{'tasks':tasks})
+   by={t['task_id']:t for t in after['tasks']};stage={x['id']:x for x in after['stages']}
+   self.assertEqual((stage['s0']['status'],stage['s0']['acceptance']),('stale',None))
+   for kept in ('t0','live'):
+    self.assertEqual({k:v for k,v in by[kept].items() if k!='cycle'},{k:v for k,v in next(t for t in before['tasks'] if t['task_id']==kept).items() if k!='cycle'})
+    self.assertNotIn('inputs_stale',by[kept])
+   self.assertEqual((by['t1']['inputs_stale'],by['t1']['status'],stage['s1']['status']),(True,'stale','stale'))  # successors stay stale
+   self.assertEqual((by['t2']['inputs_stale'],by['t2']['attempt']),(True,0))  # a never-executed slot: fresh preparation clears it
+   # A changed sibling contract, or an added slot beside a stage contract change, still stales the executed slot.
+   changed=[dict(t) for t in after['tasks']];next(t for t in changed if t['task_id']=='t0')['target']={'providerInstanceId':'p','model':'other'}
+   self.assertTrue(next(t for t in revise('retarget',{'tasks':changed})['tasks'] if t['task_id']=='t0')['inputs_stale'])
+   s2=Store(Path(d)/'second','job-1');s2.create(j);s=s2
+   stages=[dict(x) for x in j['stages']];stages[0]['resources']={'changed':True}
+   both=revise('add-and-change',{'tasks':j['tasks']+[tasks[-1]],'stages':stages})
+   self.assertTrue(next(t for t in both['tasks'] if t['task_id']=='t0')['inputs_stale'])
  def base(self):
   return {'schema_version':1,'job_id':'job-1','installation_id':'install-1','workflow':'imps/run','owner':'coordinator','objective':'x','requirements':{'R1':'keep evidence'},'authorization':{'actions':['edit']},'constraints':['no network'],'dependencies':[{'key':'imps','plugin':'imps'}],'pins':{'imps':{'package_digest':'c'*64}},'result_contract':{'schema_version':1},'policy':{'identity':'observed','max_repair_cycles':3,'max_artifact_bytes':16777216},'stages':[{'id':f's{i}','depends_on':[f's{i-1}'] if i else [],'requirements':['R1'],'status':'pending','attempts':{'primary':0,'support':0,'review':0,'final':0},'acceptance':None} for i in range(5)],'tasks':[{'task_id':'t0','stage_id':'s0','logical_slot_id':'primary','request_id':'req0','worker_id':'imps/stage-executor','dependency_key':'imps','status':'pending','attempt':0,'handles':[],'followups':[],'dispatch_retries':0,'dispatch_history':[]}],'decisions':[],'history':[],'metrics':{}}
  def test_five_stage_overview_and_restart(self):

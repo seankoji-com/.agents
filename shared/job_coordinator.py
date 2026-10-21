@@ -60,6 +60,10 @@ def selection_plan_revision(current, proposed):
         archive[current['model_selection_sha256']] = current['model_selection']
         proposed['model_selection_history'] = archive
     merged = {**current, **proposed}
+    if current.get('workflow') in ('focus-group/run', 'focus-group/resume'):
+        from shared.adopter_planning import validate_job as validate_adopter_job
+        merged['policy'] = {**current['policy'], **proposed.get('policy', {})}
+        validate_adopter_job(merged, previous=current)
     for task in proposed.get('tasks', []):
         selection_for_task(merged, task)
     if current.get('policy', {}).get('imps_planning_required'):
@@ -167,7 +171,9 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
         validate_job(job)
         job['policy']['model_selection_required'] = True
     from shared.adopter_planning import validate_job as validate_adopter_job
-    validate_adopter_job(job)
+    if workflow in ('focus-group/run', 'focus-group/resume'):
+        job['policy']['model_selection_required'] = True
+    validate_adopter_job(job, creating=True)
     if workflow.partition('/')[0] in ('agent-tuneup', 'babysitter') or workflow in ('elephant-goldfish/elephant','elephant-goldfish/check'):
         job['policy']['model_selection_required'] = True
     if workflow.startswith('elephant-goldfish/'):
@@ -283,6 +289,8 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
             from shared.ape_planning import validate_job
             validate_job(job)
         task = next(t for t in job['tasks'] if t['task_id'] == task_id)
+        from shared.document_authors import validate_cold_reader_scope
+        validate_cold_reader_scope(task)
         from shared.adopter_planning import validate_job as validate_adopter_job
         validate_adopter_job(job)
         selected = selection_for_task(job, task)
@@ -407,7 +415,8 @@ def _current_authority(job, task, stage):
         current['model_selection'] = task['model_selection']
     if task.get('context_policy') == 'document-only':
         current.update(document=task.get('document', {}), requirements=[{'id': r} for r in requirements],
-                       authorization={'read': [task.get('document', {}).get('path')], 'write': task.get('write_scope', {})},
+                       authorization={'read': [task.get('document', {}).get('path')] + [f.get('path') for f in task.get('context_files') or []],
+                                      'write': task.get('write_scope', {})},
                        revision=None)
     else:
         current.update(target=task.get('target'), authorization=job['authorization'], constraints=job['constraints'],

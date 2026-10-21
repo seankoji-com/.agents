@@ -213,6 +213,23 @@ def _actual_context(target, coordinator):
             'current-context settings differ/unknown: choose same-model child or explicitly accept actual settings')
 
 
+def _subject_author_role(record, role):
+    # Persona cells supply isolated raw evidence. The planner and analyst author
+    # the reviewed protocol/synthesis; explicit contributors always remain below.
+    return not (record.get('operation') in ('focus-group/plan', 'focus-group/run', 'focus-group/resume') and
+                re.fullmatch(r'participant-[0-9]{2,}', role))
+
+
+def _prospective_authors(record):
+    authors = {record['coordinator'].get('lineage', 'unknown')} | set(record.get('author_lineages', []))
+    choices = list(record['work'].items())
+    if record.get('operation') in ('focus-group/plan', 'focus-group/run', 'focus-group/resume'):
+        choices += [(r['role'], r['target']) for r in record.get('work_replacements', [])]
+    authors.update(suitability(target, role, record['profiles'], record['capabilities'])
+                   for role, target in choices if _subject_author_role(record, role))
+    return authors
+
+
 def freeze(data):
     """Validate an explicit answer, freeze its evidence and return a sealed record."""
     require(isinstance(data, dict), 'selection input must be an object')
@@ -232,12 +249,14 @@ def freeze(data):
     for role, chosen in record['work'].items():
         target, family = _eligible(chosen, role, record)
         record['work'][role] = target
-        authors.add(family)
+        if _subject_author_role(record, role):
+            authors.add(family)
         _actual_context(target, record['coordinator'])
     authors.update(record.get('author_lineages', []))
     for replacement in record.get('work_replacements', []):
         _, family = _eligible(replacement['target'], replacement['role'], record)
-        authors.add(family)
+        if _subject_author_role(record, replacement['role']):
+            authors.add(family)
     panel = record.get('review_panel')
     require(isinstance(panel, list) and panel, 'review choices required, including unused preferences')
     ids = set()
@@ -348,8 +367,7 @@ def dispatch(record, *, role, slot_id=None, target=None, data_classes=('reposito
         _authority_target(authority, target, record)
         if review and slot.get('independent', True):
             family = suitability(target, role, record['profiles'], record['capabilities'])
-            authors = set(record.get('author_lineages', [])) | {record['coordinator'].get('lineage', 'unknown')}
-            authors.update(suitability(t, r, record['profiles'], record['capabilities']) for r, t in record['work'].items())
+            authors = _prospective_authors(record)
             require('unknown' not in authors and family != 'unknown' and family not in authors,
                     'stronger independent slot refuses degraded replacement')
     if authority:

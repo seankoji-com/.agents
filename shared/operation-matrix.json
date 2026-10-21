@@ -182,6 +182,38 @@
         "planning": "initial-plan",
         "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
       }
+    },
+    "focus-group": {
+      "plan": {
+        "selection": "upfront",
+        "planning": "study-plan",
+        "reason": "Review the exact editable persona/model protocol and authority/budget revision before owner approval or any panel work."
+      },
+      "run": {
+        "selection": "upfront",
+        "planning": "reviewed-study-plan-and-fidelity",
+        "reason": "Consume the current study-plan receipt before panel work. Final synthesis uses the existing stricter fidelity review of the exact bundle, accepted inputs, citations, dissent, coverage and distinct author lineage; no duplicate planning pass over that same report."
+      },
+      "resume": {
+        "selection": "retain-or-stop",
+        "planning": "retained-study-plan-and-fidelity",
+        "reason": "Retain pinned matrix/analyst/fidelity targets and options. Reuse unchanged accepted study-plan and fidelity evidence; changed study revisions need new planning review and owner approval. Reconcile owned children without budget reset."
+      },
+      "status": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Read-only study and owned-task state inspection has no synthesis or dispatch."
+      },
+      "cancel": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Deterministic cancellation intent and reconciliation concern only owned tasks, with no synthesis."
+      },
+      "doctor": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Local package/catalog/schema readiness has no substantive planning or synthesis."
+      }
     }
   }
 }

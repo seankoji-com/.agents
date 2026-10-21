@@ -104,6 +104,7 @@ and runs the pinned validator:
 | elephant-goldfish | `thinking_state.py gate`, `render_handoff.py --check`, `scripts/validate_document.py` (factual and cold-read stay separate) |
 | babysitter | `scripts/validate_pr.py` at the observed current head |
 | agent-tuneup | `scripts/validate_audit.py` |
+| focus-group | `scripts/validate_study.py` |
 
 Validators check provenance, coverage and declared criteria, not the truth of
 arbitrary prose. The final stage is declared in the first plan. Final readiness
@@ -163,6 +164,10 @@ plugin's own commands load them.
 | `babysitter/pr-reviewer` | Independent review of the final combined PR change, when the operator asks for one |
 | `agent-tuneup/config-researcher` | Provider format, scope and precedence with sources |
 | `agent-tuneup/config-verifier` | Parse, load and enforcement evidence for authorized changes |
+| `focus-group/plan-reviewer` | Challenge the exact study protocol before owner approval and panel work |
+| `focus-group/participant` | One isolated invented persona cell on approved material |
+| `focus-group/analyst` | Synthesise accepted evidence with citations and dissent |
+| `focus-group/fidelity-reviewer` | Check the exact integrated report against its inputs and actual authors |
 
 Installation copies each package's definitions and shared contracts into an
 immutable bundle under the agents root (default `~/.agents/agents/t3-plugins`):
@@ -259,3 +264,14 @@ measured saving is claimed yet; see
 [measurement limits](compatibility.md#measurement-limits). The compatibility ledger
 records this uncertainty rather than treating provider logos as proof. See
 [compatibility](compatibility.md) and [testing](testing.md).
+
+Focus-group also uses the shared chooser and separate planning-review lifecycle.
+Its exact study-plan receipt gates approval and panel work, with per-model work
+roles and an independent fidelity reviewer. Stage resources retain the reviewed
+revision and producing admission through generic plan revision. Its final fidelity
+review remains separate and stronger; deterministic study helpers never dispatch.
+
+Focus-group planning binds the product protocol and every declared evidence file
+by content, with an explicit evidence-root path. Git HEAD is not a dependency of
+this product study. Receipt consumption and local report export rehash those
+inputs without launching Git or a publication command.

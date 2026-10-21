@@ -65,15 +65,15 @@ def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason
         for dep in stage.get('depends_on',[]):
             if not callable(verify_acceptance) or verify_acceptance(dep) is not True:raise JobError('predecessor acceptance is not current')
         pin=j['pins'][task['dependency_key']];effective=pin['effective_workers'].get(task['worker_id'])
-        if not effective:raise JobError('worker missing from pinned dependency')
+        if not effective or task.get('context_files') is not None and task.get('context_policy')!='document-only':raise JobError('context files belong only to a document-only task' if effective else 'worker missing from pinned dependency')
         consumed=[output for prior in j['stages'] if prior['id'] in stage.get('depends_on',[]) for output in prior.get('outputs',[])]
         req=task.get('requirements',stage['requirements']);brief={'schema_version':1,'job_id':j['job_id'],'stage_id':task['stage_id'],'logical_slot_id':task['logical_slot_id'],'task_id':task_id,'request_id':task['request_id'],'worker_id':task['worker_id'],'objective':j.get('objective',''),'requirements':[{'id':r,'statement':j['requirements'][r]} for r in req],'authorization':j['authorization'],'constraints':j['constraints'],'snapshot':j.get('snapshot'),'dependency_pins':j['pins'],'consumed_outputs':consumed,'effective_definition':effective,'target_reason':target_reason,'attempt':task.get('attempt',0),'max_attempts':1+j['policy']['max_repair_cycles'],'stop_conditions':stage.get('stop_conditions',[]),'result_contract':j['result_contract'],'write_scope':task.get('write_scope',{'mode':'coordinator-only'}),'revision':stage.get('revision'),'target':task.get('target'),'resources':stage.get('resources',{}),'role':task.get('role','worker'),'review_inputs':task.get('review_inputs',{}),'owner_decisions':[d for d in j['decisions'] if d.get('scope')=='waiver:'+task_id]};brief.update({'model_selection':task['model_selection']} if task.get('model_selection') else {})
         if task.get('context_policy')=='document-only':
-            document=task.get('document',{})
-            if not document.get('path') or digest(_regular(Path(document['path']),max_bytes=j['policy']['max_artifact_bytes']))!=document.get('sha256'):raise JobError('document bytes differ from the declared read scope')
+            document=task.get('document',{});files=[dict(f) for f in task.get('context_files') or []]  # exact extra read-only files; the schema bounds their shape and count
+            if not document.get('path') or digest(_regular(Path(document['path']),max_bytes=j['policy']['max_artifact_bytes']))!=document.get('sha256') or any(not Path(f['path']).is_absolute() or '..' in Path(f['path']).parts or digest(_regular(Path(f['path']),max_bytes=j['policy']['max_artifact_bytes']))!=f['sha256'] for f in files):raise JobError('document or context file bytes differ from the declared read scope')
             if pin.get('task_contract'):raise JobError('document-only definition cannot include a job task contract')
             for key in ('objective','consumed_outputs','resources','target_reason','target','revision','owner_decisions'):brief.pop(key,None)
-            brief.update(result_contract={'schema_version':1,'transport':'worker-result-v1'},stop_conditions=['Stop if the supplied document is unreadable or its hash differs.'],revision=None);brief.update(document=document,requirements=[{'id':r} for r in req],authorization={'read':[document['path']],'write':task.get('write_scope',{})},constraints=['Read only the supplied document and procedural definition; no other job context or child work.'],snapshot={'sha256':digest(canonical(j.get('snapshot')))},dependency_pins={task['dependency_key']:{k:pin[k] for k in ('package_digest','bundle_digest')}},target_reason='declared document-only scope')
+            brief.update(result_contract={'schema_version':1,'transport':'worker-result-v1'},stop_conditions=['Stop if the supplied document '+('or a declared context file ' if files else '')+'is unreadable or its hash differs.'],revision=None);brief.update(document=document,requirements=[{'id':r} for r in req],authorization={'read':[document['path']]+[f['path'] for f in files],'write':task.get('write_scope',{})},constraints=['Read only the supplied document'+(', its declared context files' if files else '')+' and procedural definition; no other job context or child work.'],snapshot={'sha256':digest(canonical(j.get('snapshot')))},dependency_pins={task['dependency_key']:{k:pin[k] for k in ('package_digest','bundle_digest')}},target_reason='declared document-only scope',**({'context_files':files} if files else {}))
         brief['effective_brief_sha256']=digest(canonical(brief));raw=canonical(brief);path=store.path/'briefs'/(task_id+'-'+digest(task['request_id'].encode())+'.json')
         _retain(path,raw,'immutable brief changed; an explicit new attempt is required');task['brief']={key:brief[key] for key in ('job_id','stage_id','logical_slot_id','task_id','request_id','worker_id','effective_brief_sha256','revision','snapshot')}
         task['brief'].update(path=str(path),sha256=digest(raw));task['cycle']=stage.get('cycle',0);task.pop('inputs_stale',None)  # the execution belongs to this pass under the current contract
@@ -254,10 +254,10 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
     required_decision=False;why=[];j=store.verified_load();_authorize(j,caller,'plan-revision')
     if any(r['revision']['id']==revision['id'] for r in j.get('plan_revisions',[])):raise JobError('plan revision ID already applied; use a new owner-bound revision')
     new_plan=copy.deepcopy(new_plan)
-    for key in ('requirements','dependencies','stages','tasks','constraints','authorization','policy','model_selection','model_selection_sha256','model_selection_history'):
+    for key in ('requirements','dependencies','stages','tasks','constraints','authorization','policy','model_selection','model_selection_sha256','model_selection_history','invocation_id','scope_id'):
         if key not in new_plan and key in j:new_plan[key]=j[key]
     new_plan['policy']={**j['policy'],**new_plan['policy']}
-    task_contract={'task_id','stage_id','logical_slot_id','worker_id','dependency_key','target','write_scope','requirements','context_policy','document','max_followups','review_required','role','review_task_ids','reviewed_task_ids','reviewed_documents','independent_of_author','document_authors','selection_binding'};stage_contract={'id','depends_on','requirements','criteria','resources','validator_dependency','validator_contract','revision','outputs','stop_conditions','execution_mode','validator_limits','independent_of_author','lineage_waiver','document_authors','selection_binding'}
+    task_contract={'task_id','stage_id','logical_slot_id','worker_id','dependency_key','target','write_scope','requirements','context_policy','document','context_files','max_followups','review_required','role','review_task_ids','reviewed_task_ids','reviewed_documents','independent_of_author','document_authors','selection_binding'};stage_contract={'id','depends_on','requirements','criteria','resources','validator_dependency','validator_contract','revision','outputs','stop_conditions','execution_mode','validator_limits','independent_of_author','lineage_waiver','document_authors','selection_binding'}
     for kind,contract in (('tasks',task_contract),('stages',stage_contract)):
         identity='task_id' if kind=='tasks' else 'id'
         for candidate in new_plan[kind]:
@@ -310,18 +310,18 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
         pins=adopt_dependencies(j,new_plan['dependencies'])
     def apply(state):
         if digest(canonical(state))!=generation:raise JobError('job changed during plan validation; retry against current revision')
-        for field in ('requirements','dependencies','stages','tasks','constraints','authorization','policy','model_selection','model_selection_sha256','model_selection_history'):
+        for field in ('requirements','dependencies','stages','tasks','constraints','authorization','policy','model_selection','model_selection_sha256','model_selection_history','invocation_id','scope_id'):
             if field in new_plan:state[field]=new_plan[field]
         if pins is not None:state['pins']=pins
         else:state['pins']={key:pin for key,pin in j['pins'].items() if key in new_deps}
         if decision:state['history'].append({'kind':'superseded-plan','revision_id':revision['id'],'requirements':j['requirements'],'stages':j['stages'],'tasks':j['tasks'],'dependencies':j['dependencies'],'authorization':j['authorization'],'constraints':j.get('constraints',[])})
         else:state['history'].append({'kind':'plan-revision','revision':revision,'decision_required':False})
-        affected=set(new_stage_ids-old_stage_ids)|{t['stage_id'] for t in j['tasks']+new_plan['tasks'] if t['task_id'] in old_task_ids^new_task_ids or any(t['task_id']==o['task_id'] and any(t.get(k)!=o.get(k) for k in task_contract) for o in j['tasks'])}
+        added_to={t['stage_id'] for t in new_plan['tasks'] if t['task_id'] in new_task_ids-old_task_ids};affected=set(new_stage_ids-old_stage_ids)|{t['stage_id'] for t in j['tasks']+new_plan['tasks'] if t['task_id'] in old_task_ids-new_task_ids or any(t['task_id']==o['task_id'] and any(t.get(k)!=o.get(k) for k in task_contract) for o in j['tasks'])}
         if any(j[k]!=new_plan[k] for k in ('requirements','constraints','authorization','policy')):affected|=new_stage_ids
         for old in j['stages']:
             new=next((s for s in new_plan['stages'] if s['id']==old['id']),None)
             if new and (any(new.get(k)!=old.get(k) for k in stage_contract-{'id','criteria'}) or sorted(new.get('criteria',[]),key=canonical)!=sorted(old.get('criteria',[]),key=canonical)):affected.add(old['id'])
-        affected|={s['id'] for s in state['stages'] if s.get('validator_dependency') in added|replaced}|{t['stage_id'] for t in state['tasks'] if t.get('dependency_key') in added|replaced}  # a replaced worker definition invalidates its slots
+        affected|={s['id'] for s in state['stages'] if s.get('validator_dependency') in added|replaced}|{t['stage_id'] for t in state['tasks'] if t.get('dependency_key') in added|replaced};changed=set(affected);affected|=added_to  # a replaced worker definition invalidates its slots; an added slot only changes membership
         for stage in state['stages']:
             if stage['id'] in affected:stage['status']='stale';stage['acceptance']=None
         stale_ids=set(affected)
@@ -331,7 +331,7 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
             slot=(task['stage_id'],task['logical_slot_id']);prior=[x for h in j['history'] for x in h.get('tasks',[])]+j['tasks'];same_slot=[x for x in prior if (x['stage_id'],x['logical_slot_id'])==slot];old_task=next((x for x in j['tasks'] if x['task_id']==task['task_id']),None)
             if old_task is None:task.setdefault('attempt',0);task.setdefault('status','pending');task.setdefault('handles',[]);task.setdefault('followups',[]);task.setdefault('dispatch_retries',0)
             if same_slot:task['attempt']=max(x.get('attempt',0) for x in same_slot);task['cycle']=max(x.get('cycle',0) for x in same_slot)
-            if task['stage_id'] in stale_ids:
+            if task['stage_id'] in stale_ids and (old_task is None or task['stage_id'] not in added_to-changed or set(next(s for s in state['stages'] if s['id']==task['stage_id']).get('depends_on',[]))&stale_ids):  # unchanged executed siblings of an added slot keep their briefs and results; changed stages and successors stay stale
                 task['inputs_stale']=True
                 if not _live_handles(task) and not task.get('uncertain_calls'):task['status']='stale'
         state.setdefault('plan_revisions',[]).append({'revision':revision,'plan_sha256':digest(canonical(new_plan)),'decision_id':decision_id if decision else None,'expanded':required_decision,'adopted_dependencies':sorted(added|replaced),'invalidated_acceptance':bool(affected)})

@@ -46,6 +46,10 @@ WORKER_CATALOG = {
                    'pr-reviewer': ('independent final combined PR review', ['pr', 'repo', 'org'])},
     'agent-tuneup': {'config-researcher': ('provider-format and scope research with sources', ['audit', 'align']),
                      'config-verifier': ('authorized configuration change verification', ['audit', 'align', 'apply'])},
+    'focus-group': {'participant': ('one invented persona cell on approved material', ['run', 'resume']),
+                    'analyst': ('cited synthesis of accepted participant evidence', ['run', 'resume']),
+                    'plan-reviewer': ('challenge the exact study protocol before panel work', ['plan', 'run', 'resume']),
+                    'fidelity-reviewer': ('independent check of the exact report against its inputs', ['run', 'resume'])},
 }
 
 # Scope is a ceiling, never an action grant. The immutable brief narrows it.

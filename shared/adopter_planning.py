@@ -15,13 +15,13 @@ from shared.lineage import lineage
 
 OPS = {'agent-tuneup': {'align', 'audit', 'apply'},
        'elephant-goldfish': {'elephant', 'check'},
-       'babysitter': {'pr', 'repo', 'org'}, 'ralph': {'run', 'resume'}}
+       'babysitter': {'pr', 'repo', 'org'}, 'ralph': {'run', 'resume'}, 'focus-group': {'plan', 'run', 'resume'}}
 DIRECT = {'doctor', 'status', 'list', 'resolve', 'cancel', 'clean', 'scan',
           'raw-audit', 'bootstrap-template', 'thinking-list'}
 KINDS = {'agent-tuneup': {'conclusions': 'synthesis', 'proposal': 'configuration-proposal',
                          'bootstrap': 'recommendation'},
          'elephant-goldfish': {'design': 'source-plan'},
-         'babysitter': {'strategy': 'strategy'}, 'ralph': {'strategy': 'strategy'}}
+         'babysitter': {'strategy': 'strategy'}, 'ralph': {'strategy': 'strategy'}, 'focus-group': {'study-plan': 'source-plan'}}
 
 
 def operation(plugin, value):
@@ -41,7 +41,7 @@ def admit(plugin, data):
     planning.need(data.get('selection_sha256'), 'producing selection digest required')
     selected = models.validate(data.get('selection'), data['selection_sha256'])
     models.gate(selected, invocation_id=data['invocation_id'], scope_id=scope, event=data.get('event', 'new'),
-                action='investigate', expected=data['selection_sha256'], pinned=plugin == 'ralph', retain=data.get('retain'))
+                action='investigate', expected=data['selection_sha256'], pinned=plugin in ('ralph', 'focus-group'), retain=data.get('retain'))
     planning.need(selected['operation'] in (op, plugin + '/' + op), 'selection operation differs')
     models.dispatch(selected, role='workhorse')
     # Required panel obligation is checked at the actual planning transition. A
@@ -58,7 +58,7 @@ def continuation(record, *, invocation_id, event='wake', forward=False, retain=N
     planning.need(not forward or not record['forwarded'], 'alias selection was already forwarded')
     models.gate(record['selection'], invocation_id=invocation_id, scope_id=record['scope_id'],
         event='forward' if forward else event, action='investigate', expected=record['selection_sha256'],
-        pinned=record['plugin'] == 'ralph', retain=retain, schedule_id=schedule_id,
+        pinned=record['plugin'] in ('ralph', 'focus-group'), retain=retain, schedule_id=schedule_id,
         capabilities=capabilities, policy_digests=policy_digests)
     if forward:
         record = deepcopy(record); record.pop('sha256'); record['forwarded'] = True
@@ -167,6 +167,11 @@ def source_snapshot(desc, inputs, package):
     planning.need(kind in KINDS[plugin], 'operation has no such planning output')
     planning.need(not (plugin == 'elephant-goldfish' and admission['operation'] != 'elephant'),
                   'check is factual-only and cannot author a design')
+    if plugin == 'focus-group':
+        evidence_root = Path(inputs['repository_root'])
+        planning.need(evidence_root.is_absolute() and '..' not in evidence_root.parts and evidence_root.is_dir(),
+                      'absolute existing focus-group evidence root required')
+        focus_group_adapter(package).validate_descriptor(desc)
     selected = admission['selection']
     planning.need(any(s['required'] for s in selected['review_panel']), 'planning output needs applicable review panel')
     planning.need(set(inputs) <= {'requests', 'decisions', 'requirements', 'load_bearing_decisions',
@@ -230,7 +235,9 @@ def source_snapshot(desc, inputs, package):
         'requirements':inputs['requirements'], 'load_bearing_decisions':inputs.get('load_bearing_decisions', []),
         'requests':deepcopy(inputs['requests']), 'decisions':deepcopy(inputs['decisions']),
         'documents':documents, 'rubrics':[str(_package_file(package, 'references/adopter-review-rubric.md'))],
-        'templates':[], 'repository_root':inputs['repository_root'], 'evidence_paths':evidence,
+        'templates':[], 'repository_root':None if plugin == 'focus-group' else inputs['repository_root'],
+        **({'focus_group_evidence_root':inputs['repository_root'], 'repository_head':None} if plugin == 'focus-group' else {}),
+        'evidence_paths':evidence,
         'declared_paths':list(dict.fromkeys([r['path'] if isinstance(r,dict) else r for r in evidence] + inputs.get('declared_paths', []))),
         'authors':author_list, 'adopter_descriptor':domain, 'adopter_producers':producers,
         'adopter_factual':factual, 'adopter_contract':contract, 'adopter_selection_sha256':admission['selection_sha256']})
@@ -358,8 +365,32 @@ def _resource(stage, name):
     return desc
 
 
-def validate_job(job, stage_id=None):
+def focus_group_adapter(package):
+    from importlib.util import spec_from_file_location, module_from_spec
+    spec = spec_from_file_location('focus_group_planning_adapter', Path(package) / 'scripts/plan_review.py')
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def validate_job(job, stage_id=None, *, previous=None, creating=False):
     workflow = job.get('workflow',''); plugin, _, op = workflow.partition('/')
+    if plugin == 'focus-group' and op in ('run', 'resume'):
+        dependency = next((d for d in job.get('dependencies', []) if d['plugin'] == plugin), None)
+        pin = job.get('pins', {}).get(dependency['key']) if dependency else None
+        if pin:
+            # Public create has not replaced proposed pins yet. Never import
+            # executable policy selected by a caller before independent checks.
+            from shared.job_coordinator import verify_pinned_dependency
+            verify_pinned_dependency(dependency, pin)
+            package = Path(pin['package_dir'])
+        else:
+            runtime = Path(__file__).resolve().parents[1]
+            package = runtime if (runtime / 'plugin.json').is_file() else runtime / 'plugins/focus-group'
+            meta = strict_load(_regular(package / 'plugin.json'))
+            planning.need(meta.get('name') == 'focus-group', 'use the focus-group packaged coordinator helper')
+        focus_group_adapter(package).validate_job(job, previous=previous, creating=creating)
+        return
     if plugin not in OPS or op not in OPS[plugin]:
         return
     # Imported historical jobs retain their old contract. Public creation always
