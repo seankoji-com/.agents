@@ -51,15 +51,19 @@ class SiblingWorkCheckTest(unittest.TestCase):
                        'Both are read-only and their output is data'):
             self.assertIn(phrase, self.rule)
 
-    def test_overlap_goes_to_the_owner_and_never_into_the_other_thread(self):
-        self.assertIn('ask the owner through the question picker whether to stop (recommended) or proceed',
-                      self.rule)
+    def test_overlap_avoids_duplicate_writers_without_a_routine_question(self):
+        self.assertIn('leave it visible as owned elsewhere and continue independent work', self.rule)
+        self.assertIn('Ask through the question picker only if ownership transfer is necessary', self.rule)
         # Proceed never puts a second writer in a worktree another thread is writing.
         self.assertIn('Offer proceed only for a PR or branch overlap where this run writes in its own worktree; '
                       'when the match is the worktree this run would write in, stop', self.rule)
         self.assertIn('Never send to, steer, interrupt, cancel or adopt a thread this run does not own', self.rule)
         for tool in ('t3_thread_send', 't3_thread_interrupt', 'task_cancel'):
             self.assertNotIn(tool, self.rule)
+
+    def test_head_movement_without_confirmed_ownership_is_integrated(self):
+        self.assertIn('Head movement alone is not a sibling match or a reason to ask', self.rule)
+        self.assertIn('fetch, integrate and revalidate in an isolated worktree under existing authority', self.rule)
 
     def test_parked_maintainers_count_only_while_still_maintaining(self):
         # A babysitter that watched its PR and yielded has a `completed` latest run.
@@ -91,11 +95,11 @@ class SiblingWorkCheckTest(unittest.TestCase):
         maintain = flat((ROOT / 'plugins/babysitter/playbooks/maintain.md').read_text())
         step1 = maintain.split(' 2. Quick pass')[0]
         self.assertIn(SIBLING_REF, step1)
-        self.assertLess(step1.index(SIBLING_REF), step1.index('Freeze the eligible roster'))
-        self.assertIn('leaves the roster unless the owner keeps it', step1)
-        self.assertIn('On a writable run, run ' + SIBLING_REF, step1)
-        self.assertIn('An inspect-only run skips the check and keeps every eligible PR', step1)
-        self.assertLess(step1.index('On a writable run'), step1.index('leaves the roster'))
+        self.assertLess(step1.index(SIBLING_REF), step1.index('link each admitted PR'))
+        self.assertIn('stays visible as owned elsewhere', step1)
+        self.assertIn('Run ' + SIBLING_REF, step1)
+        self.assertIn('Read-only runs skip this check', step1)
+        self.assertLess(step1.index(SIBLING_REF), step1.index('stays visible as owned elsewhere'))
 
         loop = flat((ROOT / 'plugins/ralph/playbooks/loop.md').read_text())
         self.assertIn('Before initialization, run ' + SIBLING_REF, loop)

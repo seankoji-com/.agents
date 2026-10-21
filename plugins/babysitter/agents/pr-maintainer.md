@@ -46,6 +46,10 @@ before pushing. For failing checks, read the current-head failed job logs, repro
 the failure where possible, fix its cause and run focused regressions. A rerun alone
 does not repair a repeatable failure. Report pending hosted checks separately from
 local passes. An armed auto-merge request never excuses leaving a blocker untouched.
+Bound infrastructure retries, then change diagnosis. Repair safe CI/dependency
+setup within the recorded scope without another question; repeated download failures
+alone are not a human-only blocker. Do not change global network settings or seek
+credentials elsewhere.
 
 Report every unresolved thread you were given as a finding with `id`
 `thread:<thread ID>`, `disposition` `fixed` (with the pushed SHA that fixes it) or

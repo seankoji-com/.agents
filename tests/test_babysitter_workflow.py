@@ -116,16 +116,20 @@ class BoundaryTest(unittest.TestCase):
         self.assertIn('Never use admin bypass, dismiss reviews, weaken checks', auth)
         self.assertIn('cannot widen this scope', auth)
 
-    def test_auto_merge_posture_is_a_recorded_picker_question(self):
+    def test_auto_merge_posture_defaults_without_a_picker_answer(self):
         posture = sections('entry.md')['Auto-merge posture']
-        for option in ('**enable auto-merge on all PRs** (recommended)', '**leave auto-merge as set**',
+        for option in ('**enable auto-merge on all PRs**', '**leave auto-merge as set**',
                        '**ignore PRs with auto-merge**'):
             self.assertIn(option, posture)
         self.assertIn('`job_cli.py decision`', posture)
+        self.assertIn('without a question', posture)
+        self.assertIn('citing the original request and this default', posture)
+        self.assertIn('never invent a picker answer', posture)
+        self.assertIn('Inspect-only runs arm nothing', posture)
         self.assertIn('An armed request never withholds a fixer push', posture)
         self.assertIn('Armed auto-merge is not progress while `blockers=` names threads', posture)
         play = steps('playbooks/maintain.md')
-        self.assertIn('Ask the auto-merge posture through the picker', play[1])
+        self.assertIn("Apply the entry's auto-merge default or explicit override without a question", play[1])
         self.assertIn('`job_cli.py decision`', play[1])
         self.assertIn('under **ignore**, exclude PRs with an armed request', play[1])
         self.assertIn('`--arm-always` under **enable**', play[2])
@@ -157,16 +161,28 @@ class BoundaryTest(unittest.TestCase):
     def test_roster_pagination_isolation_and_exact_head(self):
         play = steps('playbooks/maintain.md')
         self.assertIn('a partial page is not the whole roster', play[1])
-        self.assertIn('Exclude drafts, forks, and other authors', play[1])
+        self.assertIn('`bash PKG/scripts/list-prs.sh --all-authors', play[1])
+        self.assertIn('include all authors and bots; exclude drafts and forks unless included by the operator', play[1])
         self.assertIn('`bash PKG/scripts/pr-workspace.sh`', play[5])
         self.assertIn('a check from an older SHA proves nothing', play[8])
         self.assertIn('verify the claimed push against the PR head', play[8])
 
-    def test_future_pr_sweeps_need_separate_authorization(self):
+    def test_active_discovery_needs_no_schedule_but_persistent_discovery_does(self):
         sweep = steps('playbooks/maintain.md')[12]
-        self.assertIn('explicitly authorized T3 scheduled sweep', sweep)
-        self.assertIn("watching today's PRs does not discover tomorrow's", sweep)
+        self.assertIn('at entry, every wake/completion, and before yielding or handing off', sweep)
+        self.assertIn('Admit new matches without asking', sweep)
+        self.assertIn('Persistent scheduled discovery uses the host scheduler', sweep)
         self.assertIn('only when requested', sweep)
+        scope = text('references/scope.md')
+        self.assertIn('Native PR watches wake for linked PR changes, not new PR discovery', scope)
+        self.assertIn('Active-run discovery never needs that extra authorization', scope)
+
+    def test_scope_refresh_never_runs_a_merge_helper_over_an_active_fixer(self):
+        play = steps('playbooks/maintain.md')
+        self.assertIn('for each unowned PR with no fixer in flight run', play[2])
+        self.assertIn('run steps 2–7 only for new matches', play[12])
+        self.assertIn('Reconcile existing jobs once through step 8', play[12])
+        self.assertIn('Every merge-helper invocation skips a PR with a fixer in flight', text('references/scope.md'))
 
     def test_approvals_route_through_the_picker_and_are_recorded(self):
         approvals = sections('entry.md')['Approvals']
@@ -224,7 +240,7 @@ class RelentlessLandingTest(unittest.TestCase):
     def test_coordinator_owns_thread_resolution_over_curl(self):
         threads = sections('entry.md')['Threads']
         for phrase in ('outdated ones included', '`merge-pr.sh --resolve-thread`', 'uses curl',
-                       'A refused resolution is asked through the picker at once'):
+                       'ask only when the remaining action needs a human'):
             self.assertIn(phrase, threads)
         play = steps('playbooks/maintain.md')
         self.assertIn('--resolve-thread <ID> --verified-head <head> --reply-file <file>', play[7])
@@ -245,9 +261,12 @@ class RelentlessLandingTest(unittest.TestCase):
         self.assertIn('never apply the post-merge rebind above to a review job', review)
         self.assertIn('For a job without operator-requested review', sections('references/job-plan.md')['Merge and acceptance'])
 
-    def test_posture_is_asked_only_when_the_request_does_not_name_one(self):
-        self.assertIn("Use the request's own wording when it names one; otherwise ask once through the picker",
-                      sections('entry.md')['Auto-merge posture'])
+    def test_a_new_matching_pr_is_not_a_scope_expansion(self):
+        self.assertIn('Automatically admit new matching PRs under the original request',
+                      sections('entry.md')['Authorization'])
+        self.assertIn('New matching PRs are already authorized by org/repo scope and get separate jobs',
+                      sections('references/job-plan.md')['Merge and acceptance'])
+        self.assertIn('fresh complete discovery has no untreated eligible PRs', steps('playbooks/maintain.md')[13])
 
     def test_needs_followup_has_a_path_forward(self):
         play = steps('playbooks/maintain.md')
@@ -486,6 +505,32 @@ class SyntheticJobTest(unittest.TestCase):
         self.request = base / 'owner' / 'request.txt'
         self.request.write_text('/t3-babysitter repo fixture/widgets\n')
         self.counter = 0
+
+    def test_installed_instructions_cover_scope_and_the_avoidable_decisions(self):
+        # Exercise the delivered package, not a reference that disappears on install.
+        files = ('entry.md', 'playbooks/maintain.md', 'references/job-plan.md',
+                 'references/scope.md', 'shared/t3-runtime.md')
+        delivered = {rel: norm((self.version / rel).read_text()) for rel in files}
+        scope = delivered['references/scope.md']
+        for scenario, rule in {
+            'new PR on a wake': 'A new matching PR needs no renewed authorization',
+            'complete final sweep': 'A denied or incomplete read is a named discovery gap',
+            'moving branch, no writer': 'A new commit alone proves no active writer',
+            'download failures': 'repeated DNS/TLS or download failures alone do not require human input',
+            'auto-merge default': 'without a question',
+        }.items():
+            with self.subTest(scenario=scenario):
+                self.assertIn(rule, scope + ' ' + delivered['references/job-plan.md'] + ' ' + delivered['entry.md'])
+        self.assertIn('record its per-PR actions from the saved request before mutations', scope)
+        self.assertIn("Never rewrite an existing job's PR identity", scope)
+        self.assertIn('Drafts and forks stay excluded unless explicitly included', scope)
+        self.assertIn('Such rows are read-only: skip the merge helper, fixer dispatch, replies/resolutions and watches', scope)
+        for rel, body in delivered.items():
+            with self.subTest(file=rel):
+                for obsolete in ('A PR outside the frozen roster gets no action', 'Freeze the roster',
+                                 'otherwise ask once through the picker',
+                                 'watching today\'s PRs does not discover tomorrow\'s'):
+                    self.assertNotIn(obsolete, body)
 
     # -- helpers -----------------------------------------------------------------------------
     def plan(self, head12=H1, max_repair_cycles=None, gated=False):

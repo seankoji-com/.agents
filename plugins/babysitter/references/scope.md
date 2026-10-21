@@ -1,0 +1,64 @@
+# Continuing scope and routine decisions
+
+Read with `PKG/playbooks/maintain.md`. The request defines a selection, not a fixed
+list of PR IDs. `pr` selects one PR; `repo` and `org` select eligible open PRs in
+that repository or organization throughout the active run. Preserve explicit user
+restrictions, including inspect-only mode and exclusions.
+
+## Discovery and admission
+
+- Discover at entry, every wake or child completion, and before yielding or final
+  handoff. Reuse the same scope and filters. Repo/org runs pass `--all-authors` to
+  `list-prs.sh`: human and bot PRs qualify. Drafts and forks stay excluded unless
+  explicitly included; do not treat an author's identity as an extra exclusion.
+- A new matching PR needs no renewed authorization. Link it, add its row, record
+  its per-PR actions from the saved request before mutations, run the quick pass,
+  and create a separate job if repairs are needed. Never rewrite an existing job's
+  PR identity, immutable brief, evidence or model choices to add another PR.
+  Admission processing applies only to new matches; reconcile existing jobs once
+  through step 8. Every merge-helper invocation skips a PR with a fixer in flight,
+  including during discovery refresh and the quick pass.
+- Complete discovery matters. If the helper warns about a partial search page,
+  finish discovery with supported paginated GitHub reads or nonoverlapping narrower
+  queries covering the scope. For an org, enumerate every repository page and each
+  repository's open-PR pages if search is capped. Deduplicate by PR URL. A denied or
+  incomplete read is a named discovery gap, never evidence that all PRs are done.
+- Recheck eligibility and the current head before writes. Keep previously admitted
+  PRs visible if they close, become drafts, lose access or acquire another owner;
+  report that state and stop disallowed actions. Closed without merge is not merged.
+- Confirmed active ownership elsewhere prevents duplicate writers; keep that row
+  and owner visible and continue other PRs. Such rows are read-only: skip the merge
+  helper, fixer dispatch, replies/resolutions and watches for them. Never claim them
+  completed by this run. Ask only if transferring ownership is
+  necessary to finish. A new commit alone proves no active writer: fetch, integrate,
+  test and continue in the isolated worktree, with pinned leases for rewritten heads.
+
+Native PR watches wake for linked PR changes, not new PR discovery. Refresh before
+arming them and on each wake; do not invent an org watch, shell event loop or second
+scheduler. If discovery cannot run while idle, state that gap. Persistent discovery
+after handoff needs an explicitly requested host schedule, bounded in scope and
+cadence. Active-run discovery never needs that extra authorization.
+
+## Decide from the brief before asking
+
+Existing authorization and explicit answers persist. Record policy defaults as
+derived from the original request, not as a user answer. Before any question,
+identify the exact missing fact or authority and why no authorized default resolves
+it. If there is none, act and report the choice.
+
+| Situation | Autonomous action |
+|---|---|
+| Through-merge request without an auto-merge preference | Enable auto-merge when gates permit; honor any explicit override. |
+| New eligible PR appears in the requested repo/org | Admit and maintain it under the same request. |
+| Target head moves without confirmed competing ownership | Fetch, integrate, revalidate and continue; preserve unrelated work. |
+| CI downloads fail repeatedly | Stop identical retries, inspect logs and repair safe in-scope setup; verify the repair. |
+| A child returns blocked or a queue stalls | Diagnose available alternatives and keep authorized repair moving; the label or elapsed time does not itself require a question. |
+| Transient host failure or ambiguous reply outcome | Read fresh state before a bounded retry to avoid duplicate mutations. |
+
+Ask only for material product choices not settled by the brief, genuinely missing
+access/secrets, ownership transfer when required, or actions beyond the authorized
+scope. Use the private secret flow for credentials. Preserve package/ledger health
+stops, worktree isolation, branch protection, exact-head verification and selected
+model/replacement boundaries. Never bypass them to avoid a question. Report an
+external outage without asking the user to choose a retry they cannot repair; name
+the missing prerequisite and any required human action precisely.
