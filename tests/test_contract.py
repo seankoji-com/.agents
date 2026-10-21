@@ -92,7 +92,7 @@ class SurfaceTest(CoreTestCase):
         self.assertIn('`unavailable`', adapter.split('## Preview toolkit')[1])
 
 
-COORDINATORS = ('imps', 'ape', 'elephant-goldfish', 'babysitter', 'agent-tuneup')
+COORDINATORS = ('imps', 'ape', 'elephant-goldfish', 'babysitter', 'agent-tuneup', 'focus-group')
 COORDINATION = ROOT / 'shared' / 'job-coordination.md'
 # Approval channels that bypass the picker: "reply yes", "type approve", "approve in chat".
 PROSE_APPROVAL = re.compile(r'(?i)\b(?:reply|respond|answer|type)\b[^.\n]{0,20}\b(?:yes|approved?|approves)\b'

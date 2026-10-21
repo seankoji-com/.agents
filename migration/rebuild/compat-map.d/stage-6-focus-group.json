@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "stage": 6,
+  "inventory": {
+    "operations": [
+      {
+        "id": "focus-group:plan",
+        "plugin": "focus-group",
+        "operation": "plan",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "focus-group plugin added for issue #75 after the issue-28 base; outside the five rebuilt plugins.",
+        "files": ["plugins/focus-group/entry.md", "plugins/focus-group/playbooks/plan.md", "plugins/focus-group/playbooks/capture.md", "plugins/focus-group/scripts/study.py", "plugins/focus-group/scripts/evidence.py"],
+        "workers": [],
+        "guarantees": []
+      },
+      {
+        "id": "focus-group:run",
+        "plugin": "focus-group",
+        "operation": "run",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "focus-group plugin added for issue #75 after the issue-28 base; outside the five rebuilt plugins.",
+        "files": ["plugins/focus-group/entry.md", "plugins/focus-group/playbooks/run.md", "plugins/focus-group/playbooks/journeys.md", "plugins/focus-group/scripts/study.py", "plugins/focus-group/scripts/evidence.py", "plugins/focus-group/scripts/lifecycle.py", "plugins/focus-group/scripts/report.py", "plugins/focus-group/scripts/validate_study.py"],
+        "workers": ["focus-group/participant", "focus-group/analyst", "focus-group/fidelity-reviewer"],
+        "guarantees": []
+      },
+      {
+        "id": "focus-group:resume",
+        "plugin": "focus-group",
+        "operation": "resume",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "focus-group plugin added for issue #75 after the issue-28 base; outside the five rebuilt plugins.",
+        "files": ["plugins/focus-group/entry.md", "plugins/focus-group/playbooks/run.md", "plugins/focus-group/playbooks/journeys.md", "plugins/focus-group/scripts/study.py", "plugins/focus-group/scripts/evidence.py", "plugins/focus-group/scripts/lifecycle.py", "plugins/focus-group/scripts/report.py", "plugins/focus-group/scripts/validate_study.py"],
+        "workers": ["focus-group/participant", "focus-group/analyst", "focus-group/fidelity-reviewer"],
+        "guarantees": []
+      },
+      {
+        "id": "focus-group:status",
+        "plugin": "focus-group",
+        "operation": "status",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "focus-group plugin added for issue #75 after the issue-28 base; outside the five rebuilt plugins.",
+        "files": ["plugins/focus-group/entry.md", "plugins/focus-group/scripts/study.py"],
+        "workers": [],
+        "guarantees": []
+      },
+      {
+        "id": "focus-group:cancel",
+        "plugin": "focus-group",
+        "operation": "cancel",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "focus-group plugin added for issue #75 after the issue-28 base; outside the five rebuilt plugins.",
+        "files": ["plugins/focus-group/entry.md", "plugins/focus-group/playbooks/run.md", "plugins/focus-group/scripts/study.py", "plugins/focus-group/scripts/lifecycle.py"],
+        "workers": [],
+        "guarantees": []
+      },
+      {
+        "id": "focus-group:doctor",
+        "plugin": "focus-group",
+        "operation": "doctor",
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "focus-group plugin added for issue #75 after the issue-28 base; outside the five rebuilt plugins.",
+        "files": ["plugins/focus-group/entry.md", "plugins/focus-group/scripts/study.py"],
+        "workers": [],
+        "guarantees": []
+      }
+    ]
+  },
+  "added": [
+    {"path": "plugins/focus-group/entry.md", "stage": 6, "kind": "plugin-entry", "reason": "focus-group routing entry (issue #75, FG-1)."},
+    {"path": "plugins/focus-group/playbooks/plan.md", "stage": 6, "kind": "playbook", "reason": "Study planning, panel editing and per-revision approval."},
+    {"path": "plugins/focus-group/playbooks/run.md", "stage": 6, "kind": "playbook", "reason": "Admission-gated run, resume and cancel procedure."},
+    {"path": "plugins/focus-group/references/study-contract.md", "stage": 6, "kind": "reference", "reason": "Study record shapes and downstream interfaces."},
+    {"path": "plugins/focus-group/agents/participant.md", "stage": 6, "kind": "worker-definition", "reason": "Registered participant worker."},
+    {"path": "plugins/focus-group/agents/analyst.md", "stage": 6, "kind": "worker-definition", "reason": "Registered analyst worker."},
+    {"path": "plugins/focus-group/agents/fidelity-reviewer.md", "stage": 6, "kind": "worker-definition", "reason": "Registered fidelity-review worker."},
+    {"path": "plugins/focus-group/scripts/study.py", "stage": 6, "kind": "helper", "reason": "Deterministic plan, approval, admission, deadline and carry-forward helper; stdlib only."},
+    {"path": "plugins/focus-group/templates/study-draft.example.json", "stage": 6, "kind": "template", "reason": "Invented-product study draft."},
+    {"path": "tests/test_focus_group_plan.py", "stage": 6, "kind": "test", "reason": "FG-1 routing, planning, panel, limits and contract fixtures; no model, browser, T3 or GitHub calls."},
+    {"path": "plugins/focus-group/playbooks/capture.md", "stage": 6, "kind": "playbook", "reason": "Safe-context capture, pack validation, quarantine and recapture (issue #75, FG-2)."},
+    {"path": "plugins/focus-group/playbooks/journeys.md", "stage": 6, "kind": "playbook", "reason": "Participant briefs, frozen first impressions, context isolation and journeys (FG-2)."},
+    {"path": "plugins/focus-group/references/evidence-contract.md", "stage": 6, "kind": "reference", "reason": "Capture, brief, payload and isolation record shapes and later-stage interfaces (FG-2)."},
+    {"path": "plugins/focus-group/scripts/evidence.py", "stage": 6, "kind": "helper", "reason": "Deterministic pack, brief, payload, isolation and coverage checks; stdlib only (FG-2)."},
+    {"path": "plugins/focus-group/templates/capture-manifest.example.json", "stage": 6, "kind": "template", "reason": "Invented capture manifest (FG-2)."},
+    {"path": "tests/test_focus_group_evidence.py", "stage": 6, "kind": "test", "reason": "FG-2 capture, blinding, first-impression, isolation and journey fixtures with a loopback cookie server; no model, browser, T3 or GitHub calls."},
+    {"path": "plugins/focus-group/scripts/lifecycle.py", "stage": 6, "kind": "helper", "reason": "Deterministic pilot gates, host-backed ingestion, reconciliation, resume and journey-slot inputs; reads recorded T3 observations, never dispatches or polls; stdlib only (FG-3)."},
+    {"path": "tests/test_focus_group_lifecycle.py", "stage": 6, "kind": "test", "reason": "FG-3 identity, pilot, session, lifecycle and resume fixtures through the installed job helper and an invented host; no model, browser, T3 or GitHub calls."},
+    {"path": "plugins/focus-group/scripts/report.py", "stage": 6, "kind": "helper", "reason": "Deterministic analysis inputs, synthesis checks, coordinator-edit authorship, report bundle, review binding and local export; never dispatches, publishes or polls; stdlib only (FG-4)."},
+    {"path": "plugins/focus-group/scripts/validate_study.py", "stage": 6, "kind": "helper", "reason": "Pinned study validator adapter for shared stage acceptance (FG-4)."},
+    {"path": "plugins/focus-group/references/report-contract.md", "stage": 6, "kind": "reference", "reason": "Synthesis, bundle, review and export record shapes (FG-4)."},
+    {"path": "tests/test_focus_group_report.py", "stage": 6, "kind": "test", "reason": "FG-4 report, evidence, counts, priority, fidelity and export fixtures through the installed job and acceptance helpers and an invented host; no model, browser, T3 or GitHub calls."},
+    {"path": "tests/test_focus_group_report_identity.py", "stage": 6, "kind": "test", "reason": "Owner-accepted identity projection cases split unchanged from the reporting module to retain the test runner's per-module timeout; no model, browser, T3 or GitHub calls."},
+    {"path": "tests/test_focus_group_install.py", "stage": 6, "kind": "test", "reason": "FG-5 installed, relocated and adopted package: doctor, digests, worker bundle, damaged-package refusals and an invented study run from the moved prefix under an audit hook; no model, browser, T3 or GitHub calls."},
+    {"path": "tests/test_focus_group_workflow.py", "stage": 6, "kind": "test", "reason": "FG-5 integration stage: invented studies through every coordinator and helper boundary with a loopback isolation probe, interruptions, provider gaps and an adverse review; no model, browser, T3 or GitHub calls."}
+  ]
+}

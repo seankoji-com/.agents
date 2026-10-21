@@ -174,6 +174,85 @@ class ObservedIdentityTests(unittest.TestCase):
             with self.assertRaisesRegex(AcceptanceError, 'sticky observed host identity mismatch'):
                 _check_slots(store, store.load(), store.load()['stages'][0])
 
+    def _mismatched_execution(self, td, name, policy=None, **task):
+        fixture = job_fixture(); job = fixture.base_job(name); job['tasks'][0].update(target=TARGET, **task)
+        job['policy'].update(policy or {})
+        job['pins']['ape']['effective_workers'] = {'ape/source-researcher': {'bytes': 'synthetic worker', 'sha256': 'b' * 64}}
+        create_job(job, td, job['pins']); store = Store(td, job['job_id']); caller = fixture.caller()
+        brief = prepare(store, caller, 't0', lambda *_: True, lambda *_: True)
+        record_dispatch(store, caller, 't0', {'kind': 'accepted', 'request_id': 'req0', 'host_task_id': 'host0',
+            'status_identity': STATUS, 'receipt_identity': {'providerInstanceId': 'provider-a', 'model': 'model-b'}})
+        record_result(store, caller, 't0', {'request_id': 'req0', 'completion_id': 'done-original', 'result': self._valid_result(fixture, brief)})
+        record_dispatch(store, caller, 't0', {'kind': 'reconciled', 'request_id': 'req0', 'host_task_id': 'host0',
+            'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False})
+        return store, caller
+
+    def _identity_exception(self, store, caller, owner_dir, decision_id='exception-0', **change):
+        from core.jobs import decision
+        from shared.job_acceptance import identity_exception_binding
+        source = Path(owner_dir) / (decision_id + '.txt'); source.write_text('Selected option: accept the reported identity\n')
+        task = store.load()['tasks'][0]
+        decision(store, caller, {'id': decision_id, 'quote': 'accept the reported identity', 'source': str(source),
+            'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(), 'scope': 'identity-exception:task:t0',
+            'binding': {**identity_exception_binding(task, task['handles'][0]), **change}})
+        return source
+
+    def test_exact_owner_identity_exception_accepts_the_mismatched_execution_without_relabelling_it(self):
+        with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as owner:
+            store, caller = self._mismatched_execution(td, 'identity-exception')
+            with self.assertRaisesRegex(AcceptanceError, 'sticky observed host identity mismatch'):
+                _check_slots(store, store.load(), store.load()['stages'][0])
+            self._identity_exception(store, caller, owner)
+            job = store.load(); _check_slots(store, job, job['stages'][0])
+            self.assertEqual(job['tasks'][0]['handles'][0]['observed_identity']['status'], 'mismatched')
+            self.assertEqual([(b['request_id'], b['cycle']) for b in job['blockers'] if b['kind'] == 'identity-mismatch'], [('req0', 0)])
+            # A repeated reading of the same sources keeps the binding; a new reading voids the exception.
+            record_dispatch(store, caller, 't0', {'kind': 'identity', 'request_id': 'req0', 'host_task_id': 'host0',
+                'receipt_identity': {'providerInstanceId': 'provider-a', 'model': 'model-b'}})
+            _check_slots(store, store.load(), store.load()['stages'][0])
+            record_dispatch(store, caller, 't0', {'kind': 'identity', 'request_id': 'req0', 'host_task_id': 'host0',
+                'configuration_identity': {'providerInstanceId': 'provider-a', 'model': 'model-c'}})
+            with self.assertRaisesRegex(AcceptanceError, 'sticky observed host identity mismatch'):
+                _check_slots(store, store.load(), store.load()['stages'][0])
+
+    def test_identity_exception_for_another_execution_scope_or_changed_source_covers_nothing(self):
+        cases = {'request': {'request_id': 'req1'}, 'host': {'host_task_id': 'host9'},
+                 'target': {'target': {'providerInstanceId': 'provider-a', 'model': 'model-b'}},
+                 'readings': {'observed_identity_sha256': '0' * 64}}
+        for name, change in cases.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as owner:
+                store, caller = self._mismatched_execution(td, 'exception-' + name)
+                self._identity_exception(store, caller, owner, **change)
+                with self.assertRaisesRegex(AcceptanceError, 'sticky observed host identity mismatch'):
+                    _check_slots(store, store.load(), store.load()['stages'][0])
+        with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as owner:
+            store, caller = self._mismatched_execution(td, 'exception-scope')
+            from core.jobs import decision
+            from shared.job_acceptance import identity_exception_binding
+            source = Path(owner) / 'waiver.txt'; source.write_text('accept the reported identity\n'); task = store.load()['tasks'][0]
+            decision(store, caller, {'id': 'other-scope', 'quote': 'accept the reported identity', 'source': str(source),
+                'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(), 'scope': 'lineage-waiver:task:t0',
+                'binding': identity_exception_binding(task, task['handles'][0])})
+            with self.assertRaisesRegex(AcceptanceError, 'sticky observed host identity mismatch'):
+                _check_slots(store, store.load(), store.load()['stages'][0])
+        with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as owner:
+            store, caller = self._mismatched_execution(td, 'exception-source')
+            source = self._identity_exception(store, caller, owner)
+            source.write_text('Selected option: keep it held\n')
+            with self.assertRaisesRegex(AcceptanceError, 'sticky observed host identity mismatch'):
+                _check_slots(store, store.load(), store.load()['stages'][0])
+
+    def test_identity_exception_never_covers_review_or_author_independent_slots(self):
+        cases = {'review': ({}, {'role': 'review'}), 'review-required': ({}, {'review_required': True}),
+                 'independent': ({}, {'independent_of_author': True}), 'policy': ({'author_independence': True}, {}),
+                 'observed-review': ({'identity': 'observed'}, {'role': 'review'})}
+        for name, (policy, task) in cases.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as owner:
+                store, caller = self._mismatched_execution(td, 'exception-' + name, policy, **task)
+                self._identity_exception(store, caller, owner)
+                with self.assertRaisesRegex(AcceptanceError, 'identity'):
+                    _check_slots(store, store.load(), store.load()['stages'][0])
+
     def test_legacy_handle_without_cycle_falls_back_to_task_cycle(self):
         # Ledgers written before handles carried a cycle keep loading and keep the conservative refusal.
         with tempfile.TemporaryDirectory() as td:

@@ -1,6 +1,6 @@
 # t3-plugins
 
-**Six workflows for coding agents in [T3 Code](https://github.com/pingdotgg/t3code).
+**Seven workflows for coding agents in [T3 Code](https://github.com/pingdotgg/t3code).
 Each one ends in something you can check.**
 
 [![Tests](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml/badge.svg)](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml)
@@ -10,8 +10,8 @@ Each one ends in something you can check.**
 Ask an agent to "fix the bug" and you usually get a confident summary. With imps you
 get a run ID and a report showing which checks passed on the exact files you were
 handed; edit a file afterwards and the report says the evidence is stale. The other
-five workflows leave similar records for briefs, research, pull requests, provider
-settings and implement-then-grade loops.
+six workflows leave similar records for briefs, research, pull requests, provider
+settings, implement-then-grade loops and synthetic product research.
 
 ## Install (macOS or Linux)
 
@@ -22,7 +22,8 @@ t3-plugins doctor     # checks the installed files; expect "ok": true per plugin
 ```
 
 Already installed? Run `brew upgrade t3-plugins`, then `t3-plugins setup` again. ralph
-needs v0.5.0 or later.
+needs v0.5.0 or later. focus-group is experimental and not in a release yet; install
+from source to try it.
 
 In T3, open **Settings > General**, turn on **Show skills in slash menu**, and restart
 the agent session. Then send this in a thread attached to your repository:
@@ -60,6 +61,7 @@ python3 bin/t3-plugins setup && python3 bin/t3-plugins doctor
 | Get a PR through review and CI | `$t3-babysitter pr https://github.com/OWNER/REPO/pull/12` | Fixes pushed to the PR branch, an independent review at the final head, then a merge, plus a table of what still blocks each PR |
 | Check provider permissions and MCPs | `$t3-agent-tuneup audit --provider claude --settings .claude/settings.json` | Finding codes and locations, never the setting values |
 | Have one model build and another grade | `$t3-ralph fix the parser and add regression coverage` | Fresh attempts until the grader has no feedback (five by default), then a PR |
+| Try a product on invented personas | `$t3-focus-group plan https://staging.example/welcome first-run experience for busy parents` | A reviewed report of synthetic hypotheses, a ranked backlog and local issue drafts; nothing is posted |
 
 Each workflow has a guide with a full example:
 [imps](docs/plugins/imps.md) ·
@@ -67,7 +69,8 @@ Each workflow has a guide with a full example:
 [ape](docs/plugins/ape.md) ·
 [babysitter](docs/plugins/babysitter.md) ·
 [agent-tuneup](docs/plugins/agent-tuneup.md) ·
-[ralph](docs/plugins/ralph.md).
+[ralph](docs/plugins/ralph.md) ·
+[focus-group](docs/plugins/focus-group.md).
 For a one-line edit, skip all of this and ask the agent directly.
 
 ## Try one without a model

@@ -27,7 +27,9 @@ jobs:
           - os: macos-latest
             python: '3.12'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    # The full integration suite exceeds 15 minutes on some hosted matrix machines.
+    # Each module still has the test command's default 600-second failure limit.
+    timeout-minutes: 30
     # Disposable hosted runners also test fork contributions without secrets.
     defaults:
       run:

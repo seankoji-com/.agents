@@ -6,7 +6,7 @@ search:
 
 # Install and first ten minutes
 
-By the end of this page you will have the six workflows installed, a readiness report
+By the end of this page you will have the workflows installed, a readiness report
 from your agent, and one real result. The terminal steps install files and never call
 a model.
 
