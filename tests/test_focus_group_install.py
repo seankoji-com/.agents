@@ -191,6 +191,7 @@ class HandoffHost(InstalledHost):
                                      purpose='initial' if request.endswith('-r0') else 'repair')
         assert code == 0, out
         brief = self.prepare(task)
+        outer = next(t['brief'] for t in self.job_state()['tasks'] if t['task_id'] == task)
         host = self.launch(task, request, n=n)
         document = (self.documents if stage == 'first-impression' else self.journey_documents)[task]
         text = Path(document['path']).read_text()
@@ -205,11 +206,11 @@ class HandoffHost(InstalledHost):
         if stage == 'first-impression':
             self.first_hosts[n] = host
         return {'task': task, 'request': request, 'host': host, 'brief': brief, 'document': document,
-                'stage': stage, 'n': n,
+                'stage': stage, 'n': n, 'outer': outer,
                 'text': text, 'payload': payload}
 
     def trace(self, run, extra=()):
-        outer = next(t['brief'] for t in self.job_state()['tasks'] if t['task_id'] == run['task'])
+        outer = run['outer']
         events = [{'tool': 'read', 'path': outer['path']},
                   {'tool': 'read', 'path': run['document']['path']}]
         events += [{'tool': 'read', 'path': f['path'], 'result': 'Image read successfully'
@@ -477,6 +478,8 @@ class RelocatedInstallTest(unittest.TestCase):
             h.start(mode='capture-only')
             for n in range(len(h.view['cells'])):
                 run = h.begin(n)
+                task = next(t for t in h.job_state()['tasks'] if t['task_id'] == run['task'])
+                self.assertEqual((task['context_policy'], task['max_followups']), ('document-only', 0))
                 self.assert_artifact_example(run)
                 brief = run['brief']
                 files = h.stimulus(h.view['study_id'])['files']
@@ -542,6 +545,8 @@ class RelocatedInstallTest(unittest.TestCase):
             h.declare_journeys()
             for n in range(len(h.view['cells'])):
                 run = h.begin(n, stage='journey')
+                task = next(t for t in h.job_state()['tasks'] if t['task_id'] == run['task'])
+                self.assertEqual((task['context_policy'], task['max_followups']), ('document-only', 0))
                 self.assert_artifact_example(run)
                 payload = run['payload']
                 self.assertEqual(payload['goals'], [])
@@ -719,6 +724,116 @@ class RelocatedInstallTest(unittest.TestCase):
             self.assertEqual(before, {'first': 1, 'participant_repairs': 1})
             for path, data in retained.items():
                 self.assertEqual(path.read_bytes(), data, path.name)
+
+    def test_9b_fresh_retry_uses_normal_brief_and_accepts_without_losing_retired_trace(self):
+        self.adopt()
+        base = STATE['base'] / 'handoff-fresh-retry'
+        base.mkdir()
+        with Swap(self.inst, audited(self.inst['env'], base), base):
+            h = HandoffHost(base, self.inst['package'])
+            h.start(personas=1, mode='capture-only')
+            initial = h.begin()
+            self.assertEqual(h.trace(initial)[0], 0)
+
+            def invalid_transport(result):
+                result['artifacts'][0]['size'] = result['artifacts'][0].pop('bytes')
+
+            self.assertEqual(h.finish(initial, invalid_transport)[1][0], 1)
+            study = h.root / h.view['study_id']
+            retained = {p: p.read_bytes() for folder in ('briefs', 'results', 'focus-group/sessions',
+                         'focus-group/evidence/traces', 'focus-group/approvals') for p in (study / folder).rglob('*')
+                        if p.is_file()}
+            h.job_ok('retry', {'caller': h.caller, 'task_id': initial['task'], 'reason': 'fixture transport repair'})
+            request = next(t['request_id'] for t in h.job_state()['tasks'] if t['task_id'] == initial['task'])
+            repair = h.begin(request=request)
+            self.assertNotEqual(repair['host'], initial['host'])
+            self.assertNotEqual(request, initial['request'])
+            self.assertEqual(Path(repair['outer']['path']),
+                             study / 'briefs' / f'{repair["task"]}-{sha(request.encode())}.json')
+            self.assertFalse((study / 'briefs/followup').exists())
+            self.assertEqual(h.trace(initial)[0], 0)  # retired normal brief remains bound after replacement
+            code, trace = h.trace(repair)
+            self.assertEqual((code, trace['data']['attempt_compliance']), (0, 'clean-in-trace'), trace)
+            delivered, outcome = h.finish(repair)
+            self.assertEqual((delivered[0], outcome[0]), (0, 0), (delivered, outcome))
+            task = next(t for t in h.job_state()['tasks'] if t['task_id'] == repair['task'])
+            self.assertEqual([r['request_id'] for r in task['execution_history']], [initial['request'], request])
+            self.assertTrue(task['execution_history'][0]['malformed'])
+            self.assertEqual(task['attempt'], 2)
+            self.assertEqual(h.charged(), {'first': 1, 'participant_repairs': 1})
+            for path, data in retained.items():
+                self.assertEqual(path.read_bytes(), data, path.name)
+            for n in range(1, len(h.view['cells'])):
+                run = h.begin(n)
+                self.assertEqual(h.trace(run)[0], 0)
+                self.assertEqual(h.finish(run)[1][0], 0)
+            code, gate = h.accept('first-impression')
+            self.assertEqual((code, gate.get('accepted')), (0, True), gate)
+        rows = audit_rows(base)
+        self.assertIn('validate_study.py', {Path(r['script']).name for r in rows})
+        self.assertEqual(sorted({hit for row in rows for hit in row['hits']}), [])
+
+    def test_9c_same_child_followup_is_refused_and_unexpected_host_work_stays_non_accepting(self):
+        self.adopt()
+        base = STATE['base'] / 'handoff-forbidden-followup'
+        base.mkdir()
+        with Swap(self.inst, audited(self.inst['env'], base), base):
+            h = HandoffHost(base, self.inst['package'])
+            h.start(mode='capture-only')
+            initial = h.begin()
+            self.assertEqual(h.trace(initial)[0], 0)
+
+            def invalid_transport(result):
+                result['artifacts'][0]['size'] = result['artifacts'][0].pop('bytes')
+
+            self.assertEqual(h.finish(initial, invalid_transport)[1][0], 1)
+            study = h.root / h.view['study_id']
+            before, ledger = (study / 'job.json').read_bytes(), h.ledger_bytes()
+            request, host, completion = 'fi-01-forbidden', 'host-forbidden', 'done-forbidden'
+            code, error = h.job('followup-prepare', {'caller': h.caller, 'task_id': initial['task'],
+                                                   'request_id': request})
+            self.assertEqual(code, 2, error)
+            self.assertIn('document-only slots require a fresh declared execution', error)
+            self.assertEqual((study / 'job.json').read_bytes(), before)
+            self.assertEqual(h.ledger_bytes(), ledger)
+            self.assertFalse((study / 'briefs/followup').exists())
+            # Even a study admission cannot authorise a same-child continuation. Record unexpected
+            # host work through the public helper so it remains an owned reconciliation obligation.
+            self.assertEqual(h.admit_slot(0, 'first-impression', request, purpose='repair')[0], 0)
+            task = next(t for t in h.job_state()['tasks'] if t['task_id'] == initial['task'])
+            self.assertEqual(h.observe(initial['task'], kind='followup', request_id=request, host_task_id=host,
+                                       parent_host_task_id=initial['host'], child_thread_id=f'thread-{initial["host"]}',
+                                       target=task['target'], scope=task['write_scope'],
+                                       status_identity=h.target_of(0))[0], 0)
+            current = next(t for t in h.job_state()['tasks'] if t['task_id'] == initial['task'])
+            self.assertTrue(current['followups'][0]['forbidden_followup'])
+            self.assertIsNone(current['forbidden_followups'][0]['reconciled'])
+            self.assertEqual((current['request_id'], current['brief']), (initial['request'], initial['outer']))
+            code, trace = h.trace(dict(initial, request=request, host=host))
+            self.assertEqual((code, trace['error']['code']), (1, 'trace_unbound'), trace)
+            self.assertEqual(h.complete(initial['task'], request, host, completion)[0], 0)
+            transport = h.transport(h.worker_result(initial['brief'], [initial['item']], request_id=request))
+            self.assertEqual(h.deliver(initial['task'], request, completion, transport)[0], 0)
+            current = next(t for t in h.job_state()['tasks'] if t['task_id'] == initial['task'])
+            execution = current['execution_history'][-1]
+            self.assertEqual((execution['request_id'], execution['accepted_execution'], execution['quarantined']),
+                             (request, False, True))
+            self.assertEqual((study / 'results/quarantine' / f'{request}.json').read_bytes(), transport.read_bytes())
+            self.assertEqual(current.get('result_ref'), task.get('result_ref'))
+            code, refused = h.ingest(initial['task'], request, completion, transport)
+            self.assertEqual((code, refused['error']['code']), (1, 'malformed_result'), refused)
+            self.assertIn('forbidden continued review or document-only follow-up', refused['error']['message'])
+            self.assertEqual(h.complete(initial['task'], request, host, completion, kind='reconciled')[0], 0)
+            h.reconcile()
+            current = next(t for t in h.job_state()['tasks'] if t['task_id'] == initial['task'])
+            self.assertIsNotNone(current['forbidden_followups'][0]['reconciled'])
+            self.assertEqual(current['attempt'], 2)
+            self.assertEqual(h.charged(), {'first': 1, 'participant_repairs': 1})
+            self.assertFalse((study / 'briefs/followup').exists())
+            self.assertEqual(h.trace(initial)[0], 0)
+            code, gate = h.accept('first-impression')
+            self.assertFalse(gate.get('accepted'), (code, gate))
+        self.assertEqual(sorted({hit for row in audit_rows(base) for hit in row['hits']}), [])
 
 
 
