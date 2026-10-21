@@ -38,7 +38,17 @@ python3 PKG/shared/job_cli.py create --state-root ROOT --job ID --input job.json
 `participant-briefs.json` maps each participant task ID to its document-only brief
 `{path, sha256}` from `evidence.py brief` (see `PKG/playbooks/journeys.md`).
 `job-spec` refuses a missing, hand-written, changed or contaminated brief. A
-journey brief exists only after its cell's first impression is accepted and
+participant slot also carries the exact approved pack paths and hashes as
+`context_files`, initial viewport first. `prepare` grants read authority to those
+files; dispatch that prepared brief unchanged. It checks each file before launch,
+and admission checks the pack and slot mapping before charging. Do not replace
+these references with unresolved filenames or promise attachments the host did not
+deliver. Use the host's image-read receipts as delivery evidence; a participant's
+claim or a filename is not a receipt. Missing image events stay `unknown`, including
+when the Codex activity surface omits image-view events. OpenCode host `read`
+receipts reporting `Image read successfully` can support delivery of those images.
+
+A journey brief exists only after its cell's first impression is accepted and
 frozen, so the first job uses `--defer-journeys`. The job declares
 first-impression, journey (combined only), analysis and a final review stage, and
 pins this package and its worker definitions. The analysis and review slots stay
@@ -122,6 +132,29 @@ current brief exists (`journey_brief_missing`), so an unbriefable journey is nev
 charged. `lifecycle.py pilots` shows every gate. A protocol, persona or material
 change is a new revision: the old pilot is never relabelled, and the new revision's
 pilot runs again unless its result carries unchanged.
+
+### Recovering a spent pilot after a workflow fix
+
+Retain every rejected transport, trace decision, charge, attempt and approval.
+Installing a fixed package does not move an existing job's pins or make its old
+evidence usable. First reconcile all owned work and ingest every returned result.
+For an explicit same-job package change, use the hash-bound `upgrade-package`
+procedure in the imps user guide (`docs/plugins/imps.md`, "Upgrading a whole job"):
+record owner authority for `plan:<upgrade-id>`, invoke the new installed package's
+`shared/job_cli.py upgrade-package` with the old caller, exact current state hash,
+new package digest, dependency key `focus-group`, prefix and agents root. Keep the
+retained migration backup. Do not edit pins or counters by hand.
+
+Then plan and approve the required study revision. A changed generated prompt
+needs a changed approved `prompts` value so its input binding changes; a wording
+change in the installed generator alone cannot silently reset a slot. If the same
+inputs need more attempts, raise `max_attempts_per_slot` and the repair pool as
+needed, approve the new lifetime ceiling, and apply `lifecycle.py job-revision`
+with newly generated briefs. This also updates the job's shared repair policy.
+Use `job_cli.py retry` and admit its new request ID before preparing a fresh child.
+Both the study and generic job must have headroom. A larger overall allowance
+alone never authorizes a third attempt in a two-attempt slot. Contaminated
+executions stay contaminated; never reclassify them or edit their payloads.
 
 Admission refuses everything `check-run` refuses, plus a revision other than the
 approved one, a cell or target outside the matrix, a journey in a capture-only

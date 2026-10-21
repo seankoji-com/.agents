@@ -87,10 +87,18 @@ every goal is a gap is coverage state `gap`, never `hands-on-evidence`.
 ## Traces
 
 `inspect-trace` takes `revision`, `cell_id`, `stage`, `task_id`, `request_id` (the
-admitted request), `host_task_id`, `brief {path, sha256}` (the brief generated for
+admitted request), `host_task_id`, `brief {path, sha256}` (the Markdown generated for
 this task), `first_host_task_id`, `trace` (`{source, events[]}` or `null`) and
 optional `result {path, sha256}`. An unadmitted request or a brief built for another
 task, cell or stage is refused (`trace_unbound`).
+
+For a generic job, the helper also resolves the exact immutable outer JSON brief
+from the task and request, verifies its file hash, effective correlation, document
+and approved `context_files`, and checks the recorded host handle. It records both
+`document {path, sha256}` and `prepared_brief {path, sha256}`. The payload's
+`brief_sha256` names the Markdown; the worker result copies
+`effective_brief_sha256` from the outer JSON and sets `binding` to its `snapshot`.
+Neither hash substitutes for the other, or for the outer file's SHA-256.
 
 An execution is its admitted `request_id`. Across every cell, stage and revision,
 one host task runs one request, and one request runs in one host task for one task
@@ -102,7 +110,7 @@ own cell's first-impression host task: `not_fresh_child` contaminates the journe
 only, because that first impression was frozen before the journey brief existed.
 
 Each event's explicit `path`, `file_path` or `paths[]` is checked whatever the tool.
-A read or write may touch only the brief, the plan's pack files and the task's own
+A read or write may touch only these two exact briefs, the plan's pack files and the task's own
 `artifacts/tasks/<task-id>/` subtree, after resolving symlinks and `..`. Another
 task's artifacts are `read_other_task`, including a journey reading its first
 impression's directory (it gets that response through its brief), and anything else

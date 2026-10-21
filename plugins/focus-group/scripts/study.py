@@ -1466,6 +1466,10 @@ def admission(study, request, now, catalog, charge=True):
                        'host_started': True, 'next': 'already started: reconcile it from task_status; never '
                                                      'dispatch it again'}
         held = {'request_id': request_id, 'request_state': 'open', 'charged': False}
+        problem = lifecycle.slot_contract_problem(study, job, revision, plan, stage,
+                                                  cell if kind == 'participant' else None)
+        if problem:
+            refuse(problem[0], problem[1], held)
         if kind == 'participant':
             lifecycle.pilot_gate(study, plan, revision, cell, stage, dict(held, next=lifecycle.HELD))
         # The same occupancy as a new admission, less this request's own reservation, counted once.
@@ -1872,7 +1876,7 @@ def op_job_spec(args):
             if problem:
                 refuse(problem[0], f'{task_id}: {problem[1]}')
             slot(task_id, stage, 'focus-group/participant', cell['target'], context_policy='document-only',
-                 document=document, max_followups=0,
+                 document=document, context_files=evidence.material_context_files(plan), max_followups=0,
                  focus_group={'cell_id': cell['cell_id'], 'persona_id': cell['persona_id'], 'pilot': cell['pilot']})
     # The analyst reads only its frozen analysis inputs (`report.py analysis-inputs` binds the document), and the
     # required review names the exact rendered report documents, their hash-bound authors and author independence

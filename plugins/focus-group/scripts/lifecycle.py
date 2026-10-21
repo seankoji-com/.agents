@@ -1116,7 +1116,7 @@ def op_journey_slots(args):
                                                                          'stage': 'journey'}, document)
         if problem:
             refuse(problem[0], f'{task_id}: {problem[1]}')
-        added.append(new_slot(task_id, 'journey', cell['target'], document))
+        added.append(new_slot(task_id, 'journey', cell['target'], document, plan))
     if not added:
         return 0, {'added': [], 'note': 'every briefed journey slot is already declared', 'dispatched': 0}
     last, inputs = owner_inputs(study, job, revision, 'journeys', {'tasks': job['tasks'] + added})
@@ -1163,17 +1163,19 @@ def slot_contract_problem(study, job, revision, plan, stage, cell=None):
         return 'job_slot_missing', f"the job declares no {stage} slot for this cell; nothing could run this admission"
     current = any((r['task_id'], r['document']) == (task['task_id'], task.get('document'))
                   for r in evidence.brief_records(study, revision, cell['cell_id'], stage))
-    if task.get('target') != cell['target'] or not current:
+    if (task.get('target') != cell['target'] or not current
+            or task.get('context_files') != evidence.material_context_files(plan)):
         return 'job_slot_stale', (f"job slot {task['task_id']} still carries an earlier revision's brief or target; "
                                   'it is held until lifecycle.py job-revision records the current one')
     return None
 
 
-def new_slot(task_id, stage, target, document):
+def new_slot(task_id, stage, target, document, plan):
     return {'task_id': task_id, 'stage_id': stage, 'logical_slot_id': task_id, 'request_id': f'{task_id}-r0',
             'worker_id': 'focus-group/participant', 'dependency_key': 'focus-group', 'target': target,
             'write_scope': {'mode': 'worker-evidence', 'path': f'artifacts/tasks/{task_id}'},
-            'context_policy': 'document-only', 'document': document, 'max_followups': 0}
+            'context_policy': 'document-only', 'document': document,
+            'context_files': evidence.material_context_files(plan), 'max_followups': 0}
 
 
 def owner_inputs(study, job, revision, kind, new_plan):
@@ -1238,10 +1240,10 @@ def op_job_revision(args):
             row.update(state='held-live', reason=_unsettled(job, job_task(job, task_id)))
         elif document is not None and (task is None or task.get('document') != document or stale):
             if task is None:
-                tasks.append(new_slot(task_id, stage, cell['target'], document))
+                tasks.append(new_slot(task_id, stage, cell['target'], document, plan))
                 row['state'] = 'added'
             else:
-                task.update(target=cell['target'], document=document)
+                task.update(target=cell['target'], document=document, context_files=evidence.material_context_files(plan))
                 row['state'] = 'updated'
         elif task is not None and not stale:
             row['state'] = 'current'

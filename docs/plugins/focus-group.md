@@ -152,6 +152,19 @@ wake or resume, and stay listed as pending until T3 confirms they stopped.
 
 ## Pilots, model identity and interruptions
 
+Each participant receives the approved capture files through exact paths and
+SHA-256 hashes in its prepared brief, with explicit read authority. Missing or
+changed local material blocks admission before another attempt is charged.
+Generated instructions state the payload types and distinguish the study document
+hash from the outer result's brief correlation. The trace check permits those two
+exact briefs and the approved pack; it still rejects other participants' evidence,
+unrelated job files and product source. Shell commands remain opaque.
+
+Image delivery needs host evidence. A successful OpenCode image-read receipt can
+verify delivery; missing receipts stay unknown. Codex activity that omits image-view
+events cannot verify image delivery. Text-only answers may be retained with that
+limitation and cannot support visual claims.
+
 Each model's first cell is its pilot, and it counts as a normal cell. That model's
 other first impressions wait until the pilot's answer is accepted and the host
 reports the model you asked for. Its other journeys wait for its pilot journey,
@@ -180,6 +193,14 @@ previous one ended. A task that says it is done but still has running child work
 unanswered question or an unconfirmed cancellation keeps the study open. A provider
 that fails mid-task is recorded as a provider failure, not as product friction, and
 a retry comes from the repair allowance.
+
+After a workflow fix, an existing study still pins its original package. Package
+recovery uses an explicit, owner-approved upgrade with exact old-state and new
+package hashes, followed by an approved study revision and job revision. An
+exhausted pilot also needs headroom in both its per-slot limit and shared repair
+budget before a charged retry. The installed run playbook describes the sequence.
+Earlier transports, trace verdicts, charges and approval history stay on record;
+installing an update never resets them or accepts a rejected response.
 
 ## Reading the evidence
 
