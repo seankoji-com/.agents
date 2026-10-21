@@ -230,7 +230,16 @@ def locked(fd, name, writable):
     except ImportError as exc:
         raise Unavailable('process locking unavailable on this platform') from exc
     flags = os.O_NOFOLLOW | os.O_NONBLOCK | (os.O_RDWR | os.O_CREAT if writable else os.O_RDONLY)
-    handle = os.open(name, flags, 0o600, dir_fd=fd)
+    # Retry transient ENOENT only on this writable O_CREAT open, anchored to the
+    # same directory. Never replace/unlink the lock or replay the operation.
+    # Missing read-only locks retain their absent semantics.
+    for attempt in range(3):
+        try:
+            handle = os.open(name, flags, 0o600, dir_fd=fd)
+            break
+        except OSError as exc:
+            if not writable or exc.errno != errno.ENOENT or attempt == 2:
+                raise
     try:
         info = os.fstat(handle)
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:

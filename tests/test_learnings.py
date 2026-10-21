@@ -1,5 +1,6 @@
 """Stage 4: private storage, maintenance and installed helper failure paths."""
 import concurrent.futures
+import contextlib
 import errno
 import json
 import os
@@ -27,6 +28,31 @@ def write_worker(args):
     return Store(project, 'imps', OLD, env).operate('write', {
         'entry': {'id': 'lesson-' + str(number), 'summary': 'Keep the task handle',
                   'failure': 'A lost handle prevented cancellation'}})
+
+
+@contextlib.contextmanager
+def lock_open_faults(codes):
+    """Inject only the observed lock-open error, leaving fixture filesystem I/O real."""
+    real_open = os.open
+    errors = iter(codes)
+    calls = []
+
+    def open_file(name, flags, mode=0o777, *, dir_fd=None):
+        if name == 'imps.md.lock':
+            calls.append((name, flags, mode, dir_fd))
+            code = next(errors, None)
+            if code is not None:
+                raise OSError(code, os.strerror(code), name)
+        return real_open(name, flags, mode, dir_fd=dir_fd)
+
+    with mock.patch('learning_store.os.open', side_effect=open_file):
+        yield calls
+
+
+def write_worker_after_lock_open_miss(args):
+    with lock_open_faults([errno.ENOENT]) as calls:
+        result = write_worker(args)
+    return result, len(calls)
 
 
 class LearningsTest(unittest.TestCase):
@@ -129,6 +155,127 @@ class LearningsTest(unittest.TestCase):
             results = list(pool.map(write_worker, [(str(self.project), self.env, n) for n in range(24)]))
         self.assertTrue(all(r['status'] == 'available' for r in results))
         self.assertEqual(len(self.store.operate()['data']['entries']), 24)
+
+    def test_transient_lock_open_enoent_retries_without_replaying_write(self):
+        lock = self.store.folder / 'imps.md.lock'
+        for entry_id in ('first', 'second'):
+            with self.subTest(entry_id=entry_id):
+                identity = lock.stat() if lock.exists() else None
+                with lock_open_faults([errno.ENOENT]) as calls, mock.patch.object(
+                        self.store, '_operate', wraps=self.store._operate) as operation:
+                    self.write(entry_id)
+                operation.assert_called_once()
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(calls[0], calls[1])
+                self.assertEqual(calls[0][1], os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK)
+                self.assertEqual(calls[0][2], 0o600)
+                self.assertIsNotNone(calls[0][3])
+                if identity is not None:
+                    self.assertEqual((lock.stat().st_dev, lock.stat().st_ino),
+                                     (identity.st_dev, identity.st_ino))
+        self.assertEqual({e['id'] for e in self.store.operate()['data']['entries']}, {'first', 'second'})
+
+    def test_persistent_lock_open_enoent_fails_closed(self):
+        loaded = self.write()
+        before = {p.name: p.read_bytes() for p in self.store.folder.iterdir()}
+        proposal = {'entry': {'id': 'lost', 'summary': 'Keep handles', 'failure': 'Lost handle'}}
+        with lock_open_faults([errno.ENOENT] * 8) as calls, mock.patch(
+                'learning_store.atomic_file', side_effect=AssertionError('must not write')):
+            result = self.store.operate('write', proposal)
+        self.assertEqual(result['status'], 'unavailable', result)
+        self.assertEqual(result['proposed_learning'], proposal)
+        self.assertIn('imps.md.lock', result['reason'])
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(before, {p.name: p.read_bytes() for p in self.store.folder.iterdir()})
+        self.assertEqual(self.store.operate()['revision'], loaded['revision'])
+
+    def test_other_lock_open_errors_are_not_retried(self):
+        self.write()
+        before = {p.name: p.read_bytes() for p in self.store.folder.iterdir()}
+        for code in (errno.EACCES, errno.EPERM, errno.EROFS, errno.EIO, errno.ELOOP):
+            for prefix in ([], [errno.ENOENT]):
+                with self.subTest(errno=errno.errorcode[code], prefix=prefix), lock_open_faults(
+                        prefix + [code] * 8) as calls:
+                    result = self.store.operate('write', {'entry': {'id': 'lost'}})
+                    self.assertEqual(result['status'], 'unavailable', result)
+                    self.assertEqual(len(calls), len(prefix) + 1)
+                    if code in (errno.EACCES, errno.EPERM, errno.EROFS):
+                        self.assertIn('sandbox or filesystem permissions deny', result['reason'])
+        self.assertEqual(before, {p.name: p.read_bytes() for p in self.store.folder.iterdir()})
+
+    def test_lock_open_retry_still_refuses_symlinks_and_hardlinks(self):
+        loaded = self.write()
+        active = Path(loaded['path']).read_bytes()
+        lock = self.store.folder / 'imps.md.lock'
+        outside = self.base / 'outside'
+        outside.write_bytes(b'untouched')
+        outside.chmod(0o644)
+        for link in ('symlink', 'hardlink'):
+            with self.subTest(link=link):
+                lock.unlink()
+                if link == 'symlink':
+                    lock.symlink_to(outside)
+                else:
+                    os.link(outside, lock)
+                with lock_open_faults([errno.ENOENT]) as calls:
+                    result = self.store.operate('write', {'entry': {'id': 'lost'}})
+                self.assertEqual(result['status'], 'unavailable', result)
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(Path(loaded['path']).read_bytes(), active)
+                self.assertEqual(outside.read_bytes(), b'untouched')
+                self.assertEqual(stat.S_IMODE(outside.stat().st_mode), 0o644)
+
+    def test_lock_open_retry_stays_anchored_after_directory_rename(self):
+        from learning_store import directory, locked
+        self.write()
+        lock = self.store.folder / 'imps.md.lock'
+        identity = lock.stat()
+        moved = self.store.folder.with_name('moved')
+        real_open = os.open
+        calls = []
+
+        def rename_before_open(name, flags, mode=0o777, *, dir_fd=None):
+            if name == 'imps.md.lock':
+                calls.append(dir_fd)
+                if len(calls) == 1:
+                    self.store.folder.rename(moved)
+                    self.store.folder.mkdir()
+                    raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), name)
+            return real_open(name, flags, mode, dir_fd=dir_fd)
+
+        with directory(self.store.folder) as fd, mock.patch(
+                'learning_store.os.open', side_effect=rename_before_open):
+            with locked(fd, 'imps.md.lock', True):
+                self.assertEqual(calls, [fd, fd])
+                self.assertEqual(list(self.store.folder.iterdir()), [])
+                info = (moved / 'imps.md.lock').stat()
+                self.assertEqual((info.st_dev, info.st_ino), (identity.st_dev, identity.st_ino))
+
+    def test_read_only_missing_lock_is_not_retried_or_created(self):
+        self.store.folder.mkdir(parents=True)
+        with lock_open_faults([errno.ENOENT]) as calls:
+            result = self.store.operate()
+        self.assertEqual(result['data']['entries'], [])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        self.assertEqual(list(self.store.folder.iterdir()), [])
+        self.write()
+        lock = self.store.folder / 'imps.md.lock'
+        lock.unlink()
+        with lock_open_faults([errno.ENOENT]) as calls:
+            self.assertEqual(self.store.operate()['status'], 'unavailable')
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(lock.exists())
+
+    def test_concurrent_writers_retain_every_entry_after_lock_open_misses(self):
+        with concurrent.futures.ProcessPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(write_worker_after_lock_open_miss,
+                                    [(str(self.project), self.env, n) for n in range(24)]))
+        for result, attempts in results:
+            self.assertEqual(result['status'], 'available', result)
+            self.assertEqual(attempts, 2)
+        self.assertEqual({e['id'] for e in self.store.operate()['data']['entries']},
+                         {'lesson-' + str(n) for n in range(24)})
 
     def test_symlink_and_hardlink_artifacts_and_parent_are_refused(self):
         loaded = self.write()
