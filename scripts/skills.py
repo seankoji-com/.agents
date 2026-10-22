@@ -466,9 +466,19 @@ def install(root, prefix, meta):
         if checked['bundle_digest'] != manifest['bundle_digest']:
             raise ValueError('installed worker bundle digest mismatch')
     validate_picker(meta)
-    if meta.get('entry') not in {item['path'] for item in manifest['files']}:
+    entry_ref = meta.get('entry')
+    if not isinstance(entry_ref, str) or entry_ref not in {item['path'] for item in manifest['files']}:
         raise ValueError('installed entry is not receipt-owned')
-    entry = version_dir / meta['entry']
+    reference = Path(entry_ref)
+    # The adapter records the documented `current` entry that install.py and every
+    # other consumer emit; the verified snapshot only proves that path resolves to
+    # the receipt-owned file at preflight time. Reject a relative reference that
+    # could escape the verified installation instead of pinning the version dir,
+    # which no consumer records and which the retired version would strand.
+    if (reference.is_absolute() or '..' in reference.parts
+            or any(ord(c) < 32 for c in entry_ref)):
+        raise ValueError('invalid installed entry path')
+    entry = current / entry_ref
     if not entry.is_file() or any(ord(c) < 32 for c in str(entry)):
         raise ValueError('invalid installed entry path')
     data = render(meta, entry).encode()
