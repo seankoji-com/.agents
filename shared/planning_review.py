@@ -18,7 +18,7 @@ from core.jobs.results import parse_result, ResultError
 from core.jobs.store import (Store, JobError, canonical, digest, strict_load, _regular,
                              _atomic, _retain, _authorize)
 from shared import model_selection as models
-from shared.job_coordination import freeze_provider_limits, require_admission
+from shared.job_coordination import freeze_provider_limits, require_admission, observed_now
 from shared.job_coordinator import (verified_pins, verify_job_pins, pinned_store,
                                     verify_all_pins, verify_pinned_dependency)
 from shared.lineage import lineage
@@ -589,6 +589,9 @@ def host_event(store, caller, task_id, event):
     """Use generic lifecycle correlation and sticky host-identity mismatch rules."""
     job = verify_all_pins(store, caller)
     manifest_policy(job)
+    need(not isinstance(event, dict) or 'recorded_at' not in event,
+         'recorded_at is local receipt time and cannot be supplied')
+    if isinstance(event, dict): event = {**event, 'recorded_at': observed_now()}
     return record_dispatch(store, caller, task_id, event)
 
 

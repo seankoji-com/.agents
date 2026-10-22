@@ -37,8 +37,8 @@ def check_keywords(node, where='#'):
         unknown = set(node) - SUPPORTED
         if unknown:
             raise InvalidInput('schema_keyword', f'unsupported schema keyword(s) at {where}: {sorted(unknown)}')
-        if isinstance(node.get('items'), list):
-            raise InvalidInput('schema_keyword', f'tuple-form items is unsupported at {where}/items')
+        if isinstance(node.get('items'), list) or 'propertyNames' in node and not isinstance(node['propertyNames'], dict):
+            raise InvalidInput('schema_keyword', f'tuple-form items or non-object propertyNames is unsupported at {where}')
         for key, value in node.items():
             if key in ('properties', '$defs'):
                 for name, sub in value.items():

@@ -74,10 +74,14 @@ and independence policy. They cannot be imported or waived into this runtime.
   leaves the subject unchanged. If saving the charge is interrupted, no brief is
   returned. Re-present that same request to recover its charge exactly once
   before dispatch; replacement and release remain blocked meanwhile.
+  First launch and replay share `path`, `sha256`, `target`, `task_id`,
+  `request_id` and `mode`; other descriptor fields can differ. Replay requires
+  current prepare authorization and pins, and refuses cancelled/discarded jobs.
 - `host_event(store, caller, task_id, event)` records existing job lifecycle
   events. Host observations retain real task/thread IDs and requested versus
   observed identity. Uncertain launches have the existing original-plus-two retry
   bound and must reconcile under their original request before replacement.
+  Events receive local receipt timestamps; caller-supplied `recorded_at` is refused.
 - `unavailable(store, caller, task_id, failure)` requires correlated tool,
   `call_id`, `request_id`, actual `receipt`, and `host_task_id` when created.
   A no-handle failure needs `prelaunch: true`. It cannot reclassify substantive,

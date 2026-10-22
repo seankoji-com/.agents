@@ -267,6 +267,29 @@ class PlanningReviewTests(unittest.TestCase):
                     self.assertEqual(replay[key], attempt[key])
                 self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
 
+    def test_host_event_uses_local_receipt_time(self):
+        self.create()
+        attempt = self.attempt()
+        event = self.event(attempt, status='running')
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        subject = Path(self.created['subject_file'])
+        for kind in ('identity', 'approval-wait', 'approval-resolved'):
+            for stamp in ('1999-01-01T00:00:00+00:00', '2099-01-01T00:00:00+00:00', None):
+                before = (store.file.read_bytes(), subject.read_bytes())
+                supplied = dict(event, kind=kind, wait_id='owner-choice', recorded_at=stamp)
+                self.assertIn('local receipt time', self.cli('host-event', {
+                    'task_id': attempt['task_id'], 'event': supplied}, ok=False))
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+        for kind, stamp in (('approval-wait', '2026-01-01T00:00:00+00:00'),
+                            ('approval-resolved', '2026-01-01T00:00:30+00:00')):
+            observation = dict(event, kind=kind, wait_id='owner-choice')
+            with patch('shared.planning_review.observed_now', return_value=stamp):
+                planning.host_event(store, self.caller, attempt['task_id'], observation)
+            self.assertNotIn('recorded_at', observation)
+            self.assertEqual(store.load()['tasks'][0]['dispatch_history'][-1]['recorded_at'], stamp)
+        from shared.job_coordination import coordination_metrics
+        self.assertEqual(coordination_metrics(store.load())['resolved_decision_wait_seconds'], 30)
+
     def test_separate_manifest_policy_and_stronger_slot_relabelling_refused(self):
         self.snapshot = self.cli('capture', self.snapshot_data)
         self.selection_data['scope_id'] = self.snapshot['logical_output_id']
