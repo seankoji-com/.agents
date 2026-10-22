@@ -389,6 +389,8 @@ def record_observation(store, caller, task_id, event):
     """
     from core.jobs import record_dispatch
     from shared.job_coordination import observed_now
+    if isinstance(event, dict) and 'recorded_at' in event:
+        raise JobError('recorded_at is local receipt time and cannot be supplied')
     if isinstance(event, dict): event = {**event, 'recorded_at': observed_now()}
     if isinstance(event, dict) and event.get('kind') == 'capacity-deferred' and event.get('reason', 'capacity') not in ('capacity', 'rate-limit'):
         raise JobError('capacity deferral reason must be capacity or rate-limit')

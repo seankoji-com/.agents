@@ -18,7 +18,7 @@ from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
 
-from core.jobs.store import trusted_link
+from core.jobs.store import JobError, trusted_link
 from shared.job_coordination import DEFAULT_MAX_REPAIR_CYCLES, provider_limits
 
 try:
@@ -774,7 +774,7 @@ def load_workers_config(path: Path) -> dict:
     if not isinstance(cfg, dict) or cfg.get('schema_version') != 1 or not required <= set(cfg) or set(cfg) - required - {'max_live_workers_by_provider'}:
         raise RegistryError('workers config schema is invalid')
     try: provider_limits(cfg.get('max_live_workers_by_provider', {}))
-    except ValueError as exc: raise RegistryError(str(exc)) from exc
+    except JobError as exc: raise RegistryError(str(exc)) from exc
     live, repair = cfg['max_live_workers'], cfg['max_repair_cycles']
     if live is not None and (type(live) is not int or live <= 0): raise RegistryError('max_live_workers must be null or positive integer')
     if type(repair) is not int or repair < 0: raise RegistryError('max_repair_cycles must be nonnegative integer')

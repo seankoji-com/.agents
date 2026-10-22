@@ -29,6 +29,13 @@ class RegistryPolicyTest(unittest.TestCase):
                                                'max_repair_cycles': repair, 'overrides': []}))
             with self.assertRaises(registry.RegistryError):
                 registry.load_workers_config(self.config)
+        from core.jobs.store import JobError
+        for caps in ({'': 1}, {' ': 1}, {'x' * 129: 1}, {'fixture-provider': True}, [], None):
+            self.config.write_text(json.dumps({'schema_version': 1, 'max_live_workers': None,
+                'max_repair_cycles': 3, 'overrides': [], 'max_live_workers_by_provider': caps}))
+            with self.subTest(caps=caps), self.assertRaises(registry.RegistryError) as raised:
+                registry.load_workers_config(self.config)
+            self.assertIsInstance(raised.exception.__cause__, JobError)
 
     def test_override_is_explicit_and_digest_bound(self):
         worker_id = 'imps/stage-executor'

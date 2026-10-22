@@ -1,6 +1,7 @@
 # Maintain pull requests
 
-Use `PKG/shared/supplemental-reviews.md` for requested final-head PR review, with consent only when the coordinator checkout is already at the reviewed PR HEAD.
+Require upfront named-model or bounded-class consent in the frozen selection for `PKG/shared/supplemental-reviews.md`.
+Require: coordinator checkout is already at the reviewed PR HEAD.
 Never change checkouts merely to enable extras.
 
 The coordinator owns discovery, watches, merges, resolutions and acceptance.

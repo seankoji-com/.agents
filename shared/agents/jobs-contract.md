@@ -55,7 +55,8 @@ one retry. Already launched handles remain owned even if they exceed a cap.
 CLI views add derived `coordination_metrics`: accepted stages, retained repair cycles,
 unchanged observations, capacity/rate-limit deferrals, decision requests and result
 transport bytes. Resolved decision waits sum local receipt intervals, including
-overlaps; they are not host execution or human attention time. Missing historical
+overlaps; they are not host execution or human attention time. `task-observation`
+rejects caller-supplied `recorded_at`; it stamps local receipt time. Missing historical
 sizes/timestamps, host tokens and execution duration stay explicitly unknown.
 Idempotently ignored completion deliveries cannot be counted. These metrics never
 decide acceptance or alter the stored repair allowance.

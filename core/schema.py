@@ -16,7 +16,7 @@ SCHEMA_DIR = Path(__file__).resolve().parent / 'schemas'
 
 SUPPORTED = {
     '$schema', '$id', '$ref', '$defs', '$comment', 'title', 'description', 'examples',
-    'type', 'properties', 'required', 'additionalProperties', 'items', 'enum', 'const',
+    'type', 'properties', 'propertyNames', 'required', 'additionalProperties', 'items', 'enum', 'const',
     'minLength', 'maxLength', 'minimum', 'maximum', 'minItems', 'maxItems', 'pattern',
     'anyOf', 'oneOf', 'uniqueItems', 'default',
 }
@@ -43,7 +43,7 @@ def check_keywords(node, where='#'):
             if key in ('properties', '$defs'):
                 for name, sub in value.items():
                     check_keywords(sub, f'{where}/{key}/{name}')
-            elif key in ('items', 'additionalProperties') and isinstance(value, dict):
+            elif key in ('items', 'additionalProperties', 'propertyNames') and isinstance(value, dict):
                 check_keywords(value, f'{where}/{key}')
             elif key in ('anyOf', 'oneOf'):
                 for index, sub in enumerate(value):
@@ -113,9 +113,9 @@ def errors(instance, schema, root=None, path='$'):
         for name in schema.get('required', []):
             if name not in instance:
                 found.append(f'{path}: missing required "{name}"')
-        properties = schema.get('properties', {})
-        extra = schema.get('additionalProperties', True)
+        properties = schema.get('properties', {}); extra = schema.get('additionalProperties', True)
         for key, value in instance.items():
+            if 'propertyNames' in schema: found += errors(key, schema['propertyNames'], root, f'{path}.{key} (name)')
             if key in properties:
                 found += errors(value, properties[key], root, f'{path}.{key}')
             elif extra is False:

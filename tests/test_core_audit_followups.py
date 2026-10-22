@@ -54,6 +54,8 @@ class EvidenceBindingTest(CoreTestCase):
     def test_tuple_form_schema_items_is_refused(self):
         with self.assertRaises(InvalidInput):
             schema.check_keywords({'type':'array','items':[{'type':'string'}]})
+        with self.assertRaises(InvalidInput):
+            schema.check_keywords({'type':'object','propertyNames':{'unsupported-keyword': True}})
 
     def test_internal_errors_keep_environment_exit_and_value_errors_are_input(self):
         import contextlib

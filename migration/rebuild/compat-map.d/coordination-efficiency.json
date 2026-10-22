@@ -28,7 +28,7 @@
         "assertions": [
           {
             "selector": "test_job_coordination.CoordinationTests",
-            "tests": 20,
+            "tests": 21,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",

@@ -55,16 +55,27 @@ class CoordinationTests(unittest.TestCase):
             store = self.store(directory, job)
             before = store.file.read_bytes()
             page = overview(store,compact=True, limit=100)
-            seen = list(page['records'])
-            while page['next_cursor']:
+            seen = []
+            while True:
                 self.assertLessEqual(len(canonical(page)) + 1, COMPACT_MAX_BYTES)
-                page = overview(store,compact=True, cursor=page['next_cursor'], limit=100)
+                self.assertNotIn('private long history', canonical(page).decode())
+                self.assertNotIn('long reason ' * 20000, canonical(page).decode())
                 seen.extend(page['records'])
+                if not page['next_cursor']:
+                    break
+                page = overview(store,compact=True, cursor=page['next_cursor'], limit=100)
             self.assertEqual(len(seen), page['total_records'])
             self.assertTrue(any(row.get('task_id') == 't139' for row in seen))
             self.assertNotIn('private long history', canonical(page).decode())
             self.assertEqual(store.file.read_bytes(), before)
             self.assertEqual(len(overview(store,)['handles']), 140)
+            small = self.job(1); small['job_id'] = 'single-page'
+            small['decisions'] = job['decisions']; small['blockers'] = job['blockers']
+            single = overview(self.store(directory, small), compact=True)
+            self.assertIsNone(single['next_cursor'])
+            self.assertLessEqual(len(canonical(single)) + 1, COMPACT_MAX_BYTES)
+            self.assertNotIn('private long history', canonical(single).decode())
+            self.assertNotIn('long reason ' * 20000, canonical(single).decode())
 
     def test_since_and_cursor_detect_changed_inputs_and_budgets(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -276,10 +287,21 @@ except JobError as exc: print(exc);sys.exit(2)
 
     def test_provider_limits_validate_and_raising_or_removing_needs_owner_decision(self):
         from core.jobs.store import validate
+        from core.schema import errors, load_schema_file
         from shared.job_coordination import provider_limits
-        for value in ({'fixture-a': 0}, {'fixture-a': True}, {'': 1}, [], {'fixture-a': None}):
+        schemas = [load_schema_file(Path(__file__).resolve().parents[1] / 'shared/agents' / name)
+                   for name in ('job.schema.json', 'workers-config.schema.json')]
+        caps_schemas = [schemas[0]['properties']['policy']['properties']['max_live_workers_by_provider'],
+                        schemas[1]['properties']['max_live_workers_by_provider']]
+        for value in ({'fixture-a': 0}, {'fixture-a': True}, {'': 1}, {' \t\n': 1},
+                      {'x' * 129: 1}, [], {'fixture-a': None}):
+            for schema in caps_schemas:
+                self.assertTrue(errors(value, schema), value)
             with self.subTest(value=value), self.assertRaises(JobError):
                 job = self.job();job['policy']['max_live_workers_by_provider'] = value;provider_limits(value);validate(job)
+        valid = {'fixture-a': 1, 'x' * 128: 2}
+        provider_limits(valid)
+        self.assertTrue(all(not errors(valid, schema) for schema in caps_schemas))
         job = self.job();job['policy']['max_live_workers_by_provider'] = {'fixture-a': 2}
         with tempfile.TemporaryDirectory() as directory:
             store = self.store(directory, job)
@@ -327,6 +349,15 @@ except JobError as exc: print(exc);sys.exit(2)
             self.assertEqual(metrics['unchanged_observations'], 1)
             self.assertEqual(metrics['repair_cycles'], 0)
             self.assertIsNone(metrics['tokens']['value'])
+
+    def test_observation_rejects_supplied_receipt_time_without_mutating(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.store(directory, self.job())
+            before = store.file.read_bytes()
+            for stamp in ('2026-01-01T00:00:00Z', 'invalid', None):
+                with self.subTest(stamp=stamp), self.assertRaisesRegex(JobError, 'local receipt time'):
+                    self.event(store, 't0', 'accepted', host_task_id='host0', recorded_at=stamp)
+                self.assertEqual(store.file.read_bytes(), before)
 
     def test_missing_historical_metric_fields_are_unknown(self):
         job = self.job()
