@@ -14,15 +14,24 @@ contains other cells, the owner's decision, source code or a backlog. Never edit
 brief. `job-spec` accepts only recorded, unchanged briefs, and `check-brief` lints
 any other text. A lint pass is not sandbox enforcement.
 
+For the no-job route, explicitly grant read access to the generated document and
+its listed hash-bound material paths before dispatch. The child returns the
+payload path and SHA-256 for `record-acceptance`; it has no prepared JSON brief or
+generic worker-result transport. The same payload and host-evidence checks apply.
+
 Each first impression and each journey is a fresh T3 child (`delegate_task`). It is
 never a follow-up, never a message to an existing thread, and never the child of another cell or
 stage.
 
 ## First impressions
 
-1. Dispatch the first-impression brief. Deliver the screenshots as host
-   attachments, and record whether the host delivered them (`delivered`,
-   `not-delivered` or `unknown`, with its source).
+1. Dispatch the first-impression brief unchanged. For a generic job, dispatch its
+   prepared JSON brief and have the child read the hash-bound `context_files`.
+   Without a job, use the explicitly granted material paths above. Read the
+   initial viewport first, and derive image delivery (`delivered`, `not-delivered`
+   or `unknown`, with its source) from host read receipts. Attachments are neither
+   required nor a substitute for those reads. Missing receipts leave delivery
+   unknown.
 2. Optionally run `evidence.py check-payload` as an advisory pre-check. Then run
    `lifecycle.py ingest` (see `PKG/playbooks/run.md`) with the image-delivery
    evidence. It reaches the only acceptance boundary (`study.py
@@ -83,7 +92,8 @@ credential goals, its journey is a visible gap. Its capture results stay. Check
 When the host exposes a child's tool trace, run `evidence.py inspect-trace` before
 `lifecycle.py ingest`. Name the execution exactly: its `task_id`, admitted
 `request_id`, generated brief, host task ID and result. The child may read only its
-brief, the approved pack files and its own task directory. A journey gets its
+exact hash-bound prepared JSON brief (when present), generated Markdown document, approved pack
+files and its own task directory. A journey gets its
 earlier response through its brief, never by reading the first task's directory.
 Every explicit path an event names is checked, whatever the tool. A shell command
 or an unknown tool is opaque: paths it names inside the study are checked, but the
