@@ -15,6 +15,13 @@
         "G-APPROVAL-PICKER"
       ],
       "reason": "Babysitter job shape loaded only at job creation: per-PR review stages (endstate mergeable) and dependent land stages (the only merge-capable stage), validate_pr.py contracts, per-PR recorded actions, maintainer/reviewer slots, owner-sourced head rebinding and coordinator-built acceptance input; tests drive its example plan through the installed helpers."
+    },
+    {
+      "path": "plugins/babysitter/references/scope.md",
+      "stage": 4,
+      "kind": "instruction reference",
+      "coverage": ["REQ-BOUNDARIES", "G-BS-ROSTER", "G-BS-SCOPE", "G-APPROVAL-PICKER"],
+      "reason": "Continuing repo/org discovery, per-PR admission under the original request, in-flight fixer and ownership guards, and routine decisions resolved without redundant owner questions; installed instruction coverage lives in test_babysitter_workflow."
     }
   ],
   "inventory": {
