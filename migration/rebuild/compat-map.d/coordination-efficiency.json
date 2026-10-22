@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "stage": 4,
+  "inventory": {
+    "helpers": [
+      {
+        "path": "shared/job_coordination.py",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "Derived bounded resume pages, recorded coordination metrics and job-local provider admission; no host calls, scheduling or acceptance authority."
+      }
+    ],
+    "cli_subcommands": [
+      {
+        "id": "shared.job_cli:admission",
+        "stage": 4,
+        "disposition": "change",
+        "path": "shared/job_cli.py",
+        "reason": "Read-only job-local capacity advice with fresh receipt-state checks; preparation rechecks under the job lock."
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/test_job_coordination.py",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "Offline bounded paging, installed CLI, concurrent preparation, provider caps, preserved budgets and receipt metric checks.",
+        "assertions": [
+          {
+            "selector": "test_job_coordination.CoordinationTests",
+            "tests": 21,
+            "coverage": [
+              "REQ-DISPATCH",
+              "REQ-LIFECYCLE",
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      }
+    ]
+  }
+}

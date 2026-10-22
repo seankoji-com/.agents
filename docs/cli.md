@@ -85,6 +85,7 @@ means the defaults below. Routing stays in [`routing.json`](getting-started.md#m
 {
   "schema_version": 1,
   "max_live_workers": null,
+  "max_live_workers_by_provider": {},
   "max_repair_cycles": 20,
   "overrides": []
 }
@@ -93,6 +94,7 @@ means the defaults below. Routing stays in [`routing.json`](getting-started.md#m
 | Field | Meaning |
 | --- | --- |
 | `max_live_workers` | `null` for no plugin cap, or a positive integer. T3 capacity still applies |
+| `max_live_workers_by_provider` | Optional positive limits keyed by exact live provider instance ID; omitted providers use only the global cap |
 | `max_repair_cycles` | Repairs after the initial attempt, a nonnegative integer; default `20` |
 | `overrides` | Records written by `enable-override` and `disable-override` |
 
@@ -133,6 +135,57 @@ store and validate data; they never call a model or dispatch work. See
 [architecture](architecture.md#whole-jobs) for the model and the
 [jobs contract](https://github.com/seankoji-com/t3-plugins/blob/master/shared/agents/jobs-contract.md)
 for inputs.
+
+### Compact resumes and admission
+
+Use the helper from the job's pinned package:
+
+```sh
+python3 PKG/shared/job_cli.py overview --state-root ROOT --job JOB --compact
+python3 PKG/shared/job_cli.py status --state-root ROOT --job JOB --compact --since SHA
+python3 PKG/shared/job_cli.py overview --state-root ROOT --job JOB --compact --cursor TOKEN
+python3 PKG/shared/job_cli.py admission --state-root ROOT --job JOB
+```
+
+Compact pages contain active-task actions, capacity holders (including retained
+history and conflicting handles), blockers, pending decisions, stage repair
+allowances and coordination metrics. Each response is at most 16 KiB, with 20 records
+by default (`--limit 1` through `100`). Counts and `next_cursor` make omissions explicit;
+follow the cursor to inspect every obligation. Details remain in the referenced
+`job.json` locations. Plain `overview` and `status` retain their full output.
+
+Save `view_sha256` and pass it as `--since` on a later resume. An unchanged view
+returns `changed: false` without replaying history. Cursors bind to the complete
+derived view and are refused after a change; restart pagination. `--since` and
+`--cursor` cannot be combined. Reads recheck receipt and artifact freshness before
+comparing digests, never run validators and never mint acceptance.
+
+Admission is job-local advice, rechecked under the preparation lock. Prepared briefs
+reserve capacity alongside live and uncertain work. Follow-ups and terminal handles
+with pending children also occupy a slot. Configure limits in `workers.json` or the
+initial job policy; jobs freeze them at creation. Removing or raising a provider cap
+needs an owner-bound plan revision. Old pinned limits retain their values.
+Adding a cap for a previously unlimited provider narrows capacity and needs no owner
+decision. Planning-review jobs freeze and enforce the same capacity limits before
+charging a technical attempt. Other jobs
+and host-wide capacity remain T3's responsibility. No helper dispatches or schedules.
+
+Record host capacity or rate-limit refusal with `task-observation` kind
+`capacity-deferred`, reason `capacity` or `rate-limit`. Only unlaunched requests can
+defer. A retry needs a newly recorded owned completion ID; one completion permits
+one capacity retry. Inspect existing owned work rather than polling or resetting it.
+
+`coordination_metrics` counts accepted stages in the derived view, repair cycles,
+retained unchanged observations, capacity deferrals, decision requests and result
+transport bytes. Completed decision waits use local observation receipt timestamps,
+with overlapping waits summed; they are not execution or personal attention time.
+Historical missing sizes/timestamps, host token use and execution duration are
+explicitly unknown. Deduplicated completion deliveries are not counted. Status is
+read-only, and metrics never decide acceptance or consume repair budget.
+
+Whole jobs default to 20 repairs after their initial pass. Ralph's separate
+`--max-attempts` defaults to 20 total implementation attempts, including its first.
+Explicit configured limits and existing pinned jobs keep their own allowances.
 
 ## Receipts and exit codes
 

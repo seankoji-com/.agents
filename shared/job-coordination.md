@@ -40,7 +40,7 @@ the job and its pin.
 fallback. CLI jobs require frozen selection/digest and per-task `selection_binding`;
 preparation refuses missing choices or changed targets/options.
 
-Per slot: `job_cli.py prepare` with `{caller, task_id, target_reason}` returns only path,
+Per slot: `job_cli.py admission`, then `job_cli.py prepare` with `{caller, task_id, target_reason}` returns only path,
 SHA-256, bytes and provenance. Recommend within sourced role floors; dispatch the
 user's exact target/options. Reviewers need a reviewer or judgement tier and a known different
 lineage (`--implementer-lineage`). Launch T3 `delegate_task` asynchronously with the exact
@@ -164,10 +164,10 @@ required independent review stays a blocker; direct work cannot supply it.
 
 ## 8. Visibility and resume
 
-Emit a compact checklist from `job_cli.py overview` at each stage start, acceptance,
+Emit a compact checklist from `job_cli.py overview --compact` at each stage start, acceptance,
 blocker and integration milestone: one line per stage with status, next dependency,
 open decisions and fallback markers. Never stream raw logs or transcripts. Resume starts
-from `overview` (or read-only `status`) and reconciles existing handles with
+from `overview --compact` (or read-only `status --compact`) and reconciles existing handles with
 `task_status`; a missing reply never justifies recreating work.
 
 ## 9. Approvals and owner decisions

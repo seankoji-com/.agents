@@ -1,6 +1,7 @@
 # Maintain pull requests
 
-At an operator-requested final-head PR review, use `PKG/shared/supplemental-reviews.md` only with consent and when the coordinator checkout is already at the reviewed PR HEAD.
+Require upfront named-model or bounded-class consent in the frozen selection for `PKG/shared/supplemental-reviews.md`.
+Require: coordinator checkout is already at the reviewed PR HEAD.
 Never change checkouts merely to enable extras.
 
 The coordinator owns discovery, watches, merges, resolutions and acceptance.
@@ -39,7 +40,8 @@ Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop ru
    | [owner/repo#12](https://github.com/owner/repo/pull/12) | PR title | 3 unresolved threads; failing check `lint`; fixer round 2 (candidate 1) |
 
    List blockers, auto-merge state and children; put merged rows last. Emit each
-   job's `job_cli.py overview` checklist; never stream raw logs.
+   job's `job_cli.py overview --compact` checklist, following `next_cursor` for omitted
+   obligations; never stream raw logs.
 4. Classify each unmerged PR from `blockers=`. Child work: conflicts, a branch the
    helper could not update, failing checks, unresolved threads that need code, and
    requested changes, from bots or humans. Coordinator work: threads whose fix already
@@ -80,9 +82,9 @@ Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop ru
    `PKG/references/job-plan.md`). A child returning `blocked`, a malformed result or a
    repeated blocker does not authorise escalation: use only the approved work chain
    or obtain a new choice. Review replacement authority is separate. Re-request
-   a malformed result immediately, naming the schema error. Rounds
-   are not capped. Repeated failure changes the diagnosis, not the authorization;
-   ask only for a remaining human-only action (scope reference).
+   malformed results within budget, naming the schema error. Rounds share the
+   finite `max_repair_cycles` allowance; raising exhausted limits needs a recorded owner decision.
+   Repeated failure changes diagnosis, not authorization; ask only for human-only actions.
    Call `watch_pull_request` for every unmerged PR after taking available repair and
    resolution actions. Children cannot watch; this thread owns every watch.
 9. Before ending any turn, refresh scope discovery and check for dead ends. Every

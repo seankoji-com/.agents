@@ -904,6 +904,7 @@ class InstalledTest(unittest.TestCase):
                 if plugin == 'babysitter':
                     text = (package / hook).read_text()
                     self.assertIn("coordinator checkout is already at the reviewed PR HEAD", text)
+                    self.assertIn('Require upfront named-model or bounded-class consent in the frozen selection', text)
                     self.assertIn("Never change checkouts merely to enable extras", text)
             guide = (ROOT / 'docs/supplemental-reviews.md').read_text()
             self.assertIn('coordinator checkout is already at the reviewed PR HEAD', guide)

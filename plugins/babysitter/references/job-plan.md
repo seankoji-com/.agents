@@ -81,8 +81,9 @@ or an armed auto-merge request never substitutes for an available action.
 - `constraints`: the target repository's instructions verbatim, plus "Push only to
   the PR head branch" and "Publish a rewritten branch only with --force-with-lease
   pinned to the head SHA last fetched".
-- `policy.max_repair_cycles`: `1000`. Rounds are uncapped in practice; the playbook's
-  stop rule decides when a human is needed.
+- `policy.max_repair_cycles`: the configured allowance, default `20` repairs after
+  the initial pass. Retain an existing job's pinned allowance. Exhaustion is a named
+  blocker; only a recorded owner decision can raise it.
 - `dependencies`: `{"key": "babysitter", "plugin": "babysitter"}`. A calling imps job
   declares babysitter in its own plan instead.
 
@@ -168,7 +169,7 @@ One PR (12) with fixer work. Angle-bracket strings are placeholders.
   "constraints": ["Push only to the PR head branch.",
     "Publish a rewritten branch only with --force-with-lease pinned to the head SHA last fetched."],
   "dependencies": [{"key": "babysitter", "plugin": "babysitter"}], "pins": {},
-  "policy": {"max_repair_cycles": 1000, "max_artifact_bytes": 16777216},
+  "policy": {"max_repair_cycles": 20, "max_artifact_bytes": 16777216},
   "result_contract": {"schema_version": 1},
   "stages": [
     {"id": "pr-12", "depends_on": [], "requirements": ["PR-12"], "status": "pending",

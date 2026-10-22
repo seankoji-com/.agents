@@ -54,6 +54,17 @@ class EvidenceBindingTest(CoreTestCase):
     def test_tuple_form_schema_items_is_refused(self):
         with self.assertRaises(InvalidInput):
             schema.check_keywords({'type':'array','items':[{'type':'string'}]})
+        with self.assertRaises(InvalidInput):
+            schema.check_keywords({'type':'object','propertyNames':{'unsupported-keyword': True}})
+        for value in (True, False, [], 'name', 1, None):
+            with self.subTest(propertyNames=value):
+                path = self.tmp / 'malformed.schema.json'
+                path.write_text(json.dumps({'type':'object', 'propertyNames':value}))
+                with self.assertRaises(InvalidInput) as caught:
+                    schema.load_schema_file(path)
+                self.assertEqual(caught.exception.code, 'schema_keyword')
+        for value in (True, False):
+            schema.check_keywords({'type':'object', 'additionalProperties':value})
 
     def test_internal_errors_keep_environment_exit_and_value_errors_are_input(self):
         import contextlib
