@@ -98,6 +98,9 @@
     {"path": "tests/test_focus_group_report_fidelity.py", "stage": 6, "kind": "test", "reason": "Fidelity authorship, review admission and adverse-result cases split unchanged from the reporting module to retain the 600-second module deadline; no model, browser, T3 or GitHub calls."},
     {"path": "tests/test_focus_group_report_fidelity_state.py", "stage": 6, "kind": "test", "reason": "Fidelity finding history, budget and evidence-drift cases split unchanged from the reporting module to retain the 600-second module deadline; no model, browser, T3 or GitHub calls."},
     {"path": "tests/test_focus_group_install.py", "stage": 6, "kind": "test", "reason": "FG-5 installed, relocated and adopted package: doctor, digests, worker bundle, damaged-package refusals and an invented study run from the moved prefix under an audit hook; no model, browser, T3 or GitHub calls."},
+    {"path": "tests/focus_group_install_fixtures.py", "stage": 6, "kind": "fixture", "reason": "Shared installed-package fixtures with fresh module-owned relocation state and unchanged source-read audits."},
+    {"path": "tests/test_focus_group_install_handoff.py", "stage": 6, "kind": "test", "reason": "Four installed handoff scenarios split with unchanged test methods to retain the 600-second module deadline; no model, browser, T3 or GitHub calls."},
+    {"path": "tests/test_focus_group_install_lifecycle.py", "stage": 6, "kind": "test", "reason": "Four installed lifecycle scenarios split with unchanged test methods to retain the 600-second module deadline; no model, browser, T3 or GitHub calls."},
     {"path": "tests/test_focus_group_workflow.py", "stage": 6, "kind": "test", "reason": "FG-5 integration stage: invented studies through every coordinator and helper boundary with a loopback isolation probe, interruptions, provider gaps and an adverse review; no model, browser, T3 or GitHub calls."}
   ]
 }

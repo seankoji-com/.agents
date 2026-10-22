@@ -989,6 +989,78 @@ class PlanningReviewTests(unittest.TestCase):
         next(p for p in data['profiles']['models'] if p['target']['model']==old)['target']['model']=custom
         self.create();out=self.result(self.attempt());self.assertEqual(out['mode'],'cross-lineage');self.finish()
 
+    def open_code_family(self, provider_id, family):
+        provider = next(p for p in self.selection_data['capabilities']['providers']
+                        if p['providerInstanceId'] == provider_id)
+        provider.update(driverKind='opencode', runtimeModes=['full-access'])
+        provider['models'][0].update(id=family + '-fixture', options=[{
+            'id': 'variant', 'type': 'select', 'options': [{'id': 'high'}]}])
+        self.selection_data['capabilities']['runtimeMode'] = 'full-access'
+        target = {'providerInstanceId': provider_id, 'model': family + '-fixture',
+                  'options': {'variant': 'high'}, 'runtimeMode': 'full-access'}
+        profile = next(p for p in self.selection_data['profiles']['models']
+                       if p['target']['providerInstanceId'] == provider_id)
+        profile.update(target=deepcopy(target), lineage=family)
+        return target
+
+    def independent_family_review(self, reviewer, author):
+        target = self.open_code_family('fixture-review', reviewer)
+        self.selection_data['review_panel'][0].update(target=target, independent=True)
+        coauthor = self.open_code_family('fixture-spare', author)
+        self.snapshot_data['authors'].append({
+            'providerInstanceId': coauthor['providerInstanceId'], 'model': coauthor['model'],
+            'driver_kind': 'opencode', 'lineage': author})
+
+    def assert_family_acceptance(self, reviewer, author):
+        self.independent_family_review(reviewer, author)
+        self.create(installed=True)
+        candidate = self.cli('next', {'slot_id': 'review'}, installed=True)
+        self.assertEqual((candidate['mode'], candidate['lineage']), ('cross-lineage', reviewer))
+        attempt = self.attempt()
+        self.assertEqual(attempt['target'], self.selection['review_panel'][0]['target'])
+        self.assertEqual(attempt['target']['runtimeMode'], 'full-access')
+        self.assertEqual(attempt['target']['options'], {'variant': 'high'})
+        outcome = self.result(attempt)
+        self.assertEqual((outcome['outcome'], outcome['mode']), ('approved', 'cross-lineage'))
+        reference = self.finish()
+        receipt = self.cli('validate', {'reference': reference}, installed=True)
+        self.assertTrue(receipt['accepted'])
+        self.assertFalse(receipt['degraded_panel'])
+        self.assertEqual((receipt['passes'][0]['mode'], receipt['passes'][0]['lineage']),
+                         ('cross-lineage', reviewer))
+
+    def test_deepseek_reviewer_and_qwen_author_reach_pinned_planning_acceptance(self):
+        self.assert_family_acceptance('deepseek', 'qwen')
+
+    def test_qwen_reviewer_and_deepseek_author_reach_pinned_planning_acceptance(self):
+        self.assert_family_acceptance('qwen', 'deepseek')
+
+    def assert_family_refusal_before_charge(self):
+        self.create(installed=True)
+        state = self.box.jobs / self.job_id / 'job.json'
+        before = state.read_bytes()
+        for command, data in [('next', {'slot_id': 'review'}),
+                              ('launch', {'slot_id': 'review', 'request_id': self.job_id + '-refused'})]:
+            self.assertIn('stronger selected independent slot', self.cli(command, data, ok=False, installed=True))
+            self.assertEqual(state.read_bytes(), before)
+        job = json.loads(before)
+        subject = json.loads(Path(job['planning']['subject_file']).read_text())
+        self.assertEqual((job['tasks'], job['planning']['attempts'], subject['rounds_used'],
+                          subject['technical_used']), ([], [], 0, 0))
+
+    def test_registered_same_family_author_still_blocks_independent_review_before_charge(self):
+        self.independent_family_review('qwen', 'qwen')
+        self.assert_family_refusal_before_charge()
+
+    def test_unregistered_model_family_still_blocks_independent_review_before_charge(self):
+        self.independent_family_review('unregistered', 'qwen')
+        self.assert_family_refusal_before_charge()
+
+    def test_unknown_author_still_blocks_registered_independent_reviewer_before_charge(self):
+        self.independent_family_review('deepseek', 'qwen')
+        self.snapshot_data['authors'] = [{'unknown': True, 'lineage': 'unknown'}]
+        self.assert_family_refusal_before_charge()
+
     def test_unqualified_main_context_cannot_satisfy_final_judgement(self):
         self.add_self()
         profile=next(p for p in self.selection_data['profiles']['models'] if p['lineage']=='openai')
