@@ -1,6 +1,6 @@
 {
   "name": "bug-report",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Verify suspected T3 problems, route redacted reports, and follow up for one fixed 30-minute window.",
   "short_description": "Verify, report and follow up on T3 problems",
   "argument_hint": "run [symptom or context reference] | resume <session> | status <session> | cancel <session>",
