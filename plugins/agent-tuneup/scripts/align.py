@@ -17,6 +17,9 @@ import importlib.util
 _spec = importlib.util.spec_from_file_location('tuneup_audit', Path(__file__).with_name('audit.py'))
 audit = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(audit)
+_spec = importlib.util.spec_from_file_location('tuneup_wiring', Path(__file__).with_name('wiring.py'))
+wiring = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(wiring)
 # The package's core/jobs/store.py (installed beside scripts/, or the source checkout root)
 # owns the one rule for immutable system symlinks; without it every symlink stays refused.
 _store = next((p / 'core/jobs/store.py' for p in Path(__file__).resolve().parents
@@ -37,8 +40,8 @@ ROOTS = {
     'codex': {'approval_policy', 'sandbox_mode', 'sandbox_workspace_write', 'mcp_servers', 'plugins'},
     'opencode': {'permission', 'mcp', 'plugin'},
     'antigravity': {'mcpServers'},
-    # Muse keeps MCP servers and plugins outside settings.json; only its
-    # permission profiles are a settings-owned policy surface.
+    # Only the known permission-profile shape is writable here. MCP storage
+    # varies with the Muse runtime; unknown versions require separate evidence.
     'muse': {'permissions'},
 }
 KINDS = {'mcp', 'plugin'}
@@ -48,6 +51,7 @@ SAFE_ERRORS = {
     'new_risky_permission_patterns', 'unsupported_or_empty_change',
     'changed_keys_do_not_match', 'stale_or_unapproved_plan', 'stale_plan',
     'invalid_backup', 'protective_setting_weakened', 'reviewed_proposal_and_owner_approval_required',
+    'invalid_batch', 'overlapping_batch', 'destination_not_writable', 'destination_readiness_unknown',
 }
 
 
@@ -107,8 +111,8 @@ def resources(adapter, data):
             result['mcp'][name] = 'scope_conflict'
 
     key = {'codex': 'mcp_servers', 'opencode': 'mcp'}.get(adapter, 'mcpServers')
-    # Muse's settings.json defines no MCP servers; do not read another
-    # harness's key if an unrelated file happens to carry one.
+    # No version-independent Muse MCP parser is claimed. Do not mistake an
+    # unrelated/changed settings key for a verified native definition.
     servers = {} if adapter == 'muse' else data.get(key, {})
     if not isinstance(servers, dict):
         raise ValueError('invalid_mcp')
@@ -193,11 +197,14 @@ def compare(catalog, inventory):
                      'adapter': adapter if adapter in ADAPTERS else 'manual',
                      'catalog_constraints': 'present_review_private_catalog' if provider.get('constraints') else 'none_reported',
                      'sources': source_rows, 'coverage': 'supplied_sources_only' if source_rows else 'unconfigured_inventory'})
-    gaps = []
+    gaps, findings = [], []
     for number, capability in enumerate(inventory.get('capabilities', [])):
         kind = capability.get('kind')
         members = capability.get('members')
         if kind not in KINDS or not isinstance(members, dict) or set(members) - set(ids):
+            raise ValueError('invalid_capability')
+        differences = capability.get('intentional_differences', {})
+        if not isinstance(differences, dict) or set(differences) - set(ids):
             raise ValueError('invalid_capability')
         statuses = []
         for ident in ids:
@@ -219,9 +226,18 @@ def compare(catalog, inventory):
                 if any(s['status'] != 'parsed' for s in rows[ids.index(ident)]['sources']):
                     status = 'unknown'
             statuses.append(status)
+            difference = differences.get(ident, {})
+            if not isinstance(difference, dict):
+                raise ValueError('invalid_capability')
+            intentional = (isinstance(difference.get('reason'), str) and bool(difference['reason'].strip())
+                           and wiring.evidence_state(difference.get('evidence', [])) == 'bound')
+            if status != 'configured' and not intentional:
+                findings.append({'code': 'capability_' + status,
+                                 'location': f'capabilities[{number}].providers[{ids.index(ident)}]'})
         gaps.append({'capability': number, 'kind': kind, 'states': statuses,
                      'equivalence': 'operator_mapping_requires_review'})
-    return {'ok': True, 'providers': rows, 'capabilities': gaps, 'writes': 0,
+    central = wiring.inspect(catalog, inventory.get('wiring', {}))
+    return {'ok': True, 'providers': rows, 'capabilities': gaps, 'findings': findings, 'wiring': central, 'writes': 0,
             'effective_permissions': 'unverified', 'live_acceptance': 'not_run'}
 
 
@@ -498,6 +514,66 @@ def write_private(path, raw):
         os.close(parent)
 
 
+def preflight_batch(batch):
+    """Check every target, candidate and new backup before any settings write.
+
+    This is a point-in-time readiness receipt, not authorization or a transaction.
+    Each apply still performs the reviewed-proposal and owner-decision checks.
+    """
+    if not isinstance(batch, list) or not batch:
+        raise ValueError('invalid_batch')
+    destinations, inputs, plans = set(), set(), []
+    for item in batch:
+        plan_path = checked_path(item['plan'])
+        raw, _ = read_regular(plan_path)
+        document = json.loads(raw)
+        current, _, _ = prepare(document['adapter'], document['target'], document['candidate'], document['changed_keys'])
+        if current != document:
+            raise ValueError('stale_plan')
+        backup = checked_path(item['backup'])
+        parent = open_parent(backup)
+        try:
+            require_destination_access(parent)
+            try:
+                os.stat(backup.name, dir_fd=parent, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                raise ValueError('invalid_backup')
+        finally:
+            os.close(parent)
+        parent = open_parent(checked_path(document['target']))
+        try:
+            require_destination_access(parent)
+        finally:
+            os.close(parent)
+        # Trusted OS aliases may spell the same destination differently.
+        target, candidate = Path(document['target']).resolve(), Path(document['candidate']).resolve()
+        canonical_backup = backup.resolve()
+        if target in destinations or canonical_backup in destinations or target == canonical_backup:
+            raise ValueError('overlapping_batch')
+        destinations.update((target, canonical_backup))
+        inputs.update((plan_path.resolve(), candidate))
+        plans.append({'approval_digest': document['approval_digest'], 'backup': str(backup)})
+    if destinations & inputs:
+        raise ValueError('overlapping_batch')
+    return {'ok': True, 'plans': len(plans), 'batch_digest': sha(json.dumps(plans, sort_keys=True).encode()),
+            'settings_writes': 0, 'authorization': 'not_granted', 'transaction': False,
+            'destination_access': 'effective_write_and_search_checked'}
+
+
+def require_destination_access(parent):
+    """Check effective credentials/ACLs without creating a write probe."""
+    if os.access not in os.supports_dir_fd or os.access not in os.supports_effective_ids:
+        raise ValueError('destination_readiness_unknown')
+    try:
+        allowed = os.access('.', os.W_OK | os.X_OK, dir_fd=parent, effective_ids=True)
+    except (OSError, NotImplementedError, TypeError):
+        raise ValueError('destination_readiness_unknown') from None
+    if not allowed:
+        raise ValueError('destination_not_writable')
+
+
 def apply(document, approval, backup, context=None):
     sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents if (p / "shared/adopter_planning.py").is_file())))
     from shared.adopter_planning import apply_ready
@@ -548,9 +624,12 @@ def apply(document, approval, backup, context=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='operation', required=True)
-    compare_cmd = sub.add_parser('compare')
-    compare_cmd.add_argument('--catalog', type=Path, required=True)
-    compare_cmd.add_argument('--inventory', type=Path, required=True)
+    for operation in ('compare', 'audit'):
+        compare_cmd = sub.add_parser(operation)
+        compare_cmd.add_argument('--catalog', type=Path, required=True)
+        compare_cmd.add_argument('--inventory', type=Path, required=True)
+    preflight_cmd = sub.add_parser('preflight')
+    preflight_cmd.add_argument('--batch', type=Path, required=True)
     plan_cmd = sub.add_parser('plan')
     plan_cmd.add_argument('--adapter', choices=sorted(ADAPTERS), required=True)
     plan_cmd.add_argument('--target', required=True)
@@ -565,8 +644,10 @@ def main(argv=None):
     args = parser.parse_args(argv)
     started_apply = args.operation == 'apply'
     try:
-        if args.operation == 'compare':
+        if args.operation in {'compare', 'audit'}:
             receipt = compare(json.loads(args.catalog.read_text()), json.loads(args.inventory.read_text()))
+        elif args.operation == 'preflight':
+            receipt = preflight_batch(json.loads(args.batch.read_text()))
         elif args.operation == 'plan':
             document, _, _ = prepare(args.adapter, args.target, args.candidate, args.allow_key)
             out = checked_path(args.out)
@@ -586,8 +667,18 @@ def main(argv=None):
                    'settings_writes': 'inspect_target_and_backup' if started_apply else 0}
         print(json.dumps(receipt))
         return 2
+    code = 0
+    if args.operation == 'audit':
+        if any(source['status'] == 'unreadable_or_invalid'
+               for provider in receipt['providers'] for source in provider['sources']):
+            code = 2
+            receipt['ok'] = False
+        elif (receipt['findings'] or receipt['wiring']['findings'] or any(source.get('findings')
+                for provider in receipt['providers'] for source in provider['sources'])):
+            code = 1
+        receipt['audit_exit_code'] = code
     print(json.dumps(receipt))
-    return 0
+    return code
 
 
 if __name__ == '__main__':

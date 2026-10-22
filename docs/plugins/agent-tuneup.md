@@ -1,24 +1,32 @@
 # agent-tuneup
 
-If you use several providers in T3, their permissions, MCP servers and plugins drift
-apart. agent-tuneup lists what each provider actually has configured, shows the gaps,
-and prepares native settings changes for you to approve. It is read-only until you
-approve a concrete plan. It can also audit one settings file for over-broad allow
-rules, with no model involved.
+agent-tuneup audits centralized wiring across every provider in T3's catalog and
+prepares native changes for approval. Shared rules and skills, permissions, scoped
+MCPs, portable roles, repo entrypoints and worktree setup are included by default.
+It is read-only until you approve a concrete plan. It can also audit one settings
+file for broad allow rules without a model.
 
 ## Try it
 
-Audit one file:
+Audit the complete wiring across every provider in T3's live catalog:
+
+```text
+$t3-agent-tuneup audit
+```
+
+Prepare changes for the same complete coverage:
+
+```text
+$t3-agent-tuneup align
+```
+
+To inspect one settings file instead, narrow the request explicitly:
 
 ```text
 $t3-agent-tuneup audit --provider claude --settings .claude/settings.json
 ```
 
-Compare every provider in T3's live catalog:
-
-```text
-$t3-agent-tuneup align
-```
+Single-file and `--t3-projects` audits keep their explicit narrower scope.
 
 Check that new T3 worktrees install dependencies before the agent starts:
 
@@ -140,6 +148,21 @@ providers stay visible. Choose which capabilities should be shared and which sho
 remain different; the workflow prepares a concrete proposal before requesting
 approval.
 
+The default target is one maintained source for each surface with minimal native
+adapters. Custom skills live in `~/.agents/skills`; portable role briefs live in
+`~/.agents/roles` and grant no tools or delegation authority. T3 owns orchestration
+and review routing. Duplicate native orchestration and the retired `hatch-pet` and
+`sync-harness-permissions` skills enter the migration proposal. Permission sync is
+part of tuneup. Local/vendor files stay protected by ownership checks.
+
+The comparison helper now always reports ten `wiring` surfaces for every catalog
+provider. Missing or stale evidence stays visible. Its private input can bind source
+and observation files by SHA-256 and inventory shared/provider skill roots. It counts
+skill aliases, reports redundant discovery and preserves all files. The full input
+contract and migration checklist are in
+[central wiring](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/agent-tuneup/references/central-wiring.md).
+These checks bind supplied evidence; they do not establish native loading.
+
 Matching capability names does not prove matching access. Permission expressions
 are never translated by analogy. MCP transport, authentication references, tool
 filters and approvals need inspection. Plugins and extensions can use different
@@ -181,10 +204,25 @@ No files change during comparison.
 
 ## Apply approved changes
 
+Before any migration write, verify the exact source/package revision and ownership
+receipts for all destinations. Back up original bytes, modes and alias/junction
+targets outside checkouts. Refuse linked write parents; preserve modified and
+unowned files. A provider that reads the shared skill root needs no duplicate
+per-skill aliases. Adapter generation uses the verified current package's manifest,
+even when the CLI bundles a newer version. Windows migrations need Python 3.11+
+for TOML, native path quoting and explicit junction checks; settings apply is
+POSIX-only.
+
 The workflow prepares a native candidate for each settings file. Review a redacted
 diff, every changed key, its access effect and the approval digest. Approving the
 skill extension or asking for alignment does not approve live configuration edits.
 Use `apply --plan <path>` only after approving that concrete plan.
+
+For multiple settings plans, first run `align.py preflight --batch FILE`, where
+`FILE` is a private array of `{"plan":"/absolute/plan.json",
+"backup":"/absolute/new-backup"}` records. This checks every target, candidate and
+backup destination before writing, including collisions and stale plans. It grants
+no approval and is not a multi-file transaction. Every apply repeats its safeguards.
 
 The helper supports existing Claude JSON, OpenCode JSON/JSONC, Codex TOML,
 Antigravity MCP JSON/JSONC and Muse JSON files. It does not install plugins or edit instruction/skill
@@ -245,8 +283,12 @@ see [compatibility](../compatibility.md).
 | Claude | JSON | Exact duplicate allow rules, known broad execution allows, bypass mode |
 | OpenCode | JSON/JSONC | Global/tool wildcard allows |
 | Codex | TOML, Python 3.11+ | Disabled approval/sandbox settings, including profiles |
+| Muse | Known JSON permission-profile shape | Approval, filesystem and network warnings; MCP/plugin storage requires runtime evidence |
 
 These are known-pattern warnings, not a complete permission evaluator. Deny precedence, dynamic policies, host restrictions, and extension-specific semantics need contextual review.
+Record the installed runtime version, especially for Muse and OpenCode. An unknown
+version or changed schema needs inspection rather than assuming these historical
+shapes or CLI commands still apply.
 
 Format references (checked on 12 October 2026): [Claude settings](https://code.claude.com/docs/en/settings),
 [Claude MCP](https://code.claude.com/docs/en/mcp), [OpenCode configuration](https://opencode.ai/docs/config/),

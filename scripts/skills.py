@@ -424,15 +424,45 @@ def install(root, prefix, meta):
     name = 't3-' + meta['name']
     directory = safe_path(root / name)
     current = prefix / meta['name'] / 'current'
-    if not current.is_symlink() or not current.resolve().is_relative_to(current.parent.resolve()):
+    version_dir = current.resolve()
+    if not current.is_symlink() or not version_dir.is_relative_to(current.parent.resolve()):
         raise ValueError(f'install {meta["name"]} before installing its skill adapter')
-    manifest = installer.load_manifest(current / installer.MANIFEST)
+    manifest = installer.load_manifest(version_dir / installer.MANIFEST)
     if manifest.get('plugin') != meta['name']:
         raise ValueError('installed plugin manifest mismatch')
-    for item in manifest['files']:
-        path = installer.owned_path(current.resolve(), item['path'])
-        if not path.is_file() or installer.sha256(path) != item['sha256']:
-            raise ValueError(f'installed plugin is modified: {item["path"]}')
+    installer.require_snapshot_identity(manifest, meta['name'], version_dir)
+    registry = installer.registry
+    if ('package_digest' in manifest
+            and registry.package_digest(manifest) != manifest['package_digest']):
+        raise ValueError('installed package manifest digest mismatch')
+    registry.verify_package_files(version_dir, manifest)
+    # The CLI's bundled catalog can be newer than the selected installation.
+    # Render only metadata owned and hashed by that installation's receipt.
+    metadata = next((item for item in manifest['files'] if item['path'] == 'plugin.json'), None)
+    if metadata is None:
+        raise ValueError('installed plugin metadata is not receipt-owned')
+    metadata_raw = registry.read_regular(version_dir / 'plugin.json', 'installed plugin metadata')
+    if digest(metadata_raw) != metadata['sha256']:
+        raise ValueError('installed plugin metadata changed during adapter preflight')
+    meta = json.loads(metadata_raw)
+    if meta.get('name') != manifest['plugin'] or meta.get('version') != manifest['version'].split('+', 1)[0]:
+        raise ValueError('installed plugin metadata mismatch')
+    if meta.get('workers') and not manifest.get('bundle_dir'):
+        raise ValueError('installed worker package has no complete external bundle')
+    if manifest.get('bundle_dir'):
+        agents_root = Path(manifest['agents_root'])
+        registry.assert_owned_locator(agents_root, manifest['installation_id'], prefix)
+        expected_bundle = registry.bundle_dir(agents_root, manifest['installation_id'],
+                                              manifest['plugin'], manifest['version'])
+        if os.path.realpath(manifest['bundle_dir']) != os.path.realpath(expected_bundle):
+            raise ValueError('installed worker bundle path mismatch')
+        checked = registry.verify_bundle(Path(manifest['bundle_dir']), manifest['installation_id'],
+                                         manifest['plugin'], manifest['version'], manifest['package_digest'])
+        if checked['bundle_digest'] != manifest['bundle_digest']:
+            raise ValueError('installed worker bundle digest mismatch')
+    validate_picker(meta)
+    if meta.get('entry') not in {item['path'] for item in manifest['files']}:
+        raise ValueError('installed entry is not receipt-owned')
     entry = current / meta['entry']
     if not entry.is_file() or any(ord(c) < 32 for c in str(entry)):
         raise ValueError('invalid installed entry path')
@@ -441,6 +471,8 @@ def install(root, prefix, meta):
     pending = {'SKILL.md': digest(data), OPENAI_YAML: digest(yaml)}
     receipt = {'schema_version': 1, 'name': name, 'entry': str(entry), 'sha256': digest(data)}
     result = {'name': name, 'path': str(directory / 'SKILL.md'), 'entry': str(entry)}
+    if current.resolve() != version_dir:
+        raise ValueError('installed package activation changed during adapter preflight')
     root.mkdir(parents=True, exist_ok=True)
     with Adapter(directory, create=True, root_is_link=root_is_link) as adapter:
         # Only a directory this call created, or the exact leftovers of an

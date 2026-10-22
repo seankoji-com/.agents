@@ -1,5 +1,10 @@
 # Align T3 providers
 
+Every align uses `PKG/references/central-wiring.md` by default, including permission
+sync, duplicate orchestration retirement and worktree setup. The target is one
+maintained source with minimal native adapters for all providers. Follow its exact
+ownership, all-destination preflight and recoverable-backup rules before any write.
+
 Before inventory, complete upfront selection and admission using
 `PKG/shared/adopter-planning.md`. Review integrated conclusions, including no-change,
 and each private proposal before requesting concrete apply approval.
@@ -26,11 +31,11 @@ and each private proposal before requesting concrete apply approval.
    Receipt indices follow catalog, source and capability order. Keep the private
    index-to-name legend local. This reports configured states in supplied files,
    not effective policy. Conflicting scopes need provider-specific precedence review.
-5. Complete a human-readable matrix covering permissions/approvals/sandbox/network,
-   MCPs, plugins/extensions, skills, instruction files and hooks for every instance.
-   The helper compares MCP and configured plugin entries only. Skills, instructions,
-   hooks, plugin installation/version and effective permissions require manual
-   evidence. Mark each cell configured, verified, disabled, unsupported, unknown or
+5. Complete the central-wiring matrix and include a `wiring` object in the inventory.
+   The helper binds coverage evidence and counts skill discovery alongside MCP and
+   configured plugin entries. Native loading, semantic equivalence, plugin versions
+   and effective permissions require separate evidence. Mark each cell configured,
+   verified, disabled, unsupported, unknown or
    intentionally different, with the source/scope and reason. Do not install a
    provider to fill a disabled row or run transcript scans unless requested.
 
@@ -51,8 +56,8 @@ and each private proposal before requesting concrete apply approval.
 Use `claude`, `codex`, `opencode`, `antigravity`, or `muse` adapters independent of instance
 IDs. Claude JSON supports `mcpServers` and `enabledPlugins`; OpenCode JSON/JSONC
 supports `mcp` and `plugin`; Codex TOML supports `mcp_servers`. Muse JSON supports
-permission profiles only: its MCP servers and plugins live outside `settings.json`
-(`muse mcp`, `muse plugins`), so their state stays unknown here. Codex plugin identity
+the known permission-profile shape only. Muse MCP/plugin locations depend on the
+installed runtime; their state stays unknown here until separately inspected. Codex plugin identity
 policy tables are not installed-plugin evidence. For Claude, include `.mcp.json`,
 user/local MCPs in `~/.claude.json`, and settings that contain approval/disable lists.
 Approval-list entries without a supplied server definition remain unknown.

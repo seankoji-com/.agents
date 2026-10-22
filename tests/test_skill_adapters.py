@@ -172,6 +172,124 @@ class SkillAdapters(unittest.TestCase):
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
         self.assertFalse(self.skills.exists())
 
+    def test_receipt_digest_tamper_is_not_registered(self):
+        self.call('install', 'imps')
+        marker = self.prefix / 'imps/current/install-manifest.json'
+        receipt = json.loads(marker.read_text())
+        receipt['package_digest'] = '0' * 64
+        marker.write_text(json.dumps(receipt))
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+
+    def test_missing_receipt_entry_is_not_registered_even_with_updated_digest(self):
+        self.call('install', 'imps')
+        marker = self.prefix / 'imps/current/install-manifest.json'
+        receipt = json.loads(marker.read_text())
+        removed = next(item for item in receipt['files'] if item['path'] not in {'entry.md', 'plugin.json'})
+        receipt['files'].remove(removed)
+        receipt['package_digest'] = skills.installer.registry.package_digest(receipt)
+        marker.write_text(json.dumps(receipt))
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+        self.assertTrue((marker.parent / removed['path']).is_file())
+
+    def test_unlisted_package_file_is_not_registered(self):
+        self.call('install', 'imps')
+        extra = self.prefix / 'imps/current/unlisted.txt'
+        extra.write_text('preserve')
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+        self.assertEqual(extra.read_text(), 'preserve')
+
+    def test_worker_bundle_required_from_current_metadata(self):
+        self.call('install', 'imps')
+        marker = self.prefix / 'imps/current/install-manifest.json'
+        receipt = json.loads(marker.read_text())
+        receipt.pop('bundle_dir')
+        receipt.pop('bundle_digest')
+        marker.write_text(json.dumps(receipt))
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+
+    def test_stale_worker_bundle_preserves_existing_adapter(self):
+        self.install()
+        marker = self.prefix / 'imps/current/install-manifest.json'
+        receipt = json.loads(marker.read_text())
+        bundle = Path(receipt['bundle_dir'])
+        asset = next(p for p in bundle.rglob('*') if p.is_file() and p.name != 'manifest.json')
+        asset.chmod(0o644)
+        asset.write_text('modified bundle')
+        asset.chmod(0o444)
+        folder = self.skills / 't3-imps'
+        before = {p: p.read_bytes() for p in folder.rglob('*') if p.is_file()}
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertEqual(before, {p: p.read_bytes() for p in before})
+        self.assertEqual(asset.read_text(), 'modified bundle')
+
+    def test_worker_bundle_pairing_and_receipt_digest_are_verified(self):
+        self.call('install', 'imps')
+        marker = self.prefix / 'imps/current/install-manifest.json'
+        receipt = json.loads(marker.read_text())
+        bundle_marker = Path(receipt['bundle_dir']) / 'manifest.json'
+        original = bundle_marker.read_bytes()
+        bundle = json.loads(original)
+        bundle['package_digest'] = '0' * 64
+        bundle_marker.chmod(0o644)
+        bundle_marker.write_text(json.dumps(bundle))
+        bundle_marker.chmod(0o444)
+        # Even a receipt matching the changed bundle cannot excuse wrong pairing.
+        receipt['bundle_digest'] = skills.installer.registry.digest(skills.installer.registry.canonical(bundle))
+        marker.write_text(json.dumps(receipt))
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+        bundle_marker.chmod(0o644)
+        bundle_marker.write_bytes(original)
+        bundle_marker.chmod(0o444)
+        receipt['bundle_digest'] = '0' * 64
+        marker.write_text(json.dumps(receipt))
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+
+    def test_adapter_metadata_comes_from_current_receipted_package_not_cli_catalog(self):
+        self.call('install', 'imps')
+        installed = json.loads((self.prefix / 'imps/current/plugin.json').read_text())
+        bundled = dict(installed, version='999.0.0', description='wrong CLI metadata',
+                       operations=['wrong'], picker=['wrong', 'other'])
+        skills.install(self.skills, self.prefix, bundled)
+        text = (self.skills / 't3-imps/SKILL.md').read_text()
+        self.assertIn(installed['description'], text)
+        self.assertNotIn('wrong CLI metadata', text)
+        self.assertNotIn('999.0.0', text)
+
+    def test_metadata_changed_after_snapshot_verification_is_not_rendered(self):
+        self.call('install', 'imps')
+        meta = json.loads((self.prefix / 'imps/current/plugin.json').read_text())
+        changed = dict(meta, description='unverified metadata')
+        original = skills.installer.registry.read_regular
+
+        def read(path, label):
+            return json.dumps(changed).encode() if label == 'installed plugin metadata' else original(path, label)
+
+        with mock.patch.object(skills.installer.registry, 'read_regular', side_effect=read):
+            with self.assertRaisesRegex(ValueError, 'metadata changed'):
+                skills.install(self.skills, self.prefix, meta)
+        self.assertFalse(self.skills.exists())
+
+    def test_changed_activation_is_refused_before_adapter_writes(self):
+        self.call('install', 'imps')
+        current = self.prefix / 'imps/current'
+        meta = json.loads((current / 'plugin.json').read_text())
+        original = skills.render
+
+        def activate_other(*args):
+            current.unlink()
+            current.symlink_to(self.base / 'other')
+            return original(*args)
+
+        with mock.patch.object(skills, 'render', activate_other), self.assertRaisesRegex(ValueError, 'activation changed'):
+            skills.install(self.skills, self.prefix, meta)
+        self.assertFalse(self.skills.exists())
+
     def test_prompt_forwards_panel_flags(self):
         self.call('install', 'imps')
         prompt = self.call('prompt', 'imps', '--personas', '42', '43').stdout
