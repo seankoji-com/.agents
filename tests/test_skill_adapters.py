@@ -114,10 +114,14 @@ class SkillAdapters(unittest.TestCase):
             (b'not json', 'installed plugin metadata is invalid'),
             (b'[]', 'installed plugin metadata mismatch'),
             (json.dumps(dict(meta, version=1)).encode(), 'installed plugin metadata mismatch'),
-            (json.dumps(dict(meta, entry='../entry.md')).encode(), 'installed entry is not receipt-owned'),
         ]
+        for entry in (None, ['entry.md'], '/entry.md', '../entry.md',
+                      'nested/../entry.md', 'entry.md\n', 'entry.md\0',
+                      'nested\\entry.md', 'entry.md/'):
+            cases.append((json.dumps(dict(meta, entry=entry)).encode(),
+                          'installed entry is not receipt-owned'))
         for raw, message in cases:
-            with self.subTest(message=message):
+            with self.subTest(metadata=raw, message=message):
                 def read(path, label):
                     if label == 'installed plugin metadata':
                         return raw
