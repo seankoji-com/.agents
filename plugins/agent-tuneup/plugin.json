@@ -1,6 +1,6 @@
 {
   "name": "agent-tuneup",
-  "version": "1.1.15",
+  "version": "1.1.17",
   "description": "Audit and align provider permissions, MCPs and plugins with approved native changes.",
   "short_description": "Audit and align provider permissions, MCPs and plugins",
   "argument_hint": "doctor | audit --provider NAME --settings PATH | audit --t3-projects | align | apply --plan PATH | scan --provider claude",
@@ -28,7 +28,9 @@
         "align"
       ],
       "role": "workhorse",
-      "responsibility": "Research exact provider configuration format and scope semantics with authoritative source citations."
+      "responsibility": "Research exact provider configuration format and scope semantics with authoritative source citations.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     },
     {
       "id": "agent-tuneup/config-verifier",
@@ -39,7 +41,9 @@
         "apply"
       ],
       "role": "reviewer",
-      "responsibility": "Verify only explicitly authorized proposed or applied changes. Separate parse, load, and live enforcement evidence."
+      "responsibility": "Verify only explicitly authorized proposed or applied changes. Separate parse, load, and live enforcement evidence.",
+      "allowed_scope": "brief-authorized",
+      "output_contract": "worker-result.schema.json"
     }
   ],
   "worker_shared": [
@@ -52,7 +56,15 @@
     "worker-result.schema.json",
     "result-envelope.schema.json",
     "acceptance.schema.json",
-    "jobs-contract.md"
+    "jobs-contract.md",
+    "reviewer-standard.md",
+    "model-selection.schema.json",
+    "model-authority.schema.json",
+    "planning-policy.schema.json",
+    "planning-job.schema.json",
+    "planning-subject.schema.json",
+    "planning-assessment.schema.json",
+    "planning-direct.schema.json"
   ],
   "picker": [
     "audit",
@@ -60,5 +72,42 @@
     "scan",
     "doctor"
   ],
-  "routes": []
+  "routes": [],
+  "planning_review": {
+    "schema_version": 1,
+    "purpose": "planning-review",
+    "output_types": [
+      "synthesis",
+      "configuration-proposal",
+      "recommendation"
+    ],
+    "worker_id": "agent-tuneup/config-verifier"
+  },
+  "operation_review": {
+    "doctor": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Local adapter readiness has no synthesis."
+    },
+    "scan": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Requested transcript frequencies are diagnostics, never permission recommendations."
+    },
+    "audit": {
+      "selection": "on-synthesis-or-delegation",
+      "planning": "integrated-conclusions",
+      "reason": "Review cross-scope conclusions and substantive bootstrap recommendations including no-change; raw single-file diagnostic and mechanical template stay direct."
+    },
+    "align": {
+      "selection": "upfront",
+      "planning": "proposal",
+      "reason": "Review integrated conclusions and private proposals before concrete owner approval, including no-change."
+    },
+    "apply": {
+      "selection": "upfront",
+      "planning": "unchanged-proposal",
+      "reason": "Consume reviewed unchanged proposal and concrete approval; candidate changes reopen both. No duplicate planning assessment for unchanged approved input."
+    }
+  }
 }

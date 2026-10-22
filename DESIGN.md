@@ -14,7 +14,7 @@ Lead with the task a new visitor wants to finish, then prove it: the install com
 and a real recording of them sit above the fold. Provider portability supports that
 benefit; repository history stays out of the primary reading path.
 
-The site is a naturalist's field guide to seven workflows. The metaphor is chosen
+The site is a naturalist's field guide to eight workflows. The metaphor is chosen
 because it is literally true of the project: the plugins have creature names, the
 catalog is a numbered set of specimens, and the compatibility ledger records
 sightings rather than promises. The structure carries the idea. The prose stays
@@ -22,7 +22,7 @@ plain.
 
 What that means in practice:
 
-- **Plates.** Each plugin is Plate I to VII, in the order the homepage key lists them. The numeral is decoration only when it is not also the order, so the order is enforced by `tests/test_field_guide.py`.
+- **Plates.** Each plugin is Plate I to VIII, in the order the homepage key lists them. The numeral is decoration only when it is not also the order, so the order is enforced by `tests/test_field_guide.py`.
 - **Specimen marks.** One two-ink silhouette per plugin under `docs/assets/specimens/`, drawn once in `<defs>` and printed twice: a fern copy offset by 2.5 units behind the ink copy, like a misregistered print. Marks use CSS custom properties with hex fallbacks, so they recolour in dark mode when inlined and still render inside a README `<img>`.
 - **One binomial per plugin.** A short italic Latin-style name beside the plugin name, once on the homepage key and once on the plugin page. Nowhere else. It is the single quiet joke; do not add more.
 - **Sightings.** The live conformance ledger is rendered as a table of filled and empty marks with the numbers beside them. A unit test is not a sighting. "not run" is a result.

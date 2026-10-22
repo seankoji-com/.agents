@@ -17,8 +17,8 @@ receipt, which sits beside this plugin's entry.
 Whole-stage delegation is the default for substantive work: `run` with more than
 one stage, `issues`, `checklist`, `discussion` that leads to implementation,
 `audit`, `blast-radius` and `prs`. A single bounded change may stay one direct gate
-run under the entry's `run` procedure. doctor, status and verification-init never
-create a job or launch an agent.
+run under the entry's `run` procedure. doctor and status never create a job or launch an agent. Verification-init
+uses a separate planning job for authored facts; deterministic scaffold/check is direct.
 
 | Operation | Stages and worker slots |
 | --- | --- |
@@ -30,7 +30,22 @@ create a job or launch an agent.
 | blast-radius | one read-only `imps/investigator` stage |
 | prs | babysitter workers, through the pinned babysitter entry |
 
+For audit/investigation/blast-radius, declare a final authored conclusion gate
+covering all requirements and depending on every source gate. Its context names
+`job_file`, `stage_id` and the declared output path. Source gates retain core checks
+without a planning pass; the integrated conclusion needs its actual receipt.
+The later deterministic composite gate remains unchanged.
+
 ## Plan
+
+Apply `PKG/references/planning-review.md` first. Preserve one invocation through
+alias forwarding. Gate initialization enforces review for writes, multiple stages or
+synthesis before executor dispatch. Declare every job stage in each gate context.
+The public job creator requires the producing `imps_admission`; raw source fetch is
+preflight only. Audit/investigation/blast-radius final conclusions use reviewed
+`finalize` even with zero findings. Parent gates consume that separate receipt and
+still enforce their engineering/code/persona rules. Planning disputes never change
+the engineering adverse-is-final rule.
 
 1. Refine the brief with `PKG/references/brief-probes.md`. Keep requirement IDs
    stable and constraints verbatim. Record action authorization separately.
@@ -118,7 +133,9 @@ executing package. Never patch an installed package or truncate job history.
 
 - **Resume.** Run `t3-plugins --job JOBS/JOB/job.json path imps`. If it names a
   different entry than the one you loaded, load that one; a wrong package refuses
-  writes and prints the pinned invocation. Read `overview`, reconcile each recorded
+  writes and prints the pinned invocation. Read `overview`, display the frozen work/review pair/options and ask retain-or-stop
+  through planning `continue` (`event: resume`, `retain: true` only after the answer).
+  Reuse the invocation on automatic wakes. Reconcile each recorded
   handle with `task_status` and `task-observation`, then act. A missing reply never
   justifies recreating work.
 - **Status.** Print `overview`. It is read-only and launches nothing.

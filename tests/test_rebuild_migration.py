@@ -30,6 +30,7 @@ def strip_workers(plugin_dir: Path):
     meta = json.loads(path.read_text())
     meta.pop('workers', None)
     meta.pop('worker_shared', None)
+    meta.pop('planning_review', None)  # Older workerless manifests predate the planning purpose hook.
     path.write_text(json.dumps(meta, indent=2) + '\n')
 
 
@@ -60,10 +61,13 @@ class LegacyStateTest(CoreTestCase):
         args = ('--state-root', self.state_root, '--run-id', run.run_id)
         code, status = self.gate(pkg, 'status', *args)
         self.assertEqual((code, status['data']['run_id']), (0, run.run_id))
+        self.assertEqual(status['data']['planning_review_status'], 'legacy-unreviewed')
         code, validated = self.gate(pkg, 'validate', *args)
-        self.assertEqual((code, validated['data']['ready']), (0, True))
+        self.assertNotEqual(code, 0)
+        self.assertIn('legacy-unreviewed', validated['error']['message'])
         code, report = self.gate(pkg, 'report', *args)
-        self.assertEqual(code, 0, report)
+        self.assertNotEqual(code, 0)
+        self.assertIn('legacy-unreviewed', report['error']['message'])
         self.assertEqual(record.read_bytes(), before, 'reading a legacy run never rewrites it')
         # Job metadata stays external: the new package created no job for the old run.
         self.assertFalse(self.box.jobs.exists())
@@ -134,7 +138,9 @@ class LegacyPackageActivationTest(unittest.TestCase):
         self.assertNotIn('bundle_dir', legacy_manifest)
         current, manifest = box.install('imps')
         self.assertTrue(manifest['bundle_dir'])
-        created = box.create(current, self.plan(manifest, 'pinned-job'))
+        from tests.imps_plan_review_fixtures import select_legacy_imps_job
+        job = select_legacy_imps_job(self.plan(manifest, 'pinned-job'), box.private, current, manifest, box.env)
+        created = box.create(current, job)
         job_file = Path(created['job'])
         before = job_file.read_bytes()
         pin = json.loads(before)['pins']['imps']
@@ -153,7 +159,10 @@ class LegacyPackageActivationTest(unittest.TestCase):
 
         # New-format job creation through the legacy package (or its active pointer) is refused.
         for pkg in (legacy, current):
-            refused = box.job(pkg, 'create', 'new-job', self.plan(manifest, 'new-job'), check=False,
+            from tests.model_selection_fixtures import attach_selection
+            fixture_plan = json.loads(json.dumps(job))
+            fixture_plan['job_id'] = 'new-job'
+            refused = box.job(pkg, 'create', 'new-job', fixture_plan, check=False,
                               extra=('--prefix', box.prefix, '--agents-root', box.agents))
             self.assertEqual(refused.returncode, 2, pkg.name)
             # A legacy receipt carries neither package digest nor bundle; either refusal names the plugin.
@@ -178,7 +187,8 @@ class LegacyPackageActivationTest(unittest.TestCase):
     def test_install_upgrade_and_rollback_never_manufacture_acceptance(self):
         box = self.box
         current, manifest = box.install('imps')
-        box.create(current, self.plan(manifest, 'no-accept'))
+        from tests.imps_plan_review_fixtures import select_legacy_imps_job
+        box.create(current, select_legacy_imps_job(self.plan(manifest, 'no-accept'), box.private, current, manifest, box.env))
         job_file = box.jobs / 'no-accept' / 'job.json'
         before = job_file.read_bytes()
         caller = box.caller(manifest, 'imps/run')

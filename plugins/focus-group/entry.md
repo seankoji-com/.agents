@@ -7,7 +7,10 @@ isolation is verified, frictions, things to preserve, dissent and a prioritised
 build/fix backlog. They are never evidence of human demand or prevalence.
 
 Read `PKG/shared/t3-runtime.md` once. Delegation follows `PKG/shared/delegation.md`.
-Whole studies follow `PKG/shared/job-coordination.md`; this entry adds only
+Apply `PKG/shared/model-selection.md` before substantive plan/run work. Collect
+planner, per-model participant, analyst and review choices together from the live
+catalog, preserving exact options and role floors. Deterministic helpers never
+open a nested chooser. Whole studies follow `PKG/shared/job-coordination.md`; this entry adds only
 focus-group policy. Load only the selected operation's playbook:
 `PKG/playbooks/plan.md` for `plan` (with `PKG/playbooks/capture.md` for its capture
 step), `PKG/playbooks/run.md` for `run`, `resume` and `cancel` (with
@@ -18,7 +21,8 @@ and export. The deterministic helpers are `python3 PKG/scripts/study.py`,
 `python3 PKG/scripts/evidence.py`, `python3 PKG/scripts/lifecycle.py` (pilots,
 host-backed ingestion, reconciliation, resume and journey slots) and
 `python3 PKG/scripts/report.py`; they call no model, browser, T3 tool or GitHub API,
-never loop or wait, and never schedule work.
+never loop or wait, and never schedule work. `PKG/scripts/plan_review.py` admits
+frozen choices and consumes separate planning receipts; it never dispatches.
 
 ## Operations
 
@@ -32,10 +36,11 @@ fallback in `PKG/shared/t3-runtime.md`. Do nothing until the owner answers.
   are possible, and image delivery, child browser tools, isolation and hard-stop
   support as `unknown-until-pilot` unless a schema shows them. It never creates a
   study, job or task.
-- `plan <product-or-brief>`: draft or revise a study, capture or validate and
+- `plan <product-or-brief>`: collect choices, then draft or revise a study, capture or validate and
   inspect the shared material, present the exact revision, and obtain approval.
   `plan <study>` revises an existing study: it shows carried and stale evidence and
-  any missing authority. Planning never launches the panel.
+  any missing authority. A separate planning review must accept this exact
+  revision before owner approval. Planning never launches the participant panel.
 - `run <study>` and `resume <study>`: refuse unless the current revision has an
   approval covering its lifetime ceiling, its material is unchanged and a fresh
   catalog observation still supports the exact matrix; then dispatch only admitted
@@ -45,7 +50,7 @@ fallback in `PKG/shared/t3-runtime.md`. Do nothing until the owner answers.
 - `cancel <study>`: stop admissions and cancel every owned live task; see the run
   playbook.
 
-`plan`, `status` and `doctor` create no delegated task, schedule nothing and change
+`status` and `doctor` create no delegated task, schedule nothing and change
 no product, repository or GitHub state. Read-only capture and coordinator image
 inspection happen during `plan`, before approval.
 
@@ -76,12 +81,15 @@ Only the coordinator dispatches, through admission by `study.py admit` and the
 coordination contract. Workers never dispatch, accept their own work or widen
 authority.
 
+- `focus-group/plan-reviewer`: read-only challenge of the exact study protocol,
+  authority, matrix, budget and recovery plan in a separate planning job. This
+  receipt grants no execution authority and cannot replace fidelity review.
 - `focus-group/participant`: one cell and one stage, always a fresh T3 child. Its
   brief is document-only and built by `evidence.py brief`: the persona, approved
   material as data, neutral goal-based tasks and boundaries. It never sees other
   cells, the owner's preferred finding, source code or the backlog. A journey brief
-  adds only the cell's own accepted, frozen first impression. Route at the lowest
-  suitable workhorse tier of the cell's model.
+  adds only the cell's own accepted, frozen first impression. Use the upfront chosen cell model and exact options after its workhorse
+  floor passes; never substitute a generic work target.
 - `focus-group/analyst`: one delegated synthesis stage over accepted evidence.
   Route at judgement tier and record its lineage as a synthesis author.
 - `focus-group/fidelity-reviewer`: a fresh reviewer whose known lineage differs

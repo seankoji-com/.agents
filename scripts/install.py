@@ -205,24 +205,25 @@ def install(args) -> dict:
         return result
     refuse_symlinks(plugin_root, version_dir)
     agents_root = registry.registry_root(args.agents_root)
-    identity = None
+    # Every package receipt participates in relocation, including plugins that
+    # do not declare workers and therefore have no worker bundle.
+    identity = registry.installation_id(prefix)
     if worker_assets:
-        identity = registry.installation_id(prefix)
         for _, previous in snapshot_manifests(plugin_root):
             if previous and previous.get('bundle_dir'):
                 recorded_root = Path(previous.get('agents_root', '')).expanduser().absolute()
                 if recorded_root != agents_root:
                     raise InstallError('agents_root_conflict', 'installed versions use a different agents root; retain that root for upgrade/rollback')
-        registry.claim_installation(agents_root, identity, prefix)
+    registry.claim_installation(agents_root, identity, prefix)
     for item in manifest['files']:
         source = planned['mapping'][item['path']]
         target = owned_path(version_dir, item['path'])
         if target.is_file() and sha256(target) == item['sha256'] and (target.stat().st_mode & 0o777) == item['mode']:
             continue
         write_atomic(target, source.read_bytes(), item['mode'])
+    manifest.update({'package_digest': package_hash, 'installation_id': identity,
+                     'agents_root': str(agents_root)})
     if worker_assets:
-        manifest.update({'package_digest': package_hash, 'installation_id': identity,
-                         'agents_root': str(agents_root)})
         bundle = registry.create_bundle(agents_root, identity, args.plugin, manifest['version'], worker_assets,
                                         package_hash)
         manifest.update({'bundle_dir': bundle['bundle_dir'], 'bundle_digest': bundle['bundle_digest']})

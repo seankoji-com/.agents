@@ -3,6 +3,12 @@ import contextlib
 from core.jobs.store import canonical, digest, JobError, trusted_link
 
 
+def validate_cold_reader_scope(task):
+    """Extra participant material never widens the existing cold-reader role."""
+    if task.get('worker_id') == 'elephant-goldfish/cold-reader' and task.get('context_files'):
+        raise JobError('cold reader must read only its supplied document')
+
+
 @contextlib.contextmanager
 def locked_author_records(directory):
     """Yield (records, save) for one directory's sidecar under an exclusive lock.

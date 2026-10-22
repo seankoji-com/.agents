@@ -153,7 +153,8 @@ class LearningsTest(unittest.TestCase):
     def test_concurrent_writers_do_not_lose_entries(self):
         with concurrent.futures.ProcessPoolExecutor(max_workers=4) as pool:
             results = list(pool.map(write_worker, [(str(self.project), self.env, n) for n in range(24)]))
-        self.assertTrue(all(r['status'] == 'available' for r in results))
+        self.assertTrue(all(r['status'] == 'available' for r in results),
+                        [r for r in results if r['status'] != 'available'])
         self.assertEqual(len(self.store.operate()['data']['entries']), 24)
 
     def test_transient_lock_open_enoent_retries_without_replaying_write(self):

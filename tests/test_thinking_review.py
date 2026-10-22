@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.thinking_plan_review_fixtures import ThinkingPlanFixture, init_selection_args
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins/elephant-goldfish"
@@ -21,6 +22,7 @@ class ReviewCommands:
         self.scratch = tempfile.TemporaryDirectory(prefix="thinking-review-test-")
         self.addCleanup(self.scratch.cleanup)
         self.root = Path(self.scratch.name) / "thinking"
+        self.plan_fixture = ThinkingPlanFixture(Path(self.scratch.name) / 'plan-fixture')
         self.capabilities = Path(self.scratch.name) / 'capabilities.json'
         self.capabilities.write_bytes((ROOT / 'tests/fixtures/t3/capabilities.json').read_bytes())
         self.topic = self.root / "topic"
@@ -32,16 +34,24 @@ class ReviewCommands:
     def command(self, script, *args, ok=True, input_text=None):
         result = subprocess.run([sys.executable, str(self.scripts / script), "--root", str(self.root), *args],
                                 cwd=self.scratch.name, capture_output=True, text=True,
-                                env={key: value for key, value in os.environ.items() if key != "T3_PLUGIN_ROOT"},
+                                env=self.plan_fixture.box.env,
                                 input=input_text)
         self.assertEqual(result.returncode, 0 if ok else 1, result.stdout + result.stderr)
         return result
 
     def state(self, *args, ok=True, input_text=None):
+        if args[0] == "init":
+            args = (*args, *init_selection_args(self.scratch.name, args[1]))
         return json.loads(self.command("thinking_state.py", *args, ok=ok, input_text=input_text).stdout)
 
     def render(self, *args, ok=True):
+        if ok and '--check' not in args and '--draft' not in args:
+            self.review_plan()
         return self.command("render_handoff.py", "topic", "--capabilities", str(self.capabilities), *args, ok=ok)
+
+    def review_plan(self):
+        if not self.state('resolve', 'topic')['plan_review']['ready']:
+            self.plan_fixture.approve(self.scripts, self.root, 'topic')
 
     def write(self, name, content):
         (self.topic / name).write_text(content, encoding="utf-8")
@@ -93,7 +103,8 @@ class ReviewCommands:
         self.write("spec.md", "")
         self.assertEqual(self.accept()["next_phase"], "spec")
         self.write("spec.md", "[REQ-ONCE] No duplicate charge.")
-        self.assertEqual(self.state("resolve", "topic")["next_phase"], "handoff")
+        self.assertEqual(self.state("resolve", "topic")["next_phase"], "plan_review")
+        self.review_plan()
         self.state("gate", "topic", "--require", "discovery,spec")
         self.render()
         self.render("--check")
@@ -143,12 +154,12 @@ class ReviewCommands:
         self.write("handoff.md", "Old handoff")
         self.assert_held("missing")
         self.accept()
-        self.assertEqual(self.state("resolve", "topic")["next_phase"], "handoff")
+        self.assertEqual(self.state("resolve", "topic")["next_phase"], "plan_review")
         self.render()
         self.write("spec.md", "[REQ-API] Use the official API.")
         state = self.state("resolve", "topic")
-        self.assertEqual(state["next_phase"], "handoff")
-        self.assertIn("provenance", state["hold_reason"])
+        self.assertEqual(state["next_phase"], "plan_review")
+        self.assertIn("plan review", state["hold_reason"])
         self.state("gate", "topic", "--require", "discovery,spec,handoff", ok=False)
         self.render("--check", ok=False)
 
@@ -171,9 +182,9 @@ class ReviewCommands:
                                     ("accepted", "I accept this discovery; this is a replacement evidence statement.")):
             with self.subTest(decision=decision, statement=statement):
                 state = self.accept(decision=decision, statement=statement)
-                self.assertEqual(state["next_phase"], "handoff")
-                self.assertIn("receipt changed", state["hold_reason"])
-                self.assertEqual(self.state("list")["topics"][0]["next_phase"], "handoff")
+                self.assertEqual(state["next_phase"], "plan_review")
+                self.assertIn("owner discovery decision changed", state["hold_reason"])
+                self.assertEqual(self.state("list")["topics"][0]["next_phase"], "plan_review")
                 self.state("gate", "topic", "--require", "discovery,spec,handoff", ok=False)
                 self.render("--check")  # Source/output provenance is still intact.
                 self.render()

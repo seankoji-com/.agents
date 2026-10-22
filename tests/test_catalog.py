@@ -31,9 +31,9 @@ class CatalogTest(unittest.TestCase):
 
     def test_catalog_install_doctor_and_uninstall_preserve_neighbors(self):
         receipts = [json.loads(line)['data'] for line in self.call('install').stdout.splitlines()]
-        self.assertEqual(len(receipts), 7)
+        self.assertEqual(len(receipts), 8)
         self.assertEqual({r['plugin'] for r in receipts},
-                         {'imps', 'ape', 'babysitter', 'elephant-goldfish', 'agent-tuneup', 'ralph', 'focus-group'})
+                         {'imps', 'ape', 'babysitter', 'elephant-goldfish', 'agent-tuneup', 'ralph', 'focus-group', 'bug-report'})
         for receipt in receipts:
             entry = Path(receipt['entry'])
             self.assertTrue(entry.is_file())
@@ -196,9 +196,16 @@ class CatalogTest(unittest.TestCase):
                                 cwd=project, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         digest = json.loads(result.stdout)['approval_digest']
+        from tests.imps_plan_review_fixtures import legacy_box
+        from tests.adopter_plan_review_fixtures import reviewed_apply_context
+        version = script.parents[1].resolve()
+        manifest = json.loads((version / 'install-manifest.json').read_text())
+        box = legacy_box(project / 'review-state', version, manifest, self.env)
+        context = reviewed_apply_context(box, version, manifest, json.loads(plan.read_text()))
         result = subprocess.run([sys.executable, '-I', str(script), 'apply', '--plan', str(plan),
-                                 '--approval', digest, '--backup', str(project / 'backup')],
-                                cwd=project, capture_output=True, text=True, timeout=10)
+                                 '--approval', digest, '--backup', str(project / 'backup'),
+                                 '--context', str(box.payload(context))],
+                                cwd=project, capture_output=True, text=True, timeout=10, env=box.env)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(target.read_bytes(), candidate.read_bytes())
         self.assertEqual((project / 'backup').read_text(), '{"permissions":{"allow":["Read(*)"]}}')
@@ -275,14 +282,36 @@ class CatalogTest(unittest.TestCase):
         self.assertTrue(fifo.exists())
 
     def test_explicit_relocation_adoption_requires_verified_copy(self):
+        self.call('install', 'bug-report')
+        standalone = self.prefix / 'bug-report' / os.readlink(self.prefix / 'bug-report/current')
+        standalone_receipt = json.loads((standalone / 'install-manifest.json').read_text())
+        identity = standalone_receipt['installation_id']
+        self.assertNotIn('bundle_dir', standalone_receipt)
         self.call('install', 'ape')
+        worker_receipt = json.loads((self.prefix / 'ape/current/install-manifest.json').read_text())
+        self.assertEqual(worker_receipt['installation_id'], identity)
         relocated = Path(self.tmp.name) / 'relocated'
         shutil.copytree(self.prefix, relocated, symlinks=True)
+        claims_before = (self.agents / 'claims.json').read_bytes()
+        relocated_entry = relocated / 'bug-report' / standalone.name / 'entry.md'
+        entry_before = relocated_entry.read_bytes()
+        relocated_entry.write_text('modified package')
+        self.call('--prefix', str(relocated), 'adopt', '--from-prefix', str(self.prefix), expected=2)
+        self.assertEqual((self.agents / 'claims.json').read_bytes(), claims_before)
+        relocated_entry.write_bytes(entry_before)
+        relocated_receipt = relocated_entry.parent / 'install-manifest.json'
+        receipt_before = relocated_receipt.read_bytes()
+        foreign_receipt = dict(standalone_receipt, installation_id='00000000-0000-0000-0000-000000000000')
+        relocated_receipt.write_text(json.dumps(foreign_receipt))
+        self.call('--prefix', str(relocated), 'adopt', '--from-prefix', str(self.prefix), expected=2)
+        self.assertEqual((self.agents / 'claims.json').read_bytes(), claims_before)
+        relocated_receipt.write_bytes(receipt_before)
         result = self.call('--prefix', str(relocated), 'adopt', '--from-prefix', str(self.prefix))
         self.assertIn('"verified": true', result.stdout)
         claims = json.loads((self.agents / 'claims.json').read_text())
-        identity = json.loads((relocated / 'ape' / os.readlink(relocated / 'ape/current') / 'install-manifest.json').read_text())['installation_id']
         self.assertEqual(claims[identity]['locators'], [str(self.prefix), str(relocated)])
+        self.assertEqual(self.call('--prefix', str(relocated), 'path', 'bug-report').stdout.strip(),
+                         str(relocated / 'bug-report/current/entry.md'))
         self.call('--prefix', str(relocated), 'agents', 'list', 'ape')
         self.call('agents', 'list', 'ape', expected=2)
         old_remove = subprocess.run([sys.executable, str(ROOT / 'scripts/install.py'), '--plugin', 'ape',

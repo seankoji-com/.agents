@@ -1,0 +1,241 @@
+{
+  "schema_version": 1,
+  "plugins": {
+    "bug-report": {
+      "run": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Current-context incident investigation and reporting has no delegated workers or separate implementation strategy; evidence, publication authority and finite monitoring guards still apply."
+      },
+      "resume": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Reconcile the existing incident in the current context without worker dispatch, resetting budgets or extending the original monitoring deadline."
+      },
+      "status": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Read-only incident inspection has no synthesis or dispatch."
+      },
+      "cancel": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Record cancellation and reconcile only the incident's owned monitoring task; no worker dispatch or unrelated cleanup."
+      }
+    },
+    "ape": {
+      "doctor": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Local readiness has no synthesis."
+      },
+      "clean": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Deterministic cleanup has no synthesis."
+      },
+      "study": {
+        "selection": "upfront",
+        "planning": "final-synthesis",
+        "reason": "Final report including no-adoption output before acceptance."
+      },
+      "forage": {
+        "selection": "upfront",
+        "planning": "final-synthesis",
+        "reason": "Review integrated synthesis including no experiment; research intermediates retain citation checks."
+      }
+    },
+    "elephant-goldfish": {
+      "doctor": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Local readiness has no synthesis."
+      },
+      "thinking": {
+        "selection": "upfront",
+        "planning": "source-plan",
+        "reason": "Review discovery/spec before rendering; list/resolve/gate are deterministic."
+      },
+      "elephant": {
+        "selection": "upfront",
+        "planning": "design",
+        "reason": "Review repaired design after factual acceptance and before cold-read dispatch."
+      },
+      "check": {
+        "selection": "on-delegation",
+        "planning": "none",
+        "reason": "Factual drift only; no newly authored plan and no cold read."
+      }
+    },
+    "agent-tuneup": {
+      "doctor": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Local adapter readiness has no synthesis."
+      },
+      "scan": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Requested transcript frequencies are diagnostics, never permission recommendations."
+      },
+      "audit": {
+        "selection": "on-synthesis-or-delegation",
+        "planning": "integrated-conclusions",
+        "reason": "Review cross-scope conclusions and substantive bootstrap recommendations including no-change; raw single-file diagnostic and mechanical template stay direct."
+      },
+      "align": {
+        "selection": "upfront",
+        "planning": "proposal",
+        "reason": "Review integrated conclusions and private proposals before concrete owner approval, including no-change."
+      },
+      "apply": {
+        "selection": "upfront",
+        "planning": "unchanged-proposal",
+        "reason": "Consume reviewed unchanged proposal and concrete approval; candidate changes reopen both. No duplicate planning assessment for unchanged approved input."
+      }
+    },
+    "ralph": {
+      "run": {
+        "selection": "upfront",
+        "planning": "written-strategy",
+        "reason": "Ordinary loop has no initial planning artifact; written strategies automatically review before dependent work. Keep final full evaluator."
+      },
+      "resume": {
+        "selection": "retain-or-stop",
+        "planning": "written-strategy",
+        "reason": "Pinned targets/options retained; no duplicate assessment of unchanged strategy. Feedback, lineage and recovery gates remain."
+      },
+      "status": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "State inspection has no synthesis."
+      },
+      "cancel": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Owned-task cancellation has no synthesis."
+      },
+      "doctor": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Capability preflight has no synthesis."
+      }
+    },
+    "babysitter": {
+      "doctor": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Local readiness has no synthesis."
+      },
+      "pr": {
+        "selection": "upfront",
+        "planning": "written-strategy",
+        "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+      },
+      "repo": {
+        "selection": "upfront",
+        "planning": "written-strategy",
+        "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+      },
+      "org": {
+        "selection": "upfront",
+        "planning": "written-strategy",
+        "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+      }
+    },
+    "imps": {
+      "doctor": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Local readiness has no synthesis."
+      },
+      "status": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "State inspection has no synthesis."
+      },
+      "cancel": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Owned-task cancellation has no synthesis."
+      },
+      "resume": {
+        "selection": "retain-or-stop",
+        "planning": "retained-plan",
+        "reason": "Pinned applicable runs retain targets/options; changed sources reopen review without budget reset."
+      },
+      "verification-init": {
+        "selection": "upfront",
+        "planning": "verification-recipe",
+        "reason": "Review authored launch/drive/cleanup plan before execution; raw scaffold/check and unchanged reviewed recipe are direct."
+      },
+      "blast-radius": {
+        "selection": "upfront",
+        "planning": "final-synthesis",
+        "reason": "Review integrated risks including no-risk conclusions."
+      },
+      "audit": {
+        "selection": "upfront",
+        "planning": "final-synthesis",
+        "reason": "Review integrated conclusions and fix plan including zero findings."
+      },
+      "prs": {
+        "selection": "forward-once",
+        "planning": "written-strategy",
+        "reason": "Forward one selection to pinned babysitter; avoid duplicate imps planning gate."
+      },
+      "run": {
+        "selection": "upfront",
+        "planning": "initial-plan",
+        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+      },
+      "issues": {
+        "selection": "upfront",
+        "planning": "initial-plan",
+        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+      },
+      "checklist": {
+        "selection": "upfront",
+        "planning": "initial-plan",
+        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+      },
+      "discussion": {
+        "selection": "upfront",
+        "planning": "initial-plan",
+        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+      }
+    },
+    "focus-group": {
+      "plan": {
+        "selection": "upfront",
+        "planning": "study-plan",
+        "reason": "Review the exact editable persona/model protocol and authority/budget revision before owner approval or any panel work."
+      },
+      "run": {
+        "selection": "upfront",
+        "planning": "reviewed-study-plan-and-fidelity",
+        "reason": "Consume the current study-plan receipt before panel work. Final synthesis uses the existing stricter fidelity review of the exact bundle, accepted inputs, citations, dissent, coverage and distinct author lineage; no duplicate planning pass over that same report."
+      },
+      "resume": {
+        "selection": "retain-or-stop",
+        "planning": "retained-study-plan-and-fidelity",
+        "reason": "Retain pinned matrix/analyst/fidelity targets and options. Reuse unchanged accepted study-plan and fidelity evidence; changed study revisions need new planning review and owner approval. Reconcile owned children without budget reset."
+      },
+      "status": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Read-only study and owned-task state inspection has no synthesis or dispatch."
+      },
+      "cancel": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Deterministic cancellation intent and reconciliation concern only owned tasks, with no synthesis."
+      },
+      "doctor": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Local package/catalog/schema readiness has no substantive planning or synthesis."
+      }
+    }
+  }
+}

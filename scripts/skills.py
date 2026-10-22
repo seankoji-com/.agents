@@ -25,6 +25,8 @@ def validate_picker(meta):
     picker = meta.get('picker')
     routes = meta.get('routes')
     standalone_flags = meta.get('standalone_flags', [])
+    if 'context_on_empty' in meta and type(meta['context_on_empty']) is not bool:
+        raise ValueError('context_on_empty must be a boolean')
     if (not isinstance(operations, list) or not isinstance(picker, list) or
             not 2 <= len(picker) <= 4 or
             any(not isinstance(op, str) for op in picker) or
@@ -161,14 +163,19 @@ def render(meta, entry):
             '`' + flag + '`' for flag in meta['standalone_flags'])
         + ') before choosing the operation.\n'
         if meta.get('standalone_flags') else '')
+    empty_request = (
+        'With no request, use relevant current conversation context. '
+        'Follow the entry and ask only for missing facts; do not invent a symptom.\n'
+        if meta.get('context_on_empty') else
+        "With no request, ask through the host's native question picker. Recommend the first option. "
+        + 'Do nothing until the owner answers. Options: ' + picker + '.\n')
     return ('\n'.join(header) + '\n\n# ' + meta['name'] + ' in T3 Code\n\n'
             'Read the installed entry file at ' + json.dumps(str(entry)) + ' and follow it.\n' +
             'The package directory is the directory containing that entry file.\n' +
             ('Use the text after the skill mention as the operation and arguments. '
              if meta['routes'] else '') +
             'Operations: ' + ', '.join('`' + op + '`' for op in meta['operations']) + '.\n'
-            "With no request, ask through the host's native question picker. Recommend the first option. " +
-            'Do nothing until the owner answers. Options: ' + picker + '.\n'
+            + empty_request
             + ('For imps, a task without an operation means `run <task>`.\n'
                if meta['name'] == 'imps' else '')
             + standalone_flags

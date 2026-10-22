@@ -122,6 +122,9 @@ class Sandbox:
         return path
 
     def job(self, pkg, command, job_id, data=None, check=True, extra=()):
+        if command == 'plan-revision' and data is not None:
+            from tests.model_selection_fixtures import attach_revision
+            attach_revision(data, self.state_of(job_id))
         argv = [sys.executable, Path(pkg) / 'shared' / 'job_cli.py', command, '--state-root', self.jobs,
                 '--job', job_id, *extra]
         if data is not None:
@@ -130,6 +133,16 @@ class Sandbox:
         return json.loads(proc.stdout) if check else proc
 
     def create(self, pkg, job):
+        from tests.model_selection_fixtures import attach_selection
+        if job.get('workflow') in ('ape/study', 'ape/forage') and not job.get('ape_admission'):
+            from tests.ape_plan_review_fixtures import select_legacy_ape_fixture
+            select_legacy_ape_fixture(job, self.private, self.jobs)
+        if job.get('workflow') in ('imps/run', 'imps/issues', 'imps/checklist', 'imps/discussion') and not job.get('imps_admission'):
+            from tests.imps_plan_review_fixtures import select_legacy_imps_job
+            package = Path(pkg) if (Path(pkg) / 'plugin.json').is_file() and json.loads((Path(pkg) / 'plugin.json').read_text())['name'] == 'imps' else (self.prefix / 'imps/current').resolve()
+            manifest = json.loads((package / 'install-manifest.json').read_text())
+            select_legacy_imps_job(job, self.private, package, manifest, self.env)
+        attach_selection(job)
         return self.job(pkg, 'create', job['job_id'], job,
                         extra=('--prefix', self.prefix, '--agents-root', self.agents,
                                '--config', self.config / 't3-plugins' / 'workers.json'))
@@ -173,6 +186,7 @@ class Sandbox:
         self.job(pkg, 'task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
             'kind': 'accepted', 'request_id': brief['request_id'], 'host_task_id': host,
             'child_thread_id': 'child-' + host, 'status': 'running', 'work_state': 'working',
+            'status_identity': brief.get('target'),
             'has_pending_child_runs': False}})
         return brief
 
@@ -181,6 +195,7 @@ class Sandbox:
         self.job(pkg, 'task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
             'kind': 'completion', 'request_id': brief['request_id'], 'host_task_id': host,
             'child_thread_id': 'child-' + host, 'completion_id': done, 'status': 'completed',
+            'status_identity': brief.get('target'),
             'work_state': 'result_available', 'has_pending_child_runs': False}})
         return self.job(pkg, 'result', job_id, {'caller': caller, 'task_id': task_id,
                                                 'request_id': brief['request_id'], 'completion_id': done,
@@ -297,9 +312,10 @@ class InstalledArtifactTest(unittest.TestCase):
     def test_agents_list_and_show_inspect_installed_bundles_read_only(self):
         before = tree_digest(self.box.prefix, self.box.agents, self.box.base / 'config')
         rows = json_lines(self.box.t3('agents', 'list').stdout)
-        expected = {w['id']: (p, w['role']) for p in (*FIVE, 'focus-group') for w in meta(p)['workers']}
+        expected = {w['id']: (p, w['role']) for p in (*FIVE, 'ralph', 'focus-group') for w in meta(p)['workers']}
         self.assertEqual({r['id'] for r in rows}, set(expected))
-        self.assertEqual(len([w for w in expected if w.split('/')[0] in FIVE]), 12)
+        self.assertEqual(len(expected), 18)
+        self.assertEqual(len([w for w in expected if w.split('/')[0] in FIVE]), 13)
         for row in rows:
             plugin, role = expected[row['id']]
             version, manifest = self.package(plugin)

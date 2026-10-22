@@ -1,6 +1,6 @@
 {
   "name": "focus-group",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "Plan and run an editable multi-model persona panel that tests a product and returns synthetic findings and a build/fix backlog.",
   "short_description": "Multi-model persona panels for product research",
   "argument_hint": "plan <product-or-brief> | plan <study> | run <study> | resume <study> | status <study> | cancel <study> | doctor",
@@ -24,7 +24,9 @@
         "resume"
       ],
       "role": "workhorse",
-      "responsibility": "Act as one invented persona on approved product material. Report reactions, observations and inferences separately without seeing other cells."
+      "responsibility": "Act as one invented persona on approved product material. Report reactions, observations and inferences separately without seeing other cells.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     },
     {
       "id": "focus-group/analyst",
@@ -34,7 +36,9 @@
         "resume"
       ],
       "role": "judgement",
-      "responsibility": "Synthesise only accepted participant evidence into cited findings, dissent and a prioritised backlog. Never invent quotes or demand."
+      "responsibility": "Synthesise only accepted participant evidence into cited findings, dissent and a prioritised backlog. Never invent quotes or demand.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     },
     {
       "id": "focus-group/fidelity-reviewer",
@@ -44,7 +48,22 @@
         "resume"
       ],
       "role": "reviewer",
-      "responsibility": "Check the exact report against its pinned accepted inputs for faithful quotes, support counts and preserved dissent."
+      "responsibility": "Check the exact report against its pinned accepted inputs for faithful quotes, support counts and preserved dissent.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
+    },
+    {
+      "id": "focus-group/plan-reviewer",
+      "path": "agents/plan-reviewer.md",
+      "operations": [
+        "plan",
+        "run",
+        "resume"
+      ],
+      "role": "judgement",
+      "responsibility": "Challenge the exact study protocol, matrix, authority, budget and recovery plan before dependent panel work. Preserve the separate stronger fidelity review.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     }
   ],
   "worker_shared": [
@@ -57,7 +76,15 @@
     "worker-result.schema.json",
     "result-envelope.schema.json",
     "acceptance.schema.json",
-    "jobs-contract.md"
+    "jobs-contract.md",
+    "reviewer-standard.md",
+    "model-selection.schema.json",
+    "model-authority.schema.json",
+    "planning-policy.schema.json",
+    "planning-job.schema.json",
+    "planning-subject.schema.json",
+    "planning-assessment.schema.json",
+    "planning-direct.schema.json"
   ],
   "picker": [
     "plan",
@@ -94,5 +121,45 @@
       "pattern": "^(?i:https?://\\S+)(?:\\s+[\\s\\S]*)?$",
       "operation": "plan"
     }
-  ]
+  ],
+  "operation_review": {
+    "plan": {
+      "selection": "upfront",
+      "planning": "study-plan",
+      "reason": "Review the exact editable persona/model protocol and authority/budget revision before owner approval or any panel work."
+    },
+    "run": {
+      "selection": "upfront",
+      "planning": "reviewed-study-plan-and-fidelity",
+      "reason": "Consume the current study-plan receipt before panel work. Final synthesis uses the existing stricter fidelity review of the exact bundle, accepted inputs, citations, dissent, coverage and distinct author lineage; no duplicate planning pass over that same report."
+    },
+    "resume": {
+      "selection": "retain-or-stop",
+      "planning": "retained-study-plan-and-fidelity",
+      "reason": "Retain pinned matrix/analyst/fidelity targets and options. Reuse unchanged accepted study-plan and fidelity evidence; changed study revisions need new planning review and owner approval. Reconcile owned children without budget reset."
+    },
+    "status": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Read-only study and owned-task state inspection has no synthesis or dispatch."
+    },
+    "cancel": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Deterministic cancellation intent and reconciliation concern only owned tasks, with no synthesis."
+    },
+    "doctor": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Local package/catalog/schema readiness has no substantive planning or synthesis."
+    }
+  },
+  "planning_review": {
+    "schema_version": 1,
+    "purpose": "planning-review",
+    "output_types": [
+      "source-plan"
+    ],
+    "worker_id": "focus-group/plan-reviewer"
+  }
 }

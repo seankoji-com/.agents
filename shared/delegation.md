@@ -1,8 +1,7 @@
 # Delegation
 
 The one place the delegation rules live. Plugins link here instead of restating them.
-The rules are tuned for Opus 5.5 as the orchestrator and apply to whichever model is
-orchestrating. Never switch the user's session model. Multi-stage jobs also follow
+The rules apply to whichever model is orchestrating. Never switch the user's session model. Multi-stage jobs also follow
 `PKG/shared/job-coordination.md`, which owns job state, dispatch records, repair
 budgets, acceptance and fallback; where the two differ, that file wins.
 
@@ -17,12 +16,18 @@ deterministic operations such as doctor, status and list stay direct.
 
 ## Choosing a model
 
+First apply `PKG/shared/model-selection.md` and freeze the user's work/review answers.
+The installed `PKG/shared/agents/reviewer-standard.md` defines reviewer depth and reporting.
+Worker bundles expose the same contract at `shared/reviewer-standard.md`.
 When a routing config exists, `t3-plugins resolve <role> --capabilities FILE` lists the
 configured candidates for `workhorse`, `reviewer` or `judgement` that the saved
-`orchestrator_capabilities` response can run, cheapest tier first. Choose the lowest
-tier that suits the task and record why. If the result falls short, escalate one tier
-at a time. Without a config, choose from the live catalog by exact provider instance
-and model ID. A configured model missing from the catalog is reported, never swapped.
+`orchestrator_capabilities` response can run, cheapest tier first. Recommend only
+within the declared role's quality floor. Dispatch the exact user-selected target
+and supported options. Escalation or direct work needs separately approved work
+replacement authority or a new choice; blocked/malformed results grant none.
+Without configuration, show suitable live-catalog candidates without writing settings.
+Empty/malformed pools are configuration gaps. A configured model missing from the
+catalog is reported, never swapped. Fixed-effort review needs a suitability reason.
 
 Pass the candidate's `runtimeMode` to `delegate_task`. T3 refuses a child whose mode is
 broader than its parent's (`runtime_mode_escalation_denied`). When `resolve` lowers a

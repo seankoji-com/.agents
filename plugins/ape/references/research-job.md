@@ -6,8 +6,7 @@ ROOT --job ID --input FILE` and `python3 PKG/shared/job_acceptance_cli.py ACTION
 
 ## Source snapshots
 
-A contract change needs an owner decision, so pin one snapshot per clone in the
-research workspace before the job exists:
+Pin each clone in the research workspace before job creation:
 
 ```sh
 python3 PKG/scripts/snapshot_source.py --clone "$CLONE" --repo-url https://github.com/OWNER/REPO \
@@ -39,8 +38,7 @@ clone, an existing output, a path in the clone or a job's `artifacts/`, and over
 - Synthesis stage (forage only): `depends_on` every research stage; its sources are
   every candidate snapshot (at most five); one `ape/synthesizer` slot with the same
   write-scope shape and `max_followups: 0`. It reads the accepted reports.
-- Policy: keep defaults (`max_repair_cycles` 20, 16 MiB artifacts) unless the owner set
-  others. Adding a candidate needs an owner decision and `plan-revision`.
+- Adding a candidate needs an owner decision and `plan-revision`.
 
 ## Worker result
 
@@ -51,8 +49,7 @@ dispose of every blocker or major finding with `finding-disposition` before acce
 
 ## Report descriptor (validator input)
 
-Write it outside worker artifact subtrees and freeze it with `observation`. Paths are
-absolute; hashes are of current bytes:
+Write it outside worker artifact subtrees and freeze it with `observation`. Use absolute paths and current hashes:
 
 ```json
 {"operation": "study",
@@ -105,3 +102,9 @@ Exit 0 proves these for those bytes, not that conclusions are right.
 `validator_argv` is `[PKG/scripts/validate_report.py, --input, OBSERVATION]` and
 `input_file` is the observation path. `validate-final` takes the same argv and input per
 stage in `validator_argv_by_stage` and `input_file_by_stage`.
+
+## Final report review
+
+Before research, retain `scripts/plan_review.py admit` as `ape_admission`. Final study
+and forage-synthesis descriptors require the `planning_review` metadata pin from
+`references/planning-review.md`. Intermediate forage-research keeps citation checks.

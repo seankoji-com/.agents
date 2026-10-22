@@ -1,6 +1,6 @@
 {
   "name": "elephant-goldfish",
-  "version": "1.0.17",
+  "version": "1.0.19",
   "description": "Discover problems, write testable briefs, and verify design documents.",
   "short_description": "Discover problems, write briefs, verify design docs",
   "argument_hint": "doctor | thinking <topic> | thinking list | elephant [failure report] | check",
@@ -27,7 +27,9 @@
         "check"
       ],
       "role": "judgement",
-      "responsibility": "Verify repository and command claims using cited evidence. Do not implement or infer unsupported facts."
+      "responsibility": "Verify repository and command claims using cited evidence. Do not implement or infer unsupported facts.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     },
     {
       "id": "elephant-goldfish/cold-reader",
@@ -37,7 +39,21 @@
         "elephant"
       ],
       "role": "reviewer",
-      "responsibility": "Assess only the supplied document for usability and evidence. Do not inspect implementation or propose acceptance."
+      "responsibility": "Assess only the supplied document for usability and evidence. Do not inspect implementation or propose acceptance.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
+    },
+    {
+      "id": "elephant-goldfish/plan-reviewer",
+      "path": "agents/plan-reviewer.md",
+      "operations": [
+        "thinking",
+        "elephant"
+      ],
+      "role": "judgement",
+      "responsibility": "Challenge the exact source plan against the original request, accepted constraints and authorised repository evidence. Stay read-only and report complete planning coverage.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     }
   ],
   "worker_shared": [
@@ -50,7 +66,15 @@
     "worker-result.schema.json",
     "result-envelope.schema.json",
     "acceptance.schema.json",
-    "jobs-contract.md"
+    "jobs-contract.md",
+    "reviewer-standard.md",
+    "model-selection.schema.json",
+    "model-authority.schema.json",
+    "planning-policy.schema.json",
+    "planning-job.schema.json",
+    "planning-subject.schema.json",
+    "planning-assessment.schema.json",
+    "planning-direct.schema.json"
   ],
   "picker": [
     "thinking",
@@ -79,5 +103,35 @@
       "pattern": "^[\\s\\S]*$",
       "operation": "thinking"
     }
-  ]
+  ],
+  "planning_review": {
+    "schema_version": 1,
+    "purpose": "planning-review",
+    "output_types": [
+      "source-plan"
+    ],
+    "worker_id": "elephant-goldfish/plan-reviewer"
+  },
+  "operation_review": {
+    "doctor": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Local readiness has no synthesis."
+    },
+    "thinking": {
+      "selection": "upfront",
+      "planning": "source-plan",
+      "reason": "Review discovery/spec before rendering; list/resolve/gate are deterministic."
+    },
+    "elephant": {
+      "selection": "upfront",
+      "planning": "design",
+      "reason": "Review repaired design after factual acceptance and before cold-read dispatch."
+    },
+    "check": {
+      "selection": "on-delegation",
+      "planning": "none",
+      "reason": "Factual drift only; no newly authored plan and no cold read."
+    }
+  }
 }

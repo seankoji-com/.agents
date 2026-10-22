@@ -70,3 +70,47 @@ live run. See [measurement limits](compatibility.md#measurement-limits).
 
 Live runs consume model resources and may create host tasks. Run them only within
 the operator's authorization, with bounded retries and task cleanup.
+
+## Planning review conformance protocol
+
+This protocol is a proposal for a separately authorised observation. Reading it,
+building these docs or passing fixtures launches no models and grants no spending
+or sharing permission. Current live planning-review adherence is unverified.
+
+Before a run, freeze the package/bundle digests, T3 version, live catalog, requested
+and actual session settings, authorised recipients/data classes, primary panel and
+finite replacement set. Use a disposable public fixture repository. Select exact
+supported model/options through the normal chooser. Keep credentials, private paths
+and real transcripts outside published artifacts.
+
+Bound one observation to at most three substantive assessments, one launch per
+declared candidate per round, and two same-request retries for an uncertain launch.
+Declare a wall-clock and cost ceiling with the owner before starting. On reaching
+either ceiling, cancel only owned tasks, retain their handles and report incomplete.
+Reconcile uncertain/pending children before any replacement. No polling or recursive
+delegation is part of this protocol.
+
+Observe these cases within that allowance, or split them into separately authorised runs:
+
+1. A complete cross-lineage review challenges a seeded load-bearing error, covers
+   every request clause, cites inspected bytes and tests a counterexample/recovery
+   path. Repair the source and verify that the fresh pass retains the original finding.
+2. Compare frozen target/options, actual dispatch and host identity/options. Report
+   unreported effort as unknown. Try unsupported options locally before dispatch;
+   refusal must produce no child. Do not infer depth from the model's label.
+3. Exercise a real bounded technical failure only where authorised and observable.
+   Retain the tool call, failure receipt and handle if any. Observe the permitted
+   cross-lineage, same-lineage and self-review transitions. If a failure cannot be
+   observed, mark that branch unverified; do not fabricate an outage or receipt.
+4. Supply a complete adverse verdict and verify that it stops fallback. Check that
+   unchanged-content self-review cannot clear its major. Tamper with a copy of the
+   source, selection or receipt and observe the real parent gate refusing readiness.
+5. Confirm the requester report names actual mode, degraded panel, scoped content,
+   findings/dispositions, counters, blockers and next action. Owner discovery,
+   readability, final code review, execution authority and live observations stay separate.
+
+Store exact argv, cwd, pre-check binding, complete logs and exit codes privately.
+Publish only sanitised observations with explicit omissions, repetitions and failures.
+Fixture suites `test_plan_review_installed_matrix.py`, `test_planning_review.py` and
+`test_model_selection*.py` cover deterministic contracts and relocated public gates;
+they cannot upgrade live-provider compatibility or establish model adherence.

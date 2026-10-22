@@ -1,6 +1,6 @@
 {
   "name": "ape",
-  "version": "1.0.15",
+  "version": "1.0.17",
   "description": "Research transferable patterns in open-source repositories.",
   "argument_hint": "doctor | forage [focus] | study <GitHub URL> [focus] | clean <workspace> [--all]",
   "entry": "entry.md",
@@ -26,16 +26,21 @@
         "study"
       ],
       "role": "workhorse",
-      "responsibility": "Compare pinned source repositories. Record fingerprints, provenance, and transferable patterns without changing targets."
+      "responsibility": "Compare pinned source repositories. Record fingerprints, provenance, and transferable patterns without changing targets.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     },
     {
       "id": "ape/synthesizer",
       "path": "agents/synthesizer.md",
       "operations": [
-        "forage"
+        "forage",
+        "study"
       ],
       "role": "judgement",
-      "responsibility": "Compare accepted research reports, identify conflicts, and propose bounded experiments without implementing them."
+      "responsibility": "Compare accepted reports or challenge final research recommendations read-only under the shared planning contract.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     }
   ],
   "worker_shared": [
@@ -48,7 +53,15 @@
     "worker-result.schema.json",
     "result-envelope.schema.json",
     "acceptance.schema.json",
-    "jobs-contract.md"
+    "jobs-contract.md",
+    "reviewer-standard.md",
+    "model-selection.schema.json",
+    "model-authority.schema.json",
+    "planning-policy.schema.json",
+    "planning-job.schema.json",
+    "planning-subject.schema.json",
+    "planning-assessment.schema.json",
+    "planning-direct.schema.json"
   ],
   "picker": [
     "forage",
@@ -77,5 +90,35 @@
       "pattern": "^clean\\s+\\S+(?:\\s+--all)?$",
       "operation": "clean"
     }
-  ]
+  ],
+  "planning_review": {
+    "schema_version": 1,
+    "purpose": "planning-review",
+    "output_types": [
+      "synthesis"
+    ],
+    "worker_id": "ape/synthesizer"
+  },
+  "operation_review": {
+    "doctor": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Local readiness has no synthesis."
+    },
+    "clean": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Deterministic cleanup has no synthesis."
+    },
+    "study": {
+      "selection": "upfront",
+      "planning": "final-synthesis",
+      "reason": "Final report including no-adoption output before acceptance."
+    },
+    "forage": {
+      "selection": "upfront",
+      "planning": "final-synthesis",
+      "reason": "Review integrated synthesis including no experiment; research intermediates retain citation checks."
+    }
+  }
 }

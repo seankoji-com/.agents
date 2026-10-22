@@ -1,5 +1,7 @@
 # Investigation playbook
 
+Apply `PKG/references/planning-review.md` before substantive work. Preserve the
+upfront selection through aliases, source stages and repairs.
 Use this when the operator wants an answer, not a change: how something works, why it behaves a certain way, or what would break. The output is a cited answer or a document. This playbook is read-only.
 
 ## Rules
@@ -17,3 +19,8 @@ Use this when the operator wants an answer, not a change: how something works, w
 4. Write the answer to `scratch/answer.md` with a short conclusion first, then the cited evidence, then open questions. Submit inspection evidence for each requirement, attaching the answer and source artifacts with the binding captured before inspection.
 5. For each requirement, submit `evidence` with `artifacts: ["<run dir>/scratch/answer.md"]` the kind from step 2 and the binding captured before inspection. A part you could not establish is `unverified`, with the reason in its explanation.
 6. Run `report`. Show the conclusion and point to `answer.md`. The report lists any unverified parts; do not round them up.
+
+Review the final integrated conclusions through the separate planning job, including
+zero findings/no-risk/no-change. Pin the final document and run requirements, then
+submit its actual receipt through `finalize` before `validate`/`report`. This adds
+no authority to fix, execute a write, publish or waive a stronger review gate.

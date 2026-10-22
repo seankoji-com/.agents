@@ -119,17 +119,19 @@ every underlying record.
   (default 20). Primary, support and review failures share that budget. Resume,
   escalation and replacement never reset it. An exhausted budget blocks for an owner
   decision.
-- **Routing.** The coordinator picks the lowest suitable configured tier with
+- **Routing.** The coordinator recommends the lowest suitable configured tier with
   [`t3-plugins resolve`](getting-started.md#model-routing) and records the reason and
-  escalation order. Reviewers need a reviewer or judgement tier and a known different
-  lineage. The coordinator's own model never changes.
+  escalation order. The user's upfront work/panel choices control dispatch and exact
+  supported options. Reviewers need a reviewer or judgement tier; planning fallback
+  reports its actual lineage mode. The coordinator's own model never changes.
 - **Lifecycle.** Tasks start with `delegate_task` and a stable `clientRequestId`.
   An uncertain launch gets at most two retries with the same ID, then blocks. A
   capacity rejection waits for a completion notification from a task this job owns.
   Nothing polls. A follow-up reuses a child's conversation only when the host
   tracks it as a new task; otherwise a fresh child starts and the reason is shown.
-- **Fallback.** When T3 or every suitable target is unavailable, the coordinator runs
-  the stage itself under the same contract, counters and validator, and every
+- **Fallback.** When T3 or every suitable target is unavailable, an explicitly
+  authorised work chain may permit the coordinator to run the stage itself under
+  the same contract, counters and validator, and every
   checklist shows `fallback: direct (<reason>)`. Direct work cannot stand in for a
   required independent review; that stays a blocker.
 - **Approvals.** Owner decisions go through the host's native question picker,
@@ -140,7 +142,9 @@ every underlying record.
 ## Managed worker definitions
 
 Each plugin ships its workers as `plugins/<plugin>/agents/<worker>.md`. The manifest
-lists each worker's ID, file, operations and routing role. Definitions contain no
+lists each worker's ID, file, operations, routing role, responsibility, allowed scope
+and output contract. Scope is a ceiling narrowed by the brief, not action authority.
+The installer checks catalog operations and metadata before writing a bundle. Definitions contain no
 model IDs. They are not installed as skills or native harness agents; only the
 plugin's own commands load them.
 
@@ -153,11 +157,17 @@ plugin's own commands load them.
 | `ape/source-researcher` | Pinned source comparison and transferable proposals |
 | `ape/synthesizer` | Compare accepted reports and propose bounded experiments |
 | `elephant-goldfish/factual-checker` | Verify repository and command claims |
+| `elephant-goldfish/plan-reviewer` | Challenge source plans and repaired designs before dependent work |
+| `ralph/strategy-reviewer` | Assess an actually written strategy; final evaluation stays separate |
 | `elephant-goldfish/cold-reader` | Judge one document's usability with no other context |
 | `babysitter/pr-maintainer` | Authorized triage or repair of one PR at an exact head |
 | `babysitter/pr-reviewer` | Independent review of the final combined PR change, when the operator asks for one |
 | `agent-tuneup/config-researcher` | Provider format, scope and precedence with sources |
 | `agent-tuneup/config-verifier` | Parse, load and enforcement evidence for authorized changes |
+| `focus-group/plan-reviewer` | Challenge the exact study protocol before owner approval and panel work |
+| `focus-group/participant` | One isolated invented persona cell on approved material |
+| `focus-group/analyst` | Synthesise accepted evidence with citations and dissent |
+| `focus-group/fidelity-reviewer` | Check the exact integrated report against its inputs and actual authors |
 
 Installation copies each package's definitions and shared contracts into an
 immutable bundle under the agents root (default `~/.agents/agents/t3-plugins`):
@@ -254,3 +264,14 @@ measured saving is claimed yet; see
 [measurement limits](compatibility.md#measurement-limits). The compatibility ledger
 records this uncertainty rather than treating provider logos as proof. See
 [compatibility](compatibility.md) and [testing](testing.md).
+
+Focus-group also uses the shared chooser and separate planning-review lifecycle.
+Its exact study-plan receipt gates approval and panel work, with per-model work
+roles and an independent fidelity reviewer. Stage resources retain the reviewed
+revision and producing admission through generic plan revision. Its final fidelity
+review remains separate and stronger; deterministic study helpers never dispatch.
+
+Focus-group planning binds the product protocol and every declared evidence file
+by content, with an explicit evidence-root path. Git HEAD is not a dependency of
+this product study. Receipt consumption and local report export rehash those
+inputs without launching Git or a publication command.

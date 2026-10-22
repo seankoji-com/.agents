@@ -130,7 +130,8 @@ def initialize(data, state_path):
     return {'schemaVersion': SCHEMA_VERSION, 'runId': uuid.uuid4().hex, 'goal': goal, 'brief': brief,
             'worktree': str(root), 'maxAttempts': limit, 'implementer': implementer,
             'evaluator': evaluator, 'attempt': 1, 'phase': 'implement', 'tasks': [],
-            'stopRequested': False, 'runtimeMode': runtime_mode, 'baseline': snapshot.baseline(root)}
+            'stopRequested': False, 'runtimeMode': runtime_mode, 'baseline': snapshot.baseline(root),
+            **({'modelAdmission':copy.deepcopy(data['admission'])} if data.get('admission') else {})}
 
 
 def quiescent(task):
@@ -655,9 +656,31 @@ def publication_verified(state):
         and quiescent(t) and t.get('observation', {}).get('identityVerified') is True for t in tasks)
 
 
+def selection_ready(state, admission=None, *, resume=False, retain=None):
+    from shared import adopter_planning as adopter
+    record = admission or state.get('modelAdmission')
+    require(isinstance(record, dict), 'upfront work/review choices required; legacy checkpoints are status-only until retain-or-stop resume')
+    adopter.continuation(record, invocation_id=record['invocation_id'], event='resume' if resume else 'wake', retain=retain)
+    require(record['plugin'] == 'ralph' and record['operation'] in ('run','resume'), 'Ralph admission required')
+    work_plan = adopter.dispatch(record, role='workhorse')
+    require(work_plan['execution']=='child', 'Ralph requires a chosen child implementer; current-context work cannot dispatch')
+    work = work_plan['target']
+    slots = [s for s in record['selection']['review_panel'] if s['required']]
+    require(len(slots) == 1, 'Ralph requires one pinned evaluator choice; its native lineage gate remains mandatory')
+    review = adopter.dispatch(record, role=slots[0]['role'], slot_id=slots[0]['slot_id'])['target']
+    for chosen, actual in ((work,state['implementer']), (review,state['evaluator'])):
+        require(all(chosen.get(k) == actual.get(k) for k in ('providerInstanceId','model','options')),
+                'pinned Ralph targets/options cannot rotate; retain-or-stop')
+        require(chosen.get('runtimeMode', actual['runtimeMode']) == actual['runtimeMode'], 'pinned Ralph runtime differs')
+    if state.get('strategy'):
+        require(state['strategy']['admission']['scope_id'] == record['scope_id'], 'strategy subject differs')
+        adopter.validate(state['strategy'], PKG)
+    return record
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('init', 'next', 'attach', 'observe', 'status', 'stop', 'recover'))
+    parser.add_argument('command', choices=('init', 'next', 'attach', 'observe', 'status', 'stop', 'recover', 'resume', 'strategy'))
     parser.add_argument('--state', type=Path, required=True)
     parser.add_argument('--input', type=Path)
     try:
@@ -675,6 +698,10 @@ def main(argv=None):
         path = args.state.absolute()
         if args.command == 'init':
             state = initialize(data, path)
+            state['modelAdmission'] = selection_ready(state, data.get('admission'))
+            if data.get('strategy'):
+                state['strategy'] = data['strategy']
+                selection_ready(state)
             path.parent.mkdir(parents=True, exist_ok=True)
         else:
             require(path.is_file(), 'checkpoint does not exist')
@@ -689,7 +716,22 @@ def main(argv=None):
                 validate_checkpoint(state)
                 require(not path.resolve().is_relative_to(Path(state['worktree']).resolve()),
                         'checkpoint must be outside the worktree')
-                result = {} if args.command == 'status' else operate(state, args.command, data)
+                if args.command == 'resume':
+                    record = selection_ready(state, data.get('admission'), resume=True, retain=data.get('retain'))
+                    state.setdefault('selectionHistory', []).append(state.get('modelAdmission'))
+                    state['modelAdmission'] = record
+                    result = {'phase':state['phase']}
+                elif args.command == 'strategy':
+                    from shared.adopter_planning import validate
+                    selection_ready(state)
+                    require(current(state) is None and all(quiescent(t) for t in state['tasks']), 'reconcile live tasks before strategy changes')
+                    require(data['descriptor']['admission'] == state['modelAdmission'], 'strategy producing admission differs')
+                    validate(data['descriptor'], PKG)
+                    state['strategy'] = data['descriptor']; result = {'phase':state['phase']}
+                else:
+                    if args.command in ('next','recover'):
+                        selection_ready(state)
+                    result = {} if args.command == 'status' else operate(state, args.command, data)
             if args.command != 'status':
                 atomic_json(path, state)
             view = copy.deepcopy(state)

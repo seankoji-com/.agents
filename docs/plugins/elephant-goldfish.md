@@ -13,6 +13,12 @@ When authorship or lineage is unknown, the job stops because independence cannot
 for the reviewer, subject and author-independent slot. Legacy jobs without the
 identity policy marker retain target-only acceptance semantics.
 
+Before drafting a new topic, `thinking_state.py init` requires `--selection FILE`
+and `--request-reference REF`. The sealed upfront selection binds that request
+to `thinking/<slug>/handoff.md`; planning creation must retain its producing digest.
+Missing choices and retroactive admission of existing drafts are refused. Legacy
+topics remain readable without acquiring current review readiness.
+
 Record discovery and spec authors with `thinking_state.py author` using a fresh
 `orchestrator_capabilities` file. Render handoffs and repair documents with the same
 `--capabilities FILE` input. Handoff authorship includes the renderer and both source
@@ -141,3 +147,14 @@ hashes and provenance. They can't judge the quality of the interview, authentica
 who accepted a review, or prevent every unauthorised agent action. Unit tests don't
 show how a given model behaves; see [compatibility](../compatibility.md). Publishing
 anything to GitHub needs explicit permission.
+
+## Design review
+
+`elephant` keeps three gates: repair and verify facts, review the substantive design,
+then use a fresh document-only cold reader. A factual pass does not establish that
+the plan meets the request; a plan review does not establish readability. Changed
+content needs current review evidence. `check` remains factual-only and asks for
+work/review choices when it delegates.
+
+See [planning review](../plan-review.md) for default triggers, model choices,
+receipt freshness, fallback labels and requester reporting.

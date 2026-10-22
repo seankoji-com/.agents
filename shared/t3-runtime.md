@@ -2,6 +2,12 @@
 
 Read once per run. The plugin entry defines the task; this file defines how it uses T3.
 
+Before substantive investigation, planning, synthesis or dispatch, apply
+`PKG/shared/model-selection.md`. Obtain work and review choices together; explicit
+choices already supplied count. Only operation/capability/identity/resumable-scope
+preflight precedes the answer. Deterministic helpers stay direct. Workers consume
+their frozen selection without another picker. Recommendations never select targets.
+
 - Inherit the active provider and model, and respect the operator's choices.
 - For a bare plugin command, ask through the host's native question picker with the
   recommended option first. If the host has no picker, use a clearly marked question
@@ -13,7 +19,8 @@ Read once per run. The plugin entry defines the task; this file defines how it u
   handles, validator acceptance, bounded repair and visible fallback.
 - At substantive review rounds, the coordinator also follows
   `PKG/shared/supplemental-reviews.md` for up to three optional free OpenCode views.
-  Existing sharing authority is required; unavailable or failed extras are skips.
+  Upfront named-model or bounded-class consent and sharing authority are required;
+  no consent, unavailable or failed extras are skips.
   They never replace mandatory review or its independence and acceptance gates.
 - Tool prefixes vary by harness. Match exposed tools by name and description. If an
   expected tool is absent, attempt bounded discovery. Report the missing capability

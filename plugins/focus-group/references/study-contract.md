@@ -27,7 +27,8 @@ The draft fields are `study_id`, `audience`, `decision`, `target`
 fresh-anonymous|preauthenticated-test, `reference`, required for a preauthenticated
 test context; defaults to fresh-anonymous), `personas` (`id`, `label`, `goal`,
 `priorities`, `experience`, `constraints`, `invented: true`), `participant_models`,
-`analysis` and `review` targets (`providerInstanceId`, `model`, `options`),
+`analysis` and `review` targets (`providerInstanceId`, `model`, `options`, optional
+explicit `runtimeMode`),
 `capture_profile` (`label`, `viewport`, `extra_views`), `prompts`
 (`first_impression`, `journey`), `stimulus` (`files` with absolute `path`, `name`,
 `sha256`; `coordinator_inspected`; optional `manifest_sha256` and `provenance`),
@@ -40,8 +41,13 @@ requested (`option_domain_unavailable`). A `boolean` option takes JSON `true` or
 `false`. Any other type is refused.
 
 A cell ID is `<persona-id>--<target-key>`, where the target key hashes provider,
-model and options. The first cell of each model is its pilot; pilots are normal
-cells, not extra tasks.
+model and options, plus `runtimeMode` when explicitly declared. Omitting the mode
+preserves historical cell keys. Modes remain exact in admission, job targets,
+brief selection, pilot/recovery requests and report requests; changing only the mode
+requires a new reviewed and approved revision. Different modes of one model do not
+satisfy the two distinct model ID requirement. Observed identity reports only what
+the host supplied; a requested mode never fills an unreported observation. The first
+cell of each target is its pilot; pilots are normal cells, not extra tasks.
 
 ## Task arithmetic
 

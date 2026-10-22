@@ -67,6 +67,18 @@ GROUP_CLAIM = re.compile(
     re.IGNORECASE)
 
 
+def planning_module():
+    import plan_review
+    return plan_review
+
+
+def planning_gate(study, revision, run=False):
+    try:
+        return (planning_module().run_choice if run else planning_module().ready)(study, revision)
+    except (ValueError, KeyError, TypeError, OSError) as exc:
+        refuse('planning_review_required', str(exc))
+
+
 def evidence_module():
     """The FG-2 evidence helper beside this script, sharing this module's error types."""
     sys.modules.setdefault('study', sys.modules[__name__])
@@ -209,18 +221,28 @@ def target_problem(target, index):
 
 
 def normal_target(value, label):
-    if not isinstance(value, dict) or set(value) - {'providerInstanceId', 'model', 'options'}:
-        invalid('invalid_plan', f'{label} needs providerInstanceId, model and optional options only')
+    if not isinstance(value, dict) or set(value) - {'providerInstanceId', 'model', 'options', 'runtimeMode'}:
+        invalid('invalid_plan', f'{label} needs providerInstanceId, model and optional options/runtimeMode only')
     options = value.get('options', {})
     if not isinstance(options, dict) or any(not isinstance(k, str) or not isinstance(v, (str, bool))
                                             for k, v in options.items()):
         invalid('invalid_plan', f'{label}.options must map option IDs to string (select) or boolean values')
-    return {'providerInstanceId': text(value.get('providerInstanceId'), f'{label}.providerInstanceId'),
-            'model': text(value.get('model'), f'{label}.model'), 'options': dict(sorted(options.items()))}
+    target = {'providerInstanceId': text(value.get('providerInstanceId'), f'{label}.providerInstanceId'),
+              'model': text(value.get('model'), f'{label}.model'), 'options': dict(sorted(options.items()))}
+    if 'runtimeMode' in value:
+        from shared.model_selection import MODES
+        if value['runtimeMode'] not in MODES:
+            invalid('invalid_plan', f'{label}.runtimeMode is unsupported')
+        target['runtimeMode'] = value['runtimeMode']
+    return target
 
 
 def target_key(target):
-    return sha([target['providerInstanceId'], target['model'], target['options']])[:10]
+    parts = [target['providerInstanceId'], target['model'], target['options']]
+    # Preserve historical cell IDs when no mode was declared; explicit modes are distinct requests.
+    if 'runtimeMode' in target:
+        parts.append(target['runtimeMode'])
+    return sha(parts)[:10]
 
 
 def load_observations(path):
@@ -1010,7 +1032,8 @@ def effective_first(study, revision, cell_id, accepted):
 REQUIRED_FILES = (
     'plugin.json', 'entry.md', 'playbooks/plan.md', 'playbooks/run.md', 'playbooks/capture.md', 'playbooks/journeys.md',
     'references/study-contract.md', 'references/evidence-contract.md', 'references/report-contract.md',
-    'scripts/study.py', 'scripts/evidence.py', 'scripts/lifecycle.py', 'scripts/report.py', 'scripts/validate_study.py',
+    'scripts/plan_review.py', 'references/adopter-review-rubric.md', 'shared/model-selection.md',
+    'shared/adopter-planning.md', 'scripts/study.py', 'scripts/evidence.py', 'scripts/lifecycle.py', 'scripts/report.py', 'scripts/validate_study.py',
     'templates/study-draft.example.json', 'templates/capture-manifest.example.json',
     'shared/t3-runtime.md', 'shared/delegation.md', 'shared/job-coordination.md', 'shared/job_cli.py',
     'shared/job_acceptance_cli.py', 'shared/job_acceptance.py', 'shared/lineage.py', 'shared/worker_registry.py',
@@ -1104,6 +1127,10 @@ def op_doctor(args):
 
 
 def op_suggest(args):
+    try:
+        planning_module().admission(load_json(args.admission, 'upfront admission') if args.admission else None)
+    except (ValueError, KeyError, TypeError) as exc:
+        refuse('model_selection_required', str(exc))
     draft = load_json(args.input, 'draft')
     index = catalog_index(load_json(args.capabilities, 'capabilities'))
     if not isinstance(draft, dict):
@@ -1160,6 +1187,22 @@ def presentation(plan, revision, assessment, ledger, approval, carry=None):
 
 
 def op_plan(args):
+    try:
+        selected = planning_module().admission(load_json(args.admission, 'upfront admission') if args.admission else None)
+        if selected['operation'] != 'plan':
+            raise ValueError('plan invocation choices required')
+    except (ValueError, KeyError, TypeError) as exc:
+        refuse('model_selection_required', str(exc))
+    actual_caps = load_json(args.capabilities, 'capabilities')
+    try:
+        from shared.document_authors import author_from_capabilities
+        actual_author = author_from_capabilities(actual_caps)
+        retained = selected['selection']['capabilities']
+        coordinator = selected['selection']['coordinator']
+        if any(actual_caps.get(key) != retained.get(key) for key in ('parentThreadId', 'inheritedProviderInstanceId', 'inheritedModel')) or (actual_author['providerInstanceId'], actual_author['model']) != (coordinator['providerInstanceId'], coordinator['model']):
+            raise ValueError('actual planning author differs from producing selection host identity')
+    except (ValueError, KeyError, TypeError) as exc:
+        refuse('model_selection_required', str(exc))
     plan = normalise(load_json(args.input, 'draft'))
     if plan['study_id'] != args.study:
         invalid('study_mismatch', 'draft study_id differs from --study')
@@ -1167,11 +1210,15 @@ def op_plan(args):
     if changed:
         refuse('stimulus_changed', 'shared material differs from its declared hashes; recapture or re-inspect it',
                {'changed': changed})
-    index = catalog_index(load_json(args.capabilities, 'capabilities'))
+    index = catalog_index(actual_caps)
     assessment = assess(plan, index, load_observations(args.observations))
     if assessment['catalog_problems']:
         refuse('matrix_unavailable', 'a requested model, provider or option is unavailable; the matrix is never changed '
                                      'silently', {'problems': assessment['catalog_problems']})
+    try:
+        planning_module().choices(plan, selected)
+    except (ValueError, KeyError, TypeError) as exc:
+        refuse('model_selection_required', str(exc))
     revision = sha(plan)
     study = Study(args.state_root, args.study)
     for problem in evidence_module().pack_gate(study, plan):
@@ -1179,6 +1226,17 @@ def op_plan(args):
                                          f'{problem["detail"]}.')
     with study.locked():
         study.retain(f'plans/{revision}.json', {'schema_version': 1, 'plan': plan}, 'plan revision changed')
+        if study.read(f'planning/{revision}/descriptor.json') is None:
+            from shared.planning_review import file_descriptor
+            from shared.document_authors import append_author, locked_author_records
+            document = study.dir / f'plans/{revision}.json'
+            caps = actual_caps
+            with locked_author_records(document.parent) as (authors, save):
+                save(append_author(authors, document.read_bytes(), caps, document_path=document))
+            study.write(f'planning/{revision}/descriptor.json', {
+                'kind': 'study-plan', 'study_revision': revision, 'admission': selected,
+                'document': file_descriptor(study.dir / f'plans/{revision}.json'),
+                'requirements': planning_module().REQUIREMENTS})
         study.write(f'assessments/{revision}.json', assessment)
         current = study.read('current.json') or {'schema_version': 1, 'history': []}
         previous = current.get('revision')
@@ -1198,6 +1256,11 @@ def op_plan(args):
     view = presentation(plan, revision, assessment, ledger, approval, carry)
     if budget is not None:
         view['budget_change'] = budget
+    view['planning_review'] = {'state': 'required', 'ready': False}
+    try:
+        view['planning_review'] = {'state': 'accepted', 'ready': True, **planning_gate(study, revision)}
+    except StudyError:
+        pass
     view['dispatched'] = 0
     return 0, view
 
@@ -1263,6 +1326,7 @@ def op_approve(args):
     if revision != current['revision']:
         refuse('stale_revision', 'approval names a revision that is not the current plan')
     plan = study.plan(revision)['plan']
+    planning_gate(study, revision)
     source = Path(text(request['source'], 'source'))
     if not source.is_absolute() or source.resolve().is_relative_to(study.job_dir.resolve()):
         invalid('invalid_approval', 'the owner statement source must be an absolute file outside the job directory')
@@ -1367,6 +1431,7 @@ def preflight(study, now, catalog):
                                         'work that needs it is held')
     # Updating the study plan does not update the generic job: until its stage contracts and authority name
     # this revision, nothing is reported ready, admitted or charged.
+    planning_gate(study, revision, run=True)
     lifecycle = lifecycle_module()
     stale = lifecycle.job_revision_problem(lifecycle.load_job(study), revision)
     if stale:
@@ -1611,12 +1676,17 @@ def op_record(args):
     return accept_participant(study, load_json(args.input, 'acceptance record'))
 
 
+def identity_request(target):
+    """Requested execution identity, keeping explicit mode separate from host observations."""
+    return {k: target[k] for k in ('providerInstanceId', 'model', 'runtimeMode') if k in target}
+
+
 def identity_verdict(target, observed, index=None):
     """Requested versus host-observed identity. A requested target is never evidence of what ran. `observed`
     is `{providerInstanceId, model, source}` as the host reported it, or None. With a catalog index, a model
     that differs from the request is a wrong model when the catalog lists it for that provider, and ambiguous
     (an alias or unlisted ID, never resolved to the request) otherwise. Only `verified` counts as verified."""
-    requested = {'providerInstanceId': target['providerInstanceId'], 'model': target['model']}
+    requested = identity_request(target)
     if observed is None or not observed.get('providerInstanceId'):
         return {'state': 'unreported', 'reason': 'the host reported no provider for this execution',
                 'requested': requested, 'observed': observed}
@@ -1899,6 +1969,9 @@ def op_job_spec(args):
                       'max_live_workers': plan['limits']['max_concurrency']},
            'stages': job_stages, 'tasks': tasks, 'decisions': [], 'history': [], 'metrics': {},
            'result_contract': {'schema_version': 1}}
+    record = planning_gate(study, revision, run=True)
+    job['focus_group_plan'] = planning_module().descriptor(study, revision)
+    planning_module().bind_job(job, plan, record)
     out = {'job': job, 'revision': revision, 'dispatched': 0}
     if deferred:
         out['deferred_journey_tasks'] = deferred
@@ -1917,6 +1990,7 @@ def main(argv=None):
     suggest = sub.add_parser('suggest')
     suggest.add_argument('--input', required=True)
     suggest.add_argument('--capabilities', required=True)
+    suggest.add_argument('--admission')
     for name in ('plan', 'approve', 'check-run', 'admit', 'release', 'wake', 'cancel', 'record-acceptance', 'carry',
                  'validate-carry', 'status', 'job-spec'):
         command = sub.add_parser(name)
@@ -1925,6 +1999,7 @@ def main(argv=None):
         if name in ('plan', 'approve', 'admit', 'release', 'record-acceptance', 'validate-carry'):
             command.add_argument('--input', required=True)
         if name == 'plan':
+            command.add_argument('--admission')
             command.add_argument('--capabilities', required=True)
             command.add_argument('--observations')
         if name in ('check-run', 'admit', 'wake', 'job-spec'):

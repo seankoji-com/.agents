@@ -25,7 +25,7 @@ def validate_final(path, state_root):
   # window from the first reservation to the final observation, not later changes.
   rows={s['id']:s for s in stages};targets={sid:(base/rows[sid]['state_subdir'],rows[sid]['run_id']) for sid in required}
   def snap(sid,phase):
-   proc=subprocess.run([sys.executable,str(package/'core'/'cli.py'),'snapshot','--plugin-dir',str(package),'--state-root',str(targets[sid][0]),'--run-id',targets[sid][1]],capture_output=True,text=True)
+   proc=subprocess.run([sys.executable,str(package/'cli.py'),'snapshot','--plugin-dir',str(package),'--state-root',str(targets[sid][0]),'--run-id',targets[sid][1]],capture_output=True,text=True)
    if proc.returncode:raise ValueError(f'{phase} binding unavailable for {sid}: {proc.stderr[-1000:]}')
    try:data=json.loads(proc.stdout)['data']
    except (ValueError,KeyError,TypeError):data=None
@@ -65,7 +65,7 @@ def main():
  p=argparse.ArgumentParser();p.add_argument('--state-root',required=True);p.add_argument('--run-id');p.add_argument('--final-plan');a=p.parse_args()
  if a.final_plan:return validate_final(Path(a.final_plan), a.state_root)
  if not a.run_id:p.error('--run-id is required outside final-plan mode')
- package=Path(__file__).resolve().parents[1];core=package/'core/cli.py'
+ package=Path(__file__).resolve().parents[1];core=package/'cli.py'
  common=[sys.executable,str(core)]
  before=subprocess.run([*common,'snapshot','--plugin-dir',str(package),'--state-root',a.state_root,'--run-id',a.run_id],capture_output=True,text=True)
  if before.returncode:print(json.dumps({'accepted':False,'requirement_outcomes':{'imps-stage-gate':{'status':'unavailable','reason':'pre-check binding unavailable','evidence':before.stderr[-2000:]}}}));return 1

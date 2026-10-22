@@ -1,6 +1,6 @@
 {
   "name": "ralph",
-  "version": "0.1.29",
+  "version": "0.1.31",
   "description": "Implement a goal with fresh T3 tasks, evaluate with another lineage, and retry every feedback item before opening a PR.",
   "short_description": "Implement a goal, cross-evaluate it, retry before a PR",
   "argument_hint": "run [--max-attempts N] <goal> | resume <state-file> | status <state-file> | cancel <state-file> | doctor",
@@ -45,5 +45,74 @@
       "pattern": "^[\\s\\S]*$",
       "operation": "run"
     }
-  ]
+  ],
+  "worker_shared": [
+    "boundaries.md",
+    "manifest.schema.json",
+    "workers-config.schema.json",
+    "job.schema.json",
+    "stage.schema.json",
+    "worker-brief.schema.json",
+    "worker-result.schema.json",
+    "result-envelope.schema.json",
+    "acceptance.schema.json",
+    "jobs-contract.md",
+    "reviewer-standard.md",
+    "model-selection.schema.json",
+    "model-authority.schema.json",
+    "planning-policy.schema.json",
+    "planning-job.schema.json",
+    "planning-subject.schema.json",
+    "planning-assessment.schema.json",
+    "planning-direct.schema.json"
+  ],
+  "workers": [
+    {
+      "id": "ralph/strategy-reviewer",
+      "path": "agents/strategy-reviewer.md",
+      "operations": [
+        "run",
+        "resume"
+      ],
+      "role": "judgement",
+      "responsibility": "Challenge an explicitly authored strategy in a separate planning job; never replace Ralph final evaluation.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
+    }
+  ],
+  "planning_review": {
+    "schema_version": 1,
+    "purpose": "planning-review",
+    "output_types": [
+      "strategy"
+    ],
+    "worker_id": "ralph/strategy-reviewer"
+  },
+  "operation_review": {
+    "run": {
+      "selection": "upfront",
+      "planning": "written-strategy",
+      "reason": "Ordinary loop has no initial planning artifact; written strategies automatically review before dependent work. Keep final full evaluator."
+    },
+    "resume": {
+      "selection": "retain-or-stop",
+      "planning": "written-strategy",
+      "reason": "Pinned targets/options retained; no duplicate assessment of unchanged strategy. Feedback, lineage and recovery gates remain."
+    },
+    "status": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "State inspection has no synthesis."
+    },
+    "cancel": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Owned-task cancellation has no synthesis."
+    },
+    "doctor": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Capability preflight has no synthesis."
+    }
+  }
 }

@@ -1,6 +1,6 @@
 {
   "name": "imps",
-  "version": "1.0.16",
+  "version": "1.0.18",
   "description": "Bounded engineering work on any T3 provider: implement, investigate, audit, and review with revision-bound evidence.",
   "short_description": "Bounded engineering work with revision-bound evidence",
   "argument_hint": "doctor | run <task> | resume <run-id> | status <run-id> | cancel <run-id> | verification-init | blast-radius [PR/range/paths] | audit [--focus <dimensions>] [--out <path>] | issues <number> [<number> ...] | prs pr <URL> | prs repo <owner/name> | prs org <owner> | checklist <path> | discussion <number or URL>; add --personas before or after any request",
@@ -31,7 +31,9 @@
         "run"
       ],
       "role": "workhorse",
-      "responsibility": "Complete one assigned engineering stage, prepare verification, and report evidence without accepting your own work."
+      "responsibility": "Complete one assigned engineering stage, prepare verification, and report evidence without accepting your own work.",
+      "allowed_scope": "brief-authorized",
+      "output_contract": "worker-result.schema.json"
     },
     {
       "id": "imps/investigator",
@@ -41,7 +43,9 @@
         "discussion"
       ],
       "role": "judgement",
-      "responsibility": "Investigate the assigned question read-only. Cite exact paths, commands, and evidence; do not modify files."
+      "responsibility": "Investigate the assigned question read-only. Cite exact paths, commands, and evidence; do not modify files.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     },
     {
       "id": "imps/auditor",
@@ -51,17 +55,27 @@
         "blast-radius"
       ],
       "role": "judgement",
-      "responsibility": "Audit assigned dimensions. Separate confirmed findings, hypotheses, refutations, and evidence."
+      "responsibility": "Audit assigned dimensions. Separate confirmed findings, hypotheses, refutations, and evidence.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     },
     {
       "id": "imps/reviewer",
       "path": "agents/reviewer.md",
       "operations": [
         "run",
-        "prs"
+        "prs",
+        "audit",
+        "blast-radius",
+        "issues",
+        "checklist",
+        "discussion",
+        "verification-init"
       ],
       "role": "reviewer",
-      "responsibility": "Review the exact supplied change snapshot independently. Report actionable findings with path, line, scenario, and evidence."
+      "responsibility": "Review the exact supplied change snapshot independently. Report actionable findings with path, line, scenario, and evidence.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
     }
   ],
   "worker_shared": [
@@ -74,7 +88,15 @@
     "worker-result.schema.json",
     "result-envelope.schema.json",
     "acceptance.schema.json",
-    "jobs-contract.md"
+    "jobs-contract.md",
+    "reviewer-standard.md",
+    "model-selection.schema.json",
+    "model-authority.schema.json",
+    "planning-policy.schema.json",
+    "planning-assessment.schema.json",
+    "planning-direct.schema.json",
+    "planning-job.schema.json",
+    "planning-subject.schema.json"
   ],
   "picker": [
     "run",
@@ -174,5 +196,79 @@
   ],
   "standalone_flags": [
     "--personas"
-  ]
+  ],
+  "planning_review": {
+    "schema_version": 1,
+    "purpose": "planning-review",
+    "output_types": [
+      "implementation-plan",
+      "synthesis",
+      "recommendation",
+      "strategy",
+      "verification-recipe"
+    ],
+    "worker_id": "imps/reviewer"
+  },
+  "operation_review": {
+    "doctor": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Local readiness has no synthesis."
+    },
+    "status": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "State inspection has no synthesis."
+    },
+    "cancel": {
+      "selection": "direct",
+      "planning": "none",
+      "reason": "Owned-task cancellation has no synthesis."
+    },
+    "resume": {
+      "selection": "retain-or-stop",
+      "planning": "retained-plan",
+      "reason": "Pinned applicable runs retain targets/options; changed sources reopen review without budget reset."
+    },
+    "verification-init": {
+      "selection": "upfront",
+      "planning": "verification-recipe",
+      "reason": "Review authored launch/drive/cleanup plan before execution; raw scaffold/check and unchanged reviewed recipe are direct."
+    },
+    "blast-radius": {
+      "selection": "upfront",
+      "planning": "final-synthesis",
+      "reason": "Review integrated risks including no-risk conclusions."
+    },
+    "audit": {
+      "selection": "upfront",
+      "planning": "final-synthesis",
+      "reason": "Review integrated conclusions and fix plan including zero findings."
+    },
+    "prs": {
+      "selection": "forward-once",
+      "planning": "written-strategy",
+      "reason": "Forward one selection to pinned babysitter; avoid duplicate imps planning gate."
+    },
+    "run": {
+      "selection": "upfront",
+      "planning": "initial-plan",
+      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+    },
+    "issues": {
+      "selection": "upfront",
+      "planning": "initial-plan",
+      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+    },
+    "checklist": {
+      "selection": "upfront",
+      "planning": "initial-plan",
+      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+    },
+    "discussion": {
+      "selection": "upfront",
+      "planning": "initial-plan",
+      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+    }
+  }
 }

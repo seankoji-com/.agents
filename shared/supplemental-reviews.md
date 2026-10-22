@@ -1,10 +1,16 @@
 # Opportunistic free reviews
 
 The coordinator may add up to three distinct free OpenCode points of view to an
-existing review round. This is enabled opportunistically by default within existing
-delegation and data-sharing authority. An owner can opt out with "no supplemental
-reviews"; set `enabled: false`. Without prior authority to share this material with
-OpenCode, record `not-authorized` and skip. Do not interrupt required work to seek it.
+existing review round only with upfront named-model or bounded-class consent in
+the frozen selection (`PKG/shared/model-selection.md`). No consent means skip with
+`no-supplemental-consent`; general delegation/sharing authority alone is insufficient.
+Supply `model_selection` and its producing `selection_sha256` to the helper. Its
+`supplemental` record contains `kind` (named/class), `providers`, `maximum` (1–3),
+`data_classes`, exact `options` (empty explicitly permits catalog defaults), actual
+`source` and named `targets` when applicable. Unsupported options skip. Class consent
+permits only live zero-price/data-use/isolation-checked extras on those providers.
+An owner can disable with `enabled: false`. Without authority to share this material
+with OpenCode, record `not-authorized` and skip. Do not interrupt required work to seek it.
 Only the coordinator dispatches. Workers never launch extras.
 
 Use this for substantive imps review/audit, babysitter PR review, Ralph evaluation,

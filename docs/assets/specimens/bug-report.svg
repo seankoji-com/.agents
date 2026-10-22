@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" class="specimen-mark" role="img" aria-label="bug-report: a beetle with antennae">
+<defs><g id="sp-bug-report" fill="none" stroke="var(--sp-ink,#1f2a24)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+<ellipse cx="48" cy="54" rx="20" ry="27" fill="var(--sp-paper,#eef0e8)"/>
+<path d="M48 28v52M33 35l-9-13M63 35l9-13M28 46l-13-5M68 46l13-5M28 59l-13 5M68 59l13 5M33 74l-9 12M63 74l9 12"/>
+<path d="M39 28c-7-14-9-15-14-16M57 28c7-14 9-15 14-16"/>
+<path d="M35 39q13 8 26 0"/>
+</g></defs>
+<use href="#sp-bug-report" transform="translate(2.5 2.5)" style="--sp-ink:var(--sp-fern,#2f6b4f);--sp-paper:transparent"/>
+<use href="#sp-bug-report"/>
+</svg>

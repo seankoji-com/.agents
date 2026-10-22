@@ -35,7 +35,23 @@ class AlignmentTest(unittest.TestCase):
         after = after if after is not None else '{"permissions":{"allow":[]},"env":{"TOKEN":"fixture-secret"}}'
         self.target = self.file('target', before)
         self.candidate = self.file('candidate', after)
-        return align.prepare(adapter, str(self.target), str(self.candidate), keys or ['/permissions/allow'])[0]
+        plan=align.prepare(adapter, str(self.target), str(self.candidate), keys or ['/permissions/allow'])[0]
+        self.review_context=self.apply_context(plan)
+        return plan
+
+    def apply_reviewed(self,*args):
+        with patch.dict(os.environ,self.review_env):
+            return align.apply(*args)
+
+    def apply_context(self, plan):
+        from tests.test_rebuild_installed import Sandbox
+        from tests.adopter_plan_review_fixtures import reviewed_apply_context
+        if not hasattr(self,'review_box'):
+            self.review_box=Sandbox(self.root/'review-fixture')
+            self.review_package,self.review_manifest=self.review_box.install('agent-tuneup')
+        context=reviewed_apply_context(self.review_box,self.review_package,self.review_manifest,plan)
+        self.review_env = {k:self.review_box.env[k] for k in ('XDG_STATE_HOME','XDG_CONFIG_HOME','HOME')}
+        return context
 
     def test_all_catalog_instances_remain_visible_including_disabled_and_future(self):
         path = self.file('settings', '{"mcpServers":{"private-name":{"url":"https://example.invalid/fixture-secret"}}}')
@@ -97,7 +113,7 @@ class AlignmentTest(unittest.TestCase):
         original = self.target.read_bytes()
         candidate = self.candidate.read_bytes()
         backup = self.root / 'backup'
-        receipt = align.apply(plan, plan['approval_digest'], str(backup))
+        receipt = self.apply_reviewed(plan, plan['approval_digest'], str(backup), self.review_context)
         self.assertEqual(self.target.read_bytes(), candidate)
         self.assertEqual(backup.read_bytes(), original)
         self.assertEqual(stat.S_IMODE(backup.stat().st_mode), 0o600)
@@ -124,7 +140,7 @@ class AlignmentTest(unittest.TestCase):
                     plan['changed_keys'] = ['/env']
                 current = self.target.read_bytes()
                 with self.assertRaises(ValueError):
-                    align.apply(plan, approval, str(self.root / 'backup'))
+                    self.apply_reviewed(plan, approval, str(self.root / 'backup'), self.review_context)
                 self.assertEqual(self.target.read_bytes(), current)
                 self.assertFalse((self.root / 'backup').exists())
 
@@ -166,7 +182,7 @@ class AlignmentTest(unittest.TestCase):
             align.prepare('claude', str(fifo), str(self.candidate), ['/permissions/allow'])
         backup = self.file('backup', 'existing')
         with self.assertRaises(FileExistsError):
-            align.apply(plan, plan['approval_digest'], str(backup))
+            self.apply_reviewed(plan, plan['approval_digest'], str(backup), self.review_context)
         self.assertEqual(backup.read_text(), 'existing')
 
     def test_second_preflight_detects_concurrent_edit_and_keeps_backup(self):
@@ -176,7 +192,7 @@ class AlignmentTest(unittest.TestCase):
             real_write(path, raw)
             self.target.write_text('{}')
         with patch.object(align, 'write_private', mutate_after_backup), self.assertRaises(ValueError):
-            align.apply(plan, plan['approval_digest'], str(self.root / 'backup'))
+            self.apply_reviewed(plan, plan['approval_digest'], str(self.root / 'backup'), self.review_context)
         self.assertEqual(self.target.read_text(), '{}')
         self.assertTrue((self.root / 'backup').exists())
         self.assertEqual(list(self.root.glob('.t3-tuneup-*')), [])
@@ -195,7 +211,7 @@ class AlignmentTest(unittest.TestCase):
                     continue
                 plan = self.proposal(adapter, before, after, keys)
                 backup = self.root / (adapter + '-backup')
-                align.apply(plan, plan['approval_digest'], str(backup))
+                self.apply_reviewed(plan, plan['approval_digest'], str(backup), self.review_context)
                 self.assertEqual(self.target.read_text(), after)
 
     def test_new_risky_permissions_are_rejected_in_top_level_and_overrides(self):
@@ -315,7 +331,7 @@ class AlignmentTest(unittest.TestCase):
         plan = self.proposal('claude', '{"disabledMcpServers":[]}',
                              '{"disabledMcpServers":["fixture"]}', ['/disabledMcpServers'])
         backup = self.root / 'disable-backup'
-        align.apply(plan, plan['approval_digest'], str(backup))
+        self.apply_reviewed(plan, plan['approval_digest'], str(backup), self.review_context)
         self.assertEqual(json.loads(self.target.read_text())['disabledMcpServers'], ['fixture'])
         self.assertEqual(align.resources('claude', json.loads(self.target.read_text()))['mcp']['fixture'], 'disabled')
 
