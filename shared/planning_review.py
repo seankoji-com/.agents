@@ -18,6 +18,7 @@ from core.jobs.results import parse_result, ResultError
 from core.jobs.store import (Store, JobError, canonical, digest, strict_load, _regular,
                              _atomic, _retain, _authorize)
 from shared import model_selection as models
+from shared.job_coordination import freeze_provider_limits, require_admission, observed_now
 from shared.job_coordinator import (verified_pins, verify_job_pins, pinned_store,
                                     verify_all_pins, verify_pinned_dependency)
 from shared.lineage import lineage
@@ -292,6 +293,7 @@ def create(data, state_root, prefix, agents_root, environ=None):
                             'data_classes': classes}}
         with locked(registry_root(agents_root)):
             pins = verified_pins(job, state_root, prefix, agents_root)
+            freeze_provider_limits(job, pins)
             job['pins'] = pins
             meta = strict_load(_regular(Path(pins['workflow']['package_dir']) / 'plugin.json'))
             job['planning']['policy_sha256'] = digest(canonical(meta.get('planning_review')))
@@ -487,16 +489,42 @@ def _unavailable(job, candidate, slot_id):
     return latest.get('outcome') == 'unavailable' and latest.get('failure') is not None
 
 
+def _available_candidate(job, slot_id, sharing=None):
+    return next((c for c in exclusions(job, slot_id, sharing)
+                 if not c['exclusion'] and not _unavailable(job, c, slot_id)), None)
+
+
 def next_candidate(job, slot_id, sharing=None):
     need(job['planning']['round'] is not None, 'begin a counted content round first')
     need(not any(_unsettled(job, t) for t in job['tasks']), 'pending or uncertain owned review must be reconciled')
     need(not any(a['outcome'] is None for a in job['planning']['attempts']),
          'prepared attempt needs same-request reconciliation before replacement')
-    for candidate in exclusions(job, slot_id, sharing):
-        if candidate['exclusion'] or _unavailable(job, candidate, slot_id):
-            continue
-        return candidate
-    return None
+    return _available_candidate(job, slot_id, sharing)
+
+
+def _charge_prepared_attempt(subject, state, job, attempt):
+    """Charge only a durable preparation; same-request recovery charges once."""
+    round_ = state['rounds'][-1]
+    need(round_['number'] == job['planning']['round'] and not round_['closed'], 'round is closed or differs')
+    old = next((a for a in round_['attempts'] if a['request_id'] == attempt['request_id']), None)
+    if old is not None:
+        need(old == attempt, 'subject attempt binding differs')
+        return
+    need(attempt['task_id'] == 'review-' + str(state['technical_used'] + 1), 'technical attempt sequence differs')
+    used = [a for a in round_['attempts'] if a['target'] == attempt['target'] and a['slot_id'] == attempt['slot_id']]
+    need(len(used) < job['planning']['attempts_per_candidate'], 'finite candidate technical allowance exhausted')
+    need(state['technical_used'] < job['planning']['technical_limit'], 'technical attempt budget exhausted')
+    state['technical_used'] += 1
+    round_['attempts'].append(deepcopy(attempt))
+    subject.save(state)
+
+
+def _subject_attempt(state, task):
+    attempts = state['rounds'][-1]['attempts'] if state['rounds'] else []
+    old = next((a for a in attempts if a['task_id'] == task['task_id']), None)
+    need(old is not None and all(old[k] == task[k] for k in ('request_id', 'target')),
+         'prepared attempt needs same-request launch reconciliation before recording an outcome')
+    return old
 
 
 def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
@@ -506,15 +534,25 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
     """
     job = verify_all_pins(store, caller)
     policy = manifest_policy(job)
-    old = next((a for a in job['planning']['attempts'] if a['request_id'] == request_id), None)
-    if old:
-        need(old['slot_id'] == slot_id and old['outcome'] is None, 'request ID is already retained by a finished attempt')
-        task = next(t for t in job['tasks'] if t['task_id'] == old['task_id'])
-        need('brief' in task, 'incomplete launch reservation requires reconciliation')
-        return dict(task['brief'], target=old['target'], task_id=old['task_id'], request_id=request_id, mode=old['mode'])
-    need(job['planning']['round'] and not any(p['slot_id'] == slot_id for p in job['planning']['passes']), 'slot already reviewed or no round')
-    candidate = next_candidate(job, slot_id, sharing)
-    need(candidate is not None, 'all permitted children unavailable; explicit direct pass required')
+    need(job['planning']['round'] is not None, 'begin a counted content round first')
+    def retained_brief(expected):
+        def check(current):
+            manifest_policy(current)
+            attempt = next(a for a in current['planning']['attempts'] if a['request_id'] == request_id)
+            need(attempt['slot_id'] == slot_id and attempt['outcome'] is None,
+                 'request ID is already retained by a finished attempt')
+            need(expected is not None and all(attempt[k] == expected[k] for k in ('target', 'mode', 'lineage')),
+                 'request ID target binding differs')
+            task = next(t for t in current['tasks'] if t['task_id'] == attempt['task_id'])
+            need(task['target'] == expected['target'] and task['request_id'] == request_id,
+                 'prepared task binding differs')
+            need('brief' in task, 'incomplete launch reservation requires reconciliation')
+            if not any(h.get('request_id') == request_id for h in
+                       task.get('handles', []) + task.get('followups', []) + task.get('execution_history', [])):
+                require_admission(current, task)
+            return (dict(task['brief'], target=attempt['target'], task_id=task['task_id'],
+                         request_id=request_id, mode=attempt['mode']), deepcopy(attempt))
+        return store.transact(caller, check, 'prepare')
     component(request_id)
     subject = _subject(job, environ)
     with subject.transaction() as state:
@@ -523,10 +561,13 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
         need(not state['rounds'][-1]['closed'], 'round is closed')
         old = next((a for a in job['planning']['attempts'] if a['request_id'] == request_id), None)
         if old:
-            need(old['slot_id'] == slot_id and old['target'] == candidate['target'], 'request ID binding differs')
-            task = next(t for t in job['tasks'] if t['task_id'] == old['task_id'])
-            need('brief' in task, 'incomplete launch reservation requires reconciliation')
-            return dict(task['brief'], target=old['target'])
+            brief, attempt = retained_brief(_available_candidate(job, slot_id, sharing))
+            _charge_prepared_attempt(subject, state, job, attempt)
+            return brief
+        need(job['planning']['round'] and not any(p['slot_id'] == slot_id for p in job['planning']['passes']),
+             'slot already reviewed or no round')
+        candidate = next_candidate(job, slot_id, sharing)
+        need(candidate is not None, 'all permitted children unavailable; explicit direct pass required')
         used = [a for a in state['rounds'][-1]['attempts'] if a['target'] == candidate['target'] and a['slot_id'] == slot_id]
         need(len(used) < job['planning']['attempts_per_candidate'], 'finite candidate technical allowance exhausted')
         # Total technical bound survives replacement jobs. Allow enough for the initial finite chain in every round.
@@ -534,19 +575,21 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
         task_id = 'review-' + str(state['technical_used'] + 1)
         attempt = {'request_id': request_id, 'task_id': task_id, 'slot_id': slot_id, 'target': candidate['target'],
                    'mode': candidate['mode'], 'lineage': candidate['lineage'], 'outcome': None}
-        state['technical_used'] += 1
-        state['rounds'][-1]['attempts'].append(attempt)
-        subject.save(state)
         def apply(j):
             need(not any(t['request_id'] == request_id for t in j['tasks']), 'request ID already retained')
-            j['planning']['attempts'].append(deepcopy(attempt))
             j['tasks'].append({'task_id': task_id, 'stage_id': 'planning', 'logical_slot_id': task_id,
                 'request_id': request_id, 'worker_id': policy['worker_id'], 'dependency_key': 'workflow',
                 'role': 'review', 'target': candidate['target'], 'status': 'pending',
                 'attempt': 0, 'handles': [], 'followups': [], 'dispatch_retries': 0,
                 'write_scope': {'mode': 'worker-evidence', 'path': 'artifacts/tasks/' + task_id}})
-        store.transact(caller, apply)
-        brief = prepare(store, caller, task_id, verify_pinned_dependency, lambda _: False, 'explicit planning panel/availability candidate')
+            require_admission(j, j['tasks'][-1])
+            j['planning']['attempts'].append(deepcopy(attempt))
+        brief = prepare(store, caller, task_id, verify_pinned_dependency, lambda _: False,
+                        'explicit planning panel/availability candidate', bind_inputs=apply)
+        # A failed job transaction cannot charge the subject. If this save fails
+        # after preparation commits, return no brief; replay recovers the charge
+        # under the subject lock before exposing the same durable reservation.
+        _charge_prepared_attempt(subject, state, job, attempt)
         return dict(brief, target=candidate['target'], mode=candidate['mode'], task_id=task_id, request_id=request_id)
 
 
@@ -554,6 +597,9 @@ def host_event(store, caller, task_id, event):
     """Use generic lifecycle correlation and sticky host-identity mismatch rules."""
     job = verify_all_pins(store, caller)
     manifest_policy(job)
+    need(not isinstance(event, dict) or 'recorded_at' not in event,
+         'recorded_at is local receipt time and cannot be supplied')
+    if isinstance(event, dict): event = {**event, 'recorded_at': observed_now()}
     return record_dispatch(store, caller, task_id, event)
 
 
@@ -581,20 +627,19 @@ def unavailable(store, caller, task_id, failure, environ=None):
     with subject.transaction() as state:
         _unchanged(store, job)
         _active(state, store)
+        old = _subject_attempt(state, task)
         def apply(j):
             attempt = next(a for a in j['planning']['attempts'] if a['task_id'] == task_id)
             need(attempt['outcome'] is None, 'attempt already has an outcome')
             attempt.update(outcome='unavailable', failure=deepcopy(failure), owned_handles=deepcopy(handles))
             task_ = next(t for t in j['tasks'] if t['task_id'] == task_id)
             task_['status'] = 'failed'
-            if handles:
-                # This is the terminal host failure receipt, explicitly not a
-                # worker result. It discharges the unread terminal obligation.
-                task_.setdefault('execution_history', []).append({'request_id': task_['request_id'],
-                    'technical_failure': deepcopy(failure), 'accepted_execution': False})
+            # The correlated failure settles this reservation even without a host
+            # handle. It is not a worker result or a substantive assessment.
+            task_.setdefault('execution_history', []).append({'request_id': task_['request_id'],
+                'technical_failure': deepcopy(failure), 'accepted_execution': False})
             return deepcopy(attempt)
         updated = store.transact(caller, apply)
-        old = next(a for a in state['rounds'][-1]['attempts'] if a['task_id'] == task_id)
         old.update(updated)
         subject.save(state)
         return updated
@@ -761,6 +806,7 @@ def ingest(store, caller, task_id, raw, completion_id, environ=None):
         _unchanged(store, job)
         _active(state, store)
         need(not state['rounds'][-1]['closed'], 'round is closed')
+        subject_attempt = _subject_attempt(state, task)
         _charge(state)
         subject.save(state)
         record_result(store, caller, task_id, {'request_id': task['request_id'], 'completion_id': completion_id, 'result': raw})
@@ -831,7 +877,7 @@ def ingest(store, caller, task_id, raw, completion_id, environ=None):
             j['planning']['passes'].append(pass_)
         store.transact(caller, apply)
         state['rounds'][-1]['passes'].append(pass_)
-        next(a for a in state['rounds'][-1]['attempts'] if a['task_id'] == task_id)['outcome'] = outcome
+        subject_attempt['outcome'] = outcome
         subject.save(state)
         return pass_
 
@@ -1101,6 +1147,8 @@ def release(store, caller, environ=None):
     """Release a completed/stopped job without erasing subject history or budget."""
     job = verify_all_pins(store, caller)
     need(not any(_unsettled(job, t) for t in job['tasks']), 'live/uncertain jobs cannot be replaced')
+    need(not any(a['outcome'] is None for a in job['planning']['attempts']),
+         'prepared attempt needs same-request reconciliation before release')
     subject = _subject(job, environ)
     with subject.transaction() as state:
         _unchanged(store, job)

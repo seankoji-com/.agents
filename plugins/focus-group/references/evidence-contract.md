@@ -110,8 +110,9 @@ own cell's first-impression host task: `not_fresh_child` contaminates the journe
 only, because that first impression was frozen before the journey brief existed.
 
 Each event's explicit `path`, `file_path` or `paths[]` is checked whatever the tool.
-A read or write may touch only these two exact briefs, the plan's pack files and the task's own
-`artifacts/tasks/<task-id>/` subtree, after resolving symlinks and `..`. Another
+A read or write may touch only the generated Markdown brief, the prepared JSON
+brief when the execution belongs to a generic job, the plan's pack files and the
+task's own `artifacts/tasks/<task-id>/` subtree, after resolving symlinks and `..`. Another
 task's artifacts are `read_other_task`, including a journey reading its first
 impression's directory (it gets that response through its brief), and anything else
 is `read_outside_brief`. A `cmd` or `command` is opaque: it is never parsed or run,

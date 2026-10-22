@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tests.focus_group_install_fixtures import (  # noqa: E402
-    HandoffHost, RelocatedInstallCase, STATE, Swap, audit_rows, audited,
+    HandoffHost, PristineFixture, RelocatedInstallCase, STATE, Swap, audit_rows, audited,
     setUpModule, sha, tearDownModule,
 )
 
@@ -128,14 +128,17 @@ class RelocatedInstallTest(RelocatedInstallCase):
         self.adopt()
         cases = ('basis', 'observed', 'inferred', 'size', 'bytes-string', 'bytes-bool',
                  'markdown-hash', 'outer-hash', 'binding', 'missing-image-receipts')
+        base = STATE['base'] / 'handoff-negative'
+        base.mkdir()
+        with Swap(self.inst, self.inst['env'], base):
+            h = HandoffHost(base, self.inst['package'])
+            h.start(mode='capture-only')
+            run = h.begin()
+        pristine = PristineFixture(base, h, run)
         for case in cases:
             with self.subTest(case=case):
-                base = STATE['base'] / f'handoff-{case}'
-                base.mkdir()
+                h, run = pristine.restore()
                 with Swap(self.inst, self.inst['env'], base):
-                    h = HandoffHost(base, self.inst['package'])
-                    h.start(mode='capture-only')
-                    run = h.begin()
                     self.assertEqual(h.trace(run)[0], 0)
                     if case == 'basis':
                         run['payload']['image_use']['basis'] = 'I read every screenshot'

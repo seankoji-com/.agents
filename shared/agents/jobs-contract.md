@@ -21,9 +21,45 @@ worker IDs, dependency key, authority, target, write scope and result contract. 
 include exact immutable package/bundle hashes, physical base/shared definitions,
 effective UTF-8 bytes and hashes, override status/bytes/hash and task-contract bytes.
 The job policy freezes positive artifact-byte limits, optional worker capacity and
-nonnegative repair limits. Default repairs are 3; artifact transport defaults to 16 MiB.
+nonnegative repair limits. Default repairs are 20 after the initial pass; artifact transport defaults to 16 MiB.
 Explicit larger artifact limits are supported. A subsequent increase needs an owner
 record; a narrowed limit retains already performed counters.
+
+### Resume views and capacity
+
+The installed `overview --compact` and `status --compact` return at most 16 KiB per
+page, with 20 records by default (`--limit` accepts 1–100). `counts` and `next_cursor`
+make omissions explicit; follow every cursor for remaining obligations. Full history
+stays in `job.json`; plain `overview` and `status` retain full output. Save
+`view_sha256` and pass `--since SHA` for a later unchanged resume. A matching digest
+returns `changed: false` without replaying history. `--cursor TOKEN` binds a page to
+the complete derived view; stale cursors fail, and cannot combine with `--since`.
+The CLI rechecks receipt/artifact freshness first. Views never run validators, mint
+acceptance, mutate state or charge repairs. The shared adapter owns rendering;
+the generic store keeps its original full overview interface.
+
+`admission` reports job-local capacity advice. `policy.max_live_workers_by_provider`
+maps exact live provider instance IDs to positive limits. Missing providers use only
+the global cap; host-wide capacity remains T3's responsibility. New jobs freeze
+configured limits. Raising or removing a cap requires an owner-bound plan revision.
+Preparation binds inputs and reserves capacity in one transaction; concurrent brief
+preparations cannot overfill a cap. Prepared follow-ups, uncertain launches and
+terminal handles with pending work count too. The helper neither dispatches nor
+schedules. A denied preparation writes no partial binding.
+
+A host refusal uses `capacity-deferred` with reason `capacity` or `rate-limit`.
+Only unlaunched, non-uncertain requests may release a reservation. Record a new owned
+completion ID through the same event before retry preparation; each completion grants
+one retry. Already launched handles remain owned even if they exceed a cap.
+
+CLI views add derived `coordination_metrics`: accepted stages, retained repair cycles,
+unchanged observations, capacity/rate-limit deferrals, decision requests and result
+transport bytes. Resolved decision waits sum local receipt intervals, including
+overlaps; they are not host execution or human attention time. `task-observation`
+and planning `host-event` reject caller-supplied `recorded_at` and stamp local receipt time. Missing historical
+sizes/timestamps, host tokens and execution duration stay explicitly unknown.
+Idempotently ignored completion deliveries cannot be counted. These metrics never
+decide acceptance or alter the stored repair allowance.
 
 Mutation input includes `caller: {actor,installation_id,workflow,package_digest}`.
 The actor must be explicit. Coordinators alone prepare, dispatch-record, ingest,
@@ -34,7 +70,7 @@ fail before writes. Shared library callers supply the stored-pin verifier throug
 `pinned_store`; installed CLIs also verify their executing package. These checks
 record declared ownership; they are not cryptographic proof of operator intent.
 
-Commands are `create`, `overview`, `status`, `prepare`, `result`,
+Commands are `create`, `overview`, `status`, `admission`, `prepare`, `result`,
 `task-observation`, `followup-prepare`, `observation`, `finding-disposition`, `decision`, `plan-revision`, `document-revision`, `retry`, `cancel`, `discard`.
 A decision needs a stable ID, literal quote, absolute source-file path, matching
 source SHA-256 and scope. The quote must occur in the actual UTF-8 source bytes.
@@ -77,7 +113,7 @@ separate disposition; a blocker/major forces an adverse verdict. Waivers must ca
 Duplicate completions are idempotent. Unusable accepted executions consume their
 attempt; a new request or resume cannot reset the counters.
 
-Initial pass 0 plus repairs 1–3 are shared across primary/support/review failures.
+Initial pass 0 plus repairs 1 through the pinned `max_repair_cycles` are shared across primary/support/review failures.
 Failed slots in one pass share the same next cycle; eligible current successful
 support evidence can remain. Preparation records the stage pass an execution belongs
 to (`cycle`), so a slot first executed in a later pass is charged a new pass when it
@@ -123,7 +159,7 @@ bind the arguments and files the adapter actually consumes. Imps descriptors bin
 state_root/run_id or state_root/final_plan; document handoff descriptors bind
 root/slug/mode. A pre-check semantic generation and all real input/program hashes
 are captured before execution. Changed input during checks cannot be certified
-retroactively. Execution and acceptance share stage pass 0 plus repairs 1–3. Validation of
+retroactively. Execution and acceptance share stage pass 0 plus the pinned repair allowance. Validation of
 the current execution uses that pass; repeating standalone validation advances
 the same counter. Worker stages require fresh charged execution after a failed
 pass. Read-only receipt checks do not consume another pass. Failed passes remain charged; receipts are immutable, sequenced and

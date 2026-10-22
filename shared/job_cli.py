@@ -9,9 +9,12 @@ from shared.worker_registry import job_agents_roots,record_job_root
 from core.jobs.store import Store,JobError,strict_load
 
 def main(argv=None):
- p=argparse.ArgumentParser();p.add_argument('command',choices=['create','overview','status','prepare','result','task-observation','followup-prepare','observation','direct-execution','finding-disposition','decision','plan-revision','upgrade-package','document-revision','retry','cancel','discard']);p.add_argument('--state-root',required=True);p.add_argument('--job',required=True);p.add_argument('--input');p.add_argument('--prefix');p.add_argument('--agents-root');p.add_argument('--config');p.add_argument('--capabilities')
+ p=argparse.ArgumentParser();p.add_argument('command',choices=['create','overview','status','admission','prepare','result','task-observation','followup-prepare','observation','direct-execution','finding-disposition','decision','plan-revision','upgrade-package','document-revision','retry','cancel','discard']);p.add_argument('--state-root',required=True);p.add_argument('--job',required=True);p.add_argument('--input');p.add_argument('--prefix');p.add_argument('--agents-root');p.add_argument('--config');p.add_argument('--capabilities')
+ p.add_argument('--compact',action='store_true');p.add_argument('--since');p.add_argument('--cursor');p.add_argument('--limit',type=int,help='compact page records (default: 20; maximum: 100)')
  a=p.parse_args(argv)
  try:
+  if (a.compact or a.since is not None or a.cursor is not None or a.limit is not None) and a.command not in ('overview','status'):raise JobError('compact options require overview or status')
+  if (a.since is not None or a.cursor is not None or a.limit is not None) and not a.compact:raise JobError('--since, --cursor and --limit require --compact')
   store=pinned_store(a.state_root,a.job)  # unsafe job IDs are invalid input, refused before any state access
   if a.command=='create' and (not a.prefix or not a.agents_root):raise JobError('create requires --prefix and --agents-root')
   if a.command!='create':
@@ -31,7 +34,7 @@ def main(argv=None):
    data.setdefault('policy',{})['model_selection_required']=True
    for task in data.get('tasks',[]):selection_for_task(data,task)
    out=create_pinned_job(data,a.state_root,a.prefix,a.agents_root,a.config)
-  elif a.command in ('overview','status'):
+  elif a.command in ('overview','status','admission'):
    job=store.load();invalid=[]
    for stage in job['stages']:
     if stage.get('status')=='accepted-at-snapshot' and not validate_stage(store,stage['id'],run_validator=False).get('accepted'):invalid.append(stage['id'])
@@ -46,7 +49,12 @@ def main(argv=None):
      for stage in state['stages']:
       if stage['id'] in pending:stage['status']='stale';stage['acceptance']=None
     stale(job)
-   out=store.overview(job,persist=False)
+   if a.command=='admission':
+    from shared.job_coordination import admission
+    out=admission(job)
+   else:
+    from shared.job_coordination import overview
+    out=overview(store,job,compact=a.compact,since=a.since,cursor=a.cursor,limit=20 if a.limit is None else a.limit)
   elif a.command=='prepare':out=prepare_task(store,data['caller'],data['task_id'],lambda dep,pin:verify_pinned_dependency(dep,pin),lambda stage_id:validate_stage(store,stage_id).get('accepted') is True,data.get('target_reason','configured worker'))
   elif a.command=='result':
    from core.jobs.store import _regular
@@ -91,6 +99,6 @@ def main(argv=None):
   elif a.command=='decision':out=decision(store,data['caller'],data['decision'])
   elif a.command=='cancel':out=cancel(store,data['caller'],data['reason']);record_job_root(job_agents_roots(out['pins']),a.state_root,a.job,'cancelled')
   else:out=discard(store,data['caller'],data['reason']);record_job_root(job_agents_roots(out['pins']),a.state_root,a.job,'discarded')
-  print(json.dumps(out,ensure_ascii=False,sort_keys=True));return 0
+  print(json.dumps(out,ensure_ascii=False,sort_keys=True,**({'separators':(',',':')} if a.compact else {})));return 0
  except (JobError,KeyError,TypeError,ValueError,OSError,RecursionError) as e:print(f'job_error: {e}',file=sys.stderr);return 2
 if __name__=='__main__':raise SystemExit(main())

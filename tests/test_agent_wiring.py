@@ -129,6 +129,7 @@ class WiringTest(unittest.TestCase):
         self.assertGreaterEqual(len(result['skill_roots']), 3)
         duplicates = [f for f in result['findings'] if f['code'] == 'duplicate_skill_discovery']
         self.assertEqual(len(duplicates), 1)
+        self.assertEqual(duplicates[0]['location'], 'wiring.skill_roots[2]')
         root_number = int(duplicates[0]['location'].split('[')[1].split(']')[0])
         self.assertEqual(result['skill_roots'][root_number]['provider'], 0)
 

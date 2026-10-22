@@ -10,8 +10,10 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from core.jobs.store import canonical, digest
+from core.jobs import store as job_store
+from core.jobs.store import canonical, digest, JobError
 from shared import model_selection as models
 from shared import planning_review as planning
 from tests.model_selection_fixtures import selection_input, replacement, answer
@@ -174,6 +176,152 @@ class PlanningReviewTests(unittest.TestCase):
         self.write('unrelated.py', 'UNRELATED = 2\n')
         self.cli('validate', {'reference': reference})
 
+    def test_prepare_failure_does_not_charge_subject(self):
+        for failure in ('brief', 'schema'):
+            with self.subTest(failure=failure):
+                if self.caller:
+                    self.setUp()
+                self.create(begin=False)
+                store = planning.pinned_store(self.box.jobs, self.job_id)
+                subject = Path(self.created['subject_file'])
+                before = (store.file.read_bytes(), subject.read_bytes())
+                self.assertIn('begin a counted content round', self.cli('launch', {
+                    'slot_id': 'review', 'request_id': 'before-begin'}, ok=False))
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+                self.cli('begin')
+                before = (store.file.read_bytes(), subject.read_bytes())
+                validate = job_store.validate
+                def reject_prepared(job):
+                    validate(job)
+                    if job['tasks']:
+                        raise JobError('fixture post-binding schema rejection')
+                    return job
+                injection = (patch('core.jobs._retain', side_effect=JobError('fixture brief write rejection'))
+                             if failure == 'brief' else patch.object(job_store, 'validate', reject_prepared))
+                with injection, self.assertRaisesRegex(JobError, 'fixture'):
+                    planning.launch(store, self.caller, 'review', 'failed-prepare', environ=self.box.env)
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+                attempt = self.cli('launch', {'slot_id': 'review', 'request_id': 'failed-prepare'})
+                self.assertEqual(attempt['task_id'], 'review-1')
+                self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 1)
+
+    def test_committed_preparation_recovers_subject_charge_once(self):
+        for failure in ('subject-save', 'overview-after-commit'):
+            with self.subTest(failure=failure):
+                if self.caller:
+                    self.setUp()
+                self.create()
+                store = planning.pinned_store(self.box.jobs, self.job_id)
+                subject = Path(self.created['subject_file'])
+                before = subject.read_bytes()
+                injection = (patch.object(planning.Subject, 'save', side_effect=OSError('fixture interrupted save'))
+                             if failure == 'subject-save' else
+                             patch.object(store, 'overview', side_effect=OSError('fixture interrupted overview')))
+                payload = {'slot_id': 'review', 'request_id': 'recover-charge'}
+                with injection, self.assertRaisesRegex(OSError, 'fixture interrupted'):
+                    planning.launch(store, self.caller, **payload, environ=self.box.env)
+                prepared = store.file.read_bytes()
+                self.assertEqual(subject.read_bytes(), before)
+                self.assertEqual(len(store.load()['tasks']), 1)
+                self.assertIn('brief', store.load()['tasks'][0])
+                self.assertIn('same-request', self.cli('launch', dict(payload, request_id='replacement'), ok=False))
+                self.assertIn('same-request', self.cli('release', ok=False))
+                replay = self.cli('launch', payload)
+                self.assertEqual(replay['task_id'], 'review-1')
+                self.assertEqual(store.file.read_bytes(), prepared)
+                charged = subject.read_bytes()
+                state = json.loads(charged)
+                self.assertEqual(state['technical_used'], 1)
+                self.assertEqual(state['rounds'][-1]['attempts'], store.load()['planning']['attempts'])
+                self.cli('launch', payload)
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), (prepared, charged))
+
+    def test_retained_replay_rejects_changed_target(self):
+        self.create()
+        attempt = self.attempt()
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        def drift(job):
+            job['planning']['attempts'][0]['target']['model'] = 'different-fixture-model'
+        store.mutate(self.caller, drift)
+        subject = Path(self.created['subject_file'])
+        before = (store.file.read_bytes(), subject.read_bytes())
+        self.assertIn('target binding differs', self.cli('launch', {
+            'slot_id': 'review', 'request_id': attempt['request_id']}, ok=False))
+        self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+
+    def test_uncharged_attempt_refuses_outcomes_without_writes(self):
+        self.create()
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        subject = Path(self.created['subject_file'])
+        payload = {'slot_id': 'review', 'request_id': 'interrupted-charge'}
+        with patch.object(planning.Subject, 'save', side_effect=OSError('fixture interrupted charge')):
+            with self.assertRaises(OSError):
+                planning.launch(store, self.caller, **payload, environ=self.box.env)
+        task = store.load()['tasks'][0]
+        attempt = dict(task['brief'], target=task['target'], mode='cross-lineage')
+        before = (store.file.read_bytes(), subject.read_bytes())
+        failure = {'kind': 'technical', 'tool': 'fixture-delegate', 'call_id': 'fixture-failed-call',
+                   'request_id': payload['request_id'], 'receipt': {'error': 'fixture prelaunch refusal'},
+                   'prelaunch': True}
+        self.assertIn('same-request launch reconciliation', self.cli('unavailable', {
+            'task_id': task['task_id'], 'failure': failure}, ok=False))
+        self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+        self.assertIn('same-request', self.cli('release', ok=False))
+        self.assertIn('same-request', self.cli('launch', dict(payload, request_id='replacement'), ok=False))
+        # Even an observed owned completion cannot ingest material before replay
+        # recovers the durable technical charge. Host observations do not dispatch.
+        self.event(attempt)
+        before = (store.file.read_bytes(), subject.read_bytes())
+        raw = self.write('unreconciled-result.json', '{}')
+        self.assertIn('same-request launch reconciliation', self.cli('result', {
+            'task_id': task['task_id'], 'result_file': str(raw), 'completion_id': 'uncharged-completion'}, ok=False))
+        self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+        replay = self.cli('launch', payload)
+        self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 1)
+        self.assertEqual(self.result(replay, observe=False)['outcome'], 'approved')
+        self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 1)
+
+    def test_owned_request_replay_is_read_only(self):
+        self.create()
+        attempt = self.attempt()
+        event = self.event(attempt, status='running')
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        subject = Path(self.created['subject_file'])
+        for phase in ('accepted', 'completed'):
+            with self.subTest(phase=phase):
+                if phase == 'completed':
+                    event.update(kind='completion', completion_id='replay-completion', status='completed',
+                                 work_state='result_available')
+                    self.cli('host-event', {'task_id': attempt['task_id'], 'event': event})
+                before = (store.file.read_bytes(), subject.read_bytes())
+                replay = self.cli('launch', {'slot_id': 'review', 'request_id': attempt['request_id']})
+                for key in ('path', 'sha256', 'target', 'task_id', 'request_id', 'mode'):
+                    self.assertEqual(replay[key], attempt[key])
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+
+    def test_host_event_uses_local_receipt_time(self):
+        self.create()
+        attempt = self.attempt()
+        event = self.event(attempt, status='running')
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        subject = Path(self.created['subject_file'])
+        for kind in ('identity', 'approval-wait', 'approval-resolved'):
+            for stamp in ('1999-01-01T00:00:00+00:00', '2099-01-01T00:00:00+00:00', None):
+                before = (store.file.read_bytes(), subject.read_bytes())
+                supplied = dict(event, kind=kind, wait_id='owner-choice', recorded_at=stamp)
+                self.assertIn('local receipt time', self.cli('host-event', {
+                    'task_id': attempt['task_id'], 'event': supplied}, ok=False))
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+        for kind, stamp in (('approval-wait', '2026-01-01T00:00:00+00:00'),
+                            ('approval-resolved', '2026-01-01T00:00:30+00:00')):
+            observation = dict(event, kind=kind, wait_id='owner-choice')
+            with patch('shared.planning_review.observed_now', return_value=stamp):
+                planning.host_event(store, self.caller, attempt['task_id'], observation)
+            self.assertNotIn('recorded_at', observation)
+            self.assertEqual(store.load()['tasks'][0]['dispatch_history'][-1]['recorded_at'], stamp)
+        from shared.job_coordination import coordination_metrics
+        self.assertEqual(coordination_metrics(store.load())['resolved_decision_wait_seconds'], 30)
+
     def test_separate_manifest_policy_and_stronger_slot_relabelling_refused(self):
         self.snapshot = self.cli('capture', self.snapshot_data)
         self.selection_data['scope_id'] = self.snapshot['logical_output_id']
@@ -189,6 +337,52 @@ class PlanningReviewTests(unittest.TestCase):
         bad = self.cli('capture', self.snapshot_data)
         payload.update(plugin='imps', snapshot=bad)
         self.assertIn('not permitted', self.cli('create', payload, ok=False))
+
+    def test_provider_limits_freeze_and_installed_launch_refuses_without_charging(self):
+        config = self.box.config / 't3-plugins/workers.json'
+        old = config.read_bytes() if config.exists() else None
+        self.addCleanup(lambda: config.write_bytes(old) if old is not None else config.unlink())
+        config.parent.mkdir(parents=True, exist_ok=True)
+        target = self.selection_data['review_panel'][0]['target']
+        caps = {target['providerInstanceId']: 1}
+        config.write_text(json.dumps({'schema_version': 1, 'max_live_workers': None,
+            'max_live_workers_by_provider': caps, 'max_repair_cycles': 20, 'overrides': []}))
+        self.create(installed=True)
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        self.assertEqual(store.load()['policy']['max_live_workers_by_provider'], caps)
+        held = {'kind': 'conflicting-host-handle', 'task_id': 'retained-task',
+                'request_id': 'retained-request', 'host_task_id': 'retained-host'}
+        store.mutate(self.caller, lambda job: job.setdefault('blockers', []).append(held))
+        before_job = store.file.read_bytes()
+        subject = Path(self.created['subject_file'])
+        before_subject = subject.read_bytes()
+        payload = {'slot_id': 'review', 'request_id': self.job_id + '-admission'}
+        self.assertIn('provider_worker_limit', self.cli('launch', payload, ok=False, installed=True))
+        self.assertEqual(store.file.read_bytes(), before_job)
+        self.assertEqual(subject.read_bytes(), before_subject)
+        def settled(job):
+            job['blockers'][-1]['reconciled'] = {'status': 'cancelled',
+                'work_state': 'result_available', 'has_pending_child_runs': False}
+        store.mutate(self.caller, settled)
+        attempt = self.cli('launch', payload, installed=True)
+        from shared.job_coordination import coordination_metrics, occupancy
+        self.assertEqual(len(occupancy(store.load())), 1)
+        before_job, before_subject = store.file.read_bytes(), subject.read_bytes()
+        replay = self.cli('launch', payload, installed=True)
+        for key in ('path', 'sha256', 'target', 'task_id', 'request_id', 'mode'):
+            self.assertEqual(replay[key], attempt[key])
+        self.assertEqual(store.file.read_bytes(), before_job)
+        self.assertEqual(subject.read_bytes(), before_subject)
+        self.cli('host-event', {'task_id': attempt['task_id'],
+            'event': {'kind': 'capacity-deferred', 'request_id': attempt['request_id']}})
+        before_job, before_subject = store.file.read_bytes(), subject.read_bytes()
+        self.assertIn('owned_completion_required', self.cli('launch', payload, ok=False, installed=True))
+        self.assertEqual(store.file.read_bytes(), before_job)
+        self.assertEqual(subject.read_bytes(), before_subject)
+        self.unavailable(attempt)
+        self.assertEqual(occupancy(store.load()), [])
+        self.assertEqual(coordination_metrics(store.load())['executions_with_results'], 0)
+        self.assertEqual(len(json.loads(subject.read_text())['rounds'][-1]['attempts']), 1)
 
     def test_missing_and_tampered_selection_refused(self):
         self.selection_data['source']['sha256'] = '0'*64

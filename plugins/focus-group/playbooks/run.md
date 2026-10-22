@@ -116,6 +116,9 @@ For each slot, in dependency order:
    ID, then record the handle with `job_cli.py task-observation` (`accepted`, with
    the host's status identity). Every participant task is a fresh child; never
    continue a participant through a follow-up or a message to its thread.
+   Shared preparation also reserves global/provider capacity. On `admission_deferred`,
+   retain the charged request and wait for an owned completion; reconcile and re-admit
+   the same ID before preparing again. Never reset its charge or issue a replacement ID.
 3. A lost `delegate_task` response is recorded as `uncertain` and retried with the
    same request ID; admission returns `duplicate: true` and charges nothing. Its
    pilot is checked again first: if the pilot no longer passes, the duplicate is

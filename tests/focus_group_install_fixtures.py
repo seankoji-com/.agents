@@ -6,6 +6,7 @@ import copy
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -109,6 +110,38 @@ def audited(env, base):
 def audit_rows(base):
     log = base / 'audit.jsonl'
     return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+
+
+class PristineFixture:
+    """Restore real setup bytes at the same path; never rewrite signed absolute bindings."""
+
+    def __init__(self, base, *values):
+        self.base = base
+        self.saved = base.with_name(base.name + '-pristine')
+        self.values = copy.deepcopy(values)
+        self.files = self.manifest(base)
+        shutil.copytree(base, self.saved, symlinks=True)
+
+    @staticmethod
+    def manifest(base):
+        rows = {}
+        for path in (base, *base.rglob('*')):
+            mode = path.lstat().st_mode & 0o777
+            if path.is_symlink():
+                value = ('link', mode, os.readlink(path))
+            elif path.is_dir():
+                value = ('directory', mode)
+            else:
+                value = ('file', mode, sha(path.read_bytes()))
+            rows[str(path.relative_to(base))] = value
+        return rows
+
+    def restore(self):
+        shutil.rmtree(self.base)
+        shutil.copytree(self.saved, self.base, symlinks=True)
+        if self.manifest(self.base) != self.files:
+            raise AssertionError('pristine fixture bytes, permissions or links changed')
+        return copy.deepcopy(self.values)
 
 
 def run_installed(package, script, *args, env, cwd, python=sys.executable):

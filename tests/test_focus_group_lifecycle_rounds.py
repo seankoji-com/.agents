@@ -796,11 +796,17 @@ class ReviewRoundTest(Case):
         base = self.r11_admitted_then_old_host_reopens()
         self.assertEqual(base['charged'], {'first': 2})
         self.held_by_capacity(base, 'admitted-not-prepared')
-        # The shared job can still freeze its brief; the hold stays until capacity is free.
-        self.assertEqual(h.prepare('fi-02')['request_id'], 'fi-02-r0')
-        self.held_by_capacity(base, 'prepared-not-dispatched')
+        # Brief preparation now reserves shared job capacity. A denied reservation
+        # changes neither the job nor the study's already charged request.
+        before = h.job_state()
+        code, error = h.job('prepare', {'caller': h.caller, 'task_id': 'fi-02'})
+        self.assertEqual(code, 2)
+        self.assertIn('admission_deferred: global_worker_limit', error)
+        self.assertEqual(h.job_state(), before)
+        self.held_by_capacity(base, 'admitted-not-prepared')
         # Only the old host's own terminal reading without pending runs frees it: the same ID then starts, uncharged.
         self.assertEqual(h.complete('fi-01', 'fi-01-r0', base['run']['host'], None, kind='reconciled')[0], 0)
+        self.assertEqual(h.prepare('fi-02')['request_id'], 'fi-02-r0')
         code, out = h.admit_slot(1, 'first-impression', 'fi-02-r0')
         self.assertEqual((code, out['data']['duplicate'], out['data']['charged'], out['data']['host_started']),
                          (0, True, False, False), out)

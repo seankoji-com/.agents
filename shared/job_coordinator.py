@@ -45,6 +45,8 @@ def selection_plan_revision(current, proposed):
     The core persists these generic contract fields in the same transaction as the
     task revision. Existing findings, rounds and history are never replaced here.
     """
+    from shared.job_coordination import provider_limits
+    provider_limits({**current.get('policy', {}), **proposed.get('policy', {})}.get('max_live_workers_by_provider', {}))
     if not current.get('policy', {}).get('model_selection_required'):
         return
     from shared.model_selection import validate, prospective
@@ -221,6 +223,8 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
                 stage['document_authors'] = import_subject_authors({'path': path, 'sha256': sha256})
     with locked(registry_root(agents_root)):
         pins=verified_pins(job,state_root,prefix,agents_root,config_path)
+        from shared.job_coordination import freeze_provider_limits
+        freeze_provider_limits(job,pins)
         added=record_job_root(job_agents_roots(pins),state_root,job['job_id'])
     try:return create_job(job,state_root,pins)
     except BaseException:
@@ -289,6 +293,8 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
             from shared.ape_planning import validate_job
             validate_job(job)
         task = next(t for t in job['tasks'] if t['task_id'] == task_id)
+        from shared.job_coordination import require_admission
+        require_admission(job, task)
         from shared.document_authors import validate_cold_reader_scope
         validate_cold_reader_scope(task)
         from shared.adopter_planning import validate_job as validate_adopter_job
@@ -324,8 +330,7 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
             except AcceptanceError as exc:
                 raise JobError(str(exc)) from exc
         validate_adopter_job(job, task.get('stage_id'))
-    store.transact(caller, bind, 'prepare')
-    return prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason)
+    return prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason, bind_inputs=bind)
 
 
 TERMINAL = ('completed', 'failed', 'cancelled', 'interrupted')
@@ -383,13 +388,19 @@ def record_observation(store, caller, task_id, event):
     retained conflicting host ID are recorded here; other kinds go to core.
     """
     from core.jobs import record_dispatch
+    from shared.job_coordination import observed_now
+    if isinstance(event, dict) and 'recorded_at' in event:
+        raise JobError('recorded_at is local receipt time and cannot be supplied')
+    if isinstance(event, dict): event = {**event, 'recorded_at': observed_now()}
+    if isinstance(event, dict) and event.get('kind') == 'capacity-deferred' and event.get('reason', 'capacity') not in ('capacity', 'rate-limit'):
+        raise JobError('capacity deferral reason must be capacity or rate-limit')
     if isinstance(event, dict) and event.get('kind') in ('uncertain', 'reconciled'):
         if store.transact(caller, lambda job: _shared_observation(job, task_id, event), 'task-observation') is True:
             return store.load()
     try:
         return record_dispatch(store, caller, task_id, event)
     except JobError as exc:
-        if 'request already has an accepted host handle' not in str(exc):
+        if 'request already has an accepted host handle' not in str(exc) or not event.get('host_task_id'):
             raise
         conflict = {key: event.get(key) for key in ('request_id', 'host_task_id', 'parent_host_task_id', 'child_thread_id')}
         conflict.update(observation_kind=event.get('kind'), reason=str(exc))
@@ -433,6 +444,8 @@ def prepare_followup(store, caller, task_id, request_id):
     from core.jobs import _open_dispatch, _slot_followups, _spent, _uningested
     def apply(job):
         task = next(t for t in job['tasks'] if t['task_id'] == task_id)
+        from shared.job_coordination import require_admission
+        require_admission(job, task, request_id=request_id)
         stage = next(s for s in job['stages'] if s['id'] == task['stage_id'])
         selection_for_task(job, task)
         if task.get('role') == 'review':

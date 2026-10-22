@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tests.focus_group_install_fixtures import (  # noqa: E402
     BEFORE, MODEL_ID, OPERATIONS, PLUGIN_MODULES, SHARED_CONTRACTS, STATE, WORKERS,
-    InstalledHost, RelocatedInstallCase, Swap, audit_rows, audited, catalog, fg3, fg4,
+    InstalledHost, PristineFixture, RelocatedInstallCase, Swap, audit_rows, audited, catalog, fg3, fg4,
     install, run_installed, setUpModule, sha, tearDownModule,
 )
 
@@ -208,10 +208,21 @@ class DamagedPackageTest(unittest.TestCase):
     """A missing bundled asset, a changed helper and an incomplete worker bundle are each refused by the installed
     doctor, the catalog doctor and job creation; restoring the bytes makes the same package acceptable again."""
 
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.tmp.cleanup)
+        seed = cls()
+        seed.base = Path(cls.tmp.name).resolve() / 'case'
+        seed.base.mkdir()
+        seed.prepare_fixture()
+        cls.pristine = PristineFixture(seed.base, seed.inst, seed.h, seed.job_spec)
+
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.base = Path(self.tmp.name).resolve()
+        self.base = self.pristine.base
+        self.inst, self.h, self.job_spec = self.pristine.restore()
+
+    def prepare_fixture(self):
         self.inst = install(self.base)
         work = self.base / 'work'
         work.mkdir()

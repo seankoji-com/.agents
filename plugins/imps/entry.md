@@ -76,7 +76,7 @@ recorded children, then finish missing evidence. Reverify stale evidence.
 Major-version-1 runs require the previous installed package; activate it without
 rewriting state.
 
-**status <run-id>.** Run it directly. For a job, print the `job_cli.py overview`.
+**status <run-id>.** Run directly. For jobs, print `job_cli.py overview --compact`; follow `next_cursor`.
 Otherwise read `status`, `validate` and `report`. Change no observations.
 
 **cancel <run-id>.** For a job, cancel as `PKG/references/jobs.md` says. Otherwise
