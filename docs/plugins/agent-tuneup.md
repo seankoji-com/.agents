@@ -220,7 +220,9 @@ Use `apply --plan <path>` only after approving that concrete plan.
 
 For multiple settings plans, first run `align.py preflight --batch FILE`, where
 `FILE` is a private array of `{"plan":"/absolute/plan.json",
-"backup":"/absolute/new-backup"}` records. Keep the existing plan input and
+"backup":"/absolute/new-backup"}` records. Each record must have exactly those
+two keys with nonempty string values; missing or extra keys return `invalid_batch`.
+Keep the existing plan input and
 not-yet-existing backup destination at private paths. This checks every target,
 candidate and backup destination before writing, including collisions and stale plans. It grants
 no approval and is not a multi-file transaction. Rerun preflight after any plan,

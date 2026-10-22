@@ -95,6 +95,9 @@ For existing settings plans, save a private JSON array of
 python3 PKG/scripts/align.py preflight --batch /absolute/batch.json
 ```
 
+Each record must contain exactly the `plan` and `backup` keys, both nonempty
+strings. Missing or extra keys are rejected as `invalid_batch`.
+
 It revalidates every plan and backup destination without writing. It grants no
 approval and provides no multi-file transaction. Each apply retains its digest,
 planning review, owner-decision, backup and parse/load gates. Settings apply remains
