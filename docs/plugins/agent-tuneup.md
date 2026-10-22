@@ -160,7 +160,7 @@ provider. Missing or stale evidence stays visible. Its private input can bind so
 and observation files by SHA-256 and inventory shared/provider skill roots. It counts
 skill aliases, reports redundant discovery and preserves all files. The full input
 contract and migration checklist are in
-[central wiring](../../plugins/agent-tuneup/references/central-wiring.md).
+[central wiring](https://github.com/seankoji-com/t3-plugins/blob/4899a8e870eb8aa12fd3109cc6a704d2929c0aeb/plugins/agent-tuneup/references/central-wiring.md).
 These checks bind supplied evidence; they do not establish native loading.
 
 Matching capability names does not prove matching access. Permission expressions
