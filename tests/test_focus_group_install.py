@@ -181,6 +181,78 @@ class InstalledHost(fg4.ReportHost):
         return self._json('report.py', args, env=env)
 
 
+class HandoffHost(InstalledHost):
+    """Issue 85: use the actual generated example and record both required brief reads."""
+
+    def __init__(self, base, package):
+        super().__init__(base, package)
+        self.first_hosts = {}
+
+    def begin(self, n=0, request=None, stage='first-impression'):
+        task = f'{"fi" if stage == "first-impression" else "jr"}-{n + 1:02d}'
+        request = request or f'{task}-r0'
+        code, out = self.admit_slot(n, stage, request,
+                                     purpose='initial' if request.endswith('-r0') else 'repair')
+        assert code == 0, out
+        brief = self.prepare(task)
+        outer = next(t['brief'] for t in self.job_state()['tasks'] if t['task_id'] == task)
+        host = self.launch(task, request, n=n)
+        document = (self.documents if stage == 'first-impression' else self.journey_documents)[task]
+        text = Path(document['path']).read_text()
+        example = re.search(r'```json\n(.*?)\n```', text.split('## Expected output\n')[1], re.S)
+        payload = json.loads(example[1])
+        # Instantiate the document's example before the fixture worker writes/returns anything.
+        payload['brief_sha256'] = document['sha256']
+        if stage == 'journey':
+            payload['environment_drift']['detail'] = f'Fixture {task}: drift could not be observed.'
+            for gap in payload['gaps']:
+                gap['detail'] = f'Fixture {task}: stopped before attempting {gap["journey_id"]}.'
+        if stage == 'first-impression':
+            self.first_hosts[n] = host
+        return {'task': task, 'request': request, 'host': host, 'brief': brief, 'document': document,
+                'stage': stage, 'n': n, 'outer': outer,
+                'text': text, 'payload': payload}
+
+    def trace(self, run, extra=()):
+        # Resolve this execution, including retired requests and unprepared forbidden follow-ups.
+        # Do not assert file validity here: negative cases must reach installed inspect-trace.
+        outer = self.root / self.view['study_id'] / 'briefs' / f'{run["task"]}-{sha(run["request"].encode())}.json'
+        events = [{'tool': 'read', 'path': str(outer)},
+                  {'tool': 'read', 'path': run['document']['path']}]
+        events += [{'tool': 'read', 'path': f['path'], 'result': 'Image read successfully'
+                    if f['path'].endswith('.png') else 'Text read successfully'}
+                   for f in run['brief']['context_files']]
+        self.counter += 1
+        return self.call_evidence(*self.study('inspect-trace'), '--input', self.write(
+            f'trace-{self.counter}.json', {'revision': self.view['revision'], 'cell_id': run['payload']['cell_id'],
+                                         'stage': run['stage'], 'task_id': run['task'],
+                                         'request_id': run['request'], 'host_task_id': run['host'],
+                                         'brief': run['document'], 'first_host_task_id':
+                                             self.first_hosts[run['n']] if run['stage'] == 'journey' else None,
+                                         'trace': {'source': 'invented OpenCode host read receipts',
+                                                   'events': events + list(extra)}}))
+
+    def finish(self, run, change=None, delivery=None):
+        item = self.payload_file(run['task'], run['payload'])
+        run['item'] = item
+        result = self.worker_result(run['brief'], [item])
+        if change:
+            change(result)
+        path = self.transport(result)
+        run.update(transport=path, completion=f'done-{run["request"]}')
+        assert self.complete(run['task'], run['request'], run['host'], run['completion'])[0] == 0
+        delivered = self.deliver(run['task'], run['request'], run['completion'], path)
+        if run['stage'] == 'journey':
+            evidence = {'context': {'class': 'fresh-anonymous',
+                                    **self.bound_context(self.view, self.cell(run['n']))}}
+        else:
+            evidence = {'image_delivery': delivery or {'state': 'delivered',
+                'source': 'invented OpenCode host read events: Image read successfully for each PNG'}}
+        outcome = self.ingest(run['task'], run['request'], run['completion'], path, **evidence)
+        self.reconcile()
+        return delivered, outcome
+
+
 class Swap:
     """Point the FG-3/FG-4 harness (job helper, prefix, agents root, validator) and the helper processes' environment
     and working directory at one installed package and a temporary directory for a test, then restore all three.
@@ -215,6 +287,46 @@ class Swap:
 
 class RelocatedInstallTest(unittest.TestCase):
     """One package installed by the catalog, moved to a new prefix and adopted, then used without the source."""
+
+    def assert_prepared_binding(self, h, run):
+        """Check persisted current or retired evidence before constructing a valid trace."""
+        study = h.root / h.view['study_id']
+        task = next(t for t in h.job_state()['tasks'] if t['task_id'] == run['task'])
+        handles = [r for r in task['handles'] if r['request_id'] == run['request']]
+        self.assertEqual([r['task_id'] for r in handles], [run['host']])
+        if task['brief']['request_id'] == run['request']:
+            bound = {k: task['brief'][k] for k in ('path', 'sha256')}
+        else:
+            self.assertIn(run['request'], [r['request_id'] for r in task['execution_history']])
+            rows = [json.loads(p.read_text()) for p in (study / 'focus-group/evidence/traces').glob('*.json')]
+            refs = [r['prepared_brief'] for r in rows if (r['task_id'], r['request_id'], r['host_task_id']) ==
+                    (run['task'], run['request'], run['host'])]
+            self.assertTrue(refs, 'retired execution must retain its earlier trace binding')
+            self.assertTrue(all(ref == refs[0] for ref in refs))
+            bound = refs[0]
+        path = study / 'briefs' / f'{run["task"]}-{sha(run["request"].encode())}.json'
+        self.assertEqual(bound, {'path': str(path), 'sha256': run['outer']['sha256']})
+        self.assertEqual(run['outer']['path'], str(path))
+        raw = path.read_bytes()
+        self.assertEqual(sha(raw), bound['sha256'])
+        outer = json.loads(raw)
+        self.assertEqual((outer['task_id'], outer['request_id'], outer['stage_id']),
+                         (run['task'], run['request'], run['stage']))
+        self.assertEqual(outer, run['brief'])
+        correlation = {k: v for k, v in outer.items() if k != 'effective_brief_sha256'}
+        self.assertEqual(outer['effective_brief_sha256'], sha((json.dumps(
+            correlation, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False) + '\n').encode()))
+        self.assertEqual(len({bound['sha256'], outer['effective_brief_sha256'], run['document']['sha256']}), 3)
+        return bound
+
+    def assert_artifact_example(self, run):
+        expected_output = run['text'].split('## Expected output\n', 1)[1]
+        fragment = expected_output.split('artifacts must include ', 1)[1].split('. Replace 123', 1)[0]
+        artifact = json.loads(fragment)
+        self.assertEqual(set(artifact), {'path', 'sha256', 'bytes'})
+        self.assertEqual(artifact['path'], f'artifacts/tasks/{run["task"]}/payload.json')
+        self.assertEqual(artifact['sha256'], 'SHA-256 of the payload file')
+        self.assertIs(type(artifact['bytes']), int)
 
     @property
     def inst(self):
@@ -393,6 +505,409 @@ class RelocatedInstallTest(unittest.TestCase):
                                        '--study', 'py310-study', '--input', manifest, env=env, cwd=base, python=python)
         self.assertEqual((code, out['data']['stimulus']['manifest_sha256'] is not None), (0, True), (out, err))
         self.assertEqual(sorted({h for r in audit_rows(base) for h in r['hits']}), [])
+
+    def test_5_generated_handoff_reaches_frozen_pinned_participant_stage_acceptance(self):
+        self.adopt()
+        base = STATE['base'] / 'handoff-accepted'
+        base.mkdir()
+        with Swap(self.inst, audited(self.inst['env'], base), base):
+            h = HandoffHost(base, self.inst['package'])
+            h.start(mode='capture-only')
+            for n in range(len(h.view['cells'])):
+                run = h.begin(n)
+                task = next(t for t in h.job_state()['tasks'] if t['task_id'] == run['task'])
+                self.assertEqual((task['context_policy'], task['max_followups']), ('document-only', 0))
+                self.assert_artifact_example(run)
+                brief = run['brief']
+                files = h.stimulus(h.view['study_id'])['files']
+                expected = [{k: f[k] for k in ('path', 'sha256')}
+                            for f in sorted(files, key=lambda f: f['name'] != 'initial-viewport.png')]
+                self.assertEqual(brief['context_files'], expected)
+                self.assertEqual(brief['authorization']['read'],
+                                 [run['document']['path']] + [f['path'] for f in expected])
+                for f in files:
+                    self.assertIn(f['path'], run['text'])
+                    self.assertIn(f['sha256'], run['text'])
+                for contract in ('"text-only"', 'arrays of strings', 'integer byte count',
+                                 'logical_slot_id', 'effective_brief_sha256', 'snapshot object exactly',
+                                 'not the prepared outer JSON brief hash'):
+                    self.assertIn(contract, run['text'])
+                self.assertNotEqual(run['payload']['brief_sha256'], brief['effective_brief_sha256'])
+                code, trace = h.trace(run)
+                self.assertEqual((code, trace['data']['attempt_compliance']), (0, 'clean-in-trace'), trace)
+                rows = list((h.root / h.view['study_id'] / 'focus-group/evidence/traces').glob('*.json'))
+                bound = next(json.loads(p.read_text()) for p in rows
+                             if json.loads(p.read_text())['request_id'] == run['request'])
+                self.assertEqual(bound['document'], run['document'])
+                self.assertEqual(bound['prepared_brief']['sha256'],
+                                 sha(Path(bound['prepared_brief']['path']).read_bytes()))
+                delivery = None
+                if n == len(h.view['cells']) - 1:
+                    run['payload']['image_use'] = {'saw_images': False, 'basis': 'text-only'}
+                    delivery = {'state': 'unknown', 'source': 'Codex activity omitted image-view events'}
+                delivered, (code, out) = h.finish(run, delivery=delivery)
+                self.assertEqual(delivered[0], 0, delivered)
+                self.assertEqual(code, 0, out)
+            code, gate = h.accept('first-impression')
+            self.assertEqual((code, gate.get('accepted')), (0, True), gate)
+            self.assertEqual(h.charged()['first'], len(h.view['cells']))
+        rows = audit_rows(base)
+        self.assertIn('validate_study.py', {Path(r['script']).name for r in rows})
+        self.assertEqual(sorted({hit for row in rows for hit in row['hits']}), [])
+
+    def test_5b_combined_generated_journey_with_credential_gap_reaches_pinned_stage_acceptance(self):
+        self.adopt()
+        base = STATE['base'] / 'handoff-combined'
+        base.mkdir()
+        with Swap(self.inst, audited(self.inst['env'], base), base):
+            h = HandoffHost(base, self.inst['package'])
+            journeys = h.draft()['journeys'] + [
+                {'id': 'save-plan', 'goal': 'Log in and save the plan to an account.',
+                 'permitted_actions': ['sign in with a test account'], 'excluded_actions': []}]
+            # One cell per model: the all-gap example makes each journey pilot unavailable,
+            # so further cells on that model must remain held by the existing pilot gate.
+            h.start(personas=1, mode='combined', journeys=journeys)
+            self.assertFalse(any(t['stage_id'] == 'journey' for t in h.job_state()['tasks']))
+            first_material = {}
+            for n in range(len(h.view['cells'])):
+                run = h.begin(n)
+                first_material[n] = run['brief']['context_files']
+                self.assertEqual(h.trace(run)[0], 0)
+                delivered, outcome = h.finish(run)
+                self.assertEqual((delivered[0], outcome[0]), (0, 0), (delivered, outcome))
+            code, gate = h.accept('first-impression')
+            self.assertEqual((code, gate.get('accepted')), (0, True), gate)
+
+            # Real journey-slots, owner decision and plan revision, using installed helpers.
+            h.declare_journeys()
+            for n in range(len(h.view['cells'])):
+                run = h.begin(n, stage='journey')
+                task = next(t for t in h.job_state()['tasks'] if t['task_id'] == run['task'])
+                self.assertEqual((task['context_policy'], task['max_followups']), ('document-only', 0))
+                self.assert_artifact_example(run)
+                payload = run['payload']
+                self.assertEqual(payload['goals'], [])
+                self.assertEqual([g['journey_id'] for g in payload['gaps']], ['plan-three-dinners'])
+                self.assertIn('do not repeat them in goals or gaps', run['text'])
+                briefs = h.root / h.view['study_id'] / 'focus-group/evidence/briefs'
+                metadata = next(json.loads(p.read_text()) for p in briefs.glob('*.json')
+                                if json.loads(p.read_text())['document'] == run['document'])
+                self.assertEqual([g['journey_id'] for g in metadata['gaps']], ['save-plan'])
+                self.assertEqual(run['brief']['context_files'], first_material[n])
+                self.assertEqual(run['brief']['authorization']['read'],
+                                 [run['document']['path']] + [f['path'] for f in run['brief']['context_files']])
+                code, trace = h.trace(run)
+                self.assertEqual((code, trace['data']['attempt_compliance']), (0, 'clean-in-trace'), trace)
+                traces = h.root / h.view['study_id'] / 'focus-group/evidence/traces'
+                bound = next(json.loads(p.read_text()) for p in traces.glob('*.json')
+                             if json.loads(p.read_text())['request_id'] == run['request'])
+                self.assertEqual(bound['document'], run['document'])
+                self.assertEqual(bound['prepared_brief']['sha256'],
+                                 sha(Path(bound['prepared_brief']['path']).read_bytes()))
+                delivered, outcome = h.finish(run)
+                self.assertEqual((delivered[0], outcome[0]), (0, 0), (delivered, outcome))
+                # Ingest preserves exactly what the fixture child returned, with no gap repair.
+                self.assertEqual(json.loads((h.root / h.view['study_id'] / run['item']['path']).read_text()), payload)
+            code, gate = h.accept('journey')
+            self.assertEqual((code, gate.get('accepted')), (0, True), gate)
+            self.assertEqual(h.charged(), {'first': 2 * len(h.view['cells'])})
+        rows = audit_rows(base)
+        self.assertIn('validate_study.py', {Path(r['script']).name for r in rows})
+        self.assertEqual(sorted({hit for row in rows for hit in row['hits']}), [])
+
+    def test_6_generated_contract_negative_payloads_and_transports_stay_rejected(self):
+        self.adopt()
+        cases = ('basis', 'observed', 'inferred', 'size', 'bytes-string', 'bytes-bool',
+                 'markdown-hash', 'outer-hash', 'binding', 'missing-image-receipts')
+        for case in cases:
+            with self.subTest(case=case):
+                base = STATE['base'] / f'handoff-{case}'
+                base.mkdir()
+                with Swap(self.inst, self.inst['env'], base):
+                    h = HandoffHost(base, self.inst['package'])
+                    h.start(mode='capture-only')
+                    run = h.begin()
+                    self.assertEqual(h.trace(run)[0], 0)
+                    if case == 'basis':
+                        run['payload']['image_use']['basis'] = 'I read every screenshot'
+                    elif case in ('observed', 'inferred'):
+                        run['payload']['initial_viewport'][case] = 'a string instead of an array'
+                    elif case == 'markdown-hash':
+                        run['payload']['brief_sha256'] = run['brief']['effective_brief_sha256']
+
+                    def change(result):
+                        if case == 'size':
+                            result['artifacts'][0]['size'] = result['artifacts'][0].pop('bytes')
+                        elif case in ('bytes-string', 'bytes-bool'):
+                            result['artifacts'][0]['bytes'] = '123' if case == 'bytes-string' else True
+                        elif case == 'outer-hash':
+                            result['effective_brief_sha256'] = run['document']['sha256']
+                        elif case == 'binding':
+                            result['binding'] = {'sha256': run['document']['sha256']}
+
+                    delivery = {'state': 'unknown', 'source': 'Codex activity omitted image-view events'} \
+                        if case == 'missing-image-receipts' else None
+                    _, (code, out) = h.finish(run, change, delivery)
+                    self.assertEqual(code, 1, out)
+                    if case in ('basis', 'observed', 'inferred', 'markdown-hash', 'missing-image-receipts'):
+                        check = h.write('check-exact-returned-payload.json', {
+                            'revision': h.view['revision'], 'cell_id': h.cell(0), 'stage': 'first-impression',
+                            'task_id': run['task'], 'payload': {k: run['item'][k] for k in ('path', 'sha256')},
+                            'image_delivery': delivery or {'state': 'delivered', 'source': 'invented host receipts'}})
+                        checked, verdict = h.call_evidence(*h.study('check-payload'), '--input', check)
+                        self.assertEqual(checked, 1, verdict)
+                    self.assertFalse(list((h.root / h.view['study_id'] / 'focus-group/accepted').glob('*.json')))
+                    session = h.session(run['request'])
+                    self.assertTrue(session)
+                    self.assertEqual(run['transport'].read_bytes(),
+                                     (h.root / h.view['study_id'] / 'focus-group' / session[-1]['raw']).read_bytes())
+                    code, gate = h.accept('first-impression')
+                    self.assertFalse(gate.get('accepted'), (code, gate))
+
+    def test_7_outer_brief_permission_does_not_grant_other_job_or_source_reads(self):
+        self.adopt()
+        base = STATE['base'] / 'handoff-trace-refusals'
+        base.mkdir()
+        with Swap(self.inst, self.inst['env'], base):
+            h = HandoffHost(base, self.inst['package'])
+            h.start(mode='capture-only')
+            run = h.begin()
+            self.assertEqual(h.trace(run)[0], 0)
+            foreign = h.begin(1)
+            foreign_outer = next(t['brief']['path'] for t in h.job_state()['tasks'] if t['task_id'] == foreign['task'])
+            for path in (foreign_outer, foreign['document']['path'],
+                         h.root / h.view['study_id'] / 'job.json',
+                         h.root / h.view['study_id'] / 'artifacts/tasks/fi-02/payload.json',
+                         self.inst['package'] / 'scripts/study.py'):
+                code, out = h.trace(run, [{'tool': 'read', 'path': str(path)}])
+                self.assertEqual((code, out['error']['code']), (1, 'contaminated_attempt'), out)
+            code, clean = h.trace(run)
+            self.assertEqual((code, clean['data']['compliance'], clean['data']['attempt_compliance']),
+                             (1, 'clean-in-trace', 'contaminated'))
+            _, (code, refused) = h.finish(run)
+            self.assertEqual((code, refused['error']['code']), (1, 'attempt_contaminated'), refused)
+            # Opaque commands naming the permitted outer brief stay unverified, never clean.
+            own = next(t['brief']['path'] for t in h.job_state()['tasks'] if t['task_id'] == foreign['task'])
+            code, opaque = h.trace(foreign, [{'tool': 'exec_command', 'command': f'cat {own}'}])
+            self.assertEqual((code, opaque['data']['attempt_compliance']), (0, 'unverified'), opaque)
+            self.assertIn('opaque_event', [p['code'] for p in opaque['data']['limits']])
+
+    def test_8_locally_missing_material_refuses_admission_without_a_charge(self):
+        self.adopt()
+        base = STATE['base'] / 'handoff-missing'
+        base.mkdir()
+        with Swap(self.inst, self.inst['env'], base):
+            h = HandoffHost(base, self.inst['package'])
+            h.start(mode='capture-only')
+            before = h.charged()
+            path = Path(h.stimulus(h.view['study_id'])['files'][0]['path'])
+            data = path.read_bytes()
+            path.unlink()
+            code, out = h.admit_slot(0, 'first-impression', 'fi-01-r0')
+            self.assertEqual((code, out['error']['code']), (1, 'inputs_changed'), out)
+            self.assertEqual(h.charged(), before)
+
+            path.write_bytes(data)
+            # A locally detectable missing mapping is also held before spending, through the real plan route.
+            job = h.job_state()
+            tasks = copy.deepcopy(job['tasks'])
+            tasks[0]['context_files'] = []
+            source = base / 'fixture-owner.txt'
+            quote = 'Approve fixture missing mapping plan revision'
+            source.write_text(quote)
+            h.job_ok('decision', {'caller': h.caller, 'decision': {
+                'id': 'fixture-missing-mapping-owner', 'scope': 'plan:fixture-missing-mapping',
+                'quote': quote, 'source': str(source), 'source_sha256': sha(source.read_bytes()),
+                'reason': 'invented regression fixture'}})
+            h.job_ok('plan-revision', {'caller': h.caller, 'revision': {
+                'id': 'fixture-missing-mapping', 'owner_decision_id': 'fixture-missing-mapping-owner'},
+                                       'new_plan': {'tasks': tasks}})
+            code, out = h.admit_slot(0, 'first-impression', 'fi-01-r0')
+            self.assertEqual((code, out['error']['code']), (1, 'job_slot_stale'), out)
+            self.assertEqual(h.charged(), before)
+
+    def test_9_exhausted_pilot_keeps_rejected_transports_traces_charges_and_approval(self):
+        self.adopt()
+        base = STATE['base'] / 'handoff-exhausted'
+        base.mkdir()
+        with Swap(self.inst, self.inst['env'], base):
+            h = HandoffHost(base, self.inst['package'])
+            limits = h.draft()['limits']
+            limits['max_attempts_per_slot'] = 2
+            h.start(mode='capture-only', limits=limits)
+
+            def invalid_transport(result):
+                result['artifacts'][0]['size'] = result['artifacts'][0].pop('bytes')
+
+            initial = h.begin()
+            self.assertEqual(h.trace(initial)[0], 0)
+            self.assertEqual(h.finish(initial, invalid_transport)[1][0], 1)
+            study = h.root / h.view['study_id']
+            retained = {p: p.read_bytes() for folder in ('results', 'focus-group/sessions',
+                         'focus-group/evidence/traces', 'focus-group/approvals') for p in (study / folder).rglob('*')
+                        if p.is_file()}
+            self.assertTrue(retained)
+            h.job_ok('retry', {'caller': h.caller, 'task_id': initial['task'], 'reason': 'fixture transport repair'})
+            request = next(t['request_id'] for t in h.job_state()['tasks'] if t['task_id'] == initial['task'])
+            repair = h.begin(request=request)
+            self.assertEqual(h.trace(repair)[0], 0)
+            self.assertEqual(h.finish(repair, invalid_transport)[1][0], 1)
+            before = h.charged()
+            code, out = h.admit_slot(0, 'first-impression', 'silent-third-attempt', purpose='repair')
+            self.assertEqual((code, out['error']['code']), (1, 'budget_exhausted'), out)
+            code, out = h.job('retry', {'caller': h.caller, 'task_id': initial['task'], 'reason': 'silent third'})
+            self.assertNotEqual(code, 0, out)
+            self.assertEqual(h.charged(), before)
+            self.assertEqual(before, {'first': 1, 'participant_repairs': 1})
+            for path, data in retained.items():
+                self.assertEqual(path.read_bytes(), data, path.name)
+
+    def test_9b_fresh_retry_uses_normal_brief_and_accepts_without_losing_retired_trace(self):
+        self.adopt()
+        base = STATE['base'] / 'handoff-fresh-retry'
+        base.mkdir()
+        with Swap(self.inst, audited(self.inst['env'], base), base):
+            h = HandoffHost(base, self.inst['package'])
+            h.start(personas=1, mode='capture-only')
+            initial = h.begin()
+            initial_bound = self.assert_prepared_binding(h, initial)
+            self.assertEqual(h.trace(initial)[0], 0)
+
+            def invalid_transport(result):
+                result['artifacts'][0]['size'] = result['artifacts'][0].pop('bytes')
+
+            self.assertEqual(h.finish(initial, invalid_transport)[1][0], 1)
+            study = h.root / h.view['study_id']
+            retained = {p: p.read_bytes() for folder in ('briefs', 'results', 'focus-group/sessions',
+                         'focus-group/evidence/traces', 'focus-group/approvals') for p in (study / folder).rglob('*')
+                        if p.is_file()}
+            h.job_ok('retry', {'caller': h.caller, 'task_id': initial['task'], 'reason': 'fixture transport repair'})
+            request = next(t['request_id'] for t in h.job_state()['tasks'] if t['task_id'] == initial['task'])
+            repair = h.begin(request=request)
+            self.assertNotEqual(repair['host'], initial['host'])
+            self.assertNotEqual(request, initial['request'])
+            self.assertEqual(Path(repair['outer']['path']),
+                             study / 'briefs' / f'{repair["task"]}-{sha(request.encode())}.json')
+            self.assertFalse((study / 'briefs/followup').exists())
+            self.assertEqual(self.assert_prepared_binding(h, initial), initial_bound)
+            repair_bound = self.assert_prepared_binding(h, repair)
+            self.assertNotEqual(initial_bound, repair_bound)
+            self.assertNotEqual(initial['brief']['effective_brief_sha256'], repair['brief']['effective_brief_sha256'])
+
+            # Damage only disposable brief files. Keep the cached run and persisted job/history
+            # untouched so each refusal comes from the real installed validator, not the fixture.
+            retired_path = Path(initial_bound['path'])
+            retired_bytes = retired_path.read_bytes()
+            tampered = json.loads(retired_bytes)
+            tampered['constraints'].append('Invented altered constraint')
+            tampered.pop('effective_brief_sha256')
+            tampered['effective_brief_sha256'] = sha((json.dumps(
+                tampered, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False) + '\n').encode())
+            before_job, before_ledger = (study / 'job.json').read_bytes(), h.ledger_bytes()
+            for damage, replacement, message in (
+                    ('missing', None, 'no readable prepared JSON brief'),
+                    ('foreign', Path(repair_bound['path']).read_bytes(), 'differs from this task, request'),
+                    ('tampered', json.dumps(tampered).encode(), 'differs from an earlier trace binding')):
+                with self.subTest(retired_brief=damage):
+                    try:
+                        if replacement is None:
+                            retired_path.unlink()
+                        else:
+                            retired_path.write_bytes(replacement)
+                        code, refused = h.trace(initial)
+                        self.assertEqual((code, refused.get('error', {}).get('code')), (1, 'trace_unbound'), refused)
+                        self.assertIn(message, refused['error']['message'])
+                    finally:
+                        retired_path.write_bytes(retired_bytes)
+                    self.assertEqual((study / 'job.json').read_bytes(), before_job)
+                    self.assertEqual(h.ledger_bytes(), before_ledger)
+                    for path, data in retained.items():
+                        self.assertEqual(path.read_bytes(), data, path.name)
+            self.assertEqual(self.assert_prepared_binding(h, initial), initial_bound)
+            self.assertEqual(h.trace(initial)[0], 0)  # retired normal brief remains bound after replacement
+            code, trace = h.trace(repair)
+            self.assertEqual((code, trace['data']['attempt_compliance']), (0, 'clean-in-trace'), trace)
+            delivered, outcome = h.finish(repair)
+            self.assertEqual((delivered[0], outcome[0]), (0, 0), (delivered, outcome))
+            task = next(t for t in h.job_state()['tasks'] if t['task_id'] == repair['task'])
+            self.assertEqual([r['request_id'] for r in task['execution_history']], [initial['request'], request])
+            self.assertTrue(task['execution_history'][0]['malformed'])
+            self.assertEqual(task['attempt'], 2)
+            self.assertEqual(h.charged(), {'first': 1, 'participant_repairs': 1})
+            for path, data in retained.items():
+                self.assertEqual(path.read_bytes(), data, path.name)
+            for n in range(1, len(h.view['cells'])):
+                run = h.begin(n)
+                self.assertEqual(h.trace(run)[0], 0)
+                self.assertEqual(h.finish(run)[1][0], 0)
+            code, gate = h.accept('first-impression')
+            self.assertEqual((code, gate.get('accepted')), (0, True), gate)
+        rows = audit_rows(base)
+        self.assertIn('validate_study.py', {Path(r['script']).name for r in rows})
+        self.assertEqual(sorted({hit for row in rows for hit in row['hits']}), [])
+
+    def test_9c_same_child_followup_is_refused_and_unexpected_host_work_stays_non_accepting(self):
+        self.adopt()
+        base = STATE['base'] / 'handoff-forbidden-followup'
+        base.mkdir()
+        with Swap(self.inst, audited(self.inst['env'], base), base):
+            h = HandoffHost(base, self.inst['package'])
+            h.start(mode='capture-only')
+            initial = h.begin()
+            self.assertEqual(h.trace(initial)[0], 0)
+
+            def invalid_transport(result):
+                result['artifacts'][0]['size'] = result['artifacts'][0].pop('bytes')
+
+            self.assertEqual(h.finish(initial, invalid_transport)[1][0], 1)
+            study = h.root / h.view['study_id']
+            before, ledger = (study / 'job.json').read_bytes(), h.ledger_bytes()
+            request, host, completion = 'fi-01-forbidden', 'host-forbidden', 'done-forbidden'
+            code, error = h.job('followup-prepare', {'caller': h.caller, 'task_id': initial['task'],
+                                                   'request_id': request})
+            self.assertEqual(code, 2, error)
+            self.assertIn('document-only slots require a fresh declared execution', error)
+            self.assertEqual((study / 'job.json').read_bytes(), before)
+            self.assertEqual(h.ledger_bytes(), ledger)
+            self.assertFalse((study / 'briefs/followup').exists())
+            # Even a study admission cannot authorise a same-child continuation. Record unexpected
+            # host work through the public helper so it remains an owned reconciliation obligation.
+            self.assertEqual(h.admit_slot(0, 'first-impression', request, purpose='repair')[0], 0)
+            task = next(t for t in h.job_state()['tasks'] if t['task_id'] == initial['task'])
+            self.assertEqual(h.observe(initial['task'], kind='followup', request_id=request, host_task_id=host,
+                                       parent_host_task_id=initial['host'], child_thread_id=f'thread-{initial["host"]}',
+                                       target=task['target'], scope=task['write_scope'],
+                                       status_identity=h.target_of(0))[0], 0)
+            current = next(t for t in h.job_state()['tasks'] if t['task_id'] == initial['task'])
+            self.assertTrue(current['followups'][0]['forbidden_followup'])
+            self.assertIsNone(current['forbidden_followups'][0]['reconciled'])
+            self.assertEqual((current['request_id'], current['brief']), (initial['request'], initial['outer']))
+            code, trace = h.trace(dict(initial, request=request, host=host))
+            self.assertEqual((code, trace['error']['code']), (1, 'trace_unbound'), trace)
+            self.assertEqual(h.complete(initial['task'], request, host, completion)[0], 0)
+            transport = h.transport(h.worker_result(initial['brief'], [initial['item']], request_id=request))
+            self.assertEqual(h.deliver(initial['task'], request, completion, transport)[0], 0)
+            current = next(t for t in h.job_state()['tasks'] if t['task_id'] == initial['task'])
+            execution = current['execution_history'][-1]
+            self.assertEqual((execution['request_id'], execution['accepted_execution'], execution['quarantined']),
+                             (request, False, True))
+            self.assertEqual((study / 'results/quarantine' / f'{request}.json').read_bytes(), transport.read_bytes())
+            self.assertEqual(current.get('result_ref'), task.get('result_ref'))
+            code, refused = h.ingest(initial['task'], request, completion, transport)
+            self.assertEqual((code, refused['error']['code']), (1, 'malformed_result'), refused)
+            self.assertIn('forbidden continued review or document-only follow-up', refused['error']['message'])
+            self.assertEqual(h.complete(initial['task'], request, host, completion, kind='reconciled')[0], 0)
+            h.reconcile()
+            current = next(t for t in h.job_state()['tasks'] if t['task_id'] == initial['task'])
+            self.assertIsNotNone(current['forbidden_followups'][0]['reconciled'])
+            self.assertEqual(current['attempt'], 2)
+            self.assertEqual(h.charged(), {'first': 1, 'participant_repairs': 1})
+            self.assertFalse((study / 'briefs/followup').exists())
+            self.assertEqual(h.trace(initial)[0], 0)
+            code, gate = h.accept('first-impression')
+            self.assertFalse(gate.get('accepted'), (code, gate))
+        self.assertEqual(sorted({hit for row in audit_rows(base) for hit in row['hits']}), [])
+
 
 
 # ----------------------------------------------------------------------------- REQ-INSTALL: damaged packages

@@ -231,12 +231,20 @@ def locked(fd, name, writable):
         raise Unavailable('process locking unavailable on this platform') from exc
     flags = os.O_NOFOLLOW | os.O_NONBLOCK | (os.O_RDWR if writable else os.O_RDONLY)
     if writable:
-        try:
-            # Non-exclusive O_CREAT can fail with ENOENT on macOS when another
-            # writer creates the lock first. Keep one persistent inode for flock.
-            handle = os.open(name, flags | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=fd)
-        except FileExistsError:
-            handle = os.open(name, flags, dir_fd=fd)
+        # Keep exclusive creation and bounded ENOENT recovery anchored to the
+        # same directory. Never unlink the persistent inode or replay the write.
+        for attempt in range(3):
+            try:
+                try:
+                    # Non-exclusive O_CREAT can fail with ENOENT on macOS when
+                    # another writer creates the lock first.
+                    handle = os.open(name, flags | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=fd)
+                except FileExistsError:
+                    handle = os.open(name, flags, dir_fd=fd)
+                break
+            except OSError as exc:
+                if exc.errno != errno.ENOENT or attempt == 2:
+                    raise
     else:
         handle = os.open(name, flags, dir_fd=fd)
     try:
