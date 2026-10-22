@@ -69,5 +69,15 @@
     "habitat": "A T3 thread with a live model catalog, a private study directory and shared captures of the product.",
     "diet": "An audience, a decision to inform, a target or capture pack, and an approved panel and task ceiling.",
     "field_marks": "Planning launches nothing. Every revision is approved by hash. Unknown capabilities stay unknown until a pilot. Results are synthetic hypotheses, never demand."
+  },
+  "bug-report": {
+    "plate": "VIII",
+    "binomial": "Coleopterus relator",
+    "summary": "Verify suspected T3 problems, file redacted reports and follow up for 30 minutes.",
+    "use_when": "Something in T3 appears broken and you want evidence, a report in the right place and bounded follow-up.",
+    "try": "$t3-bug-report investigate the error above",
+    "habitat": "A T3 conversation, a private reporting ledger and a separate reporting thread.",
+    "diet": "A symptom or relevant conversation context, observed evidence and current report destinations.",
+    "field_marks": "Unconfirmed failures stay private. External defects get suggested drafts. Follow-up retains one fixed deadline."
   }
 }

@@ -1,6 +1,6 @@
 # t3-plugins
 
-**Seven workflows for coding agents in [T3 Code](https://github.com/pingdotgg/t3code).
+**Eight workflows for coding agents in [T3 Code](https://github.com/pingdotgg/t3code).
 Each one ends in something you can check.**
 
 [![Tests](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml/badge.svg)](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml)
@@ -62,6 +62,7 @@ python3 bin/t3-plugins setup && python3 bin/t3-plugins doctor
 | Check provider permissions and MCPs | `$t3-agent-tuneup audit --provider claude --settings .claude/settings.json` | Finding codes and locations, never the setting values |
 | Have one model build and another grade | `$t3-ralph fix the parser and add regression coverage` | Fresh attempts until the grader has no feedback (five by default), then a PR |
 | Try a product on invented personas | `$t3-focus-group plan https://staging.example/welcome first-run experience for busy parents` | A reviewed report of synthetic hypotheses, a ranked backlog and local issue drafts; nothing is posted |
+| Report a suspected T3 problem | `$t3-bug-report investigate the error above` | Evidence, routing, a separate reporting thread and a fixed 30-minute follow-up window; uncertain cases stay private |
 
 Each workflow has a guide with a full example:
 [imps](docs/plugins/imps.md) ·
@@ -70,7 +71,8 @@ Each workflow has a guide with a full example:
 [babysitter](docs/plugins/babysitter.md) ·
 [agent-tuneup](docs/plugins/agent-tuneup.md) ·
 [ralph](docs/plugins/ralph.md) ·
-[focus-group](docs/plugins/focus-group.md).
+[focus-group](docs/plugins/focus-group.md) ·
+[bug-report](docs/plugins/bug-report.md).
 For a one-line edit, skip all of this and ask the agent directly.
 
 ## Try one without a model

@@ -37,17 +37,23 @@ class PackagingAcceptance(unittest.TestCase):
             for plugin, (package, receipt) in packages.items():
                 with self.subTest(plugin=plugin):
                     registry.verify_package_files(package, receipt)
-                    checked = registry.verify_bundle(Path(receipt['bundle_dir']),
-                        receipt['installation_id'], plugin, package.name, registry.package_digest(receipt))
                     declared = json.loads((package / 'plugin.json').read_text())
-                    for worker in declared['workers']:
-                        asset = next(a for a in checked['manifest']['assets'] if a.get('id') == worker['id'])
-                        for key in ('operations', 'role', 'responsibility', 'allowed_scope', 'output_contract'):
-                            self.assertEqual(asset[key], worker[key])
-                        self.assertEqual(asset['allowed_scope'], registry.WORKER_SCOPES[worker['id']])
-                    for name in registry.SHARED_REQUIRED:
-                        self.assertEqual((package / 'shared/agents' / name).read_bytes(),
-                                         (Path(receipt['bundle_dir']) / 'shared' / name).read_bytes())
+                    self.assertEqual(receipt['installation_id'],
+                                     registry.installation_id(box.prefix, create=False))
+                    if declared.get('workers'):
+                        checked = registry.verify_bundle(Path(receipt['bundle_dir']),
+                            receipt['installation_id'], plugin, package.name, registry.package_digest(receipt))
+                        for worker in declared['workers']:
+                            asset = next(a for a in checked['manifest']['assets'] if a.get('id') == worker['id'])
+                            for key in ('operations', 'role', 'responsibility', 'allowed_scope', 'output_contract'):
+                                self.assertEqual(asset[key], worker[key])
+                            self.assertEqual(asset['allowed_scope'], registry.WORKER_SCOPES[worker['id']])
+                        for name in registry.SHARED_REQUIRED:
+                            self.assertEqual((package / 'shared/agents' / name).read_bytes(),
+                                             (Path(receipt['bundle_dir']) / 'shared' / name).read_bytes())
+                    else:
+                        self.assertNotIn('bundle_dir', receipt)
+                        self.assertNotIn('bundle_digest', receipt)
                     skills = box.home / 'skills'
                     box.t3('skills', 'install', plugin, '--root', skills)
                     adapter = skills / ('t3-' + plugin) / 'SKILL.md'

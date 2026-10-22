@@ -78,6 +78,7 @@ nav:
       - agent-tuneup: plugins/agent-tuneup.md
       - ralph: plugins/ralph.md
       - focus-group: plugins/focus-group.md
+      - bug-report: plugins/bug-report.md
   - Engineering:
       - Architecture: architecture.md
       - T3 thread features: design/t3-thread-features.md
