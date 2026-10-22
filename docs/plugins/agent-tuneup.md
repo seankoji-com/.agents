@@ -160,7 +160,7 @@ provider. Missing or stale evidence stays visible. Its private input can bind so
 and observation files by SHA-256 and inventory shared/provider skill roots. It counts
 skill aliases, reports redundant discovery and preserves all files. The full input
 contract and migration checklist are in
-[central wiring](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/agent-tuneup/references/central-wiring.md).
+[central wiring](../../plugins/agent-tuneup/references/central-wiring.md).
 These checks bind supplied evidence; they do not establish native loading.
 
 Matching capability names does not prove matching access. Permission expressions
@@ -220,9 +220,11 @@ Use `apply --plan <path>` only after approving that concrete plan.
 
 For multiple settings plans, first run `align.py preflight --batch FILE`, where
 `FILE` is a private array of `{"plan":"/absolute/plan.json",
-"backup":"/absolute/new-backup"}` records. This checks every target, candidate and
-backup destination before writing, including collisions and stale plans. It grants
-no approval and is not a multi-file transaction. Every apply repeats its safeguards.
+"backup":"/absolute/new-backup"}` records. Keep the existing plan input and
+not-yet-existing backup destination at private paths. This checks every target,
+candidate and backup destination before writing, including collisions and stale plans. It grants
+no approval and is not a multi-file transaction. Rerun preflight after any plan,
+target, candidate or backup change. Every apply repeats its safeguards.
 
 The helper supports existing Claude JSON, OpenCode JSON/JSONC, Codex TOML,
 Antigravity MCP JSON/JSONC and Muse JSON files. It does not install plugins or edit instruction/skill
@@ -290,7 +292,8 @@ Record the installed runtime version, especially for Muse and OpenCode. An unkno
 version or changed schema needs inspection rather than assuming these historical
 shapes or CLI commands still apply.
 
-Format references (checked on 12 October 2026): [Claude settings](https://code.claude.com/docs/en/settings),
+Format references (checked on 12 October 2026): [Muse Code configuration](https://dev.meta.ai/docs/muse-code/configuration),
+[Muse Code permissions](https://dev.meta.ai/docs/muse-code/permissions), [Claude settings](https://code.claude.com/docs/en/settings),
 [Claude MCP](https://code.claude.com/docs/en/mcp), [OpenCode configuration](https://opencode.ai/docs/config/),
 [OpenCode plugins](https://opencode.ai/docs/plugins/), [Antigravity MCP](https://antigravity.google/docs/mcp),
 [T3 Antigravity integration](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-antigravity.md),

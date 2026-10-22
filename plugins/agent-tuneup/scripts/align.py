@@ -229,8 +229,14 @@ def compare(catalog, inventory):
             difference = differences.get(ident, {})
             if not isinstance(difference, dict):
                 raise ValueError('invalid_capability')
-            intentional = (isinstance(difference.get('reason'), str) and bool(difference['reason'].strip())
-                           and wiring.evidence_state(difference.get('evidence', [])) == 'bound')
+            intentional = False
+            if status != 'configured':
+                try:
+                    intentional = (isinstance(difference.get('reason'), str)
+                                   and bool(difference['reason'].strip())
+                                   and wiring.evidence_state(difference.get('evidence', [])) == 'bound')
+                except (OSError, ValueError, TypeError, KeyError, AttributeError):
+                    intentional = False
             if status != 'configured' and not intentional:
                 findings.append({'code': 'capability_' + status,
                                  'location': f'capabilities[{number}].providers[{ids.index(ident)}]'})
@@ -524,6 +530,10 @@ def preflight_batch(batch):
         raise ValueError('invalid_batch')
     destinations, inputs, plans = set(), set(), []
     for item in batch:
+        if (not isinstance(item, dict) or set(item) != {'plan', 'backup'}
+                or any(not isinstance(item[key], str) or not item[key].strip()
+                       for key in ('plan', 'backup'))):
+            raise ValueError('invalid_batch')
         plan_path = checked_path(item['plan'])
         raw, _ = read_regular(plan_path)
         document = json.loads(raw)

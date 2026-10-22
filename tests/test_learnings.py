@@ -313,9 +313,9 @@ class LearningsTest(unittest.TestCase):
                 raced = True
                 self.write('winner')
                 winner_inode = (self.store.folder / name).stat().st_ino
-                # macOS can return ENOENT when non-exclusive O_CREAT loses a race.
-                error = FileExistsError if flags & os.O_EXCL else FileNotFoundError
-                code = errno.EEXIST if flags & os.O_EXCL else errno.ENOENT
+                # Model the macOS ENOENT race on the exclusive O_CREAT open too.
+                error = FileNotFoundError
+                code = errno.ENOENT
                 raise error(code, os.strerror(code), name)
             return real_open(name, flags, *args, **kwargs)
 
@@ -340,6 +340,8 @@ class LearningsTest(unittest.TestCase):
                     lock.symlink_to(outside)
                 elif kind == 'hardlink':
                     os.link(outside, lock)
+                elif kind == 'fifo' and not hasattr(os, 'mkfifo'):
+                    continue
                 else:
                     os.mkfifo(lock)
                 self.assertEqual(self.store.operate()['status'], 'unavailable')

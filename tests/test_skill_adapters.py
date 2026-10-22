@@ -44,7 +44,7 @@ class SkillAdapters(unittest.TestCase):
 
     def test_adapter_uses_installed_entry_and_is_idempotent(self):
         first = self.install()
-        entry = self.prefix / 'imps/current/entry.md'
+        entry = (self.prefix / 'imps/current').resolve() / 'entry.md'
         adapter = self.skills / 't3-imps/SKILL.md'
         self.assertIn(json.dumps(str(entry)), adapter.read_text())
         self.assertIn('name: t3-imps', adapter.read_text())
@@ -211,6 +211,7 @@ class SkillAdapters(unittest.TestCase):
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
         self.assertFalse(self.skills.exists())
 
+    @unittest.skipUnless(os.name == 'posix', 'read-only installed assets require POSIX mode bits')
     def test_stale_worker_bundle_preserves_existing_adapter(self):
         self.install()
         marker = self.prefix / 'imps/current/install-manifest.json'
@@ -226,6 +227,7 @@ class SkillAdapters(unittest.TestCase):
         self.assertEqual(before, {p: p.read_bytes() for p in before})
         self.assertEqual(asset.read_text(), 'modified bundle')
 
+    @unittest.skipUnless(os.name == 'posix', 'read-only installed assets require POSIX mode bits')
     def test_worker_bundle_pairing_and_receipt_digest_are_verified(self):
         self.call('install', 'imps')
         marker = self.prefix / 'imps/current/install-manifest.json'
@@ -240,15 +242,17 @@ class SkillAdapters(unittest.TestCase):
         # Even a receipt matching the changed bundle cannot excuse wrong pairing.
         receipt['bundle_digest'] = skills.installer.registry.digest(skills.installer.registry.canonical(bundle))
         marker.write_text(json.dumps(receipt))
-        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        result = self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
         self.assertFalse(self.skills.exists())
+        self.assertIn('package pairing mismatch', result.stderr)
         bundle_marker.chmod(0o644)
         bundle_marker.write_bytes(original)
         bundle_marker.chmod(0o444)
         receipt['bundle_digest'] = '0' * 64
         marker.write_text(json.dumps(receipt))
-        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        result = self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
         self.assertFalse(self.skills.exists())
+        self.assertIn('bundle digest mismatch', result.stderr)
 
     def test_adapter_metadata_comes_from_current_receipted_package_not_cli_catalog(self):
         self.call('install', 'imps')

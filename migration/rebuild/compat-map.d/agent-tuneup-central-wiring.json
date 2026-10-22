@@ -11,7 +11,7 @@
         "assertions": [
           {
             "selector": "test_agent_wiring.WiringTest",
-            "tests": 15,
+            "tests": 28,
             "coverage": ["REQ-COMPAT", "REQ-BOUNDARIES", "REQ-EVIDENCE", "G-TU-FORMAT", "G-TU-REPORT"],
             "survives": true
           }

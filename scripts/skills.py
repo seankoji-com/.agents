@@ -444,8 +444,13 @@ def install(root, prefix, meta):
     metadata_raw = registry.read_regular(version_dir / 'plugin.json', 'installed plugin metadata')
     if digest(metadata_raw) != metadata['sha256']:
         raise ValueError('installed plugin metadata changed during adapter preflight')
-    meta = json.loads(metadata_raw)
-    if meta.get('name') != manifest['plugin'] or meta.get('version') != manifest['version'].split('+', 1)[0]:
+    try:
+        meta = json.loads(metadata_raw)
+    except (UnicodeError, ValueError) as exc:
+        raise ValueError('installed plugin metadata is invalid') from exc
+    if (not isinstance(meta, dict) or not isinstance(meta.get('version'), str)
+            or meta.get('name') != manifest['plugin']
+            or meta.get('version') != manifest['version'].split('+', 1)[0]):
         raise ValueError('installed plugin metadata mismatch')
     if meta.get('workers') and not manifest.get('bundle_dir'):
         raise ValueError('installed worker package has no complete external bundle')
@@ -463,7 +468,7 @@ def install(root, prefix, meta):
     validate_picker(meta)
     if meta.get('entry') not in {item['path'] for item in manifest['files']}:
         raise ValueError('installed entry is not receipt-owned')
-    entry = current / meta['entry']
+    entry = version_dir / meta['entry']
     if not entry.is_file() or any(ord(c) < 32 for c in str(entry)):
         raise ValueError('invalid installed entry path')
     data = render(meta, entry).encode()

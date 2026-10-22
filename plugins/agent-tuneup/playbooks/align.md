@@ -34,9 +34,11 @@ and each private proposal before requesting concrete apply approval.
 5. Complete the central-wiring matrix and include a `wiring` object in the inventory.
    The helper binds coverage evidence and counts skill discovery alongside MCP and
    configured plugin entries. Native loading, semantic equivalence, plugin versions
-   and effective permissions require separate evidence. Mark each cell configured,
-   verified, disabled, unsupported, unknown or
-   intentionally different, with the source/scope and reason. Do not install a
+   and effective permissions require separate evidence. Mark each cell with its
+   source/scope and reason. Wiring cell states
+   are exactly `configured`, `unknown`, `unsupported`, and
+   `intentional-difference`. Do not use capability-summary states such as
+   `disabled` or `not_in_supplied_sources` for wiring cells. Do not install a
    provider to fill a disabled row or run transcript scans unless requested.
 
 ```json

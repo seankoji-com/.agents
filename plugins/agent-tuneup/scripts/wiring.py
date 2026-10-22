@@ -148,7 +148,11 @@ def skill_inventory(shared, providers, add):
                 for receipt in receipts:
                     if receipt['status'] not in {'verified', 'unmanaged'}:
                         add('skill_receipt_' + receipt['status'], location + f'.skills[{row["skills"] - 1}]')
-                identity = str(entry.resolve())
+                try:
+                    identity = str(entry.resolve())
+                except (OSError, RuntimeError):
+                    add('skill_entry_unresolvable', location + f'.skills[{row["skills"] - 1}]')
+                    continue
                 if provider_index is None:
                     if identity in shared_seen and any(p.get('reads_shared_skills') is True for p in providers):
                         add('duplicate_skill_discovery', location)

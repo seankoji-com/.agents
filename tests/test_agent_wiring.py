@@ -126,8 +126,31 @@ class WiringTest(unittest.TestCase):
         result = wiring.inspect(self.catalog, {'shared_skills': str(self.root / 'shared'), 'providers': [{
             'provider_instance_id': 'a', 'reads_shared_skills': False,
             'skill_roots': [str(self.root / 'native-one'), str(self.root / 'native-two')]}]})
-        self.assertEqual([f['location'] for f in result['findings'] if f['code'] == 'duplicate_skill_discovery'],
-                         ['wiring.skill_roots[2]'])
+        self.assertGreaterEqual(len(result['skill_roots']), 3)
+        duplicates = [f for f in result['findings'] if f['code'] == 'duplicate_skill_discovery']
+        self.assertEqual(len(duplicates), 1)
+        root_number = int(duplicates[0]['location'].split('[')[1].split(']')[0])
+        self.assertEqual(result['skill_roots'][root_number]['provider'], 0)
+
+    def test_unresolvable_skill_entry_does_not_discard_other_root_observations(self):
+        root = self.root / 'skills'
+        root.mkdir()
+        (root / 'loop').mkdir()
+        (root / 'loop' / 'SKILL.md').write_text('fixture')
+        original = Path.resolve
+
+        def resolve(path, *args, **kwargs):
+            if path.name == 'loop':
+                raise OSError('simulated junction loop')
+            return original(path, *args, **kwargs)
+
+        with patch.object(Path, 'resolve', resolve):
+            result = wiring.inspect(self.catalog, {'providers': [{
+                'provider_instance_id': 'a', 'skill_roots': [str(root)]}]})
+        self.assertEqual(result['skill_roots'][0]['status'], 'observed')
+        self.assertEqual(result['skill_roots'][0]['skills'], 1)
+        self.assertIn('skill_entry_unresolvable', {f['code'] for f in result['findings']})
+        self.assertNotIn('skill_root_unreadable', {f['code'] for f in result['findings']})
 
     def test_python311_windows_junction_attributes_are_counted_as_aliases(self):
         path = SimpleNamespace(lstat=lambda: SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=0x400))
@@ -226,6 +249,8 @@ class WiringTest(unittest.TestCase):
 
     @unittest.skipUnless(os.name == 'posix', 'FIFO fixture requires POSIX')
     def test_receipted_special_file_is_invalid_and_preserved(self):
+        if not hasattr(os, 'mkfifo'):
+            self.skipTest('FIFO fixtures require os.mkfifo')
         skill = self.file('shared/ordinary/SKILL.md')
         fifo = skill.parent / 'fifo'
         os.mkfifo(fifo)
@@ -240,7 +265,7 @@ class WiringTest(unittest.TestCase):
             'providers': [{'provider_instance_id': 'fixture-secret'}]}}))
         catalog = self.file('catalog.json', json.dumps(self.catalog))
         result = subprocess.run([sys.executable, str(SCRIPT), 'compare', '--catalog', str(catalog),
-                                 '--inventory', str(inventory)], capture_output=True, text=True)
+                                 '--inventory', str(inventory)], capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, 2)
         self.assertNotIn('fixture-secret', result.stdout + result.stderr)
 
@@ -248,7 +273,7 @@ class WiringTest(unittest.TestCase):
         inventory = self.file('inventory.json', '{"version":1,"providers":[]}')
         catalog = self.file('catalog.json', json.dumps(self.catalog))
         result = subprocess.run([sys.executable, str(SCRIPT), 'audit', '--catalog', str(catalog),
-                                 '--inventory', str(inventory)], capture_output=True, text=True)
+                                 '--inventory', str(inventory)], capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertEqual(json.loads(result.stdout)['writes'], 0)
         self.assertTrue(json.loads(result.stdout)['wiring']['findings'])
@@ -259,7 +284,7 @@ class WiringTest(unittest.TestCase):
             'sources': [{'scope': 'global', 'path': str(self.root / 'missing')}]}]}))
         catalog = self.file('catalog.json', json.dumps(self.catalog))
         result = subprocess.run([sys.executable, str(SCRIPT), 'audit', '--catalog', str(catalog),
-                                 '--inventory', str(inventory)], capture_output=True, text=True)
+                                 '--inventory', str(inventory)], capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, 2, result.stderr)
         receipt = json.loads(result.stdout)
         self.assertFalse(receipt['ok'])
@@ -285,7 +310,7 @@ class WiringTest(unittest.TestCase):
         def run(operation='audit'):
             source.write_text(json.dumps(inventory))
             result = subprocess.run([sys.executable, str(SCRIPT), operation, '--catalog', str(catalog),
-                                     '--inventory', str(source)], capture_output=True, text=True)
+                                     '--inventory', str(source)], capture_output=True, text=True, timeout=60)
             return result.returncode, json.loads(result.stdout)
 
         scenarios = [(['{}'], 'not_in_supplied_sources'),
@@ -313,6 +338,12 @@ class WiringTest(unittest.TestCase):
         code, receipt = run()
         self.assertEqual(code, 1)
         self.assertTrue(receipt['findings'])
+        inventory['providers'][0]['sources'] = [
+            {'path': str(self.file('configured-settings', '{"mcpServers":{"fixture":{}}}')),
+             'scope': 'global'}]
+        capability['intentional_differences'] = {'a': {
+            'reason': 'documented task scope', 'evidence': [{'path': 'notes.md'}]}}
+        self.assertEqual(run('compare')[0], 0)
 
     def plan(self, number):
         target = self.file(f'target-{number}', '{"permissions":{"allow":["Read(*)"]}}')
@@ -331,6 +362,12 @@ class WiringTest(unittest.TestCase):
         self.assertEqual(result['settings_writes'], 0)
         self.assertEqual(before, [a.read_bytes(), b.read_bytes()])
         self.assertFalse(Path(first['backup']).exists())
+
+    def test_batch_items_with_missing_or_non_string_paths_are_invalid_batch(self):
+        for batch in ([{}], [{'plan': 4, 'backup': 'backup.json'}],
+                      [{'plan': 'plan.json'}], [{'plan': 'plan.json', 'backup': None}]):
+            with self.subTest(batch=batch), self.assertRaisesRegex(ValueError, 'invalid_batch'):
+                align.preflight_batch(batch)
 
     def test_late_backup_conflict_stops_entire_preflight_without_writes(self):
         first, a = self.plan(1)
@@ -430,7 +467,7 @@ class WiringTest(unittest.TestCase):
         inventory = self.file('inventory.json', '{"version":1,"providers":[]}')
         result = subprocess.run([sys.executable, '-I', str(package / 'scripts/align.py'), 'compare',
                                  '--catalog', str(catalog), '--inventory', str(inventory)],
-                                cwd=self.root, capture_output=True, text=True, env=box.env)
+                                cwd=self.root, capture_output=True, text=True, env=box.env, timeout=60)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(json.loads(result.stdout)['wiring']['providers']), 3)
 
