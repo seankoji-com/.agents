@@ -229,8 +229,16 @@ def locked(fd, name, writable):
         import fcntl
     except ImportError as exc:
         raise Unavailable('process locking unavailable on this platform') from exc
-    flags = os.O_NOFOLLOW | os.O_NONBLOCK | (os.O_RDWR | os.O_CREAT if writable else os.O_RDONLY)
-    handle = os.open(name, flags, 0o600, dir_fd=fd)
+    flags = os.O_NOFOLLOW | os.O_NONBLOCK | (os.O_RDWR if writable else os.O_RDONLY)
+    if writable:
+        try:
+            # Non-exclusive O_CREAT can fail with ENOENT on macOS when another
+            # writer creates the lock first. Keep one persistent inode for flock.
+            handle = os.open(name, flags | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=fd)
+        except FileExistsError:
+            handle = os.open(name, flags, dir_fd=fd)
+    else:
+        handle = os.open(name, flags, dir_fd=fd)
     try:
         info = os.fstat(handle)
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:

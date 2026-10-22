@@ -131,6 +131,53 @@ class LearningsTest(unittest.TestCase):
                         [r for r in results if r['status'] != 'available'])
         self.assertEqual(len(self.store.operate()['data']['entries']), 24)
 
+    def test_first_writer_losing_lock_creation_preserves_both_entries(self):
+        real_open = os.open
+        raced = False
+        winner_inode = None
+
+        def competing_open(name, flags, *args, **kwargs):
+            nonlocal raced, winner_inode
+            if name == 'imps.md.lock' and flags & os.O_CREAT and not raced:
+                raced = True
+                self.write('winner')
+                winner_inode = (self.store.folder / name).stat().st_ino
+                # macOS can return ENOENT when non-exclusive O_CREAT loses a race.
+                error = FileExistsError if flags & os.O_EXCL else FileNotFoundError
+                code = errno.EEXIST if flags & os.O_EXCL else errno.ENOENT
+                raise error(code, os.strerror(code), name)
+            return real_open(name, flags, *args, **kwargs)
+
+        with mock.patch('learning_store.os.open', side_effect=competing_open):
+            self.write('loser')
+        self.assertTrue(raced)
+        self.assertEqual({e['id'] for e in self.store.operate()['data']['entries']}, {'winner', 'loser'})
+        lock = self.store.folder / 'imps.md.lock'
+        self.assertEqual(lock.stat().st_ino, winner_inode)
+        self.assertEqual(stat.S_IMODE(lock.stat().st_mode), 0o600)
+
+    def test_unsafe_lock_files_are_refused_without_changing_target(self):
+        self.write()
+        lock = self.store.folder / 'imps.md.lock'
+        outside = self.base / 'outside-lock'
+        outside.write_text('untouched')
+        outside.chmod(0o640)
+        for kind in ('symlink', 'hardlink', 'fifo'):
+            with self.subTest(kind=kind):
+                lock.unlink()
+                if kind == 'symlink':
+                    lock.symlink_to(outside)
+                elif kind == 'hardlink':
+                    os.link(outside, lock)
+                else:
+                    os.mkfifo(lock)
+                self.assertEqual(self.store.operate()['status'], 'unavailable')
+                result = self.store.operate('write', {
+                    'entry': {'id': 'unsafe', 'summary': 'Keep locks safe', 'failure': 'Unsafe lock'}})
+                self.assertEqual(result['status'], 'unavailable')
+                self.assertEqual(outside.read_text(), 'untouched')
+                self.assertEqual(stat.S_IMODE(outside.stat().st_mode), 0o640)
+
     def test_symlink_and_hardlink_artifacts_and_parent_are_refused(self):
         loaded = self.write()
         path = Path(loaded['path'])
