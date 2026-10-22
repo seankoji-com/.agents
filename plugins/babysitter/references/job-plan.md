@@ -32,15 +32,21 @@ or an armed auto-merge request never substitutes for an available action.
    apply. Severity, an approval, an outdated marker or a worker's `fixed` label is
    insufficient. Reply and resolve through step 7, then re-read the thread to confirm
    it is resolved. If the head changes, re-verify before resolving. If a reply or
-   resolution fails, report the exact failure and stop writes for that PR. For an
-   ambiguous reply outcome, inspect the thread before retrying so no duplicate is
-   posted. Never mark resolution complete from a reply alone.
+   resolution fails, inspect and report the exact failure. A permission denial stops
+   writes for that PR; never bypass it. For transient errors or ambiguous reply
+   outcomes, inspect the thread before a bounded retry so no duplicate is posted.
+   Never mark resolution complete from a reply alone.
 4. Dispatch remaining actionable threads, merge conflicts and failing checks to the
    fixer with the complete blocker list. Conflicts require integrating the current
    base, resolving files and testing the combined result. Failing checks require
    reading current-head logs, repairing the cause and verifying the repair. Retry
-   infrastructure failures within a bounded attempt count; missing access or an
-   external outage becomes a named blocker. Local success does not prove hosted CI.
+   infrastructure failures under `PKG/references/scope.md`'s retry limits, then change diagnosis.
+   Repair safe in-scope CI/dependency setup without asking; repeated DNS/TLS or
+   download failures alone do not require human input. Missing access or an external
+   outage is a named blocker only after authorized alternatives are exhausted.
+   Local success does not prove hosted CI.
+   Reconcile the coordinator-owned retry record and put current `retry_usage` in
+   each new dispatch task text, as defined in `PKG/references/scope.md`.
 5. Read four independent landing gates at the current head: thread resolution,
    latest review state, required checks and mergeability. Resolve addressed threads
    even while CI is red or a new review is required. A resolved thread does not clear
@@ -54,11 +60,13 @@ or an armed auto-merge request never substitutes for an available action.
 - Save the operator's request verbatim to an owner-source file outside the job
   directory and every PR worktree, for example
   `$XDG_STATE_HOME/t3-plugins/babysitter/requests/<run-id>.txt`. Decisions quote it.
-- Freeze the roster (step 1) and run the quick pass (step 2) first, so the stage is
-  declared at the head this thread actually observed.
+- Admit the PR under the recorded scope (step 1) and run its quick pass (step 2)
+  first, so the stage is declared at the head this thread actually observed.
+  New matching PRs get separate jobs; never replace an existing job's PR identity.
+  Head rebinding still follows the stage and acceptance rules below.
 - Record the auto-merge posture (step 1) as a `decisions` entry quoting the operator's
-  picker answer, or the saved request when it named the posture, so the quick pass,
-  each wake, and the merge share one mode.
+  saved request and the entry's default, or its explicit override, so the quick pass,
+  each wake, and the merge share one mode. Do not fabricate a picker answer.
 
 ## Job fields
 
@@ -122,9 +130,10 @@ publish the observation and accept the stage. A slot is settled once no handle i
 live and its last result is ingested; a `needs-followup` result first gets its
 tracked follow-up, and a blocker or major finding needs a recorded disposition.
 
-Never use this route for new PRs, extra actions, a different endstate or fewer
-required contexts. Those widen scope: ask through the question picker and quote the
-operator's answer instead.
+Never use this route to add another PR to an existing job. New matching PRs are
+already authorized by org/repo scope and get separate jobs. Extra actions outside
+that scope, a different endstate or fewer required contexts need new authority:
+ask through the question picker and quote the operator's answer instead.
 
 ## Operator-requested review
 

@@ -50,19 +50,18 @@ A run keeps going until every targeted PR has merged or needs a person:
    PR as soon as GitHub allows it, watches the rest, and refills fixers on every wake.
    It never ends a turn while a PR has fixable work and no child on it.
 
-One question comes before any child starts:
+Through-merge requests default to **enable auto-merge on all PRs**, without another
+question. The thread records that choice from your original request. You can
+explicitly choose **leave auto-merge as set** (arm and clear nothing) or **ignore PRs
+with auto-merge** (exclude those PRs). Inspect-only runs arm nothing. An armed
+request never withholds a fixer push, resolution or permitted merge, and never
+counts as progress while threads, conflicts or red checks remain.
 
-- **Auto-merge.** Before the list is frozen, the thread asks how to treat auto-merge
-  and records your answer:
-  - *Enable auto-merge on all PRs*, the default. It arms every targeted PR GitHub
-    allows after every review thread is resolved, so each one lands as soon as it qualifies.
-  - *Leave auto-merge as set.* It arms nothing and clears nothing.
-  - *Ignore PRs with auto-merge.* A PR that already has auto-merge queued drops out of
-    the run entirely.
-
-  No answer withholds a fixer push or a merge because auto-merge is already queued, and
-  none disables a request you armed. Armed auto-merge never counts as progress while
-  threads, conflicts or red checks remain, so babysitter keeps repairing them.
+Repo and org scope stays open throughout the active run. The thread refreshes
+discovery on every wake or child completion and before yielding or handing back.
+New matching PRs join automatically under your original authorization, with their
+own action records and jobs. The initial list is never a frozen roster. Partial
+discovery is reported as a gap; it cannot support an "all done" claim.
 
 The thread keeps one table of the targeted PRs and posts it at the end of every turn.
 Its shape, with made-up PRs:
@@ -102,8 +101,9 @@ resolution and the PR table stay in your thread.
 `scripts/validate_pr.py` accepts a PR only from your thread's own observation of its
 current head, required checks, the complete list of resolved threads and the
 authorized endstate. A worker reporting "pushed" or a queued auto-merge is not
-acceptance. More PRs or more actions than you authorized are asked through the
-question picker.
+acceptance. New PRs matching your repo/org scope need no renewed permission. A
+different repository or organization, excluded PR, or action outside your request
+needs new authority.
 
 ## Authorize the finish line
 
@@ -113,15 +113,37 @@ fixing and pushing to the targeted PR branches (rebases published with a pinned
 threads, and merging them once GitHub allows it. The read-only example in
 [Try it](#try-it) narrows that to inspection. A clean PR can merge in the quick pass
 without a fixer, so use `repo` or `org` only when you mean every eligible PR there.
-Drafts, forks and other authors' PRs are left alone unless you name them.
+Repo/org runs include all authors and bots. Drafts and forks are left alone unless
+you explicitly include them; the helper then uses `--include-drafts` or
+`--include-forks`. Confirmed ownership by another active thread stays
+visible; babysitter continues the other PRs without creating a competing writer.
 Protected-branch rules still apply. Babysitter never uses admin bypass, never
 dismisses reviews, and never force-pushes a base branch.
 
+## Routine decisions
+
+The brief and your earlier answers settle routine choices. Babysitter does not ask
+you to select a default that the task already supplies:
+
+| Event | What happens without a question |
+|---|---|
+| No auto-merge preference in a through-merge request | Enable it when the landing gates permit. |
+| Another matching PR appears | Add it and continue maintenance. |
+| A PR head moves | Fetch, integrate and revalidate in the isolated worktree, unless competing ownership is confirmed. |
+| CI downloads or setup fail repeatedly | Stop identical retries after 3 attempts or 5 minutes, whichever comes first; diagnose and repair safe setup within scope. |
+
+Questions are for a material product choice, missing access or secrets, a necessary
+ownership transfer, or new authority. Repeated failures alone are not a reason to
+hand back fixable work. Branch protection, worktree ownership and package/ledger
+integrity remain gates.
+
 ## Limits
 
-T3 watches PRs that already exist. Picking up future PRs across a repository or
-organization needs a separately authorized scheduled sweep. Unit tests don't show how a
-given model behaves; see [compatibility](../compatibility.md).
+T3's native watches cover linked PRs, so they cannot discover new PRs while the
+thread is idle. Discovery runs again on the next wake and before handoff. Persistent
+discovery after handoff needs an explicitly requested host schedule; the thread
+reports any idle discovery gap. Unit tests don't show how a given model behaves;
+see [compatibility](../compatibility.md).
 
 Jobs created through the shared CLI carry `policy.identity: observed`. Required reviewer executions, their subjects, and slots marked `independent_of_author` need verified host identity at acceptance. Authoring jobs enforce author-lineage checks from `policy.author_independence`, even if a slot omits its flag. Legacy jobs without the identity marker retain target-only acceptance semantics. A first author record cannot identify earlier authors of an unrecorded document. Direct cold-read stages cannot fall back to the coordinator.
 
