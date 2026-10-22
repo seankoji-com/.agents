@@ -34,8 +34,10 @@ for `audit`, `PKG/playbooks/align.md` for `align` or `apply`, and
   `worktree-bootstrap-missing` with a draft `t3.json` or
   `worktree-bootstrap-not-imported`, and writes nothing: no `t3.json`, no
   `t3_project_update`.
-- `align`: inventory every provider in T3's live catalog, compare permissions, MCPs,
-  plugins, skills, instructions and hooks, and prepare native changes for review.
+- `audit`: with no narrowing flags, audit the complete default coverage in
+  `PKG/references/central-wiring.md`, including permission sync and worktree setup.
+- `align`: inventory every provider in T3's live catalog using that same default,
+  compare centralized wiring and prepare native changes for review.
   Inventory and proposals write no settings. Alignment across several providers is a
   job with research and proposal stages.
 - `apply --plan <path>`: apply an unchanged, explicitly approved plan with its digest

@@ -43,11 +43,11 @@
   "agent-tuneup": {
     "plate": "V",
     "binomial": "Gryllus auditor",
-    "summary": "Compare provider permissions, MCPs and plugins, then apply reviewed native changes.",
-    "use_when": "Your providers disagree about permissions, MCP servers or plugins, or you want to find over-broad allow rules before an agent does.",
-    "try": "$t3-agent-tuneup audit --provider claude --settings .claude/settings.json",
-    "habitat": "A T3 thread with a live provider catalog and explicitly identified settings layers.",
-    "diet": "An audit target, or an alignment request followed by approval of concrete changes.",
+    "summary": "Audit shared T3 wiring across providers, then apply reviewed native changes.",
+    "use_when": "You want to check shared instructions, skills, permissions, MCPs, roles and repository setup across your T3 providers.",
+    "try": "$t3-agent-tuneup audit",
+    "habitat": "A T3 thread with a live provider catalog and identified configuration sources.",
+    "diet": "A complete wiring audit, a narrower explicit target, or approval of concrete changes.",
     "field_marks": "Read-only by default. Unknown capabilities stay visible. Native settings writes require a reviewed plan, unchanged file hashes and a private backup."
   },
   "ralph": {

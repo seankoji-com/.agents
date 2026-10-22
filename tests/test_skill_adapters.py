@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -68,6 +69,72 @@ class SkillAdapters(unittest.TestCase):
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(output.returncode, 0, output.stderr)
         self.assertEqual(json.loads(output.stdout)['data']['issues'], [42, 43])
+
+    def test_adapter_entry_follows_activation_and_matches_receipt(self):
+        first = json.loads(self.call('install', 'imps').stdout)['data']
+        entry = self.prefix / 'imps/current/entry.md'
+        self.call('skills', 'install', 'imps', '--root', str(self.skills))
+        adapter = self.skills / 't3-imps/SKILL.md'
+        marker_path = adapter.parent / '.t3-plugins-skill.json'
+        self.assertIn(json.dumps(str(entry)), adapter.read_text())
+        self.assertEqual(json.loads(marker_path.read_text())['entry'], str(entry))
+
+        # Create a real second version through the installer, then switch in both
+        # directions. The adapter and receipt keep the public current path while it
+        # resolves to whichever verified snapshot is active.
+        source = self.base / 'second-source'
+        for name in ('core', 'shared', 'plugins'):
+            shutil.copytree(ROOT / name, source / name,
+                            ignore=shutil.ignore_patterns('__pycache__', '.pytest_cache'))
+        note = next((source / 'plugins/imps').rglob('*.md'))
+        note.write_text(note.read_text() + '\nactivation fixture\n')
+        install = subprocess.run([
+            sys.executable, str(ROOT / 'scripts/install.py'), '--plugin', 'imps',
+            '--prefix', str(self.prefix), '--agents-root', str(self.agents),
+            '--source', str(source)], capture_output=True, text=True, timeout=60)
+        self.assertEqual(install.returncode, 0, install.stdout + install.stderr)
+        second = json.loads(install.stdout)['data']
+        self.assertNotEqual(first['version'], second['version'])
+
+        for version, active in ((first['version'], first), (second['version'], second)):
+            self.call('activate', 'imps', version)
+            self.assertEqual(json.loads(marker_path.read_text())['entry'], str(entry))
+            self.assertIn(json.dumps(str(entry)), adapter.read_text())
+            self.assertTrue(entry.is_file())
+            self.assertEqual(entry.resolve().parent.name, active['version'])
+
+    def test_invalid_installed_metadata_is_rejected_before_adapter_writes(self):
+        self.call('install', 'imps')
+        meta = json.loads((self.prefix / 'imps/current/plugin.json').read_text())
+        manifest = skills.installer.load_manifest(self.prefix / 'imps/current/install-manifest.json')
+        metadata = next(item for item in manifest['files'] if item['path'] == 'plugin.json')
+        original_read = skills.installer.registry.read_regular
+        original_digest = skills.digest
+        cases = [
+            (b'not json', 'installed plugin metadata is invalid'),
+            (b'[]', 'installed plugin metadata mismatch'),
+            (json.dumps(dict(meta, version=1)).encode(), 'installed plugin metadata mismatch'),
+        ]
+        for entry in (None, ['entry.md'], '/entry.md', '../entry.md',
+                      'nested/../entry.md', 'entry.md\n', 'entry.md\0',
+                      'nested\\entry.md', 'entry.md/'):
+            cases.append((json.dumps(dict(meta, entry=entry)).encode(),
+                          'installed entry is not receipt-owned'))
+        for raw, message in cases:
+            with self.subTest(metadata=raw, message=message):
+                def read(path, label):
+                    if label == 'installed plugin metadata':
+                        return raw
+                    return original_read(path, label)
+
+                def digest(data):
+                    return metadata['sha256'] if data == raw else original_digest(data)
+
+                with mock.patch.object(skills.installer.registry, 'read_regular', side_effect=read), \
+                        mock.patch.object(skills, 'digest', side_effect=digest), \
+                        self.assertRaisesRegex(ValueError, message):
+                    skills.install(self.skills, self.prefix, meta)
+                self.assertFalse(self.skills.exists())
 
     def test_missing_package_and_external_activation_fail_without_adapter_writes(self):
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
@@ -170,6 +237,128 @@ class SkillAdapters(unittest.TestCase):
         self.call('install', 'imps')
         (self.prefix / 'imps/current/entry.md').write_text('changed')
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+
+    def test_receipt_digest_tamper_is_not_registered(self):
+        self.call('install', 'imps')
+        marker = self.prefix / 'imps/current/install-manifest.json'
+        receipt = json.loads(marker.read_text())
+        receipt['package_digest'] = '0' * 64
+        marker.write_text(json.dumps(receipt))
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+
+    def test_missing_receipt_entry_is_not_registered_even_with_updated_digest(self):
+        self.call('install', 'imps')
+        marker = self.prefix / 'imps/current/install-manifest.json'
+        receipt = json.loads(marker.read_text())
+        removed = next(item for item in receipt['files'] if item['path'] not in {'entry.md', 'plugin.json'})
+        receipt['files'].remove(removed)
+        receipt['package_digest'] = skills.installer.registry.package_digest(receipt)
+        marker.write_text(json.dumps(receipt))
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+        self.assertTrue((marker.parent / removed['path']).is_file())
+
+    def test_unlisted_package_file_is_not_registered(self):
+        self.call('install', 'imps')
+        extra = self.prefix / 'imps/current/unlisted.txt'
+        extra.write_text('preserve')
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+        self.assertEqual(extra.read_text(), 'preserve')
+
+    def test_worker_bundle_required_from_current_metadata(self):
+        self.call('install', 'imps')
+        marker = self.prefix / 'imps/current/install-manifest.json'
+        receipt = json.loads(marker.read_text())
+        receipt.pop('bundle_dir')
+        receipt.pop('bundle_digest')
+        marker.write_text(json.dumps(receipt))
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+
+    @unittest.skipUnless(os.name == 'posix', 'read-only installed assets require POSIX mode bits')
+    def test_stale_worker_bundle_preserves_existing_adapter(self):
+        self.install()
+        marker = self.prefix / 'imps/current/install-manifest.json'
+        receipt = json.loads(marker.read_text())
+        bundle = Path(receipt['bundle_dir'])
+        asset = next(p for p in bundle.rglob('*') if p.is_file() and p.name != 'manifest.json')
+        asset.chmod(0o644)
+        asset.write_text('modified bundle')
+        asset.chmod(0o444)
+        folder = self.skills / 't3-imps'
+        before = {p: p.read_bytes() for p in folder.rglob('*') if p.is_file()}
+        self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertEqual(before, {p: p.read_bytes() for p in before})
+        self.assertEqual(asset.read_text(), 'modified bundle')
+
+    @unittest.skipUnless(os.name == 'posix', 'read-only installed assets require POSIX mode bits')
+    def test_worker_bundle_pairing_and_receipt_digest_are_verified(self):
+        self.call('install', 'imps')
+        marker = self.prefix / 'imps/current/install-manifest.json'
+        receipt = json.loads(marker.read_text())
+        bundle_marker = Path(receipt['bundle_dir']) / 'manifest.json'
+        original = bundle_marker.read_bytes()
+        bundle = json.loads(original)
+        bundle['package_digest'] = '0' * 64
+        bundle_marker.chmod(0o644)
+        bundle_marker.write_text(json.dumps(bundle))
+        bundle_marker.chmod(0o444)
+        # Even a receipt matching the changed bundle cannot excuse wrong pairing.
+        receipt['bundle_digest'] = skills.installer.registry.digest(skills.installer.registry.canonical(bundle))
+        marker.write_text(json.dumps(receipt))
+        result = self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+        self.assertIn('package pairing mismatch', result.stderr)
+        bundle_marker.chmod(0o644)
+        bundle_marker.write_bytes(original)
+        bundle_marker.chmod(0o444)
+        receipt['bundle_digest'] = '0' * 64
+        marker.write_text(json.dumps(receipt))
+        result = self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
+        self.assertFalse(self.skills.exists())
+        self.assertIn('bundle digest mismatch', result.stderr)
+
+    def test_adapter_metadata_comes_from_current_receipted_package_not_cli_catalog(self):
+        self.call('install', 'imps')
+        installed = json.loads((self.prefix / 'imps/current/plugin.json').read_text())
+        bundled = dict(installed, version='999.0.0', description='wrong CLI metadata',
+                       operations=['wrong'], picker=['wrong', 'other'])
+        skills.install(self.skills, self.prefix, bundled)
+        text = (self.skills / 't3-imps/SKILL.md').read_text()
+        self.assertIn(installed['description'], text)
+        self.assertNotIn('wrong CLI metadata', text)
+        self.assertNotIn('999.0.0', text)
+
+    def test_metadata_changed_after_snapshot_verification_is_not_rendered(self):
+        self.call('install', 'imps')
+        meta = json.loads((self.prefix / 'imps/current/plugin.json').read_text())
+        changed = dict(meta, description='unverified metadata')
+        original = skills.installer.registry.read_regular
+
+        def read(path, label):
+            return json.dumps(changed).encode() if label == 'installed plugin metadata' else original(path, label)
+
+        with mock.patch.object(skills.installer.registry, 'read_regular', side_effect=read):
+            with self.assertRaisesRegex(ValueError, 'metadata changed'):
+                skills.install(self.skills, self.prefix, meta)
+        self.assertFalse(self.skills.exists())
+
+    def test_changed_activation_is_refused_before_adapter_writes(self):
+        self.call('install', 'imps')
+        current = self.prefix / 'imps/current'
+        meta = json.loads((current / 'plugin.json').read_text())
+        original = skills.render
+
+        def activate_other(*args):
+            current.unlink()
+            current.symlink_to(self.base / 'other')
+            return original(*args)
+
+        with mock.patch.object(skills, 'render', activate_other), self.assertRaisesRegex(ValueError, 'activation changed'):
+            skills.install(self.skills, self.prefix, meta)
         self.assertFalse(self.skills.exists())
 
     def test_prompt_forwards_panel_flags(self):

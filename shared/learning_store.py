@@ -229,17 +229,24 @@ def locked(fd, name, writable):
         import fcntl
     except ImportError as exc:
         raise Unavailable('process locking unavailable on this platform') from exc
-    flags = os.O_NOFOLLOW | os.O_NONBLOCK | (os.O_RDWR | os.O_CREAT if writable else os.O_RDONLY)
-    # Retry transient ENOENT only on this writable O_CREAT open, anchored to the
-    # same directory. Never replace/unlink the lock or replay the operation.
-    # Missing read-only locks retain their absent semantics.
-    for attempt in range(3):
-        try:
-            handle = os.open(name, flags, 0o600, dir_fd=fd)
-            break
-        except OSError as exc:
-            if not writable or exc.errno != errno.ENOENT or attempt == 2:
-                raise
+    flags = os.O_NOFOLLOW | os.O_NONBLOCK | (os.O_RDWR if writable else os.O_RDONLY)
+    if writable:
+        # Keep exclusive creation and bounded ENOENT recovery anchored to the
+        # same directory. Never unlink the persistent inode or replay the write.
+        for attempt in range(3):
+            try:
+                try:
+                    # Non-exclusive O_CREAT can fail with ENOENT on macOS when
+                    # another writer creates the lock first.
+                    handle = os.open(name, flags | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=fd)
+                except FileExistsError:
+                    handle = os.open(name, flags, dir_fd=fd)
+                break
+            except OSError as exc:
+                if exc.errno != errno.ENOENT or attempt == 2:
+                    raise
+    else:
+        handle = os.open(name, flags, dir_fd=fd)
     try:
         info = os.fstat(handle)
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
