@@ -122,6 +122,38 @@ def audit_rows(base):
     return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 
 
+class PristineFixture:
+    """Restore real setup bytes at the same path; never rewrite signed absolute bindings."""
+
+    def __init__(self, base, *values):
+        self.base = base
+        self.saved = base.with_name(base.name + '-pristine')
+        self.values = copy.deepcopy(values)
+        self.files = self.manifest(base)
+        shutil.copytree(base, self.saved, symlinks=True)
+
+    @staticmethod
+    def manifest(base):
+        rows = {}
+        for path in (base, *base.rglob('*')):
+            mode = path.lstat().st_mode & 0o777
+            if path.is_symlink():
+                value = ('link', mode, os.readlink(path))
+            elif path.is_dir():
+                value = ('directory', mode)
+            else:
+                value = ('file', mode, sha(path.read_bytes()))
+            rows[str(path.relative_to(base))] = value
+        return rows
+
+    def restore(self):
+        shutil.rmtree(self.base)
+        shutil.copytree(self.saved, self.base, symlinks=True)
+        if self.manifest(self.base) != self.files:
+            raise AssertionError('pristine fixture bytes, permissions or links changed')
+        return copy.deepcopy(self.values)
+
+
 def run_installed(package, script, *args, env, cwd, python=sys.executable):
     proc = subprocess.run([python, str(package / script), *map(str, args)], capture_output=True, text=True, env=env,
                           cwd=cwd, timeout=120)
@@ -619,14 +651,17 @@ class RelocatedInstallTest(unittest.TestCase):
         self.adopt()
         cases = ('basis', 'observed', 'inferred', 'size', 'bytes-string', 'bytes-bool',
                  'markdown-hash', 'outer-hash', 'binding', 'missing-image-receipts')
+        base = STATE['base'] / 'handoff-negative'
+        base.mkdir()
+        with Swap(self.inst, self.inst['env'], base):
+            h = HandoffHost(base, self.inst['package'])
+            h.start(mode='capture-only')
+            run = h.begin()
+        pristine = PristineFixture(base, h, run)
         for case in cases:
             with self.subTest(case=case):
-                base = STATE['base'] / f'handoff-{case}'
-                base.mkdir()
+                h, run = pristine.restore()
                 with Swap(self.inst, self.inst['env'], base):
-                    h = HandoffHost(base, self.inst['package'])
-                    h.start(mode='capture-only')
-                    run = h.begin()
                     self.assertEqual(h.trace(run)[0], 0)
                     if case == 'basis':
                         run['payload']['image_use']['basis'] = 'I read every screenshot'
@@ -917,10 +952,21 @@ class DamagedPackageTest(unittest.TestCase):
     """A missing bundled asset, a changed helper and an incomplete worker bundle are each refused by the installed
     doctor, the catalog doctor and job creation; restoring the bytes makes the same package acceptable again."""
 
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.tmp.cleanup)
+        seed = cls()
+        seed.base = Path(cls.tmp.name).resolve() / 'case'
+        seed.base.mkdir()
+        seed.prepare_fixture()
+        cls.pristine = PristineFixture(seed.base, seed.inst, seed.h, seed.job_spec)
+
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.base = Path(self.tmp.name).resolve()
+        self.base = self.pristine.base
+        self.inst, self.h, self.job_spec = self.pristine.restore()
+
+    def prepare_fixture(self):
         self.inst = install(self.base)
         work = self.base / 'work'
         work.mkdir()
