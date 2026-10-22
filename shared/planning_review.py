@@ -508,12 +508,23 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
     """
     job = verify_all_pins(store, caller)
     policy = manifest_policy(job)
+    def retained_brief():
+        def check(current):
+            manifest_policy(current)
+            attempt = next(a for a in current['planning']['attempts'] if a['request_id'] == request_id)
+            need(attempt['slot_id'] == slot_id and attempt['outcome'] is None,
+                 'request ID is already retained by a finished attempt')
+            task = next(t for t in current['tasks'] if t['task_id'] == attempt['task_id'])
+            need('brief' in task, 'incomplete launch reservation requires reconciliation')
+            if not any(h.get('request_id') == request_id for h in
+                       task.get('handles', []) + task.get('followups', []) + task.get('execution_history', [])):
+                require_admission(current, task)
+            return dict(task['brief'], target=attempt['target'], task_id=task['task_id'],
+                        request_id=request_id, mode=attempt['mode'])
+        return store.transact(caller, check, 'prepare')
     old = next((a for a in job['planning']['attempts'] if a['request_id'] == request_id), None)
     if old:
-        need(old['slot_id'] == slot_id and old['outcome'] is None, 'request ID is already retained by a finished attempt')
-        task = next(t for t in job['tasks'] if t['task_id'] == old['task_id'])
-        need('brief' in task, 'incomplete launch reservation requires reconciliation')
-        return dict(task['brief'], target=old['target'], task_id=old['task_id'], request_id=request_id, mode=old['mode'])
+        return retained_brief()
     need(job['planning']['round'] and not any(p['slot_id'] == slot_id for p in job['planning']['passes']), 'slot already reviewed or no round')
     candidate = next_candidate(job, slot_id, sharing)
     need(candidate is not None, 'all permitted children unavailable; explicit direct pass required')
@@ -526,9 +537,7 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
         old = next((a for a in job['planning']['attempts'] if a['request_id'] == request_id), None)
         if old:
             need(old['slot_id'] == slot_id and old['target'] == candidate['target'], 'request ID binding differs')
-            task = next(t for t in job['tasks'] if t['task_id'] == old['task_id'])
-            need('brief' in task, 'incomplete launch reservation requires reconciliation')
-            return dict(task['brief'], target=old['target'])
+            return retained_brief()
         used = [a for a in state['rounds'][-1]['attempts'] if a['target'] == candidate['target'] and a['slot_id'] == slot_id]
         need(len(used) < job['planning']['attempts_per_candidate'], 'finite candidate technical allowance exhausted')
         # Total technical bound survives replacement jobs. Allow enough for the initial finite chain in every round.

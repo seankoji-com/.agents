@@ -219,6 +219,18 @@ class PlanningReviewTests(unittest.TestCase):
         attempt = self.cli('launch', payload, installed=True)
         from shared.job_coordination import coordination_metrics, occupancy
         self.assertEqual(len(occupancy(store.load())), 1)
+        before_job, before_subject = store.file.read_bytes(), subject.read_bytes()
+        replay = self.cli('launch', payload, installed=True)
+        for key in ('path', 'sha256', 'target', 'task_id', 'request_id', 'mode'):
+            self.assertEqual(replay[key], attempt[key])
+        self.assertEqual(store.file.read_bytes(), before_job)
+        self.assertEqual(subject.read_bytes(), before_subject)
+        self.cli('host-event', {'task_id': attempt['task_id'],
+            'event': {'kind': 'capacity-deferred', 'request_id': attempt['request_id']}})
+        before_job, before_subject = store.file.read_bytes(), subject.read_bytes()
+        self.assertIn('owned_completion_required', self.cli('launch', payload, ok=False, installed=True))
+        self.assertEqual(store.file.read_bytes(), before_job)
+        self.assertEqual(subject.read_bytes(), before_subject)
         self.unavailable(attempt)
         self.assertEqual(occupancy(store.load()), [])
         self.assertEqual(coordination_metrics(store.load())['executions_with_results'], 0)
