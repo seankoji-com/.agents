@@ -18,6 +18,7 @@ from core.jobs.results import parse_result, ResultError
 from core.jobs.store import (Store, JobError, canonical, digest, strict_load, _regular,
                              _atomic, _retain, _authorize)
 from shared import model_selection as models
+from shared.job_coordination import freeze_provider_limits, require_admission
 from shared.job_coordinator import (verified_pins, verify_job_pins, pinned_store,
                                     verify_all_pins, verify_pinned_dependency)
 from shared.lineage import lineage
@@ -292,6 +293,7 @@ def create(data, state_root, prefix, agents_root, environ=None):
                             'data_classes': classes}}
         with locked(registry_root(agents_root)):
             pins = verified_pins(job, state_root, prefix, agents_root)
+            freeze_provider_limits(job, pins)
             job['pins'] = pins
             meta = strict_load(_regular(Path(pins['workflow']['package_dir']) / 'plugin.json'))
             job['planning']['policy_sha256'] = digest(canonical(meta.get('planning_review')))
@@ -534,19 +536,20 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
         task_id = 'review-' + str(state['technical_used'] + 1)
         attempt = {'request_id': request_id, 'task_id': task_id, 'slot_id': slot_id, 'target': candidate['target'],
                    'mode': candidate['mode'], 'lineage': candidate['lineage'], 'outcome': None}
-        state['technical_used'] += 1
-        state['rounds'][-1]['attempts'].append(attempt)
-        subject.save(state)
         def apply(j):
             need(not any(t['request_id'] == request_id for t in j['tasks']), 'request ID already retained')
-            j['planning']['attempts'].append(deepcopy(attempt))
             j['tasks'].append({'task_id': task_id, 'stage_id': 'planning', 'logical_slot_id': task_id,
                 'request_id': request_id, 'worker_id': policy['worker_id'], 'dependency_key': 'workflow',
                 'role': 'review', 'target': candidate['target'], 'status': 'pending',
                 'attempt': 0, 'handles': [], 'followups': [], 'dispatch_retries': 0,
                 'write_scope': {'mode': 'worker-evidence', 'path': 'artifacts/tasks/' + task_id}})
-        store.transact(caller, apply)
-        brief = prepare(store, caller, task_id, verify_pinned_dependency, lambda _: False, 'explicit planning panel/availability candidate')
+            require_admission(j, j['tasks'][-1])
+            j['planning']['attempts'].append(deepcopy(attempt))
+            state['technical_used'] += 1
+            state['rounds'][-1]['attempts'].append(attempt)
+            subject.save(state)
+        brief = prepare(store, caller, task_id, verify_pinned_dependency, lambda _: False,
+                        'explicit planning panel/availability candidate', bind_inputs=apply)
         return dict(brief, target=candidate['target'], mode=candidate['mode'], task_id=task_id, request_id=request_id)
 
 
@@ -587,11 +590,10 @@ def unavailable(store, caller, task_id, failure, environ=None):
             attempt.update(outcome='unavailable', failure=deepcopy(failure), owned_handles=deepcopy(handles))
             task_ = next(t for t in j['tasks'] if t['task_id'] == task_id)
             task_['status'] = 'failed'
-            if handles:
-                # This is the terminal host failure receipt, explicitly not a
-                # worker result. It discharges the unread terminal obligation.
-                task_.setdefault('execution_history', []).append({'request_id': task_['request_id'],
-                    'technical_failure': deepcopy(failure), 'accepted_execution': False})
+            # The correlated failure settles this reservation even without a host
+            # handle. It is not a worker result or a substantive assessment.
+            task_.setdefault('execution_history', []).append({'request_id': task_['request_id'],
+                'technical_failure': deepcopy(failure), 'accepted_execution': False})
             return deepcopy(attempt)
         updated = store.transact(caller, apply)
         old = next(a for a in state['rounds'][-1]['attempts'] if a['task_id'] == task_id)

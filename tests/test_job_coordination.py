@@ -57,7 +57,7 @@ class CoordinationTests(unittest.TestCase):
             page = overview(store,compact=True, limit=100)
             seen = list(page['records'])
             while page['next_cursor']:
-                self.assertLessEqual(len(canonical(page)), COMPACT_MAX_BYTES)
+                self.assertLessEqual(len(canonical(page)) + 1, COMPACT_MAX_BYTES)
                 page = overview(store,compact=True, cursor=page['next_cursor'], limit=100)
                 seen.extend(page['records'])
             self.assertEqual(len(seen), page['total_records'])
@@ -95,6 +95,68 @@ class CoordinationTests(unittest.TestCase):
             by_task = {row['task_id']: row for row in admission(store.load())['tasks']}
             self.assertFalse(by_task['t1']['eligible'])
             self.assertEqual(by_task['t1']['reason'], 'provider_worker_limit')
+
+    def test_compact_admission_matches_readiness_instead_of_capacity_alone(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.store(directory, self.job())
+            for reason in ('predecessor_acceptance_required', 'reconcile_owned_work',
+                           'task_not_pending', 'execution_or_retry_checks_required'):
+                with self.subTest(reason=reason):
+                    job = store.load()
+                    task = job['tasks'][0]
+                    if reason == 'predecessor_acceptance_required':
+                        job['stages'].append({**copy.deepcopy(job['stages'][0]), 'id': 'predecessor'})
+                        job['stages'][0]['depends_on'] = ['predecessor']
+                    elif reason == 'reconcile_owned_work':
+                        task['handles'] = [{'task_id': 'owned', 'request_id': task['request_id'],
+                                            'status': 'running', 'work_state': 'working'}]
+                    elif reason == 'task_not_pending':
+                        task['status'] = 'completed'
+                    else:
+                        task['attempt'] = 1
+                    advice = admission(job)['tasks'][0]
+                    page = overview(store, job, compact=True, limit=100)
+                    row = next(row for row in page['records'] if row['kind'] == 'tasks' and row['task_id'] == 't0')
+                    self.assertEqual(row['admission'], {key: value for key, value in advice.items()
+                                                      if key not in ('task_id', 'request_id')})
+                    self.assertEqual(row['admission']['reason'], reason)
+                    self.assertFalse(row['admission']['eligible'])
+                    self.assertNotEqual(row['next_action'], 'prepare_if_admitted')
+
+    def test_missing_host_duplicate_cannot_create_a_phantom_capacity_slot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.store(directory, self.job())
+            self.event(store, 't0', 'accepted', host_task_id='owned')
+            before = store.file.read_bytes()
+            with self.assertRaisesRegex(JobError, 'already has an accepted host handle'):
+                self.event(store, 't0', 'accepted')
+            self.assertEqual(store.file.read_bytes(), before)
+            self.assertEqual([row['host_task_id'] for row in occupancy(store.load())], ['owned'])
+            legacy = store.load()
+            legacy['blockers'] = [{'kind': 'conflicting-host-handle', 'task_id': 't0', 'host_task_id': None}]
+            self.assertEqual(len(occupancy(legacy)), 1)
+
+    def test_compact_pages_show_archived_and_conflicting_capacity_holders(self):
+        job = self.job()
+        archived = {**copy.deepcopy(job['tasks'][0]), 'task_id': 'archived', 'request_id': 'old-request'}
+        archived['handles'] = [{'task_id': 'old-host', 'request_id': 'old-request', 'status': 'completed',
+                                'work_state': 'waiting_for_children', 'has_pending_child_runs': True}]
+        job['history'] = [{'tasks': [archived]}]
+        job['blockers'] = [{'kind': 'conflicting-host-handle', 'task_id': 't0',
+                            'request_id': 'req0', 'host_task_id': 'conflicting-host'}]
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.store(directory, job)
+            page = overview(store, compact=True, limit=1)
+            rows = list(page['records'])
+            while page['next_cursor']:
+                page = overview(store, compact=True, cursor=page['next_cursor'], limit=1)
+                self.assertLessEqual(len(canonical(page)), COMPACT_MAX_BYTES)
+                rows.extend(page['records'])
+            holders = [row for row in rows if row['kind'] == 'occupants']
+            self.assertEqual(len(holders), admission(store.load())['occupied'])
+            self.assertEqual({row['host_task_id'] for row in holders}, {'old-host', 'conflicting-host'})
+            self.assertTrue(all(row['details'] == str(store.file) for row in holders))
+            self.assertIsNone(next(row for row in holders if row['host_task_id'] == 'conflicting-host')['provider'])
 
     def test_preparations_are_serialized_across_processes(self):
         job = self.job()
@@ -228,6 +290,9 @@ except JobError as exc: print(exc);sys.exit(2)
             revise_plan(store, self.fixture.caller(), {'id': 'narrow'},
                         {'policy': {**job['policy'], 'max_live_workers_by_provider': {'fixture-a': 1}}})
             self.assertEqual(store.load()['policy']['max_live_workers_by_provider'], {'fixture-a': 1})
+            revise_plan(store, self.fixture.caller(), {'id': 'add-narrowing-cap'},
+                        {'policy': {**job['policy'], 'max_live_workers_by_provider': {'fixture-a': 1, 'fixture-b': 1}}})
+            self.assertEqual(store.load()['policy']['max_live_workers_by_provider'], {'fixture-a': 1, 'fixture-b': 1})
 
     def test_snapshot_history_does_not_double_count_capacity_results_or_metrics(self):
         job = self.job()

@@ -76,6 +76,7 @@ def occupancy(job):
             if (handle.get('status') not in TERMINAL or handle.get('has_pending_child_runs')
                     or handle.get('work_state') != 'result_available'):
                 occupied['host:' + str(host)] = {
+                    'host_task_id': host,
                     'task_id': task['task_id'], 'request_id': handle.get('request_id'),
                     'provider': (handle.get('target') or task.get('target') or {}).get('providerInstanceId'),
                     'kind': 'live',
@@ -102,9 +103,10 @@ def occupancy(job):
                 'kind': 'uncertain' if candidate.get('uncertain_calls') else 'prepared',
             }
     for blocker in job.get('blockers', []):
-        if blocker.get('kind') == 'conflicting-host-handle' and not blocker.get('reconciled'):
+        if blocker.get('kind') == 'conflicting-host-handle' and blocker.get('host_task_id') and not blocker.get('reconciled'):
             host = blocker.get('host_task_id')
             occupied.setdefault('host:' + str(host), {
+                'host_task_id': host,
                 'task_id': blocker.get('task_id'), 'request_id': blocker.get('request_id'),
                 'provider': None, 'kind': 'unreconciled-conflict',
             })
@@ -141,25 +143,27 @@ def require_admission(job, task, *, request_id=None):
         raise JobError('admission_deferred: ' + result['reason'])
 
 
+def task_readiness(job, task, *, occupied, stages):
+    stage = stages[task['stage_id']]
+    result = task_admission(job, task, occupied=occupied)
+    reason = result['reason']
+    if any(row['task_id'] == task['task_id'] and row['kind'] != 'prepared' for row in occupied):
+        reason = 'reconcile_owned_work'
+    elif task.get('status', 'pending') not in ('pending', 'stale', 'blocked'):
+        reason = 'task_not_pending'
+    elif task.get('attempt', 0) or task.get('inputs_stale') or stage.get('validated_cycle') == stage.get('cycle', 0):
+        # This view never grants a charged retry or clears stale inputs.
+        reason = 'execution_or_retry_checks_required'
+    elif any(stages[dep].get('status') != 'accepted-at-snapshot' for dep in stage.get('depends_on', [])):
+        reason = 'predecessor_acceptance_required'
+    return {**result, 'eligible': reason is None, 'reason': reason}
+
+
 def admission(job):
     stages = {stage['id']: stage for stage in job['stages']}
     occupied = occupancy(job)
-    rows = []
-    for task in job['tasks']:
-        stage = stages[task['stage_id']]
-        result = task_admission(job, task, occupied=occupied)
-        reason = result['reason']
-        if any(row['task_id'] == task['task_id'] and row['kind'] != 'prepared' for row in occupied):
-            reason = 'reconcile_owned_work'
-        elif task.get('status', 'pending') not in ('pending', 'stale', 'blocked'):
-            reason = 'task_not_pending'
-        elif task.get('attempt', 0) or task.get('inputs_stale') or stage.get('validated_cycle') == stage.get('cycle', 0):
-            # This view never grants a charged retry or clears stale inputs.
-            reason = 'execution_or_retry_checks_required'
-        elif any(stages[dep].get('status') != 'accepted-at-snapshot' for dep in stage.get('depends_on', [])):
-            reason = 'predecessor_acceptance_required'
-        rows.append({'task_id': task['task_id'], 'request_id': task['request_id'],
-                     **result, 'eligible': reason is None, 'reason': reason})
+    rows = [{'task_id': task['task_id'], 'request_id': task['request_id'],
+             **task_readiness(job, task, occupied=occupied, stages=stages)} for task in job['tasks']]
     return {'scope': 'job-local; preparation rechecks under lock; host capacity still applies',
             'occupied': len(occupied), 'tasks': rows}
 
@@ -192,6 +196,8 @@ def coordination_metrics(job):
             if kind in ('approval-wait', 'approval-resolved'):
                 decision_events.append(event)
         for execution in task.get('execution_history', []):
+            if execution.get('technical_failure'):
+                continue  # A failed host call has no worker result transport.
             request = execution.get('request_id')
             if request:
                 size = execution.get('result_bytes')
@@ -275,16 +281,23 @@ def compact_overview(job, full, path, *, since=None, cursor=None, limit=20):
             add(kind, index, row)
     occupied = occupancy(job)
     stages = {stage['id']: stage for stage in job['stages']}
+    for holder in occupied:
+        records.append({'kind': 'occupants', 'details': str(path), 'occupancy_kind': holder['kind'],
+                        **{key: _short(value) if value is not None else None
+                           for key, value in holder.items() if key != 'kind'}})
     for index, task in enumerate(job['tasks']):
         if stages[task['stage_id']]['status'] == 'accepted-at-snapshot' and not any(row['task_id'] == task['task_id'] for row in occupied):
             continue
         state = task.get('status', 'pending')
+        readiness = task_readiness(job, task, occupied=occupied, stages=stages)
         action = ('wait_for_completion' if state == 'running' else 'ingest_result' if state == 'awaiting-acceptance' and not task.get('result_ref')
                   else 'validate_stage' if state == 'awaiting-acceptance' else 'diagnose_or_retry' if state in ('failed', 'blocked', 'stale')
                   else 'prepare_if_admitted' if state == 'pending' else 'inspect')
+        if state == 'pending' and not readiness['eligible']:
+            action = 'inspect_admission'
         add('tasks', index, {'task_id': _short(task['task_id']), 'stage_id': _short(task['stage_id']),
                             'status': _short(state), 'next_action': action,
-                            'admission': task_admission(job, task, occupied=occupied)})
+                            'admission': readiness})
     for index, stage in enumerate(job['stages']):
         add('stages', index, {'stage_id': _short(stage['id']), 'status': _short(stage['status']),
                              'repair_cycles_used': stage.get('cycle', 0),
@@ -305,12 +318,12 @@ def compact_overview(job, full, path, *, since=None, cursor=None, limit=20):
     for record in records[offset:offset + limit]:
         response['records'].append(record)
         response['next_cursor'] = f'{sha}:{offset + len(response["records"])}' if offset + len(response['records']) < len(records) else None
-        if len(canonical(response)) > COMPACT_MAX_BYTES:
+        if len(canonical(response)) + 1 > COMPACT_MAX_BYTES:
             response['records'].pop()
             response['next_cursor'] = f'{sha}:{offset + len(response["records"])}'
             break
     if not response['records'] and offset < len(records):
         raise JobError('compact metadata exceeds byte limit; inspect full state')
-    if len(canonical(response)) > COMPACT_MAX_BYTES:
+    if len(canonical(response)) + 1 > COMPACT_MAX_BYTES:
         raise JobError('compact metadata exceeds byte limit; inspect full state')
     return response

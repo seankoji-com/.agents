@@ -147,7 +147,8 @@ python3 PKG/shared/job_cli.py overview --state-root ROOT --job JOB --compact --c
 python3 PKG/shared/job_cli.py admission --state-root ROOT --job JOB
 ```
 
-Compact pages contain active-task actions, blockers, pending decisions, stage repair
+Compact pages contain active-task actions, capacity holders (including retained
+history and conflicting handles), blockers, pending decisions, stage repair
 allowances and coordination metrics. Each response is at most 16 KiB, with 20 records
 by default (`--limit 1` through `100`). Counts and `next_cursor` make omissions explicit;
 follow the cursor to inspect every obligation. Details remain in the referenced
@@ -163,7 +164,10 @@ Admission is job-local advice, rechecked under the preparation lock. Prepared br
 reserve capacity alongside live and uncertain work. Follow-ups and terminal handles
 with pending children also occupy a slot. Configure limits in `workers.json` or the
 initial job policy; jobs freeze them at creation. Removing or raising a provider cap
-needs an owner-bound plan revision. Old pinned limits retain their values. Other jobs
+needs an owner-bound plan revision. Old pinned limits retain their values.
+Adding a cap for a previously unlimited provider narrows capacity and needs no owner
+decision. Planning-review jobs freeze and enforce the same capacity limits before
+charging a technical attempt. Other jobs
 and host-wide capacity remain T3's responsibility. No helper dispatches or schedules.
 
 Record host capacity or rate-limit refusal with `task-observation` kind

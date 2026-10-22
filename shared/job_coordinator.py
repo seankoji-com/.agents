@@ -398,7 +398,7 @@ def record_observation(store, caller, task_id, event):
     try:
         return record_dispatch(store, caller, task_id, event)
     except JobError as exc:
-        if 'request already has an accepted host handle' not in str(exc):
+        if 'request already has an accepted host handle' not in str(exc) or not event.get('host_task_id'):
             raise
         conflict = {key: event.get(key) for key in ('request_id', 'host_task_id', 'parent_host_task_id', 'child_thread_id')}
         conflict.update(observation_kind=event.get('kind'), reason=str(exc))

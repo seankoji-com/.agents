@@ -421,7 +421,7 @@
         "assertions": [
           {
             "selector": "test_planning_review.PlanningReviewTests",
-            "tests": 41,
+            "tests": 42,
             "coverage": [
               "REQ-DELIVERY"
             ],

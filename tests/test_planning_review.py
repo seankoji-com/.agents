@@ -190,6 +190,40 @@ class PlanningReviewTests(unittest.TestCase):
         payload.update(plugin='imps', snapshot=bad)
         self.assertIn('not permitted', self.cli('create', payload, ok=False))
 
+    def test_provider_limits_freeze_and_installed_launch_refuses_without_charging(self):
+        config = self.box.config / 't3-plugins/workers.json'
+        old = config.read_bytes() if config.exists() else None
+        self.addCleanup(lambda: config.write_bytes(old) if old is not None else config.unlink())
+        config.parent.mkdir(parents=True, exist_ok=True)
+        target = self.selection_data['review_panel'][0]['target']
+        caps = {target['providerInstanceId']: 1}
+        config.write_text(json.dumps({'schema_version': 1, 'max_live_workers': None,
+            'max_live_workers_by_provider': caps, 'max_repair_cycles': 20, 'overrides': []}))
+        self.create(installed=True)
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        self.assertEqual(store.load()['policy']['max_live_workers_by_provider'], caps)
+        held = {'kind': 'conflicting-host-handle', 'task_id': 'retained-task',
+                'request_id': 'retained-request', 'host_task_id': 'retained-host'}
+        store.mutate(self.caller, lambda job: job.setdefault('blockers', []).append(held))
+        before_job = store.file.read_bytes()
+        subject = Path(self.created['subject_file'])
+        before_subject = subject.read_bytes()
+        payload = {'slot_id': 'review', 'request_id': self.job_id + '-admission'}
+        self.assertIn('provider_worker_limit', self.cli('launch', payload, ok=False, installed=True))
+        self.assertEqual(store.file.read_bytes(), before_job)
+        self.assertEqual(subject.read_bytes(), before_subject)
+        def settled(job):
+            job['blockers'][-1]['reconciled'] = {'status': 'cancelled',
+                'work_state': 'result_available', 'has_pending_child_runs': False}
+        store.mutate(self.caller, settled)
+        attempt = self.cli('launch', payload, installed=True)
+        from shared.job_coordination import coordination_metrics, occupancy
+        self.assertEqual(len(occupancy(store.load())), 1)
+        self.unavailable(attempt)
+        self.assertEqual(occupancy(store.load()), [])
+        self.assertEqual(coordination_metrics(store.load())['executions_with_results'], 0)
+        self.assertEqual(len(json.loads(subject.read_text())['rounds'][-1]['attempts']), 1)
+
     def test_missing_and_tampered_selection_refused(self):
         self.selection_data['source']['sha256'] = '0'*64
         with self.assertRaises(models.SelectionError):
