@@ -166,15 +166,39 @@ class LearningsTest(unittest.TestCase):
                         self.store, '_operate', wraps=self.store._operate) as operation:
                     self.write(entry_id)
                 operation.assert_called_once()
-                self.assertEqual(len(calls), 2)
+                self.assertEqual(len(calls), 3 if identity is not None else 2)
                 self.assertEqual(calls[0], calls[1])
-                self.assertEqual(calls[0][1], os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK)
+                self.assertEqual(calls[0][1], os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_NONBLOCK)
                 self.assertEqual(calls[0][2], 0o600)
                 self.assertIsNotNone(calls[0][3])
                 if identity is not None:
+                    self.assertEqual(calls[2][1], os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK)
+                    self.assertEqual(calls[2][3], calls[0][3])
                     self.assertEqual((lock.stat().st_dev, lock.stat().st_ino),
                                      (identity.st_dev, identity.st_ino))
         self.assertEqual({e['id'] for e in self.store.operate()['data']['entries']}, {'first', 'second'})
+
+    def test_existing_lock_reopen_enoent_is_bounded_and_preserves_inode(self):
+        self.write('first')
+        lock = self.store.folder / 'imps.md.lock'
+        identity = lock.stat()
+        with lock_open_faults([errno.EEXIST, errno.ENOENT]) as calls, mock.patch.object(
+                self.store, '_operate', wraps=self.store._operate) as operation:
+            self.write('second')
+        operation.assert_called_once()
+        self.assertEqual(len(calls), 4)
+        self.assertEqual([bool(call[1] & os.O_EXCL) for call in calls], [True, False, True, False])
+        self.assertEqual(len({call[3] for call in calls}), 1)
+        self.assertEqual((lock.stat().st_dev, lock.stat().st_ino), (identity.st_dev, identity.st_ino))
+        self.assertEqual({e['id'] for e in self.store.operate()['data']['entries']}, {'first', 'second'})
+        before = {p.name: p.read_bytes() for p in self.store.folder.iterdir()}
+        with lock_open_faults([errno.EEXIST, errno.ENOENT] * 4) as calls, mock.patch(
+                'learning_store.atomic_file', side_effect=AssertionError('must not write')):
+            result = self.store.operate('write', {'entry': {'id': 'lost'}})
+        self.assertEqual(result['status'], 'unavailable', result)
+        self.assertEqual(len(calls), 6)
+        self.assertEqual(before, {p.name: p.read_bytes() for p in self.store.folder.iterdir()})
+        self.assertEqual(lock.stat().st_ino, identity.st_ino)
 
     def test_persistent_lock_open_enoent_fails_closed(self):
         loaded = self.write()
@@ -221,7 +245,7 @@ class LearningsTest(unittest.TestCase):
                 with lock_open_faults([errno.ENOENT]) as calls:
                     result = self.store.operate('write', {'entry': {'id': 'lost'}})
                 self.assertEqual(result['status'], 'unavailable', result)
-                self.assertEqual(len(calls), 2)
+                self.assertEqual(len(calls), 3)
                 self.assertEqual(Path(loaded['path']).read_bytes(), active)
                 self.assertEqual(outside.read_bytes(), b'untouched')
                 self.assertEqual(stat.S_IMODE(outside.stat().st_mode), 0o644)
@@ -247,7 +271,7 @@ class LearningsTest(unittest.TestCase):
         with directory(self.store.folder) as fd, mock.patch(
                 'learning_store.os.open', side_effect=rename_before_open):
             with locked(fd, 'imps.md.lock', True):
-                self.assertEqual(calls, [fd, fd])
+                self.assertEqual(calls, [fd, fd, fd])
                 self.assertEqual(list(self.store.folder.iterdir()), [])
                 info = (moved / 'imps.md.lock').stat()
                 self.assertEqual((info.st_dev, info.st_ino), (identity.st_dev, identity.st_ino))
@@ -274,9 +298,92 @@ class LearningsTest(unittest.TestCase):
                                     [(str(self.project), self.env, n) for n in range(24)]))
         for result, attempts in results:
             self.assertEqual(result['status'], 'available', result)
-            self.assertEqual(attempts, 2)
+            self.assertIn(attempts, (2, 3))
         self.assertEqual({e['id'] for e in self.store.operate()['data']['entries']},
                          {'lesson-' + str(n) for n in range(24)})
+
+    def test_first_writer_losing_lock_creation_preserves_both_entries(self):
+        real_open = os.open
+        raced = False
+        winner_inode = None
+
+        def competing_open(name, flags, *args, **kwargs):
+            nonlocal raced, winner_inode
+            if name == 'imps.md.lock' and flags & os.O_CREAT and not raced:
+                raced = True
+                self.write('winner')
+                winner_inode = (self.store.folder / name).stat().st_ino
+                # Model the macOS ENOENT race on the exclusive O_CREAT open too.
+                error = FileNotFoundError
+                code = errno.ENOENT
+                raise error(code, os.strerror(code), name)
+            return real_open(name, flags, *args, **kwargs)
+
+        with mock.patch('learning_store.os.open', side_effect=competing_open):
+            self.write('loser')
+        self.assertTrue(raced)
+        self.assertEqual({e['id'] for e in self.store.operate()['data']['entries']}, {'winner', 'loser'})
+        lock = self.store.folder / 'imps.md.lock'
+        self.assertEqual(lock.stat().st_ino, winner_inode)
+        self.assertEqual(stat.S_IMODE(lock.stat().st_mode), 0o600)
+
+    def test_lock_reopen_enoent_retries_exclusive_creation(self):
+        real_open = os.open
+        exclusive_seen = False
+        reopen_missed = False
+        winner_done = False
+        exclusive_flags = []
+        reopen_flags = []
+
+        def competing_open(name, flags, *args, **kwargs):
+            nonlocal exclusive_seen, reopen_missed, winner_done
+            if name == 'imps.md.lock':
+                if flags & os.O_EXCL:
+                    exclusive_flags.append(flags)
+                    if not exclusive_seen:
+                        exclusive_seen = True
+                        self.write('winner')
+                        winner_done = True
+                        raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), name)
+                elif winner_done:
+                    reopen_flags.append(flags)
+                    if not reopen_missed:
+                        reopen_missed = True
+                        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), name)
+            return real_open(name, flags, *args, **kwargs)
+
+        with mock.patch('learning_store.os.open', side_effect=competing_open):
+            self.write('loser')
+        self.assertTrue(reopen_missed)
+        self.assertGreaterEqual(len(exclusive_flags), 2)
+        self.assertTrue(all(flags & os.O_EXCL for flags in exclusive_flags))
+        self.assertGreaterEqual(len(reopen_flags), 2)
+        self.assertTrue(all(not flags & os.O_EXCL for flags in reopen_flags))
+        self.assertEqual({e['id'] for e in self.store.operate()['data']['entries']}, {'winner', 'loser'})
+
+    def test_unsafe_lock_files_are_refused_without_changing_target(self):
+        self.write()
+        lock = self.store.folder / 'imps.md.lock'
+        outside = self.base / 'outside-lock'
+        outside.write_text('untouched')
+        outside.chmod(0o640)
+        for kind in ('symlink', 'hardlink', 'fifo'):
+            with self.subTest(kind=kind):
+                lock.unlink()
+                if kind == 'symlink':
+                    lock.symlink_to(outside)
+                elif kind == 'hardlink':
+                    os.link(outside, lock)
+                elif kind == 'fifo' and not hasattr(os, 'mkfifo'):
+                    continue
+                else:
+                    os.mkfifo(lock)
+                self.assertEqual(self.store.operate()['status'], 'unavailable')
+                result = self.store.operate('write', {
+                    'entry': {'id': 'unsafe', 'summary': 'Keep locks safe', 'failure': 'Unsafe lock'}})
+                self.assertEqual(result['status'], 'unavailable')
+                self.assertEqual(outside.read_text(), 'untouched')
+                self.assertEqual(stat.S_IMODE(outside.stat().st_mode), 0o640)
 
     def test_symlink_and_hardlink_artifacts_and_parent_are_refused(self):
         loaded = self.write()

@@ -1,5 +1,16 @@
 # Configuration audit
 
+## Default audit
+
+With no narrowing flags, use `PKG/references/central-wiring.md` and the inventory
+sequence in `PKG/playbooks/align.md`. Cover every surface and every T3 provider,
+including permission sync and the T3 worktree bootstrap audit. Return the complete
+findings and evidence gaps; do not prepare changes unless requested. Single-file
+and `--t3-projects` requests keep their explicit narrower scope.
+Run `python3 PKG/scripts/align.py audit --catalog FILE --inventory FILE` for the
+general report (`0` no findings, `1` findings/gaps, `2` invalid/unreadable input),
+plus the bootstrap helper below. Retain both results for the job observation.
+
 ## Direct audit
 
 1. Resolve the target provider and exact settings paths from the request and the
