@@ -130,7 +130,7 @@ you to select a default that the task already supplies:
 | No auto-merge preference in a through-merge request | Enable it when the landing gates permit. |
 | Another matching PR appears | Add it and continue maintenance. |
 | A PR head moves | Fetch, integrate and revalidate in the isolated worktree, unless competing ownership is confirmed. |
-| CI downloads or setup fail repeatedly | Stop identical retries, diagnose and repair safe setup within scope. |
+| CI downloads or setup fail repeatedly | Stop identical retries after 3 attempts or 5 minutes, whichever comes first; diagnose and repair safe setup within scope. |
 
 Questions are for a material product choice, missing access or secrets, a necessary
 ownership transfer, or new authority. Repeated failures alone are not a reason to

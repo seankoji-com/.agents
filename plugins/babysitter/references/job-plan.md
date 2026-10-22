@@ -45,6 +45,8 @@ or an armed auto-merge request never substitutes for an available action.
    download failures alone do not require human input. Missing access or an external
    outage is a named blocker only after authorized alternatives are exhausted.
    Local success does not prove hosted CI.
+   Reconcile the coordinator-owned retry record and put current `retry_usage` in
+   each new dispatch task text, as defined in `PKG/references/scope.md`.
 5. Read four independent landing gates at the current head: thread resolution,
    latest review state, required checks and mergeability. Resolve addressed threads
    even while CI is red or a new review is required. A resolved thread does not clear

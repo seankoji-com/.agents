@@ -126,6 +126,7 @@ class BoundaryTest(unittest.TestCase):
         self.assertIn('citing the original request and this default', posture)
         self.assertIn('never invent a picker answer', posture)
         self.assertIn('Inspect-only runs arm nothing', posture)
+        self.assertIn('Enable and leave accept that GitHub may land a fixer push', posture)
         self.assertIn('An armed request never withholds a fixer push', posture)
         self.assertIn('Armed auto-merge is not progress while `blockers=` names threads', posture)
         play = steps('playbooks/maintain.md')
@@ -170,7 +171,7 @@ class BoundaryTest(unittest.TestCase):
     def test_active_discovery_needs_no_schedule_but_persistent_discovery_does(self):
         sweep = steps('playbooks/maintain.md')[12]
         self.assertIn('at entry, every wake/completion, and before yielding or handing off', sweep)
-        self.assertIn('Admit and quick-pass new matches without asking', sweep)
+        self.assertIn('Admit new matches without asking', sweep)
         self.assertIn('Persistent scheduled discovery uses the host scheduler', sweep)
         self.assertIn('only when requested', sweep)
         scope = text('references/scope.md')
@@ -182,7 +183,20 @@ class BoundaryTest(unittest.TestCase):
         self.assertIn('for each unowned PR with no fixer in flight run', play[2])
         self.assertIn('then return to the caller', play[12])
         self.assertIn('Never re-enter step 8 from discovery', play[12])
+        self.assertIn("under step 2's skip rules (in-flight fixer, review-gated)", play[12])
+        self.assertIn('step 4 for newly admitted PRs with child work or requested review before yielding', play[12])
         self.assertIn('Every merge-helper invocation skips a PR with a fixer in flight', text('references/scope.md'))
+
+    def test_retry_usage_is_owned_by_the_coordinator_and_delivered_each_round(self):
+        scope = text('references/scope.md')
+        worker = text('agents/pr-maintainer.md')
+        self.assertIn('The coordinator owns cross-round accounting', scope)
+        self.assertIn('Include that current `retry_usage` in each round\'s dispatch task text', scope)
+        self.assertIn('recover missing history from prior results instead of resetting it', scope)
+        self.assertIn('`retry_usage`', steps('playbooks/maintain.md')[6])
+        self.assertIn('use only the supplied remaining allowance', worker)
+        self.assertIn('The coordinator carries counters across rounds', worker)
+        self.assertIn('before repeating an unchanged failure', worker)
 
     def test_approvals_route_through_the_picker_and_are_recorded(self):
         approvals = sections('entry.md')['Approvals']
@@ -509,7 +523,7 @@ class SyntheticJobTest(unittest.TestCase):
     def test_installed_instructions_cover_scope_and_the_avoidable_decisions(self):
         # Exercise the delivered package, not a reference that disappears on install.
         files = ('entry.md', 'playbooks/maintain.md', 'references/job-plan.md',
-                 'references/scope.md', 'shared/t3-runtime.md')
+                 'references/scope.md', 'agents/pr-maintainer.md', 'shared/t3-runtime.md')
         delivered = {rel: norm((self.version / rel).read_text()) for rel in files}
         scope = delivered['references/scope.md']
         for scenario, rule in {
@@ -527,6 +541,8 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertIn('Such rows are read-only: skip the merge helper, fixer dispatch, replies/resolutions and watches', scope)
         self.assertIn('skip merge, fixer, reply and watch actions on it', delivered['shared/t3-runtime.md'])
         self.assertIn('use at most 3 attempts or 5 minutes', scope)
+        self.assertIn('Include that current `retry_usage` in each round\'s dispatch task text', scope)
+        self.assertIn('use only the supplied remaining allowance', delivered['agents/pr-maintainer.md'])
         for rel, body in delivered.items():
             if rel.startswith('shared/'):
                 continue

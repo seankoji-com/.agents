@@ -17,6 +17,8 @@ before acting. On a mismatch or an unreadable brief, return `blocked`; never loo
 another copy or installation. The brief and task text name the PR URL, worktree,
 head SHA at dispatch, the complete `blockers=` list, every unresolved review thread
 with its ID, earlier rounds' findings, constraints, and recorded actions.
+The task text supplies coordinator-owned `retry_usage` for unchanged failures:
+attempts used, first attempt time, and remaining attempts/time.
 
 ## Allowed actions
 
@@ -46,9 +48,13 @@ before pushing. For failing checks, read the current-head failed job logs, repro
 the failure where possible, fix its cause and run focused regressions. A rerun alone
 does not repair a repeatable failure. Report pending hosted checks separately from
 local passes. An armed auto-merge request never excuses leaving a blocker untouched.
-For unchanged infrastructure failures, use at most 3 attempts or 5 minutes,
-whichever comes first; stricter helper limits take precedence. Carry that counter
-across rounds, then change diagnosis. Repair safe CI/dependency
+For unchanged infrastructure failures, use only the supplied remaining allowance
+within the total limit of 3 attempts or 5 minutes, whichever comes first; stricter
+helper limits take precedence. The coordinator carries counters across rounds.
+Report your new attempts and their times in `commands`. If `retry_usage` is missing,
+return `failed` naming the missing dispatch metadata before repeating an unchanged
+failure; this is coordinator repair, not a human approval question. At the limit,
+change diagnosis. Repair safe CI/dependency
 setup within the recorded scope without another question; repeated download failures
 alone are not a human-only blocker. Do not change global network settings or seek
 credentials elsewhere.

@@ -58,6 +58,7 @@ Record with `job_cli.py decision`, citing the original request and this default;
 never invent a picker answer. Inspect-only runs arm nothing.
 An armed request never withholds a fixer
 push, a resolution, or a CLEAN PR's merge; reported as `automerge=preexisting`.
+Enable and leave accept that GitHub may land a fixer push.
 Armed auto-merge is not
 progress while `blockers=` names threads, conflicts, failing checks or requested
 changes: the PR still needs work.
@@ -83,8 +84,7 @@ ask only when the remaining action needs a human. Never leave it behind an armed
 
 ## Workers
 
-- `babysitter/pr-maintainer` (workhorse): isolated PR repair with exact-head evidence;
-  read-only triage may finish `blocked` with named blockers.
+- `babysitter/pr-maintainer` (workhorse): PR triage/repair.
 - `babysitter/pr-reviewer` (reviewer): requested independent final-head review.
 
 Only this thread dispatches, watches, merges, and accepts. Workers never dispatch,

@@ -17,9 +17,12 @@ restrictions, including inspect-only mode and exclusions.
   its per-PR actions from the saved request before mutations, run the quick pass,
   and create a separate job if repairs are needed. Never rewrite an existing job's
   PR identity, immutable brief, evidence or model choices to add another PR.
-  A refresh only admits and quick-passes new matches, then returns to its caller.
+  A refresh only admits new matches and quick-passes them under step 2's skip rules
+  (no in-flight fixer, review gate or competing owner), then returns to its caller.
   It never invokes step 8 recursively or reconciles existing jobs. After return,
-  the caller processes jobs and schedules repairs once through steps 4–8.
+  the caller runs step 4 for every newly admitted PR with child work or requested
+  review, creating its job and dispatching its fixer through steps 5–6 before
+  yielding. Existing jobs reconcile once through step 8.
   Every merge-helper invocation skips a PR with a fixer in flight,
   including during discovery refresh and the quick pass.
 - Complete discovery matters. If the helper warns about a partial search page,
@@ -50,6 +53,15 @@ comes first; stricter helper limits take precedence. Count attempts across repai
 rounds, not afresh on each wake. After the limit, change the diagnosis and repair a
 cause within scope. Do not reset the counter to repeat the same failing operation.
 An unresolved external prerequisite stays a named blocker.
+
+The coordinator owns cross-round accounting. Keep per-PR, per-failure `retry_usage`
+in coordinator notes in this thread: operation/failure key, attempts used, first
+attempt time, and remaining attempts/time. Reconcile coordinator actions and worker
+`commands` evidence before every dispatch; recover missing history from prior
+results instead of resetting it. Include that current `retry_usage` in each round's
+dispatch task text alongside the immutable brief. Never edit a sealed brief or the
+job ledger to store counters. Workers consume the supplied remaining allowance and
+report their new attempts; they do not persist state between rounds.
 
 ## Decide from the brief before asking
 

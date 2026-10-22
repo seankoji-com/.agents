@@ -38,9 +38,8 @@ Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop ru
    |---|---|---|
    | [owner/repo#12](https://github.com/owner/repo/pull/12) | PR title | 3 unresolved threads; failing check `lint`; fixer round 2 (candidate 1) |
 
-   List every blocker, auto-merge state and child in flight.
-   Merged rows read `merged` at the bottom. Emit the
-   checklist from `job_cli.py overview` for each job beside it; never stream raw logs.
+   List blockers, auto-merge state and children; put merged rows last. Emit each
+   job's `job_cli.py overview` checklist; never stream raw logs.
 4. Classify each unmerged PR from `blockers=`. Child work: conflicts, a branch the
    helper could not update, failing checks, unresolved threads that need code, and
    requested changes, from bots or humans. Coordinator work: threads whose fix already
@@ -56,9 +55,10 @@ Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop ru
    routing. Never infer an answer; report `unavailable` entries.
 6. Dispatch per `PKG/shared/job-coordination.md`: `job_cli.py prepare`, launch
    `babysitter/pr-maintainer` with `delegate_task`, and record the handle with
-   `task-observation`. The brief carries the PR URL, its worktree, the head at
+   `task-observation`. Brief and task carry the PR URL, its worktree, the head at
    dispatch, the complete `blockers=` list, every unresolved thread's ID and comments,
-   earlier rounds' findings, and that PR's recorded actions. Finish line: every listed
+   earlier rounds' findings, `retry_usage`, and that PR's recorded actions.
+   Finish line: every listed
    blocker cleared at a pushed head with local verification, and a disposition for
    every thread; or `blocked` with what only a human can decide. Children never run
    `merge-pr.sh` merge, arm, or resolve modes.
@@ -101,9 +101,10 @@ Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop ru
     authority or a new choice. Keep the brief, actions, counters and visible fallback marker.
     A failed candidate alone grants no target substitution.
 12. Refresh org/repo discovery at entry, every wake/completion, and before yielding
-    or handing off. Admit and quick-pass new matches without asking, then return to
-    the caller. Never re-enter step 8 from discovery; callers reconcile jobs and
-    schedule new repairs once (steps 4–8). Follow `PKG/references/scope.md`.
+    or handing off. Admit new matches without asking; quick-pass under step 2's skip
+    rules (in-flight fixer, review-gated), then return to the caller. Callers run
+    step 4 for newly admitted PRs with child work or requested review before
+    yielding. Never re-enter step 8 from discovery. Follow `PKG/references/scope.md`.
     Persistent scheduled discovery uses the host scheduler only when requested;
     report its ID and stop command.
 13. Hand off only after a fresh complete discovery has no untreated eligible PRs;
