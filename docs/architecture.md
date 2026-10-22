@@ -49,7 +49,7 @@ launch a worker. A single bounded change can also stay direct.
 ```text
 plan job → prepare brief → delegate_task → completion → ingest result
                 ↑                                            │
-                └── repair (up to 3) ←── reject ── validator ┘
+                └── repair (pinned limit) ←── reject ── validator ┘
                                             accept → next stage → final gate
 ```
 
@@ -68,7 +68,7 @@ written under a process lock.
 | Path | Contents |
 | --- | --- |
 | `job.json` | Plan, requirements, verbatim constraints, separate action authorization, package and worker pins, counters, task handles, decisions, blockers, metrics |
-| `overview.json` | Compact view: every stage, requirement coverage, current stage, decisions, blockers, handles, fallbacks and approval waits |
+| `overview.json` | Full stored overview; the pinned CLI adds fresh coordination metrics and bounded `--compact` resume pages |
 | `briefs/` | One immutable, self-contained brief per task attempt |
 | `results/` | Validated worker results or artifact envelopes |
 | `acceptance/` | Hash-chained validator receipts |

@@ -208,7 +208,7 @@ class BoundaryTest(unittest.TestCase):
         self.assertIn('upfront selected work target/options', play[5])
         self.assertIn('Never infer an answer', play[5])
         self.assertIn('no concurrency cap and no question', play[4])
-        self.assertIn('Rounds are not capped', play[8])
+        self.assertIn('finite `max_repair_cycles` allowance', play[8])
         self.assertIn('Fan-out, repair rounds, branch rewrites, and a', approvals)
         self.assertIn("roster PR's tests and regressions with the setup they need are decided: never ask, always yes", approvals)
         self.assertIn('ask through the question picker', sections('references/job-plan.md')['Merge and acceptance'])
@@ -823,8 +823,9 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertEqual(self.statuses()[1]['pr-12-maintain'], 'failed')
         self.assertNotEqual(self.statuses()[0]['pr-12'], 'accepted-at-snapshot')
 
-    def test_shipped_plan_does_not_cap_rounds_in_practice(self):
-        self.assertGreaterEqual(self.plan()['policy']['max_repair_cycles'], 1000)
+    def test_shipped_plan_uses_the_shared_default_repair_allowance(self):
+        from shared.job_coordination import DEFAULT_MAX_REPAIR_CYCLES
+        self.assertEqual(self.plan()['policy']['max_repair_cycles'], DEFAULT_MAX_REPAIR_CYCLES)
 
     def test_read_only_triage_ends_with_named_blockers_not_acceptance(self):
         plan = self.plan()

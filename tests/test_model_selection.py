@@ -301,21 +301,24 @@ class SelectionTests(unittest.TestCase):
             self.assertFalse((root/'state').exists())
 
     def test_real_prepare_gate_prevents_dropped_options_and_carries_frozen_brief_summary(self):
-        task = {'task_id': 'fixture-task', 'role': 'worker', 'target': deepcopy(self.data['work']['workhorse']),
+        task = {'task_id': 'fixture-task', 'request_id': 'fixture-request', 'role': 'worker', 'target': deepcopy(self.data['work']['workhorse']),
                 'selection_binding': {'selection_sha256': self.record['selection_sha256'], 'role': 'workhorse'}}
         job = {'workflow': 'fixture/plan', 'tasks': [task], 'policy': {'model_selection_required': True}, 'model_selection': self.record,
                'model_selection_sha256': self.record['selection_sha256'], 'dependencies': []}
         class FixtureStore:
             def load(self): return job
             def transact(self, caller, callback, action): return callback(job)
-        with mock.patch('core.jobs.prepare', return_value={'fixture': 'brief'}) as prepared:
+        def atomic_prepare(store, caller, task_id, *args, bind_inputs=None, **kwargs):
+            store.transact(caller, bind_inputs, 'prepare')
+            return {'fixture': 'brief'}
+        with mock.patch('core.jobs.prepare', side_effect=atomic_prepare) as prepared:
             result = prepare_task(FixtureStore(), {}, task['task_id'], lambda *_: True, lambda *_: True)
             self.assertEqual(result, {'fixture': 'brief'}); prepared.assert_called_once()
             self.assertEqual(task['model_selection']['dispatch']['target']['options'], {'reasoningEffort': 'high'})
             task['target']['options'] = {}
             with self.assertRaisesRegex(JobError, 'target/options differ'):
                 prepare_task(FixtureStore(), {}, task['task_id'], lambda *_: True, lambda *_: True)
-            self.assertEqual(prepared.call_count, 1)
+            self.assertEqual(prepared.call_count, 2)  # The second transaction refuses options before producing a brief.
 
     def test_actual_direct_stage_adapter_refuses_delegated_choice_and_missing_binding(self):
         from shared.job_coordinator import selection_for_direct_stage

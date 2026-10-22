@@ -30,7 +30,7 @@ def _quarantine_result(store,t,r):
     if not h:return False
     if not r.get('completion_id'):raise JobError('result completion_id is required for idempotent ingestion')
     if any(x.get('completion_id')==r['completion_id'] for x in t.get('execution_history',[])):return True
-    raw=bytes(r['result']);path=store.path/'results'/'quarantine'/(request+'.json');_retain(path,raw,'quarantined result bytes differ');t['attempt']+=1;t.setdefault('execution_history',[]).append({'request_id':request,'completion_id':r['completion_id'],'accepted_execution':False,'quarantined':True,'reason':'forbidden continued review or document-only follow-up','result_sha256':digest(raw),'transport_ref':{'transport_path':str(path),'transport_sha256':digest(raw)}});return True
+    raw=bytes(r['result']);path=store.path/'results'/'quarantine'/(request+'.json');_retain(path,raw,'quarantined result bytes differ');t['attempt']+=1;t.setdefault('execution_history',[]).append({'request_id':request,'completion_id':r['completion_id'],'accepted_execution':False,'quarantined':True,'reason':'forbidden continued review or document-only follow-up','result_sha256':digest(raw),'result_bytes':len(raw),'transport_ref':{'transport_path':str(path),'transport_sha256':digest(raw)}});return True
 def _retain_forbidden(j,t,e,parent):
     h={'task_id':e['host_task_id'],'host_task_id':e['host_task_id'],'request_id':e['request_id'],'parent_task_id':parent.get('task_id'),'child_thread_id':e.get('child_thread_id'),'status':e.get('status','running'),'work_state':e.get('work_state','working'),'has_pending_child_runs':e.get('has_pending_child_runs',False),'target':e.get('target'),'scope':e.get('scope'),'forbidden_followup':True,'cycle':parent.get('cycle',t.get('cycle',0))};t.setdefault('followups',[]).append(h);t.setdefault('forbidden_followups',[]).append({'request_id':e['request_id'],'host_task_id':e['host_task_id'],'reconciled':None});j.setdefault('blockers',[]).append({'kind':'forbidden-followup','task_id':t['task_id'],'request_id':e['request_id'],'host_task_id':e['host_task_id'],'reconciled':None});_record_identity(j,t,h,e);t.setdefault('dispatch_history',[]).append(e)
 def _open_dispatch(t):  # Unreconciled conflicting host IDs or forbidden work blocks replacement and acceptance.
@@ -38,23 +38,23 @@ def _open_dispatch(t):  # Unreconciled conflicting host IDs or forbidden work bl
 def _unsettled(j,t):return _open_dispatch(t) or ('uncertain or blocked dispatch lacks an authoritative host observation' if t.get('blocked_reason') or t.get('uncertain_calls') and not any(h.get('request_id')==t['request_id'] for h in t.get('handles',[])+t.get('followups',[])) else 'a conflicting host handle remains unreconciled in job blockers' if any(b.get('kind')=='conflicting-host-handle' and b.get('task_id')==t['task_id'] and not b.get('reconciled') for b in j.get('blockers',[])) else 'owned host work is not terminal with result_available' if _live_handles(t) else 'owned terminal work has no ingested result' if _uningested(t) else '')  # A plan decision never proves termination, absence or that a claimed result was read.
 def create_job(payload,state_root,pins):
     """Persist a fully formed plan and externally verified immutable pin snapshot.""";j=copy.deepcopy(payload);j.setdefault('schema_version',1);j['pins']=copy.deepcopy(pins)
-    for key in ('max_repair_cycles','max_live_workers'):
-        if key not in j.get('policy',{}) and len({canonical(pin.get('limits',{}).get(key)) for pin in pins.values()})>1:raise JobError('conflicting pin limits require explicit job policy')
+    for key in ('max_repair_cycles','max_live_workers','max_live_workers_by_provider'):
+        if key not in j.get('policy',{}) and len({canonical(pin.get('limits',{}).get(key,{} if key=='max_live_workers_by_provider' else None)) for pin in pins.values()})>1:raise JobError('conflicting pin limits require explicit job policy')
     limits=next(iter(pins.values()),{}).get('limits',{})
     for key,value in (('max_repair_cycles',limits.get('max_repair_cycles',20)),('max_artifact_bytes',16*1024*1024),('max_live_workers',limits.get('max_live_workers'))):
-        j.setdefault('policy',{}).setdefault(key,value)
+        j.setdefault('policy',{}).setdefault(key,copy.deepcopy(value))
     for s in j['stages']:
         s.setdefault('attempts',{'primary':0,'support':0,'review':0,'final':0});s.setdefault('acceptance',None)
     for t in j['tasks']:
         t.setdefault('status','pending');t.setdefault('attempt',0);t.setdefault('handles',[]);t.setdefault('followups',[]);t.setdefault('dispatch_retries',0)
     store=Store(state_root,j['job_id']);store.create(j);return {'job':str(store.file),'overview':str(store.path/'overview.json')}
-def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason='configured worker'):
+def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason='configured worker', *, bind_inputs=None):
     if not callable(verify_pin):raise JobError('pinned dependency verifier is required')
     def check(job):
         for dep in job['dependencies']:
             if verify_pin(dep,job['pins'][dep['key']]) is not True:raise JobError('pin_mismatch: pinned dependency verification failed')
-    store.verify_pins=check
     def apply(j):
+        if bind_inputs is not None:bind_inputs(j)
         task=next((t for t in j['tasks'] if t['task_id']==task_id),None)
         if task is None or task.get('status') not in ('pending','stale','blocked'):raise JobError('task is undeclared or already launched')
         if _live_handles(task) or _uningested(task):raise JobError('owned terminal work has no ingested result; read it before fresh preparation' if _uningested(task) else 'owned handles must be reconciled before fresh preparation')  # re-preparing would clear a launched request's stale inputs
@@ -78,7 +78,7 @@ def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason
         _retain(path,raw,'immutable brief changed; an explicit new attempt is required');task['brief']={key:brief[key] for key in ('job_id','stage_id','logical_slot_id','task_id','request_id','worker_id','effective_brief_sha256','revision','snapshot')}
         task['brief'].update(path=str(path),sha256=digest(raw));task['cycle']=stage.get('cycle',0);task.pop('inputs_stale',None)  # the execution belongs to this pass under the current contract
         return {'path':str(path),'sha256':digest(raw),'bytes':len(raw),'provenance':{key:brief[key] for key in ('job_id','stage_id','task_id','request_id')}}
-    return store.transact(caller,apply,'prepare')
+    store.verify_pins=check;return store.transact(caller,apply,'prepare')
 def record_result(store,caller,task_id,result,result_parser=None):
     from .results import parse_result
     parser=result_parser or parse_result
@@ -110,16 +110,16 @@ def record_result(store,caller,task_id,result,result_parser=None):
         try:parsed=parser(bytes(result['result']),expected,store.path if task.get('write_scope',{}).get('mode')=='worker-evidence' else None,j['policy']['max_artifact_bytes'])
         except Exception as exc:
             if request==task['request_id']:task.update(status='stale' if task.get('inputs_stale') else 'failed',last_execution_status='malformed-result',last_completion_id=completion_id)
-            task.setdefault('execution_history',[]).append({'request_id':request,'completion_id':completion_id,'accepted_execution':True,'malformed':True,'reason':str(exc),'result_sha256':digest(bytes(result['result'])),'transport_ref':{'transport_path':str(transport),'transport_sha256':digest(bytes(result['result']))}});return task
+            task.setdefault('execution_history',[]).append({'request_id':request,'completion_id':completion_id,'accepted_execution':True,'malformed':True,'reason':str(exc),'result_sha256':digest(bytes(result['result'])),'result_bytes':len(result['result']),'transport_ref':{'transport_path':str(transport),'transport_sha256':digest(bytes(result['result']))}});return task
         task.setdefault('finding_dispositions',[])
         for finding in parsed['result']['findings']:
             if not any(d.get('finding_id')==finding['id'] and d.get('finding')==finding for d in task['finding_dispositions']):  # changed content under a reused ID is a distinct obligation
                 task['finding_dispositions'].append({'finding_id':finding['id'],'finding':finding,'finding_sha256':digest(canonical(finding)),'request_id':request,'disposition':None})
         if request!=task['request_id']:
-            task.setdefault('execution_history',[]).append({'request_id':request,'result':parsed['result'],'completion_id':completion_id,'sha256':parsed['sha256'],'accepted_execution':True,'transport_ref':{'kind':parsed['kind'],'transport_path':str(transport),'transport_sha256':digest(bytes(result['result']))}});return task
+            task.setdefault('execution_history',[]).append({'request_id':request,'result':parsed['result'],'completion_id':completion_id,'sha256':parsed['sha256'],'result_bytes':len(result['result']),'accepted_execution':True,'transport_ref':{'kind':parsed['kind'],'transport_path':str(transport),'transport_sha256':digest(bytes(result['result']))}});return task
         task['status']='stale' if task.get('inputs_stale') else _RESULT_STATUS[parsed['result']['status']]
         task['result_ref']={'sha256':parsed['sha256'],'kind':parsed['kind'],'bytes':parsed['bytes'],'transport_path':str(transport),'transport_sha256':digest(bytes(result['result']))};task.update(last_execution_status=parsed['result']['status'],last_completion_id=completion_id)
-        task.setdefault('execution_history',[]).append({'request_id':request,'result':parsed['result'],'completion_id':completion_id,'sha256':parsed['sha256'],'accepted_execution':True,'transport_ref':task['result_ref']});return task
+        task.setdefault('execution_history',[]).append({'request_id':request,'result':parsed['result'],'completion_id':completion_id,'sha256':parsed['sha256'],'result_bytes':len(result['result']),'accepted_execution':True,'transport_ref':task['result_ref']});return task
     return store.transact(caller,apply,'result')
 def decision(store,caller,decision):
     def apply(j):
@@ -163,7 +163,7 @@ def record_dispatch(store,caller,task_id,event):
             t['uncertain_calls']=calls+1;t['dispatch_retries']=calls;t['status']='awaiting-followup'
             if calls==2:t['blocked_reason']='uncertain_dispatch';t['status']='blocked'
         elif kind=='capacity-deferred':
-            if any(h.get('request_id')==request for h in handles+t.get('execution_history',[])):raise JobError('an accepted or executed request cannot become a capacity deferral')
+            if t.get('uncertain_calls') or _open_dispatch(t) or any(h.get('request_id')==request for h in handles+t.get('execution_history',[])):raise JobError('an accepted or executed request cannot become a capacity deferral; uncertain launch must be reconciled')
             notification=event.get('completion_id')
             if t.get('capacity_deferred') and not notification or notification in {e for x in _tasks(j) for e in x.get('capacity_retry_events',[])}:raise JobError('capacity retry requires a new owned completion notification')
             if notification:
@@ -298,9 +298,9 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
     old_policy=j.get('policy',{});new_policy=new_plan.get('policy',old_policy)
     for key,value in old_policy.items():
         if (key=='identity' and value=='observed' and new_policy.get(key,value)!='observed') or (key=='author_independence' and value is True and new_policy.get(key,value) is not True):raise JobError('observed identity policy is immutable' if key=='identity' else 'author independence policy is immutable once enabled')
-        if (isinstance(value,(int,float)) and not isinstance(value,bool) and isinstance(new_policy.get(key,value),(int,float)) and not isinstance(new_policy.get(key,value),bool) and new_policy.get(key,value)>value) or key=='max_live_workers' and value is not None and new_policy.get(key,value) is None:
+        if (isinstance(value,(int,float)) and not isinstance(value,bool) and isinstance(new_policy.get(key,value),(int,float)) and not isinstance(new_policy.get(key,value),bool) and new_policy.get(key,value)>value) or key=='max_live_workers' and value is not None and new_policy.get(key,value) is None or key=='max_live_workers_by_provider' and any(provider not in new_policy.get(key,{}) or new_policy[key][provider]>cap for provider,cap in value.items()):
             required_decision=True;why.append(f'limit raised: {key}')
-        elif new_policy.get(key,value)!=value and key not in ('max_repair_cycles','max_live_workers','max_artifact_bytes'):
+        elif new_policy.get(key,value)!=value and key not in ('max_repair_cycles','max_live_workers','max_artifact_bytes','max_live_workers_by_provider'):
             required_decision=True;why.append(f'policy changed: {key}')
     decision_id=revision.get('owner_decision_id');decision=next((d for d in j['decisions'] if d.get('id')==decision_id and d.get('scope')==f"plan:{revision['id']}" and _owner_current(d,j['policy']['max_artifact_bytes'])),None)
     if required_decision and decision is None:raise JobError('undeclared_expansion: owner decision required for '+', '.join(why))

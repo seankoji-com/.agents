@@ -19,6 +19,7 @@ from functools import wraps
 from pathlib import Path
 
 from core.jobs.store import trusted_link
+from shared.job_coordination import DEFAULT_MAX_REPAIR_CYCLES, provider_limits
 
 try:
     import fcntl
@@ -766,11 +767,14 @@ def load_workers_config(path: Path) -> dict:
     try:
         path.lstat()
     except FileNotFoundError:
-        return {'schema_version': 1, 'max_live_workers': None, 'max_repair_cycles': 20, 'overrides': []}
+        return {'schema_version': 1, 'max_live_workers': None, 'max_repair_cycles': DEFAULT_MAX_REPAIR_CYCLES, 'overrides': []}
     try: cfg = json.loads(read_regular(path, 'workers config').decode('utf-8'))
     except (OSError, ValueError, UnicodeError) as exc: raise RegistryError('workers config is malformed') from exc
-    if not isinstance(cfg, dict) or cfg.get('schema_version') != 1 or set(cfg) != {'schema_version','max_live_workers','max_repair_cycles','overrides'}:
+    required = {'schema_version','max_live_workers','max_repair_cycles','overrides'}
+    if not isinstance(cfg, dict) or cfg.get('schema_version') != 1 or not required <= set(cfg) or set(cfg) - required - {'max_live_workers_by_provider'}:
         raise RegistryError('workers config schema is invalid')
+    try: provider_limits(cfg.get('max_live_workers_by_provider', {}))
+    except ValueError as exc: raise RegistryError(str(exc)) from exc
     live, repair = cfg['max_live_workers'], cfg['max_repair_cycles']
     if live is not None and (type(live) is not int or live <= 0): raise RegistryError('max_live_workers must be null or positive integer')
     if type(repair) is not int or repair < 0: raise RegistryError('max_repair_cycles must be nonnegative integer')
@@ -906,7 +910,7 @@ def snapshot_pins(job_path: Path, dependency_plugins: dict[str, str], prefix: Pa
                      'shared': shared, 'effective_workers': effective,
                      'task_contract': ({'bytes': task_contract.decode('utf-8'), 'sha256': digest(task_contract)}
                                        if task_contract is not None else None),
-                     'limits': {'max_live_workers': cfg['max_live_workers'], 'max_repair_cycles': cfg['max_repair_cycles']}}
+                     'limits': {'max_live_workers': cfg['max_live_workers'], 'max_repair_cycles': cfg['max_repair_cycles'], **({'max_live_workers_by_provider': cfg['max_live_workers_by_provider']} if cfg.get('max_live_workers_by_provider') else {})}}
         pins[key]['compatible_pinned_invocation'] = f't3-plugins --job {job_path.absolute()} path {plugin}'
     return {'schema_version': 1, 'pins': pins,
             'compatible_pinned_invocations': {key: f't3-plugins --job {job_path.absolute()} path {plugin}'

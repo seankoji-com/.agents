@@ -242,7 +242,8 @@
       "properties": {
         "max_repair_cycles": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "default": 20
         },
         "max_artifact_bytes": {
           "type": "integer",
@@ -268,6 +269,14 @@
             "minLength": 1
           },
           "uniqueItems": true
+        },
+        "max_live_workers_by_provider": {
+          "type": "object",
+          "description": "Job-local live and prepared worker caps keyed by live provider instance ID. Omitted providers use only the global cap.",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
         }
       },
       "additionalProperties": true
@@ -668,7 +677,10 @@
         "explicit_data_classes": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"type": "string", "minLength": 1}
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "policy_sha256": {
           "type": "string",
