@@ -519,6 +519,14 @@ def _charge_prepared_attempt(subject, state, job, attempt):
     subject.save(state)
 
 
+def _subject_attempt(state, task):
+    attempts = state['rounds'][-1]['attempts'] if state['rounds'] else []
+    old = next((a for a in attempts if a['task_id'] == task['task_id']), None)
+    need(old is not None and all(old[k] == task[k] for k in ('request_id', 'target')),
+         'prepared attempt needs same-request launch reconciliation before recording an outcome')
+    return old
+
+
 def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
     """Reserve one finite technical attempt and prepare an existing immutable brief.
 
@@ -619,6 +627,7 @@ def unavailable(store, caller, task_id, failure, environ=None):
     with subject.transaction() as state:
         _unchanged(store, job)
         _active(state, store)
+        old = _subject_attempt(state, task)
         def apply(j):
             attempt = next(a for a in j['planning']['attempts'] if a['task_id'] == task_id)
             need(attempt['outcome'] is None, 'attempt already has an outcome')
@@ -631,7 +640,6 @@ def unavailable(store, caller, task_id, failure, environ=None):
                 'technical_failure': deepcopy(failure), 'accepted_execution': False})
             return deepcopy(attempt)
         updated = store.transact(caller, apply)
-        old = next(a for a in state['rounds'][-1]['attempts'] if a['task_id'] == task_id)
         old.update(updated)
         subject.save(state)
         return updated
@@ -798,6 +806,7 @@ def ingest(store, caller, task_id, raw, completion_id, environ=None):
         _unchanged(store, job)
         _active(state, store)
         need(not state['rounds'][-1]['closed'], 'round is closed')
+        subject_attempt = _subject_attempt(state, task)
         _charge(state)
         subject.save(state)
         record_result(store, caller, task_id, {'request_id': task['request_id'], 'completion_id': completion_id, 'result': raw})
@@ -868,7 +877,7 @@ def ingest(store, caller, task_id, raw, completion_id, environ=None):
             j['planning']['passes'].append(pass_)
         store.transact(caller, apply)
         state['rounds'][-1]['passes'].append(pass_)
-        next(a for a in state['rounds'][-1]['attempts'] if a['task_id'] == task_id)['outcome'] = outcome
+        subject_attempt['outcome'] = outcome
         subject.save(state)
         return pass_
 

@@ -249,6 +249,38 @@ class PlanningReviewTests(unittest.TestCase):
             'slot_id': 'review', 'request_id': attempt['request_id']}, ok=False))
         self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
 
+    def test_uncharged_attempt_refuses_outcomes_without_writes(self):
+        self.create()
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        subject = Path(self.created['subject_file'])
+        payload = {'slot_id': 'review', 'request_id': 'interrupted-charge'}
+        with patch.object(planning.Subject, 'save', side_effect=OSError('fixture interrupted charge')):
+            with self.assertRaises(OSError):
+                planning.launch(store, self.caller, **payload, environ=self.box.env)
+        task = store.load()['tasks'][0]
+        attempt = dict(task['brief'], target=task['target'], mode='cross-lineage')
+        before = (store.file.read_bytes(), subject.read_bytes())
+        failure = {'kind': 'technical', 'tool': 'fixture-delegate', 'call_id': 'fixture-failed-call',
+                   'request_id': payload['request_id'], 'receipt': {'error': 'fixture prelaunch refusal'},
+                   'prelaunch': True}
+        self.assertIn('same-request launch reconciliation', self.cli('unavailable', {
+            'task_id': task['task_id'], 'failure': failure}, ok=False))
+        self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+        self.assertIn('same-request', self.cli('release', ok=False))
+        self.assertIn('same-request', self.cli('launch', dict(payload, request_id='replacement'), ok=False))
+        # Even an observed owned completion cannot ingest material before replay
+        # recovers the durable technical charge. Host observations do not dispatch.
+        self.event(attempt)
+        before = (store.file.read_bytes(), subject.read_bytes())
+        raw = self.write('unreconciled-result.json', '{}')
+        self.assertIn('same-request launch reconciliation', self.cli('result', {
+            'task_id': task['task_id'], 'result_file': str(raw), 'completion_id': 'uncharged-completion'}, ok=False))
+        self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+        replay = self.cli('launch', payload)
+        self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 1)
+        self.assertEqual(self.result(replay, observe=False)['outcome'], 'approved')
+        self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 1)
+
     def test_owned_request_replay_is_read_only(self):
         self.create()
         attempt = self.attempt()
