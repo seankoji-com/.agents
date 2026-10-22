@@ -210,8 +210,10 @@ class HandoffHost(InstalledHost):
                 'text': text, 'payload': payload}
 
     def trace(self, run, extra=()):
-        outer = run['outer']
-        events = [{'tool': 'read', 'path': outer['path']},
+        # Resolve this execution, including retired requests and unprepared forbidden follow-ups.
+        # Do not assert file validity here: negative cases must reach installed inspect-trace.
+        outer = self.root / self.view['study_id'] / 'briefs' / f'{run["task"]}-{sha(run["request"].encode())}.json'
+        events = [{'tool': 'read', 'path': str(outer)},
                   {'tool': 'read', 'path': run['document']['path']}]
         events += [{'tool': 'read', 'path': f['path'], 'result': 'Image read successfully'
                     if f['path'].endswith('.png') else 'Text read successfully'}
@@ -281,6 +283,37 @@ class Swap:
 
 class RelocatedInstallTest(unittest.TestCase):
     """One package installed by the catalog, moved to a new prefix and adopted, then used without the source."""
+
+    def assert_prepared_binding(self, h, run):
+        """Check persisted current or retired evidence before constructing a valid trace."""
+        study = h.root / h.view['study_id']
+        task = next(t for t in h.job_state()['tasks'] if t['task_id'] == run['task'])
+        handles = [r for r in task['handles'] if r['request_id'] == run['request']]
+        self.assertEqual([r['task_id'] for r in handles], [run['host']])
+        if task['brief']['request_id'] == run['request']:
+            bound = {k: task['brief'][k] for k in ('path', 'sha256')}
+        else:
+            self.assertIn(run['request'], [r['request_id'] for r in task['execution_history']])
+            rows = [json.loads(p.read_text()) for p in (study / 'focus-group/evidence/traces').glob('*.json')]
+            refs = [r['prepared_brief'] for r in rows if (r['task_id'], r['request_id'], r['host_task_id']) ==
+                    (run['task'], run['request'], run['host'])]
+            self.assertTrue(refs, 'retired execution must retain its earlier trace binding')
+            self.assertTrue(all(ref == refs[0] for ref in refs))
+            bound = refs[0]
+        path = study / 'briefs' / f'{run["task"]}-{sha(run["request"].encode())}.json'
+        self.assertEqual(bound, {'path': str(path), 'sha256': run['outer']['sha256']})
+        self.assertEqual(run['outer']['path'], str(path))
+        raw = path.read_bytes()
+        self.assertEqual(sha(raw), bound['sha256'])
+        outer = json.loads(raw)
+        self.assertEqual((outer['task_id'], outer['request_id'], outer['stage_id']),
+                         (run['task'], run['request'], run['stage']))
+        self.assertEqual(outer, run['brief'])
+        correlation = {k: v for k, v in outer.items() if k != 'effective_brief_sha256'}
+        self.assertEqual(outer['effective_brief_sha256'], sha((json.dumps(
+            correlation, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False) + '\n').encode()))
+        self.assertEqual(len({bound['sha256'], outer['effective_brief_sha256'], run['document']['sha256']}), 3)
+        return bound
 
     def assert_artifact_example(self, run):
         expected_output = run['text'].split('## Expected output\n', 1)[1]
@@ -733,6 +766,7 @@ class RelocatedInstallTest(unittest.TestCase):
             h = HandoffHost(base, self.inst['package'])
             h.start(personas=1, mode='capture-only')
             initial = h.begin()
+            initial_bound = self.assert_prepared_binding(h, initial)
             self.assertEqual(h.trace(initial)[0], 0)
 
             def invalid_transport(result):
@@ -751,6 +785,41 @@ class RelocatedInstallTest(unittest.TestCase):
             self.assertEqual(Path(repair['outer']['path']),
                              study / 'briefs' / f'{repair["task"]}-{sha(request.encode())}.json')
             self.assertFalse((study / 'briefs/followup').exists())
+            self.assertEqual(self.assert_prepared_binding(h, initial), initial_bound)
+            repair_bound = self.assert_prepared_binding(h, repair)
+            self.assertNotEqual(initial_bound, repair_bound)
+            self.assertNotEqual(initial['brief']['effective_brief_sha256'], repair['brief']['effective_brief_sha256'])
+
+            # Damage only disposable brief files. Keep the cached run and persisted job/history
+            # untouched so each refusal comes from the real installed validator, not the fixture.
+            retired_path = Path(initial_bound['path'])
+            retired_bytes = retired_path.read_bytes()
+            tampered = json.loads(retired_bytes)
+            tampered['constraints'].append('Invented altered constraint')
+            tampered.pop('effective_brief_sha256')
+            tampered['effective_brief_sha256'] = sha((json.dumps(
+                tampered, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False) + '\n').encode())
+            before_job, before_ledger = (study / 'job.json').read_bytes(), h.ledger_bytes()
+            for damage, replacement, message in (
+                    ('missing', None, 'no readable prepared JSON brief'),
+                    ('foreign', Path(repair_bound['path']).read_bytes(), 'differs from this task, request'),
+                    ('tampered', json.dumps(tampered).encode(), 'differs from an earlier trace binding')):
+                with self.subTest(retired_brief=damage):
+                    try:
+                        if replacement is None:
+                            retired_path.unlink()
+                        else:
+                            retired_path.write_bytes(replacement)
+                        code, refused = h.trace(initial)
+                        self.assertEqual((code, refused.get('error', {}).get('code')), (1, 'trace_unbound'), refused)
+                        self.assertIn(message, refused['error']['message'])
+                    finally:
+                        retired_path.write_bytes(retired_bytes)
+                    self.assertEqual((study / 'job.json').read_bytes(), before_job)
+                    self.assertEqual(h.ledger_bytes(), before_ledger)
+                    for path, data in retained.items():
+                        self.assertEqual(path.read_bytes(), data, path.name)
+            self.assertEqual(self.assert_prepared_binding(h, initial), initial_bound)
             self.assertEqual(h.trace(initial)[0], 0)  # retired normal brief remains bound after replacement
             code, trace = h.trace(repair)
             self.assertEqual((code, trace['data']['attempt_compliance']), (0, 'clean-in-trace'), trace)
