@@ -11,12 +11,16 @@ restrictions, including inspect-only mode and exclusions.
   handoff. Reuse the same scope and filters. Repo/org runs pass `--all-authors` to
   `list-prs.sh`: human and bot PRs qualify. Drafts and forks stay excluded unless
   explicitly included; do not treat an author's identity as an extra exclusion.
+  Admission uses the helper's eligibility filters. Add `--include-drafts` or
+  `--include-forks` only when the operator includes those PRs.
 - A new matching PR needs no renewed authorization. Link it, add its row, record
   its per-PR actions from the saved request before mutations, run the quick pass,
   and create a separate job if repairs are needed. Never rewrite an existing job's
   PR identity, immutable brief, evidence or model choices to add another PR.
-  Admission processing applies only to new matches; reconcile existing jobs once
-  through step 8. Every merge-helper invocation skips a PR with a fixer in flight,
+  A refresh only admits and quick-passes new matches, then returns to its caller.
+  It never invokes step 8 recursively or reconciles existing jobs. After return,
+  the caller processes jobs and schedules repairs once through steps 4–8.
+  Every merge-helper invocation skips a PR with a fixer in flight,
   including during discovery refresh and the quick pass.
 - Complete discovery matters. If the helper warns about a partial search page,
   finish discovery with supported paginated GitHub reads or nonoverlapping narrower
@@ -38,6 +42,14 @@ arming them and on each wake; do not invent an org watch, shell event loop or se
 scheduler. If discovery cannot run while idle, state that gap. Persistent discovery
 after handoff needs an explicitly requested host schedule, bounded in scope and
 cadence. Active-run discovery never needs that extra authorization.
+
+## Retry limits
+
+For an unchanged transient failure, use at most 3 attempts or 5 minutes, whichever
+comes first; stricter helper limits take precedence. Count attempts across repair
+rounds, not afresh on each wake. After the limit, change the diagnosis and repair a
+cause within scope. Do not reset the counter to repeat the same failing operation.
+An unresolved external prerequisite stays a named blocker.
 
 ## Decide from the brief before asking
 

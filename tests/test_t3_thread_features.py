@@ -52,7 +52,8 @@ class SiblingWorkCheckTest(unittest.TestCase):
             self.assertIn(phrase, self.rule)
 
     def test_overlap_avoids_duplicate_writers_without_a_routine_question(self):
-        self.assertIn('leave it visible as owned elsewhere and continue independent work', self.rule)
+        self.assertIn('leave that target visible as owned elsewhere and read-only', self.rule)
+        self.assertIn('skip merge, fixer, reply and watch actions on it', self.rule)
         self.assertIn('Ask through the question picker only if ownership transfer is necessary', self.rule)
         # Proceed never puts a second writer in a worktree another thread is writing.
         self.assertIn('Offer proceed only for a PR or branch overlap where this run writes in its own worktree; '
@@ -95,11 +96,10 @@ class SiblingWorkCheckTest(unittest.TestCase):
         maintain = flat((ROOT / 'plugins/babysitter/playbooks/maintain.md').read_text())
         step1 = maintain.split(' 2. Quick pass')[0]
         self.assertIn(SIBLING_REF, step1)
-        self.assertLess(step1.index(SIBLING_REF), step1.index('link each admitted PR'))
+        self.assertLess(step1.index('Run ' + SIBLING_REF), step1.index('link each admitted PR'))
         self.assertIn('stays visible as owned elsewhere', step1)
         self.assertIn('Run ' + SIBLING_REF, step1)
         self.assertIn('Read-only runs skip this check', step1)
-        self.assertLess(step1.index(SIBLING_REF), step1.index('stays visible as owned elsewhere'))
 
         loop = flat((ROOT / 'plugins/ralph/playbooks/loop.md').read_text())
         self.assertIn('Before initialization, run ' + SIBLING_REF, loop)

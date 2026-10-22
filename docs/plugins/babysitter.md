@@ -114,7 +114,8 @@ threads, and merging them once GitHub allows it. The read-only example in
 [Try it](#try-it) narrows that to inspection. A clean PR can merge in the quick pass
 without a fixer, so use `repo` or `org` only when you mean every eligible PR there.
 Repo/org runs include all authors and bots. Drafts and forks are left alone unless
-you explicitly include them. Confirmed ownership by another active thread stays
+you explicitly include them; the helper then uses `--include-drafts` or
+`--include-forks`. Confirmed ownership by another active thread stays
 visible; babysitter continues the other PRs without creating a competing writer.
 Protected-branch rules still apply. Babysitter never uses admin bypass, never
 dismisses reviews, and never force-pushes a base branch.
@@ -128,7 +129,7 @@ you to select a default that the task already supplies:
 |---|---|
 | No auto-merge preference in a through-merge request | Enable it when the landing gates permit. |
 | Another matching PR appears | Add it and continue maintenance. |
-| New commits arrive on a target branch | Fetch, integrate and revalidate in the isolated worktree, unless competing ownership is confirmed. |
+| A PR head moves | Fetch, integrate and revalidate in the isolated worktree, unless competing ownership is confirmed. |
 | CI downloads or setup fail repeatedly | Stop identical retries, diagnose and repair safe setup within scope. |
 
 Questions are for a material product choice, missing access or secrets, a necessary

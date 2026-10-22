@@ -101,8 +101,9 @@ Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop ru
     authority or a new choice. Keep the brief, actions, counters and visible fallback marker.
     A failed candidate alone grants no target substitution.
 12. Refresh org/repo discovery at entry, every wake/completion, and before yielding
-    or handing off. Admit new matches without asking; run steps 2–7 only for new matches.
-    Reconcile existing jobs once through step 8. Follow `PKG/references/scope.md`.
+    or handing off. Admit and quick-pass new matches without asking, then return to
+    the caller. Never re-enter step 8 from discovery; callers reconcile jobs and
+    schedule new repairs once (steps 4–8). Follow `PKG/references/scope.md`.
     Persistent scheduled discovery uses the host scheduler only when requested;
     report its ID and stop command.
 13. Hand off only after a fresh complete discovery has no untreated eligible PRs;

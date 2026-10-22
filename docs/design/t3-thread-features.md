@@ -55,8 +55,9 @@ latest assistant message still maintains or watches the target.
 
 **Gain.** Efficiency: avoids two threads paying for the same repair and racing pushes
 to one branch. The run keeps sibling-owned targets visible and continues independent
-work, asking only when an ownership transfer is necessary. Proceeding is offered only when the overlap is a PR or
-branch and this run writes in its own worktree; a shared worktree always stops.
+work, asking only when an ownership transfer is necessary. After an authorized
+transfer, proceeding requires this run's own worktree; a shared worktree always
+stops.
 
 **Risk.** The check is deliberately bounded, so it can miss a sibling four ways:
 title matching misses threads whose titles omit the PR or branch; an older active
@@ -64,8 +65,8 @@ thread can sit beyond the first page's cursor; a sixth matching candidate goes
 unconfirmed; and a parked thread that the user or auto-settlement has already settled
 is filtered out. That a parked maintainer stays unsettled while it watches is an
 *assumption*. Reading the latest message of a parked candidate can also mistake a
-finished thread for a live one; the cost is a target incorrectly marked owned elsewhere. It lowers
-duplicate work without ruling it out. Listing adds a call per
+finished thread for a live one; the cost is a target incorrectly marked owned
+elsewhere. It lowers duplicate work without ruling it out. Listing adds a call per
 run. A check that blocked on failure would make the workflows depend on a
 nightly-only tool, and one that ran on read-only triage would drop PRs from a report
 that cannot collide with anyone.

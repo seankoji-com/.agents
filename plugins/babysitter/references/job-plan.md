@@ -40,7 +40,7 @@ or an armed auto-merge request never substitutes for an available action.
    fixer with the complete blocker list. Conflicts require integrating the current
    base, resolving files and testing the combined result. Failing checks require
    reading current-head logs, repairing the cause and verifying the repair. Retry
-   infrastructure failures within a bounded attempt count, then change diagnosis.
+   infrastructure failures under `PKG/references/scope.md`'s retry limits, then change diagnosis.
    Repair safe in-scope CI/dependency setup without asking; repeated DNS/TLS or
    download failures alone do not require human input. Missing access or an external
    outage is a named blocker only after authorized alternatives are exhausted.
@@ -60,7 +60,8 @@ or an armed auto-merge request never substitutes for an available action.
   `$XDG_STATE_HOME/t3-plugins/babysitter/requests/<run-id>.txt`. Decisions quote it.
 - Admit the PR under the recorded scope (step 1) and run its quick pass (step 2)
   first, so the stage is declared at the head this thread actually observed.
-  New matching PRs get separate jobs; do not expand or rebind an existing PR's job.
+  New matching PRs get separate jobs; never replace an existing job's PR identity.
+  Head rebinding still follows the stage and acceptance rules below.
 - Record the auto-merge posture (step 1) as a `decisions` entry quoting the operator's
   saved request and the entry's default, or its explicit override, so the quick pass,
   each wake, and the merge share one mode. Do not fabricate a picker answer.

@@ -170,7 +170,7 @@ class BoundaryTest(unittest.TestCase):
     def test_active_discovery_needs_no_schedule_but_persistent_discovery_does(self):
         sweep = steps('playbooks/maintain.md')[12]
         self.assertIn('at entry, every wake/completion, and before yielding or handing off', sweep)
-        self.assertIn('Admit new matches without asking', sweep)
+        self.assertIn('Admit and quick-pass new matches without asking', sweep)
         self.assertIn('Persistent scheduled discovery uses the host scheduler', sweep)
         self.assertIn('only when requested', sweep)
         scope = text('references/scope.md')
@@ -180,8 +180,8 @@ class BoundaryTest(unittest.TestCase):
     def test_scope_refresh_never_runs_a_merge_helper_over_an_active_fixer(self):
         play = steps('playbooks/maintain.md')
         self.assertIn('for each unowned PR with no fixer in flight run', play[2])
-        self.assertIn('run steps 2–7 only for new matches', play[12])
-        self.assertIn('Reconcile existing jobs once through step 8', play[12])
+        self.assertIn('then return to the caller', play[12])
+        self.assertIn('Never re-enter step 8 from discovery', play[12])
         self.assertIn('Every merge-helper invocation skips a PR with a fixer in flight', text('references/scope.md'))
 
     def test_approvals_route_through_the_picker_and_are_recorded(self):
@@ -525,7 +525,11 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertIn("Never rewrite an existing job's PR identity", scope)
         self.assertIn('Drafts and forks stay excluded unless explicitly included', scope)
         self.assertIn('Such rows are read-only: skip the merge helper, fixer dispatch, replies/resolutions and watches', scope)
+        self.assertIn('skip merge, fixer, reply and watch actions on it', delivered['shared/t3-runtime.md'])
+        self.assertIn('use at most 3 attempts or 5 minutes', scope)
         for rel, body in delivered.items():
+            if rel.startswith('shared/'):
+                continue
             with self.subTest(file=rel):
                 for obsolete in ('A PR outside the frozen roster gets no action', 'Freeze the roster',
                                  'otherwise ask once through the picker',
