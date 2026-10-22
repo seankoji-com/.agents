@@ -71,7 +71,9 @@ INTEGRATION_STAGE = {
         'REQ-EXPORT': [COMBINED, 'tests.test_focus_group_report_checks.ExportTest'],
         'REQ-ARCHITECTURE': ['tests.test_focus_group_install.ArchitectureTest'],
         'REQ-INSTALL': ['tests.test_focus_group_install.RelocatedInstallTest',
-                        'tests.test_focus_group_install.DamagedPackageTest'],
+                        'tests.test_focus_group_install.DamagedPackageTest',
+                        'tests.test_focus_group_install_handoff.RelocatedInstallTest',
+                        'tests.test_focus_group_install_lifecycle.RelocatedInstallTest'],
         'REQ-DOCS': ['tests.test_focus_group_workflow.IntegrationStageTest.test_the_guide_covers_the_operator_decisions'],
         'REQ-INTEGRATION': [COMBINED, GAPS,
                             'tests.test_focus_group_workflow.IntegrationStageTest.'
