@@ -2,7 +2,8 @@
 import re
 
 DRIVER_LINEAGE = {'claudeAgent': 'anthropic', 'codex': 'openai', 'antigravity': 'google', 'grok': 'xai', 'muse': 'meta'}
-FAMILY_LINEAGE = {'claude': 'anthropic', 'gpt': 'openai', 'o': 'openai', 'gemini': 'google', 'grok': 'xai', 'muse': 'meta'}
+FAMILY_LINEAGE = {'claude': 'anthropic', 'gpt': 'openai', 'o': 'openai', 'gemini': 'google',
+                  'grok': 'xai', 'muse': 'meta', 'deepseek': 'deepseek', 'qwen': 'qwen'}
 MULTI_LINEAGE_DRIVERS = {'opencode', 'cursor', 'pi'}
 
 
