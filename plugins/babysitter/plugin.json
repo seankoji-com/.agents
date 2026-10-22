@@ -1,6 +1,6 @@
 {
   "name": "babysitter",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "Maintain pull requests through review, CI, and authorized merge.",
   "argument_hint": "doctor | pr <URL> | repo <owner/name> | org <owner>",
   "entry": "entry.md",

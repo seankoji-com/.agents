@@ -1,12 +1,22 @@
 {
   "name": "bug-report",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Verify suspected T3 problems, route redacted reports, and follow up for one fixed 30-minute window.",
   "short_description": "Verify, report and follow up on T3 problems",
   "argument_hint": "run [symptom or context reference] | resume <session> | status <session> | cancel <session>",
   "entry": "entry.md",
-  "operations": ["run", "resume", "status", "cancel"],
-  "picker": ["run", "resume", "status", "cancel"],
+  "operations": [
+    "run",
+    "resume",
+    "status",
+    "cancel"
+  ],
+  "picker": [
+    "run",
+    "resume",
+    "status",
+    "cancel"
+  ],
   "context_on_empty": true,
   "kind": "workflow",
   "compatibility": "experimental",
@@ -33,9 +43,21 @@
     }
   },
   "routes": [
-    {"pattern": "^resume\\s+\\S+$", "operation": "resume"},
-    {"pattern": "^status\\s+\\S+$", "operation": "status"},
-    {"pattern": "^cancel\\s+\\S+$", "operation": "cancel"},
-    {"pattern": "^[\\s\\S]*$", "operation": "run"}
+    {
+      "pattern": "^resume\\s+\\S+$",
+      "operation": "resume"
+    },
+    {
+      "pattern": "^status\\s+\\S+$",
+      "operation": "status"
+    },
+    {
+      "pattern": "^cancel\\s+\\S+$",
+      "operation": "cancel"
+    },
+    {
+      "pattern": "^[\\s\\S]*$",
+      "operation": "run"
+    }
   ]
 }
