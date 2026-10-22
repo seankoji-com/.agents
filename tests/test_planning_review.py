@@ -10,8 +10,10 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from core.jobs.store import canonical, digest
+from core.jobs import store as job_store
+from core.jobs.store import canonical, digest, JobError
 from shared import model_selection as models
 from shared import planning_review as planning
 from tests.model_selection_fixtures import selection_input, replacement, answer
@@ -173,6 +175,97 @@ class PlanningReviewTests(unittest.TestCase):
         # Unrelated file/HEAD metadata is absent from the relevant evidence set.
         self.write('unrelated.py', 'UNRELATED = 2\n')
         self.cli('validate', {'reference': reference})
+
+    def test_prepare_failure_does_not_charge_subject(self):
+        for failure in ('brief', 'schema'):
+            with self.subTest(failure=failure):
+                if self.caller:
+                    self.setUp()
+                self.create(begin=False)
+                store = planning.pinned_store(self.box.jobs, self.job_id)
+                subject = Path(self.created['subject_file'])
+                before = (store.file.read_bytes(), subject.read_bytes())
+                self.assertIn('begin a counted content round', self.cli('launch', {
+                    'slot_id': 'review', 'request_id': 'before-begin'}, ok=False))
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+                self.cli('begin')
+                before = (store.file.read_bytes(), subject.read_bytes())
+                validate = job_store.validate
+                def reject_prepared(job):
+                    validate(job)
+                    if job['tasks']:
+                        raise JobError('fixture post-binding schema rejection')
+                    return job
+                injection = (patch('core.jobs._retain', side_effect=JobError('fixture brief write rejection'))
+                             if failure == 'brief' else patch.object(job_store, 'validate', reject_prepared))
+                with injection, self.assertRaisesRegex(JobError, 'fixture'):
+                    planning.launch(store, self.caller, 'review', 'failed-prepare', environ=self.box.env)
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+                attempt = self.cli('launch', {'slot_id': 'review', 'request_id': 'failed-prepare'})
+                self.assertEqual(attempt['task_id'], 'review-1')
+                self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 1)
+
+    def test_committed_preparation_recovers_subject_charge_once(self):
+        for failure in ('subject-save', 'overview-after-commit'):
+            with self.subTest(failure=failure):
+                if self.caller:
+                    self.setUp()
+                self.create()
+                store = planning.pinned_store(self.box.jobs, self.job_id)
+                subject = Path(self.created['subject_file'])
+                before = subject.read_bytes()
+                injection = (patch.object(planning.Subject, 'save', side_effect=OSError('fixture interrupted save'))
+                             if failure == 'subject-save' else
+                             patch.object(store, 'overview', side_effect=OSError('fixture interrupted overview')))
+                payload = {'slot_id': 'review', 'request_id': 'recover-charge'}
+                with injection, self.assertRaisesRegex(OSError, 'fixture interrupted'):
+                    planning.launch(store, self.caller, **payload, environ=self.box.env)
+                prepared = store.file.read_bytes()
+                self.assertEqual(subject.read_bytes(), before)
+                self.assertEqual(len(store.load()['tasks']), 1)
+                self.assertIn('brief', store.load()['tasks'][0])
+                self.assertIn('same-request', self.cli('launch', dict(payload, request_id='replacement'), ok=False))
+                self.assertIn('same-request', self.cli('release', ok=False))
+                replay = self.cli('launch', payload)
+                self.assertEqual(replay['task_id'], 'review-1')
+                self.assertEqual(store.file.read_bytes(), prepared)
+                charged = subject.read_bytes()
+                state = json.loads(charged)
+                self.assertEqual(state['technical_used'], 1)
+                self.assertEqual(state['rounds'][-1]['attempts'], store.load()['planning']['attempts'])
+                self.cli('launch', payload)
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), (prepared, charged))
+
+    def test_retained_replay_rejects_changed_target(self):
+        self.create()
+        attempt = self.attempt()
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        def drift(job):
+            job['planning']['attempts'][0]['target']['model'] = 'different-fixture-model'
+        store.mutate(self.caller, drift)
+        subject = Path(self.created['subject_file'])
+        before = (store.file.read_bytes(), subject.read_bytes())
+        self.assertIn('target binding differs', self.cli('launch', {
+            'slot_id': 'review', 'request_id': attempt['request_id']}, ok=False))
+        self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+
+    def test_owned_request_replay_is_read_only(self):
+        self.create()
+        attempt = self.attempt()
+        event = self.event(attempt, status='running')
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        subject = Path(self.created['subject_file'])
+        for phase in ('accepted', 'completed'):
+            with self.subTest(phase=phase):
+                if phase == 'completed':
+                    event.update(kind='completion', completion_id='replay-completion', status='completed',
+                                 work_state='result_available')
+                    self.cli('host-event', {'task_id': attempt['task_id'], 'event': event})
+                before = (store.file.read_bytes(), subject.read_bytes())
+                replay = self.cli('launch', {'slot_id': 'review', 'request_id': attempt['request_id']})
+                for key in ('path', 'sha256', 'target', 'task_id', 'request_id', 'mode'):
+                    self.assertEqual(replay[key], attempt[key])
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
 
     def test_separate_manifest_policy_and_stronger_slot_relabelling_refused(self):
         self.snapshot = self.cli('capture', self.snapshot_data)

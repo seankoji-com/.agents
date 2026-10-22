@@ -421,7 +421,7 @@
         "assertions": [
           {
             "selector": "test_planning_review.PlanningReviewTests",
-            "tests": 42,
+            "tests": 46,
             "coverage": [
               "REQ-DELIVERY"
             ],
@@ -789,7 +789,7 @@
         "assertions": [
           {
             "selector": "test_plan_review_installed_panel.RelocatedPlanningPanel",
-            "tests": 41,
+            "tests": 46,
             "coverage": [
               "REQ-DELIVERY"
             ],

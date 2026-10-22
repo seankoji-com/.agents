@@ -489,16 +489,34 @@ def _unavailable(job, candidate, slot_id):
     return latest.get('outcome') == 'unavailable' and latest.get('failure') is not None
 
 
+def _available_candidate(job, slot_id, sharing=None):
+    return next((c for c in exclusions(job, slot_id, sharing)
+                 if not c['exclusion'] and not _unavailable(job, c, slot_id)), None)
+
+
 def next_candidate(job, slot_id, sharing=None):
     need(job['planning']['round'] is not None, 'begin a counted content round first')
     need(not any(_unsettled(job, t) for t in job['tasks']), 'pending or uncertain owned review must be reconciled')
     need(not any(a['outcome'] is None for a in job['planning']['attempts']),
          'prepared attempt needs same-request reconciliation before replacement')
-    for candidate in exclusions(job, slot_id, sharing):
-        if candidate['exclusion'] or _unavailable(job, candidate, slot_id):
-            continue
-        return candidate
-    return None
+    return _available_candidate(job, slot_id, sharing)
+
+
+def _charge_prepared_attempt(subject, state, job, attempt):
+    """Charge only a durable preparation; same-request recovery charges once."""
+    round_ = state['rounds'][-1]
+    need(round_['number'] == job['planning']['round'] and not round_['closed'], 'round is closed or differs')
+    old = next((a for a in round_['attempts'] if a['request_id'] == attempt['request_id']), None)
+    if old is not None:
+        need(old == attempt, 'subject attempt binding differs')
+        return
+    need(attempt['task_id'] == 'review-' + str(state['technical_used'] + 1), 'technical attempt sequence differs')
+    used = [a for a in round_['attempts'] if a['target'] == attempt['target'] and a['slot_id'] == attempt['slot_id']]
+    need(len(used) < job['planning']['attempts_per_candidate'], 'finite candidate technical allowance exhausted')
+    need(state['technical_used'] < job['planning']['technical_limit'], 'technical attempt budget exhausted')
+    state['technical_used'] += 1
+    round_['attempts'].append(deepcopy(attempt))
+    subject.save(state)
 
 
 def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
@@ -508,26 +526,25 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
     """
     job = verify_all_pins(store, caller)
     policy = manifest_policy(job)
-    def retained_brief():
+    need(job['planning']['round'] is not None, 'begin a counted content round first')
+    def retained_brief(expected):
         def check(current):
             manifest_policy(current)
             attempt = next(a for a in current['planning']['attempts'] if a['request_id'] == request_id)
             need(attempt['slot_id'] == slot_id and attempt['outcome'] is None,
                  'request ID is already retained by a finished attempt')
+            need(expected is not None and all(attempt[k] == expected[k] for k in ('target', 'mode', 'lineage')),
+                 'request ID target binding differs')
             task = next(t for t in current['tasks'] if t['task_id'] == attempt['task_id'])
+            need(task['target'] == expected['target'] and task['request_id'] == request_id,
+                 'prepared task binding differs')
             need('brief' in task, 'incomplete launch reservation requires reconciliation')
             if not any(h.get('request_id') == request_id for h in
                        task.get('handles', []) + task.get('followups', []) + task.get('execution_history', [])):
                 require_admission(current, task)
-            return dict(task['brief'], target=attempt['target'], task_id=task['task_id'],
-                        request_id=request_id, mode=attempt['mode'])
+            return (dict(task['brief'], target=attempt['target'], task_id=task['task_id'],
+                         request_id=request_id, mode=attempt['mode']), deepcopy(attempt))
         return store.transact(caller, check, 'prepare')
-    old = next((a for a in job['planning']['attempts'] if a['request_id'] == request_id), None)
-    if old:
-        return retained_brief()
-    need(job['planning']['round'] and not any(p['slot_id'] == slot_id for p in job['planning']['passes']), 'slot already reviewed or no round')
-    candidate = next_candidate(job, slot_id, sharing)
-    need(candidate is not None, 'all permitted children unavailable; explicit direct pass required')
     component(request_id)
     subject = _subject(job, environ)
     with subject.transaction() as state:
@@ -536,8 +553,13 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
         need(not state['rounds'][-1]['closed'], 'round is closed')
         old = next((a for a in job['planning']['attempts'] if a['request_id'] == request_id), None)
         if old:
-            need(old['slot_id'] == slot_id and old['target'] == candidate['target'], 'request ID binding differs')
-            return retained_brief()
+            brief, attempt = retained_brief(_available_candidate(job, slot_id, sharing))
+            _charge_prepared_attempt(subject, state, job, attempt)
+            return brief
+        need(job['planning']['round'] and not any(p['slot_id'] == slot_id for p in job['planning']['passes']),
+             'slot already reviewed or no round')
+        candidate = next_candidate(job, slot_id, sharing)
+        need(candidate is not None, 'all permitted children unavailable; explicit direct pass required')
         used = [a for a in state['rounds'][-1]['attempts'] if a['target'] == candidate['target'] and a['slot_id'] == slot_id]
         need(len(used) < job['planning']['attempts_per_candidate'], 'finite candidate technical allowance exhausted')
         # Total technical bound survives replacement jobs. Allow enough for the initial finite chain in every round.
@@ -554,11 +576,12 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
                 'write_scope': {'mode': 'worker-evidence', 'path': 'artifacts/tasks/' + task_id}})
             require_admission(j, j['tasks'][-1])
             j['planning']['attempts'].append(deepcopy(attempt))
-            state['technical_used'] += 1
-            state['rounds'][-1]['attempts'].append(attempt)
-            subject.save(state)
         brief = prepare(store, caller, task_id, verify_pinned_dependency, lambda _: False,
                         'explicit planning panel/availability candidate', bind_inputs=apply)
+        # A failed job transaction cannot charge the subject. If this save fails
+        # after preparation commits, return no brief; replay recovers the charge
+        # under the subject lock before exposing the same durable reservation.
+        _charge_prepared_attempt(subject, state, job, attempt)
         return dict(brief, target=candidate['target'], mode=candidate['mode'], task_id=task_id, request_id=request_id)
 
 
@@ -1112,6 +1135,8 @@ def release(store, caller, environ=None):
     """Release a completed/stopped job without erasing subject history or budget."""
     job = verify_all_pins(store, caller)
     need(not any(_unsettled(job, t) for t in job['tasks']), 'live/uncertain jobs cannot be replaced')
+    need(not any(a['outcome'] is None for a in job['planning']['attempts']),
+         'prepared attempt needs same-request reconciliation before release')
     subject = _subject(job, environ)
     with subject.transaction() as state:
         _unchanged(store, job)

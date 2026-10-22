@@ -70,6 +70,10 @@ and independence policy. They cannot be imported or waived into this runtime.
   It returns exact target/options, task/request IDs, mode and brief descriptor.
   The coordinator calls the host with that request ID. Re-presenting an unfinished
   request is idempotent; a prepared or uncertain request blocks replacement.
+  Preparation commits before the subject is charged; a rejected preparation
+  leaves the subject unchanged. If saving the charge is interrupted, no brief is
+  returned. Re-present that same request to recover its charge exactly once
+  before dispatch; replacement and release remain blocked meanwhile.
 - `host_event(store, caller, task_id, event)` records existing job lifecycle
   events. Host observations retain real task/thread IDs and requested versus
   observed identity. Uncertain launches have the existing original-plus-two retry
