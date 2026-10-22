@@ -327,6 +327,40 @@ class LearningsTest(unittest.TestCase):
         self.assertEqual(lock.stat().st_ino, winner_inode)
         self.assertEqual(stat.S_IMODE(lock.stat().st_mode), 0o600)
 
+    def test_lock_reopen_enoent_retries_exclusive_creation(self):
+        real_open = os.open
+        exclusive_seen = False
+        reopen_missed = False
+        winner_done = False
+        exclusive_flags = []
+        reopen_flags = []
+
+        def competing_open(name, flags, *args, **kwargs):
+            nonlocal exclusive_seen, reopen_missed, winner_done
+            if name == 'imps.md.lock':
+                if flags & os.O_EXCL:
+                    exclusive_flags.append(flags)
+                    if not exclusive_seen:
+                        exclusive_seen = True
+                        self.write('winner')
+                        winner_done = True
+                        raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), name)
+                elif winner_done:
+                    reopen_flags.append(flags)
+                    if not reopen_missed:
+                        reopen_missed = True
+                        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), name)
+            return real_open(name, flags, *args, **kwargs)
+
+        with mock.patch('learning_store.os.open', side_effect=competing_open):
+            self.write('loser')
+        self.assertTrue(reopen_missed)
+        self.assertGreaterEqual(len(exclusive_flags), 2)
+        self.assertTrue(all(flags & os.O_EXCL for flags in exclusive_flags))
+        self.assertGreaterEqual(len(reopen_flags), 2)
+        self.assertTrue(all(not flags & os.O_EXCL for flags in reopen_flags))
+        self.assertEqual({e['id'] for e in self.store.operate()['data']['entries']}, {'winner', 'loser'})
+
     def test_unsafe_lock_files_are_refused_without_changing_target(self):
         self.write()
         lock = self.store.folder / 'imps.md.lock'

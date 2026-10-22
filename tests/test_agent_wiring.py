@@ -343,7 +343,24 @@ class WiringTest(unittest.TestCase):
              'scope': 'global'}]
         capability['intentional_differences'] = {'a': {
             'reason': 'documented task scope', 'evidence': [{'path': 'notes.md'}]}}
-        self.assertEqual(run('compare')[0], 0)
+        compared = align.compare(self.catalog, inventory)
+        self.assertEqual(compared['providers'][0]['sources'][0]['status'], 'parsed')
+        self.assertEqual(compared['capabilities'][0]['states'][0], 'configured')
+
+    def test_malformed_capability_exception_evidence_is_invalid_input(self):
+        evidence = self.file('evidence')
+        settings = self.file('settings', '{}')
+        inventory = {'version': 1, 'providers': [{'provider_instance_id': 'a', 'adapter': 'claude',
+                     'sources': [{'path': str(settings), 'scope': 'global'}]}],
+                     'capabilities': [{'kind': 'mcp', 'members': {'a': 'fixture'},
+                                       'intentional_differences': {'a': {
+                                           'reason': 'documented task scope',
+                                           'evidence': self.evidence(evidence)}}}]}
+        for malformed in ('not-an-array', [{'path': str(evidence), 'sha256': 'g' * 64}],
+                          [{'sha256': hashlib.sha256(evidence.read_bytes()).hexdigest()}]):
+            with self.subTest(evidence=malformed), self.assertRaises(ValueError):
+                inventory['capabilities'][0]['intentional_differences']['a']['evidence'] = malformed
+                align.compare(self.catalog, inventory)
 
     def plan(self, number):
         target = self.file(f'target-{number}', '{"permissions":{"allow":["Read(*)"]}}')

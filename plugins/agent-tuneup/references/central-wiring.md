@@ -44,8 +44,9 @@ manual until its runtime storage and loading are established.
   `unsupported`, `intentional-difference`), `evidence`, and a `reason` for exceptions.
 - Evidence is an array of `{"path": "/absolute/evidence", "sha256": "<64 hex>"}`.
   Bind source files or private observation receipts. No secret values in receipts.
-- Capability-level `intentional_differences` must include a nonempty evidence array
-  with fresh digests. An empty or stale array does not bind the exception.
+- Capability-level `intentional_differences` must include a nonempty `reason` and an
+  `evidence` array whose digests are all fresh (`bound`). Empty, stale or unreadable
+  evidence does not bind the exception.
 - `shared_skills`: the resolved shared skill directory. Provider records can name
   `skill_roots` (provider-specific directories only) and `reads_shared_skills: true`
   when native shared discovery has been established. Include every relevant root.

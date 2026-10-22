@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import re
 import secrets
 import stat
@@ -466,11 +467,26 @@ def install(root, prefix, meta):
         if checked['bundle_digest'] != manifest['bundle_digest']:
             raise ValueError('installed worker bundle digest mismatch')
     validate_picker(meta)
-    if meta.get('entry') not in {item['path'] for item in manifest['files']}:
+    entry_name = meta.get('entry')
+    entry_path = PurePosixPath(entry_name) if isinstance(entry_name, str) else None
+    if (entry_path is None or not entry_name or '\\' in entry_name
+            or entry_path.is_absolute() or entry_path.as_posix() != entry_name
+            or any(part in {'', '.', '..'} for part in entry_path.parts)
+            or entry_name not in {item['path'] for item in manifest['files']}):
         raise ValueError('installed entry is not receipt-owned')
-    entry = version_dir / meta['entry']
-    if not entry.is_file() or any(ord(c) < 32 for c in str(entry)):
+    snapshot_entry = version_dir / entry_name
+    try:
+        resolved_entry = snapshot_entry.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError('invalid installed entry path') from exc
+    if (not resolved_entry.is_relative_to(version_dir)
+            or not snapshot_entry.is_file()
+            or any(ord(c) < 32 for c in str(snapshot_entry))):
         raise ValueError('invalid installed entry path')
+    # The public contract is the stable current path. Resolve and verify the
+    # selected snapshot above, but do not pin the adapter to a version directory:
+    # activation and rollback atomically repoint current.
+    entry = current / entry_name
     data = render(meta, entry).encode()
     yaml = openai_yaml(meta)
     pending = {'SKILL.md': digest(data), OPENAI_YAML: digest(yaml)}

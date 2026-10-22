@@ -49,6 +49,8 @@ def evidence_state(items):
     if not items:
         return 'unknown'
     for item in items:
+        if not isinstance(item, dict) or set(item) != {'path', 'sha256'}:
+            raise ValueError('invalid_wiring_evidence')
         path = absolute(item['path'])
         expected = item['sha256']
         if not isinstance(expected, str) or not re.fullmatch(r'[0-9a-f]{64}', expected):

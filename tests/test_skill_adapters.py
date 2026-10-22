@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -44,7 +45,7 @@ class SkillAdapters(unittest.TestCase):
 
     def test_adapter_uses_installed_entry_and_is_idempotent(self):
         first = self.install()
-        entry = (self.prefix / 'imps/current').resolve() / 'entry.md'
+        entry = self.prefix / 'imps/current/entry.md'
         adapter = self.skills / 't3-imps/SKILL.md'
         self.assertIn(json.dumps(str(entry)), adapter.read_text())
         self.assertIn('name: t3-imps', adapter.read_text())
@@ -68,6 +69,68 @@ class SkillAdapters(unittest.TestCase):
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(output.returncode, 0, output.stderr)
         self.assertEqual(json.loads(output.stdout)['data']['issues'], [42, 43])
+
+    def test_adapter_entry_follows_activation_and_matches_receipt(self):
+        first = json.loads(self.call('install', 'imps').stdout)['data']
+        entry = self.prefix / 'imps/current/entry.md'
+        self.call('skills', 'install', 'imps', '--root', str(self.skills))
+        adapter = self.skills / 't3-imps/SKILL.md'
+        marker_path = adapter.parent / '.t3-plugins-skill.json'
+        self.assertIn(json.dumps(str(entry)), adapter.read_text())
+        self.assertEqual(json.loads(marker_path.read_text())['entry'], str(entry))
+
+        # Create a real second version through the installer, then switch in both
+        # directions. The adapter and receipt keep the public current path while it
+        # resolves to whichever verified snapshot is active.
+        source = self.base / 'second-source'
+        for name in ('core', 'shared', 'plugins'):
+            shutil.copytree(ROOT / name, source / name,
+                            ignore=shutil.ignore_patterns('__pycache__', '.pytest_cache'))
+        note = next((source / 'plugins/imps').rglob('*.md'))
+        note.write_text(note.read_text() + '\nactivation fixture\n')
+        install = subprocess.run([
+            sys.executable, str(ROOT / 'scripts/install.py'), '--plugin', 'imps',
+            '--prefix', str(self.prefix), '--agents-root', str(self.agents),
+            '--source', str(source)], capture_output=True, text=True, timeout=60)
+        self.assertEqual(install.returncode, 0, install.stdout + install.stderr)
+        second = json.loads(install.stdout)['data']
+        self.assertNotEqual(first['version'], second['version'])
+
+        for version, active in ((first['version'], first), (second['version'], second)):
+            self.call('activate', 'imps', version)
+            self.assertEqual(json.loads(marker_path.read_text())['entry'], str(entry))
+            self.assertIn(json.dumps(str(entry)), adapter.read_text())
+            self.assertTrue(entry.is_file())
+            self.assertEqual(entry.resolve().parent.name, active['version'])
+
+    def test_invalid_installed_metadata_is_rejected_before_adapter_writes(self):
+        self.call('install', 'imps')
+        meta = json.loads((self.prefix / 'imps/current/plugin.json').read_text())
+        manifest = skills.installer.load_manifest(self.prefix / 'imps/current/install-manifest.json')
+        metadata = next(item for item in manifest['files'] if item['path'] == 'plugin.json')
+        original_read = skills.installer.registry.read_regular
+        original_digest = skills.digest
+        cases = [
+            (b'not json', 'installed plugin metadata is invalid'),
+            (b'[]', 'installed plugin metadata mismatch'),
+            (json.dumps(dict(meta, version=1)).encode(), 'installed plugin metadata mismatch'),
+            (json.dumps(dict(meta, entry='../entry.md')).encode(), 'installed entry is not receipt-owned'),
+        ]
+        for raw, message in cases:
+            with self.subTest(message=message):
+                def read(path, label):
+                    if label == 'installed plugin metadata':
+                        return raw
+                    return original_read(path, label)
+
+                def digest(data):
+                    return metadata['sha256'] if data == raw else original_digest(data)
+
+                with mock.patch.object(skills.installer.registry, 'read_regular', side_effect=read), \
+                        mock.patch.object(skills, 'digest', side_effect=digest), \
+                        self.assertRaisesRegex(ValueError, message):
+                    skills.install(self.skills, self.prefix, meta)
+                self.assertFalse(self.skills.exists())
 
     def test_missing_package_and_external_activation_fail_without_adapter_writes(self):
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)

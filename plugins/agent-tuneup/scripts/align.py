@@ -231,12 +231,9 @@ def compare(catalog, inventory):
                 raise ValueError('invalid_capability')
             intentional = False
             if status != 'configured':
-                try:
-                    intentional = (isinstance(difference.get('reason'), str)
-                                   and bool(difference['reason'].strip())
-                                   and wiring.evidence_state(difference.get('evidence', [])) == 'bound')
-                except (OSError, ValueError, TypeError, KeyError, AttributeError):
-                    intentional = False
+                intentional = (isinstance(difference.get('reason'), str)
+                               and bool(difference['reason'].strip())
+                               and wiring.evidence_state(difference.get('evidence', [])) == 'bound')
             if status != 'configured' and not intentional:
                 findings.append({'code': 'capability_' + status,
                                  'location': f'capabilities[{number}].providers[{ids.index(ident)}]'})
