@@ -48,6 +48,7 @@ def evidence_state(items):
         raise ValueError('invalid_wiring_evidence')
     if not items:
         return 'unknown'
+    validated = []
     for item in items:
         if not isinstance(item, dict) or set(item) != {'path', 'sha256'}:
             raise ValueError('invalid_wiring_evidence')
@@ -55,6 +56,8 @@ def evidence_state(items):
         expected = item['sha256']
         if not isinstance(expected, str) or not re.fullmatch(r'[0-9a-f]{64}', expected):
             raise ValueError('invalid_wiring_evidence')
+        validated.append((path, expected))
+    for path, expected in validated:
         try:
             if hashlib.sha256(read_file(path)).hexdigest() != expected:
                 return 'stale'

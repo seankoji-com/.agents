@@ -362,6 +362,19 @@ class WiringTest(unittest.TestCase):
                 inventory['capabilities'][0]['intentional_differences']['a']['evidence'] = malformed
                 align.compare(self.catalog, inventory)
 
+    def test_malformed_evidence_is_rejected_after_stale_or_unreadable_entries(self):
+        path = self.file('evidence')
+        stale = self.evidence(path)[0]
+        path.write_text('changed')
+        unreadable = {'path': str(self.root / 'missing'), 'sha256': '0' * 64}
+        malformed = [None, {'path': str(path), 'sha256': 'g' * 64},
+                     {'path': str(path)}, {'path': 'relative', 'sha256': '0' * 64}]
+        for first in (stale, unreadable):
+            for invalid in malformed:
+                for items in ([first, invalid], [invalid, first]):
+                    with self.subTest(items=items), self.assertRaises(ValueError):
+                        wiring.evidence_state(items)
+
     def plan(self, number):
         target = self.file(f'target-{number}', '{"permissions":{"allow":["Read(*)"]}}')
         candidate = self.file(f'candidate-{number}', '{"permissions":{"allow":[]}}')
