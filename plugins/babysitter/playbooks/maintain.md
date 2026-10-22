@@ -55,12 +55,11 @@ Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop ru
    routing. Never infer an answer; report `unavailable` entries.
 6. Dispatch per `PKG/shared/job-coordination.md`: `job_cli.py prepare`, launch
    `babysitter/pr-maintainer` with `delegate_task`, and record the handle with
-   `task-observation`. Brief and task carry the PR URL, its worktree, the head at
-   dispatch, the complete `blockers=` list, every unresolved thread's ID and comments,
-   earlier rounds' findings, `retry_usage`, and that PR's recorded actions.
-   Finish line: every listed
-   blocker cleared at a pushed head with local verification, and a disposition for
-   every thread; or `blocked` with what only a human can decide. Children never run
+   `task-observation`. The immutable brief carries PR context: URL, worktree, head,
+   the complete `blockers=` list, every unresolved thread's ID and comments,
+   prior findings and authorized actions. Task text carries current coordinator-owned
+   `retry_usage`. Finish with every listed blocker cleared at a pushed head,
+   local verification and thread dispositions, or `blocked` naming the human-only decision. Children never run
    `merge-pr.sh` merge, arm, or resolve modes.
 7. Before landing or watching, inspect every unresolved thread at the current head,
    including all pages. Verify fixes there or establish why no change applies. Post
