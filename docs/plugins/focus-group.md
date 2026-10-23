@@ -20,7 +20,7 @@ Before substantive planning or execution, choose the planner, each participant
 model, the analyst and reviewers together. The exact study revision needs a real
 planning-review receipt before owner approval or panel work. Changed revisions
 reopen that review while retaining prior findings, budgets and unchanged evidence.
-Explicit resume shows pinned choices and asks retain-or-stop.
+Unchanged resume reuses the agreement, choices and remaining budgets without another chooser.
 
 The final report retains its separate fidelity gate: a fresh reviewer of a
 different known lineage checks the exact bundle against accepted inputs, citations,

@@ -18,9 +18,9 @@ sys.path.insert(0, str(ROOT))
 from core import cli, planning, records, store, report, recipe
 from core.fsutil import read_json
 from core.errors import Prohibited
-from core.jobs.store import canonical
+from core.jobs.store import canonical, strict_load
 from shared import imps_planning as imps
-from shared import planning_review as review
+from shared import planning_review as review, delivery
 
 original_execute = cli.execute
 
@@ -35,7 +35,11 @@ def execute(a):
             review.need(isinstance(context, dict), 'imps admission context required before gate initialization')
             record = imps.initial(data, context, package)
             record['state_root'] = str(root)
+            selected = context['admission']['selection']
+            if selected.get('agreement'):
+                data.setdefault('policy', {}).setdefault('model_preferences', {})['agreement_sha256'] = selected['agreement']['agreement_sha256']
             state = planning.build(data, read_json(package / 'config.json'), state_root=root, plugin=cli.plugin_info(a))
+            record['effective_contract']['policy'] = state['policy']
             state['notes'].append({'text': imps.NOTE + canonical(review.seal(record)).decode(),
                                    'recorded_at': store.now_iso()})
             run = store.RunStore(root, store.new_run_id()); run.create(state)
@@ -50,6 +54,22 @@ def execute(a):
                 else:
                     state['planning_review_status'] = 'legacy-unreviewed'
                 return run.run_id, state
+        if a.op == 'delivery':
+            run = store.RunStore(root, a.run_id)
+            evidence = cli.read_input(a)
+            def record_delivery(state):
+                record = imps.run_record(state)
+                selected = record['context']['admission']['selection']
+                binding = cli.acceptance.binding(state, root)
+                review.need(binding['snapshot']['dirty_paths'] == 0, 'delivery requires a clean accepted head')
+                from core import snapshot
+                review.need(snapshot.git(state['repo']['worktree'], 'diff', '--name-only',
+                                         state['repo']['base_sha'], binding['snapshot']['head']).strip(),
+                            'no-change outcome; resolve selected endpoint rather than inventing an empty PR/tag')
+                delivery.engineering(selected, evidence, binding['snapshot']['head'])
+                return records.apply(state, root, run.run_dir, 'note', {'text': imps.NOTE + 'delivery:' + canonical(evidence).decode()})
+            state, result = run.mutate(record_delivery)
+            return run.run_id, result
         if a.op in ('validate', 'report', 'recipe-stamp', 'finalize'):
             run = store.RunStore(root, a.run_id)
             with run.locked():
@@ -67,6 +87,21 @@ def execute(a):
                 else:
                     imps.validate_run(state, package)
                     ev = cli.validate(state, root, run.run_dir)
+                    selected = imps.run_record(state)['context']['admission']['selection']
+                    if selected.get('agreement') and selected['agreement']['target']['label'] in delivery.agreements.ENGINEERING:
+                        ev['source_ready'] = ev['ready']
+                        notes = [strict for n in state['notes'] if n['text'].startswith(imps.NOTE + 'delivery:')
+                                 for strict in [strict_load(n['text'][len(imps.NOTE + 'delivery:'):].encode())]]
+                        try:
+                            review.need(ev['binding']['snapshot']['dirty_paths'] == 0, 'endpoint requires a clean accepted head')
+                            review.need(notes, 'selected endpoint has no delivery observations')
+                            delivery.engineering(selected, notes[-1], ev['binding']['snapshot']['head'])
+                            ev['endpoint_complete'] = bool(ev['source_ready'])
+                        except (ValueError, KeyError, TypeError) as exc:
+                            ev['endpoint_complete'] = False; ev['endpoint_reason'] = str(exc)
+                        ev['ready'] = ev['source_ready'] and ev['endpoint_complete']
+                        if not ev['ready']:
+                            ev['outcome'] = 'in_progress'
                     if a.op == 'validate':
                         return run.run_id, ev
                     if a.op == 'report':
@@ -92,7 +127,7 @@ def execute(a):
         raise Prohibited('imps_planning', str(exc)) from exc
 
 
-cli.OPS = (*cli.OPS, 'finalize')
+cli.OPS = (*cli.OPS, 'finalize', 'delivery')
 cli.execute = execute
 if not any(arg == '--plugin-dir' or arg.startswith('--plugin-dir=') for arg in args):
     args += ['--plugin-dir', str(HERE)]

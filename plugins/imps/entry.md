@@ -1,5 +1,7 @@
 # imps for T3 Code
 
+Apply `PKG/shared/upfront-agreement.md`; reuse agreements.
+
 Apply `PKG/shared/model-selection.md` first.
 Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
@@ -45,7 +47,7 @@ for the target branch or PR. Read `PKG/references/brief-probes.md`. For a bug, r
 Every gate run follows this procedure. Write a
 major-version-2 plan using `PKG/core/schemas/plan.schema.json`: stable requirement
 IDs, verification kinds, verbatim constraints, literal check argv, repository/base,
-parent thread and authorised endstate. Default to local work. Retain sources in notes. Review triggered initial gate plans before execution. Initialize with `init --input FILE`
+parent thread and selected endpoint. Retain sources. Review triggered initial gate plans before execution. Initialize with `init --input FILE`
 using its `imps` admission context; the launcher retains the contract and receipt in notes.
 
 Continue until the authorised outcome has evidence or a named blocker. Implement and inspect the actual
@@ -69,9 +71,9 @@ receipt and an independent observation at the verified head, link the PR through
 T3, and report CI separately. Stop task-owned services and watchers at handoff.
 
 **resume <run-id>.** For a job, follow the resume steps in `PKG/references/jobs.md`.
-For a run without a job, read `status` and discover live capabilities. Display its
-pinned model/options and use planning `continue` with `event: resume`; retain-or-stop
-requires an actual answer, with no in-place target rotation. Reconcile
+Without a job, read `status` and discover capabilities. Display its
+pinned agreement/model/options and use planning `continue` with `event: resume`.
+An unchanged agreement needs no chooser; only approved reconciled replacements may rotate targets. Reconcile
 recorded children, then finish missing evidence. Reverify stale evidence.
 Major-version-1 runs require the previous installed package; activate it without
 rewriting state.

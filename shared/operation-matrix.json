@@ -3,225 +3,389 @@
   "plugins": {
     "bug-report": {
       "run": {
-        "selection": "direct",
+        "selection": "upfront",
         "planning": "none",
-        "reason": "Current-context incident investigation and reporting has no delegated workers or separate implementation strategy; evidence, publication authority and finite monitoring guards still apply."
+        "reason": "Current-context reporting uses the scoped agreement; no child or extra review is implied.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "reviewed redacted report at approved destination"
       },
       "resume": {
-        "selection": "direct",
+        "selection": "continuation",
         "planning": "none",
-        "reason": "Reconcile the existing incident in the current context without worker dispatch, resetting budgets or extending the original monitoring deadline."
+        "reason": "Reuse the scoped agreement and producing evidence without chooser; reconcile owned handles and retain findings/budgets.",
+        "classification": "continuation",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "same report, owned handles and remaining budget"
       },
       "status": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Read-only incident inspection has no synthesis or dispatch."
+        "reason": "Read-only incident inspection has no synthesis or dispatch.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "references/state.md",
+        "completion_evidence": "stored report state"
       },
       "cancel": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Record cancellation and reconcile only the incident's owned monitoring task; no worker dispatch or unrelated cleanup."
+        "reason": "Record cancellation and reconcile only the incident's owned monitoring task; no worker dispatch or unrelated cleanup.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "references/state.md",
+        "completion_evidence": "owned work stopped; partial evidence retained"
       }
     },
     "ape": {
       "doctor": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Local readiness has no synthesis."
+        "reason": "Local readiness has no synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "diagnostic exit and findings"
       },
       "clean": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Deterministic cleanup has no synthesis."
+        "reason": "Deterministic cleanup has no synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "playbooks/clean.md",
+        "completion_evidence": "scoped owned-workspace cleanup receipt"
       },
       "study": {
         "selection": "upfront",
         "planning": "final-synthesis",
-        "reason": "Final report including no-adoption output before acceptance."
+        "reason": "Final report including no-adoption output before acceptance.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "playbooks/study.md",
+        "completion_evidence": "accepted pinned-source report"
       },
       "forage": {
         "selection": "upfront",
         "planning": "final-synthesis",
-        "reason": "Review integrated synthesis including no experiment; research intermediates retain citation checks."
+        "reason": "Review integrated synthesis including no experiment; research intermediates retain citation checks.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "playbooks/forage.md",
+        "completion_evidence": "accepted comparative synthesis"
       }
     },
     "elephant-goldfish": {
       "doctor": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Local readiness has no synthesis."
+        "reason": "Local readiness has no synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "diagnostic exit and findings"
       },
       "thinking": {
         "selection": "upfront",
         "planning": "source-plan",
-        "reason": "Review discovery/spec before rendering; list/resolve/gate are deterministic."
+        "reason": "Review discovery/spec before rendering; list/resolve/gate are deterministic.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "playbooks/thinking.md",
+        "completion_evidence": "reviewed deterministic handoff and selected remote delivery; thinking list is direct"
       },
       "elephant": {
         "selection": "upfront",
         "planning": "design",
-        "reason": "Review repaired design after factual acceptance and before cold-read dispatch."
+        "reason": "Review repaired design after factual acceptance and before cold-read dispatch.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "playbooks/elephant.md",
+        "completion_evidence": "reviewed source document and selected remote delivery"
       },
       "check": {
         "selection": "on-delegation",
         "planning": "none",
-        "reason": "Factual drift only; no newly authored plan and no cold read."
+        "reason": "Factual drift only; no newly authored plan and no cold read.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "read-only factual/cold-read findings; no publication authority"
       }
     },
     "agent-tuneup": {
       "tuneup": {
         "selection": "upfront",
         "planning": "proposal",
-        "reason": "Inventory, audit, inspect available usage, compare and review proposals in one workflow. Concrete owner approval still gates settings changes."
+        "reason": "Inventory, audit, inspect available usage, compare and review proposals in one workflow. Concrete owner approval still gates settings changes.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "playbooks/align.md",
+        "completion_evidence": "reviewed audit/proposal; concrete owner approval and independent verification for settings application"
       }
     },
     "ralph": {
       "run": {
         "selection": "upfront",
         "planning": "written-strategy",
-        "reason": "Ordinary loop has no initial planning artifact; written strategies automatically review before dependent work. Keep final full evaluator."
+        "reason": "Ordinary loop has no initial planning artifact; written strategies automatically review before dependent work. Keep final full evaluator.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "playbooks/loop.md",
+        "completion_evidence": "fresh full different-lineage evaluation and exact engineering endpoint"
       },
       "resume": {
-        "selection": "retain-or-stop",
+        "selection": "continuation",
         "planning": "written-strategy",
-        "reason": "Pinned targets/options retained; no duplicate assessment of unchanged strategy. Feedback, lineage and recovery gates remain."
+        "reason": "Reuse the scoped agreement and producing evidence without chooser; reconcile owned handles and retain findings/budgets.",
+        "classification": "continuation",
+        "entry": "entry.md",
+        "route": "playbooks/loop.md",
+        "completion_evidence": "same agreement, author history, handles and remaining attempts"
       },
       "status": {
         "selection": "direct",
         "planning": "none",
-        "reason": "State inspection has no synthesis."
+        "reason": "State inspection has no synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "cli.py",
+        "completion_evidence": "stored checkpoint"
       },
       "cancel": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Owned-task cancellation has no synthesis."
+        "reason": "Owned-task cancellation has no synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "cli.py",
+        "completion_evidence": "owned work stopped; checkpoint retained"
       },
       "doctor": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Capability preflight has no synthesis."
+        "reason": "Capability preflight has no synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "diagnostic exit and findings"
       }
     },
     "babysitter": {
       "doctor": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Local readiness has no synthesis."
+        "reason": "Local readiness has no synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "diagnostic exit and findings"
       },
       "pr": {
         "selection": "upfront",
         "planning": "written-strategy",
-        "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+        "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "current-head review/check/authorised endpoint evidence"
       },
       "repo": {
         "selection": "upfront",
         "planning": "written-strategy",
-        "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+        "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "each selected PR accounted for; native watches retained"
       },
       "org": {
         "selection": "upfront",
         "planning": "written-strategy",
-        "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+        "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "each selected repository and PR accounted for"
       }
     },
     "imps": {
       "doctor": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Local readiness has no synthesis."
+        "reason": "Local readiness has no synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "scripts/doctor.py",
+        "completion_evidence": "diagnostic exit and findings"
       },
       "status": {
         "selection": "direct",
         "planning": "none",
-        "reason": "State inspection has no synthesis."
+        "reason": "State inspection has no synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "cli.py",
+        "completion_evidence": "stored run state"
       },
       "cancel": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Owned-task cancellation has no synthesis."
+        "reason": "Owned-task cancellation has no synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "cli.py",
+        "completion_evidence": "owned work stopped; partial evidence retained"
       },
       "resume": {
-        "selection": "retain-or-stop",
+        "selection": "continuation",
         "planning": "retained-plan",
-        "reason": "Pinned applicable runs retain targets/options; changed sources reopen review without budget reset."
+        "reason": "Reuse the scoped agreement and producing evidence without chooser; reconcile owned handles and retain findings/budgets.",
+        "classification": "continuation",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "same contract, owned handles and remaining budgets"
       },
       "verification-init": {
         "selection": "upfront",
         "planning": "verification-recipe",
-        "reason": "Review authored launch/drive/cleanup plan before execution; raw scaffold/check and unchanged reviewed recipe are direct."
+        "reason": "Review authored launch/drive/cleanup plan before execution; raw scaffold/check and unchanged reviewed recipe are direct.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "references/verification-init.md",
+        "completion_evidence": "reviewed executable verification recipe; bare scaffold is direct"
       },
       "blast-radius": {
         "selection": "upfront",
         "planning": "final-synthesis",
-        "reason": "Review integrated risks including no-risk conclusions."
+        "reason": "Review integrated risks including no-risk conclusions.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "reviewed impact report"
       },
       "audit": {
         "selection": "upfront",
         "planning": "final-synthesis",
-        "reason": "Review integrated conclusions and fix plan including zero findings."
+        "reason": "Review integrated conclusions and fix plan including zero findings.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "reviewed findings and retained refutations"
       },
       "prs": {
         "selection": "forward-once",
         "planning": "written-strategy",
-        "reason": "Forward one selection to pinned babysitter; avoid duplicate imps planning gate."
+        "reason": "Forward one selection to pinned babysitter; avoid duplicate imps planning gate.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "nested babysitter inherits agreement; each PR accounted for"
       },
       "run": {
         "selection": "upfront",
         "planning": "initial-plan",
-        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "current source gates and exact engineering endpoint"
       },
       "issues": {
         "selection": "upfront",
         "planning": "initial-plan",
-        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "accepted issue plan and selected authorised engineering endpoint"
       },
       "checklist": {
         "selection": "upfront",
         "planning": "initial-plan",
-        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "accepted checklist and selected authorised endpoint"
       },
       "discussion": {
         "selection": "upfront",
         "planning": "initial-plan",
-        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+        "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "accepted discussion-derived plan and selected endpoint"
       }
     },
     "focus-group": {
       "plan": {
         "selection": "upfront",
         "planning": "study-plan",
-        "reason": "Review the exact editable persona/model protocol and authority/budget revision before owner approval or any panel work."
+        "reason": "Review the exact editable persona/model protocol and authority/budget revision before owner approval or any panel work.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "playbooks/plan.md",
+        "completion_evidence": "reviewed protocol and genuine discovery acceptance"
       },
       "run": {
         "selection": "upfront",
         "planning": "reviewed-study-plan-and-fidelity",
-        "reason": "Consume the current study-plan receipt before panel work. Final synthesis uses the existing stricter fidelity review of the exact bundle, accepted inputs, citations, dissent, coverage and distinct author lineage; no duplicate planning pass over that same report."
+        "reason": "Consume the current study-plan receipt before panel work. Final synthesis uses the existing stricter fidelity review of the exact bundle, accepted inputs, citations, dissent, coverage and distinct author lineage; no duplicate planning pass over that same report.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "playbooks/run.md",
+        "completion_evidence": "accepted protocol, isolated cells and fidelity-reviewed report"
       },
       "resume": {
-        "selection": "retain-or-stop",
+        "selection": "continuation",
         "planning": "retained-study-plan-and-fidelity",
-        "reason": "Retain pinned matrix/analyst/fidelity targets and options. Reuse unchanged accepted study-plan and fidelity evidence; changed study revisions need new planning review and owner approval. Reconcile owned children without budget reset."
+        "reason": "Reuse the scoped agreement and producing evidence without chooser; reconcile owned handles and retain findings/budgets.",
+        "classification": "continuation",
+        "entry": "entry.md",
+        "route": "playbooks/run.md",
+        "completion_evidence": "retained protocol, cells, findings and budgets"
       },
       "status": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Read-only study and owned-task state inspection has no synthesis or dispatch."
+        "reason": "Read-only study and owned-task state inspection has no synthesis or dispatch.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "stored study state"
       },
       "cancel": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Deterministic cancellation intent and reconciliation concern only owned tasks, with no synthesis."
+        "reason": "Deterministic cancellation intent and reconciliation concern only owned tasks, with no synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "owned work stopped; partial evidence retained"
       },
       "doctor": {
         "selection": "direct",
         "planning": "none",
-        "reason": "Local package/catalog/schema readiness has no substantive planning or synthesis."
+        "reason": "Local package/catalog/schema readiness has no substantive planning or synthesis.",
+        "classification": "direct",
+        "entry": "entry.md",
+        "route": "entry.md",
+        "completion_evidence": "diagnostic exit and findings"
       }
     },
     "plan": {
       "plan": {
         "selection": "upfront",
         "planning": "source-plan",
-        "reason": "Review the accepted discovery and testable spec before producing a handoff; planning never starts implementation."
+        "reason": "Review the accepted discovery and testable spec before producing a handoff; planning never starts implementation.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "playbooks/plan.md",
+        "completion_evidence": "accepted discovery, current source-plan review, readiness gate and provenance-checked handoff; no implementation authority"
       }
     }
   }

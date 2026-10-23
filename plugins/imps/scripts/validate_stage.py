@@ -74,7 +74,8 @@ def main():
  checked=subprocess.run([*common,'validate','--plugin-dir',str(package),'--state-root',a.state_root,'--run-id',a.run_id],capture_output=True,text=True)
  try:result=json.loads(checked.stdout)['data']
  except (ValueError,KeyError,TypeError):print(json.dumps({'accepted':False,'requirement_outcomes':{'imps-stage-gate':{'status':'failed','reason':'invalid gate validation response','evidence':checked.stdout[-2000:]}}}));return 1
- fresh=result.get('binding');ok=checked.returncode==0 and result.get('ready') is True and fresh==pre
+ # A stage certifies source work. The terminal job separately requires its selected endpoint.
+ fresh=result.get('binding');ok=checked.returncode==0 and result.get('source_ready',result.get('ready')) is True and fresh==pre
  outcomes={}
  for row in result.get('requirements',[]):
   outcomes[row.get('id','unknown')]={'status':'passed' if row.get('status')=='passed' else 'failed','evidence':row}

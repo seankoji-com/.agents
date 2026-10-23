@@ -1,7 +1,7 @@
 {
   "name": "ralph",
   "version": "0.1.38",
-  "description": "Implement a goal with fresh T3 tasks, evaluate with another lineage, repair blockers and track safe deferrals as repository issues before opening a PR.",
+  "description": "Implement a goal with fresh T3 tasks, evaluate with another lineage, repair blockers and track safe deferrals as repository issues before the selected delivery endpoint.",
   "short_description": "Implement a goal, cross-evaluate it, retry before a PR",
   "argument_hint": "run [--max-attempts N] <goal> | resume <state-file> | status <state-file> | cancel <state-file> | doctor",
   "entry": "entry.md",
@@ -92,27 +92,47 @@
     "run": {
       "selection": "upfront",
       "planning": "written-strategy",
-      "reason": "Ordinary loop has no initial planning artifact; written strategies automatically review before dependent work. Keep final full evaluator."
+      "reason": "Ordinary loop has no initial planning artifact; written strategies automatically review before dependent work. Keep final full evaluator.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/loop.md",
+      "completion_evidence": "fresh full different-lineage evaluation and exact engineering endpoint"
     },
     "resume": {
-      "selection": "retain-or-stop",
+      "selection": "continuation",
       "planning": "written-strategy",
-      "reason": "Pinned targets/options retained; no duplicate assessment of unchanged strategy. Feedback, lineage and recovery gates remain."
+      "reason": "Reuse the scoped agreement and producing evidence without chooser; reconcile owned handles and retain findings/budgets.",
+      "classification": "continuation",
+      "entry": "entry.md",
+      "route": "playbooks/loop.md",
+      "completion_evidence": "same agreement, author history, handles and remaining attempts"
     },
     "status": {
       "selection": "direct",
       "planning": "none",
-      "reason": "State inspection has no synthesis."
+      "reason": "State inspection has no synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "cli.py",
+      "completion_evidence": "stored checkpoint"
     },
     "cancel": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Owned-task cancellation has no synthesis."
+      "reason": "Owned-task cancellation has no synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "cli.py",
+      "completion_evidence": "owned work stopped; checkpoint retained"
     },
     "doctor": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Capability preflight has no synthesis."
+      "reason": "Capability preflight has no synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "diagnostic exit and findings"
     }
   }
 }

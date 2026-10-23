@@ -82,7 +82,11 @@
     "tuneup": {
       "selection": "upfront",
       "planning": "proposal",
-      "reason": "Inventory, audit, inspect available usage, compare and review proposals in one workflow. Concrete owner approval still gates settings changes."
+      "reason": "Inventory, audit, inspect available usage, compare and review proposals in one workflow. Concrete owner approval still gates settings changes.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/align.md",
+      "completion_evidence": "reviewed audit/proposal; concrete owner approval and independent verification for settings application"
     }
   },
   "default_operation": "tuneup"

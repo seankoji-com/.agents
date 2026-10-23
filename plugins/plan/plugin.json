@@ -64,7 +64,11 @@
     "plan": {
       "selection": "upfront",
       "planning": "source-plan",
-      "reason": "Review the accepted discovery and testable spec before producing a handoff; planning never starts implementation."
+      "reason": "Review the accepted discovery and testable spec before producing a handoff; planning never starts implementation.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/plan.md",
+      "completion_evidence": "accepted discovery, current source-plan review, readiness gate and provenance-checked handoff; no implementation authority"
     }
   },
   "default_operation": "plan"

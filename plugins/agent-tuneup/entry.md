@@ -1,5 +1,9 @@
 # agent-tuneup
 
+Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
+asking; direct controls stay prompt-free. Substantive work records the scoped
+agreement; nested calls and unchanged continuations reuse its binding and budgets.
+
 Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
 Use `PKG/shared/adopter-planning.md` and `PKG/references/adopter-review-rubric.md`
 for public admission and receipt gates through `PKG/scripts/plan_review.py`.

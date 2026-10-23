@@ -15,6 +15,10 @@ observable success conditions. It reads relevant repository evidence itself and
 asks you about decisions that evidence cannot settle. There is no required interview
 length. A quick assessment stays a quick assessment when that is what you request.
 
+Substantive work records the scoped completion target, authority, model chains and
+limits once through the shared upfront agreement. Unchanged resumes reuse it and
+retain review findings and budgets. Deterministic listing and inspection stay direct.
+
 ## What you get
 
 Each formal plan lives in `plans/<slug>/`:

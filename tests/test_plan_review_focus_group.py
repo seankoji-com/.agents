@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 from shared import adopter_planning as adopter, model_selection as models
+from tests.upfront_fixtures import approved_selection
 from tests import focus_group_fixtures as fixtures
 from tests import test_focus_group_report as fg
 
@@ -45,12 +46,11 @@ class FocusPlanningContract:
     def public_run_choice(self, *, operation='run', retain=None, invocation=None):
         d=deepcopy(self.h.plan_admission);s=deepcopy(d['selection'])
         s['operation']='focus-group/'+operation;s['invocation_id']=invocation or s['invocation_id']+'-'+operation
-        s=models.freeze(s)
+        s=approved_selection(s)
         payload={'operation':operation,'request_reference':d['request_reference'],'output_name':d['output_name'],
             'invocation_id':s['invocation_id'],'selection':s,'selection_sha256':s['selection_sha256']}
         if operation=='resume':payload.update(event='resume',retain=retain)
-        record=self.policy('admit',payload,ok=operation!='resume' or retain is True)
-        if operation=='resume' and retain is not True:return record
+        record=self.policy('admit',payload)
         self.policy('run',{'state_root':str(self.h.root),'study':self.h.view['study_id'],
                            'admission':record,'retain':retain})
         return record
@@ -63,7 +63,7 @@ class FocusPlanningContract:
         selected['capabilities']['runtimeMode']='full-access'
         selected['work']['participant-01']['runtimeMode']='full-access'
         draft['participant_models'][0]['runtimeMode']='full-access'
-        selected=models.freeze(selected)
+        selected=approved_selection(selected)
         admitted=adopter.admit('focus-group',{'operation':'plan',
             **{k:record[k] for k in ('request_reference','output_name','invocation_id')},
             'selection':selected,'selection_sha256':selected['selection_sha256']})
@@ -72,7 +72,7 @@ class FocusPlanningContract:
         dispatched=models.dispatch(selected,role='participant-01')
         self.assertEqual(dispatched['target']['runtimeMode'],'full-access')
         bad=deepcopy(selected);bad['work']['participant-01'].pop('runtimeMode')
-        with self.assertRaisesRegex(ValueError,'explicit full-access'):models.freeze(bad)
+        with self.assertRaisesRegex(ValueError,'explicit full-access'):approved_selection(bad)
 
     def test_explicit_runtime_mode_binds_cell_job_brief_recovery_report_and_revision(self):
         draft=deepcopy(self.h.draft());draft['personas']=draft['personas'][:1]
@@ -184,12 +184,12 @@ print(json.dumps({'key':r.fg.target_key(t),'plain_key':r.fg.target_key(plain),'o
         models.validate(chosen)
         for role in ('analysis','workhorse'):
             bad=deepcopy(chosen);bad['review_panel'][0]['target']=deepcopy(bad['work'][role])
-            with self.assertRaisesRegex(ValueError,'every actual/prospective author'):models.freeze(bad)
+            with self.assertRaisesRegex(ValueError,'every actual/prospective author'):approved_selection(bad)
         bad=deepcopy(chosen);bad['author_lineages']=['anthropic']
-        with self.assertRaisesRegex(ValueError,'every actual/prospective author'):models.freeze(bad)
+        with self.assertRaisesRegex(ValueError,'every actual/prospective author'):approved_selection(bad)
         for op in ('imps/run','plan','focus-group/other'):
             bad=deepcopy(chosen);bad['operation']=op
-            with self.assertRaisesRegex(ValueError,'every actual/prospective author'):models.freeze(bad)
+            with self.assertRaisesRegex(ValueError,'every actual/prospective author'):approved_selection(bad)
         # Replacement independence uses the same classification, with explicit finite authority.
         base=fixtures.policy_selection(self.h,self.h.draft())['selection']
         d=deepcopy(base);target=deepcopy(d['work']['participant-01'])
@@ -197,9 +197,9 @@ print(json.dumps({'key':r.fg.target_key(t),'plain_key':r.fg.target_key(plain),'o
         d['review_replacements']=[spare]
         raw_replacement=replacement(d,d['review_panel'][0]['target']);raw_replacement['role']='participant-01'
         d['work_replacements']=[raw_replacement]
-        d=models.freeze(d)
+        d=approved_selection(d)
         selected=models.dispatch(d,role='reviewer',slot_id='fidelity',target=target,
-            unavailable={'kind':'technical','reference':'fixture:bounded-prelaunch-failure'})
+            unavailable={'kind':'technical','reference':'fixture:bounded-prelaunch-failure','reconciled':[{'target':next(s['target'] for s in d['review_panel'] if s['slot_id']=='fidelity'), 'request_id':'fixture-original', 'reference':'fixture:host-absent','owned':True,'has_pending_child_runs':False,'status':'absent','reason':'technical'}]})
         self.assertTrue(selected['substituted'])
         self.assertEqual(selected['target'],target)
         # Unrelated operations keep their existing independent replacement behavior.
@@ -207,13 +207,13 @@ print(json.dumps({'key':r.fg.target_key(t),'plain_key':r.fg.target_key(plain),'o
         other=selection_input();alternate=deepcopy(other['profiles']['models'][2]['target'])
         other['work_replacements']=[replacement(other,alternate)]
         other['review_replacements']=[replacement(other,alternate,review=True)]
-        other=models.freeze(other)
+        other=approved_selection(other)
         self.assertEqual(models.dispatch(other,role='reviewer',slot_id='review',target=alternate,
-            unavailable={'kind':'technical','reference':'fixture:unrelated-control'})['target'],alternate)
-        bad=deepcopy(d);bad['author_lineages']=['anthropic'];bad=models.freeze(bad)
+            unavailable={'kind':'technical','reference':'fixture:unrelated-control','reconciled':[{'target':next(s['target'] for s in other['review_panel'] if s['slot_id']=='review'), 'request_id':'fixture-original', 'reference':'fixture:host-absent','owned':True,'has_pending_child_runs':False,'status':'absent','reason':'technical'}]})['target'],alternate)
+        bad=deepcopy(d);bad['author_lineages']=['anthropic'];bad=approved_selection(bad)
         with self.assertRaisesRegex(ValueError,'independent slot'):
             models.dispatch(bad,role='reviewer',slot_id='fidelity',target=target,
-                unavailable={'kind':'technical','reference':'fixture:bounded-prelaunch-failure'})
+                unavailable={'kind':'technical','reference':'fixture:bounded-prelaunch-failure','reconciled':[{'target':next(s['target'] for s in d['review_panel'] if s['slot_id']=='fidelity'), 'request_id':'fixture-original', 'reference':'fixture:host-absent','owned':True,'has_pending_child_runs':False,'status':'absent','reason':'technical'}]})
 
     def test_missing_upfront_choices_and_missing_actual_host_author_stop_before_plan(self):
         draft=self.h.draft();before=self.h.files()
@@ -224,7 +224,7 @@ print(json.dumps({'key':r.fg.target_key(t),'plain_key':r.fg.target_key(plain),'o
                       '--capabilities',self.h.caps)
         # Missing actual host identity is a visible failure, never a made-up parent thread.
         a=fixtures.policy_selection(self.h,draft);s=deepcopy(a['selection']);s['capabilities'].pop('parentThreadId')
-        s=models.freeze(s);a=adopter.admit('focus-group',{**{k:a[k] for k in ('request_reference','output_name','invocation_id')},
+        s=approved_selection(s);a=adopter.admit('focus-group',{**{k:a[k] for k in ('request_reference','output_name','invocation_id')},
             'operation':'plan','selection':s,'selection_sha256':s['selection_sha256']})
         code,out=self.h.call('plan','--state-root',self.h.root,'--study',draft['study_id'],
             '--input',self.h.write('no-host-draft.json',draft),'--capabilities',self.h.write('no-host.json',s['capabilities']),
@@ -334,7 +334,7 @@ print(json.dumps({'key':r.fg.target_key(t),'plain_key':r.fg.target_key(plain),'o
         self.h.start(personas=1)
         original=self.h.job_state()
         historic=deepcopy(original['model_selection']);historic['invocation_id']+='-previous'
-        historic=models.freeze(historic)
+        historic=approved_selection(historic)
         current=deepcopy(original);current['model_selection_history']={historic['selection_sha256']:historic}
         current['tasks'][0]['selection_binding']['selection_sha256']=historic['selection_sha256']
         script="""import json,sys
@@ -403,12 +403,12 @@ except ValueError as e:print(str(e));sys.exit(2)
         # A same-lineage fidelity choice and replacing a selected cell with a generic target both fail.
         desc=json.loads(self.desc_path().read_text());plan=json.loads(Path(desc['document']['path']).read_text())['plan']
         adapter=adopter.focus_group_adapter(self.h.helper.parent.parent)
-        bad=deepcopy(new);s=deepcopy(new['selection']);s['work']['participant-01']=s['work']['workhorse'];s=models.freeze(s)
+        bad=deepcopy(new);s=deepcopy(new['selection']);s['work']['participant-01']=s['work']['workhorse'];s=approved_selection(s)
         bad['selection']=s;bad['selection_sha256']=s['selection_sha256'];bad.pop('sha256');bad=__import__('shared.planning_review',fromlist=['seal']).seal(bad)
         with self.assertRaisesRegex(ValueError,'approved matrix'):adapter.choices(plan,bad)
         s=deepcopy(new['selection']);s['review_panel'][0]['target']=deepcopy(s['work']['analysis'])
         s['review_panel'][0]['independent']=False
-        s=models.freeze(s)
+        s=approved_selection(s)
         bad=deepcopy(new);bad['selection']=s;bad['selection_sha256']=s['selection_sha256'];bad.pop('sha256')
         bad=__import__('shared.planning_review',fromlist=['seal']).seal(bad)
         with self.assertRaisesRegex(ValueError,'independent fidelity'):adapter.choices(plan,bad)

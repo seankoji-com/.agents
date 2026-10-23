@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from core.jobs.store import canonical, digest
 from shared import model_selection as models, planning_review as planning
+from tests.upfront_fixtures import approved_selection
 from tests.ape_plan_review_fixtures import ApePlanFixture
 from tests import ape_plan_review_fixtures as fixtures
 from tests.test_ape_validate_report import research_markdown, research_findings
@@ -211,7 +212,7 @@ class ApePlanningTests(unittest.TestCase):
         strict=self.fixture(op='forage',synth_author=True);strict.work();strict.prepare()
         strict.selection_data['review_panel'][0]['independent']=True
         strict.selection_data['author_lineages']=['anthropic']
-        with self.assertRaises(models.SelectionError):models.freeze(strict.selection_data)
+        with self.assertRaises(models.SelectionError):approved_selection(strict.selection_data)
 
     def test_superseded_actual_research_authors_are_retained(self):
         f=self.fixture();f.work()
@@ -255,7 +256,7 @@ class ApePlanningTests(unittest.TestCase):
         self.assertIn('already forwarded',f.ape('continue',{'admission':forwarded,'invocation_id':f.id,'forward':True},ok=False))
         self.assertIn('new qualifying invocation',f.ape('continue',{'admission':f.admission,'invocation_id':'new-command'},ok=False))
         new=deepcopy(f.selection_data);new['invocation_id']='new-command'
-        new_selection=models.freeze(new)
+        new_selection=approved_selection(new)
         data={**f.admission_input,'selection':new_selection,'selection_sha256':new_selection['selection_sha256'],
               'invocation_id':'new-command','operation':'https://github.com/example/repo'}
         fresh=f.ape('admit',data);self.assertEqual(fresh['scope_id'],scope);self.assertTrue(fresh['forwarded'])

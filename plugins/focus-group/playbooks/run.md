@@ -8,10 +8,9 @@ receipt. The public job create/prepare/direct/accept boundaries also enforce it,
 even when a caller omits the policy marker. A generic work choice cannot replace
 a participant model or analyst.
 
-Explicit `resume` shows pinned choices and asks retain-or-stop. Use a `resume`
-admission with event `resume`, `retain: true`, then `plan_review.py run` with
-`retain: true`. Declining stops; changed models need a new study revision, review
-and approval. Automatic wakes reuse the active invocation without another chooser.
+Unchanged `resume` and automatic wakes reuse the agreement, choices and remaining
+budgets without retain-or-stop. Changed models need an authorised study revision,
+review and approval; retain prior findings and observations.
 Read-only status/doctor/cancel and nested helper calls stay direct.
 
 Every launch passes `study.py` admission first. The helper charges budgets and
