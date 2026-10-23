@@ -28,7 +28,10 @@ def admission(slug, selection, request_reference):
     output = 'thinking/' + slug + '/handoff.md'
     scope = p.logical_output_id(request_reference, output)
     selected = models.validate(selection)
-    p.need(selected['operation'] in ('thinking', 'elephant-goldfish/thinking'), 'selection is not for thinking')
+    from shared.execution_agreement import admit as agreement_admit
+    agreement_admit(selected, operation='elephant-goldfish/thinking')
+    p.need(selected['operation'] in ('thinking', 'elephant-goldfish/thinking') or
+           'elephant-goldfish/thinking' in selected.get('agreement', {}).get('operations', []), 'selection is not for thinking')
     models.gate(selected, invocation_id=selected['invocation_id'], scope_id=scope, action='draft')
     models.dispatch(selected, role='workhorse')
     return p.seal({'schema_version': 1, 'scope_id': scope, 'request_reference': request_reference,

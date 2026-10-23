@@ -116,22 +116,38 @@
     "doctor": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Local readiness has no synthesis."
+      "reason": "Local readiness has no synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "diagnostic exit and findings"
     },
     "thinking": {
       "selection": "upfront",
       "planning": "source-plan",
-      "reason": "Review discovery/spec before rendering; list/resolve/gate are deterministic."
+      "reason": "Review discovery/spec before rendering; list/resolve/gate are deterministic.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/thinking.md",
+      "completion_evidence": "reviewed deterministic handoff and selected remote delivery; thinking list is direct"
     },
     "elephant": {
       "selection": "upfront",
       "planning": "design",
-      "reason": "Review repaired design after factual acceptance and before cold-read dispatch."
+      "reason": "Review repaired design after factual acceptance and before cold-read dispatch.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/elephant.md",
+      "completion_evidence": "reviewed source document and selected remote delivery"
     },
     "check": {
       "selection": "on-delegation",
       "planning": "none",
-      "reason": "Factual drift only; no newly authored plan and no cold read."
+      "reason": "Factual drift only; no newly authored plan and no cold read.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "read-only factual/cold-read findings; no publication authority"
     }
   }
 }

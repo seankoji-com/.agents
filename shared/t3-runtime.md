@@ -1,5 +1,7 @@
 # T3 runtime contract
 
+Apply `upfront-agreement.md` before substantive public operations. Inspect context, infer routine facts, and batch only missing consequential decisions. Unchanged continuations and nested calls reuse the saved agreement.
+
 Read once per run. The plugin entry defines the task; this file defines how it uses T3.
 
 Before substantive investigation, planning, synthesis or dispatch, apply

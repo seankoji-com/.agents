@@ -1,5 +1,7 @@
 # Architecture
 
+Substantive public commands use a scoped upfront agreement after inspecting context. It binds the completion target, destinations, exact work/review chains and options, authority and limits to the existing selection and immutable briefs. The manifest operation inventory distinguishes substantive, continuation and direct controls. Endpoint observations remain separate from source readiness and live compatibility. See the [runtime agreement](https://github.com/seankoji-com/t3-plugins/blob/master/shared/upfront-agreement.md).
+
 t3-plugins has three execution paths. Instructions guide the current agent. Local
 helpers do deterministic work. T3 owns delegated tasks and browser/PR interactions.
 The repository does not implement another model client, task scheduler or dispatch loop.

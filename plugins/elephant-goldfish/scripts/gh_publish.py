@@ -80,7 +80,7 @@ class PublishError(Exception):
 def run(cmd: list[str], stdin: str | None = None) -> str:
     try:
         proc = subprocess.run(cmd, input=stdin, capture_output=True, text=True, check=False)
-    except FileNotFoundError as exc:
+    except OSError as exc:
         raise EnvError(f"{cmd[0]} not found on PATH") from exc
     if proc.returncode != 0:
         raise PublishError(f"{' '.join(cmd[:3])} failed: {proc.stderr.strip() or proc.stdout.strip()}")
@@ -211,6 +211,8 @@ def body_for(path: Path, slug: str) -> str:
 def cmd_ensure(args) -> int:
     tdir, meta_file = topic_paths(args.root, args.slug)
     meta = load_meta(meta_file)
+    if meta.get('model_admission', {}).get('selection', {}).get('agreement'):
+        raise PublishError('agreement-bound delivery uses thinking_state.py delivery and native GitHub observations; legacy mirroring cannot complete the selected endpoint')
     gh_meta = meta.setdefault("github", {})
 
     mode = args.mode
@@ -276,6 +278,8 @@ def cmd_ensure(args) -> int:
 def cmd_post(args) -> int:
     tdir, meta_file = topic_paths(args.root, args.slug)
     meta = load_meta(meta_file)
+    if meta.get('model_admission', {}).get('selection', {}).get('agreement'):
+        raise PublishError('agreement-bound delivery uses thinking_state.py delivery; legacy comments cannot complete accepted-brief publication')
     gh_meta = meta.get("github", {})
 
     if gh_meta.get("mode", "none") == "none":

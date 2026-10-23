@@ -133,6 +133,8 @@ def main(argv=None):
     sub.add_parser('list', help='list bundled plugins')
     selection = sub.add_parser('selection', help='validate frozen upfront model choices; no dispatch')
     selection.add_argument('selection_args', nargs=argparse.REMAINDER)
+    agreement = sub.add_parser('agreement', help='inspect/admit scoped agreements and observed delivery')
+    agreement.add_argument('agreement_args', nargs=argparse.REMAINDER)
     planning = sub.add_parser('planning-review', help='pinned planning review jobs and receipts; no dispatch')
     planning.add_argument('planning_args', nargs=argparse.REMAINDER)
     adoption = sub.add_parser('adopt', help='verify and adopt a relocated installation receipt')
@@ -198,6 +200,9 @@ def main(argv=None):
     if args.command == 'selection':
         from shared.model_selection_cli import main as selection_main
         return selection_main(args.selection_args)
+    if args.command == 'agreement':
+        from shared.execution_agreement_cli import main as agreement_main
+        return agreement_main(args.agreement_args)
     if args.command == 'planning-review':
         from shared.planning_review_cli import main as planning_main
         return planning_main(args.planning_args)

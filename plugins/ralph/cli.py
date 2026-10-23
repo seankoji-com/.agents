@@ -65,7 +65,11 @@ def target(value, capabilities):
         options = {}
     require(isinstance(options, dict) and all(isinstance(k, str) and type(v) in (str, bool)
                                             for k, v in options.items()), 'options must map names to strings or booleans')
-    model_options = model.get('options')
+    from shared.model_selection import option_descriptors
+    try:
+        model_options = option_descriptors(model)
+    except ValueError as exc:
+        require(False, str(exc))
     advertised = {text_field(o.get('id'), 'option ID'): o for o in
                   object_list([] if model_options is None else model_options, 'model options')}
     for key, selected in options.items():
@@ -73,6 +77,7 @@ def target(value, capabilities):
         require(option is not None, f'option {key} is not in the live model catalog')
         if option.get('type') == 'boolean':
             require(type(selected) is bool, f'option {key} needs a boolean')
+            require(selected in option.get('allowed_booleans', [True, False]), f'invalid selection for option {key}')
         else:
             choices = option.get('options')
             choice_ids = {text_field(o.get('id'), 'choice ID') for o in
@@ -136,7 +141,19 @@ def initialize(data, state_path):
 
 def quiescent(task):
     observation = task.get('observation', {})
-    return observation.get('status') in TERMINAL and observation.get('hasPendingChildRuns') is False
+    return absent(task) or observation.get('status') in TERMINAL and observation.get('hasPendingChildRuns') is False
+
+
+def absent(task):
+    proof = task.get('absence', {})
+    return bool(proof.get('status') == 'absent' and proof.get('reference') and proof.get('clientRequestId') == task['dispatch']['clientRequestId'] and
+                proof.get('target') == task['dispatch']['target'] and proof.get('hasPendingChildRuns') is False and
+                not task.get('taskId') and task.get('consumed') is True)
+
+
+def settled(task):
+    return absent(task) or bool(task.get('taskId') and quiescent(task) and
+                               task.get('observation', {}).get('identityVerified') is True)
 
 
 def current(state):
@@ -204,6 +221,8 @@ def make_dispatch(state):
     # A delta review cannot accept, so it may continue the rejecting reviewer's conversation:
     # anchoring on its earlier verdict can only cost a repair round, never a false pass.
     thread = prior.get('childThreadId') if prior else None
+    if state.get('modelAdmission', {}).get('selection', {}).get('agreement'):
+        thread = None  # Each app-owned review round is a fresh task, including delta reviews.
     if phase == 'implement':
         instructions = (
             'Implement the goal in the EXISTING worktree. Preserve previous work and unrelated changes. '
@@ -239,6 +258,10 @@ def make_dispatch(state):
                 'maxAttempts': state['maxAttempts'], 'attempt': state['attempt'], 'history': history,
                 'recoveries': state.get('recoveries', []), 'latestImplementationSummary': latest('implementation'),
                 'latestEvaluationReport': latest('review')}
+    selection = state.get('modelAdmission', {}).get('selection', {})
+    if selection.get('agreement'):
+        contract['agreement'] = copy.deepcopy(selection['agreement'])
+        contract['selection_sha256'] = selection['selection_sha256']
     if thread:
         # The conversation already holds everything up to its own latest report.
         contract['history'] = history[state['tasks'].index(prior) + 1:]
@@ -263,7 +286,11 @@ def make_dispatch(state):
                 'title': f"R{state['attempt']} " + ('impl' if phase == 'implement' else
                                                     'delta' if scope == 'delta' else 'review')}
     record = {'role': role, 'attempt': state['attempt'], 'tool': 'delegate_task', 'dispatch': dispatch,
-              'binding': binding}
+              'binding': binding, 'chosenTarget': copy.deepcopy(chosen)}
+    if selection.get('agreement'):
+        record['agreement_sha256'] = selection['agreement']['agreement_sha256']
+    if selection.get('agreement') and role == 'implementation':
+        state.setdefault('authorLineages', []).append(chosen['lineage'])
     if scope:
         record['scope'] = scope
         record['reviewBaseline'] = review_baseline(state['worktree'])
@@ -305,11 +332,12 @@ def attach(state, data):
     task_id = text_field(data.get('taskId'), 'taskId')
     require(active.get('taskId', task_id) == task_id, 'issued dispatch already has another task ID')
     require(not any(t is not active and t.get('taskId') == task_id for t in state['tasks']), 'task ID was reused')
-    chosen = state['implementer'] if active['role'] == 'implementation' else state['evaluator']
-    if 'providerInstanceId' in data:
+    chosen = active.get('chosenTarget') or state['implementer' if active['role'] == 'implementation' else 'evaluator']
+    modern = bool(state.get('modelAdmission', {}).get('selection', {}).get('agreement'))
+    if not modern and 'providerInstanceId' in data:
         require(data['providerInstanceId'] == chosen['providerInstanceId'],
                 'delegation receipt provider does not match the chosen provider')
-    if data.get('model') is not None:
+    if not modern and data.get('model') is not None:
         require(data['model'] == chosen['model'], 'delegation receipt model does not match the chosen model')
     # delegate_task reports childThreadId; a t3_thread_send follow-up reports threadId.
     thread = data.get('childThreadId', data.get('threadId'))
@@ -321,8 +349,35 @@ def attach(state, data):
     active['taskId'] = task_id
     if thread is not None:
         active['childThreadId'] = thread
-    if data.get('providerInstanceId') == chosen['providerInstanceId'] and data.get('model') == chosen['model']:
-        active['receipt'] = {'providerInstanceId': data['providerInstanceId'], 'model': data['model']}
+    if modern or data.get('providerInstanceId') == chosen['providerInstanceId'] and data.get('model') == chosen['model']:
+        active['receipt'] = {k: copy.deepcopy(data[k]) for k in ('providerInstanceId', 'model', 'options') if k in data}
+    if modern:
+        from shared.model_selection import observed_options
+        try:
+            reported = observed_options(data.get('options'))
+        except ValueError:
+            reported = None
+            active['optionMismatch'] = True
+        if reported is not None and reported != chosen['options']:
+            active['optionMismatch'] = True
+        if any(data.get(k) is not None and data[k] != chosen[k] for k in ('providerInstanceId', 'model')):
+            active['receiptIdentityMismatch'] = True
+        if active.get('optionMismatch') or active.get('receiptIdentityMismatch'):
+            block(state, 'identity', 'Retained host handle has mismatched receipt identity/options', task_id)
+
+
+def reconcile_absence(state, data):
+    require(state.get('modelAdmission', {}).get('selection', {}).get('agreement'), 'legacy absence needs its pinned recovery procedure')
+    task = current(state)
+    require(task and not task.get('taskId') and not state['stopRequested'] and
+            data.get('clientRequestId') == task['dispatch']['clientRequestId'] and
+            data.get('target') == task['dispatch']['target'] and data.get('hasPendingChildRuns') is False and
+            data.get('status') == 'absent',
+            'absence must reconcile the exact original uncertain request without an owned handle')
+    text_field(data.get('reference'), 'authoritative absence reference')
+    task['absence'] = copy.deepcopy(data)
+    task['consumed'] = True
+    block(state, 'task_failure', 'Original request authoritatively absent; recover or replace within retained limits')
 
 
 def block(state, kind, message, task_id=None):
@@ -350,8 +405,7 @@ def reconcile_transient_blocker(state):
 def recover(state, data):
     require(state['phase'] == 'blocked' and state['blocker']['kind'] in
             {'invalid_evaluation', 'invalid_result', 'task_failure'}, 'only a recorded result/failure gap can be recovered')
-    require(all(t.get('taskId') and quiescent(t) and t['observation'].get('identityVerified') is True
-                for t in state['tasks']), 'reconcile all task identities and pending runs before recovery')
+    require(all(settled(t) for t in state['tasks']), 'reconcile all task identities and pending runs before recovery')
     reason = text_field(data.get('reason'), 'recovery reason')
     prior = state.pop('blocker')
     state.setdefault('recoveries', []).append({'reason': reason, 'blocker': prior})
@@ -386,7 +440,7 @@ def observe(state, data):
     record = next((t for t in state['tasks'] if isinstance(t.get('taskId'), str)
                    and t['taskId'].strip() and t['taskId'] == task_id), None)
     require(record is not None, 'unknown task ID')
-    chosen = state['implementer'] if record['role'] == 'implementation' else state['evaluator']
+    chosen = record.get('chosenTarget') or state['implementer' if record['role'] == 'implementation' else 'evaluator']
     require(isinstance(data.get('status'), str) and data['status'] in STATUSES, 'invalid task status')
     require(type(data.get('hasPendingChildRuns')) is bool, 'pending child flag is required')
     require(isinstance(data.get('workState'), str)
@@ -397,15 +451,26 @@ def observe(state, data):
                 'task status thread does not match the recorded thread')
         record['childThreadId'] = data['childThreadId']
     record['observation'] = {k: data.get(k) for k in
-                             ('taskId', 'providerInstanceId', 'model', 'status', 'hasPendingChildRuns', 'workState', 'summary')}
+                             ('taskId', 'providerInstanceId', 'model', 'options', 'status', 'hasPendingChildRuns', 'workState', 'summary')}
     receipt = record.get('receipt', {})
     verified = (data.get('providerInstanceId') == chosen['providerInstanceId'] and
                 (data.get('model') == chosen['model'] or (data.get('model') is None and
                  receipt.get('providerInstanceId') == chosen['providerInstanceId'] and receipt.get('model') == chosen['model'])))
+    if state.get('modelAdmission', {}).get('selection', {}).get('agreement'):
+        from shared.model_selection import observed_options
+        try:
+            reported_options = observed_options(data.get('options', receipt.get('options')))
+        except ValueError:
+            reported_options = None
+            record['optionMismatch'] = True
+        verified = verified and reported_options == chosen['options']
+        if reported_options is not None and reported_options != chosen['options']:
+            record['optionMismatch'] = True
+        verified = verified and not record.get('optionMismatch') and not record.get('receiptIdentityMismatch')
     record['observation']['identityVerified'] = verified
     record['observation']['modelReported'] = data.get('model') is not None
     if state['stopRequested']:
-        state['phase'] = 'cancelled' if all(t.get('taskId') and quiescent(t) for t in state['tasks']) else 'stopping'
+        state['phase'] = 'cancelled' if all(absent(t) or t.get('taskId') and quiescent(t) for t in state['tasks']) else 'stopping'
         return
     reconcile_transient_blocker(state)
     if state['phase'] == 'blocked':
@@ -465,11 +530,13 @@ def operate(state, command, data):
         observe(state, data)
     elif command == 'recover':
         recover(state, data)
+    elif command == 'absent':
+        reconcile_absence(state, data)
     elif command == 'stop':
         state['stopRequested'] = True
         if 'blocker' in state:
             state['stoppedBlocker'] = state.pop('blocker')
-        state['phase'] = 'cancelled' if all(t.get('taskId') and quiescent(t) for t in state['tasks']) else 'stopping'
+        state['phase'] = 'cancelled' if all(absent(t) or t.get('taskId') and quiescent(t) for t in state['tasks']) else 'stopping'
     else:
         raise InvalidInput('invalid_command', command)
     return {'phase': state['phase']}
@@ -545,9 +612,12 @@ def validate_checkpoint(state):
                 f'checkpoint {key}.options must map names to strings or booleans')
         require(state[key]['lineage'].strip().casefold() not in {'unknown', 'unverified', 'inferred'},
                 f'checkpoint {key}.lineage needs catalog or owner-confirmed evidence')
-    require(state['implementer']['lineage'].strip().casefold()
-            != state['evaluator']['lineage'].strip().casefold(),
+    require((state['phase'] == 'blocked' and state.get('modelAdmission', {}).get('selection', {}).get('agreement')) or
+            state['implementer']['lineage'].strip().casefold() != state['evaluator']['lineage'].strip().casefold(),
             'checkpoint evaluator must have a different verified lineage')
+    if state.get('modelAdmission', {}).get('selection', {}).get('agreement'):
+        from shared.adopter_planning import continuation as admitted
+        admitted(state['modelAdmission'], invocation_id=state['modelAdmission']['invocation_id'])
     require(isinstance(state['baseline'].get('dirty'), dict), 'checkpoint baseline.dirty must be an object')
     if 'index' in state['baseline']:
         require(isinstance(state['baseline']['index'], dict)
@@ -564,6 +634,35 @@ def validate_checkpoint(state):
             'checkpoint stop flag must agree with the cancellation phase')
     for record in object_list(state.get('tasks'), 'checkpoint tasks'):
         require(record.get('role') in ('implementation', 'review'), 'checkpoint task role is invalid')
+        if state.get('modelAdmission', {}).get('selection', {}).get('agreement'):
+            selected = state['modelAdmission']['selection']
+            require(record.get('agreement_sha256') == selected['agreement']['agreement_sha256'],
+                    'task producing agreement binding changed')
+            from shared import model_selection as models
+            chosen = record.get('chosenTarget')
+            require(isinstance(chosen, dict), 'agreement-bound task requires producing target')
+            candidates = ([selected['work']['workhorse']] + [r['target'] for r in selected['work_replacements']
+                if r['role'] == 'workhorse']) if record['role'] == 'implementation' else (
+                [s['target'] for s in selected['review_panel'] if s['required']] +
+                [r['target'] for r in selected['review_replacements']])
+            require(any(all(candidate.get(k) == chosen.get(k) for k in ('providerInstanceId', 'model', 'options'))
+                        for candidate in candidates), 'historical task target/options outside approved chain')
+            require(record['dispatch'].get('target') == {k: chosen[k] for k in ('providerInstanceId', 'model', 'options')},
+                    'producing task dispatch target/options changed')
+            require(type(record.get('attempt')) is int and 0 < record['attempt'] <= state['attempt'],
+                    'retained attempt budget moved backwards')
+            observed = record.get('observation', {})
+            receipt = record.get('receipt', {})
+            if 'absence' in record:
+                require(absent(record), 'producing absence request/target/reference changed')
+            if observed.get('identityVerified'):
+                actual = {k: observed.get(k) if observed.get(k) is not None else receipt.get(k)
+                          for k in ('providerInstanceId', 'model', 'options')}
+                try:
+                    models.correlate({'target': record['dispatch']['target'],
+                                      'agreement_sha256': selected['agreement']['agreement_sha256']}, actual)
+                except models.SelectionError as exc:
+                    require(False, 'producing observed identity/options changed: ' + str(exc))
         require(isinstance(record.get('dispatch'), dict), 'checkpoint task dispatch must be an object')
         for key in ('consumed', 'stale'):
             if key in record:
@@ -651,9 +750,7 @@ def publication_verified(state):
         verdict = evaluation(review.get('evaluation'), review['binding'])
     except InvalidInput:
         return False
-    return verdict['goalAchieved'] and not verdict['feedback'] and all(
-        isinstance(t.get('taskId'), str) and bool(t['taskId'].strip())
-        and quiescent(t) and t.get('observation', {}).get('identityVerified') is True for t in tasks)
+    return verdict['goalAchieved'] and not verdict['feedback'] and all(settled(t) for t in tasks)
 
 
 def selection_ready(state, admission=None, *, resume=False, retain=None):
@@ -662,6 +759,8 @@ def selection_ready(state, admission=None, *, resume=False, retain=None):
     require(isinstance(record, dict), 'upfront work/review choices required; legacy checkpoints are status-only until retain-or-stop resume')
     adopter.continuation(record, invocation_id=record['invocation_id'], event='resume' if resume else 'wake', retain=retain)
     require(record['plugin'] == 'ralph' and record['operation'] in ('run','resume'), 'Ralph admission required')
+    if record['selection'].get('agreement'):
+        return agreement_ready(state, record)
     work_plan = adopter.dispatch(record, role='workhorse')
     require(work_plan['execution']=='child', 'Ralph requires a chosen child implementer; current-context work cannot dispatch')
     work = work_plan['target']
@@ -678,9 +777,140 @@ def selection_ready(state, admission=None, *, resume=False, retain=None):
     return record
 
 
+def agreement_ready(state, record):
+    from shared import execution_agreement as agreements, model_selection as models
+    selected = record['selection']
+    agreements.admit(selected)
+    require(selected['agreement']['target']['label'] in agreements.ENGINEERING, 'exact engineering endpoint required')
+    old = state.get('modelAdmission')
+    require(old is None or old == record, 'checkpoint agreement is immutable; restart rather than rotate authority')
+    slots = [s for s in selected['review_panel'] if s['required']]
+    require(len(slots) == 1, 'Ralph requires one independent evaluator slot')
+    roles = [('implementer', 'workhorse', None), ('evaluator', slots[0]['role'], slots[0]['slot_id'])]
+    authors = set(state.get('authorLineages', [])) | {selected['coordinator'].get('lineage', 'unknown'),
+                                                     state['implementer']['lineage']}
+    for field, role, slot in roles:
+        chosen = state[field]
+        primary = selected['work'][role] if slot is None else slots[0]['target']
+        candidates = [primary] + [r['target'] for r in selected['review_replacements' if slot else 'work_replacements']
+                                  if r['role'] == role and (not slot or r.get('slot_id') == slot)]
+        target_fields = next((t for t in candidates if all(t.get(k) == chosen.get(k)
+            for k in ('providerInstanceId', 'model', 'options')) and
+            t.get('runtimeMode', chosen['runtimeMode']) == chosen['runtimeMode']), None)
+        require(target_fields is not None, 'checkpoint target/options outside approved finite chain')
+        require(chosen['lineage'] == models.suitability(target_fields, role, selected['profiles'], selected['capabilities']),
+                'Ralph target lineage differs from sourced selection evidence')
+        if slot:
+            require('unknown' not in authors and chosen['lineage'] != 'unknown' and chosen['lineage'] not in authors,
+                    'Ralph evaluator must be independent of every actual author')
+        replacement = state.get('replacementEvidence', {}).get(field)
+        plan = models.dispatch(selected, role=role, slot_id=slot, target=target_fields,
+            unavailable=replacement, author_lineages=authors if slot else ())
+        require(plan['execution'] == 'child', 'Ralph requires child execution')
+    require(state['attempt'] <= state['maxAttempts'] and
+            state['maxAttempts'] <= 1 + selected['agreement']['limits']['max_repair_cycles'],
+            'retained attempt budget exceeds agreement')
+    if state.get('strategy'):
+        from shared.adopter_planning import validate
+        validate(state['strategy'], PKG)
+    return record
+
+
+def replace_target(state, data):
+    from shared import model_selection as models
+    record = state.get('modelAdmission', {})
+    selected = record.get('selection', {})
+    require(selected.get('agreement'), 'legacy pinned pair cannot rotate; use original package or start a new run')
+    require(not state['stopRequested'] and state['attempt'] < state['maxAttempts'], 'cancelled/exhausted attempt budget')
+    require(current(state) is None and all(settled(t) for t in state['tasks']),
+            'reconcile every original owned task before replacement')
+    field = data.get('role')
+    require(field in ('implementer', 'evaluator'), 'replacement role must be implementer or evaluator')
+    prior = next((t for t in reversed(state['tasks']) if t['role'] ==
+                  ('implementation' if field == 'implementer' else 'review')), None)
+    require(prior and (absent(prior) or prior.get('observation', {}).get('status') in ('failed', 'interrupted', 'cancelled')) and
+            not prior.get('evaluation'), 'healthy/adverse review or unevidenced outage cannot trigger replacement')
+    unavailable = copy.deepcopy(data.get('unavailable', {}))
+    reconciled = unavailable.get('reconciled', [])
+    require(reconciled and reconciled[-1].get('request_id') == prior['dispatch']['clientRequestId'] and
+            reconciled[-1].get('host_task_id') == prior.get('taskId') and
+            reconciled[-1].get('status') == ('absent' if absent(prior) else prior['observation']['status']),
+            'replacement reconciliation differs from retained original handle')
+    for row in reconciled:
+        originals = [t for t in state['tasks'] if t['dispatch']['clientRequestId'] == row.get('request_id')]
+        require(len(originals) == 1 and settled(originals[0]), 'replacement lacks retained original owned evidence')
+        original = originals[0]
+        require(all(row.get('target', {}).get(k) == original['dispatch']['target'].get(k)
+                    for k in ('providerInstanceId', 'model', 'options')) and
+                row.get('host_task_id') == original.get('taskId') and
+                row.get('status') == ('absent' if absent(original) else original['observation']['status']) and
+                (not absent(original) or row.get('reference') == original['absence']['reference']),
+                'replacement changed original target/handle/absence evidence')
+    slots = [s for s in selected['review_panel'] if s['required']]
+    role, slot = ('workhorse', None) if field == 'implementer' else (slots[0]['role'], slots[0]['slot_id'])
+    plan = models.dispatch(selected, role=role, slot_id=slot, target=data['target'], unavailable=unavailable,
+                           author_lineages=state.get('authorLineages', []) if slot else ())
+    chosen = target({**plan['target'], 'lineage': models.suitability(data['target'], role, selected['profiles'], selected['capabilities']),
+                     'lineageSource': 'approved selection suitability'}, selected['capabilities'])
+    state.setdefault('targetHistory', []).append({'role': field, 'target': copy.deepcopy(state[field]),
+                                                'evidence': unavailable, 'attempt': state['attempt']})
+    state[field] = chosen
+    state.setdefault('replacementEvidence', {})[field] = unavailable
+    state['attempt'] += 1
+    state.pop('blocker', None)
+    state['phase'] = 'implement' if field == 'implementer' else 'evaluate'
+    if field == 'implementer':
+        select_independent_evaluator(state)
+
+
+def select_independent_evaluator(state):
+    from shared import model_selection as models
+    selected = state['modelAdmission']['selection']
+    authors = set(state.get('authorLineages', [])) | {state['implementer']['lineage'],
+                                                     selected['coordinator'].get('lineage', 'unknown')}
+    slot = next(s for s in selected['review_panel'] if s['required'])
+    candidates = [slot['target']] + [r['target'] for r in selected['review_replacements']
+                                    if r.get('slot_id') == slot['slot_id'] and r['role'] == slot['role']]
+    prior = [t for t in state['tasks'] if t['role'] == 'review' and not t.get('consumed')]
+    for candidate in candidates:
+        unavailable = {'kind': 'capability', 'cause': 'author-independence', 'reference': 'checkpoint:actual-authors',
+                       'original_not_launched': not prior}
+        try:
+            family = models.suitability(candidate, slot['role'], selected['profiles'], selected['capabilities'])
+            models.require('unknown' not in authors and family != 'unknown' and family not in authors,
+                           'Ralph evaluator must be independent of every actual author')
+            plan = models.dispatch(selected, role=slot['role'], slot_id=slot['slot_id'], target=candidate,
+                                   unavailable=unavailable, author_lineages=authors)
+        except models.SelectionError:
+            continue
+        state['evaluator'] = target({**plan['target'],
+            'lineage': models.suitability(candidate, slot['role'], selected['profiles'], selected['capabilities']),
+            'lineageSource': 'approved selection suitability'}, selected['capabilities'])
+        if candidate != slot['target']:
+            state.setdefault('replacementEvidence', {})['evaluator'] = unavailable
+        return
+    block(state, 'identity', 'No approved reviewer remains independent of every actual author')
+
+
+def complete_endpoint(state, evidence):
+    from shared import delivery
+    require(state['phase'] == 'evaluated' and publication_verified(state), 'current full independent evaluation required')
+    observed = snapshot.take(state['worktree'])
+    require(snapshot.same(state['evaluatedRevision'], observed) and observed.get('dirty_paths') == 0,
+            'completion requires the clean current evaluated head')
+    require(snapshot.changed_since(state['worktree'], state['baseline']),
+            'no-change evaluated outcome; resolve selected endpoint instead of inventing an empty PR/tag')
+    selection_ready(state)
+    result = delivery.engineering(state['modelAdmission']['selection'], evidence, observed['head'],
+                                  author_lineages=state.get('authorLineages', []))
+    state.setdefault('deliveryHistory', []).append(copy.deepcopy(evidence))
+    state['delivery'] = {'result': result, 'evidence': copy.deepcopy(evidence)}
+    return result
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('init', 'next', 'attach', 'observe', 'status', 'stop', 'recover', 'resume', 'strategy'))
+    parser.add_argument('command', choices=('init', 'next', 'attach', 'observe', 'absent', 'status', 'stop', 'recover', 'resume', 'strategy', 'replace', 'complete'))
     parser.add_argument('--state', type=Path, required=True)
     parser.add_argument('--input', type=Path)
     try:
@@ -721,6 +951,10 @@ def main(argv=None):
                     state.setdefault('selectionHistory', []).append(state.get('modelAdmission'))
                     state['modelAdmission'] = record
                     result = {'phase':state['phase']}
+                elif args.command == 'replace':
+                    replace_target(state, data); result = {'phase': state['phase']}
+                elif args.command == 'complete':
+                    result = complete_endpoint(state, data)
                 elif args.command == 'strategy':
                     from shared.adopter_planning import validate
                     selection_ready(state)
@@ -738,9 +972,16 @@ def main(argv=None):
             view['changedPaths'] = sorted(snapshot.changed_since(state['worktree'], state['baseline']))
             view['hasChanges'] = bool(view['changedPaths'])
             view['readyForPublication'] = False
+            view['endpointComplete'] = False
             if state['phase'] == 'evaluated':
                 view['evaluationCurrent'] = snapshot.same(state['evaluatedRevision'], snapshot.take(state['worktree']))
                 view['readyForPublication'] = view['evaluationCurrent'] and publication_verified(state)
+                if state.get('delivery') and view['readyForPublication']:
+                    try:
+                        complete_endpoint(copy.deepcopy(state), state['delivery']['evidence'])
+                        view['endpointComplete'] = True
+                    except (ValueError, CoreError):
+                        pass
             print(json.dumps({'ok': True, 'state': view, **result}, ensure_ascii=False))
         return 0
     except CoreError as exc:

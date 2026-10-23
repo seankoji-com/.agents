@@ -1,5 +1,9 @@
 # bug-report
 
+Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
+asking; direct controls stay prompt-free. Substantive work records the scoped
+agreement; nested calls and unchanged continuations reuse its binding and budgets.
+
 Verify suspected T3 Code problems, route each problem, publish redacted T3 reports
 and follow up for one fixed 30-minute window. Invoking this command authorizes
 verified T3 issue/comment publication, established improvements in Ideas, and

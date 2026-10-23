@@ -183,19 +183,21 @@ class Sandbox:
         raw = Path(prepared['path']).read_bytes()
         assert (sha(raw), len(raw)) == (prepared['sha256'], prepared['bytes']), 'brief locator differs from bytes'
         brief = json.loads(raw)
+        observed_target = brief.get('target') or brief.get('model_selection', {}).get('dispatch', {}).get('target', {})
         self.job(pkg, 'task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
             'kind': 'accepted', 'request_id': brief['request_id'], 'host_task_id': host,
             'child_thread_id': 'child-' + host, 'status': 'running', 'work_state': 'working',
-            'status_identity': brief.get('target'),
+            'status_identity': {**observed_target, 'options': observed_target.get('options', {})},
             'has_pending_child_runs': False}})
         return brief
 
     def complete(self, pkg, job_id, caller, task_id, brief, host, result_text):
         done = host + '-done'
+        observed_target = brief.get('target') or brief.get('model_selection', {}).get('dispatch', {}).get('target', {})
         self.job(pkg, 'task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
             'kind': 'completion', 'request_id': brief['request_id'], 'host_task_id': host,
             'child_thread_id': 'child-' + host, 'completion_id': done, 'status': 'completed',
-            'status_identity': brief.get('target'),
+            'status_identity': {**observed_target, 'options': observed_target.get('options', {})},
             'work_state': 'result_available', 'has_pending_child_runs': False}})
         return self.job(pkg, 'result', job_id, {'caller': caller, 'task_id': task_id,
                                                 'request_id': brief['request_id'], 'completion_id': done,

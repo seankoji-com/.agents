@@ -89,7 +89,8 @@ class Installed:
         if command == 'create' and proc.returncode == 0:
             selected=data['model_selection']
             caps=dict(selected['capabilities'], parentThreadId='fixture-parent',
-                inheritedProviderInstanceId=selected['coordinator']['providerInstanceId'],inheritedModel=selected['coordinator']['model'])
+                inheritedProviderInstanceId=selected['coordinator']['providerInstanceId'],inheritedModel=selected['coordinator']['model'],
+                inheritedOptions=selected['coordinator'].get('observed_options') or {})
             for stage in data['stages']:
                 if stage.get('execution_mode')=='direct' and not any(t['stage_id']==stage['id'] for t in data['tasks']):
                     self.job('direct-execution',job_id,{'caller':self.caller(data['workflow']),'stage_id':stage['id']},

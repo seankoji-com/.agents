@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 from shared import model_selection as models, planning_review as planning
+from tests.upfront_fixtures import approved_selection
 from tests.ape_plan_review_fixtures import ApePlanFixture
 from tests.model_selection_fixtures import selection_input, replacement
 from tests.test_rebuild_installed import ROOT
@@ -36,11 +37,11 @@ class ImpsPlanFixture(ApePlanFixture):
         self.selection_data = d
         d.update(scope_id=self.scope, invocation_id=self.id, operation='imps/' + op)
         d['coordinator']['lineage'] = 'openai'; d['work']['judgement'] = deepcopy(d['work']['workhorse'])
-        d['review_panel'][0].update(independent=False, coverage=['REQ-ONE', 'D1'])
+        d['review_panel'][0].update(independent=code_review, coverage=['REQ-ONE', 'D1'])
         if direct:
             row = replacement(d, d['coordinator'], review=True); row.pop('target'); row['execution'] = 'self-review'
             d['review_replacements'].append(row)
-        self.selection = models.freeze(d)
+        self.selection = approved_selection(d)
         self.admission_input = {'operation':op, 'request_reference':self.reference, 'output_name':self.output_name,
             'invocation_id':self.id, 'selection':self.selection, 'selection_sha256':self.selection['selection_sha256']}
         self.admission = self.ape('admit', self.admission_input)
@@ -184,7 +185,7 @@ def select_legacy_imps_job(job, base, package, manifest, env, return_fixture=Fal
     d['work']['judgement']['execution']='current-context'
     d['work']['judgement']['accept_actual_settings']=True
     d['review_panel'][0]['coverage']=[*job['requirements'],'D1']
-    f.selection=models.freeze(d)
+    f.selection=approved_selection(d)
     f.admission_input.update(selection=f.selection,selection_sha256=f.selection['selection_sha256'])
     f.admission=f.ape('admit',f.admission_input)
     job['policy'].update(model_selection_required=True,imps_planning_required=True)
