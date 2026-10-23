@@ -8,15 +8,17 @@ doctor, status, list and formatting helpers stay direct.
 
 | Output | Review point |
 | --- | --- |
-| thinking source plan | After accepted discovery and spec, before handoff rendering |
+| plan | After accepted discovery and spec, before handoff rendering |
 | ape study or forage | Final synthesis, including no-adoption recommendations |
 | imps audit, investigation, blast-radius | Integrated conclusions, including zero findings |
 | imps run, issues, checklist, discussion | Before a plan with writes, multiple stages or synthesis executes |
 | imps verification-init | Authored launch, drive and cleanup recipe before execution |
 | agent-tuneup | Conclusions, concrete alignment proposals and substantive bootstrap proposals |
-| elephant | Repaired design after factual checking, before cold readability |
 | focus-group | Exact study revision before owner approval and panel work; final report retains the separate stronger fidelity review |
 | Ralph or babysitter | An actually written strategy before dependent actions |
+
+Deprecated elephant-goldfish jobs retain their pinned historical document-review
+policy. New planning work uses plan and does not maintain `elephant.md`.
 
 Focus-group keeps per-model participant choices, a judgement analyst and a selected
 independent fidelity reviewer. A new study revision reopens planning review and

@@ -1,6 +1,6 @@
 {
   "name": "elephant-goldfish",
-  "version": "1.0.23",
+  "version": "1.0.25",
   "description": "Discover problems, write testable briefs, and verify design documents.",
   "short_description": "Discover problems, write briefs, verify design docs",
   "argument_hint": "doctor | thinking <topic> | thinking list | elephant [failure report] | check",
@@ -149,5 +149,7 @@
       "route": "entry.md",
       "completion_evidence": "read-only factual/cold-read findings; no publication authority"
     }
-  }
+  },
+  "deprecated": true,
+  "replacement": "plan"
 }

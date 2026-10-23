@@ -1,4 +1,14 @@
-# elephant-goldfish
+# elephant-goldfish (deprecated)
+
+Use [`$t3-plan <topic>`](plan.md) for new planning work. The old package is excluded
+from default installation and the workflow catalog. Setup removes only its owned,
+unmodified skill adapters; edited adapters, installed snapshots, documents and
+pinned job state remain intact. An explicit old-package request reports deprecation
+and remains available for compatibility. There is no automatic state migration.
+
+The elephant/goldfish premise and its durable `elephant.md` workflow are retired
+from the normal interface. The former documentation follows for old jobs only.
+
 
 Thinking delivery selects Issue with subissues, Discussion post or Markdown PR upfront unless supplied. Local artifacts remain intermediate. Native subissue relationships/dependencies, a published Discussion in the intended category, or a linked current-head reviewed/green Markdown PR supply endpoint evidence. Delivery state preserves partial IDs and reconciles unknown requests before retry. Artifact gates establish source readiness; add `delivery` to the final gate. Publishing the brief never authorises implementation.
 

@@ -15,6 +15,10 @@ ENGINEERING_OPS = {'imps/run', 'imps/issues', 'imps/checklist', 'imps/discussion
 THINKING_OPS = {'elephant-goldfish/thinking', 'elephant-goldfish/elephant'}
 INSPECTIONS = {'request', 'instructions', 'authority', 'state'}
 MODEL_FIELDS = ('work', 'review_panel', 'work_replacements', 'review_replacements', 'sharing')
+# Installed helper compatibility only. Current public tuneup exposes one workflow;
+# its internal stages and older explicit helper clients still require admission.
+INTERNAL_OPS = {'agent-tuneup/audit': 'substantive', 'agent-tuneup/align': 'substantive',
+                'agent-tuneup/apply': 'continuation'}
 
 
 def inventory(root=None):
@@ -36,6 +40,8 @@ def inventory(root=None):
 
 
 def classify(operation):
+    if operation in INTERNAL_OPS:
+        return INTERNAL_OPS[operation]
     if operation == 'imps/investigation':
         return 'substantive'  # Internal read-only run mode, not another catalog operation.
     if operation.endswith('/planning-review') and operation.split('/')[0] in json.loads(

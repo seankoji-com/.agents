@@ -141,10 +141,10 @@ Pick the row that matches something you need today. Each starts from a T3 thread
 | Workflow | Send | What comes back |
 | --- | --- | --- |
 | [imps](plugins/imps.md) | `$t3-imps run fix the date parser: reject 31 April with a clear error, add a regression test, do not commit` | The change, a run ID, and a report mapping each requirement to the check that covered it at this revision. Anything unverified is listed as blocked. |
-| [elephant-goldfish](plugins/elephant-goldfish.md) | `$t3-elephant-goldfish thinking retry-policy` | An interview, then `thinking/retry-policy/discovery.md`, `spec.md` with numbered acceptance criteria, and `handoff.md` for a fresh thread. |
-| [ape](plugins/ape.md) | `$t3-ape study https://github.com/python/cpython how are parser error cases tested?` | A report pinned to the commit it read, with Adopt, Adapt and Reject sections, line citations, and one small experiment for your repository. |
+| [plan](plugins/plan.md) | `$t3-plan retry-policy` | An interview, then `plans/retry-policy/discovery.md`, `spec.md` with numbered acceptance criteria, and `handoff.md` for a fresh thread. |
+| [ape](plugins/ape.md) | `$t3-ape https://github.com/python/cpython how are parser error cases tested?` | A report pinned to the commit it read, with Adopt, Adapt and Reject sections, line citations, and one small experiment for your repository. |
 | [babysitter](plugins/babysitter.md) | `$t3-babysitter pr https://github.com/OWNER/REPO/pull/12 inspect reviews and CI only` | Read-only: the blocking reviews and checks at the current head. Drop "inspect only" to let it fix, push, resolve threads and merge once GitHub's own checks and reviews allow it. |
-| [agent-tuneup](plugins/agent-tuneup.md) | `$t3-agent-tuneup audit --provider claude --settings .claude/settings.json` | Finding codes and locations in that file. Setting values never appear. |
+| [agent-tuneup](plugins/agent-tuneup.md) | `$t3-agent-tuneup` | Complete wiring audit, private usage analysis, reviewed changes and verification after concrete approval. |
 | [ralph](plugins/ralph.md) | `$t3-ralph fix the parser and add regression coverage` | It asks you to choose an implementer and a grader from different model lineages, retries until the grader has no feedback, then opens a PR. |
 
 imps and agent-tuneup are the quickest to try on a repository you already have. For

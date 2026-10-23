@@ -1,8 +1,8 @@
 {
   "name": "ape",
-  "version": "1.0.21",
+  "version": "1.0.23",
   "description": "Research transferable patterns in open-source repositories.",
-  "argument_hint": "doctor | forage [focus] | study <GitHub URL> [focus] | clean <workspace> [--all]",
+  "argument_hint": "[focus or repository URL]",
   "entry": "entry.md",
   "operations": [
     "doctor",
@@ -64,31 +64,24 @@
     "planning-direct.schema.json"
   ],
   "picker": [
-    "forage",
-    "study",
-    "clean",
-    "doctor"
+    "forage"
   ],
   "routes": [
     {
-      "pattern": "^doctor$",
+      "pattern": "^[\\s\\S]*(?i:https?://)\\S+[\\s\\S]*$",
+      "operation": "study"
+    },
+    {
+      "pattern": "^--doctor$",
       "operation": "doctor"
     },
     {
-      "pattern": "^forage(?:\\s+[\\s\\S]+)?$",
-      "operation": "forage"
-    },
-    {
-      "pattern": "^(?i:https?://github\\.com/[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$",
-      "operation": "study"
-    },
-    {
-      "pattern": "^study\\s+(?i:https?://github\\.com/[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)(?:\\s+[\\s\\S]+)?$",
-      "operation": "study"
-    },
-    {
-      "pattern": "^clean\\s+\\S+(?:\\s+--all)?$",
+      "pattern": "^--clean\\s+\\S+(?:\\s+--all)?$",
       "operation": "clean"
+    },
+    {
+      "pattern": "^[\\s\\S]*$",
+      "operation": "forage"
     }
   ],
   "planning_review": {
@@ -136,5 +129,6 @@
       "route": "playbooks/forage.md",
       "completion_evidence": "accepted comparative synthesis"
     }
-  }
+  },
+  "default_operation": "forage"
 }

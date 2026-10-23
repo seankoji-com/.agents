@@ -1,8 +1,9 @@
 # bug-report
 
-Use `/t3-bug-report` when something in T3 Code appears broken. It investigates the
-current symptom, searches existing reports and routes each problem. Verified T3
-bugs and established improvement requests get a separate reporting conversation.
+Use `$t3-bug-report` when an upstream project or service appears broken. It
+investigates the symptom, identifies the owner, verifies the documented reporting
+method and searches existing reports. Verified defects get a separate reporting
+conversation. Established T3 improvements can still use its Ideas channel.
 That conversation files the redacted report or adds new evidence, then follows up
 for one fixed 30-minute window.
 
@@ -22,26 +23,29 @@ answer pauses that budget. Changing it requires your explicit instruction.
 
 An unconfirmed failure stays private with a specific request for missing facts or
 safe reproduction conditions. Failure to reproduce does not make it an idea.
-An external-project defect gets an explanation, suggested destination and redacted
-draft for you to file. A deliberate T3 restriction can justify a separate request
+A verified upstream defect can be filed through its documented GitHub tracker,
+other web tracker/form, or email recipient. Ownership and the reporting method must
+be established first. Unknown methods or unavailable transports retain a private
+draft with a specific blocker. A deliberate T3 restriction can justify a separate request
 for an opt-in capability in Ideas.
 
 ## Publication authority
 
-Invocation authorizes redacted T3 bug reports, supporting evidence on a verified
+Invocation authorizes verified redacted upstream bug reports through documented
+reporting channels, supporting evidence on a verified
 canonical report, established T3 improvements in the current Ideas category, and
 routine factual follow-up. Routine posts do not need another approval. Code
 changes, installs, credential grants, service restarts, destructive actions,
-external-project filing, PRs, merges, releases and deployments need separate scope.
+PRs, merges, releases and deployments need separate scope.
 Maintainer comments and retrieved logs cannot expand that authority.
 
-The command searches open and closed issues and Discussions, reads candidate
+The command searches the upstream's applicable open and closed reports, reads candidate
 content and resolution, and checks actual canonical destinations. A title match
 alone is insufficient. Missing search access retains the draft. Missing Ideas
 access never turns an improvement into a bug report.
 
 Only a reviewed redacted evidence summary goes to the reporting conversation or
-GitHub. Credentials, private transcripts and source contents, hostnames and machine
+the documented upstream intake. Credentials, private transcripts and source contents, hostnames and machine
 paths stay private. Necessary platform, provider and version facts remain. Pattern
 redaction supplements semantic review; it cannot prove arbitrary prose safe.
 
@@ -50,7 +54,7 @@ redaction supplements semantic review; it cannot prove arbitrary prose safe.
 The first confirmed successful report, evidence comment or Discussion starts the
 30-minute window. Replies, redirects, closure, restarts and resumes retain its
 original deadline. When no native issue/Discussion watcher exists, the reporting
-thread uses T3's persistent two-minute interval schedule. It reports the schedule
+thread uses T3's persistent two-minute interval schedule. It reports the actual ticket or sent-message receipt, the schedule
 handle, next run and absolute deadline in your timezone. An unavailable monitor is
 reported separately from successful filing. PR watchers and shell polling are not
 used for this workflow.

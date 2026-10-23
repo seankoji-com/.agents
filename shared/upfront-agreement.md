@@ -6,6 +6,8 @@ operation, its classification, public route and completion evidence. Run
 `{"root":"<source checkout>"}` to detect uncovered operations, or `{}` in a bundle.
 Direct doctor/status/list/cancel and raw deterministic helpers do not interview or
 dispatch. Before a direct helper transitions into authored work, use admission.
+The single public `agent-tuneup/tuneup` workflow retains admitted audit/align/apply
+helper compatibility. These internal names do not add public command choices.
 
 ## Inspect, then settle missing decisions
 

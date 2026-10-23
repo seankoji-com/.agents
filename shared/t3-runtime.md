@@ -11,10 +11,11 @@ preflight precedes the answer. Deterministic helpers stay direct. Workers consum
 their frozen selection without another picker. Recommendations never select targets.
 
 - Inherit the active provider and model, and respect the operator's choices.
-- For a bare plugin command, ask through the host's native question picker with the
-  recommended option first. If the host has no picker, use a clearly marked question
-  block. After an operation is chosen, ask a plain question for any required argument
-  that is still missing.
+- For a bare plugin command with a manifest `default_operation`, start that workflow
+  using relevant conversation context. Ask only for missing facts, never an operation.
+  Otherwise ask through the host's native question picker with the recommended option
+  first. If the host has no picker, use a clearly marked question block. After an
+  operation is chosen, ask a plain question for any required argument still missing.
 - Delegation follows `PKG/shared/delegation.md`: when to hand off, which model, which
   tools, and what a child brief contains. Substantive multi-stage work follows
   `PKG/shared/job-coordination.md`: one pinned job, coordinator-only dispatch, tracked

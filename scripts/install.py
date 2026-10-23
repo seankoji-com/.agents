@@ -199,7 +199,9 @@ def install(args) -> dict:
             action = 'already_installed' if active_version(plugin_root) == manifest['version'] else 'reactivated'
     result = {'action': action, 'plugin': args.plugin, 'version': manifest['version'],
               'source_commit': manifest['source_commit'], 'version_dir': str(version_dir), 'entry': str(entry),
-              'paste': f'Read {entry} and run: doctor', 'dry_run': bool(args.dry_run),
+              'paste': (f'Read {entry} and start the default workflow using relevant conversation context.'
+                        if registry_meta.get('default_operation') else f'Read {entry} and run: doctor'),
+              'dry_run': bool(args.dry_run),
               'files': len(manifest['files'])}
     if args.dry_run:
         return result

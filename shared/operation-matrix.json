@@ -116,50 +116,14 @@
       }
     },
     "agent-tuneup": {
-      "doctor": {
-        "selection": "direct",
-        "planning": "none",
-        "reason": "Local adapter readiness has no synthesis.",
-        "classification": "direct",
-        "entry": "entry.md",
-        "route": "entry.md",
-        "completion_evidence": "diagnostic exit and findings"
-      },
-      "scan": {
-        "selection": "direct",
-        "planning": "none",
-        "reason": "Requested transcript frequencies are diagnostics, never permission recommendations.",
-        "classification": "direct",
-        "entry": "entry.md",
-        "route": "entry.md",
-        "completion_evidence": "observed provider configuration; authored recommendations require admission"
-      },
-      "audit": {
-        "selection": "on-synthesis-or-delegation",
-        "planning": "integrated-conclusions",
-        "reason": "Review cross-scope conclusions and substantive bootstrap recommendations including no-change; raw single-file diagnostic and mechanical template stay direct.",
-        "classification": "substantive",
-        "entry": "entry.md",
-        "route": "playbooks/audit.md",
-        "completion_evidence": "reviewed conclusions; raw audit is direct until conclusions are authored"
-      },
-      "align": {
+      "tuneup": {
         "selection": "upfront",
         "planning": "proposal",
-        "reason": "Review integrated conclusions and private proposals before concrete owner approval, including no-change.",
+        "reason": "Inventory, audit, inspect available usage, compare and review proposals in one workflow. Concrete owner approval still gates settings changes.",
         "classification": "substantive",
         "entry": "entry.md",
         "route": "playbooks/align.md",
-        "completion_evidence": "reviewed concrete proposal and authorised verified application"
-      },
-      "apply": {
-        "selection": "continuation",
-        "planning": "unchanged-proposal",
-        "reason": "Reuse the scoped agreement and producing evidence without chooser; reconcile owned handles and retain findings/budgets.",
-        "classification": "continuation",
-        "entry": "entry.md",
-        "route": "entry.md",
-        "completion_evidence": "existing approved proposal applied and verified"
+        "completion_evidence": "reviewed audit/proposal; concrete owner approval and independent verification for settings application"
       }
     },
     "ralph": {
@@ -411,6 +375,17 @@
         "entry": "entry.md",
         "route": "entry.md",
         "completion_evidence": "diagnostic exit and findings"
+      }
+    },
+    "plan": {
+      "plan": {
+        "selection": "upfront",
+        "planning": "source-plan",
+        "reason": "Review the accepted discovery and testable spec before producing a handoff; planning never starts implementation.",
+        "classification": "substantive",
+        "entry": "entry.md",
+        "route": "playbooks/plan.md",
+        "completion_evidence": "accepted discovery, current source-plan review, readiness gate and provenance-checked handoff; no implementation authority"
       }
     }
   }

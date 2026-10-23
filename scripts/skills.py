@@ -26,13 +26,17 @@ def validate_picker(meta):
     picker = meta.get('picker')
     routes = meta.get('routes')
     standalone_flags = meta.get('standalone_flags', [])
+    default = meta.get('default_operation')
+    if default is not None and (not isinstance(default, str) or not isinstance(operations, list)
+                                or default not in operations):
+        raise ValueError('default_operation must name an operation')
     if 'context_on_empty' in meta and type(meta['context_on_empty']) is not bool:
         raise ValueError('context_on_empty must be a boolean')
     if (not isinstance(operations, list) or not isinstance(picker, list) or
-            not 2 <= len(picker) <= 4 or
+            not (1 if default else 2) <= len(picker) <= 4 or
             any(not isinstance(op, str) for op in picker) or
             len(set(picker)) != len(picker) or any(op not in operations for op in picker)):
-        raise ValueError(f"{meta.get('name', 'plugin')}: picker must contain 2 to 4 unique operation IDs")
+        raise ValueError(f"{meta.get('name', 'plugin')}: picker must contain unique operation IDs (1 to 4 with a default, otherwise 2 to 4)")
     if not isinstance(routes, list):
         raise ValueError(f"{meta.get('name', 'plugin')}: routes must be a list")
     if (not isinstance(standalone_flags, list) or
@@ -98,11 +102,11 @@ def route(meta, text):
         flags = '|'.join(re.escape(flag) for flag in meta['standalone_flags'])
         text = re.sub(r'(?<!\S)(?:' + flags + r')(?!\S)', '', text).strip()
     if not text:
-        return None
+        return meta.get('default_operation')
     for item in meta['routes']:
         if re.fullmatch(item['pattern'], text, re.DOTALL):
             return item['operation']
-    return None
+    return meta.get('default_operation')
 
 
 def trusted_root_link(root):
@@ -165,6 +169,9 @@ def render(meta, entry):
         + ') before choosing the operation.\n'
         if meta.get('standalone_flags') else '')
     empty_request = (
+        'With no request, use relevant current conversation context to start the default workflow. '
+        'Ask only for missing facts; never ask the owner to select an operation.\n'
+        if meta.get('default_operation') else
         'With no request, use relevant current conversation context. '
         'Follow the entry and ask only for missing facts; do not invent a symptom.\n'
         if meta.get('context_on_empty') else
@@ -173,17 +180,23 @@ def render(meta, entry):
     return ('\n'.join(header) + '\n\n# ' + meta['name'] + ' in T3 Code\n\n'
             'Read the installed entry file at ' + json.dumps(str(entry)) + ' and follow it.\n' +
             'The package directory is the directory containing that entry file.\n' +
-            ('Use the text after the skill mention as the operation and arguments. '
+            ('Use the text after the skill mention as the request. ' if meta.get('default_operation') else
+             'Use the text after the skill mention as the operation and arguments. '
              if meta['routes'] else '') +
-            'Operations: ' + ', '.join('`' + op + '`' for op in meta['operations']) + '.\n'
+            ('Default workflow: `' + meta['default_operation'] + '`. Treat the request as its input.\n'
+             if meta.get('default_operation') else
+             'Operations: ' + ', '.join('`' + op + '`' for op in meta['operations']) + '.\n')
             + empty_request
             + ('For imps, a task without an operation means `run <task>`.\n'
                if meta['name'] == 'imps' else '')
             + standalone_flags
             + ('For free text, test the full string against these manifest routes in order. '
-               'Use the operation from the first matching route. If no route matches, ask which operation to run.\n'
+               'Use the operation from the first matching route. ' +
+               ('If no route matches, use the default workflow.\n' if meta.get('default_operation') else
+                'If no route matches, ask which operation to run.\n')
                + routes + '\n' if meta['routes'] else
-               'With no route table, ask which operation to run.\n') +
+               ('Use the default workflow.\n' if meta.get('default_operation') else
+                'With no route table, ask which operation to run.\n')) +
             'If the entry is missing, report that this adapter needs `t3-plugins install ' + meta['name'] +
             '` using the same package prefix; do not switch to another ' + meta['name'] + ' installation.\n'
             'This adapter grants no additional authorization. T3 owns delegation and watches.\n')
@@ -197,7 +210,8 @@ def openai_yaml(meta):
     interface = {
         'display_name': 'T3 ' + meta['name'].replace('-', ' ').title(),
         'short_description': meta.get('short_description') or meta['description'],
-        'default_prompt': 'Use $' + name + ' with one operation: ' + ', '.join(meta['operations']) + '.',
+        'default_prompt': ('Use $' + name + ' for the current request.' if meta.get('default_operation') else
+                           'Use $' + name + ' with one operation: ' + ', '.join(meta['operations']) + '.'),
     }
     return ('interface:\n' + ''.join(f'  {key}: {json.dumps(value)}\n' for key, value in interface.items())).encode()
 

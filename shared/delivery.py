@@ -38,7 +38,8 @@ def _review(selection, evidence, author_lineages=()):
                 row.get('reference') and isinstance(row.get('execution_id'), str) and
                 row['execution_id'].strip() and row['execution_id'] not in executions,
                 'current-head distinct required review missing/adverse')
-        require(not any(f.get('severity') in ('blocker', 'major') and not f.get('disposition')
+        require(not any(f.get('severity') in ('blocker', 'major') and
+                        (f.get('disposition') not in ('fixed', 'rejected') or not f.get('evidence'))
                         for f in row.get('findings', [])), 'unresolved adverse review findings')
         executions.add(row['execution_id'])
         plan = dispatch(selection, role=slot['role'], slot_id=slot['slot_id'],

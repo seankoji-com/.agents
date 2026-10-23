@@ -60,7 +60,10 @@ class InstalledAgreementTests(unittest.TestCase):
                 self.assertIn('upfront-agreement.md', (relocated / 'entry.md').read_text())
                 cli = relocated / 'shared/execution_agreement_cli.py'
                 rows = json.loads(box.run([sys.executable, cli, 'inventory', '--input', box.payload({})]).stdout)
-                self.assertEqual(len(rows), 44)
+                expected = agreements.inventory(ROOT)
+                self.assertEqual(rows, expected)
+                self.assertEqual(len(rows), sum(len(json.loads(path.read_text())['operations'])
+                    for path in (ROOT / 'plugins').glob('*/plugin.json')))
                 for row in rows:
                     if row['operation'].split('/')[0] != plugin:
                         continue
@@ -86,6 +89,21 @@ class InstalledAgreementTests(unittest.TestCase):
                 self.assertEqual(box.run([sys.executable, cli, 'complete', '--input', box.payload(args)], check=False).returncode, 0)
                 evidence['ci']['head'] = 'stale'
                 self.assertEqual(box.run([sys.executable, cli, 'complete', '--input', box.payload(args)], check=False).returncode, 2)
+
+    def test_relocated_endpoints_retain_unresolved_findings_until_evidenced_resolution(self):
+        from tests.test_upfront_contract import PublicAgreementTests
+        with tempfile.TemporaryDirectory() as tmp:
+            box = Sandbox(Path(tmp))
+            package, _ = box.install('imps')
+            relocated = box.base / 'relocated-endpoint-regressions'
+            shutil.copytree(package, relocated)
+            cli = relocated / 'shared/execution_agreement_cli.py'
+            # Exercise the same full negative/positive matrix through the installed
+            # public CLI, with real parsing/admission/dispatch/delivery validation.
+            case = PublicAgreementTests('test_endpoint_review_dispositions_require_resolution_evidence')
+            case.cli = lambda command, data: box.run([sys.executable, cli, command,
+                '--input', box.payload(data)], check=False)
+            case.test_endpoint_review_dispositions_require_resolution_evidence()
 
     def test_ralph_failed_work_backup_invalidates_primary_review_without_losing_budget(self):
         with tempfile.TemporaryDirectory() as tmp:

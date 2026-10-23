@@ -28,7 +28,10 @@ class PublicAgreementTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         rows = json.loads(result.stdout)
         self.assertEqual(rows, agreements.inventory(ROOT))
-        self.assertEqual(len(rows), 44)
+        manifests = [json.loads(path.read_text()) for path in (ROOT / 'plugins').glob('*/plugin.json')]
+        expected = {m['name'] + '/' + op for m in manifests for op in m['operations']}
+        self.assertEqual({row['operation'] for row in rows}, expected)
+        self.assertEqual(len(rows), len(expected))
 
     def test_public_completion_requires_current_ci(self):
         record = chosen()
@@ -109,7 +112,46 @@ class PublicAgreementTests(unittest.TestCase):
         out = self.cli('inherit', {'selection': record, 'operation': 'babysitter/pr'})
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertEqual(json.loads(out.stdout)['agreement_sha256'], record['agreement']['agreement_sha256'])
-        self.assertNotEqual(self.cli('inherit', {'selection': record, 'operation': 'agent-tuneup/apply'}).returncode, 0)
+        self.assertNotEqual(self.cli('inherit', {'selection': record, 'operation': 'agent-tuneup/tuneup'}).returncode, 0)
+
+    def test_endpoint_review_dispositions_require_resolution_evidence(self):
+        invalid = [None, 'deferred', 'arbitrary', 'fixed', 'rejected']
+        findings = [{'severity': severity, **({'disposition': value} if value else {})}
+                    for severity in ('blocker', 'major') for value in invalid]
+        findings += [{'severity': severity, 'disposition': value, 'evidence': ['fixture:deferred-reason']}
+                     for severity in ('blocker', 'major') for value in ('deferred', 'arbitrary')]
+        findings += [{'severity': severity, 'disposition': value, 'evidence': evidence}
+                     for severity in ('blocker', 'major') for value in ('fixed', 'rejected')
+                     for evidence in ([], '')]
+        for endpoint in (*agreements.ENGINEERING, 'Markdown PR'):
+            selected = chosen('elephant-goldfish/thinking' if endpoint == 'Markdown PR' else 'imps/run', endpoint)
+            original = engineering(selected)
+            if endpoint == 'Markdown PR':
+                original['pr']['files'] = ['docs/brief.md']
+            if endpoint in agreements.ENGINEERING[1:]:
+                original['pr']['state'] = 'merged'
+            def complete(finding):
+                evidence = deepcopy(original)
+                evidence['review']['findings'] = [finding]
+                if endpoint != 'Markdown PR':
+                    return self.cli('complete', {'selection': selected, 'evidence': evidence, 'revision': 'revision-one'})
+                content = 'a' * 64
+                state = delivery.start(selected, content)
+                row = {**evidence, 'reference': 'fixture:actual-markdown-pr', 'content_sha256': content}
+                state = delivery.reconcile(selected, state, 'delivery', row)['state']
+                return self.cli('delivery-complete', {'selection': selected, 'state': state,
+                    'content_sha256': content, 'source_ready': True, 'revision': 'revision-one'})
+            for finding in findings:
+                with self.subTest(endpoint=endpoint, finding=finding):
+                    result = complete(finding)
+                    self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                    self.assertIn('unresolved adverse review findings', result.stderr)
+            for severity in ('blocker', 'major'):
+                for disposition in ('fixed', 'rejected'):
+                    result = complete({'severity': severity, 'disposition': disposition,
+                                       'evidence': ['fixture:current-source-resolution']})
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertTrue(json.loads(result.stdout)['complete'])
 
     def test_external_approval_and_agreement_tampering_fail_closed(self):
         raw = selection_input(); raw['operation'] = 'imps/run'; agree(raw)

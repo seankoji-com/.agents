@@ -1,5 +1,5 @@
 site_name: t3-plugins
-site_description: Seven workflows for coding agents in T3 Code, each ending in something you can check. Install with Homebrew on macOS or Linux.
+site_description: Eight workflows for coding agents in T3 Code, each ending in something you can check. Install with Homebrew on macOS or Linux.
 site_url: https://seankoji-com.github.io/t3-plugins/
 site_dir: !ENV [T3_DOCS_SITE_DIR, site]
 repo_url: https://github.com/seankoji-com/t3-plugins
@@ -72,7 +72,7 @@ nav:
   - Plugins:
       - Choose a workflow: plugins/index.md
       - imps: plugins/imps.md
-      - elephant-goldfish: plugins/elephant-goldfish.md
+      - plan: plugins/plan.md
       - ape: plugins/ape.md
       - babysitter: plugins/babysitter.md
       - agent-tuneup: plugins/agent-tuneup.md

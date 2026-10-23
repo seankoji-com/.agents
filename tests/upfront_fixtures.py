@@ -38,7 +38,7 @@ def approved_selection(data):
     """Explicit synthetic owner answer for existing public-domain gate fixtures."""
     from shared import model_selection
     raw = deepcopy(data)
-    if raw['operation'] in {r['operation'] for r in agreements.inventory()} | {'imps/investigation'}:
+    if raw['operation'] in {r['operation'] for r in agreements.inventory()} | set(agreements.INTERNAL_OPS) | {'imps/investigation'}:
         agree(raw)
         raw['agreement']['limits']['max_repair_cycles'] = 20
         raw['agreement'] = agreements.freeze(raw['agreement'], raw)

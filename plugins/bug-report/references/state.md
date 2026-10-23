@@ -132,10 +132,56 @@ JSON input file. No shell interpolation. Prefer the connected issue creation too
 when sufficient, with the generated `arguments`. Discussion observations also need
 the fetched `repository_id` and `ideas_category_id`; Discussion replies need
 `object_url` matching the canonical target and its fetched `discussion_id`.
-Every destination observation includes
-`repository_url:"https://github.com/pingdotgg/t3code"`. Discover and fetch these IDs,
+Legacy T3 destination observations include
+`repository_url:"https://github.com/pingdotgg/t3code"`. Other upstreams use the
+verified route below. Discover and fetch these IDs,
 never infer them from model output. Missing supported transport retains the draft.
 Native requests use `t3-thread-launch`, `t3-schedule-task` or
 `t3-delete-scheduled-task`, with generated `arguments`. Map actual `threadId`/`status`,
 `scheduledTaskId`/`nextRunAt`/`boundThreadId` and verified deleted/disabled host state
 to the observation fields above. This mapping does not itself verify host state.
+
+
+## Upstream reporting routes
+
+New non-T3 defects use outcome `upstream-defect`, an `upstream_name`, and:
+
+```json
+{"reporting_route": {"method": "github", "destination": "https://github.com/OWNER/REPO",
+ "documentation": "https://github.com/OWNER/REPO/blob/main/CONTRIBUTING.md",
+ "ownership_evidence": "observed package origin and authoritative upstream link"}}
+```
+
+Methods are `github`, `web` and `email`. Web intake uses the documented HTTPS
+tracker/form URL; email uses exactly one `mailto:` recipient without query headers.
+No known usable method means outcome `external` and a private draft. T3 legacy
+outcomes retain their original destination without rewriting existing state.
+
+For GitHub, `destination_observation.repository_url` must equal the recorded
+repository, and generated REST/GraphQL/connected requests use that repository.
+For web/email, use `transport: documented`, with current
+`destination_observation.reporting_destination` and `method_documentation` equal
+to the route. The generated request names the method, destination, canonical target
+(if replying) and sanitized title/body. Dispatch it through a sufficient connected
+tool or the documented tracker API. Never reinterpret its destination as shell code.
+A missing supported transport holds publication; the helper performs no network I/O.
+
+Non-GitHub duplicate searches use `channels_complete: true` and a nonempty `channels`
+list of `{channel, status, evidence}`, where status is `searched` or documented
+`not-applicable`, plus the ordinary queries, reason and inspected candidates.
+Unsupported or failed search stays incomplete. GitHub keeps the existing issue and
+Discussion completeness fields, including documented unavailable/not-applicable
+channels in the search reasoning.
+When every channel is documented as not-applicable, queries may be empty. Never
+invent a search to report through a documented private intake. A searched channel
+still requires the actual queries; failed or unsupported searches do not pass.
+
+For web/email completion, supply the ordinary fetched/content-matching observation
+and a nonempty `receipt_reference` from the actual ticket or sent-message receipt.
+Web receipt URLs must belong to the documented tracker's origin. Email retains the
+documented `mailto:` URL and records the actual sent-message identifier as the
+receipt reference. Never manufacture an email ticket URL. A confirmed response's
+actual creation/sending time starts the same fixed 30-minute window. Preserve the
+receipt reference when handing the work back, including when no public URL exists.
+Email `comments` observations also name `receipt_reference` matching an owned
+sent-message receipt, so unrelated mail at the same recipient is not follow-up.
