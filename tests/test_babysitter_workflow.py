@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 from core.jobs.store import canonical  # noqa: E402
 
 PLUGIN = ROOT / 'plugins' / 'babysitter'
-WORKHORSE = {'providerInstanceId': 'fixture-workhorse', 'model': 'fixture-small', 'lineage': 'lineage-a'}
+WORKHORSE = {'providerInstanceId': 'fixture-workhorse', 'model': 'fixture-small', 'lineage': 'lineage-a', 'options': {}}
 REVIEWER = {'providerInstanceId': 'fixture-reviewer', 'model': 'fixture-review', 'lineage': 'lineage-b'}
 PR12, PR13 = 'https://github.com/fixture/widgets/pull/12', 'https://github.com/fixture/widgets/pull/13'
 H1, H2, H3 = '1' * 40, '2' * 40, '3' * 40
@@ -595,7 +595,7 @@ class SyntheticJobTest(unittest.TestCase):
             task = next(t for t in json.loads((self.state / 'bs-1' / 'job.json').read_text())['tasks']
                         if t['task_id'] == task_id)
             event['status_identity'] = {'providerInstanceId': task['target']['providerInstanceId'],
-                                        'model': task['target']['model']}
+                                        'model': task['target']['model'], 'options': task['target'].get('options', {})}
         if kind == 'completion':
             event.update(status='completed', work_state='result_available', completion_id=host + '-done')
         return self.job('task-observation', {'caller': self.caller, 'task_id': task_id, 'event': event})
@@ -747,6 +747,7 @@ class SyntheticJobTest(unittest.TestCase):
                        'child_thread_id': 'thread-' + parent, 'target': WORKHORSE, 'scope': scope},
                       {'kind': 'completion', 'request_id': request, 'host_task_id': host, 'completion_id': host + '-done',
                        'status': 'completed', 'work_state': 'result_available', 'has_pending_child_runs': False}):
+            event['status_identity'] = {**WORKHORSE}
             self.job('task-observation', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'event': event})
         result = {'schema_version': 1, **{k: fu_brief[k] for k in ('job_id', 'stage_id', 'logical_slot_id', 'request_id',
                                                                      'worker_id', 'effective_brief_sha256', 'revision')},

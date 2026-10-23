@@ -92,6 +92,7 @@ def attach_selection(job, coordinator=None):
     for task in job['tasks']:
         if not task.get('target'):
             task['target'] = dict(deepcopy(fallback), lineage='fixture')
+        task['target'].setdefault('options', {})  # Explicit synthetic host echo, including no overrides.
         target = {k: deepcopy(v) for k, v in task['target'].items()
                   if k in ('providerInstanceId', 'model', 'options', 'runtimeMode')}
         target.setdefault('options', {})
@@ -140,7 +141,8 @@ def attach_selection(job, coordinator=None):
     data['capabilities'] = {'providers': list(catalog.values()), 'runtimeMode': 'full-access',
                             'inheritedProviderInstanceId': 'fixture-provider'}
     data['source'] = answer('Explicit synthetic targets for domain fixture: ' + models.digest(data['work']))
-    selected = models.freeze(data)
+    from tests.upfront_fixtures import approved_selection
+    selected = approved_selection(data)
     job.update(model_selection=selected, model_selection_sha256=selected['selection_sha256'],
                invocation_id=selected['invocation_id'], scope_id=selected['scope_id'])
     for task in job['tasks']:
@@ -173,7 +175,8 @@ def attach_revision(payload, current):
     attach_selection(candidate, current.get('model_selection', {}).get('coordinator'))
     chosen = candidate['model_selection']
     chosen.update(scope_id=current['scope_id'], invocation_id=current['invocation_id'])
-    chosen = models.freeze(chosen)
+    from tests.upfront_fixtures import approved_selection
+    chosen = approved_selection(chosen)
     candidate.update(model_selection=chosen, model_selection_sha256=chosen['selection_sha256'])
     for task in candidate['tasks']:
         task['selection_binding']['selection_sha256'] = chosen['selection_sha256']

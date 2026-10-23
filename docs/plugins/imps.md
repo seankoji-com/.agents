@@ -1,5 +1,7 @@
 # imps
 
+Choose Open PR, Tagged Version or Verified in Prod unless already supplied. The scoped agreement covers exact chains, actions, destinations and checks. Open PR needs a real linked current-head reviewed/green PR; later targets need the repository's release/distribution or named live deployment evidence. Source gates and queued workflows do not complete a remote endpoint. Unchanged repair/resume reuses the agreement and remaining budgets.
+
 imps turns one bounded task into a plan with numbered requirements, makes the change,
 runs the checks it planned, and gets an independent review. Every check is tied to the
 revision it ran on. If the agent edits a file afterwards, the check goes stale and the
@@ -74,9 +76,9 @@ the overview and `resume` starts from it.
 
 ## Plan and conclusion review
 
-Before substantive work, choose the work and review models together. Aliases reuse
-that answer once; automatic continuations keep it. An explicit resume shows the
-pinned choices and asks whether to retain them or stop.
+Before substantive work, approve exact work/reviewer chains, options and the scoped
+path together. Aliases and unchanged resumes reuse that agreement and remaining
+budgets. A material expansion holds only its dependent action for a scoped decision.
 
 Audit, investigation and blast-radius review their final integrated conclusions,
 including zero findings and no-change recommendations. Initial run/issues/checklist/

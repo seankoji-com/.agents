@@ -1,5 +1,9 @@
 # focus-group
 
+Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
+asking; direct controls stay prompt-free. Substantive work records the scoped
+agreement; nested calls and unchanged continuations reuse its binding and budgets.
+
 Plan and run a small, editable panel of invented personas across several models to
 test a product or prototype. The result is a set of synthetic product-use
 hypotheses: first impressions from shared captures, goal-based journeys where

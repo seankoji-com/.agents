@@ -8,7 +8,7 @@ from argparse import Namespace
 from unittest.mock import patch
 from pathlib import Path
 
-from tests.babysitter_continuous_fixtures import AcceptedJob, legacy_source, plan
+from tests.babysitter_continuous_fixtures import AcceptedJob, install_legacy, legacy_source, plan
 from tests.test_babysitter_continuous import (
     ContinuousCase, FakeHost, H1, H2, HELPER, observation, pr, continuous_sweep,
 )
@@ -1035,7 +1035,12 @@ class RealLegacyUpgradeTest(ContinuousCase):
     def exercise_upgrade(self, revision=None):
         box = Sandbox(self.base / 'sandbox')
         source = legacy_source(self.base, revision) if revision else legacy_source(self.base)
-        old, old_manifest = box.install('babysitter', source=source)
+        refused = box.install('babysitter', source=source, check=False)
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn('full operation review matrix is missing or inconsistent', refused.stderr)
+        before_source = tree_digest(source / 'plugins', source / 'core', source / 'shared')
+        old, old_manifest = install_legacy(box, source)
+        self.assertEqual(tree_digest(source / 'plugins', source / 'core', source / 'shared'), before_source)
         caller = box.caller(old_manifest, 'babysitter/repo')
         job_id = 'legacy-upgrade'
         box.create(old, plan(old_manifest, job_id))

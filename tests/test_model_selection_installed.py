@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from shared import model_selection as models
 from shared import planning_review as planning
+from tests.upfront_fixtures import approved_selection
 from tests.model_selection_fixtures import selection_input, answer
 from tests.test_rebuild_installed import Sandbox
 
@@ -34,7 +35,7 @@ class InstalledSelectionTests(unittest.TestCase):
             output_name = 'selection-installed/final-report.md'
             selected = selection_input()
             selected.update(operation='ape/study', scope_id=planning.logical_output_id(request_reference, output_name))
-            record = models.freeze(selected)
+            record = approved_selection(selected)
             admission = json.loads(box.run([sys.executable, relocated/'scripts/plan_review.py', 'admit',
                 '--input', box.payload({'operation': 'study', 'request_reference': request_reference,
                     'output_name': output_name, 'invocation_id': record['invocation_id'],
@@ -88,7 +89,7 @@ class InstalledSelectionTests(unittest.TestCase):
         raw['supplemental'] = {'kind': 'named', 'options': {}, 'maximum': 1, 'providers': ['gateway'],
                                'data_classes': ['public'], 'targets': [{'providerInstanceId': 'gateway',
                                    'model': 'opencode/sample-a-free'}], 'source': answer('Permit exactly this fixture extra.')}
-        data['model_selection'] = models.freeze(raw); data['selection_sha256'] = data['model_selection']['selection_sha256']
+        data['model_selection'] = approved_selection(raw); data['selection_sha256'] = data['model_selection']['selection_sha256']
         picked = extras.select(data, now)[0]
         self.assertEqual([row['target']['model'] for row in picked], ['opencode/sample-a-free'])
         data['pricing'][0]['costs']['input'] = 1

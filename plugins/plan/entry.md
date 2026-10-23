@@ -1,5 +1,9 @@
 # plan
 
+Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
+asking; direct controls stay prompt-free. Substantive work records the scoped
+agreement; nested calls and unchanged continuations reuse its binding and budgets.
+
 Turn an uncertain problem into a reviewed plan that a fresh thread can execute.
 Invoke `$t3-plan <topic or problem>`. There are no public subcommands. With no text,
 use the relevant conversation context and ask only for a missing topic. A request

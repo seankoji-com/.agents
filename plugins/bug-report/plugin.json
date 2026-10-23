@@ -1,6 +1,6 @@
 {
   "name": "bug-report",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Verify suspected upstream defects, use their documented reporting channel, and follow up for one fixed 30-minute window.",
   "short_description": "Verify and report upstream defects",
   "argument_hint": "[symptom, upstream or context reference]",
@@ -19,24 +19,40 @@
   "compatibility": "experimental",
   "operation_review": {
     "run": {
-      "selection": "direct",
+      "selection": "upfront",
       "planning": "none",
-      "reason": "Current-context incident investigation and reporting has no delegated workers or separate implementation strategy; evidence, publication authority and finite monitoring guards still apply."
+      "reason": "Current-context reporting uses the scoped agreement; no child or extra review is implied.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "reviewed redacted report at approved destination"
     },
     "resume": {
-      "selection": "direct",
+      "selection": "continuation",
       "planning": "none",
-      "reason": "Reconcile the existing incident in the current context without worker dispatch, resetting budgets or extending the original monitoring deadline."
+      "reason": "Reuse the scoped agreement and producing evidence without chooser; reconcile owned handles and retain findings/budgets.",
+      "classification": "continuation",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "same report, owned handles and remaining budget"
     },
     "status": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Read-only incident inspection has no synthesis or dispatch."
+      "reason": "Read-only incident inspection has no synthesis or dispatch.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "references/state.md",
+      "completion_evidence": "stored report state"
     },
     "cancel": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Record cancellation and reconcile only the incident's owned monitoring task; no worker dispatch or unrelated cleanup."
+      "reason": "Record cancellation and reconcile only the incident's owned monitoring task; no worker dispatch or unrelated cleanup.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "references/state.md",
+      "completion_evidence": "owned work stopped; partial evidence retained"
     }
   },
   "routes": [

@@ -1,9 +1,11 @@
 # babysitter
 
+Apply `PKG/shared/upfront-agreement.md`.
+
 Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
 Public admission: `PKG/scripts/plan_review.py`; contract: `PKG/shared/adopter-planning.md`;
 criteria: `PKG/references/adopter-review-rubric.md`.
-Read `PKG/shared/learnings.md` and load this plugin's lessons first.
+Read `PKG/shared/learnings.md` and load lessons.
 
 Each PR ends merged or as a named `needs human:` blocker.
 Read `PKG/shared/t3-runtime.md`.

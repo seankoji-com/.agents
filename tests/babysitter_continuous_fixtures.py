@@ -2,6 +2,8 @@
 import io
 import hashlib
 import json
+import shutil
+import sys
 import tarfile
 from pathlib import Path
 
@@ -44,6 +46,23 @@ class AcceptedJob:
         return self.box.complete(self.package, self.job_id, self.caller, 'fix', self.brief,
                                  self.host, 'not a task result' if malformed
                                  else worker_result(self.brief))
+
+
+def install_legacy(box, source):
+    """Bootstrap an old installation with its archived registry and matrix.
+
+    The installer adapter is copied outside the packaged roots. Historical
+    plugin/core/shared bytes stay intact; current installs still use today's
+    stricter registry. This models a package installed before the upgrade.
+    """
+    scripts = source / 'scripts'
+    scripts.mkdir()
+    for name in ('install.py', 'registry.py'):
+        shutil.copy2(ROOT / 'scripts' / name, scripts / name)
+    result = box.run([sys.executable, scripts / 'install.py', '--plugin', 'babysitter',
+                      '--prefix', box.prefix, '--agents-root', box.agents])
+    package = Path(json.loads(result.stdout)['data']['version_dir'])
+    return package, json.loads((package / 'install-manifest.json').read_text())
 
 
 def legacy_source(base, revision='4fc614b363a147c4f3220176607156be52941fa9'):

@@ -66,8 +66,8 @@ review. Unrelated HEAD movement remains visible without automatically repeating 
 Private XDG state retains one logical output's rounds, findings and active job across
 repairs and replacement jobs. The suggested limit is three substantive assessments;
 technical attempts have a separate finite allowance. New model preferences never
-reset either history or budget. Automatic continuations reuse choices; a new command
-asks afresh. Pinned Ralph/imps resumes offer retain-or-stop. Historical complete
+reset either history or budget. Unchanged continuations, resumes and nested calls
+reuse the agreement. New scope or authority needs a scoped decision. Historical complete
 artifacts remain labelled `legacy-unreviewed`; changed plans need current review.
 
 The final report identifies what content passed, actual modes/models and substitutions,
