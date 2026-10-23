@@ -252,11 +252,14 @@ def effective_config(user_path=None, repo=None) -> tuple[dict, list]:
             preference['preferred_workhorse'] = policy['preferred_workhorse']
         elif 'workhorse' not in policy.get('roles', {}) and 'preferred_workhorse' in base:
             preference['preferred_workhorse'] = base['preferred_workhorse']
-        config = validate({'schema_version': policy.get('schema_version', SCHEMA_VERSION),
-                           **preference,
-                           'tiers': policy.get('tiers', base.get('tiers')),
-                           'providers': {**base.get('providers', {}), **(policy.get('providers') or {})},
-                           'roles': {**base['roles'], **(policy.get('roles') or {})}})
+        try:
+            config = validate({'schema_version': policy.get('schema_version', SCHEMA_VERSION),
+                               **preference,
+                               'tiers': policy.get('tiers', base.get('tiers')),
+                               'providers': {**base.get('providers', {}), **(policy.get('providers') or {})},
+                               'roles': {**base['roles'], **(policy.get('roles') or {})}})
+        except RoutingError as exc:
+            raise RoutingError(exc.code, f'{repo_file} against user config {user_path}: {exc}') from exc
         sources.append(str(repo_file))
     if config is None:
         raise RoutingError('config_missing', f'no routing config at {user_path}; run t3-plugins setup --capabilities FILE')

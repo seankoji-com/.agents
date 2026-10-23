@@ -70,7 +70,8 @@ Use these rounds, skipping decisions already answered:
    entry. Read back the user file, effective repository override and both `resolve`
    and selection `discover` results before claiming it persisted. Both readers mark
    that target `preferred: true` and offer it first when eligible, ahead of lower
-   tiers. A missing or unsuitable preference is reported as unavailable; retain it
+   tiers. With `resolve --implementer-lineage`, independence groups take precedence;
+   the preference moves first only within its group. A missing or unsuitable preference is reported as unavailable; retain it
    and explain the exact blocker rather than selecting the next candidate.
    Configs without this field retain their previous ordering. A saved preference
    is a recommendation for a new invocation, not a new owner answer or sharing grant.
@@ -186,9 +187,10 @@ Use `python3 PKG/shared/model_selection_cli.py ACTION --input FILE` (or
   and current `policy_digests` for routing/profile snapshots.
 - `dispatch`: `{record, role, slot_id?, target?, data_classes?, unavailable?, live_tasks?,
   expected?}` returns the exact tool target/options and producing digest, role,
-  invocation/scope IDs and routing intent. A replacement
-  needs its separately approved chain and host-failure reference. Its dispatch is
-  invocation-only; it never changes the primary model's global routing choice.
+  invocation/scope IDs and routing intent. A primary workhorse dispatch returns the
+  frozen `routing_scope`; reviewer and replacement dispatches are invocation-only.
+  A replacement needs its separately approved chain and host-failure reference;
+  it never changes the primary model's global routing choice.
   It launches nothing.
 - `correlate`: `{plan, observed}` compares actual provider/model and options. Missing
   effort holds acceptance for agreement-bound work until reconciled. `panel` counts distinct execution IDs and reports unused

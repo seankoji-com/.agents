@@ -17,6 +17,99 @@ from tests.test_rebuild_installed import Sandbox
 
 
 class InstalledSelectionTests(unittest.TestCase):
+    def test_relocated_catalog_keeps_saved_preference_within_independence_groups(self):
+        from tests.test_routing import CAPABILITIES, entry
+        with tempfile.TemporaryDirectory() as temporary:
+            box = Sandbox(Path(temporary))
+            # Homebrew's libexec layout, copied then moved away from this checkout.
+            libexec = box.base / 'libexec'
+            for name in ('core', 'plugins', 'scripts', 'shared'):
+                shutil.copytree(ROOT / name, libexec / name,
+                                ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+            relocated = box.base / 'relocated-libexec'
+            libexec.rename(relocated)
+            catalog = relocated / 'scripts/catalog.py'
+            pool = [entry('codex', 'model-x1', 'low', 'openai'),
+                    entry('opencode', 'gateway/kimi-9', 'low', 'unknown'),
+                    entry('claudeAgent', 'model-c1', 'high', 'anthropic')]
+            config = {'schema_version': 1, 'tiers': ['low', 'high'], 'providers': {},
+                      'roles': {'workhorse': pool, 'reviewer': deepcopy(pool)},
+                      'preferred_workhorse': {'providerInstanceId': 'codex', 'model': 'model-x1'}}
+            config_path = box.config / 't3-plugins/routing.json'
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(json.dumps(config))
+            before = config_path.read_bytes()
+            caps = box.payload(CAPABILITIES)
+            for role in ('workhorse', 'reviewer'):
+                result = json.loads(box.run([sys.executable, catalog, 'resolve', role,
+                    '--capabilities', caps, '--implementer-lineage', 'openai']).stdout)
+                self.assertEqual([(c['model'], c['independent']) for c in result['candidates']],
+                                 [('model-c1', True), ('gateway/kimi-9', None), ('model-x1', False)])
+                self.assertEqual([c['model'] for c in result['candidates'] if c.get('preferred')],
+                                 ['model-x1'] if role == 'workhorse' else [])
+            ordinary = json.loads(box.run([sys.executable, catalog, 'resolve', 'workhorse',
+                                          '--capabilities', caps]).stdout)
+            self.assertEqual(ordinary['candidates'][0]['model'], 'model-x1')
+            self.assertTrue(ordinary['candidates'][0]['preferred'])
+            for field, value, locator in (
+                    ('roles', [], 'profiles.roles as an object'),
+                    ('roles', None, 'profiles.roles as an object'),
+                    ('required_options', [], 'profiles.roles.workhorse.required_options'),
+                    ('required_options', None, 'profiles.roles.workhorse.required_options')):
+                profiles = {'roles': {'workhorse': {'minimum': 1}}, 'models': []}
+                if field == 'roles':
+                    profiles['roles'] = value
+                else:
+                    profiles['roles']['workhorse'][field] = value
+                result = box.run([sys.executable, catalog, 'resolve', 'workhorse',
+                                  '--capabilities', caps, '--profiles', box.payload(profiles)], check=False)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn(locator, result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
+                self.assertEqual(result.stdout, '')
+            self.assertEqual(config_path.read_bytes(), before)
+
+    def test_relocated_profile_shape_errors_are_precise_and_policy_gates_survive(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            box = Sandbox(Path(temporary))
+            for plugin in ('babysitter', 'ralph'):
+                package, _ = box.install(plugin)
+                relocated = box.base / (plugin + '-profiles-relocated')
+                shutil.copytree(package, relocated)
+                helper = relocated / 'shared/model_selection_cli.py'
+                self.assertEqual((relocated / 'shared/model_selection.py').read_bytes(),
+                                 (ROOT / 'shared/model_selection.py').read_bytes())
+                for role in ('workhorse', 'reviewer'):
+                    for field in ('roles', 'required_options', 'source'):
+                        values = (None, [], 'high', 1, True) if field != 'source' else ([], {}, 1, True)
+                        for value in values:
+                            with self.subTest(plugin=plugin, role=role, field=field, value=value):
+                                data = canonical_selection_input()
+                                if field == 'roles':
+                                    data['profiles']['roles'] = value
+                                    locator = 'profiles.roles as an object'
+                                else:
+                                    data['profiles']['roles'][role][field] = value
+                                    locator = f'profiles.roles.{role}.{field}'
+                                for action, request in (('freeze', data), ('discover', {
+                                        'capabilities': data['capabilities'], 'profiles': data['profiles'], 'role': role})):
+                                    result = box.run([sys.executable, helper, action,
+                                                      '--input', box.payload(request)], check=False)
+                                    self.assertEqual(result.returncode, 2, result.stderr)
+                                    self.assertIn(locator, result.stderr)
+                                    self.assertNotIn('Traceback', result.stderr)
+                                    self.assertEqual(result.stdout, '')
+                data = canonical_selection_input()
+                data['profiles']['roles']['workhorse']['required_options'] = {'reasoningEffort': 'low'}
+                data['work']['workhorse']['options'] = {'reasoningEffort': 'low'}
+                frozen = box.run([sys.executable, helper, 'freeze', '--input', box.payload(data)])
+                record = json.loads(frozen.stdout)
+                self.assertEqual(record['work']['workhorse']['options'], {'reasoningEffort': 'low'})
+                data['profiles']['roles']['workhorse']['minimum'] = 3
+                refused = box.run([sys.executable, helper, 'freeze', '--input', box.payload(data)], check=False)
+                self.assertEqual(refused.returncode, 2)
+                self.assertIn('quality >= 3', refused.stderr)
+
     def test_imps_brief_probes_keep_short_rounds_after_install_and_relocation(self):
         with tempfile.TemporaryDirectory() as temporary:
             box = Sandbox(Path(temporary))
@@ -32,7 +125,10 @@ class InstalledSelectionTests(unittest.TestCase):
                                      (ROOT / 'plugins/imps/references/brief-probes.md').read_bytes())
                     text = ' '.join(probes.read_text().split())
                     for required in ('short rounds', 'one decision per question',
-                                     'Wait for the answer before the next round'):
+                                     'Wait for the answer before the next round',
+                                     'Until required work/reviewer choices and scope are frozen',
+                                     'only operation/capability/identity/resumable-scope preflight',
+                                     'independent authorised work may continue while unrelated later product questions'):
                         self.assertIn(required, text)
                     self.assertNotIn('ask a small batch', text.lower())
 

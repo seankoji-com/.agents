@@ -43,8 +43,9 @@ catalog v0.5.0 or later. If `t3-plugins list` doesn't include it, run
 
 Each new run records task-suitable exact work/reviewer primary and finite backup
 chains, their supported options and authority from the live T3 catalog, including
-custom models. Questions come in short rounds: implementer,
-evaluator, then each missing option or backup decision. Explicit answers skip their questions. A lineage
+custom models. Questions come in short rounds: implementer, routing scope only if
+ambiguous (this invocation recommended, or global), evaluator, then each missing
+option or backup decision. Explicit answers skip their questions. A lineage
 or sharing conflict gets its own short question only when it needs a decision.
 The picker shows a short relevant list; the final summary records roles, exact
 models, options, scope and authority before dispatch. All required evaluators must
@@ -52,6 +53,12 @@ be independent of every actual author. One provider can host
 several model lineages, so picking two providers doesn't prove independence. Unknown
 lineage labels need your confirmation; if the pair can't be shown to be independent,
 the run doesn't start.
+
+An explicit global choice is recorded as `routing_scope: global`. With settings-write
+authority, the coordinator saves `preferred_workhorse` in the user's `routing.json`,
+then reads back that file, the effective repository override and both `resolve` and
+selection `discover` results before claiming persistence. A run-only choice never
+writes routing settings. See the [routing procedure](../getting-started.md#model-routing).
 
 The installed skill points at the versioned ralph package, which carries its
 checkpoint helper and the shared T3 instructions. Runtime modes are resolved per

@@ -136,6 +136,46 @@ class SelectionTests(unittest.TestCase):
         data['profiles']['models'][1]['fixed_effort_reason'] = 'Fixture fixed-effort model meets bounded judgement floor.'
         self.assertTrue(models.freeze(data))
 
+    def test_profile_container_gaps_fail_at_discovery_and_suitability_boundaries(self):
+        for role in ('workhorse', 'reviewer'):
+            target = self.data['work']['workhorse'] if role == 'workhorse' else self.data['review_panel'][0]['target']
+            for field in ('roles', 'required_options', 'source'):
+                invalid = (None, [], 'high', 1, True) if field != 'source' else ([], {}, 1, True)
+                for value in invalid:
+                    with self.subTest(role=role, field=field, value=value):
+                        profiles = deepcopy(self.data['profiles'])
+                        if field == 'roles':
+                            profiles['roles'] = value
+                            locator = 'profiles.roles as an object'
+                        else:
+                            profiles['roles'][role][field] = value
+                            locator = f'profiles.roles.{role}.{field}'
+                        before = deepcopy(profiles)
+                        for invoke in (
+                                lambda: models.discover(self.data['capabilities'], profiles, role=role),
+                                lambda: models.suitability(target, role, profiles, self.data['capabilities'])):
+                            with self.assertRaises(models.SelectionError) as caught:
+                                invoke()
+                            self.assertIn('configuration gap', str(caught.exception))
+                            self.assertIn(locator, str(caught.exception))
+                        result = self.cli('discover', {'capabilities': self.data['capabilities'],
+                                                     'profiles': profiles, 'role': role})
+                        self.assertEqual(result.returncode, 2, result.stderr)
+                        self.assertIn(locator, result.stderr)
+                        self.assertNotIn('Traceback', result.stderr)
+                        self.assertEqual(result.stdout, '')
+                        self.assertEqual(profiles, before)
+
+    def test_optional_floor_source_and_required_options_keep_compatible_profiles(self):
+        for role in ('workhorse', 'reviewer'):
+            target = self.data['work']['workhorse'] if role == 'workhorse' else self.data['review_panel'][0]['target']
+            for policy_source in (None, '', 'fixture-policy.md#role'):
+                profiles = deepcopy(self.data['profiles'])
+                profiles['roles'][role].update(source=policy_source, required_options=target['options'])
+                self.assertTrue(models.suitability(target, role, profiles, self.data['capabilities']))
+                result = models.discover(self.data['capabilities'], profiles, role=role)
+                self.assertTrue(any(row['target'] == target for row in result['candidates']))
+
     def test_selected_options_are_validated_without_recommendation_substitution(self):
         data = deepcopy(self.data)
         # The role's low requirement and configured answer outrank high defaults.
@@ -446,6 +486,10 @@ class SelectionTests(unittest.TestCase):
         probes = ' '.join((ROOT / 'plugins/imps/references/brief-probes.md').read_text().split())
         self.assertIn('one decision per question', probes)
         self.assertIn('Wait for the answer before the next round', probes)
+        self.assertIn('Until required work/reviewer choices and scope are frozen', probes)
+        self.assertIn('only operation/capability/identity/resumable-scope preflight', probes)
+        self.assertIn('independent authorised work may continue while unrelated later product questions', probes)
+        self.assertIn('routing scope only if ambiguous', ralph)
         for directory in ('shared', 'plugins'):
             for path in sorted((ROOT / directory).rglob('*.md')):
                 text = ' '.join(path.read_text().lower().split())

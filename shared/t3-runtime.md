@@ -44,7 +44,7 @@ their frozen selection without another picker. Recommendations never select targ
 - Ask for approvals and owner decisions through the host's native question picker:
   the tool that presents choices to the user, such as Claude Code's `AskUserQuestion`
   or Muse Code's `request_user_input`, matched by name and description. Ask one question per decision, put the recommended
-  option first, and use short rounds for model choices. Never bury an approval in a prose status
+  option first, and ask related decisions in short rounds, including model choices. Never bury an approval in a prose status
   update. Without a picker, ask in a separate, clearly marked question block. Until
   answered, the action stays unapproved; silence is not approval.
 - Sibling-work check: before a writable run claims a PR, branch or worktree, and when

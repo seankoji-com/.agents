@@ -287,6 +287,56 @@ class RoutingCli(unittest.TestCase):
         self.assertEqual(self.resolve('workhorse')['candidates'][0]['model'], 'model-x1')
         self.assertEqual(json.loads(self.config.read_text()), config)
 
+    def test_workhorse_preference_stays_within_its_independence_group(self):
+        pool = [entry('codex', 'model-x1', 'low', 'openai'),
+                entry('opencode', 'gateway/kimi-9', 'low', 'unknown'),
+                entry('claudeAgent', 'model-c1', 'low', 'anthropic'),
+                entry('gemini-box', 'model-a2', 'high', 'google'),
+                entry('codex', 'model-x2', 'high', 'openai')]
+        config = {'schema_version': 1, 'tiers': ['low', 'high'], 'providers': {},
+                  'roles': {'workhorse': pool, 'reviewer': deepcopy(pool)}}
+        for preferred, expected in (
+                (pool[-1], ['model-c1', 'model-a2', 'gateway/kimi-9', 'model-x2', 'model-x1']),
+                (pool[1], ['model-c1', 'model-a2', 'gateway/kimi-9', 'model-x1', 'model-x2']),
+                (pool[3], ['model-a2', 'model-c1', 'gateway/kimi-9', 'model-x1', 'model-x2'])):
+            config['preferred_workhorse'] = {k: preferred[k] for k in ('providerInstanceId', 'model')}
+            self.write(config)
+            before = self.config.read_bytes()
+            source = routing.resolve('workhorse', CAPABILITIES, config, implementer_lineage='openai')
+            result = json.loads(self.cli('resolve', 'workhorse', '--capabilities', str(self.caps),
+                                        '--implementer-lineage', 'openai').stdout)
+            for resolved in (source, result):
+                self.assertEqual([c['model'] for c in resolved['candidates']], expected)
+                self.assertEqual([c['independent'] for c in resolved['candidates']], [True, True, None, False, False])
+                self.assertEqual([c['model'] for c in resolved['candidates'] if c.get('preferred')], [preferred['model']])
+            reviewer = routing.resolve('reviewer', CAPABILITIES, config, implementer_lineage='openai')
+            self.assertEqual([c['model'] for c in reviewer['candidates']],
+                             ['model-c1', 'model-a2', 'gateway/kimi-9', 'model-x1', 'model-x2'])
+            self.assertTrue(all('preferred' not in c for c in reviewer['candidates']))
+            self.assertEqual(self.resolve('workhorse')['candidates'][0]['model'], preferred['model'])
+            self.assertEqual(self.config.read_bytes(), before)
+
+    def test_repository_policy_errors_name_both_sources_without_mutation(self):
+        config = {'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                  'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai')]},
+                  'preferred_workhorse': {'providerInstanceId': 'codex', 'model': 'model-x1'}}
+        self.write(config)
+        policy_path = self.repo / '.t3-plugins/routing.json'
+        for policy, detail in (({'roles': {'workhorse': None}}, 'role workhorse must be a list'),
+                               ({'preferred_workhorse': {'providerInstanceId': 'codex', 'model': 'absent'}},
+                                'preferred_workhorse must match exactly one')):
+            self.write(policy, policy_path)
+            before = (self.config.read_bytes(), policy_path.read_bytes())
+            with self.assertRaises(routing.RoutingError) as caught:
+                routing.effective_config(self.config, self.repo)
+            self.assertEqual(caught.exception.code, 'config_invalid')
+            result = self.cli('resolve', 'workhorse', '--capabilities', str(self.caps), code=2)
+            for message in (str(caught.exception), result.stderr):
+                self.assertIn(str(policy_path), message)
+                self.assertIn(str(self.config), message)
+                self.assertIn(detail, message)
+            self.assertEqual((self.config.read_bytes(), policy_path.read_bytes()), before)
+
     def test_invalid_or_ambiguous_preferred_workhorse_is_refused(self):
         config = {'schema_version': 1, 'tiers': ['low'], 'providers': {},
                   'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai')]}}

@@ -77,7 +77,8 @@ the overview and `resume` starts from it.
 ## Plan and conclusion review
 
 Before substantive work, collect exact work/reviewer chains, options and the scoped
-path in short rounds, one decision per question. Supplied choices count as answers.
+path in short rounds through the native question picker, one decision per question.
+A clearly marked question block is the fallback. Supplied choices count as answers.
 The final agreement records those choices before dispatch. Aliases and unchanged
 resumes reuse that agreement and remaining budgets. A material expansion holds
 only its dependent action for a scoped decision.

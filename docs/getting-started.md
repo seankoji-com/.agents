@@ -334,7 +334,8 @@ thread's, T3 refuses it, so `resolve` lowers the mode to the parent's and adds a
 `requireRuntimeMode` (OpenCode, unless set to `false`) is listed as unavailable instead. With `--implementer-lineage
 LINEAGE`, each candidate is marked `independent`: `true` for another known lineage,
 `null` when either lineage is `unknown`, `false` for the same lineage. They print in
-that order. A repository can override
+that order; a saved workhorse preference moves first only within its independence
+group. A repository can override
 roles, providers or tiers in `.t3-plugins/routing.json`; repository policy wins.
 A repository workhorse pool replaces the user's preference as well. A repository
 `preferred_workhorse` must match exactly one effective workhorse entry.

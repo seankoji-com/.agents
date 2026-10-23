@@ -131,6 +131,22 @@ def validate_target(target, capabilities, child=True):
     return dict(deepcopy(target), options=deepcopy(options))
 
 
+def _profile_floor(profiles, role, *, context='; ', default=None):
+    """Validate policy containers before either discovery or suitability reads them."""
+    require(isinstance(profiles, dict), 'suitability profile missing' + context +
+            'provide a profiles object containing the recorded role/model evidence.')
+    roles = profiles.get('roles', {})
+    require(isinstance(roles, dict), 'configuration gap: role profiles malformed' + context +
+            'provide profiles.roles as an object.')
+    floor = roles.get(role, default)
+    if isinstance(floor, dict):
+        require(isinstance(floor.get('required_options', {}), dict),
+                f'configuration gap: profiles.roles.{role}.required_options must be an object')
+        require(floor.get('source') is None or isinstance(floor['source'], str),
+                f'configuration gap: profiles.roles.{role}.source must be a policy path/clause string or null')
+    return floor
+
+
 def suitability(target, role, profiles, capabilities, endorsement=None, configured=None):
     identity = '/'.join(key(target))
     context = ' for ' + role + ' ' + identity + '; '
@@ -140,11 +156,7 @@ def suitability(target, role, profiles, capabilities, endorsement=None, configur
     if endorsed:
         source(endorsement)
         require(key(configured) == key(target), 'endorsement target differs from configured workhorse')
-    require(isinstance(profiles, dict), 'suitability profile missing' + context +
-            'provide a profiles object containing the recorded role/model evidence.')
-    roles = profiles.get('roles', {})
-    require(isinstance(roles, dict), 'role profiles malformed' + context + 'provide profiles.roles as an object.')
-    floor = roles.get(role, {'minimum': 1} if endorsed else None)
+    floor = _profile_floor(profiles, role, context=context, default={'minimum': 1} if endorsed else None)
     require(isinstance(floor, dict) and type(floor.get('minimum')) is int and floor['minimum'] >= 0,
             'role floor missing' + context + 'provide profiles.roles.' + role + '.minimum from the role policy.')
     rows = profiles.get('models', [])
@@ -236,7 +248,9 @@ def prefer_workhorse(result, routing, role):
             available = True
         else:
             candidate.pop('preferred', None)
-    result['candidates'].sort(key=lambda c: not c.get('preferred', False))
+    rank = {True: 0, None: 1, False: 2}
+    result['candidates'].sort(key=lambda c: (rank[c['independent']] if 'independent' in c else 0,
+                                            not c.get('preferred', False)))
     result['preferred_workhorse'] = dict(zip(('providerInstanceId', 'model'), preferred))
     result['preference_status'] = 'available' if available else 'unavailable'
     return result
@@ -245,6 +259,7 @@ def prefer_workhorse(result, routing, role):
 def discover(capabilities, profiles, routing=None, role='workhorse'):
     """Recommendations only. No config writes, tier/first-model quality inference."""
     require(isinstance(capabilities, dict) and isinstance(capabilities.get('providers'), list), 'live capabilities missing')
+    floor = _profile_floor(profiles, role, default={})
     routing_preference(routing)
     configured = None
     if routing is not None:
@@ -268,7 +283,6 @@ def discover(capabilities, profiles, routing=None, role='workhorse'):
             # defaults. Discovery never diagnoses an owner's answer using high.
             entry = (configured or {}).get(key(target), {})
             target['options'].update(entry.get('options', {}))
-            floor = profiles.get('roles', {}).get(role, {}) if isinstance(profiles, dict) else {}
             if isinstance(floor, dict):
                 for name, value in floor.get('required_options', {}).items():
                     if name not in entry.get('options', {}):

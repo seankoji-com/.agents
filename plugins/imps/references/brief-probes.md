@@ -4,7 +4,10 @@ Inspect the repo before asking for facts available in code, configuration, or te
 A useful brief names the observable change, its acceptance, and any constraints that
 must hold across tasks. Keep an already concrete brief intact. For missing decisions,
 ask in short rounds, one decision per question. Wait for the answer before the next
-round. Retain supplied answers and continue independent authorised work.
+round. Retain supplied answers. Until required work/reviewer choices and scope are
+frozen, only operation/capability/identity/resumable-scope preflight may proceed.
+After that, independent authorised work may continue while unrelated later product
+questions remain unanswered; hold work that depends on those answers.
 
 Choose probes for the actual unknown:
 
