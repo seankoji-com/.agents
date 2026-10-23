@@ -396,7 +396,7 @@ def ensure_legacy_elephant_design(case,job_id):
     f.begin_review()
     if job_id.startswith('rounds-') and generation:
         subject=json.loads(Path(json.loads((box.jobs/f.review_id/'job.json').read_text())['planning']['subject_file']).read_text())
-        if subject['round_limit']==3:
+        if subject['round_limit']<30:
             text='Permit 30 planning assessments for this isolated cold-read budget fixture.'
             source=box.private/'budget-answer.txt';source.write_text(text)
             f.review('owner-decision',{'decision':{'kind':'limit-increase','logical_output_id':f.scope,
