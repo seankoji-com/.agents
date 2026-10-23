@@ -280,6 +280,10 @@ def _prospective_authors(record):
 
 def freeze(data):
     """Validate an explicit answer, freeze its evidence and return a sealed record."""
+    return _freeze(data)
+
+
+def _freeze(data, *, legacy=False):
     require(isinstance(data, dict), 'selection input must be an object')
     record = deepcopy(data)
     record.pop('selection_sha256', None)
@@ -296,6 +300,9 @@ def freeze(data):
         require(name in record, name + ' snapshot required')
         record[name + '_sha256'] = digest(record[name])
     require(isinstance(record.get('work'), dict) and record['work'], 'work choices required')
+    require(legacy or 'workhorse' not in record['work'] or 'routing_scope' in record,
+            'workhorse routing scope missing; record routing_scope as global or invocation-only from the owner answer. '
+            'If unanswered, ask only which scope applies; never silently narrow the owner choice.')
     authors = {record['coordinator'].get('lineage', 'unknown')}
     for role, chosen in record['work'].items():
         target, family = _eligible(chosen, role, record)
@@ -349,7 +356,9 @@ def validate(record, expected=None):
             'selection tampered or producing selection digest mismatch')
     for name in ('capabilities', 'routing', 'profiles'):
         require(record.get(name + '_sha256') == digest(record.get(name)), 'selection snapshot digest mismatch')
-    require(freeze(record) == record, 'selection not canonical or invalid')
+    # Existing sealed records predate explicit routing scope. Only validation
+    # retains their invocation default; freezing a new answer requires the field.
+    require(_freeze(record, legacy=True) == record, 'selection not canonical or invalid')
     return record
 
 

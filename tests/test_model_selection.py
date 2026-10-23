@@ -222,8 +222,35 @@ class SelectionTests(unittest.TestCase):
                 self.assertNotIn('workhorse', error)
 
     def test_old_record_without_routing_scope_keeps_invocation_default(self):
-        self.assertNotIn('routing_scope', self.record)
-        self.assertEqual(models.dispatch(self.record, role='workhorse')['routing_scope'], 'invocation-only')
+        legacy = deepcopy(self.record)
+        del legacy['routing_scope']
+        del legacy['selection_sha256']
+        legacy['selection_sha256'] = models.digest(legacy)
+        self.assertEqual(models.validate(legacy), legacy)
+        self.assertEqual(models.dispatch(legacy, role='workhorse')['routing_scope'], 'invocation-only')
+        with self.assertRaisesRegex(models.SelectionError, 'workhorse routing scope missing'):
+            models.freeze(legacy)
+
+    def test_new_scope_must_be_recorded_without_reinterpreting_owner_prose(self):
+        for scope, quote in (('global', 'Use the configured alpha-work as workhorse globally'),
+                             ('invocation-only', 'Use alpha-work for this run')):
+            with self.subTest(scope=scope):
+                data = deepcopy(self.data)
+                data['source'] = answer(quote)
+                data['routing'] = {'roles': {'workhorse': [data['work']['workhorse']],
+                                            'reviewer': [data['review_panel'][0]['target']]}}
+                del data['routing_scope']
+                original = deepcopy(data)
+                blocked = self.cli('freeze', data)
+                self.assertEqual(blocked.returncode, 2)
+                self.assertIn('record routing_scope as global or invocation-only from the owner answer', blocked.stderr)
+                self.assertIn('ask only which scope applies', blocked.stderr)
+                self.assertEqual(data, original)
+                data['routing_scope'] = scope
+                record = models.freeze(data)
+                self.assertEqual(models.dispatch(record, role='workhorse')['routing_scope'], scope)
+                self.assertEqual(record['source'], original['source'])
+                self.assertEqual(record['routing'], original['routing'])
 
     def test_configured_owner_choice_reuses_suitability_and_preserves_scope(self):
         for scope in ('invocation-only', 'global'):

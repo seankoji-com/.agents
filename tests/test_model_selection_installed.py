@@ -29,6 +29,13 @@ class InstalledSelectionTests(unittest.TestCase):
                 self.assertIn('short rounds', (relocated / 'playbooks' /
                               ('maintain.md' if plugin == 'babysitter' else 'loop.md')).read_text())
                 data = selection_input()
+                data['source'] = answer('Use the configured alpha-work as workhorse globally')
+                del data['routing_scope']
+                missing_scope = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
+                                        '--input', box.payload(data)], check=False)
+                self.assertEqual(missing_scope.returncode, 2)
+                self.assertIn('workhorse routing scope missing', missing_scope.stderr)
+                self.assertIn('ask only which scope applies', missing_scope.stderr)
                 data['routing_scope'] = 'global'
                 data['routing'] = {'roles': {'workhorse': [{**data['work']['workhorse'], 'lineage': 'alpha'}],
                                             'reviewer': [data['review_panel'][0]['target']]}}
@@ -44,6 +51,17 @@ class InstalledSelectionTests(unittest.TestCase):
                 self.assertEqual(plan['target'], data['work']['workhorse'])
                 self.assertEqual(plan['routing_scope'], 'global')
                 self.assertEqual(plan['scope_id'], data['scope_id'])
+                self.assertFalse((box.config / 't3-plugins/routing.json').exists())
+                run_only = deepcopy(data)
+                run_only['routing_scope'] = 'invocation-only'
+                run_only['source'] = answer('Use alpha-work for this run')
+                run_frozen = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
+                                     '--input', box.payload(run_only)])
+                run_record = json.loads(run_frozen.stdout)
+                run_dispatch = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'dispatch',
+                    '--input', box.payload({'record': run_record, 'role': 'workhorse',
+                                            'expected': run_record['selection_sha256']})])
+                self.assertEqual(json.loads(run_dispatch.stdout)['routing_scope'], 'invocation-only')
                 self.assertFalse((box.config / 't3-plugins/routing.json').exists())
                 del data['profiles']['models'][0]
                 endorsed = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',

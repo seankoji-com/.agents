@@ -23,7 +23,7 @@ def selection_input():
                             'lineage': family, 'lineage_source': 'fixture:catalog-family'}
                            for t, family in [(work, 'alpha'), (review, 'beta'), (spare, 'gamma')]]}
     return {'invocation_id': 'fixture-invocation', 'scope_id': 'fixture-output', 'operation': 'fixture/plan',
-            'project_id': 'fixture-project', 'source': answer(),
+            'project_id': 'fixture-project', 'source': answer(), 'routing_scope': 'invocation-only',
             'coordinator': {**work, 'lineage': 'alpha', 'observed_options': {'reasoningEffort': 'high'}},
             'capabilities': {'inheritedProviderInstanceId': 'fixture-work', 'inheritedModel': 'alpha-work',
                              'runtimeMode': 'auto', 'providers': [

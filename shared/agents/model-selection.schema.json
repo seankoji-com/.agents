@@ -120,7 +120,7 @@
         "invocation-only",
         "global"
       ],
-      "description": "Owner workhorse routing intent, separate from invocation/scope IDs. This helper never persists routing."
+      "description": "Required when freezing new workhorse choices. Older sealed records validate with an invocation-only default. Separate from invocation/scope IDs; the helper never persists routing."
     }
   },
   "additionalProperties": true

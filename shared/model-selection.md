@@ -65,6 +65,10 @@ Use these rounds, skipping decisions already answered:
    still wins; explain a concrete conflict or
    missing settings authority without quietly narrowing to run-only. This chooser
    helper freezes evidence and never writes routing settings.
+   New workhorse selections require an explicit `routing_scope` field at freeze.
+   Record an already answered scope without asking again. If it is missing, the
+   helper stops for that field alone. Validation of older sealed records retains
+   their invocation-only default; a new freeze never supplies that default.
 3. Reviewer model, independently of the workhorse pool. Check its own role floor,
    review policy and lineage against every actual/prospective author. A workhorse
    routing conflict does not invalidate a reviewer. Keep an explicit available
