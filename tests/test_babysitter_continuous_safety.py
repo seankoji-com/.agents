@@ -2,6 +2,7 @@
 import hashlib
 import json
 import sys
+from argparse import Namespace
 from unittest.mock import patch
 from pathlib import Path
 
@@ -196,25 +197,95 @@ class AcceptedReceiptTest(ContinuousCase):
 
 
 class OwnershipReleaseTest(ContinuousCase):
-    def test_unfamiliar_continuations_keep_ownership_until_explicit_release(self):
+    STATUSES = (
+        'active', 'preparing', 'queued', 'starting', 'running', 'waiting',
+        'parked', 'idle', 'completed', 'failed', 'interrupted', 'cancelled',
+        'rolled_back', 'stopped', 'handed-back', 'released', 'none',
+        'unfamiliar-status', '', None, 'STOPPED', 'CANCELLED',
+    )
+    RELEASES = ('handed-back', 'released', 'none', 'stopped', 'cancelled')
+
+    def test_status_continuation_matrix_requires_explicit_release_before_reservation(self):
+        continuous = continuous_sweep.continuous
         self.start()
-        for index, release in enumerate(('handed-back', 'released', 'none', 'stopped', 'cancelled')):
-            self.observe(NOW, observation(pr(owner={'thread_id': 'other', 'status': 'running',
-                'continuation': 'maintainer-live'})), wake=f'live-{index}')
-            for status in ('completed', 'idle', 'failed', 'interrupted'):
-                still = self.observe(NOW, observation(pr(owner={'thread_id': 'other',
-                    'status': status, 'continuation': 'still-maintaining'})),
-                    wake=f'unknown-{index}-{status}')
-                self.assertEqual(still['actions'][0]['kind'], 'owned-elsewhere')
+        initial = self.state.read_bytes()
+        snapshot = self.base / 'owner-matrix.json'
+        continuations = ({}, *({'continuation': value} for value in (
+            None, '', 'maintainer-live', 'watching', 'unknown', 'still-maintaining',
+            'RELEASED', *self.RELEASES)))
+        for status in self.STATUSES:
+            for continuation in continuations:
+                with self.subTest(status=status, **continuation):
+                    self.state.write_bytes(initial)
+                    snapshot.write_text(json.dumps(observation(pr(owner={
+                        'thread_id': 'other', 'status': status, **continuation}))))
+                    result = continuous.cmd_observe(Namespace(state=str(self.state), now=NOW,
+                        observation=str(snapshot), wake_id='matrix', wake_kind='event'))
+                    released = continuation.get('continuation') in self.RELEASES
+                    self.assertEqual(result['actions'][0]['kind'],
+                                     'merge' if released else 'owned-elsewhere')
+                    owner = json.loads(self.state.read_text())['prs'][URL]['owner']
+                    self.assertEqual(owner['thread_id'], 'other')
+                    before = self.state.read_bytes()
+                    for kind in ('merge', 'fixer', 'resolution'):
+                        args = Namespace(state=str(self.state), now=NOW, pr=URL, kind=kind,
+                            request_id=f'takeover-{kind}', head=H1, reserve=True,
+                            host_task_id=None, attempt=None, review_triage=False)
+                        if released:
+                            reserved = continuous.cmd_dispatch(args)
+                            self.assertEqual(reserved['status'], 'recorded')
+                            self.state.write_bytes(before)
+                        else:
+                            with self.assertRaisesRegex(continuous.ContinuousError, 'owned elsewhere'):
+                                continuous.cmd_dispatch(args)
+                            self.assertEqual(self.state.read_bytes(), before)
+
+    def test_partial_terminal_updates_preserve_identity_and_live_continuation(self):
+        self.start()
+        for status in ('idle', 'completed', 'failed', 'interrupted', 'cancelled',
+                       'rolled_back', 'stopped', 'handed-back', 'released'):
+            for fields in ({}, {'thread_id': None},
+                           {'thread_id': None, 'continuation': None}, {'continuation': ''}):
+                with self.subTest(status=status, fields=fields):
+                    self.observe(NOW, observation(pr(owner={'thread_id': 'other',
+                        'status': 'running', 'continuation': 'maintainer-live',
+                        'host_task_id': 'maintainer-task'})), wake=f'live-{status}-{fields}')
+                    still = self.observe(NOW, observation(pr(owner={'status': status, **fields})),
+                                         wake=f'partial-{status}-{fields}')
+                    self.assertEqual(still['actions'][0]['kind'], 'owned-elsewhere')
+                    owner = json.loads(self.state.read_text())['prs'][URL]['owner']
+                    self.assertEqual((owner['thread_id'], owner['continuation'], owner['host_task_id']),
+                                     ('other', 'maintainer-live', 'maintainer-task'))
+
+    def test_installed_helper_refuses_terminal_status_takeover_until_explicit_handoff(self):
+        box = Sandbox(self.base / 'installed')
+        package, _ = box.install('babysitter')
+        helper = package / 'scripts/continuous.py'
+        self.start(helper=helper)
+        for status in ('completed', 'failed', 'interrupted', 'cancelled', 'rolled_back',
+                       'stopped', 'handed-back', 'released'):
+            for continuation in ({}, {'continuation': 'maintainer-live'},
+                                 {'continuation': 'still-maintaining'}):
+                result = self.cli('observe', '--now', NOW, '--wake-kind', 'event',
+                    '--wake-id', f'installed-{status}-{continuation}',
+                    payload=observation(pr(owner={'thread_id': 'other', 'status': status,
+                                                  **continuation})), helper=helper)
+                self.assertEqual(result['actions'][0]['kind'], 'owned-elsewhere')
                 before = self.state.read_bytes()
                 for kind in ('merge', 'fixer', 'resolution'):
                     refused = self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', kind,
-                        '--request-id', f'takeover-{kind}', '--head', H1, '--reserve', ok=False)
+                        '--request-id', f'takeover-{kind}', '--head', H1, '--reserve',
+                        helper=helper, ok=False)
                     self.assertIn('owned elsewhere', refused.stderr)
                     self.assertEqual(self.state.read_bytes(), before)
-            released = self.observe(NOW, observation(pr(owner={'thread_id': 'other',
-                'status': 'completed', 'continuation': release})), wake=f'release-{index}')
-            self.assertEqual(released['actions'][0]['kind'], 'merge')
+        released = self.cli('observe', '--now', NOW, '--wake-kind', 'event',
+            '--wake-id', 'verified-handoff', payload=observation(pr(owner={
+                'status': 'stopped', 'continuation': 'handed-back'})), helper=helper)
+        self.assertEqual(released['actions'][0]['kind'], 'merge')
+        self.assertEqual(json.loads(self.state.read_text())['prs'][URL]['owner']['thread_id'], 'other')
+        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+            '--request-id', released['actions'][0]['request_id'], '--head', H1,
+            '--reserve', helper=helper)
 
 
 class LiveMergeHeadChangeTest(ContinuousCase):

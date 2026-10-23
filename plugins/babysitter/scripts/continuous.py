@@ -84,7 +84,6 @@ for _statuses in KIND_RECEIPT_STATUSES.values():
     _statuses.add('uncertain')
 OWNER_LIVE_STATUSES = {'active', 'running', 'starting', 'queued', 'waiting', 'preparing'}
 OWNER_RELEASED = {'handed-back', 'released', 'none', 'stopped', 'cancelled'}
-OWNER_RELEASED_STATUSES = {'handed-back', 'released', 'stopped', 'cancelled'}
 
 # Blockers that genuinely need a person. Everything routine in the playbook must
 # resolve without a new question.
@@ -551,11 +550,7 @@ def owned_elsewhere(pr, self_thread):
     thread = owner.get('thread_id')
     if not thread or thread == self_thread:
         return False
-    status = str(owner.get('status') or '').lower()
-    continuation = owner.get('continuation')
-    if continuation in OWNER_RELEASED or status in OWNER_RELEASED_STATUSES:
-        return False
-    return True
+    return owner.get('continuation') not in OWNER_RELEASED
 
 
 def required_contexts(observation):
