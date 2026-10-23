@@ -9,8 +9,10 @@ Homebrew distribution, and Pages acceptance each need their own evidence.
    refreshed `master`, link it to the T3 thread, and wait for current-head required CI.
 3. Merge using the repository's permitted method. Never bypass the organization gate.
 4. Dispatch the `Release` workflow from `master` with the intended version bump.
-   It reruns tests, archives the commit, publishes an SHA-256 checksum and GitHub release,
-   and proposes the updated formula in `seankoji-com/homebrew-tap`.
+   It reruns the complete suite in four disjoint shards before the packaging job.
+   Every shard must pass; the per-module timeout remains 600 seconds. It then archives
+   the commit, publishes an SHA-256 checksum and GitHub release, and proposes the
+   updated formula in `seankoji-com/homebrew-tap`.
 5. Observe the tap PR's own requirements and merge. A published GitHub release does
    not mean Homebrew can install it yet. Verify its URL and checksum against the asset.
 6. Run `brew update`, install/upgrade the formula, then `t3-plugins setup --root PATH` and
