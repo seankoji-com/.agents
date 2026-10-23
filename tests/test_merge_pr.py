@@ -103,10 +103,12 @@ elif query.startswith("query"):
     if mode == "repair-review":
         pr["mergeStateStatus"] = "BLOCKED"
         pr["reviewDecision"] = "CHANGES_REQUESTED"
-    if mode == "behind-then-fresh":
+    if mode in ("behind-then-fresh", "behind-then-green", "behind-then-same"):
         # update-branch lands a new head whose checks have not registered yet.
-        pr["mergeStateStatus"] = "UNKNOWN" if state_file.exists() else "BEHIND"
-        if state_file.exists(): pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"] = None
+        pr["mergeStateStatus"] = ("CLEAN" if mode != "behind-then-fresh" else "UNKNOWN") if state_file.exists() else "BEHIND"
+        if state_file.exists():
+            if mode != "behind-then-same": pr["headRefOid"] = "b"*40
+            if mode == "behind-then-fresh": pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"] = None
     if mode in ("merged-after-block", "closed-after-block"):
         if state_file.exists(): pr = {"state":"CLOSED" if mode.startswith("closed") else "MERGED"}
         state_file.write_text("queried")
@@ -484,6 +486,35 @@ print(code, end="")
         self.assertEqual(result.returncode, 4, result.stderr)
         self.assertIn("reason=behind", result.stdout)
         self.assertEqual(len(calls), 1)  # no update-branch PUT, no arming
+
+    def test_update_only_pins_the_update_and_never_lands_even_a_green_new_head(self):
+        result, calls = self.run_helper('behind-then-green', ['--update-only', '--expected-head', HEAD])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('UPDATED fixture/repo#1', result.stdout)
+        self.assertIn('head=' + 'b' * 40, result.stdout)
+        self.assertEqual([c for c in calls if not c.get('query')], [{'expected_head_sha': HEAD}])
+        self.assertFalse(any('mutation' in c.get('query', '') for c in calls))
+
+    def test_update_only_refuses_wrong_head_conflict_and_incompatible_modes(self):
+        for mode, flags in (
+                ('author-pushed', ['--expected-head', HEAD]),
+                ('conflict', ['--expected-head', HEAD]),
+                ('behind', []), ('behind', ['--expected-head', HEAD, '--arm-always']),
+                ('behind', ['--expected-head', HEAD, '--method', 'merge']),
+                ('behind', ['--expected-head', HEAD, '--resolve-thread', 'T1', '--verified-head', HEAD])):
+            with self.subTest(mode=mode, flags=flags):
+                result, calls = self.run_helper(mode, ['--update-only', *flags])
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue(all(c.get('query', '').startswith('query') for c in calls))
+
+    def test_update_acceptance_without_a_new_head_is_uncertain_and_never_lands(self):
+        result, calls = self.run_helper('behind-then-same', ['--update-only', '--expected-head', HEAD])
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn('reason=update_pending', result.stdout)
+        self.assertIn('retain the reservation as uncertain', result.stdout)
+        self.assertNotIn('UPDATED', result.stdout)
+        self.assertEqual([c for c in calls if not c.get('query')], [{'expected_head_sha': HEAD}])
+        self.assertFalse(any('mutation' in c.get('query', '') for c in calls))
 
     def test_expected_head_arms_automerge_only_at_that_head(self):
         result, calls = self.run_helper("pending", ["--expected-head", HEAD])

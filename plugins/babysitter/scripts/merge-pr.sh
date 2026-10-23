@@ -16,6 +16,7 @@
 # Usage:
 #   merge-pr.sh --repo <owner/name> --pr <N> [--method squash|merge|rebase] [--no-auto | --arm-always]
 #               [--expected-head <SHA>]
+#   merge-pr.sh --repo <owner/name> --pr <N> --update-only --expected-head <SHA>
 #   merge-pr.sh --repo <owner/name> --pr <N> --resolve-thread <ID> --verified-head <SHA>
 #               [--reply-file <path>]
 #
@@ -159,6 +160,7 @@ RESOLVE_THREAD=""
 VERIFIED_HEAD=""
 REPLY_FILE=""
 EXPECTED_HEAD=""
+UPDATE_ONLY=0
 AUTO_MERGE=1
 ARM_ALWAYS=0
 
@@ -223,6 +225,11 @@ while [ $# -gt 0 ]; do
     EXPECTED_HEAD="$2"
     shift 2
     ;;
+  --update-only)
+    UPDATE_ONLY=1
+    AUTO_MERGE=0
+    shift
+    ;;
   --no-auto)
     AUTO_MERGE=0
     shift
@@ -263,6 +270,11 @@ case "$METHOD" in
 '' | squash | merge | rebase) ;;
 *) die "--method must be squash, merge, or rebase, got: ${METHOD}" ;;
 esac
+if [ "$UPDATE_ONLY" = 1 ]; then
+  [ -n "$EXPECTED_HEAD" ] || die "--update-only requires --expected-head"
+  [ -z "$RESOLVE_THREAD$VERIFIED_HEAD$REPLY_FILE$METHOD" ] && [ "$ARM_ALWAYS" = 0 ] || die "update-only cannot resolve, merge or arm auto-merge"
+  AUTO_MERGE=0
+fi
 if [ -n "$RESOLVE_THREAD" ] || [ -n "$VERIFIED_HEAD" ]; then
   [ -n "$RESOLVE_THREAD" ] && [ -n "$VERIFIED_HEAD" ] || die "resolution requires both --resolve-thread and --verified-head"
   [[ "$VERIFIED_HEAD" =~ ^[0-9a-f]{40}$ ]] || die "--verified-head must be a full lowercase commit SHA"
@@ -479,7 +491,7 @@ cond() {
 # state falls through to being reported rather than hanging the caller.
 sync_behind_branch() {
   local resp code body
-  resp="$(curl_rest PUT "/repos/${REPO}/pulls/${PR_NUMBER}/update-branch")" || return 1
+  resp="$(curl_rest PUT "/repos/${REPO}/pulls/${PR_NUMBER}/update-branch" "$(jq -n --arg sha "$expected_head" '{expected_head_sha:$sha}')")" || return 1
   code="${resp%%$'\n'*}"
   body="${resp#*$'\n'}"
   case "$code" in
@@ -661,6 +673,18 @@ merge_state="$(jq -r '.data.repository.pullRequest.mergeStateStatus' <<<"$state"
 
 if [ "$mergeable" = "CONFLICTING" ]; then
   blocked "conflict" "merge conflicts against the base branch; resolve in a worktree first, not here"
+fi
+
+if [ "$UPDATE_ONLY" = 1 ]; then
+  [ "$merge_state" = "BEHIND" ] || blocked "not_behind" "refresh state before reserving another branch update"
+  if ! sync_behind_branch; then
+    blocked "behind" "update outcome requires reconciliation; refresh the branch before retrying"
+  fi
+  state="$(fetch_state)" || die "could not re-read PR state after update-branch" 3
+  updated_head="$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$state")"
+  [[ "$updated_head" =~ ^[0-9a-f]{40}$ ]] && [ "$updated_head" != "$EXPECTED_HEAD" ] || blocked "update_pending" "update accepted but no new head confirmed; retain the reservation as uncertain and reconcile before another write"
+  echo "UPDATED ${REPO}#${PR_NUMBER} previous_head=${EXPECTED_HEAD} head=${updated_head} refresh_gates=required"
+  exit 0
 fi
 
 if [ "$merge_state" = "BEHIND" ]; then

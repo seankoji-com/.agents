@@ -1,5 +1,6 @@
 """Adverse transitions from the issue 94 repair reviews; all services are fixtures."""
 import hashlib
+import importlib.util
 import json
 import sys
 from argparse import Namespace
@@ -14,6 +15,230 @@ from tests.test_rebuild_installed import Sandbox, tree_digest, worker_result
 
 URL = 'https://github.com/fixture/widgets/pull/12'
 NOW = '2026-10-22T14:05:00Z'
+
+
+class UpdateAndResolutionTest(ContinuousCase):
+    def adapters(self):
+        yield HELPER, continuous_sweep, HELPER.with_name('merge-pr.sh')
+        package, _ = Sandbox(self.base / 'installed').install('babysitter')
+        spec = importlib.util.spec_from_file_location('global9_installed_sweep',
+                                                    package / 'scripts/continuous_sweep.py')
+        adapter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adapter)
+        yield package / 'scripts/continuous.py', adapter, package / 'scripts/merge-pr.sh'
+
+    def row(self, shape, **kwargs):
+        row = pr(required_contexts=['ci'], **kwargs)
+        if shape == 'reader':
+            row['head_oid'] = row.pop('head_sha')
+            row.pop('checks')
+            row.pop('required_contexts')
+            row.update(pending_checks=[], failing=[], checks_complete=True,
+                       required_contexts_known=False)
+        return row
+
+    def test_source_and_installed_adapter_update_is_reserved_before_helper_and_refreshes_gates(self):
+        from tests import test_merge_pr as merge_fixture
+        for index, (helper, adapter, shell) in enumerate(self.adapters()):
+            for shape in ('full', 'reader'):
+                with self.subTest(installed=index, shape=shape):
+                    self.state = self.base / f'update-{index}-{shape}.json'
+                    self.start(helper=helper)
+                    test = self
+                    initial_head, updated_head = merge_fixture.HEAD, 'b' * 40
+
+                    class UpdateHost(FakeHost):
+                        def dispatch(host, action, now):
+                            state = json.loads(test.state.read_text())
+                            row = state['prs'][URL]['dispatches'][-1]
+                            test.assertEqual((row['kind'], row['status']), ('update-branch', 'reserved'))
+                            for kind in ('fixer', 'merge', 'resolution', 'update-branch'):
+                                refused = test.cli('dispatch', '--now', now, '--pr', URL,
+                                    '--kind', kind, '--request-id', 'racing-' + kind,
+                                    '--head', initial_head, '--reserve', helper=helper, ok=False)
+                                test.assertIn('may not race', refused.stderr)
+                            harness = merge_fixture.MergeTest()
+                            harness.script = shell
+                            result, calls = harness.run_helper('behind-then-green',
+                                ['--update-only', '--expected-head', action['head']])
+                            test.assertEqual(result.returncode, 0, result.stderr)
+                            test.assertIn('UPDATED', result.stdout)
+                            test.assertEqual([c for c in calls if not c.get('query')],
+                                             [{'expected_head_sha': initial_head}])
+                            test.assertFalse(any('mutation' in c.get('query', '') for c in calls))
+                            return super().dispatch(action, now)
+
+                    host = UpdateHost(observation(self.row(shape, head=initial_head,
+                                                          merge_state='BEHIND')))
+                    host.clock = '2026-10-22T14:00:00Z'
+                    adapter.arm(host, self.state, host.clock)
+                    result = adapter.tick(host, self.state, '2026-10-22T14:10:00Z')[0]
+                    action = result['result']['actions'][0]
+                    self.assertEqual(action['kind'], 'update-branch')
+                    self.assertEqual(result['dispatched'][0]['recorded'], 'recorded')
+                    self.assertEqual(len(host.dispatched), 1)
+                    request = action['request_id']
+                    again = adapter.tick(host, self.state, '2026-10-22T14:20:00Z')[0]
+                    self.assertEqual(again['result']['actions'][0]['kind'], 'update-branch-pending')
+                    self.assertEqual(len(host.dispatched), 1)
+                    self.cli('observe', '--now', NOW, '--wake-id', 'early-green-new-head',
+                        payload=observation(self.row(shape, head=updated_head)), helper=helper)
+                    self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                             '--request-id', request, '--host-task-id', 'task-1',
+                             '--status', 'succeeded', helper=helper)
+                    self.assertEqual(self.cli('status', '--now', NOW, helper=helper)['prs'][URL]
+                                     ['next_action']['kind'], 'wait-checks')
+                    for head, checks_head, expected in (
+                            (initial_head, initial_head, 'branch-update-refresh'),
+                            (updated_head, initial_head, 'stale-head-checks')):
+                        row = self.row(shape, head=head)
+                        row['checks_head_sha'] = checks_head
+                        report = self.cli('observe', '--now', NOW, '--wake-id', head,
+                            payload=observation(row), helper=helper)
+                        self.assertEqual(report['actions'][0]['blocked']['kind'], expected)
+                        refused = self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                            '--request-id', 'stale-landing', '--head', head, '--reserve',
+                            helper=helper, ok=False)
+                        self.assertIn('current action is wait-checks', refused.stderr)
+                    fresh = self.cli('observe', '--now', NOW, '--wake-id', 'fresh',
+                        payload=observation(self.row(shape, head=updated_head)), helper=helper)
+                    self.assertEqual(fresh['actions'][0]['kind'], 'merge')
+                    self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                        '--request-id', 'fresh-landing', '--head', updated_head, '--reserve', helper=helper)
+
+    def test_update_reservation_rechecks_conflict_exclusion_ownership_and_inflight_writers(self):
+        for index, (helper, _, _) in enumerate(self.adapters()):
+            self.state = self.base / f'guards-{index}.json'
+            self.start(helper=helper)
+            for shape in ('full', 'reader'):
+                for changed in (dict(mergeable='CONFLICTING'), dict(draft=True), dict(fork=True),
+                                dict(owner={'thread_id': 'other', 'continuation': 'maintainer-live'})):
+                    row = self.row(shape, merge_state='BEHIND', **changed)
+                    self.cli('observe', '--now', NOW, '--wake-id', str(changed),
+                             payload=observation(row), helper=helper)
+                    before = self.state.read_bytes()
+                    self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                        '--request-id', 'retained-update', '--head', H1, '--reserve', helper=helper, ok=False)
+                    self.assertEqual(self.state.read_bytes(), before)
+                    self.cli('observe', '--now', NOW, '--wake-id', 'release-' + str(changed),
+                        payload=observation(self.row(shape, merge_state='BEHIND',
+                            owner={'thread_id': 'other', 'continuation': 'released'})), helper=helper)
+            baseline = self.state.read_bytes()
+            for kind in ('fixer', 'resolution', 'merge'):
+                self.state.write_bytes(baseline)
+                # A landing reserved on a clean head also excludes a later update.
+                if kind == 'merge':
+                    self.cli('observe', '--now', NOW, '--wake-id', 'clean',
+                             payload=observation(pr()), helper=helper)
+                self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', kind,
+                    '--request-id', 'writer', '--head', H1, '--reserve', helper=helper)
+                self.cli('observe', '--now', NOW, '--wake-id', 'behind',
+                         payload=observation(pr(merge_state='BEHIND')), helper=helper)
+                self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                    '--request-id', 'racing-update', '--head', H1, '--reserve', helper=helper, ok=False)
+
+    def test_uncertain_update_keeps_its_reservation_until_matching_host_receipt(self):
+        class LostUpdateHost(FakeHost):
+            def dispatch(self, action, now):
+                super().dispatch(action, now)
+                raise TimeoutError('update response lost')
+
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'lost-update-{index}.json'
+            self.start(helper=helper)
+            host = LostUpdateHost(observation(pr(merge_state='BEHIND')))
+            result = adapter.handle_wake(host, self.state, NOW, {'kind': 'event'})
+            request = result['result']['actions'][0]['request_id']
+            report = self.cli('status', '--now', NOW, helper=helper)['prs'][URL]
+            self.assertEqual(report['next_action']['dispatch_status'], 'uncertain')
+            host.snapshot = observation(pr(head=H2))
+            result = adapter.handle_wake(host, self.state, NOW, {'kind': 'event', 'wake_id': 'new-head'})
+            self.assertEqual(result['result']['actions'][0]['kind'], 'update-branch-pending')
+            self.assertEqual(len(host.dispatched), 1)
+            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                '--request-id', request, '--host-task-id', 'recovered-update', helper=helper)
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                '--request-id', request, '--status', 'cancelled', helper=helper, ok=False)
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                '--request-id', request, '--host-task-id', 'recovered-update',
+                '--status', 'cancelled', helper=helper)
+            self.assertEqual(self.cli('status', '--now', NOW, helper=helper)['prs'][URL]
+                             ['next_action']['kind'], 'merge')
+
+    def test_live_resolution_is_next_action_until_matching_terminal_receipt_in_both_adapters(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            for shape in ('full', 'reader'):
+                self.state = self.base / f'resolution-{index}-{shape}.json'
+                self.start(helper=helper)
+                host = FakeHost(observation(self.row(shape, threads=1)))
+                host.clock = '2026-10-22T14:00:00Z'
+                adapter.arm(host, self.state, host.clock)
+                self.cli('observe', '--now', NOW, '--wake-id', 'threads',
+                    payload=host.snapshot, helper=helper)
+                self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'resolution',
+                    '--request-id', 'reply-1', '--head', H1, '--reserve', helper=helper)
+                for status in ('reserved', 'uncertain', 'pending'):
+                    if status == 'uncertain':
+                        self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'resolution',
+                            '--request-id', 'reply-1', '--status', 'uncertain', helper=helper)
+                    if status == 'pending':
+                        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'resolution',
+                            '--request-id', 'reply-1', '--host-task-id', 'reply-host', helper=helper)
+                    host.snapshot = observation(self.row(shape, head=H2))
+                    result = adapter.handle_wake(host, self.state, NOW,
+                                                {'kind': 'event', 'wake_id': status})
+                    action = result['result']['actions'][0]
+                    self.assertEqual((action['kind'], action['request_id'], action['dispatch_status']),
+                                     ('resolution-pending', 'reply-1', status))
+                    self.assertEqual(action['host_task_id'], 'reply-host' if status == 'pending' else None)
+                    self.assertEqual(host.dispatched, [])
+                    report = self.cli('status', '--now', NOW, helper=helper)['prs'][URL]
+                    for key in ('kind', 'request_id', 'host_task_id', 'dispatch_status'):
+                        self.assertEqual(report['next_action'][key], action[key])
+                    self.assertEqual(report['dispatches'][0]['status'], status)
+                before = self.state.read_bytes()
+                for request, kind, handle in (('wrong', 'resolution', 'reply-host'),
+                                              ('reply-1', 'merge', 'reply-host'),
+                                              ('reply-1', 'resolution', 'wrong'),
+                                              ('reply-1', 'resolution', None)):
+                    flags = ['--host-task-id', handle] if handle else []
+                    self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', kind,
+                        '--request-id', request, '--status', 'succeeded', *flags, helper=helper, ok=False)
+                    self.assertEqual(self.state.read_bytes(), before)
+                # Exclusion and explicit lifecycle close never erase the live request.
+                self.cli('observe', '--now', NOW, '--wake-id', 'excluded',
+                    payload=observation(self.row(shape, head=H2, draft=True)), helper=helper)
+                self.assertEqual(self.cli('status', '--now', NOW, helper=helper)['prs'][URL]
+                                 ['next_action']['kind'], 'resolution-pending')
+                if shape == 'reader':
+                    self.cli('resolve', '--now', NOW, '--pr', URL, '--resolution', 'closed',
+                             '--head', H2, helper=helper)
+                self.assertEqual(self.cli('status', '--now', NOW, helper=helper)['prs'][URL]
+                                 ['dispatches'][0]['status'], 'pending')
+                self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'resolution',
+                    '--request-id', 'reply-1', '--host-task-id', 'reply-host', '--status', 'succeeded',
+                    helper=helper)
+                settled = self.cli('status', '--now', NOW, helper=helper)['prs'][URL]
+                if shape == 'full':
+                    self.assertIsNone(settled['next_action'])
+                    self.assertEqual(settled['state'], 'excluded')
+                fresh = self.cli('observe', '--now', NOW, '--wake-id', 'released',
+                    payload=observation(self.row(shape, head=H2)), helper=helper)
+                self.assertEqual(fresh['actions'][0]['kind'], 'merge')
+
+    def test_cancelled_run_keeps_live_resolution_visible_without_proposing_followup_on_receipt(self):
+        for index, (helper, _, _) in enumerate(self.adapters()):
+            self.state = self.base / f'cancel-resolution-{index}.json'
+            self.start(helper=helper)
+            self.cli('observe', '--now', NOW, payload=observation(pr()), helper=helper)
+            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'resolution',
+                     '--request-id', 'reply', '--reserve', helper=helper)
+            self.cli('cancel', '--now', NOW, '--reason', 'owner stopped', helper=helper)
+            self.assertEqual(self.cli('status', '--now', NOW, helper=helper)['prs'][URL]
+                             ['next_action']['kind'], 'resolution-pending')
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'resolution',
+                     '--request-id', 'reply', '--status', 'cancelled', helper=helper)
+            self.assertIsNone(self.cli('status', '--now', NOW, helper=helper)['prs'][URL]['next_action'])
 
 
 class ReservationSafetyTest(ContinuousCase):

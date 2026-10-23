@@ -72,7 +72,7 @@ def _close_dispatch(state_path, now, action, status, reason, host_task_id=None):
         return continuous.cmd_receipt(_namespace(
             state=str(state_path), now=now, pr=action['pr'],
             request_id=action.get('request_id'),
-            kind='fixer' if action['kind'] == 'dispatch-fixer' else 'merge',
+            kind='fixer' if action['kind'] == 'dispatch-fixer' else action['kind'],
             status=status, reason=reason, host_task_id=host_task_id,
             head=action.get('head'), result=None))
     except continuous.ContinuousError as exc:
@@ -109,9 +109,9 @@ def handle_wake(host, state_path, now, wake):
     if result.get('status') == 'duplicate':
         return {'wake': wake, 'result': result, 'dispatched': []}
     for action in result.get('actions', []):
-        if action.get('kind') not in ('dispatch-fixer', 'merge'):
+        if action.get('kind') not in ('dispatch-fixer', 'merge', 'update-branch'):
             continue
-        kind = 'fixer' if action['kind'] == 'dispatch-fixer' else 'merge'
+        kind = 'fixer' if action['kind'] == 'dispatch-fixer' else action['kind']
         try:
             reservation = continuous.cmd_dispatch(_namespace(
                 state=str(state_path), now=now, pr=action['pr'],

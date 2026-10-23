@@ -146,6 +146,17 @@ conversation page, and a merge request is bound to its exact head. Rejected, can
 or superseded attempts are reconciled, then either retried within the bounded budget or
 reported as `merge-rejected`. A live fixer blocks any merge or resolution write.
 
+A green `BEHIND` observation returns `update-branch`, never a landing at that head.
+Reserve that kind before `merge-pr.sh --update-only --expected-head <sha>`; it uses
+the existing update endpoint with `expected_head_sha` and exits as `UPDATED` without
+merging or arming. Record its receipt, then refresh discovery, the new head and its
+checks before reserving `merge`. Successful update receipts keep the old head blocked.
+An accepted update without a confirmed new head is `update_pending`; retain its
+reservation as `uncertain` and reconcile the host operation before another write.
+Live updates and resolutions, including `reserved` and `uncertain`, remain the next
+action with request ID, host handle and status until a matching terminal receipt.
+Status includes dispatch records even when the PR becomes excluded or closes.
+
 Every eligible open PR ends a turn with one of: a tracked child in flight, a permitted
 merge action, confirmed ownership elsewhere, a concrete external blocker with its next
 check, or an explicit human-only question. Routine repair, retry diagnosis and an
@@ -177,10 +188,10 @@ host idempotency or stop ownership. A dispatch is reserved before the host is to
 
 ```sh
 python3 PKG/scripts/continuous.py dispatch --state <state.json> --now <RFC3339> \
-  --pr <url> --request-id <id> --kind fixer|merge|resolution --head <sha> --reserve
+  --pr <url> --request-id <id> --kind fixer|merge|update-branch|resolution --head <sha> --reserve
 # then perform the host launch, then attach the handle:
 python3 PKG/scripts/continuous.py dispatch --state <state.json> --now <RFC3339> \
-  --pr <url> --request-id <id> --kind fixer|merge|resolution --host-task-id <handle>
+  --pr <url> --request-id <id> --kind fixer|merge|update-branch|resolution --host-task-id <handle>
 python3 PKG/scripts/continuous.py fixer-done --state <state.json> --now <RFC3339> \
   --pr <url> --request-id <id> --host-task-id <handle> \
   --result <job-dir>/results/<id>.json
@@ -188,7 +199,7 @@ python3 PKG/scripts/continuous.py receipt --state <state.json> --now <RFC3339> \
   --pr <url> --request-id <id> --status succeeded|failed|rejected|cancelled|armed|no-change
 ```
 
-The reservation is the writer/merge lock: a competing fixer, merge or resolution is
+The reservation is the writer/merge lock: a competing fixer, merge, update or resolution is
 refused while it exists, even before the host has returned a handle. New reservations
 recheck current lifecycle, scope, ownership and head inside the transaction. A confirmed
 refusal is `rejected`; a lost response, malformed acceptance or missing handle is
@@ -196,7 +207,7 @@ refusal is `rejected`; a lost response, malformed acceptance or missing handle i
 then attach its verified handle, or record confirmed refusal. Never infer absence from
 a timeout. A changed head marks an open merge attempt stale but keeps its lock;
 reconcile the original host operation to a terminal outcome before another write.
-Terminal merge receipts for an attached task must name its recorded `--host-task-id`,
+Terminal merge, update and resolution receipts must name any recorded `--host-task-id`,
 after verifying that task has ended. `armed` is accepted only for a merge and keeps it pending;
 fixer and resolution receipts must name a terminal outcome. A receipt applies only to
 the request it names: a replay is reported as `duplicate` or `stale` and changes no

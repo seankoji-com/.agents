@@ -79,6 +79,7 @@ KIND_RECEIPT_STATUSES = {
     'fixer': FIXER_RECEIPT_STATUSES,
     'merge': MERGE_RECEIPT_STATUSES,
     'resolution': RESOLUTION_RECEIPT_STATUSES,
+    'update-branch': RESOLUTION_RECEIPT_STATUSES.copy(),
 }
 for _statuses in KIND_RECEIPT_STATUSES.values():
     _statuses.add('uncertain')
@@ -666,6 +667,29 @@ def live_merge_dispatch(pr):
                  if row.get('kind') == 'merge' and dispatch_status(row) in OPEN_DISPATCH), None)
 
 
+def live_dispatch(pr, kind):
+    return next((row for row in pr.get('dispatches', [])
+                 if row.get('kind') == kind and dispatch_status(row) in OPEN_DISPATCH), None)
+
+
+def pending_write(pr, state, now):
+    """Keep coordinator writes visible until their matching terminal receipts."""
+    dispatches = [dict(row) for row in pr.get('dispatches', [])
+                  if row.get('kind') in ('resolution', 'update-branch')
+                  and dispatch_status(row) in OPEN_DISPATCH]
+    for kind in ('resolution', 'update-branch'):
+        row = live_dispatch(pr, kind)
+        if row:
+            status = dispatch_status(row)
+            identity = {key: row.get(key) for key in ('request_id', 'host_task_id', 'head')}
+            return ({'pr': pr['url'], 'kind': f'{kind}-pending', **identity,
+                     'dispatch_status': status, 'dispatches': dispatches,
+                     'reason': f"{kind} {row['request_id']} is {status}; reconcile its host receipt",
+                     'next_check_at': deadline(now, state['policy']['cadence_seconds'])},
+                    {'kind': f'{kind}-in-flight', **identity, 'dispatch_status': status})
+    return None
+
+
 def merge_attempts(pr, head):
     return [row for row in pr.get('dispatches', [])
             if row.get('kind') == 'merge' and row.get('head') == head]
@@ -711,6 +735,10 @@ def reconcile_pr(pr, state, now, discovery):
     changes = [name for name in observation.get('changes_requested_by') or [] if name]
     progress = progress_signature(observation, checks, queue['pending'])
     threads_complete = observation.get('review_threads_complete') is True
+
+    pending = pending_write(pr, state, now)
+    if pending:
+        return pending[0], queue, pending[1], progress
 
     if raw_state == 'MERGED':
         pr['state'] = 'merged'
@@ -910,6 +938,26 @@ def reconcile_pr(pr, state, now, discovery):
         checks_ok = (checks_state in ('SUCCESS', 'EXPECTED')
                      or str(observation.get('merge_state_status') or '').upper() == 'UNSTABLE')
     mergeable = str(observation.get('mergeable') or '').upper() == 'MERGEABLE'
+    update = pr.get('branch_update')
+    if update and (head == update['head'] or update.get('refresh_required')):
+        return ({'pr': pr['url'], 'kind': 'wait-checks',
+                 'reason': 'branch update completed; refresh the new head and its gates before landing',
+                 'request_id': update['request_id'], 'head': head,
+                 'next_check_at': deadline(now, cadence)}, queue,
+                {'kind': 'branch-update-refresh', 'head': head}, progress)
+    if mergeable and merge_state == 'BEHIND' and checks_ok \
+            and not queue['pending'] and not failing and threads == 0:
+        attempts = [row for row in pr['dispatches']
+                    if row['kind'] == 'update-branch' and row.get('head') == head]
+        if len(attempts) >= MAX_MERGE_ATTEMPTS:
+            detail = 'branch update attempts exhausted at this head'
+            return ({'pr': pr['url'], 'kind': 'blocked', 'reason': detail,
+                     'next_check_at': deadline(now, cadence)}, queue,
+                    {'kind': 'branch-update-rejected', 'detail': detail}, progress)
+        return ({'pr': pr['url'], 'kind': 'update-branch', 'head': head,
+                 'request_id': f"{pr['number']}-update-{head[:12]}-a{len(attempts) + 1}",
+                 'reason': 'branch is behind its base; update before refreshing landing gates',
+                 'next_check_at': deadline(now, cadence)}, queue, None, progress)
     if mergeable and merge_state in ('CLEAN', 'HAS_HOOKS', 'UNSTABLE') \
             and not queue['pending'] and not failing and threads == 0 and checks_ok:
         head_attempts = merge_attempts(pr, head)
@@ -1092,6 +1140,11 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
                 continue
             if pr['state'] != 'open':
                 continue
+        update = pr.get('branch_update')
+        if update and row['observation'].get('head_sha') != update['head']:
+            # Only a new observation after the terminal update receipt can refresh
+            # landing gates. A green snapshot read while the update ran is stale.
+            update['refresh_required'] = False
         queue = queue_summary(pr['observation']['checks'], now,
                               state['policy']['queue_threshold_seconds'])
         signature = progress_signature(pr['observation'], pr['observation']['checks'],
@@ -1129,7 +1182,7 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
 
     discovery = {'complete': complete, 'gaps': gaps}
     for url, pr in state['prs'].items():
-        if pr.get('state') != 'open':
+        if pr.get('state') != 'open' and not pending_write(pr, state, now):
             continue
         mark_stale_merges(pr, pr['observation'].get('head_sha'))
         action, queue, blocked, signature = reconcile_pr(pr, state, now, discovery)
@@ -1583,8 +1636,8 @@ def cmd_dispatch(args):
         pr = state['prs'].get(args.pr)
         require(pr is not None, f'unknown PR: {args.pr}')
         require(bool(args.request_id), '--request-id is required')
-        require(args.kind in ('fixer', 'merge', 'resolution'),
-                'dispatch kind must be fixer, merge or resolution')
+        require(args.kind in KIND_RECEIPT_STATUSES,
+                'dispatch kind must be fixer, merge, update-branch or resolution')
         reserve = bool(getattr(args, 'reserve', False))
         existing = next((row for row in pr['dispatches'] if row['request_id'] == args.request_id), None)
         if existing:
@@ -1632,6 +1685,10 @@ def cmd_dispatch(args):
         if resolution:
             raise ContinuousError(
                 f"resolution {resolution['request_id']} is pending; another write may not race it")
+        update = live_dispatch(pr, 'update-branch')
+        if update:
+            raise ContinuousError(
+                f"update-branch {update['request_id']} is pending; another write may not race it")
         if args.kind == 'resolution' and merge:
             raise ContinuousError(
                 f"merge {merge['request_id']} is pending; resolution may not race it")
@@ -1656,7 +1713,7 @@ def cmd_dispatch(args):
                   request_id=args.request_id, host_task_id=args.host_task_id)
             save_json(path, state)
             return {'status': 'recorded', 'dispatch': row, 'fixer': pr['fixer']}
-        if args.kind == 'merge':
+        if args.kind in ('merge', 'update-branch'):
             require(bool(args.head), 'a merge dispatch must name the exact head')
             require(re.fullmatch(r'[0-9a-f]{40}', args.head) is not None,
                     'a merge dispatch needs the full 40-character head')
@@ -1674,8 +1731,8 @@ def cmd_dispatch(args):
             # found a red check or incomplete gate at the same head. Reconcile under
             # the reservation lock before recording any landing operation.
             action, _, _, _ = reconcile_pr(pr, state, now, state['discovery'])
-            require(action['kind'] == 'merge',
-                    f"merge gates are not satisfied; current action is {action['kind']}: "
+            require(action['kind'] == args.kind,
+                    f"{args.kind} gates are not satisfied; current action is {action['kind']}: "
                     f"{action['reason']}")
         if args.kind == 'resolution':
             if fixer.get('in_flight'):
@@ -1728,6 +1785,8 @@ def cmd_receipt(args):
                    'status': 'pending', 'attempt': 1, 'created_at': now_iso(now)}
             pr['dispatches'].append(row)
         require(row is not None, f'unknown dispatch: {args.request_id}')
+        require(not getattr(args, 'kind', None) or args.kind == row['kind'],
+                'receipt kind differs from the recorded dispatch kind')
         allowed = KIND_RECEIPT_STATUSES[row['kind']]
         require(args.status in allowed,
                 f"{row['kind']} receipts accept {', '.join(sorted(allowed))}; "
@@ -1738,10 +1797,10 @@ def cmd_receipt(args):
         if args.head and row.get('head') and args.head != row['head']:
             raise ContinuousError(
                 f"receipt head {args.head} differs from dispatch head {row['head']}")
-        if row['kind'] == 'merge' and args.status in TERMINAL_DISPATCH \
+        if row['kind'] in ('merge', 'resolution', 'update-branch') and args.status in TERMINAL_DISPATCH \
                 and row.get('host_task_id'):
             require(args.host_task_id == row['host_task_id'],
-                    'a terminal merge receipt must name the recorded host handle')
+                    f"a terminal {row['kind']} receipt must name the recorded host handle")
         if args.host_task_id and row.get('host_task_id') and \
                 args.host_task_id != row['host_task_id']:
             raise ContinuousError(
@@ -1767,6 +1826,9 @@ def cmd_receipt(args):
                 stale = not (guard.get('host_task_id') and
                              handle == guard['host_task_id'])
         row['status'] = args.status
+        if row['kind'] == 'update-branch' and args.status == 'succeeded':
+            pr['branch_update'] = {'request_id': row['request_id'], 'head': row['head'],
+                                   'refresh_required': True}
         if args.status in TERMINAL_DISPATCH:
             row['completed_at'] = now_iso(now)
         else:
@@ -1784,6 +1846,16 @@ def cmd_receipt(args):
                 pr['last_meaningful_progress_at'] = now_iso(now)
         audit(state, now, 'receipt', pr=args.pr, request_id=args.request_id,
               status=args.status, stale=stale)
+        if row['kind'] in ('resolution', 'update-branch'):
+            pending = pending_write(pr, state, now)
+            if state.get('cancelled') and not pending:
+                pr.update(next_action=None, blocked=None, queue=None)
+            elif pr.get('state') == 'open' or pending:
+                action, queue, blocked, _ = reconcile_pr(pr, state, now, state['discovery'])
+                pr.update(next_action={**action, **({'blocked': blocked} if blocked else {})},
+                          queue=queue, blocked=blocked)
+            elif pr.get('state') == 'excluded':
+                pr.update(next_action=None, blocked=None, queue=None)
         save_json(path, state)
         return {'status': 'stale' if stale else 'recorded',
                 'changed': not stale and args.status in TERMINAL_DISPATCH,
@@ -1809,7 +1881,7 @@ def cmd_resolve(args):
         pr['resolved_head'] = args.head
         pr['fixer'] = {'in_flight': False, 'request_id': None, 'started_at': None}
         for row in pr.get('dispatches', []):
-            if dispatch_status(row) in OPEN_DISPATCH:
+            if dispatch_status(row) in OPEN_DISPATCH and row['kind'] not in ('resolution', 'update-branch'):
                 row['status'] = 'superseded'
                 row['completed_at'] = now_iso(now)
         pr['next_action'] = {'pr': args.pr, 'kind': args.state_value,
@@ -2098,10 +2170,13 @@ def cmd_status(args):
             'open_prs': open_prs,
             'excluded': excluded,
             'prs': {url: {'state': pr.get('state'),
-                          'next_action': pr.get('next_action'), 'blocked': pr.get('blocked'),
+                          'blocked': pr.get('blocked'),
                           'queue': (pr.get('queue') or {}).get('oldest'),
                           'last_meaningful_progress_at': pr.get('last_meaningful_progress_at'),
-                          'owner': pr.get('owner'), 'fixer': pr.get('fixer')}
+                          'owner': pr.get('owner'), 'fixer': pr.get('fixer'),
+                          'dispatches': pr.get('dispatches', []),
+                          'next_action': (pending_write(pr, state, now) or
+                                          (pr.get('next_action'),))[0]}
                     for url, pr in state['prs'].items()},
             'discovery': state['discovery'],
             'cancelled': state.get('cancelled'),
@@ -2179,7 +2254,7 @@ def build_parser():
     dispatch.add_argument('--now', required=True)
     dispatch.add_argument('--pr', required=True)
     dispatch.add_argument('--request-id', required=True)
-    dispatch.add_argument('--kind', choices=('fixer', 'merge', 'resolution'), required=True)
+    dispatch.add_argument('--kind', choices=tuple(KIND_RECEIPT_STATUSES), required=True)
     dispatch.add_argument('--host-task-id')
     dispatch.add_argument('--head')
     dispatch.add_argument('--attempt', type=int)
@@ -2201,7 +2276,7 @@ def build_parser():
     receipt.add_argument('--job', help='job directory containing the accepted execution')
     receipt.add_argument('--host-task-id')
     receipt.add_argument('--reason')
-    receipt.add_argument('--kind', choices=('fixer', 'merge', 'resolution'))
+    receipt.add_argument('--kind', choices=tuple(KIND_RECEIPT_STATUSES))
     receipt.set_defaults(func=cmd_receipt)
 
     done = sub.add_parser('fixer-done')

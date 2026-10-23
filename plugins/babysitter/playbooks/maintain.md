@@ -23,14 +23,15 @@ use event-only without scheduler authority.
    may plan `read` only maintainer slots, whose `blocked` results answer triage but
    never an acceptance.
 2. Quick pass, in this thread, before any child: refresh with `continuous.py observe`;
-   for each current `merge` action run
-   `continuous.py dispatch --kind merge --reserve --head <head>` before
-   `bash PKG/scripts/merge-pr.sh --repo <owner/name> --pr <N> --no-auto`, or
-   `--arm-always` under **enable**. It merges, updates behind branches, and arms
-   auto-merge only with complete, resolved threads. Record each `MERGED` line and
-   each `BLOCKED` line's whole `blockers=` list, not just `reason=`.
+   reserve current `merge` or `update-branch` with
+   `continuous.py dispatch --kind <kind> --reserve --head <head>` before
+   `bash PKG/scripts/merge-pr.sh --repo <owner/name> --pr <N>`.
+   For `update-branch`, add `--update-only --expected-head <head>`; record `UPDATED`,
+   refresh new-head gates before any merge reservation. For `merge`, add
+   `--expected-head <head>` and `--arm-always` under **enable**, otherwise `--no-auto`.
+   Record `MERGED` and each `BLOCKED` line's whole `blockers=` list, not just `reason=`.
    `automerge=preexisting` is someone else's armed request and withholds nothing.
-   Record the helper's receipt against that reservation and exact head; `armed` is pending, never
+   Record reservation/head receipts; `armed` is pending, never
    merged. If the operator asked for review before landing, every PR is review-gated:
    skip this helper, read state with `list-prs.sh`, and give every unmerged PR a job
    (step 4) even without repair work.
@@ -90,7 +91,8 @@ use event-only without scheduler authority.
    this thread owns every watch.
 9. Before yielding, refresh discovery and each PR's next action/deadline with
    `continuous.py observe` (`--wake-kind schedule` on wakes). Every unmerged row
-   needs a worker, current checks, confirmed owner or concrete external blocker/next check.
+   needs a worker, current checks, confirmed owner or concrete blocker/next check.
+   Report live resolution request/host identities until matching terminal receipts.
    Diagnose stalls within authority; never raise timeouts, rerun unchanged failures or
    count armed watches as progress. Anything else is acted on now. Health/ledger failures stop
    writes as `needs human:`. Never end a turn on "auto-merge armed" alone.
