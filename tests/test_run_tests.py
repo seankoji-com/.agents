@@ -162,6 +162,7 @@ class RunTestsTest(unittest.TestCase):
                 run.assert_not_called()
 
     def test_ci_matrix_covers_every_shard_consumed_by_the_test_command(self):
+        tests = self.suite(test_contract=PASSING)
         def check(text):
             matrix = re.search(r'(?m)^        shard: (\[[^\n]+\])$', text)
             command = re.search(r'(?m)^        run: python3 scripts/run_tests.py '
@@ -170,6 +171,13 @@ class RunTestsTest(unittest.TestCase):
             self.assertIsNotNone(command, 'CI must run the full shard without test filters')
             self.assertIn('TEST_SHARD_INDEX: ${{ matrix.shard }}', text)
             self.assertEqual(sorted(json.loads(matrix.group(1))), list(range(int(command.group(1)))))
+            # The exact workflow command has no timeout override. Verify the real
+            # runner passes its promised default deadline to the selected module.
+            with patch.object(runner, 'run', return_value=(tests / 'test_contract.py', 0,
+                              'Ran 1 test in 0s\nOK\n', 0, 1)) as run:
+                code, out, _ = self.run_main('--shard-index', '0', '--shard-count', command.group(1))
+            self.assertEqual(code, 0, out)
+            self.assertEqual([call.args[1] for call in run.call_args_list], [600])
 
         for name in ('test.yml', 'release.yml'):
             with self.subTest(workflow=name):
@@ -180,6 +188,8 @@ class RunTestsTest(unittest.TestCase):
                 indices = re.search(r'(?m)^        shard: (\[[^\n]+\])$', workflow).group(1)
                 with self.assertRaises(AssertionError):
                     check(workflow.replace(indices, json.dumps(json.loads(indices)[:-1])))
+                with self.assertRaises(AssertionError):
+                    check(workflow.replace('run: python3 scripts/run_tests.py', 'run: python scripts/run_tests.py'))
 
 
 if __name__ == '__main__':

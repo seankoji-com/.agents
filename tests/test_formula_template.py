@@ -1,8 +1,11 @@
 """The Homebrew formula template must pass the tap's `brew audit --strict`."""
 import ast
+import io
 import re
+import tokenize
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = (ROOT / 'packaging' / 't3-plugins.rb.tmpl').read_text()
@@ -17,6 +20,9 @@ class FormulaTemplateTest(unittest.TestCase):
             expression = expression.replace(key, repr(value))
         expression = expression.replace('&&', ' and ').replace('||', ' or ')
         expression = re.sub(r'!(?!=)', 'not ', expression)
+        self.assertFalse(any(token.type == tokenize.COMMENT for token in
+                             tokenize.generate_tokens(io.StringIO(expression).readline)),
+                         'comments are not valid inside a GitHub condition scalar')
 
         def value(node):
             # Interpret only the boolean/comparison subset used by these gates.
@@ -55,6 +61,25 @@ class FormulaTemplateTest(unittest.TestCase):
                             self.assertEqual(self.condition(gate, **args),
                                 not cancelled and ref == 'refs/heads/master' and
                                 (result == 'success' or bool(tag) and result == 'skipped'))
+
+    def test_truth_table_rejects_a_missing_workflow_cancellation_guard(self):
+        mutated = WORKFLOW.replace(' && !cancelled()', '')
+        self.assertNotEqual(mutated, WORKFLOW)
+        # Run the real contract test so this proves its cancelled=True cases fail.
+        with patch.dict(globals(), WORKFLOW=mutated):
+            result = unittest.TestResult()
+            FormulaTemplateTest('test_publication_requires_all_shards_or_an_explicit_existing_tag_retry').run(result)
+        self.assertFalse(result.wasSuccessful())
+        self.assertTrue(result.failures)
+        self.assertFalse(result.errors)
+        self.assertTrue(any('cancelled=True' in str(case) for case, _ in result.failures))
+
+    def test_condition_rejects_comments_instead_of_silently_ignoring_clauses(self):
+        args = dict(ref='refs/heads/master', existing_tag='', result='success')
+        for expression in ('True # always()', 'True # && !cancelled()'):
+            with self.subTest(expression=expression), self.assertRaisesRegex(AssertionError, 'comments'):
+                self.condition(expression, **args)
+        self.assertTrue(self.condition("'#' == '#'", **args))
 
     def test_no_version_stanza_because_the_url_carries_it(self):
         # brew audit --strict: "`version` is redundant with version scanned from URL".
