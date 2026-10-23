@@ -30,9 +30,12 @@ this is not a personal-data detector or permission to publish.
   runner pools to numeric worker limits. Each node has `{id, needs: [], duration,
   pool, phase}`, where phase names identify setup/install/build/test/retry/report.
   Include serialization/matrix batches and cross-workflow/repo nodes explicitly.
-  `duration: null` prevents a complete time claim. A known individual duration above
-  600 seconds is still a budget gap when queue metadata is missing; its execution
-  lower bound cannot fit the budget. Record runner class, cold/warm setup, queue
+  `duration: null` prevents a complete time claim. Every computed schedule above
+  600 seconds stays a budget gap when ready/start metadata is missing, including
+  dependency chains and capacity serialization. Queue uncertainty remains explicit;
+  `available_seconds` and its percentiles remain unknown. A known individual duration
+  above 600 seconds also establishes a gap even with an incomplete graph.
+  Record runner class, cold/warm setup, queue
   intervals and capacity-wait evidence as extra metadata. The helper
   schedules ready nodes at the earliest predecessor/lane availability, with stable
   ID tie-breaking, then reports `max(finish)` as an estimate, plus summed resource
@@ -150,8 +153,14 @@ invalidates dependent current claims. Saved HTML is immutable historical evidenc
 status separately reports source freshness, expired diagnostics and supersession.
 Report verifies deterministic saved rendering without changing dates or conclusions.
 Local report identity can meet TEST-11; authenticated delivery and PR summary links
-remain separate unverified observations. Status/report exit 1 for expired or
-unavailable diagnostics, unavailable/stale source or supersession. An unrelated
+remain separate unverified observations. `analysis.evidence_rejections` records
+`source_binding_mismatch` and `artifact_identity_mismatch` separately from unmeasured
+advisories. Status/report expose those codes and exit 1 for rejected bindings,
+expired or unavailable diagnostics, unavailable/stale source or supersession.
+For older records without codes, they inspect saved input bindings without
+recomputing findings or changing the record. A complete unmeasured advisory or
+ordinary repository gap still exits 0. An organization record's absent local
+source locator alone does not reject its per-repository evidence. An unrelated
 expired reference does not erase independently supported findings or measurements.
 
 Resume creates a successor while retaining original source/scope/limits/profiles,

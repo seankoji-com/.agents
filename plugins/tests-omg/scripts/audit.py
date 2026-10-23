@@ -20,7 +20,7 @@ import time
 import uuid
 
 sys.dont_write_bytecode = True
-from analysis import VERSION, PROFILES, analyze
+from analysis import VERSION, PROFILES, analyze, evidence_rejections
 from render import render
 
 GENERATOR = '0.1.1'
@@ -455,15 +455,21 @@ def main(argv=None):
                 if digest(render(audit).encode()) != manifest['hashes']['report.html']:
                     raise ValueError('render differs from saved report')
             current_evidence = freshness == 'current' and audit['analysis']['evidence_current'] and not expired and not unavailable and not superseded
+            # Older records have the same saved input binding but no rejection
+            # codes. Inspect that binding without re-running the audit.
+            rejected = audit['analysis'].get('evidence_rejections')
+            if rejected is None:
+                rejected = evidence_rejections(audit['input'], audit['snapshot'])
             print(json.dumps({'run_id': args.run_id, 'requested_run_id': original_id,
                               'completion': audit['completion'], 'freshness': freshness,
                               'current_evidence': bool(current_evidence),
+                              'evidence_rejections': rejected,
                               'expired_evidence': expired, 'unavailable_evidence': unavailable, 'superseded_by': superseded,
                               'report': str(folder / 'report.html'), 'audit': str(folder / 'audit.json'),
                               'manifest': str(folder / 'manifest.json'), 'generator_version': GENERATOR,
                               'limitations': audit['analysis']['limitations']}))
             return 1 if (audit['completion'] != 'complete' or freshness in ('stale', 'unavailable')
-                         or expired or unavailable or superseded) else 0
+                         or rejected or expired or unavailable or superseded) else 0
         if not 1 <= args.repo_budget <= 100 or not 1 <= args.seconds <= 3600:
             raise ValueError('repo budget 1..100 and audit seconds 1..3600 required')
         if args.snapshot and args.org: raise ValueError('--snapshot requires a local repository')

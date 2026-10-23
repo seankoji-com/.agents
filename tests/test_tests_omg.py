@@ -275,6 +275,46 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(result['timing']['breaches'][0]['lower_bound_seconds'], 650)
         self.assertEqual(len(result['timing']['observed_breaches']), 1)
 
+    def test_modelled_chain_and_capacity_breaches_survive_missing_ready_metadata(self):
+        graphs = ([node('setup', 250, phase='setup'), node('unit', 250, ['setup']),
+                   node('report', 250, ['unit'], 'report')],
+                  [node('a', 250), node('b', 250), node('c', 250)])
+        for nodes in graphs:
+            with self.subTest(nodes=nodes):
+                data, snap = fixture()
+                data['runs'] = [run(nodes, workers=1, observed=100)]
+                data['runs'][0]['ready_metadata'] = False
+                result = self.analyze(data, snap)
+                self.assertEqual(self.finding(result, 2)['state'], 'gap')
+                measured = result['timing']['breaches'][0]
+                self.assertEqual(measured['modelled_seconds'], 750)
+                self.assertEqual(measured['lower_bound_seconds'], 250)
+                self.assertIsNone(measured['available_seconds'])
+                self.assertTrue(any('Ready/start' in note for note in measured['limitations']))
+                self.assertIsNone(result['timing']['available_p95'])
+                self.assertEqual(result['timing']['observed_breaches'], [])
+
+    def test_uncertain_or_incomplete_timing_cannot_establish_a_budget_pass(self):
+        for missing in ('ready_metadata', 'graph_complete', 'duration', 'dependency', 'capacity'):
+            with self.subTest(missing=missing):
+                data, snap = fixture()
+                measured = run([node('setup', 250), node('report', 250, ['setup'])], workers=1)
+                if missing in ('ready_metadata', 'graph_complete'):
+                    measured[missing] = False
+                elif missing == 'duration':
+                    measured['nodes'][0]['duration'] = None
+                elif missing == 'dependency':
+                    measured['nodes'][0]['needs'] = ['external']
+                else:
+                    measured['capacity'] = {}
+                data['runs'] = [measured]
+                result = self.analyze(data, snap)
+                self.assertEqual(self.finding(result, 2)['state'], 'unknown')
+                self.assertIsNone(result['timing']['runs'][0]['available_seconds'])
+                self.assertEqual(result['timing']['breaches'], [])
+                if missing != 'ready_metadata':
+                    self.assertNotIn('modelled_seconds', result['timing']['runs'][0])
+
     def test_complete_local_report_identity_can_meet_test_11(self):
         data, snap = fixture()
         result = self.analyze(data, snap)
@@ -579,6 +619,63 @@ class CommandTests(unittest.TestCase):
             self.assertEqual(saved['freshness'], 'unavailable')
             self.assertFalse(saved['current_evidence'])
 
+    def test_rejected_bindings_make_status_and_report_non_success(self):
+        for mismatch in ('head_sha', 'snapshot_sha256', 'missing_identity', 'run_id', 'attempt', 'check_environment'):
+            with self.subTest(mismatch=mismatch):
+                data = self.bound()
+                if mismatch in ('head_sha', 'snapshot_sha256'):
+                    data['identity'][mismatch] = 'd' * len(data['identity'][mismatch])
+                    expected = 'source_binding_mismatch'
+                elif mismatch == 'missing_identity':
+                    del data['identity']
+                    data['runs'] = [run([node('unit', 30)])]
+                    expected = 'source_binding_mismatch'
+                elif mismatch == 'check_environment':
+                    data['checks'] = [{'environment': 'other'}]
+                    expected = 'artifact_identity_mismatch'
+                else:
+                    data['artifacts'] = [{**data['identity'], mismatch: 2 if mismatch == 'attempt' else 'other'}]
+                    expected = 'artifact_identity_mismatch'
+                result = self.call('audit', self.repo, '--input', self.input(data))
+                record = json.loads(Path(result['audit']).read_text())
+                self.assertEqual(record['completion'], 'complete')
+                for op in ('status', 'report'):
+                    saved = self.call(op, result['run_id'], code=1)
+                    self.assertEqual(saved['completion'], 'complete')
+                    self.assertEqual(saved['freshness'], 'current')
+                    self.assertFalse(saved['current_evidence'])
+                    self.assertIn(expected, saved['evidence_rejections'])
+                self.assertIn(expected, record['analysis']['evidence_rejections'])
+
+    def test_unmeasured_advisory_and_repository_gap_are_successful_completed_audits(self):
+        for data in (None, self.bound()):
+            with self.subTest(measured=data is not None):
+                if data is not None:
+                    data['runs'] = [run([node('restore', 650)])]
+                args = ('--input', self.input(data)) if data is not None else ()
+                result = self.call('audit', self.repo, *args)
+                record = json.loads(Path(result['audit']).read_text())
+                self.assertEqual(record['analysis']['findings'][1]['state'], 'gap' if data else 'unknown')
+                for op in ('status', 'report'):
+                    saved = self.call(op, result['run_id'])
+                    self.assertEqual(saved['evidence_rejections'], [])
+                    self.assertEqual(saved['current_evidence'], data is not None)
+
+    def test_saved_records_without_rejection_metadata_use_saved_bindings(self):
+        data = self.bound()
+        data['artifacts'] = [{**data['identity'], 'attempt': 2}]
+        result = self.call('audit', self.repo, '--input', self.input(data))
+        record = json.loads(Path(result['audit']).read_text())
+        del record['analysis']['evidence_rejections']
+        self.state = self.base / 'legacy-state'
+        self.state.mkdir(mode=0o700)
+        helper.save(self.state, record, self.repo)
+        for op in ('status', 'report'):
+            saved = self.call(op, result['run_id'], code=1)
+            self.assertEqual(saved['evidence_rejections'], ['artifact_identity_mismatch'])
+        _, _, unchanged = helper.verify(self.state, result['run_id'])
+        self.assertNotIn('evidence_rejections', unchanged['analysis'])
+
     def test_busy_state_is_scope_blocked_not_invalid_input(self):
         import fcntl
         self.state.mkdir(mode=0o700)
@@ -657,6 +754,10 @@ class CommandTests(unittest.TestCase):
         self.assertNotIn('<h2>Ten-minute validation path</h2>', html)
         self.assertIn('Inventory denominator: meets', html)
         self.assertEqual(html.count('<th scope="row">TEST-'), 12)
+        for op in ('status', 'report'):
+            saved = self.call(op, result['run_id'])
+            self.assertEqual(saved['evidence_rejections'], [])
+            self.assertEqual(saved['freshness'], 'unknown')
         evidence['repositories']['example/a']['snapshot']['sha256'] = 'd' * 64
         evidence['repositories']['example/a']['evidence']['identity']['snapshot_sha256'] = 'd' * 64
         resumed = self.call('audit', '--org', 'example', '--input', self.input(evidence), '--resume', result['run_id'], code=2)

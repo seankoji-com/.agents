@@ -209,6 +209,28 @@ def recommendations(groups, refs, comparisons):
     return sorted(rows, key=lambda r: (r.get('priority', 999), r['id']))
 
 
+def evidence_rejections(evidence, snapshot):
+    """Binding failures, distinct from an advisory with no measured inputs.
+
+    Also usable on saved input without recalculating or upgrading its findings.
+    """
+    identity = evidence.get('identity', {})
+    claims = 'identity' in evidence or any(evidence.get(k) for k in
+        ('artifacts', 'checks', 'runs', 'findings', 'coverage', 'groups', 'comparisons', 'inspected_groups'))
+    rejected = []
+    if claims and (identity.get('head_sha') != snapshot['head_sha'] or
+                   identity.get('snapshot_sha256') != snapshot['sha256']):
+        rejected.append('source_binding_mismatch')
+    if (any(any(a.get(k) != identity.get(k) for k in
+                ('head_sha', 'tested_sha', 'run_id', 'attempt', 'environment', 'config_version'))
+            for a in evidence.get('artifacts', [])) or
+            any(any(k in c and c[k] != identity.get(k) for k in
+                    ('head_sha', 'tested_sha', 'environment', 'config_version'))
+                for c in evidence.get('checks', []))):
+        rejected.append('artifact_identity_mismatch')
+    return rejected
+
+
 def analyze(evidence, snapshot, stamp):
     findings = [base_finding(i, stamp, snapshot['head_sha']) for i in range(1, 13)]
     def setf(i, state, reason, refs=()):
@@ -227,11 +249,8 @@ def analyze(evidence, snapshot, stamp):
     identity = evidence.get('identity', {})
     current = identity.get('head_sha') == snapshot['head_sha'] and identity.get('snapshot_sha256') == snapshot['sha256']
     tested = identity.get('tested_sha')
-    artifacts = evidence.get('artifacts', [])
-    mixed = any(any(a.get(k) != identity.get(k) for k in
-                    ('head_sha', 'tested_sha', 'run_id', 'attempt', 'environment', 'config_version')) for a in artifacts)
-    mixed = mixed or any(any(k in c and c[k] != identity.get(k) for k in
-                            ('head_sha', 'tested_sha', 'environment', 'config_version')) for c in evidence.get('checks', []))
+    rejected = evidence_rejections(evidence, snapshot)
+    mixed = 'artifact_identity_mismatch' in rejected
     valid = current and not mixed and not snapshot.get('limitations')
     limitations = list(snapshot.get('limitations', []))
     if not current:
@@ -273,6 +292,7 @@ def analyze(evidence, snapshot, stamp):
     values = [r['available_seconds'] for r in runs if r['available_seconds'] is not None]
     observed = [r['observed_seconds'] for r in runs if number(r['observed_seconds'])]
     breaches = [r for r in runs if (r['available_seconds'] is not None and r['available_seconds'] > 600)
+                or (number(r.get('modelled_seconds')) and r['modelled_seconds'] > 600)
                 or r.get('lower_bound_seconds', 0) > 600]
     observed_breaches = [r for r in runs if number(r['observed_seconds']) and r['observed_seconds'] > 600]
     time_summary = {'target_seconds': 600, 'decision_rule': 'T_available <= 600s',
@@ -435,4 +455,4 @@ def analyze(evidence, snapshot, stamp):
             'completed_checks': sorted(completed), 'missing_checks': missing,
             'coverage': coverage, 'limitations': limitations,
             'sample': sampling,
-            'history': history, 'evidence_current': valid}
+            'history': history, 'evidence_current': valid, 'evidence_rejections': rejected}
