@@ -39,7 +39,7 @@ and each private proposal before requesting concrete apply approval.
    are exactly `configured`, `unknown`, `unsupported`, and
    `intentional-difference`. Do not use capability-summary states such as
    `disabled` or `not_in_supplied_sources` for wiring cells. Do not install a
-   provider to fill a disabled row or run transcript scans unless requested.
+   provider to fill a disabled row or disclose transcript scan input or output. The default tuneup includes a private local scan where supported.
 
 ```json
 {

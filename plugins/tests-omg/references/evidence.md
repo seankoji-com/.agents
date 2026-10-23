@@ -30,8 +30,10 @@ this is not a personal-data detector or permission to publish.
   runner pools to numeric worker limits. Each node has `{id, needs: [], duration,
   pool, phase}`, where phase names identify setup/install/build/test/retry/report.
   Include serialization/matrix batches and cross-workflow/repo nodes explicitly.
-  `duration: null` prevents a complete time claim. Record runner class, cold/warm
-  setup, queue intervals and capacity-wait evidence as extra metadata. The helper
+  `duration: null` prevents a complete time claim. A known individual duration above
+  600 seconds is still a budget gap when queue metadata is missing; its execution
+  lower bound cannot fit the budget. Record runner class, cold/warm setup, queue
+  intervals and capacity-wait evidence as extra metadata. The helper
   schedules ready nodes at the earliest predecessor/lane availability, with stable
   ID tie-breaking, then reports `max(finish)` as an estimate, plus summed resource
   seconds/60. This is a realizable schedule under the stated pools, not a promise
@@ -78,6 +80,9 @@ this is not a personal-data detector or permission to publish.
   (`keep|simplify|replace|delete`). Otherwise use `needs_evidence`, `action: null`,
   unresolved_claim and next_experiment. `inspected_groups` separately records actual
   inspection; the helper's reproducible sample is a selection, not proof it ran.
+  Supported actions require the group to be in `inspected_groups` and its cited
+  evidence to remain available. Otherwise the action becomes null with a next
+  experiment. Omitting any selected group leaves sample assessment incomplete.
   Null actions are neither retention nor deletion conclusions.
 - `comparisons`: `{group, same_corpus, same_environment, cases, existing_seconds,
   candidate_seconds, existing_runner_minutes, candidate_runner_minutes}`.
@@ -123,6 +128,8 @@ budget. Lower numeric priority selects high-consequence/expensive triage first a
 complete cheap inventory. Per-repo findings live in scope.results, not an aggregate fleet score.
 Missing test-value evidence is explicitly incomplete triage. Organization execution
 is refused; authorize each local repository invocation separately.
+Inaccessible incident/fix history or omitted selected groups also makes scope
+partial and prevents a fleet-wide complete-history claim.
 
 ## Records and revalidation
 
@@ -142,6 +149,10 @@ Compact records remain until owner deletion. An expired/unavailable reference
 invalidates dependent current claims. Saved HTML is immutable historical evidence;
 status separately reports source freshness, expired diagnostics and supersession.
 Report verifies deterministic saved rendering without changing dates or conclusions.
+Local report identity can meet TEST-11; authenticated delivery and PR summary links
+remain separate unverified observations. Status/report exit 1 for expired or
+unavailable diagnostics, unavailable/stale source or supersession. An unrelated
+expired reference does not erase independently supported findings or measurements.
 
 Resume creates a successor while retaining original source/scope/limits/profiles,
 authorization, cumulative elapsed effort, counters and owned handles. Source drift
@@ -149,3 +160,7 @@ refuses rebinding. Deterministic helpers own no tasks. Coordinator host work mus
 retain its own counters/handles in the pinned shared job and include tool time in
 its declared audit ceiling. Comparisons retain compatible predecessor observations;
 recommendation adoption and causal improvement still need coordinator evidence.
+An interrupted checkpoint is claimed by one successor, then retired after saving.
+Status/report on the original ID follows the saved successor; another resume of
+that interrupted ID is refused. Partial files from the original attempt remain.
+An occupied state lock is a blocked scope (exit 1), not invalid input (exit 2).

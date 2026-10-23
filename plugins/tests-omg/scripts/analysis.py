@@ -51,6 +51,7 @@ def timing(run):
               'capacity_waits': run.get('capacity_waits'), 'runner_class': run.get('runner_class'),
               'setup_temperature': run.get('setup_temperature'), 'queue_intervals': run.get('queue_intervals', [])}
     nodes = run.get('nodes', [])
+    result['lower_bound_seconds'] = max((n['duration'] for n in nodes if number(n.get('duration'))), default=0)
     capacities = run.get('capacity', {})
     if not nodes or not capacities or run.get('graph_complete') is not True:
         result['limitations'].append('Complete retained-check dependency graph and numeric capacity required.')
@@ -98,6 +99,7 @@ def timing(run):
         result['phases'][phase] = result['phases'].get(phase, 0) + n['duration']
         del remaining[n['id']]
     result.update(modelled_seconds=max(finish.values()), schedule=schedule,
+                  lower_bound_seconds=max(n['duration'] for n in nodes),
                   runner_minutes=sum(n['duration'] for n in nodes) / 60,
                   required_pool=capacities)
     if not result['limitations']:
@@ -152,10 +154,12 @@ def recommendations(groups, refs, comparisons):
         # These are not measurable universal targets. Nor can deferral satisfy
         # removal of low-value checks from the pre-merge assurance set.
         prose = ' '.join(str(row.get(k, '')) for k in ('rationale', 'next_experiment', 'savings', 'proposal'))
-        if re.search(r'80\s*%|80\s*/\s*20|80\s*percent|20\s*%.*(?:value|protection)', prose, re.I):
+        if re.search(r'80\s*/\s*20|80\s*(?:%|percent)\s*(?:of\s+(?:the\s+)?)?(?:value|protection|safety)|'
+                     r'(?:value|protection|safety)[^.!?]*80\s*(?:%|percent)', prose, re.I):
             raise ValueError('invented 80/20 protection claim')
-        if re.search(r'\b(?:move|run|defer|schedule|make|keep)\b[^.!?]*\b(?:nightly|post.merge|background|optional slow)\b|'
-                     r'\b(?:defer[^.!?]*suite|optional slow suite)\b', prose, re.I):
+        if re.search(r'\b(?:move|shift|relocate|run|defer|schedule|make|keep|offload)\b[^.!?]*\b(?:nightly|post.merge|background|optional slow)\b|'
+                     r'\b(?:nightly|post.merge|background|optional)\s+(?:slow\s+)?(?:suite|tests?|checks?|job)\b|'
+                     r'\bdefer[^.!?]*suite\b', prose, re.I):
             raise ValueError('slow-suite deferral is not a removal recommendation')
         supported = row['assessment_state'] == 'supported'
         required = ('failure', 'consequence', 'boundary', 'oracle', 'distinct_protection',
@@ -228,7 +232,7 @@ def analyze(evidence, snapshot, stamp):
                     ('head_sha', 'tested_sha', 'run_id', 'attempt', 'environment', 'config_version')) for a in artifacts)
     mixed = mixed or any(any(k in c and c[k] != identity.get(k) for k in
                             ('head_sha', 'tested_sha', 'environment', 'config_version')) for c in evidence.get('checks', []))
-    valid = current and not mixed and not unavailable and not snapshot.get('limitations')
+    valid = current and not mixed and not snapshot.get('limitations')
     limitations = list(snapshot.get('limitations', []))
     if not current:
         limitations.append('Input evidence is not bound to this source snapshot; all input conclusions are unavailable.')
@@ -237,6 +241,8 @@ def analyze(evidence, snapshot, stamp):
     if unavailable:
         limitations.append('Unavailable or expired diagnostics: ' + ', '.join(sorted(set(unavailable))))
     usable_refs = {k: v for k, v in refs.items() if k not in unavailable}
+    def supported(item):
+        return not any(ref not in usable_refs for ref in item.get('evidence', []))
     groups = evidence.get('groups', [])
     if len({g['id'] for g in groups}) != len(groups):
         raise ValueError('duplicate check group')
@@ -260,13 +266,14 @@ def analyze(evidence, snapshot, stamp):
                 raise ValueError('exception missing owner/reason/compensating evidence/expiry')
         if j.get('revision', snapshot['head_sha']) != snapshot['head_sha']:
             raise ValueError('finding revision differs from inspected snapshot')
-        if valid:
+        if valid and supported(j) and all(supported(x) for x in j.get('exceptions', [])):
             findings[i - 1].update(j)
             findings[i - 1]['dimension'] = DIMENSIONS[i - 1]
-    runs = [timing(r) for r in evidence.get('runs', [])] if valid else []
+    runs = [timing(r) for r in evidence.get('runs', []) if supported(r)] if valid else []
     values = [r['available_seconds'] for r in runs if r['available_seconds'] is not None]
     observed = [r['observed_seconds'] for r in runs if number(r['observed_seconds'])]
-    breaches = [r for r in runs if (r['available_seconds'] is not None and r['available_seconds'] > 600)]
+    breaches = [r for r in runs if (r['available_seconds'] is not None and r['available_seconds'] > 600)
+                or r.get('lower_bound_seconds', 0) > 600]
     observed_breaches = [r for r in runs if number(r['observed_seconds']) and r['observed_seconds'] > 600]
     time_summary = {'target_seconds': 600, 'decision_rule': 'T_available <= 600s',
                     'runs': runs, 'available_p50': percentile(values, .5), 'available_p95': percentile(values, .95),
@@ -279,7 +286,7 @@ def analyze(evidence, snapshot, stamp):
         setf(2, 'meets', 'All sampled capacity-adjusted estimates meet 600 seconds; these are estimates, not measured available-capacity runs.')
     elif findings[1]['state'] != 'gap':
         setf(2, 'unknown', 'Incomplete timing dependencies or ready/start metadata prevent a complete capacity-adjusted claim.')
-    attempts = evidence.get('checks', []) if valid else []
+    attempts = [c for c in evidence.get('checks', []) if supported(c)] if valid else []
     keys = set()
     counts = dict(first_attempt_passes=0, retry_passes=0, failures=0, skipped=0,
                   quarantined=0, incomplete=0)
@@ -355,7 +362,9 @@ def analyze(evidence, snapshot, stamp):
     elif not tested or any(not identity.get(k) for k in ('run_id', 'attempt', 'environment', 'tool_versions', 'config_version')):
         setf(11, 'unknown', 'Head/tested SHA, attempt, environment and tools must identify the report inputs.')
     else:
-        setf(11, 'unknown', 'Identity-bound local HTML/JSON available; authenticated download and current-head PR summary remain unverified.')
+        if findings[10]['state'] != 'gap':
+            setf(11, 'meets', 'Current snapshot-bound local HTML/JSON identifies the tested SHA, run/attempt, environment and tools. Publication is separately authorized.')
+        limitations.append('Authenticated download and current-head PR summary delivery remain unverified; local report generation grants no publication authority.')
     if valid and integrity_gap:
         setf(12, 'gap', 'Zero discovery, missing retained shard, failed/skipped/quarantined/incomplete check or required report. Wrapper success is insufficient.')
         verdict = 'incomplete'
@@ -365,6 +374,9 @@ def analyze(evidence, snapshot, stamp):
     elif findings[11]['state'] != 'gap':
         setf(12, 'unknown', 'Current complete assurance-set discovery and all retained shard outcomes are required.')
     coverage = evidence.get('coverage', {}) if valid else {}
+    if coverage and not supported(coverage):
+        coverage = {}
+        setf(4, 'unknown', 'Coverage supporting evidence expired or unavailable; revalidation required.')
     if coverage:
         fields = ('tool', 'version', 'unit', 'source_inventory', 'exclusions', 'uninstrumented',
                   'generated_vendored', 'identity_policy', 'counts', 'revision')
@@ -373,9 +385,19 @@ def analyze(evidence, snapshot, stamp):
         comparison_ok = bool(baseline and baseline.get('compatible') is True and
                              baseline.get('base_sha') == identity.get('comparison_base') and
                              baseline.get('policy') and baseline.get('instrumentation') == coverage.get('instrumentation'))
-        setf(4, 'unknown', 'Coverage execution counts are recorded; critical uncovered decisions still need inspection. ' +
-             ('Compatible named baseline.' if compatible and comparison_ok else 'Missing/incompatible denominator, shard union identity or base comparison; comparison unknown.'))
-    recs = recommendations(evidence.get('groups', []), usable_refs, evidence.get('comparisons', [])) if valid else []
+        note = ('Compatible named baseline.' if compatible and comparison_ok else
+                'Missing/incompatible denominator, shard union identity or base comparison; comparison unknown.')
+        findings[3]['coverage_comparison'] = {'state': 'compatible' if compatible and comparison_ok else 'unknown', 'reason': note}
+        if findings[3]['state'] == 'unknown' or (findings[3]['state'] == 'meets' and not (compatible and comparison_ok)):
+            setf(4, 'unknown', 'Coverage execution counts are recorded; critical uncovered decisions still need inspection. ' + note)
+    recs = recommendations(groups, refs, evidence.get('comparisons', [])) if valid else []
+    for row in recs:
+        comparison = row.get('comparison', {})
+        if ((row['assessment_state'] == 'supported' and row['id'] not in evidence.get('inspected_groups', []))
+                or not supported(row) or not supported(comparison)):
+            row.update(assessment_state='needs_evidence', action=None,
+                       unresolved_claim='Group not inspected or supporting evidence unavailable; detection claim requires revalidation.',
+                       next_experiment='Inspect this group and collect current evidence for its named failure cases and independent oracle.')
     lost = [r for r in recs if r['protection_lost']]
     if lost:
         for i in (5, 10):

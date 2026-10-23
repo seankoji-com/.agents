@@ -108,8 +108,12 @@ Resume retains source, scope, limits, counters and owned handles. Changed source
 requires revalidation in a successor audit.
 
 `status` and `report` verify saved hashes and separately report freshness, expired
-references and supersession. Rendering cannot upgrade old evidence. HTML escapes
-run-derived text, refuses executable diagnostic URLs and uses a restrictive CSP.
+references and supersession. Rendering cannot upgrade old evidence.
+Status/report exit 1 when diagnostics expired, source is stale/unavailable or the
+report was superseded. An interrupted run's original ID follows its single saved
+successor; resuming that original checkpoint again is refused.
+
+HTML escapes run-derived text, refuses executable diagnostic URLs and uses a restrictive CSP.
 Native interactive reports remain separate untrusted attachments. Sanitize personal
 fixture data before ingestion; common credential redaction is defense in depth.
 

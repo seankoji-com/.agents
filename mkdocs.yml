@@ -72,7 +72,7 @@ nav:
   - Plugins:
       - Choose a workflow: plugins/index.md
       - imps: plugins/imps.md
-      - elephant-goldfish: plugins/elephant-goldfish.md
+      - plan: plugins/plan.md
       - ape: plugins/ape.md
       - babysitter: plugins/babysitter.md
       - agent-tuneup: plugins/agent-tuneup.md

@@ -68,30 +68,10 @@
       }
     },
     "agent-tuneup": {
-      "doctor": {
-        "selection": "direct",
-        "planning": "none",
-        "reason": "Local adapter readiness has no synthesis."
-      },
-      "scan": {
-        "selection": "direct",
-        "planning": "none",
-        "reason": "Requested transcript frequencies are diagnostics, never permission recommendations."
-      },
-      "audit": {
-        "selection": "on-synthesis-or-delegation",
-        "planning": "integrated-conclusions",
-        "reason": "Review cross-scope conclusions and substantive bootstrap recommendations including no-change; raw single-file diagnostic and mechanical template stay direct."
-      },
-      "align": {
+      "tuneup": {
         "selection": "upfront",
         "planning": "proposal",
-        "reason": "Review integrated conclusions and private proposals before concrete owner approval, including no-change."
-      },
-      "apply": {
-        "selection": "upfront",
-        "planning": "unchanged-proposal",
-        "reason": "Consume reviewed unchanged proposal and concrete approval; candidate changes reopen both. No duplicate planning assessment for unchanged approved input."
+        "reason": "Inventory, audit, inspect available usage, compare and review proposals in one workflow. Concrete owner approval still gates settings changes."
       }
     },
     "ralph": {
@@ -235,6 +215,13 @@
         "selection": "direct",
         "planning": "none",
         "reason": "Local package/catalog/schema readiness has no substantive planning or synthesis."
+      }
+    },
+    "plan": {
+      "plan": {
+        "selection": "upfront",
+        "planning": "source-plan",
+        "reason": "Review the accepted discovery and testable spec before producing a handoff; planning never starts implementation."
       }
     },
     "tests-omg": {

@@ -8,42 +8,46 @@ Read `PKG/shared/learnings.md` and load this plugin's project lessons before wor
 Audit and align agent configuration without weakening permissions. Read
 `PKG/shared/t3-runtime.md` once. Delegation follows `PKG/shared/delegation.md`.
 Multi-stage jobs follow `PKG/shared/job-coordination.md`; this entry adds only
-tuneup policy. Load only the selected operation's files: `PKG/playbooks/audit.md`
-for `audit`, `PKG/playbooks/align.md` for `align` or `apply`, and
+tuneup policy. Load `PKG/playbooks/audit.md` for inspection,
+`PKG/playbooks/align.md` for comparison, proposals and approved changes, and
 `PKG/references/job-plan.md` when you create or resume a job.
 
-## Operations
+## One workflow
 
-`doctor` and `scan` are direct. They never create a job or launch a worker.
+Invoke `$t3-agent-tuneup [scope or desired outcome]`. A bare invocation runs the
+complete workflow. Do not offer audit, align, apply, scan or doctor as public
+subcommands, and do not ask the owner to choose a mode. Natural-language narrowing
+such as "only inspect this settings file" limits the work and its authority.
 
-- `doctor`: check Python and list supported adapters with
-  `python3 PKG/scripts/audit.py --list-adapters`. When the `t3-plugins` command is
-  available, add `t3-plugins agents list agent-tuneup` for local bundle integrity.
-  Doctor checks local files, not live provider behaviour.
-- `scan --provider claude`: only on explicit request, read recent Claude transcript
-  tool-call frequencies with `python3 PKG/scripts/scan_perms.py --json`. This is usage
-  evidence, not a permission recommendation. Never publish transcripts.
-- `audit --provider <name> --settings <path>`: inspect explicitly supplied settings.
-  Exit codes: `0` clean, `1` findings present, `2` unreadable or invalid settings.
-  One file with no open syntax, scope or precedence question is direct: run the
-  helper and report. When findings need provider semantics, several files or
-  scopes need comparing, or the owner wants changes proposed, coordinate a job.
-- `audit --t3-projects`: check that worktree-mode T3 projects with a tracked
-  root lockfile run a `runOnWorktreeCreate` setup script. Follow "T3 project
-  bootstrap" in `PKG/playbooks/audit.md`. It is direct, reports
-  `worktree-bootstrap-missing` with a draft `t3.json` or
-  `worktree-bootstrap-not-imported`, and writes nothing: no `t3.json`, no
-  `t3_project_update`.
-- `audit`: with no narrowing flags, audit the complete default coverage in
-  `PKG/references/central-wiring.md`, including permission sync and worktree setup.
-- `align`: inventory every provider in T3's live catalog using that same default,
-  compare centralized wiring and prepare native changes for review.
-  Inventory and proposals write no settings. Alignment across several providers is a
-  job with research and proposal stages.
-- `apply --plan <path>`: apply an unchanged, explicitly approved plan with its digest
-  and a new private backup path. Approval is for the concrete changes, not the
-  operation name. Every apply is a job with an `apply` stage, so its backup, parse,
-  load and enforcement evidence pass the validator.
+1. Check local readiness directly with `python3 PKG/scripts/audit.py --list-adapters`
+   and `t3-plugins agents list agent-tuneup` when available. Report missing tools;
+   never install a provider to make readiness pass.
+2. Inventory every provider instance in T3's current catalog and all default
+   coverage in `PKG/references/central-wiring.md`: shared instructions, skills,
+   permissions, MCPs, runtime modes, roles, duplicate orchestration and worktree setup.
+   Follow `PKG/playbooks/audit.md` for format checks and T3 bootstrap inspection.
+3. Include a local usage-frequency scan when readable Claude transcripts exist:
+   `python3 PKG/scripts/scan_perms.py --json`. Keep input and aggregate output private.
+   Report unsupported providers, absent transcripts and unreadable paths as coverage
+   gaps; do not install tools or acquire credentials. Tool frequency is diagnostic
+   evidence and never justifies broad permission rules.
+4. Follow `PKG/playbooks/align.md` to compare actual native layers, resolve scope and
+   precedence questions, and prepare reviewed changes. Collect model choices once
+   under operation `agent-tuneup/tuneup`; internal audit/align stages consume that
+   same admission without presenting another mode or chooser.
+5. Present the concrete redacted changes, access effects and private backup paths.
+   Ask for approval of those exact changes through the native question picker.
+   If declined, deliver the audit and proposals. If approved, continue within this
+   workflow through the existing backed-up apply and independent verification steps.
+   Invocation alone does not approve unseen settings changes.
+6. Report applied changes and backups, parse results, observed native loading,
+   required live enforcement and every remaining coverage gap separately.
+
+The deterministic helper commands remain internal implementation details. Their
+`audit`, `align`, `apply` and `scan` names are not additional user workflows. A
+single-file inspection can stay direct; full inventory, proposals and approved apply
+use `PKG/references/job-plan.md`. Use the `tuneup` admission for the whole job;
+concrete approval still gates adding and executing its settings-apply stage.
 
 Any T3 provider can run this audit. The target settings format is separate from the
 calling provider. Supported structured audits: Claude JSON, OpenCode JSON/JSONC,
@@ -76,7 +80,7 @@ does not fit a declared slot and its authority is refused or needs an owner deci
 - **Deterministic format checks.** `audit.py` and `align.py` decide format, changed
   keys, risk counts and write safety. A worker or model claim never overrides a
   helper exit code or refusal.
-- **Optional transcript scan.** `scan` runs only when requested. Frequency never
+- **Local usage scan.** The default workflow scans readable local transcripts; narrower requests may exclude it. Frequency never
   justifies an allow rule, and transcripts stay private.
 - **Report first.** `doctor`, `scan`, `audit` and `align` write no settings. Their
   findings, matrix and candidates are the deliverable.

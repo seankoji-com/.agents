@@ -110,7 +110,7 @@ class EvidenceTests(unittest.TestCase):
     def test_valuable_650_second_check_kept_but_budget_gap_and_all_outliers_remain(self):
         data, snap = fixture()
         data['runs'] = [run([node('restore', 650)], observed=680)]
-        data['groups'] = [group()]
+        data['groups'] = [group()]; data['inspected_groups'] = ['restore']
         r = self.analyze(data, snap)
         self.assertEqual(self.finding(r, 2)['state'], 'gap')
         self.assertEqual(r['recommendations'][0]['action'], 'keep')
@@ -182,8 +182,96 @@ class EvidenceTests(unittest.TestCase):
         self.assertIn('incompatible', self.finding(r, 4)['reason'])
         self.assertEqual(self.finding(r, 6)['state'], 'unknown')
 
+    def test_coverage_metadata_preserves_an_inspected_critical_gap(self):
+        data, snap = fixture()
+        gap = {'id': 'TEST-04', 'state': 'gap', 'reason': 'Checkout never tests a declined payment.',
+               'evidence': ['inspection'], 'confidence': 'high', 'consequence': 'Wrong charge.',
+               'owner': 'payments', 'next_action': 'Test rejection at the processor boundary.'}
+        data['findings'] = [gap]
+        data['coverage'] = {key: [] for key in ('source_inventory', 'exclusions', 'uninstrumented', 'generated_vendored')}
+        data['coverage'].update(tool='coverage', version='1', unit='line', identity_policy='file:line',
+                                counts={'lines': 20}, revision=data['identity']['tested_sha'], instrumentation='fixture',
+                                baseline={'base_sha': data['identity']['comparison_base'], 'policy': 'merge-base',
+                                          'instrumentation': 'fixture', 'compatible': True})
+        for compatible in (True, False):
+            data['coverage']['baseline']['compatible'] = compatible
+            finding = self.finding(self.analyze(data, snap), 4)
+            self.assertEqual((finding['state'], finding['reason'], finding['evidence']),
+                             ('gap', gap['reason'], ['inspection']))
+            self.assertEqual(finding['coverage_comparison']['state'], 'compatible' if compatible else 'unknown')
+
+    def test_expired_unused_reference_preserves_independent_findings_timing_and_actions(self):
+        data, snap = fixture()
+        data['references'].append({'id': 'old', 'source': 'unused diagnostic',
+                                   'observed_at': '2000-01-01T00:00:00+00:00',
+                                   'expires_at': '2000-01-02T00:00:00+00:00'})
+        data['findings'] = [{'id': 'TEST-01', 'state': 'gap', 'reason': 'Restore rejects no corrupt backup.',
+                             'evidence': ['inspection'], 'confidence': 'high', 'consequence': 'Data loss.',
+                             'owner': 'storage', 'next_action': 'Test rejection.'},
+                            {'id': 'TEST-08', 'state': 'meets', 'reason': 'Old evidence.', 'evidence': ['old'],
+                             'confidence': 'high', 'consequence': 'Recovery.', 'owner': 'storage', 'next_action': 'Review.'}]
+        data.update(groups=[group()], inspected_groups=['restore'], runs=[run([node('unit', 30)])])
+        result = self.analyze(data, snap)
+        self.assertEqual(self.finding(result, 1)['state'], 'gap')
+        self.assertEqual(self.finding(result, 8)['state'], 'unknown')
+        self.assertEqual(result['recommendations'][0]['action'], 'keep')
+        self.assertEqual(result['timing']['runs'][0]['available_seconds'], 30)
+        data['groups'][0]['evidence'] = ['old']
+        data['runs'][0]['evidence'] = ['old']
+        result = self.analyze(data, snap)
+        self.assertIsNone(result['recommendations'][0]['action'])
+        self.assertEqual(result['timing']['runs'], [])
+
+    def test_all_uninspected_supported_actions_become_unresolved(self):
+        for action in ('keep', 'simplify', 'delete', 'replace'):
+            data, snap = fixture()
+            data['groups'] = [{**group(action), 'basis': 'dead-feature'}]
+            data['comparisons'] = [{'group': 'restore', 'same_corpus': True, 'same_environment': True,
+                                    'existing_seconds': 650, 'candidate_seconds': 100,
+                                    'existing_runner_minutes': 11, 'candidate_runner_minutes': 2,
+                                    'cases': [{'id': 'restore-ledger', 'risk': 'data-loss',
+                                               'existing': 'detected', 'candidate': 'detected'}]}]
+            result = self.analyze(data, snap)
+            self.assertEqual(result['sample']['omitted'], ['restore'])
+            self.assertEqual(result['recommendations'][0]['assessment_state'], 'needs_evidence')
+            self.assertIsNone(result['recommendations'][0]['action'])
+            self.assertTrue(result['recommendations'][0]['next_experiment'])
+
+    def test_deferral_phrasings_rejected_but_wallclock_percentages_allowed(self):
+        data, snap = fixture(); data.update(groups=[group()], inspected_groups=['restore'])
+        for rationale in ('shift the expensive suite to a nightly job', 'Post-merge slow suite',
+                          'Nightly tests', 'offload checks to the background', 'keep optional slow checks'):
+            data['groups'][0]['rationale'] = rationale
+            with self.assertRaisesRegex(ValueError, 'deferral'):
+                self.analyze(data, snap)
+        for rationale in ('setup is 80% of wallclock before the assertion runs',
+                          '20% of runtime is reporting', 'Protect background transaction processing before merge.'):
+            data['groups'][0]['rationale'] = rationale
+            self.assertEqual(self.analyze(data, snap)['recommendations'][0]['action'], 'keep')
+        for rationale in ('80% value for 20% cost', 'protection is 80 percent of all future safety', '80/20 safety'):
+            data['groups'][0]['rationale'] = rationale
+            with self.assertRaisesRegex(ValueError, '80/20'):
+                self.analyze(data, snap)
+
+    def test_known_over_budget_node_is_a_gap_without_ready_metadata(self):
+        data, snap = fixture()
+        measured = run([node('restore', 650)], workers=1, observed=650)
+        measured['ready_metadata'] = False
+        data['runs'] = [measured]
+        result = self.analyze(data, snap)
+        self.assertEqual(self.finding(result, 2)['state'], 'gap')
+        self.assertIsNone(result['timing']['runs'][0]['available_seconds'])
+        self.assertEqual(result['timing']['breaches'][0]['lower_bound_seconds'], 650)
+        self.assertEqual(len(result['timing']['observed_breaches']), 1)
+
+    def test_complete_local_report_identity_can_meet_test_11(self):
+        data, snap = fixture()
+        result = self.analyze(data, snap)
+        self.assertEqual(self.finding(result, 11)['state'], 'meets')
+        self.assertIn('delivery remain unverified', ' '.join(result['limitations']))
+
     def test_critical_lost_case_cancels_replacement_and_names_protection(self):
-        data, snap = fixture(); data['groups'] = [group('replace')]
+        data, snap = fixture(); data['groups'] = [group('replace')]; data['inspected_groups'] = ['restore']
         data['comparisons'] = [{'group': 'restore', 'same_corpus': True, 'same_environment': True,
                                'cases': [{'id': 'lost-critical-ledger', 'risk': 'catastrophic-data', 'existing': 'detected', 'candidate': 'missed'},
                                          {'id': 'equivalent', 'risk': 'data', 'existing': 'equivalent', 'candidate': 'equivalent'},
@@ -198,17 +286,17 @@ class EvidenceTests(unittest.TestCase):
         self.assertIn('lost-critical-ledger', json.dumps(self.finding(r, 5)))
 
     def test_unsupported_claims_duplicates_and_forbidden_savings_are_rejected(self):
-        data, snap = fixture(); data['groups'] = [group()]
+        data, snap = fixture(); data['groups'] = [group()]; data['inspected_groups'] = ['restore']
         for rationale in ('80% value for 20% cost', 'Move slow suite to nightly', 'Run in background', 'defer slow suite until later'):
             data['groups'][0]['rationale'] = rationale
             with self.assertRaises(ValueError): self.analyze(data, snap)
-        data['groups'] = [{**group('delete'), 'basis': 'confirmed-duplication'}]
+        data['groups'] = [{**group('delete'), 'basis': 'confirmed-duplication'}]; data['inspected_groups'] = ['restore']
         with self.assertRaisesRegex(ValueError, 'same lines'): self.analyze(data, snap)
         data['groups'][0]['independent_boundary_analysis'] = 'Same process and oracle; no real second boundary.'
         self.assertEqual(self.analyze(data, snap)['recommendations'][0]['action'], 'delete')
-        data['groups'] = [{'id': 'unknown'}]
+        data['groups'] = [{'id': 'unknown'}]; data['inspected_groups'] = []
         self.assertIsNone(self.analyze(data, snap)['recommendations'][0]['action'])
-        data['groups'] = [group()]
+        data['groups'] = [group()]; data['inspected_groups'] = ['restore']
         data['groups'][0]['rationale'] = 'Protect background transaction processing and nightly ledger imports before merge.'
         self.assertEqual(self.analyze(data, snap)['recommendations'][0]['action'], 'keep')
 
@@ -221,7 +309,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(len(a['selected']), 4)
 
     def test_incomplete_inventory_invalidates_supported_recommendations(self):
-        data, snap = fixture(); data['groups'] = [group()]
+        data, snap = fixture(); data['groups'] = [group()]; data['inspected_groups'] = ['restore']
         snap['limitations'] = ['Source inventory file/time/32MiB budget exhausted.']
         result = self.analyze(data, snap)
         self.assertFalse(result['evidence_current'])
@@ -257,7 +345,7 @@ class EvidenceTests(unittest.TestCase):
             self.assertEqual(result['validation_verdict'], 'incomplete')
 
     def test_replacement_needs_named_detection_and_compute_comparison(self):
-        data, snap = fixture(); data['groups'] = [group('replace')]
+        data, snap = fixture(); data['groups'] = [group('replace')]; data['inspected_groups'] = ['restore']
         comparison = {'group': 'restore', 'same_corpus': True, 'same_environment': True,
                       'cases': [{'id': 'restore-ledger', 'risk': 'data-loss',
                                  'existing': 'detected', 'candidate': 'detected'}]}
@@ -437,6 +525,11 @@ class CommandTests(unittest.TestCase):
         record = json.loads(Path(result['audit']).read_text())
         self.assertEqual(record['scope']['resumed_from'], interrupted['run_id'])
         self.assertGreaterEqual(record['scope']['elapsed_seconds'], saved['elapsed_seconds'])
+        status = self.call('status', interrupted['run_id'])
+        self.assertEqual(status['requested_run_id'], interrupted['run_id'])
+        self.assertEqual(status['run_id'], result['run_id'])
+        self.assertFalse(helper.pending_path(self.state, interrupted['run_id']).exists())
+        self.assertIn('already resumed', self.call('audit', self.repo, '--resume', interrupted['run_id'], code=1)['error'])
 
     def test_interrupted_report_write_resumes_without_discarding_partial_files(self):
         def interrupted_save(root, audit, locator):
@@ -456,6 +549,41 @@ class CommandTests(unittest.TestCase):
         record = json.loads(Path(result['audit']).read_text())
         self.assertEqual(record['scope']['resumed_from'], interrupted['run_id'])
         self.assertEqual((old / 'input.json').read_text(), '{}')
+        self.assertEqual(self.call('report', interrupted['run_id'])['run_id'], result['run_id'])
+
+    def test_expired_unavailable_and_missing_source_status_report_exit_one(self):
+        for field in ('expires_at', 'available'):
+            data = self.bound()
+            data['references'][0][field] = '2000-01-01T00:00:00+00:00' if field == 'expires_at' else False
+            result = self.call('audit', self.repo, '--input', self.input(data))
+            for op in ('status', 'report'):
+                saved = self.call(op, result['run_id'], code=1)
+                self.assertFalse(saved['current_evidence'])
+                self.assertEqual(saved['freshness'], 'current')
+                self.assertEqual(saved['expired_evidence'] if field == 'expires_at' else saved['unavailable_evidence'], ['inspection'])
+        result = self.call('audit', self.repo)
+        shutil.rmtree(self.repo / '.git')
+        for op in ('status', 'report'):
+            saved = self.call(op, result['run_id'], code=1)
+            self.assertEqual(saved['freshness'], 'unavailable')
+            self.assertFalse(saved['current_evidence'])
+
+    def test_busy_state_is_scope_blocked_not_invalid_input(self):
+        import fcntl
+        self.state.mkdir(mode=0o700)
+        with (self.state / '.lock').open('w') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = self.call('audit', self.repo, code=1)
+        self.assertEqual(result['completion'], 'blocked')
+        self.assertIn('temporarily unavailable', result['error'])
+
+    def test_partly_inspected_sample_is_not_presented_as_complete(self):
+        data = self.bound()
+        data.update(groups=[{'id': 'unit'}, {'id': 'restore', 'tags': ['critical']}], inspected_groups=['unit'])
+        result = self.call('audit', self.repo, '--input', self.input(data))
+        record = json.loads(Path(result['audit']).read_text())
+        self.assertEqual(record['scope']['test_value_assessment'], 'incomplete')
+        self.assertEqual(record['analysis']['sample']['omitted'], ['restore'])
 
     def test_execution_publication_and_model_admission_boundaries(self):
         data = self.bound(); data['execution'] = [{'argv': ['python3', 'test_contract.py'], 'cwd': '.',
@@ -467,7 +595,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(json.loads(Path(report['audit']).read_text())['input']['execution'][0]['exit_code'], 1)
         data['execution'][0]['production'] = True
         self.call('audit', self.repo, '--input', self.input(data), '--run-checks', code=2)
-        data.pop('execution'); data['groups'] = [group()]
+        data.pop('execution'); data['groups'] = [group()]; data['inspected_groups'] = ['restore']
         self.assertIn('model-selection', self.call('audit', self.repo, '--input', self.input(data), code=2)['error'])
         from shared import model_selection
         from tests.model_selection_fixtures import selection_input
@@ -504,7 +632,7 @@ class CommandTests(unittest.TestCase):
 
     def test_org_html_findings_belong_to_repositories_not_an_aggregate(self):
         data = self.bound(); snap = self.call('audit', self.repo, '--snapshot')
-        data.update(groups=[{'id': 'unit'}], inspected_groups=['unit'])
+        data.update(groups=[{'id': 'unit'}], inspected_groups=['unit'], history={'runs_complete': True, 'bugs_accessible': True})
         evidence = {'org': {'owner': 'example', 'expected_repos': ['example/a'], 'expected_source': 'owner scope',
                            'pages': [{'page': 1, 'repos': [{'name': 'example/a', 'classification': 'cli'}], 'next_page': None}]},
                     'repositories': {'example/a': {'snapshot': snap, 'evidence': data}}}
@@ -546,6 +674,25 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(result['denominator_state'], 'unknown')
         self.assertFalse(result['fleet_wide'])
         self.assertIn('run/job/attempt history incomplete: example/a', result['errors'])
+
+    def test_org_incident_access_and_selected_sample_limit_fleet_completeness(self):
+        data, snap = fixture()
+        data.update(groups=[{'id': 'unit'}], inspected_groups=['unit'])
+        evidence = {'org': {'owner': 'example', 'expected_repos': ['example/a'], 'expected_source': 'owner scope',
+                            'pages': [{'page': 1, 'repos': [{'name': 'example/a', 'classification': 'cli'}], 'next_page': None}]},
+                    'repositories': {'example/a': {'snapshot': snap, 'evidence': data}}}
+        for bugs_accessible in (False, None, True):
+            data['history']['bugs_accessible'] = bugs_accessible
+            result = helper.inventory('example', evidence, 10, 120)
+            self.assertEqual(result['completion'], 'complete' if bugs_accessible else 'partial')
+            self.assertEqual(result['denominator_state'], 'meets' if bugs_accessible else 'unknown')
+            self.assertEqual(result['fleet_wide'], bool(bugs_accessible))
+            if not bugs_accessible:
+                self.assertIn('incident/fix history inaccessible: example/a', result['errors'])
+        data['groups'].append({'id': 'restore', 'tags': ['critical']})
+        result = helper.inventory('example', evidence, 10, 120)
+        self.assertEqual(result['completion'], 'partial')
+        self.assertFalse(result['fleet_wide'])
 
     def test_state_inside_repo_symlinks_and_invalid_json_are_refused(self):
         self.state = self.repo / 'forbidden-state'

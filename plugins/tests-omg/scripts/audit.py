@@ -23,7 +23,7 @@ sys.dont_write_bytecode = True
 from analysis import VERSION, PROFILES, analyze
 from render import render
 
-GENERATOR = '0.1.0'
+GENERATOR = '0.1.1'
 PACKAGE = Path(__file__).resolve().parents[1]
 MAX_INPUT = 8 * 1024 * 1024
 
@@ -293,9 +293,13 @@ def inventory(org, data, repo_budget, seconds):
             results.append({'repository': name, 'analysis': result})
             if not result['evidence_current'] or not pack['evidence'].get('inspected_groups'):
                 errors.append('test value assessment incomplete: ' + name)
+            if result['sample']['omitted']:
+                errors.append('selected test value sample incomplete: ' + name)
             history = pack['evidence'].get('history', {})
             if history.get('runs_complete') is not True or history.get('errors'):
                 errors.append('run/job/attempt history incomplete: ' + name)
+            if history.get('bugs_accessible') is not True:
+                errors.append('incident/fix history inaccessible: ' + name)
         else:
             results.append({'repository': name, 'test_value_assessment': 'incomplete',
                             'reason': 'Inventory triage only; no snapshot-bound test-value evidence.',
@@ -363,6 +367,10 @@ def save(root, audit, locator):
                               'history_window': audit['input'].get('history', {}), 'predecessor': predecessor,
                               'generated_at': audit['generated_at'], 'superseded_by': None})
         write(index_path, canonical(index))
+        resumed = audit['scope'].get('resumed_from')
+        if resumed and pending_path(root, resumed).exists():
+            write(root / ('resumed-' + resumed + '.json'), canonical({'successor': audit['run_id']}))
+            pending_path(root, resumed).unlink()
     return folder
 
 
@@ -419,6 +427,10 @@ def main(argv=None):
             result = doctor(); print(json.dumps(result)); return 0 if not result['errors'] else 1
         if args.command in ('status', 'report'):
             root = state_root(args.state_root, create=False)
+            original_id = args.run_id
+            redirect = root / ('resumed-' + args.run_id + '.json')
+            if redirect.exists():
+                args.run_id = load(redirect)['successor']
             pp = pending_path(root, args.run_id)
             if pp.exists() and not (run_dir(root, args.run_id) / 'manifest.json').exists():
                 record = load(pp)
@@ -434,6 +446,7 @@ def main(argv=None):
                 except (OSError, ValueError, subprocess.TimeoutExpired): freshness = 'unavailable'
             expired = [r['id'] for r in audit['input'].get('references', []) if r.get('expires_at') and
                        datetime.fromisoformat(r['expires_at'].replace('Z', '+00:00')) <= datetime.now(timezone.utc)]
+            unavailable = [r['id'] for r in audit['input'].get('references', []) if r.get('available') is False]
             index = load(root / 'index.json')
             superseded = next((r.get('superseded_by') for r in index['runs'] if r['run_id'] == args.run_id), None)
             # Re-render only the saved record. Do not upgrade any observation.
@@ -441,13 +454,16 @@ def main(argv=None):
                 if manifest['generator_version'] != GENERATOR: raise ValueError('use pinned generator version to re-render')
                 if digest(render(audit).encode()) != manifest['hashes']['report.html']:
                     raise ValueError('render differs from saved report')
-            print(json.dumps({'run_id': args.run_id, 'completion': audit['completion'], 'freshness': freshness,
-                              'current_evidence': freshness == 'current' and audit['analysis']['evidence_current'] and not expired and not superseded,
-                              'expired_evidence': expired, 'superseded_by': superseded,
+            current_evidence = freshness == 'current' and audit['analysis']['evidence_current'] and not expired and not unavailable and not superseded
+            print(json.dumps({'run_id': args.run_id, 'requested_run_id': original_id,
+                              'completion': audit['completion'], 'freshness': freshness,
+                              'current_evidence': bool(current_evidence),
+                              'expired_evidence': expired, 'unavailable_evidence': unavailable, 'superseded_by': superseded,
                               'report': str(folder / 'report.html'), 'audit': str(folder / 'audit.json'),
                               'manifest': str(folder / 'manifest.json'), 'generator_version': GENERATOR,
                               'limitations': audit['analysis']['limitations']}))
-            return 1 if audit['completion'] != 'complete' or freshness == 'stale' else 0
+            return 1 if (audit['completion'] != 'complete' or freshness in ('stale', 'unavailable')
+                         or expired or unavailable or superseded) else 0
         if not 1 <= args.repo_budget <= 100 or not 1 <= args.seconds <= 3600:
             raise ValueError('repo budget 1..100 and audit seconds 1..3600 required')
         if args.snapshot and args.org: raise ValueError('--snapshot requires a local repository')
@@ -459,6 +475,8 @@ def main(argv=None):
         if not args.snapshot:
             root = state_root(args.state_root, requested['repository_path'])
             old_pending = pending_path(root, args.resume) if args.resume else None
+            if args.resume and (root / ('resumed-' + args.resume + '.json')).exists():
+                raise ScopeUnavailable('Interrupted run already resumed; use its successor from status.')
             if old_pending and old_pending.exists() and not (run_dir(root, args.resume) / 'manifest.json').exists():
                 resumed_pending = load(old_pending)
                 if resumed_pending['requested_scope'] != requested:
@@ -470,7 +488,14 @@ def main(argv=None):
                        'elapsed_before_attempt': (resumed_pending or {}).get('elapsed_seconds', 0),
                        'counters': (resumed_pending or {}).get('counters', {'repos': 0}),
                        'owned_handles': (resumed_pending or {}).get('owned_handles', [])}
-            checkpoint(root, pending)
+            with locked(root):
+                if resumed_pending:
+                    original = load(old_pending)
+                    if original.get('resumed_by'):
+                        raise ScopeUnavailable('Interrupted run already resuming; use its successor ' + original['resumed_by'])
+                    original.update(phase='resuming', resumed_by=pending['run_id'])
+                    write(old_pending, canonical(original))
+                write(pending_path(root, pending['run_id']), canonical(pending))
         if args.org:
             if args.run_checks: raise ValueError('org execution requires individually scoped repository invocations')
             data = load(args.input) if args.input else {}
@@ -505,9 +530,10 @@ def main(argv=None):
                      'owner': 'repository owner', 'next_action': 'Classify risk and compose profiles.' if not args.profiles else 'Inspect named critical decisions.',
                      'limits': {'seconds': args.seconds, 'repos': 1}, 'counters': {'repos': 1},
                      'run_checks': args.run_checks, 'owned_handles': [],
-                     'test_value_assessment': 'inspected sample' if data.get('inspected_groups') else 'incomplete',
                      'inspected_groups': data.get('inspected_groups', [])}
             result = analyze(data, snap, now())
+            scope['test_value_assessment'] = ('inspected sample' if result['evidence_current'] and
+                                               result['sample']['inspected'] and not result['sample']['omitted'] else 'incomplete')
             repo = data.get('repository') or locator.name
             completion = 'partial' if snap['limitations'] or time.monotonic() - started > args.seconds else 'complete'
         root = state_root(args.state_root, locator)
@@ -558,7 +584,7 @@ def main(argv=None):
         print(json.dumps({'completion': 'partial', 'run_id': pending['run_id'] if pending else None,
                           'error': 'Audit interrupted; no readiness claim. Resume the saved scope without resetting its budget.'})); return 1
     except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError, RecursionError, OverflowError, subprocess.TimeoutExpired) as exc:
-        code = 1 if isinstance(exc, (ScopeUnavailable, subprocess.TimeoutExpired)) else 2
+        code = 1 if isinstance(exc, (ScopeUnavailable, BlockingIOError, subprocess.TimeoutExpired)) else 2
         if pending:
             try:
                 pending.update(completion='blocked', phase='blocked', error=str(exc),
