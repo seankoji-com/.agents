@@ -306,6 +306,23 @@ class UpdateAndResolutionTest(ContinuousCase):
                 'rejected', 'host confirmed that the helper was never launched')
             self.assertEqual(refused['dispatch']['status'], 'rejected')
 
+    def test_terminal_wrapper_does_not_prove_the_same_head_put_was_rejected(self):
+        for index, (helper, _, _) in enumerate(self.adapters()):
+            self.state = self.base / f'wrapper-{index}.json'
+            self.start(helper=helper)
+            self.cli('observe', '--now', NOW,
+                payload=observation(pr(merge_state='BEHIND')), helper=helper)
+            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                     '--request-id', 'wrapper', '--head', H1, '--reserve', helper=helper)
+            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                     '--request-id', 'wrapper', '--host-task-id', 'update-task', helper=helper)
+            before = self.state.read_bytes()
+            for status in ('failed', 'cancelled', 'rejected', 'succeeded', 'superseded', 'no-change'):
+                self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                    '--request-id', 'wrapper', '--host-task-id', 'update-task',
+                    '--status', status, helper=helper, ok=False)
+                self.assertEqual(self.state.read_bytes(), before)
+
     def test_live_resolution_is_next_action_until_matching_terminal_receipt_in_both_adapters(self):
         for index, (helper, adapter, _) in enumerate(self.adapters()):
             for shape in ('full', 'reader'):

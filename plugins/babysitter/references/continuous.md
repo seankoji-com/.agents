@@ -155,12 +155,13 @@ An accepted PUT without a confirmed new head, including after all five polls, is
 `update_pending update_outcome=accepted`. A lost response or ambiguous server error
 is `update_pending update_outcome=unknown`; neither permits another write. Only a
 confirmed HTTP rejection reports `update_rejected update_outcome=rejected`.
-For synchronous updates retain the helper's `request_id`, `returncode` and `stdout`
+Record the reservation's `request_id` and the helper's `returncode` and `stdout`
 as JSON in `receipt --result <file>`: record `uncertain`, `rejected` or `succeeded`
 according to that result. The adapter accepts the same JSON as `helper_result`.
 An uncertain synchronous PUT keeps its reservation across same-head reads until a
 later new head or matching confirmed helper outcome settles it. New-head checks
-must still be fresh. Asynchronous task handles require their terminal host receipt.
+must still be fresh. Asynchronous handles require a matching terminal host receipt;
+wrapper termination alone cannot settle an unconfirmed PUT at the same head.
 Live updates and resolutions, including `reserved` and `uncertain`, remain the next
 action with request ID, host handle and status until a matching terminal receipt.
 Status includes dispatch records even when the PR becomes excluded or closes.

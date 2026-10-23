@@ -1872,8 +1872,11 @@ def cmd_receipt(args):
                 # An explicit host launch refusal precedes any PUT. Once a helper
                 # has reported an accepted/unknown PUT, only its evidence or a new
                 # head can settle it, even if the surrounding host task terminates.
-                require(not row.get('update_outcome') and (
-                    args.status == 'rejected' or row.get('host_task_id')),
+                current_head = (pr.get('observation') or {}).get('head_sha')
+                require((args.status == 'rejected' and not row.get('host_task_id')
+                         and not row.get('update_outcome')) or (
+                    row.get('host_task_id') and current_head != row.get('head')
+                    and re.fullmatch(r'[0-9a-f]{40}', str(current_head or ''))),
                         'a synchronous update requires --result with a matching helper '
                         'outcome; an unconfirmed PUT stays uncertain until a new head '
                         'observation or confirmed rejection')
