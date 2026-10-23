@@ -1,10 +1,12 @@
 # ralph
 
+Choose Open PR, Tagged Version or Verified in Prod upfront unless supplied. Recommend finite exact work/reviewer backup chains once; unchanged resume does not ask retain-or-stop. Reconcile the original task before approved fallback and recheck independence against every actual author. The full different-lineage evaluation remains mandatory. `readyForPublication` reports source readiness; `complete` and `endpointComplete` require actual evidence for the selected target. Legacy checkpoints keep their original pinned package and authority; new targets require an admitted restart preserving findings and remaining limits.
+
 ralph splits building from judging. One model implements your goal in a fresh T3 task;
 a model from a different lineage evaluates the result in another fresh task. Any
 feedback at all, even a minor suggestion, sends the work back to a new implementation
-task with the same model and worktree. When the evaluator reports the goal met with
-nothing left to say, ralph opens a PR.
+task in the same worktree under the approved work chain. When the evaluator reports the goal met with
+nothing left to say, source evaluation is complete and the selected delivery gates follow.
 
 ## Try it
 
@@ -12,8 +14,8 @@ nothing left to say, ralph opens a PR.
 $t3-ralph fix the parser and add regression coverage
 ```
 
-ralph first asks you to choose the implementer and the evaluator from T3's live model
-catalog. Then it runs attempts until the evaluator is satisfied or the limit (five by
+ralph inspects context, then recommends exact work/reviewer chains and options from
+T3's live catalog in one scoped agreement unless already supplied. Then it runs attempts until the evaluator is satisfied or the limit (20 by
 default) runs out. Other forms:
 
 ```text
@@ -31,19 +33,21 @@ catalog v0.5.0 or later. If `t3-plugins list` doesn't include it, run
 
 ## What you get
 
-- for a code change that passes: a normal PR from the run's branch;
+- for a code change that passes: the agreed Open PR, Tagged Version or Verified in Prod endpoint;
 - otherwise: the remaining feedback and the checkpoint path, never a success claim;
 - a checkpoint file outside the repository with every task ID, the chosen models, the
   worktree and each round's result, so `status` and `resume` work across sessions.
 
-## Choose the pair
+## Choose the models
 
-Each new run collects both models from the live T3 catalog, including custom models,
-and keeps that pair for the whole run. Questions come in short rounds: implementer,
-evaluator, then each missing option. Explicit answers skip their questions. A lineage
+Each new run records task-suitable exact work/reviewer primary and finite backup
+chains, their supported options and authority from the live T3 catalog, including
+custom models. Questions come in short rounds: implementer,
+evaluator, then each missing option or backup decision. Explicit answers skip their questions. A lineage
 or sharing conflict gets its own short question only when it needs a decision.
 The picker shows a short relevant list; the final summary records roles, exact
-models, options and scope before dispatch. One provider can host
+models, options, scope and authority before dispatch. All required evaluators must
+be independent of every actual author. One provider can host
 several model lineages, so picking two providers doesn't prove independence. Unknown
 lineage labels need your confirmation; if the pair can't be shown to be independent,
 the run doesn't start.
@@ -57,7 +61,7 @@ asks you to switch the parent to Full Access.
 
 ## Feedback and stopping
 
-The default limit is five implementation attempts, including the first. Use
+The default limit is 20 implementation attempts, including the first. Use
 `--max-attempts N` to change it. The evaluator reports whether the observable goal
 was achieved, every feedback item, and the evidence it inspected. Success requires
 both an achieved goal and no feedback in a full review. Even a minor suggestion triggers another
@@ -72,19 +76,10 @@ the same worktree. It does not discard previous attempts or swap models after
 criticism.
 
 The first evaluation is a full review of the goal and the whole change. After a
-rejection, the next evaluation is a narrower re-review that continues the
-rejecting evaluator's conversation, so it doesn't re-read the code from scratch. It
-checks each open feedback item and the files changed since the rejecting review. That
-re-review can send the work back, but it can't finish the run. When it finds nothing,
-a full fresh review of the same tree decides, and that extra review doesn't use up
-an attempt. Long runs spend most of their rounds on cheap re-reviews; a run that
-passes on its second evaluation pays for one extra narrow review.
-
-An evaluator that remembers its earlier verdict tends to stick to it, so only these
-re-reviews continue a conversation: they can send work back but never approve it.
-The final full review and every implementation attempt start fresh. T3's own
-guidance asks for each review round to be a new task; ralph departs from it for
-re-reviews only.
+rejection, a fresh tracked task checks open feedback and changed files. This delta
+review can request repair but cannot finish the run; a full fresh review decides
+acceptance. Every new agreement-bound review round uses `delegate_task`. Legacy
+pinned packages retain their historical delta-conversation contract.
 
 A saved checkpoint keeps request IDs, task IDs, chosen targets, the worktree, and
 round results across completion notifications and parent turns. T3 runs the tasks;
@@ -105,22 +100,19 @@ clear after their terminal statuses are observed, restoring the earlier stage.
 Missing model identity needs an exact saved T3 delegation receipt or authoritative
 status; ralph never guesses aliases or accepts an unverified model as success.
 
-## PR delivery
+## Selected delivery
 
-Successful runs that produce code changes normally finish by opening a normal PR.
-ralph may edit, test, commit owned paths, push the task branch, and open that PR.
-Your narrower instructions take precedence. It follows repository checks and
-pre-PR review requirements, uses the intended base, and verifies the PR head.
-It does not merge, deploy, release, or send messages without separate authority.
-Runs with no code changes return the evaluated result without an empty PR.
+The scoped agreement selects Open PR, Tagged Version or Verified in Prod. It
+records action authority for the necessary displayed path. Open PR requires a
+real linked intended-base/current-head PR with required local checks, independent
+review and current-head CI passed. Later endpoints follow the target repository
+release/deployment procedures and require actual revision/version observations.
+A queued workflow, local tag, image alone or healthy older runtime cannot pass.
+No-change work reports its evaluated outcome without inventing a PR or tag.
 
-The evaluator reviews committed output before publication. A subsequent edit or
-commit requires fresh evaluation. Unrelated dirty work stays outside the commit.
-The checkpoint reports paths changed since the run started. The parent still
-checks ownership and whether those paths are code changes before opening a PR.
-If publication fails, ralph reports the evaluated result and the separate PR
-delivery blocker. Current-head CI, merge, deployment and live acceptance remain
-separate outcomes.
+Source evaluation and endpoint completion remain separate. Subsequent source edits
+require fresh evaluation. Publication failure retains the checkpoint and exact
+blocker without downgrading the selected endpoint.
 
 Cancellation stops only this run's tracked children. ralph waits for T3 to confirm
 they and their pending turns have stopped; requesting cancellation is not proof.
@@ -141,10 +133,11 @@ Jobs created through the shared CLI carry `policy.identity: observed`. Required 
 
 ## Resume and written strategies
 
-New runs freeze work/review choices. Explicit resume offers retain-or-stop for the
-pinned pair and options; it cannot rotate targets after feedback. Automatic wakes
-reuse the active choices. Legacy checkpoints remain readable and need explicit
-retain-or-stop admission before new work.
+Unchanged resume and notification wakes reuse the saved agreement, choices and
+remaining budgets without another chooser. Approved outage replacements require
+original-task reconciliation and exact options. Healthy adverse reviews require
+repair. Legacy checkpoints stay with their original pinned package; new authority
+needs a separately admitted restart preserving findings and remaining limits.
 
 Ordinary iterations add no planning artifact or evaluator. An actually written
 strategy receives planning review before dependent work. Its fallback policy cannot

@@ -20,6 +20,9 @@ import time
 from urllib.parse import urlparse
 import uuid
 
+ROOT = next(p for p in Path(__file__).resolve().parents if (p / 'shared/execution_agreement.py').is_file())
+sys.path.insert(0, str(ROOT))
+
 if sys.version_info < (3, 10):
     raise SystemExit('bug-report requires Python 3.10+')
 try:
@@ -253,6 +256,11 @@ class Store:
                         self.write(fd, existing + '.json', other)
                     return {'existing_session': existing, **summary(other)}
                 require(s is None, 'session ID already belongs to another incident')
+                selected = data.get('selection')
+                if data.get('require_agreement') or selected:
+                    from shared import execution_agreement, model_selection
+                    model_selection.validate(selected, data.get('selection_sha256'))
+                    execution_agreement.admit(selected, operation='bug-report/run')
                 s = {'schema': 1, 'id': sid, 'incident_hash': key, 'owner_thread': data['owner_thread'],
                      'reporting_thread': None, 'created_at': now, 'last_clock': now,
                      'private_values': list(dict.fromkeys(private)), 'problems': {}, 'searches': {},
@@ -260,6 +268,9 @@ class Store:
                      'operations': {}, 'comments': {}, 'requests': [], 'coverage_gaps': [],
                      'monitor_started_at': None, 'deadline': None, 'schedule': None,
                      'cleanup': 'not-needed', 'cancelled': False, 'blockers': [], 'failures': {}}
+                if selected:
+                    s['selection'] = selected
+                    s['agreement_sha256'] = selected['agreement']['agreement_sha256']
                 # Reserve ownership first. A crash before the session write leaves a
                 # recoverable hold, never an unindexed session that can dispatch twice.
                 index[key] = sid
@@ -405,6 +416,9 @@ def public_request(kind, payload, canonical, observation, transport, route=None)
 
 
 def transition(s, action, d, now):
+    if s.get('selection') and action not in ('cancel', 'finish', 'reconcile', 'wake', 'gap', 'block'):
+        from shared import execution_agreement
+        execution_agreement.admit(s['selection'], operation='bug-report/run', expected=s['agreement_sha256'])
     if action == 'problem':
         alive(s, now)
         pid = d.get('id', '')
@@ -458,6 +472,11 @@ def transition(s, action, d, now):
                 'unfinished operation requires reconciliation')
         if kind != 'cleanup':
             alive(s, now)
+        if s.get('selection') and kind in ('issue', 'idea', 'comment', 'reply'):
+            from shared import execution_agreement
+            execution_agreement.admit(s['selection'], operation='bug-report/run',
+                action='publish-discussion' if kind in ('idea', 'reply') else 'publish-issues',
+                expected=s['agreement_sha256'])
         if kind == 'diagnostic' or (kind == 'read' and s['deadline'] is None):
             require(s['budget']['active_since'] is not None and budget(s, now) < s['budget']['seconds'],
                     'start active budget before investigation')
@@ -755,6 +774,10 @@ def main(argv=None):
     try:
         data = json.loads(a.input.read_text()) if a.input else {}
         require(isinstance(data, dict), 'JSON input must be an object')
+        if a.action == 'init':
+            root = next(p for p in Path(__file__).resolve().parents if (p / 'shared/execution_agreement.py').is_file())
+            sys.path.insert(0, str(root))
+            data['require_agreement'] = True
         store = Store(a.state_root)
         out = store.status(a.session) if a.action == 'status' else store.apply(a.session, a.action, data)
         print(json.dumps({'ok': True, 'data': out}, allow_nan=False))

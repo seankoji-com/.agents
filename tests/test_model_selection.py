@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 from shared import model_selection as models
 from shared.job_coordinator import selection_for_task, prepare_task
 from core.jobs.store import JobError
-from tests.model_selection_fixtures import answer, selection_input, replacement
+from tests.model_selection_fixtures import answer, selection_input, canonical_selection_input, replacement
 
 
 class SelectionTests(unittest.TestCase):
@@ -205,11 +205,11 @@ class SelectionTests(unittest.TestCase):
             models.freeze(data)
 
     def test_lineage_conflict_names_origin_and_correction_without_changing_selection(self):
-        for origin, role, family in (('routing', 'workhorse', 'alpha'),
-                                     ('profile', 'workhorse', 'alpha'),
-                                     ('profile', 'reviewer', 'beta')):
+        for origin, role, family in (('routing', 'workhorse', 'openai'),
+                                     ('profile', 'workhorse', 'openai'),
+                                     ('profile', 'reviewer', 'anthropic')):
             with self.subTest(origin=origin, role=role):
-                data = deepcopy(self.data)
+                data = canonical_selection_input()
                 data['routing_scope'] = 'global'
                 if origin == 'routing':
                     row = {**data['work']['workhorse'], 'lineage': 'not-alpha'}
@@ -384,13 +384,39 @@ class SelectionTests(unittest.TestCase):
                      'never privacy, suitability, scope or review-independence gates'):
             self.assertIn(text, contract)
         ralph = (ROOT / 'plugins/ralph/playbooks/loop.md').read_text()
-        self.assertIn('then each still-missing option in separate questions', ralph)
+        self.assertIn('then each still-missing option or backup decision in separate questions', ralph)
         self.assertIn('keep the implementer answer', ralph)
         self.assertIn("target's correction, retaining other answers", ralph)
         for name in ('shared/t3-runtime.md', 'shared/adopter-planning.md',
                      'plugins/focus-group/entry.md', 'plugins/focus-group/playbooks/plan.md',
-                     'plugins/ape/references/planning-review.md'):
+                     'plugins/ape/references/planning-review.md', 'shared/upfront-agreement.md'):
             self.assertIn('short rounds', (ROOT / name).read_text())
+
+    def test_agreement_dispatch_preserves_global_scope_and_native_option_judgement(self):
+        from tests.upfront_fixtures import agree
+        data = canonical_selection_input()
+        data.update(operation='ralph/run', routing_scope='global',
+                    source=answer('Use the configured alpha-work as workhorse globally'))
+        data['routing'] = {'roles': {'workhorse': [data['work']['workhorse']],
+                                    'reviewer': [data['review_panel'][0]['target']]}}
+        del data['profiles']['models'][0]
+        # Native catalog values must still count as selectable effort, so a
+        # reviewer does not need fixed-effort evidence for an adjustable model.
+        data['capabilities']['providers'][1]['models'][0]['options'] = [
+            {'id': 'effort', 'values': ['low', 'high']}]
+        agree(data)
+        record = models.freeze(data)
+        plan = models.dispatch(record, role='workhorse')
+        self.assertEqual(plan['routing_scope'], 'global')
+        self.assertEqual(plan['agreement_sha256'], record['agreement']['agreement_sha256'])
+        review = models.dispatch(record, role='reviewer', slot_id='review')
+        self.assertEqual(review['routing_scope'], 'invocation-only')
+        self.assertEqual(review['agreement_sha256'], plan['agreement_sha256'])
+        with self.assertRaisesRegex(models.SelectionError, 'observed exact options unreported'):
+            models.correlate(plan, {k: v for k, v in plan['target'].items() if k != 'options'})
+        data['profiles']['models'][0]['judgement'] = False
+        with self.assertRaisesRegex(models.SelectionError, 'provide profiles.models.judgement evidence'):
+            models.freeze(data)
 
     def test_all_work_role_floors_and_joint_author_lineage(self):
         data = deepcopy(self.data); data['work']['judgement'] = deepcopy(data['work']['workhorse'])

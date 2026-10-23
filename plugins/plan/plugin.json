@@ -1,6 +1,6 @@
 {
   "name": "plan",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Turn an uncertain problem into a reviewed, testable plan and a handoff for implementation.",
   "short_description": "Discover the problem and write a reviewed plan",
   "argument_hint": "<topic or problem>",
@@ -64,7 +64,11 @@
     "plan": {
       "selection": "upfront",
       "planning": "source-plan",
-      "reason": "Review the accepted discovery and testable spec before producing a handoff; planning never starts implementation."
+      "reason": "Review the accepted discovery and testable spec before producing a handoff; planning never starts implementation.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/plan.md",
+      "completion_evidence": "accepted discovery, current source-plan review, readiness gate and provenance-checked handoff; no implementation authority"
     }
   },
   "default_operation": "plan"

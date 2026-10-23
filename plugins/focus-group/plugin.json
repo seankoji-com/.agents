@@ -1,6 +1,6 @@
 {
   "name": "focus-group",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Plan and run an editable multi-model persona panel that tests a product and returns synthetic findings and a build/fix backlog.",
   "short_description": "Multi-model persona panels for product research",
   "argument_hint": "plan <product-or-brief> | plan <study> | run <study> | resume <study> | status <study> | cancel <study> | doctor",
@@ -126,32 +126,56 @@
     "plan": {
       "selection": "upfront",
       "planning": "study-plan",
-      "reason": "Review the exact editable persona/model protocol and authority/budget revision before owner approval or any panel work."
+      "reason": "Review the exact editable persona/model protocol and authority/budget revision before owner approval or any panel work.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/plan.md",
+      "completion_evidence": "reviewed protocol and genuine discovery acceptance"
     },
     "run": {
       "selection": "upfront",
       "planning": "reviewed-study-plan-and-fidelity",
-      "reason": "Consume the current study-plan receipt before panel work. Final synthesis uses the existing stricter fidelity review of the exact bundle, accepted inputs, citations, dissent, coverage and distinct author lineage; no duplicate planning pass over that same report."
+      "reason": "Consume the current study-plan receipt before panel work. Final synthesis uses the existing stricter fidelity review of the exact bundle, accepted inputs, citations, dissent, coverage and distinct author lineage; no duplicate planning pass over that same report.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/run.md",
+      "completion_evidence": "accepted protocol, isolated cells and fidelity-reviewed report"
     },
     "resume": {
-      "selection": "retain-or-stop",
+      "selection": "continuation",
       "planning": "retained-study-plan-and-fidelity",
-      "reason": "Retain pinned matrix/analyst/fidelity targets and options. Reuse unchanged accepted study-plan and fidelity evidence; changed study revisions need new planning review and owner approval. Reconcile owned children without budget reset."
+      "reason": "Reuse the scoped agreement and producing evidence without chooser; reconcile owned handles and retain findings/budgets.",
+      "classification": "continuation",
+      "entry": "entry.md",
+      "route": "playbooks/run.md",
+      "completion_evidence": "retained protocol, cells, findings and budgets"
     },
     "status": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Read-only study and owned-task state inspection has no synthesis or dispatch."
+      "reason": "Read-only study and owned-task state inspection has no synthesis or dispatch.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "stored study state"
     },
     "cancel": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Deterministic cancellation intent and reconciliation concern only owned tasks, with no synthesis."
+      "reason": "Deterministic cancellation intent and reconciliation concern only owned tasks, with no synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "owned work stopped; partial evidence retained"
     },
     "doctor": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Local package/catalog/schema readiness has no substantive planning or synthesis."
+      "reason": "Local package/catalog/schema readiness has no substantive planning or synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "diagnostic exit and findings"
     }
   },
   "planning_review": {

@@ -1,6 +1,6 @@
 {
   "name": "babysitter",
-  "version": "1.2.12",
+  "version": "1.2.13",
   "description": "Maintain pull requests through review, CI, and authorized merge.",
   "argument_hint": "doctor | pr <URL> | repo <owner/name> | org <owner>",
   "entry": "entry.md",
@@ -110,22 +110,38 @@
     "doctor": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Local readiness has no synthesis."
+      "reason": "Local readiness has no synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "diagnostic exit and findings"
     },
     "pr": {
       "selection": "upfront",
       "planning": "written-strategy",
-      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "current-head review/check/authorised endpoint evidence"
     },
     "repo": {
       "selection": "upfront",
       "planning": "written-strategy",
-      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "each selected PR accounted for; native watches retained"
     },
     "org": {
       "selection": "upfront",
       "planning": "written-strategy",
-      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher."
+      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "each selected repository and PR accounted for"
     }
   }
 }

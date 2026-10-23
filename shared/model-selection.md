@@ -6,10 +6,11 @@ choice, not permission for tests, setup, fan-out, writes or remote actions.
 
 ## Before work
 
-For every new user command that delegates or produces a plan/synthesis, the
-coordinator collects work and review choices in short rounds through the native
-picker, recommended choices first. Ask one decision per question and wait for its
-answer before the next round. A clearly marked question block is the fallback.
+Use `upfront-agreement.md` first. Inspect the request, instructions, authority and
+state. For substantive work, collect only missing consequential choices in short
+rounds through the native picker, with task-specific work/reviewer chains
+recommended first. Ask one decision per question and wait for its answer before
+the next round. A clearly marked question block is the fallback.
 Explicit choices in the command or earlier rounds count as answers. Retain them;
 ask only for still-missing decisions. Silence, saved defaults and configuration
 alone do not answer a question. An explicit choice of an available configured
@@ -151,8 +152,9 @@ or `global` for the workhorse, default invocation-only for older records), panel
 sharing authority. Retain `selection_sha256` independently in the immutable brief
 and producing receipt. A self-recomputed hash alone cannot authenticate an answer.
 Automatic wakes, compaction, repairs and aliases reuse one invocation. New qualifying
-commands need new choices. Pinned Ralph/applicable imps resumes offer retain-or-stop,
-never unsupported rotation. Keep old feedback/budgets/status on stop. Scheduled reuse
+commands need new choices. Agreement-bound Ralph/imps resumes reuse unchanged choices without retain-or-stop.
+Finite approved replacements require reconciled unavailability and current independence.
+Legacy packages retain their pinned contract; current source does not retrofit authority. Keep old feedback/budgets/status on stop. Scheduled reuse
 requires an explicitly authorised schedule ID and fresh catalog/policy validation on
 every fire; no saved defaults or new scheduler.
 
@@ -165,8 +167,8 @@ Use `python3 PKG/shared/model_selection_cli.py ACTION --input FILE` (or
   exact targets. `review_panel` has `slot_id`, `role`, `coverage`, `required`, `target`
   and optional stronger `independent` (default true). `routing: null` is no config.
 - `gate`: `{record, invocation_id, scope_id, event, action, expected?}` admits work
-  only after choices. Preflight/deterministic actions stay direct. Pinned resumes need
-  `retain: true`; scheduled fires need matching `schedule_id`, fresh `capabilities`
+  only after scoped choices. Preflight/deterministic actions stay direct. Agreement-bound
+  resumes reuse their binding; scheduled fires need matching `schedule_id`, fresh `capabilities`
   and current `policy_digests` for routing/profile snapshots.
 - `dispatch`: `{record, role, slot_id?, target?, data_classes?, unavailable?, live_tasks?,
   expected?}` returns the exact tool target/options and producing digest, role,
@@ -175,7 +177,7 @@ Use `python3 PKG/shared/model_selection_cli.py ACTION --input FILE` (or
   invocation-only; it never changes the primary model's global routing choice.
   It launches nothing.
 - `correlate`: `{plan, observed}` compares actual provider/model and options. Missing
-  effort stays unreported. `panel` counts distinct execution IDs and reports unused
+  effort holds acceptance for agreement-bound work until reconciled. `panel` counts distinct execution IDs and reports unused
   preferences/degradation; it does not issue acceptance.
 - `prospective`: `{previous, current, state, requested_rereview?}` preserves historical
   evidence, objections and counters, refuses unsettled tasks, and charges requested
@@ -190,7 +192,8 @@ its immutable brief. The brief carries the producing selection summary. A droppe
 option is refused. Old pinned jobs retain the code/contract of their installation;
 the low-level core import/fixture API stays format-neutral. Adopters using it directly
 must opt into `policy.model_selection_required` and the shared adapter. This is not
-a universal interception of native tools or a claim that all adopter flows are done.
+an interception of arbitrary native tools. The operation inventory and public/installed
+fixtures cover catalog adoption; actual live support remains separately unverified.
 
 An authored zero-slot direct stage also needs `selection_binding` naming a chosen
 current-context work role. `direct-execution` compares its observed identity/options

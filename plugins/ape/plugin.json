@@ -1,6 +1,6 @@
 {
   "name": "ape",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "Research transferable patterns in open-source repositories.",
   "argument_hint": "[focus or repository URL]",
   "entry": "entry.md",
@@ -96,22 +96,38 @@
     "doctor": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Local readiness has no synthesis."
+      "reason": "Local readiness has no synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "diagnostic exit and findings"
     },
     "clean": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Deterministic cleanup has no synthesis."
+      "reason": "Deterministic cleanup has no synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "playbooks/clean.md",
+      "completion_evidence": "scoped owned-workspace cleanup receipt"
     },
     "study": {
       "selection": "upfront",
       "planning": "final-synthesis",
-      "reason": "Final report including no-adoption output before acceptance."
+      "reason": "Final report including no-adoption output before acceptance.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/study.md",
+      "completion_evidence": "accepted pinned-source report"
     },
     "forage": {
       "selection": "upfront",
       "planning": "final-synthesis",
-      "reason": "Review integrated synthesis including no experiment; research intermediates retain citation checks."
+      "reason": "Review integrated synthesis including no experiment; research intermediates retain citation checks.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/forage.md",
+      "completion_evidence": "accepted comparative synthesis"
     }
   },
   "default_operation": "forage"

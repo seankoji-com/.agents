@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from shared import model_selection as models, planning_review as planning
+from tests.upfront_fixtures import approved_selection
 from tests.adopter_plan_review_fixtures import AdopterFixture
 from tests.test_rebuild_installed import Sandbox,ROOT
 
@@ -131,7 +132,7 @@ class AdoptersTest(unittest.TestCase):
             f.ape('continue',{'admission':f.admission,'invocation_id':'new-invocation'},ok=False)
             if plugin=='ralph':
                 for retain in (None,False):
-                    f.ape('continue',{'admission':f.admission,'invocation_id':f.id,'event':'resume','retain':retain},ok=False)
+                    self.assertEqual(f.ape('continue',{'admission':f.admission,'invocation_id':f.id,'event':'resume','retain':retain}),f.admission)
                 self.assertEqual(f.ape('continue',{'admission':f.admission,'invocation_id':f.id,'event':'resume','retain':True}),f.admission)
 
     def test_elephant_factual_truth_then_design_adequacy_then_readability(self):
@@ -178,11 +179,11 @@ class AdoptersTest(unittest.TestCase):
                 return json.loads(p.stdout)
             run('init',data,ok=False);self.assertFalse(state.exists())
             d=deepcopy(f.selection_data);d['work']['workhorse']['execution']='current-context'
-            selected=models.freeze(d)
+            selected=approved_selection(d)
             direct_admission=f.ape('admit',{**f.admission_input,'selection':selected,'selection_sha256':selected['selection_sha256']})
             run('init',{**data,'admission':direct_admission},ok=False);self.assertFalse(state.exists())
             data['admission']=f.admission;run('init',data)
-            run('resume',{'admission':f.admission,'retain':False},ok=False)
+            run('resume',{'admission':f.admission,'retain':False})
             run('resume',{'admission':f.admission,'retain':True})
             run('strategy',{'descriptor':f.descriptor},ok=False);f.approve()
             run('strategy',{'descriptor':f.descriptor})
@@ -225,7 +226,7 @@ class AdoptersTest(unittest.TestCase):
         f=self.fixture('babysitter',op='repo')
         from tests.model_selection_fixtures import answer
         d=deepcopy(f.selection_data);d['schedule']={'schedule_id':'fixture-schedule','source':answer('Reuse these choices for this schedule.')}
-        selected=models.freeze(d)
+        selected=approved_selection(d)
         admission=f.ape('admit',{**f.admission_input,'selection':selected,'selection_sha256':selected['selection_sha256']})
         args={'admission':admission,'invocation_id':f.id,'event':'schedule','schedule_id':'fixture-schedule',
             'capabilities':selected['capabilities'],'policy_digests':{k:selected[k] for k in ('routing_sha256','profiles_sha256')}}

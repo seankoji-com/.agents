@@ -1,6 +1,6 @@
 {
   "name": "agent-tuneup",
-  "version": "1.1.24",
+  "version": "1.1.25",
   "description": "Audit and align centralized T3 provider wiring, shared rules, skills, permissions and MCPs with approved native changes.",
   "short_description": "Audit and align centralized T3 provider wiring",
   "argument_hint": "[scope or desired outcome]",
@@ -82,7 +82,11 @@
     "tuneup": {
       "selection": "upfront",
       "planning": "proposal",
-      "reason": "Inventory, audit, inspect available usage, compare and review proposals in one workflow. Concrete owner approval still gates settings changes."
+      "reason": "Inventory, audit, inspect available usage, compare and review proposals in one workflow. Concrete owner approval still gates settings changes.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/align.md",
+      "completion_evidence": "reviewed audit/proposal; concrete owner approval and independent verification for settings application"
     }
   },
   "default_operation": "tuneup"

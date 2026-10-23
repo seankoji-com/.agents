@@ -71,7 +71,8 @@ def _semantic_binding(job, stage):
                 raise AcceptanceError('producing model selection invalid: ' + str(exc)) from exc
     contract = {key: job.get(key) for key in (
         'installation_id', 'workflow', 'objective', 'requirements', 'authorization',
-        'constraints', 'snapshot', 'dependencies', 'pins', 'policy')}
+        'constraints', 'snapshot', 'dependencies', 'pins', 'policy', 'repo')}
+    contract['repository_worktree'] = job.get('resources', {}).get('worktree')
     contract['dependencies'] = sorted(job['dependencies'], key=lambda row: row['key'])
     contract['stage'] = {key: value for key, value in stage.items()
                          if key not in ('status', 'attempts', 'acceptance', 'acceptance_history', 'acceptance_runs', 'validated_cycle', 'cycle')}
@@ -168,6 +169,22 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
         if task.get('inputs_stale'):
             raise AcceptanceError('task inputs changed while its owned handle remained live; charged repair required')
         owned = task.get('handles', []) + task.get('followups', [])
+        producing = (task.get('selection_binding') or {}).get('selection_sha256')
+        selected = (job.get('model_selection_history') or {}).get(producing, job.get('model_selection', {}))
+        if selected.get('agreement'):
+            from shared.job_coordinator import selection_for_task
+            selection_for_task(job, task)  # Recompute independence against replacement/coordinator authors.
+            from shared.model_selection import observed_options
+            for handle in owned:
+                if handle['request_id'] != task['request_id']:
+                    continue  # Retired attempts remain evidence, not the current acceptance candidate.
+                observations = [event[name] for event in task.get('dispatch_history', [])
+                    if event.get('request_id') == handle['request_id'] for name in
+                    ('status_identity', 'receipt_identity', 'configuration_identity', 'observed_identity')
+                    if isinstance(event.get(name), dict) and 'options' in event[name]]
+                expected_options = (handle.get('target') or task.get('target', {})).get('options', {})
+                if not observations or any(observed_options(o['options']) != expected_options for o in observations):
+                    raise AcceptanceError('actual task options unreported/mismatched; reconcile retained handle')
         if task.get('blocked_reason') or task.get('uncertain_calls') and not any(h.get('request_id') == task['request_id'] for h in owned):
             raise AcceptanceError('uncertain_dispatch: uncertain dispatch lacks an authoritative host observation for the current request')
         if _open_dispatch(task):
@@ -488,6 +505,24 @@ def _adapter(job, stage, argv, input_file):
     if digest(raw) != reference.get('sha256') or len(raw) != reference.get('bytes'):
         raise AcceptanceError('published coordinator observation bytes changed')
     data = strict_load(raw)
+    selected = job.get('model_selection', {})
+    if selected.get('agreement') and not any(stage['id'] in s.get('depends_on', []) for s in job['stages']):
+        from shared import delivery
+        label = selected['agreement']['target']['label']
+        if label in delivery.agreements.ENGINEERING:
+            from core import snapshot
+            root = job.get('resources', {}).get('worktree') or job.get('repo', {}).get('worktree')
+            if not root:
+                raise AcceptanceError('engineering job requires declared repository worktree')
+            current = snapshot.take(root)
+            if current['dirty_paths']:
+                raise AcceptanceError('selected endpoint requires a clean current head')
+            base = job.get('repo', {}).get('base_sha')
+            if not base or not snapshot.git(root, 'diff', '--name-only', base, current['head']).strip():
+                raise AcceptanceError('selected endpoint requires declared base_sha and nonempty accepted change')
+            from shared.job_coordinator import actual_author_lineages
+            delivery.engineering(selected, data.get('delivery', {}), current['head'],
+                                 author_lineages=actual_author_lineages(job))
     contract = stage.get('validator_contract', {})
     if dep['plugin'] == 'ape':
         from shared.ape_planning import validate_job

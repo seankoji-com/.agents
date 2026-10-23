@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import re
 
-from shared.lineage import lineage
+from shared.lineage import lineage, FAMILY_LINEAGE, DRIVER_LINEAGE
 
 MODES = ('approval-required', 'auto-accept-edits', 'auto', 'full-access')
 CONTINUATIONS = {'wake', 'repair', 'compaction', 'forward'}
@@ -65,6 +65,40 @@ def model_entry(capabilities, target, child=True):
     return provider, models[0]
 
 
+def option_descriptors(model):
+    """Accept both host catalog descriptors without renaming option IDs or values."""
+    advertised = model.get('options') or []
+    require(isinstance(advertised, list), 'malformed model options')
+    result = []
+    for raw in advertised:
+        require(isinstance(raw, dict) and isinstance(raw.get('id'), str), 'malformed model option descriptor')
+        option = deepcopy(raw)
+        if 'values' in option and 'type' not in option:
+            values = option['values']
+            require(isinstance(values, list) and values and all(type(v) in (str, bool) for v in values),
+                    'malformed option values')
+            if all(type(v) is bool for v in values):
+                option['type'] = 'boolean'; option['allowed_booleans'] = values
+            else:
+                require(all(isinstance(v, str) for v in values), 'mixed option value types')
+                option.update(type='select', options=[{'id': v} for v in values])
+        result.append(option)
+    return result
+
+
+def observed_options(value):
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        require(all(isinstance(k, str) and type(v) in (str, bool) for k, v in value.items()),
+                'malformed observed options')
+        return deepcopy(value)
+    require(isinstance(value, list) and all(isinstance(v, dict) and isinstance(v.get('id'), str) and
+            type(v.get('value')) in (str, bool) for v in value), 'malformed observed option list')
+    require(len({v['id'] for v in value}) == len(value), 'duplicate observed option ID')
+    return {v['id']: v['value'] for v in value}
+
+
 def validate_target(target, capabilities, child=True):
     provider, model = model_entry(capabilities, target, child)
     require(set(target) <= {'providerInstanceId', 'model', 'options', 'runtimeMode', 'execution',
@@ -72,14 +106,14 @@ def validate_target(target, capabilities, child=True):
     require(target.get('execution', 'child') in ('child', 'current-context'), 'invalid target execution')
     options = target.get('options', {})
     require(isinstance(options, dict), 'options must be an object')
-    advertised = model.get('options') or []
-    require(isinstance(advertised, list), 'malformed model options')
+    advertised = option_descriptors(model)
     for name, value in options.items():
         matches = [o for o in advertised if isinstance(o, dict) and o.get('id') == name]
         require(len(matches) == 1, 'unsupported or ambiguous option: ' + name)
         option = matches[0]
         if option.get('type') == 'boolean':
             require(type(value) is bool, name + ' requires boolean')
+            require(value in option.get('allowed_booleans', [True, False]), 'unsupported value for ' + name)
         else:
             require(option.get('type') == 'select' and isinstance(value, str) and
                     value in [o.get('id') for o in option.get('options', []) if isinstance(o, dict)],
@@ -132,7 +166,7 @@ def suitability(target, role, profiles, capabilities, endorsement=None, configur
             profile.update(lineage=configured['lineage'], lineage_source='routing.roles.workhorse')
             lineage_field = 'routing.roles.workhorse.lineage'
     provider, model = model_entry(capabilities, target, target.get('execution') != 'current-context')
-    effort = [o for o in model.get('options') or [] if o.get('type') == 'select']
+    effort = [o for o in option_descriptors(model) if o.get('type') == 'select']
     require(not floor.get('judgement') or profile.get('judgement') is True,
             'judgement-capable model required by role floor' + context +
             'provide profiles.models.judgement evidence required by profiles.roles.' + role + '.judgement.')
@@ -154,6 +188,8 @@ def suitability(target, role, profiles, capabilities, endorsement=None, configur
             'choose the advertised options required by profiles.roles.' + role +
             '.required_options: ' + json.dumps(required_options, sort_keys=True))
     actual_lineage = lineage(provider.get('driverKind', ''), target['model'])
+    if actual_lineage not in set(FAMILY_LINEAGE.values()) | set(DRIVER_LINEAGE.values()):
+        actual_lineage = 'unknown'  # A custom model's basename is not verified lineage.
     declared = profile.get('lineage')
     if declared:
         require(bool(profile.get('lineage_source')), 'declared lineage needs a source')
@@ -180,7 +216,7 @@ def discover(capabilities, profiles, routing=None, role='workhorse'):
         for model in provider.get('models', []):
             target = {'providerInstanceId': provider['providerInstanceId'], 'model': model['id'], 'options': {}}
             # High is a recommendation using the real option ID. currentValue is never execution evidence.
-            for option in model.get('options') or []:
+            for option in option_descriptors(model):
                 if option.get('type') == 'select' and any(c.get('id') == 'high' for c in option.get('options', [])):
                     target['options'][option['id']] = 'high'
             # Configured options and role requirements outrank recommendation
@@ -205,6 +241,45 @@ def discover(capabilities, profiles, routing=None, role='workhorse'):
             except SelectionError as exc:
                 excluded.append({'target': target, 'reason': str(exc)})
     return {'candidates': candidates, 'excluded': excluded, 'configured': configured is not None}
+
+
+def recommend(capabilities, profiles, preferences, *, routing=None, authors=(), maximum=3):
+    """Resolve operator preferences from the live catalog, then apply sourced role floors.
+
+    Preferences are labels supplied by the request or project, never baked-in model
+    IDs. Profiles may provide `preference_names` for a configured custom alias.
+    Missing/ambiguous names are visible gaps, not silent defaults.
+    """
+    require(isinstance(preferences, list) and preferences and all(isinstance(p, str) and p for p in preferences),
+            'operator model preferences required')
+    require(type(maximum) is int and 1 <= maximum <= 20, 'finite recommendation chain required')
+    resolved, gaps = [], []
+    normalize = lambda s: re.sub(r'[^a-z0-9]', '', s.casefold())
+    for preference in preferences:
+        matches = []
+        for provider in capabilities.get('providers', []):
+            for model in provider.get('models', []):
+                target = {'providerInstanceId': provider['providerInstanceId'], 'model': model['id']}
+                profile = next((p for p in profiles.get('models', []) if key(p['target']) == key(target)), {})
+                names = [model['id'], model.get('name', ''), model.get('label', ''), *profile.get('preference_names', [])]
+                if normalize(preference) in {normalize(n) for n in names}:
+                    matches.append(key(target))
+        if len(matches) != 1:
+            gaps.append({'preference': preference, 'reason': 'missing' if not matches else 'ambiguous'}); continue
+        if matches[0] not in resolved:
+            resolved.append(matches[0])
+    result = {}
+    for role in ('workhorse', 'reviewer'):
+        pool = discover(capabilities, profiles, routing, role)
+        candidates = [r for identity in resolved for r in pool['candidates'] if key(r['target']) == identity]
+        if role == 'reviewer':
+            candidates = [r for r in candidates if r['lineage'] != 'unknown' and
+                          'unknown' not in authors and r['lineage'] not in authors]
+        result[role] = candidates[:maximum]
+        gaps.extend({'role': role, **r} for r in pool['excluded'] if key(r['target']) in resolved)
+        if not result[role]:
+            gaps.append({'role': role, 'reason': 'no suitable approved-preference candidate'})
+    return {'chains': result, 'gaps': gaps, 'recommendation_only': True}
 
 
 def _eligible(target, role, record):
@@ -283,6 +358,24 @@ def _prospective_authors(record):
     return authors
 
 
+def completion_authors(record, author_lineages=(), evidence_lineages=()):
+    """Require actual work history when approved alternatives can change authors.
+
+    Completion observations, like host identities, are transcribed evidence.
+    Approved but unused backups are possibilities, not revision producers.
+    """
+    authors = set()
+    for group in (author_lineages, evidence_lineages):
+        require(isinstance(group, (list, tuple, set, frozenset)) and
+                all(isinstance(value, str) and value.strip() == value and value and
+                    value.casefold() not in ('unknown', 'unverified', 'inferred') for value in group),
+                'actual work-author lineages missing/unknown')
+        authors.update(group)
+    require(not any(_subject_author_role(record, row['role']) for row in record.get('work_replacements', [])) or authors,
+            'actual work-author lineages required with approved work replacements')
+    return authors | _prospective_authors(record)
+
+
 def freeze(data):
     """Validate an explicit answer, freeze its evidence and return a sealed record."""
     return _freeze(data)
@@ -316,10 +409,6 @@ def _freeze(data, *, legacy=False):
             authors.add(family)
         _actual_context(target, record['coordinator'])
     authors.update(record.get('author_lineages', []))
-    for replacement in record.get('work_replacements', []):
-        _, family = _eligible(replacement['target'], replacement['role'], record)
-        if _subject_author_role(record, replacement['role']):
-            authors.add(family)
     panel = record.get('review_panel')
     require(isinstance(panel, list) and panel, 'review choices required, including unused preferences')
     ids = set()
@@ -349,6 +438,9 @@ def _freeze(data, *, legacy=False):
                 _actual_context(target, record['coordinator'])
                 _authority_target(replacement['authority'], target, record)
                 require(replacement['target'] == target, 'replacement must carry explicit options')
+    if record.get('agreement') is not None:
+        from shared.execution_agreement import validate as validate_agreement
+        validate_agreement(record['agreement'], record)
     record['selection_sha256'] = digest(record)
     return record
 
@@ -380,8 +472,11 @@ def gate(record, *, invocation_id, scope_id, event='new', action='dispatch', exp
     require(record['scope_id'] == scope_id, 'selection belongs to another scope')
     require(record['invocation_id'] == invocation_id, 'new qualifying invocation needs new choices')
     require(event in CONTINUATIONS | {'new', 'resume', 'schedule'}, 'unknown invocation event')
-    if pinned and event == 'resume':
+    if pinned and event == 'resume' and not record.get('agreement'):
         require(retain is True, 'pinned resume requires retain-or-stop; rotation refused')
+    from shared.execution_agreement import inventory, admit
+    if record['operation'] in {r['operation'] for r in inventory()}:
+        admit(record, action='inspect')
     if event == 'schedule':
         schedule = record.get('schedule') or {}
         source(schedule.get('source'))
@@ -398,7 +493,7 @@ def gate(record, *, invocation_id, scope_id, event='new', action='dispatch', exp
 
 
 def dispatch(record, *, role, slot_id=None, target=None, data_classes=('repository',),
-             unavailable=None, live_tasks=(), expected=None):
+             unavailable=None, live_tasks=(), expected=None, author_lineages=()):
     """Return exact tool target only after choice, quality, sharing and fallback checks.
 
     `unavailable` is a host failure reference, never an adverse verdict. Planning
@@ -406,6 +501,9 @@ def dispatch(record, *, role, slot_id=None, target=None, data_classes=('reposito
     check, not a review receipt or proof of technical unavailability.
     """
     record = validate(record, expected)
+    if record.get('agreement'):
+        from shared.execution_agreement import admit
+        admit(record, action='dispatch')
     review = slot_id is not None
     if review:
         slots = [s for s in record['review_panel'] if s['slot_id'] == slot_id]
@@ -427,13 +525,21 @@ def dispatch(record, *, role, slot_id=None, target=None, data_classes=('reposito
                    if r.get('role') == role and r.get('target') == target and
                    (not review or r.get('slot_id') == slot_id)]
         require(len(matches) == 1, 'target/options change not authorised by chosen replacement chain')
+        if record.get('agreement'):
+            if unavailable.get('cause') == 'author-independence':
+                require(review and suitability(primary, role, record['profiles'], record['capabilities']) in
+                        (_prospective_authors(record) | set(author_lineages)), 'primary reviewer is still eligible')
+                require(unavailable.get('original_not_launched') is True,
+                        'reconcile launched reviewer before independence replacement')
+            else:
+                reconcile_replacement(record, role, slot_id, target, unavailable)
         authority = _authority(matches[0]['authority'])
         _authority_target(authority, target, record)
-        if review and slot.get('independent', True):
-            family = suitability(target, role, record['profiles'], record['capabilities'])
-            authors = _prospective_authors(record)
-            require('unknown' not in authors and family != 'unknown' and family not in authors,
-                    'stronger independent slot refuses degraded replacement')
+    if review and slot.get('independent', True):
+        family = suitability(target, role, record['profiles'], record['capabilities'])
+        authors = _prospective_authors(record) | set(author_lineages)
+        require('unknown' not in authors and family != 'unknown' and family not in authors,
+                'stronger independent slot refuses author/reviewer collision')
     if authority:
         require(set(data_classes) <= set(authority['data_classes']), 'replacement data scope exceeded')
     confidential = set(data_classes) - ORDINARY
@@ -448,18 +554,42 @@ def dispatch(record, *, role, slot_id=None, target=None, data_classes=('reposito
             'invocation_id': record['invocation_id'], 'scope_id': record['scope_id'],
             'routing_scope': record.get('routing_scope', 'invocation-only')
                              if role == 'workhorse' and not review and target == primary else 'invocation-only',
-            'slot_id': slot_id, 'role': role, 'substituted': target != primary}
+            'slot_id': slot_id, 'role': role, 'substituted': target != primary,
+            **({'agreement_sha256': record['agreement']['agreement_sha256']} if record.get('agreement') else {})}
 
 
 def correlate(plan, observed):
     """Do not fill unreported effort from requested options or catalog defaults."""
     target = plan['target']
     require(key(observed) == key(target), 'observed provider/model mismatch')
-    reported = observed.get('options')
+    reported = observed_options(observed.get('options'))
     if reported is None:
+        require(not plan.get('agreement_sha256'), 'observed exact options unreported; reconcile retained task')
         return {'identity': 'matched', 'options': 'unreported', 'requested_options': target.get('options', {})}
     require(reported == target.get('options', {}), 'observed/requested options mismatch')
     return {'identity': 'matched', 'options': 'matched'}
+
+
+def reconcile_replacement(record, role, slot_id, target, unavailable):
+    """Require owned original request observations and ordered finite chain exhaustion."""
+    require(unavailable.get('verdict') not in ('approve', 'adverse') and not unavailable.get('findings'),
+            'completed review is not an outage; retain adverse findings and repair')
+    chain = [r for r in record['review_replacements' if slot_id else 'work_replacements']
+             if r['role'] == role and (not slot_id or r.get('slot_id') == slot_id)]
+    index = next(i for i, r in enumerate(chain) if r['target'] == target)
+    reconciled = unavailable.get('reconciled', [])
+    require(isinstance(reconciled, list) and len(reconciled) == index + 1,
+            'every earlier approved target needs unavailable/reconciled evidence')
+    primary = next(s['target'] for s in record['review_panel'] if s['slot_id'] == slot_id) if slot_id else record['work'][role]
+    prior = [primary] + [r['target'] for r in chain[:index]]
+    for row, chosen in zip(reconciled, prior):
+        require(row.get('target') == chosen and row.get('request_id') and row.get('reference') and
+                row.get('owned') is True and row.get('has_pending_child_runs') is False and
+                row.get('status') in ('failed', 'cancelled', 'interrupted', 'absent') and
+                row.get('reason') in ('technical', 'capacity', 'permission', 'privacy', 'capability'),
+                'reconcile owned original launch under original request ID before replacement')
+        require(not row.get('findings') and row.get('verdict') not in ('approve', 'adverse'),
+                'healthy review result cannot trigger fallback')
 
 
 def panel_report(record, passes):

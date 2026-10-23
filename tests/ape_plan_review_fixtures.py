@@ -6,6 +6,7 @@ import sys
 
 from core.jobs.store import canonical, digest
 from shared import model_selection as models, planning_review as planning
+from tests.upfront_fixtures import approved_selection
 from tests.model_selection_fixtures import selection_input, replacement
 from tests.test_rebuild_installed import Sandbox, ROOT, worker_result
 from tests.test_ape_validate_report import (CRITERIA, pin_source, fingerprint, descriptor,
@@ -58,7 +59,7 @@ class ApePlanFixture:
         if direct_work:
             assert op=='study'
             d['work']['workhorse']['execution']='current-context'
-        self.selection = models.freeze(d)
+        self.selection = approved_selection(d)
         self.admission_input = {'operation': op, 'request_reference': self.reference,
             'output_name': self.output_name, 'invocation_id': self.id,
             'selection': self.selection, 'selection_sha256': self.selection['selection_sha256']}
@@ -165,7 +166,7 @@ class ApePlanFixture:
         capabilities=deepcopy(self.selection['capabilities'])
         capabilities.update(parentThreadId='fixture-direct-coordinator',
             inheritedProviderInstanceId=self.selection['coordinator']['providerInstanceId'],
-            inheritedModel=self.selection['coordinator']['model'])
+            inheritedModel=self.selection['coordinator']['model'], inheritedOptions=self.selection['coordinator'].get('observed_options', {}))
         self.box.job(self.package,'direct-execution',self.job_id,{'caller':self.caller,'stage_id':'research'},
                      extra=('--capabilities',self.box.payload(capabilities)))
         path=Path(self.stages[0]['outputs'][0]);path.parent.mkdir(parents=True,exist_ok=True)
@@ -280,7 +281,7 @@ def select_legacy_ape_fixture(job, base, state_root):
            not any(t['stage_id']==s['id'] for t in job['tasks']) for s in job['stages']):
         d['work']['judgement']={**deepcopy(d['work']['workhorse']), 'execution':'current-context',
                               'accept_actual_settings':True}
-    selected=models.freeze(d)
+    selected=approved_selection(d)
     from shared.ape_planning import admit
     job.update(ape_admission=admit({'operation':op,'request_reference':reference,'output_name':output,
         'invocation_id':job['job_id'],'selection':selected,'selection_sha256':selected['selection_sha256']}),

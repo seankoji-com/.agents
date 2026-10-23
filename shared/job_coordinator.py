@@ -27,7 +27,10 @@ def selection_for_task(job, task):
         plan = dispatch(record, role=binding['role'], slot_id=binding.get('slot_id'),
                         target=binding.get('target'), data_classes=binding.get('data_classes', ['repository']),
                         unavailable=binding.get('unavailable'), expected=producing,
-                        live_tasks=[t['task_id'] for t in job['tasks'] if _unsettled(job, t)])
+                        live_tasks=[t['task_id'] for t in job['tasks'] if _unsettled(job, t)],
+                        author_lineages=actual_author_lineages(job) if record.get('agreement') else ())
+        if plan.get('substituted') and record.get('agreement'):
+            corroborate_replacement(job, binding)
         actual = task.get('target') or {}
         if any(actual.get(k, {} if k == 'options' else None) != plan['target'].get(k, {} if k == 'options' else None)
                for k in ('providerInstanceId', 'model', 'options', 'runtimeMode')):
@@ -39,7 +42,7 @@ def selection_for_task(job, task):
         raise JobError('model_selection: ' + str(exc)) from exc
 
 
-def selection_plan_revision(current, proposed):
+def selection_plan_revision(current, proposed, revision=None):
     """Validate prospective choices before the ordinary owner-bound plan revision.
 
     The core persists these generic contract fields in the same transaction as the
@@ -47,6 +50,10 @@ def selection_plan_revision(current, proposed):
     """
     from shared.job_coordination import provider_limits
     provider_limits({**current.get('policy', {}), **proposed.get('policy', {})}.get('max_live_workers_by_provider', {}))
+    if current.get('model_selection', {}).get('agreement'):
+        limit = current['model_selection']['agreement']['limits']['max_repair_cycles']
+        if proposed.get('policy', {}).get('max_repair_cycles', current['policy']['max_repair_cycles']) > limit:
+            raise JobError('new cost/retry boundary needs a scoped owner decision; retained budget cannot reset')
     if not current.get('policy', {}).get('model_selection_required'):
         return
     from shared.model_selection import validate, prospective
@@ -56,6 +63,15 @@ def selection_plan_revision(current, proposed):
         if not proposed.get('model_selection_sha256'):
             raise JobError('new choice needs its separately retained model_selection_sha256')
         chosen = validate(proposed['model_selection'], proposed.get('model_selection_sha256'))
+        if current.get('model_selection', {}).get('agreement'):
+            old = current['model_selection']['agreement']
+            if chosen.get('agreement', {}).get('agreement_sha256') != old['agreement_sha256']:
+                from core.jobs import _owner_current
+                decision = next((d for d in current.get('decisions', []) if revision and
+                    d.get('id') == revision.get('owner_decision_id') and d.get('scope') == 'plan:' + revision['id'] and
+                    _owner_current(d, current['policy']['max_artifact_bytes'])), None)
+                if decision is None:
+                    raise JobError('undeclared_expansion: changed agreement requires a scoped owner decision; retain prior evidence/budgets')
         live = [t['task_id'] for t in current['tasks'] if _unsettled(current, t)]
         prospective(current['model_selection'], chosen, {'live_tasks': live})
         archive = deepcopy(current.get('model_selection_history', {}))
@@ -163,6 +179,13 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
     job=__import__('copy').deepcopy(job)
     job.setdefault('policy', {})['identity']='observed'
     workflow = str(job.get('workflow', ''))
+    if job.get('model_selection', {}).get('agreement'):
+        from shared.execution_agreement import admit, inventory
+        if workflow in {r['operation'] for r in inventory()} or workflow.endswith('/planning-review'):
+            admit(job['model_selection'], operation=workflow)
+        job['policy'].setdefault('max_repair_cycles', job['model_selection']['agreement']['limits']['max_repair_cycles'])
+        if job.get('policy', {}).get('max_repair_cycles', 0) > job['model_selection']['agreement']['limits']['max_repair_cycles']:
+            raise JobError('job repair budget exceeds agreed limit')
     if workflow.startswith('imps/') and workflow != 'imps/planning-review':
         from shared.imps_planning import validate_job
         validate_job(job, Path(state_root).absolute() / job['job_id'] / 'job.json', before_execution=True)
@@ -305,6 +328,10 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
             # Cold readers receive only procedural choices, not prior findings.
             task['model_selection'] = {'selection_sha256': selected['record']['selection_sha256'],
                                        'binding': selected['binding'], 'dispatch': selected['dispatch']}
+            if selected['record'].get('agreement'):
+                task['model_selection']['agreement_sha256'] = selected['record']['agreement']['agreement_sha256']
+                if task.get('context_policy') != 'document-only':
+                    task['model_selection']['agreement'] = selected['record']['agreement']
         if task.get('role') == 'review':
             if _live_handles(task) or task.get('status') not in ('pending', 'stale', 'blocked'):
                 raise JobError('review inputs cannot be rebound after dispatch')
@@ -335,6 +362,64 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
 
 TERMINAL = ('completed', 'failed', 'cancelled', 'interrupted')
 
+
+def actual_author_lineages(job):
+    """Every dispatched author stays an author, including failed/replaced work."""
+    from core.jobs.store import tasks
+    from shared.model_selection import suitability, SelectionError, _subject_author_role
+    selected = job.get('model_selection', {})
+    result = {selected.get('coordinator', {}).get('lineage', 'unknown')}
+    for task in tasks(job):
+        if task.get('role') == 'review':
+            continue
+        producing = (job.get('model_selection_history') or {}).get(
+            (task.get('selection_binding') or {}).get('selection_sha256'), selected)
+        if not _subject_author_role(producing, task.get('selection_binding', {}).get('role', '')):
+            continue
+        for handle in task.get('handles', []) + task.get('followups', []):
+            identity = handle.get('observed_identity', {})
+            if identity.get('status') != 'verified':
+                result.add('unknown'); continue
+            try:
+                result.add(suitability(handle.get('target') or task['target'], task['selection_binding']['role'],
+                                       producing['profiles'], producing['capabilities']))
+            except (SelectionError, KeyError):
+                result.add('unknown')
+    for stage in job.get('stages', []) + [s for h in job.get('history', []) for s in h.get('stages', [])]:
+        for row in stage.get('direct_execution_history', []):
+            result.add(row.get('identity', {}).get('lineage', selected.get('coordinator', {}).get('lineage', 'unknown')))
+    return result
+
+
+def corroborate_replacement(job, binding):
+    from core.jobs.store import tasks
+    failure = binding.get('unavailable') or {}
+    if failure.get('cause') == 'author-independence':
+        from core.jobs import _unsettled
+        # Eligibility is recomputed by dispatch. No already launched reviewer may disappear.
+        if any(t.get('selection_binding', {}).get('slot_id') == binding.get('slot_id') and _unsettled(job, t)
+               for t in tasks(job)):
+            raise JobError('launched reviewer must reconcile before independence replacement')
+        return
+    for observation in failure.get('reconciled', []):
+        originals = [(t, h) for t in tasks(job) for h in t.get('handles', []) + t.get('followups', [])
+                     if h.get('request_id') == observation.get('request_id')]
+        if observation.get('status') == 'absent':
+            originals_absent = [t for t in tasks(job) if
+                any(e.get('request_id') == observation.get('request_id') and e.get('kind') == 'reconciled' and
+                    e.get('status') == 'absent' and e.get('target') == observation.get('target') and
+                    e.get('reference') == observation.get('reference') for e in t.get('dispatch_history', []))]
+            if originals or not originals_absent:
+                raise JobError('original uncertain launch has no retained authoritative absence observation')
+        elif len(originals) != 1 or any(
+                h.get('status') != observation.get('status') or h.get('has_pending_child_runs') is not False or
+                h.get('work_state') != 'result_available' or
+                h.get('task_id', h.get('host_task_id')) != observation.get('host_task_id') or
+                any((h.get('target') or t.get('target', {})).get(k, {} if k == 'options' else None) !=
+                    observation['target'].get(k, {} if k == 'options' else None)
+                    for k in ('providerInstanceId', 'model', 'options')) for t, h in originals):
+            raise JobError('replacement reconciliation differs from retained owned original handle')
+
 def _shared_observation(job, task_id, event):
     """Apply follow-up uncertainty or conflicting-host reconciliation; return False for core observations."""
     task = next((t for t in job['tasks'] if t['task_id'] == task_id), None)
@@ -343,6 +428,22 @@ def _shared_observation(job, task_id, event):
     kind, request, host = event.get('kind'), event.get('request_id'), event.get('host_task_id')
     owned = task.get('handles', []) + task.get('followups', [])
     staged = task.get('prepared_followup') or {}
+    selected = job.get('model_selection', {})
+    if kind == 'reconciled' and event.get('status') == 'absent' and selected.get('agreement'):
+        if request != task['request_id'] or not task.get('uncertain_calls') or \
+                any(h.get('request_id') == request for h in owned) or host or not event.get('reference') or \
+                event.get('has_pending_child_runs') is not False or any(event.get('target', {}).get(k) !=
+                    task.get('target', {}).get(k) for k in ('providerInstanceId', 'model', 'options')):
+            raise JobError('absence must reconcile the exact uncertain owned request before any replacement')
+        task.setdefault('dispatch_history', []).append(event)
+        task['uncertain_calls'] = 0
+        task.pop('blocked_reason', None)
+        task['status'] = 'failed'  # Ordinary retry charges the retained repair budget and a fresh request.
+        return True
+    if kind == 'uncertain' and selected.get('agreement'):
+        calls = task.get('uncertain_calls', 0) if request == task['request_id'] else (task.get('followup_dispatch') or {}).get('uncertain_calls', 0)
+        if calls >= 1 + selected['agreement']['limits']['max_launch_retries']:
+            raise JobError('uncertain_dispatch: agreed original/retry budget exhausted; reconcile the retained request')
     if kind == 'uncertain' and request and request != task['request_id'] and request == staged.get('request_id'):
         # A missing follow-up task ID is same-ID uncertain dispatch (issue-28 follow-up rules).
         if job.get('status') == 'cancelled' or job.get('discard_requested'):
@@ -551,6 +652,10 @@ def record_direct_execution(store, caller, stage_id, capabilities):
     from shared.document_authors import author_from_capabilities
     try:
         author = author_from_capabilities(capabilities)
+        from shared.model_selection import observed_options
+        options = observed_options(capabilities.get('inheritedOptions'))
+        if options is not None:
+            author['options'] = options
     except (JobError, TypeError, ValueError) as exc:
         raise JobError('direct execution requires a fresh, catalog-correlated capabilities response') from exc
     def apply(job):

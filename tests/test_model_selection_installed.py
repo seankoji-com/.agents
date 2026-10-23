@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from shared import model_selection as models
 from shared import planning_review as planning
-from tests.model_selection_fixtures import selection_input, answer
+from tests.upfront_fixtures import approved_selection, agree
+from tests.model_selection_fixtures import selection_input, canonical_selection_input, answer
 from tests.test_rebuild_installed import Sandbox
 
 
@@ -26,9 +27,12 @@ class InstalledSelectionTests(unittest.TestCase):
                 contract = (relocated / 'shared/model-selection.md').read_text()
                 self.assertIn('one decision per question', contract)
                 self.assertIn('Run-only never writes routing', contract)
+                agreement_contract = (relocated / 'shared/upfront-agreement.md').read_text()
+                self.assertIn('one decision per question', agreement_contract)
+                self.assertIn('Retain supplied answers', agreement_contract)
                 self.assertIn('short rounds', (relocated / 'playbooks' /
                               ('maintain.md' if plugin == 'babysitter' else 'loop.md')).read_text())
-                data = selection_input()
+                data = canonical_selection_input()
                 data['source'] = answer('Use the configured alpha-work as workhorse globally')
                 del data['routing_scope']
                 missing_scope = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
@@ -37,7 +41,7 @@ class InstalledSelectionTests(unittest.TestCase):
                 self.assertIn('workhorse routing scope missing', missing_scope.stderr)
                 self.assertIn('ask only which scope applies', missing_scope.stderr)
                 data['routing_scope'] = 'global'
-                data['routing'] = {'roles': {'workhorse': [{**data['work']['workhorse'], 'lineage': 'alpha'}],
+                data['routing'] = {'roles': {'workhorse': [{**data['work']['workhorse'], 'lineage': 'openai'}],
                                             'reviewer': [data['review_panel'][0]['target']]}}
                 data['work']['workhorse']['options'] = {'reasoningEffort': 'low'}
                 data['profiles']['roles']['workhorse']['required_options'] = {'reasoningEffort': 'low'}
@@ -52,6 +56,18 @@ class InstalledSelectionTests(unittest.TestCase):
                 self.assertEqual(plan['routing_scope'], 'global')
                 self.assertEqual(plan['scope_id'], data['scope_id'])
                 self.assertFalse((box.config / 't3-plugins/routing.json').exists())
+                agreed = deepcopy(data)
+                agreed['operation'] = 'ralph/run'
+                agree(agreed)
+                agreed_frozen = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
+                                        '--input', box.payload(agreed)])
+                agreed_record = json.loads(agreed_frozen.stdout)
+                agreed_dispatch = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'dispatch',
+                    '--input', box.payload({'record': agreed_record, 'role': 'workhorse',
+                                            'expected': agreed_record['selection_sha256']})])
+                agreed_plan = json.loads(agreed_dispatch.stdout)
+                self.assertEqual(agreed_plan['routing_scope'], 'global')
+                self.assertEqual(agreed_plan['agreement_sha256'], agreed_record['agreement']['agreement_sha256'])
                 run_only = deepcopy(data)
                 run_only['routing_scope'] = 'invocation-only'
                 run_only['source'] = answer('Use alpha-work for this run')
@@ -77,7 +93,7 @@ class InstalledSelectionTests(unittest.TestCase):
                                     '--input', box.payload(data)], check=False)
                 self.assertEqual(conflict.returncode, 2)
                 self.assertIn('workhorse fixture-work/alpha-work', conflict.stderr)
-                self.assertIn('set routing.roles.workhorse.lineage to alpha or omit that field', conflict.stderr)
+                self.assertIn('set routing.roles.workhorse.lineage to openai or omit that field', conflict.stderr)
                 del data['routing']['roles']['workhorse'][0]['lineage']
                 corrected = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
                                      '--input', box.payload(data)])
@@ -114,7 +130,7 @@ class InstalledSelectionTests(unittest.TestCase):
             output_name = 'selection-installed/final-report.md'
             selected = selection_input()
             selected.update(operation='ape/study', scope_id=planning.logical_output_id(request_reference, output_name))
-            record = models.freeze(selected)
+            record = approved_selection(selected)
             admission = json.loads(box.run([sys.executable, relocated/'scripts/plan_review.py', 'admit',
                 '--input', box.payload({'operation': 'study', 'request_reference': request_reference,
                     'output_name': output_name, 'invocation_id': record['invocation_id'],
@@ -168,7 +184,7 @@ class InstalledSelectionTests(unittest.TestCase):
         raw['supplemental'] = {'kind': 'named', 'options': {}, 'maximum': 1, 'providers': ['gateway'],
                                'data_classes': ['public'], 'targets': [{'providerInstanceId': 'gateway',
                                    'model': 'opencode/sample-a-free'}], 'source': answer('Permit exactly this fixture extra.')}
-        data['model_selection'] = models.freeze(raw); data['selection_sha256'] = data['model_selection']['selection_sha256']
+        data['model_selection'] = approved_selection(raw); data['selection_sha256'] = data['model_selection']['selection_sha256']
         picked = extras.select(data, now)[0]
         self.assertEqual([row['target']['model'] for row in picked], ['opencode/sample-a-free'])
         data['pricing'][0]['costs']['input'] = 1

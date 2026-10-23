@@ -206,7 +206,7 @@ class TestPhaseProgression(unittest.TestCase):
                 subprocess.run([sys.executable, os.path.join(os.path.dirname(_SCRIPT_PATH), "render_handoff.py"), "t",
                                 "--capabilities", os.path.join(_HERE, "fixtures", "t3", "capabilities.json")],
                                check=True, capture_output=True)
-                self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "complete")
+                self.assertEqual(run(["resolve", "t"])[1]["next_phase"], "delivery")
 
     def test_reports_only_the_three_pipeline_artifacts(self):
         # handoff.md is the output of the process; nothing else is tracked. A stray

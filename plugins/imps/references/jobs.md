@@ -133,8 +133,8 @@ executing package. Never patch an installed package or truncate job history.
 
 - **Resume.** Run `t3-plugins --job JOBS/JOB/job.json path imps`. If it names a
   different entry than the one you loaded, load that one; a wrong package refuses
-  writes and prints the pinned invocation. Read `overview`, display the frozen work/review pair/options and ask retain-or-stop
-  through planning `continue` (`event: resume`, `retain: true` only after the answer).
+  writes and prints the pinned invocation. Read `overview`, reuse the frozen agreement and work/review chains/options without retain-or-stop
+  through planning `continue` (`event: resume`). Older packages keep their pinned contract.
   Reuse the invocation on automatic wakes. Reconcile each recorded
   handle with `task_status` and `task-observation`, then act. A missing reply never
   justifies recreating work.

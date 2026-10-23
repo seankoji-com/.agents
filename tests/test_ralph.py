@@ -61,7 +61,7 @@ class RalphTest(unittest.TestCase):
         chosen = self.state['implementer' if record['role'] == 'implementation' else 'evaluator']
         data = {'taskId': task_id, 'status': 'completed', 'workState': 'result_available',
                 'hasPendingChildRuns': False, 'providerInstanceId': chosen['providerInstanceId'],
-                'model': chosen['model'], 'summary': 'Verified fixture outcome'}
+                'model': chosen['model'], 'options': chosen['options'], 'summary': 'Verified fixture outcome'}
         if record['role'] == 'review':
             verdict = {'goalAchieved': True, 'feedback': [], 'evidence': ['Fixture inspection'],
                        'revision': ralph.snapshot.token(record['binding'])}
@@ -131,6 +131,7 @@ class RalphTest(unittest.TestCase):
         self.assertEqual(self.state['phase'], 'evaluate')
 
     def test_rejected_receipt_does_not_partially_attach(self):
+        self.state.pop('modelAdmission')  # Preserve the historical receipt contract under its pinned format.
         request = ralph.advance(self.state)['dispatch']
         before = copy.deepcopy(self.state)
         for target in ({'providerInstanceId': 'wrong'}, {'model': 'wrong'},
@@ -164,14 +165,16 @@ class RalphTest(unittest.TestCase):
                                 waitTimedOut=False)
                 attached = call('attach', dict(response, clientRequestId=request['clientRequestId']))['state']
                 self.assertEqual(attached['tasks'][-1]['taskId'], response['taskId'])
-                self.assertNotIn('receipt', attached['tasks'][-1])
+                self.assertEqual(attached['tasks'][-1]['receipt']['providerInstanceId'], 'gateway')
+                self.assertIsNone(attached['tasks'][-1]['receipt'].get('model'))
+                self.assertIsNone(attached['tasks'][-1]['receipt'].get('options'))
                 self.assertEqual(call('next')['action'], 'task_status')
                 blocked = call('observe', response)['state']
                 self.assertEqual(blocked['blocker']['kind'], 'identity')
                 self.assertEqual(blocked['blocker']['taskId'], response['taskId'])
                 call('recover', {'reason': 'Cannot waive missing identity'}, code=2)
                 verified = call('observe', dict(response, model='custom/worker', status='completed',
-                                               workState='result_available', summary='Verified outcome'))['state']
+                                               workState='result_available', options=request['target']['options'], summary='Verified outcome'))['state']
                 self.assertEqual(verified['phase'], 'evaluate')
                 self.assertTrue(verified['tasks'][-1]['observation']['identityVerified'])
 
@@ -186,7 +189,7 @@ class RalphTest(unittest.TestCase):
             chosen = self.state['implementer' if role == 'implementation' else 'evaluator']
             response = dict(status='completed', workState='result_available', hasPendingChildRuns=False,
                             providerInstanceId=chosen['providerInstanceId'], model=chosen['model'],
-                            summary='Verified fixture outcome')
+                            options=chosen['options'], summary='Verified fixture outcome')
             if role == 'review':
                 response['summary'] = self.verdict_summary(dict(goalAchieved=True, feedback=[],
                     evidence=['Fixture inspection'], revision=ralph.snapshot.token(self.state['tasks'][-1]['binding'])))
@@ -220,7 +223,7 @@ class RalphTest(unittest.TestCase):
             chosen = state['implementer' if role == 'implementation' else 'evaluator']
             response = dict(status='completed', workState='result_available', hasPendingChildRuns=False,
                             providerInstanceId=chosen['providerInstanceId'], model=chosen['model'],
-                            summary='Verified fixture outcome')
+                            options=chosen['options'], summary='Verified fixture outcome')
             if role == 'review':
                 response['summary'] = self.verdict_summary(dict(goalAchieved=True, feedback=[],
                     evidence=['Fixture inspection'], revision=ralph.snapshot.token(state['tasks'][-1]['binding'])))
@@ -496,6 +499,7 @@ class RalphTest(unittest.TestCase):
         return issued
 
     def test_delta_review_continues_the_rejecting_reviewers_thread_and_full_reviews_stay_fresh(self):
+        self.state.pop('modelAdmission')  # Historical pinned checkpoints retain their original delta contract.
         self.implementation()
         first = self.threaded_review('thread-a', [{'severity': 'major', 'message': 'Handle empty input'}])
         self.assertEqual(first['tool'], 'delegate_task')
@@ -526,6 +530,7 @@ class RalphTest(unittest.TestCase):
         self.assertEqual(ralph.advance(self.state)['dispatch']['threadId'], 'thread-b')
 
     def test_follow_up_threads_must_match_and_checkpoints_only_continue_earlier_reviews(self):
+        self.state.pop('modelAdmission')  # Legacy continuation validation remains covered.
         self.implementation()
         self.threaded_review('thread-a', [{'severity': 'major', 'message': 'Gap'}])
         self.implementation()
@@ -549,6 +554,7 @@ class RalphTest(unittest.TestCase):
             ralph.validate_checkpoint(state)
 
     def test_a_relabelled_continuation_can_never_be_the_accepting_review(self):
+        self.state.pop('modelAdmission')  # Legacy state cannot relabel a continued review into acceptance.
         self.implementation()
         self.threaded_review('thread-a', [{'severity': 'major', 'message': 'Gap'}])
         self.implementation()

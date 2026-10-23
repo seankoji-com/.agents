@@ -1,5 +1,7 @@
 # Configuration, design and written-strategy review
 
+Public admission also verifies `upfront-agreement.md`. Nested operations must be included in the same agreed scope. Reuse the existing binding on continuation; no retain-or-stop applies to unchanged agreement-bound runs.
+
 Apply `model-selection.md` first. Before substantive investigation, drafting or
 children, collect work/review choices in short rounds, one decision per question. Explicit choices count. Only
 operation/capability/identity/resume preflight precedes answers. A raw factual or
@@ -73,9 +75,9 @@ Ralph/babysitter kind `strategy` applies only when an actual written strategy ex
 Do not invent an artifact or evaluator for ordinary loops. Store babysitter strategy
 in stage `resources.adopter_strategy`; public prepare/direct/acceptance checks it.
 Ralph CLI init takes `admission`; `strategy` attaches a reviewed descriptor while
-quiescent. `resume` takes admission and retain:true for the unchanged pinned pair.
-Status/stop stay direct. Legacy checkpoints are readable but need explicit
-retain-or-stop admission before more work. Every-feedback, final full evaluation,
+quiescent. Unchanged agreement-bound `resume` reuses the saved admission without
+retain-or-stop. Status/stop stay direct. Legacy checkpoints remain pinned to their
+original package and cannot gain new endpoint/fallback authority by resuming. Every-feedback, final full evaluation,
 recovery and lineage rules remain stronger than planning fallback. Babysitter keeps
 merge authority, requested final-head review and the coordinator's sole native watch.
 

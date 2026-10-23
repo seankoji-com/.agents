@@ -24,14 +24,14 @@ next agent must inspect the actual user instruction and scope before acting.
 1. Run `python3 PKG/scripts/thinking_state.py list`. With `thinking list`, display and
    stop. For an existing slug, use `resolve <slug>` and resume its `next_phase`.
 2. For a new topic, settle output type (`implementation` or `research`) and a kebab-case
-   slug. Default to local storage. Use
+   slug. Inspect context and select Issue with subissues, Discussion post or Markdown
+   PR unless supplied. Use
    `init <slug> --output-type <type> --title <title> --github none --selection <sealed-selection.json> --request-reference <source-message-reference>`.
-   Bind the upfront selection scope to that reference and named output
-   `thinking/<slug>/handoff.md` before drafting. Keep its producing selection
-   for planning creation; init refuses missing choices or existing drafts.
-   GitHub issue/discussion publishing is optional and requires explicit authorization
-   for the destination and content. The helper `gh_publish.py` supports `ensure` and
-   `post`; inspect its help before use. A publishing failure must not lose local work.
+   Bind its scope to that reference and `thinking/<slug>/handoff.md`; retain the
+   producing selection for planning. After accepted source and deterministic handoff,
+   follow `PKG/shared/upfront-agreement.md` and `thinking_state.py delivery` for
+   publication, partial-ID reconciliation and endpoint validation. Failed delivery
+   retains local work. `gh_publish.py` supports legacy mirrors only.
 3. Load only `PKG/templates/probes.<type>.md`. Ask a few questions at a time. Probe
    actual decisions, current workarounds, concrete success/failure examples, consequences,
    alternatives, and material tradeoffs. Follow answers to refine the problem; a
