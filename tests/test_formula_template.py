@@ -81,6 +81,23 @@ class FormulaTemplateTest(unittest.TestCase):
                 self.condition(expression, **args)
         self.assertTrue(self.condition("'#' == '#'", **args))
 
+    def test_truth_table_rejects_disabled_retry_and_bypassed_guards_with_tokens_retained(self):
+        for replacement in ('always() && !always() && !cancelled()',
+                            'always() || !cancelled()'):
+            with self.subTest(replacement=replacement):
+                mutated = WORKFLOW.replace('always() && !cancelled()', replacement)
+                self.assertNotEqual(mutated, WORKFLOW)
+                with patch.dict(globals(), WORKFLOW=mutated):
+                    result = unittest.TestResult()
+                    FormulaTemplateTest('test_publication_requires_all_shards_or_an_explicit_existing_tag_retry').run(result)
+                self.assertTrue(result.failures)
+                self.assertFalse(result.errors)
+                if '!always()' in replacement:
+                    self.assertTrue(any("tag='v0.10.0'" in str(case) and
+                                        "result='skipped'" in str(case) and
+                                        'cancelled=False' in str(case)
+                                        for case, _ in result.failures))
+
     def test_no_version_stanza_because_the_url_carries_it(self):
         # brew audit --strict: "`version` is redundant with version scanned from URL".
         self.assertIsNone(re.search(r'^\s*version\s', TEMPLATE, re.MULTILINE))
