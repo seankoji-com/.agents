@@ -1,6 +1,6 @@
 {
   "name": "plan",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Turn an uncertain problem into a reviewed, testable plan and a handoff for implementation.",
   "short_description": "Discover the problem and write a reviewed plan",
   "argument_hint": "<topic or problem>",
