@@ -647,6 +647,15 @@ printf '%s' "$RAW" | jq -c \
             else null end
           ),
           required_contexts_known: false,
+          optional_contexts_observed: (
+            if $pr_mode == 1 then
+              ([ $head.statusCheckRollup.contexts.nodes[]?
+                 | select(.isRequired == false)
+                 | if .__typename == "CheckRun" then .name
+                   elif .__typename == "StatusContext" then .context
+                   else empty end ] | unique)
+            else null end
+          ),
           # The oldest pending job drives queue-age diagnosis at the coordinator
           # observation time. Null when every observed check has finished.
           oldest_pending_check: (

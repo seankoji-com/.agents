@@ -6,6 +6,8 @@ Never change checkouts merely to enable extras.
 
 The coordinator owns discovery, watches, merges, resolutions and acceptance; children
 repair one PR. Follow `PKG/references/job-plan.md`'s repair cycle.
+Writable runs initialise `continuous.py` state per `PKG/references/continuous.md`;
+use event-only without scheduler authority.
 
 1. Apply the entry's auto-merge default or explicit override without a question;
    record it with `job_cli.py decision`; under **ignore**, exclude PRs with an
@@ -20,17 +22,19 @@ repair one PR. Follow `PKG/references/job-plan.md`'s repair cycle.
    inspect-only run skips step 2's helper, posts step 3's table, and stops; deep triage
    may plan `read` only maintainer slots, whose `blocked` results answer triage but
    never an acceptance.
-2. Quick pass, in this thread, before any child: for each unowned PR with no fixer in flight run `bash PKG/scripts/merge-pr.sh --repo <owner/name> --pr <N> --no-auto`, or
+2. Quick pass, in this thread, before any child: refresh with `continuous.py observe`;
+   for each unowned PR with no fixer in flight run
+   `continuous.py dispatch --kind merge --reserve --head <head>` before
+   `bash PKG/scripts/merge-pr.sh --repo <owner/name> --pr <N> --no-auto`, or
    `--arm-always` under **enable**. It merges, updates behind branches, and arms
    auto-merge only with complete, resolved threads. Record each `MERGED` line and
    each `BLOCKED` line's whole `blockers=` list, not just `reason=`.
    `automerge=preexisting` is someone else's armed request and withholds nothing.
-   Record the merge dispatch and receipt at its exact head; `armed` is pending, never
+   Record the helper's receipt against that reservation and exact head; `armed` is pending, never
    merged. If the operator asked for review before landing, every PR is review-gated:
    skip this helper, read state with `list-prs.sh`, and give every unmerged PR a job
    (step 4) even without repair work.
-3. Keep the PR table here. Post it after the quick pass and at the end of
-   every turn:
+3. Post it after the quick pass and at the end of every turn:
 
    | PR | Description | Not merged because |
    |---|---|---|
@@ -51,29 +55,29 @@ repair one PR. Follow `PKG/references/job-plan.md`'s repair cycle.
 6. Dispatch per `PKG/shared/job-coordination.md`: `job_cli.py prepare`, reserve with
    `continuous.py dispatch --kind fixer --reserve` before launching
    `babysitter/pr-maintainer`, then attach the handle with `--host-task-id`. Close a
-   refused or uncertain launch with `receipt --status failed|rejected`; the
-   reservation blocks a competing writer. The immutable
-   brief carries PR context:
-   URL, worktree, head, the complete `blockers=` list, every unresolved thread's ID and
-   comments,
-   prior findings and authorized actions. Carry current coordinator-owned `retry_usage`
-   in the task text. Finish with every listed blocker cleared at a pushed head,
+   confirmed refusal with `receipt --status rejected`. A lost response is `uncertain`;
+   retain the reservation until host reconciliation finds the handle or proves refusal.
+   The immutable brief carries URL, worktree, head, the complete `blockers=` list,
+   every unresolved thread's ID and comments, prior findings, authorised actions and
+   coordinator-owned `retry_usage`. Finish with every listed blocker cleared at a pushed head,
    local verification and thread dispositions, or `blocked` naming the human-only
    decision. Children never run `merge-pr.sh` merge, arm, or resolve modes.
 7. Before landing or watching, inspect every unresolved thread at the current head,
-   including all pages. Verify fixes there or establish why no change applies. Post
-   and resolve each disposition with `bash PKG/scripts/merge-pr.sh
+   including all pages. Verify fixes there or establish why no change applies. Reserve
+   `continuous.py dispatch --kind resolution --reserve --head <head>`
+   before posting and resolving each disposition with `bash PKG/scripts/merge-pr.sh
    --repo <owner/name> --pr <N> --resolve-thread <ID> --verified-head <head>
-   --reply-file <file>`. Record its dispatch and receipt after ingestion; a live fixer
-   blocks it. Re-read to confirm resolution. Actionable minor findings need fixes too;
+   --reply-file <file>`. Record the receipt afterward; any reserved write blocks another.
+   Re-read to confirm resolution. Actionable minor findings need fixes too;
    severity alone never justifies an answer. Recover a refused resolution within authority;
    ask only for a human-only action.
 8. On a scheduled sweep, wake or child completion, refresh scope discovery (step 12),
    read `task_status`, ingest results with `job_cli.py result`, verify the
    claimed push against the PR head, and record the outcome with `continuous.py
-   fixer-done` or `receipt`, naming the adopted writer's handle. Only a
-   terminal status closes a writer guard; `armed` is a merge state, and a replay clears
-   no newer guard. perform step 7 before attempting to land. a check from an older SHA proves nothing. Rerun step 2's
+   fixer-done` or `receipt`, naming the writer's handle and job-retained result transport.
+   The helper verifies ingestion and terminal host identity before closing writer guards;
+   `armed` is merge-only and replays clear no newer guard; perform step 7 before landing;
+   a check from an older SHA proves nothing. Rerun step 2's
    helper for that PR unless its fixer is in flight or it is review-gated; a
    review-gated PR merges only through its land stage's pinned command. Then reconcile
    every child through `task_status` and refill: each PR with child work and no child in
@@ -84,12 +88,13 @@ repair one PR. Follow `PKG/references/job-plan.md`'s repair cycle.
    raising exhausted limits needs a recorded owner decision. Call `watch_pull_request`
    for every unmerged PR after available repair/resolution. Children cannot watch;
    this thread owns every watch.
-9. Before ending any turn, refresh discovery and record each PR's next action/deadline
-   with `continuous.py observe` (`--wake-kind schedule` on a wake). Every unmerged
-   row needs a child in flight, current checks running, confirmed ownership elsewhere,
-   or a concrete external blocker with a next check. Diagnose stalls within authority; never raise timeouts, rerun an unchanged failure
-   or report an armed watch as progress. Anything else is acted on now. A health or ledger failure stops writes and is
-   `needs human:`. Never end a turn on "auto-merge armed" alone. Then post the table and end the turn.
+9. Before yielding, refresh discovery and each PR's next action/deadline with
+   `continuous.py observe` (`--wake-kind schedule` on wakes). Every unmerged row
+   needs a worker, current checks, confirmed owner or concrete external blocker/next check.
+   Diagnose stalls within authority; never raise timeouts, rerun unchanged failures or
+   count armed watches as progress. Anything else is acted on now. Health/ledger failures stop
+   writes as `needs human:`. Never end a turn on "auto-merge armed" alone.
+   Then post the table and end the turn.
 10. Accept merged jobs from fresh observations: rebind and publish per
     `PKG/references/job-plan.md`, then `job_acceptance_cli.py accept-stage` with the
     pinned `validate_pr.py`; update the table and `unwatch_pull_request`.

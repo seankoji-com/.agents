@@ -51,8 +51,10 @@ coverage separately from authorisation:
 consumes it (`awaiting_receipt`: true) until the next host receipt; the helper never
 invents `now + cadence`, and an overdue receipt stays visible as overdue. If coverage
 drops to `event-only` (the scheduler becomes unavailable or is no longer authorised),
-the old receipt moves to `historical_next_run_at`: it is not a wake this run can
-expect. Stop through the host, then record the verified result:
+the old receipt moves to `historical_next_run_at`. An existing schedule remains
+`stop-unverified`, with its owned stop operation, until the host confirms removal.
+Late scheduled wakes produce no actions after revocation. Stop through the host,
+then record the verified result:
 
 ```sh
 python3 PKG/scripts/continuous.py schedule-stop --state <state.json> --now <RFC3339> \
@@ -95,7 +97,9 @@ branch-protection evidence can claim. A single-PR reader supplies the required n
 among the contexts it saw in `required_contexts_observed` (binding `isRequired` on
 both `CheckRun` and `StatusContext`) and always sets `required_contexts_known: false`;
 a search page supplies neither. A present required check that fails is repaired, an
-optional failure is not. `checks_state` is GitHub's `StatusState`, which has no
+optional failure is not; `optional_contexts_observed` retains per-context optional
+evidence even when another protection blocks landing. Diagnose that protection and
+obtain configured requirements with a targeted read. `checks_state` is GitHub's `StatusState`, which has no
 `UNSTABLE` value: optional-failure evidence is `merge_state_status: UNSTABLE`. A
 `checks_complete: false` page is a recorded check-discovery gap for reader and full
 snapshots alike; it returns a continuation to re-read the remaining contexts and can
@@ -167,7 +171,7 @@ branch update until its result is ingested.
 Repeated wakes and events share stable keys: the same wake and snapshot is a no-op,
 and a fixer dispatch keeps one request ID per head, blocker fingerprint and attempt.
 Neither duplicate schedules, dispatches, replies nor writers are created. The schedule
-key includes the run identity, so two runs for the same scope in one thread never share
+key includes a unique identity generated at exclusive creation, so identical run inputs never share
 host idempotency or stop ownership. A dispatch is reserved before the host is touched:
 
 ```sh
@@ -177,20 +181,27 @@ python3 PKG/scripts/continuous.py dispatch --state <state.json> --now <RFC3339> 
 python3 PKG/scripts/continuous.py dispatch --state <state.json> --now <RFC3339> \
   --pr <url> --request-id <id> --kind fixer|merge|resolution --host-task-id <handle>
 python3 PKG/scripts/continuous.py fixer-done --state <state.json> --now <RFC3339> \
-  --pr <url> --request-id <id> --result <ingested-result.json>
+  --pr <url> --request-id <id> --host-task-id <handle> \
+  --result <job-dir>/results/<id>.json
 python3 PKG/scripts/continuous.py receipt --state <state.json> --now <RFC3339> \
   --pr <url> --request-id <id> --status succeeded|failed|rejected|cancelled|armed|no-change
 ```
 
 The reservation is the writer/merge lock: a competing fixer, merge or resolution is
-refused while it exists, even before the host has returned a handle. A launch that
-raises or is refused is closed with `receipt --status failed|rejected` so no phantom
-writer stays latched. `armed` is accepted only for a merge and keeps it pending;
+refused while it exists, even before the host has returned a handle. New reservations
+recheck current lifecycle, scope, ownership and head inside the transaction. A confirmed
+refusal is `rejected`; a lost response, malformed acceptance or missing handle is
+`uncertain` and keeps the guard. Reconcile through the host with the same request ID,
+then attach its verified handle, or record confirmed refusal. Never infer absence from
+a timeout. `armed` is accepted only for a merge and keeps it pending;
 fixer and resolution receipts must name a terminal outcome. A receipt applies only to
 the request it names: a replay is reported as `duplicate` or `stale` and changes no
 guard or progress clock. An adopted writer (a PR observed with `fixer_in_flight` but
 no local dispatch) carries the handle from `owner.host_task_id`; only a receipt naming
-that handle can close it, and an adopted writer with no observed handle stays held.
+that handle and its accepted ingested job execution can close it. The retained transport
+must match the job's hash, request, completion and terminal host observation with no
+pending children. An arbitrary file is insufficient. Missing adopted identity may be
+filled by another observation of the same writer; a different writer cannot replace it.
 Terminal repair attempts are drawn from the bounded budget, never treated as a live
 worker. Cancelled runs produce no actions until an explicit resume, though late
 receipts and resolution remain safe.
@@ -214,17 +225,19 @@ Reporting uses unchanged evidence instead of regenerating a handoff round:
 
 ## Resume and installed-package drift
 
-`continuous.py version` reports the running package version, policy version and a
-digest of the installed package contents. `start` records that digest automatically
+`continuous.py version` reports the running package version, policy version and the
+installer manifest's package digest, after verifying its listed files. Source checkouts
+use a source content fingerprint. `start` records the identity automatically
 and defaults the pin to the installed version, so `resume` detects a swapped running
 package without relying on `--package-version`. A state without the fingerprint is a
 migration gap, not a silent resume. Resume refuses drift and returns
 `migration-required` with the exact gaps. Migrate only through the supported path:
 record the owner decision, run `job_cli.py upgrade-package` for a pinned job, then
 resume with `--accept-migration --owner-decision-id <id>` and
-`--upgrade-receipt <output.json>`. The receipt must name the running package digest
-(and package directory) and, when the state records one, the pinned job; a receipt
-for another job or package is refused. Immutable briefs, evidence
+`--upgrade-receipt <output.json> --job <job-dir>`. The helper verifies the actual job's
+upgrade revision, owner decision source, new pin and retained previous job bytes against
+the receipt, directory and package digest. Legacy states missing a job ID recover it
+from this verified job. A digest-only receipt cannot authorise migration. Immutable briefs, evidence
 and the pinned package stay untouched; the migration receipt is appended to the state.
 
 A job created before continuous mode has no helper and no state at its pinned package.
@@ -238,7 +251,8 @@ python3 <current-package>/scripts/continuous.py preflight --job <job-dir> --now 
 
 It reports `legacy-job` with `pinned-package-without-continuous` and changes nothing.
 Upgrade the job's package through `job_cli.py upgrade-package`, then start state with
-the upgraded package. Do not swap the package or rewrite the frozen brief.
+the upgraded package and `--job <job-dir>` to verify its pin. Do not swap the package
+or rewrite the frozen brief.
 
 Offline and simulated tests prove the state decisions, idempotency and installed
 artifact path. They do not prove a live T3 scheduler created a schedule or delivered a

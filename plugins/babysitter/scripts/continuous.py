@@ -39,6 +39,7 @@ import os
 import re
 import sys
 import tempfile
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -64,7 +65,7 @@ PASSING_CONCLUSIONS = {'SUCCESS', 'NEUTRAL', 'SKIPPED'}
 FAILING_CONCLUSIONS = {'FAILURE', 'CANCELLED', 'TIMED_OUT', 'STALE', 'ACTION_REQUIRED', 'ERROR',
                        'STARTUP_FAILURE'}
 TERMINAL_DISPATCH = {'succeeded', 'failed', 'rejected', 'cancelled', 'superseded', 'no-change'}
-OPEN_DISPATCH = {'reserved', 'pending', 'armed'}
+OPEN_DISPATCH = {'reserved', 'uncertain', 'pending', 'armed'}
 # A reservation is written before any host side effect, so an in-flight launch and a
 # live writer are indistinguishable to a competing command. Only the dispatch kind's
 # own terminal statuses may release a writer guard; 'armed' is a merge-only state.
@@ -79,6 +80,8 @@ KIND_RECEIPT_STATUSES = {
     'merge': MERGE_RECEIPT_STATUSES,
     'resolution': RESOLUTION_RECEIPT_STATUSES,
 }
+for _statuses in KIND_RECEIPT_STATUSES.values():
+    _statuses.add('uncertain')
 OWNER_LIVE_STATUSES = {'active', 'running', 'starting', 'queued', 'waiting', 'preparing'}
 OWNER_CONTINUATIONS = {'maintainer-live', 'in-flight', 'watching', 'continuing', 'dispatched'}
 OWNER_RELEASED = {'handed-back', 'released', 'none', 'stopped', 'cancelled'}
@@ -272,9 +275,96 @@ def audit(state, now, kind, **fields):
 def source_identity(script=__file__):
     package = Path(script).resolve().parents[1]
     meta = load_json(package / 'plugin.json')
+    manifest_path = package / 'install-manifest.json'
+    if manifest_path.exists():
+        job_contracts(package)
+        from shared.worker_registry import package_digest as manifest_digest, verify_package_files
+        try:
+            manifest = load_json(manifest_path)
+            fingerprint = manifest_digest(manifest)
+            require(manifest.get('package_digest') == fingerprint,
+                    'installed package manifest digest differs from its file list')
+            verify_package_files(package, manifest)
+        except (ValueError, OSError) as exc:
+            raise ContinuousError(f'installed package integrity failure: {exc}') from exc
+        version = manifest['version']
+    else:
+        fingerprint, version = package_digest(package), meta.get('version')
     return {'plugin': meta.get('name'), 'version': meta.get('version'),
+            'installed_version': version,
             'policy_version': policy_identity(meta), 'package_dir': str(package),
-            'digest': package_digest(package)}
+            'digest': fingerprint}
+
+
+def job_contracts(package=None):
+    """Load the shipped job APIs, from the package or this source checkout."""
+    package = Path(package or Path(__file__).resolve().parents[1])
+    for root in (package, *package.parents):
+        if (root / 'shared' / 'job_coordinator.py').is_file():
+            sys.path.insert(0, str(root))
+            return
+    raise ContinuousError('supported job APIs are unavailable in this package')
+
+
+def verified_job(path):
+    job_contracts()
+    from shared.job_coordinator import pinned_store, verify_all_pins
+    directory = Path(path).expanduser().resolve()
+    if directory.name == 'job.json':
+        directory = directory.parent
+    try:
+        store = pinned_store(directory.parent, directory.name)
+        return store, verify_all_pins(store)
+    except (ValueError, OSError) as exc:
+        raise ContinuousError(f'job evidence is invalid: {exc}') from exc
+
+
+def accepted_fixer_result(args, state, row):
+    """Bind the retained transport to an ingested execution and terminal owned handle."""
+    require(bool(args.result), 'a terminal fixer receipt needs --result <ingested result>')
+    transport = Path(args.result).expanduser().resolve()
+    job_path = getattr(args, 'job', None)
+    if not job_path and transport.parent.name == 'results':
+        job_path = transport.parent.parent
+    require(bool(job_path), 'successful fixer evidence needs the accepted job --job <job-dir>')
+    store, job = verified_job(job_path)
+    require(not state.get('job_id') or state['job_id'] == job['job_id'],
+            'result belongs to a different pinned job')
+    require(transport == store.path / 'results' / (args.request_id + '.json'),
+            'result is not the job-retained transport for this request')
+    for task in job['tasks']:
+        execution = next((item for item in task.get('execution_history', [])
+                          if item.get('request_id') == args.request_id
+                          and item.get('accepted_execution') is True
+                          and (not item.get('malformed') or args.status == 'failed')), None)
+        if not execution:
+            continue
+        handle = next((item for item in task.get('handles', []) + task.get('followups', [])
+                       if item.get('request_id') == args.request_id
+                       and item.get('task_id', item.get('host_task_id')) == row.get('host_task_id')
+                       and any(event.get('request_id') == args.request_id
+                               and event.get('host_task_id') == row.get('host_task_id')
+                               and event.get('completion_id') == execution.get('completion_id')
+                               for event in job.get('notifications', []))
+                       and item.get('status') in ('completed', 'failed', 'cancelled', 'interrupted')
+                       and item.get('work_state') == 'result_available'
+                       and item.get('has_pending_child_runs') is False), None)
+        require(handle is not None, 'result has no matching terminal owned host handle')
+        require(args.host_task_id == row.get('host_task_id'),
+                'fixer receipt must name its matching host handle')
+        reference = execution.get('transport_ref') or {}
+        require(reference.get('transport_path') == str(transport)
+                and reference.get('transport_sha256') == sha256_file(transport),
+                'accepted result transport bytes or reference changed')
+        result = execution.get('result') or {}
+        require(execution.get('malformed') or (
+                result.get('request_id') == args.request_id and result.get('job_id') == job['job_id']),
+                'accepted result correlation differs from this request')
+        if args.status in ('succeeded', 'no-change'):
+            require(result.get('status') == 'ready-for-acceptance',
+                    'successful fixer receipt requires an accepted ready result')
+        return sha256_file(transport)
+    raise ContinuousError('no matching accepted job-result execution was ingested')
 
 
 def policy_identity(meta):
@@ -416,7 +506,8 @@ def owner_state(raw):
         'thread_id': owner.get('thread_id'),
         'status': status,
         'continuation': owner.get('continuation'),
-        'continuation_known': 'continuation' in owner,
+        'continuation_known': isinstance(owner.get('continuation'), str)
+                              and bool(owner['continuation']),
         'fixer_in_flight': bool(owner.get('fixer_in_flight', False)),
         'host_task_id': (owner.get('host_task_id') or owner.get('task_id')
                          or owner.get('fixer_request_id')),
@@ -431,14 +522,21 @@ def merge_owner(previous, observed):
     """
     previous = previous or {}
     owner = dict(observed)
+    if not owner.get('thread_id'):
+        owner['thread_id'] = previous.get('thread_id')
     same_thread = owner.get('thread_id') == previous.get('thread_id')
     if same_thread and not owner.get('continuation_known'):
-        owner['continuation'] = previous.get('continuation')
-        owner['continuation_known'] = previous.get('continuation_known', False)
+        if owner.get('status') in OWNER_LIVE_STATUSES \
+                and previous.get('continuation') in OWNER_RELEASED:
+            owner['continuation'] = None
+            owner['continuation_known'] = False
+        else:
+            owner['continuation'] = previous.get('continuation')
+            owner['continuation_known'] = previous.get('continuation_known', False)
     if same_thread and owner.get('status') == 'none' and previous.get('status') not in (
             None, 'none'):
         owner['status'] = previous.get('status')
-    if not owner.get('host_task_id'):
+    if same_thread and not owner.get('host_task_id'):
         owner['host_task_id'] = previous.get('host_task_id')
     return owner
 
@@ -530,7 +628,10 @@ def blocking_failures(observation, failing):
     if required is not None:
         return [name for name in failing if name in required]
     observed = observed_required_contexts(observation)
-    if observed:
+    if observed is not None:
+        optional = observation.get('optional_contexts_observed')
+        if optional is not None:
+            return [name for name in failing if name not in optional]
         return [name for name in failing if name in observed]
     merge_state = str(observation.get('merge_state_status') or '').upper()
     if merge_state == 'UNSTABLE':
@@ -790,7 +891,8 @@ def reconcile_pr(pr, state, now, discovery):
 
     checks_state = str(observation.get('checks_state') or '').upper()
     merge_state = str(observation.get('merge_state_status') or '').upper()
-    if checks_state in ('SUCCESS', 'EXPECTED') and merge_state in ('BLOCKED', 'UNSTABLE', 'UNKNOWN') \
+    if ((checks_state in ('SUCCESS', 'EXPECTED') and merge_state in ('BLOCKED', 'UNSTABLE', 'UNKNOWN'))
+        or (queue['failing'] and not failing and merge_state in ('BLOCKED', 'UNKNOWN'))) \
             and not failing and not queue['pending']:
         return ({'pr': pr['url'], 'kind': 'diagnose-gate',
                  'reason': f'checks report {checks_state} but the aggregate gate is {merge_state}',
@@ -888,7 +990,8 @@ def scheduler_report(state, now):
     }
     if mode != 'scheduled':
         report.update({
-            'coverage': 'event-only',
+            'coverage': ('stop-unverified' if schedule_id and not stopped.get('verified')
+                         else 'event-only'),
             'next_run_at': None,
             'historical_next_run_at': stored_next,
             'gap': scheduler.get('gap') or (
@@ -1018,7 +1121,16 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
             owner = pr.get('owner') or {}
             pr['fixer'] = {'in_flight': True, 'request_id': None,
                            'started_at': pr['last_meaningful_progress_at'],
-                           'host_task_id': owner.get('host_task_id')}
+                           'host_task_id': owner.get('host_task_id'),
+                           'owner_thread_id': owner.get('thread_id')}
+        elif row['observation'].get('fixer_in_flight') and pr['fixer'].get('in_flight') \
+                and pr['fixer'].get('request_id') is None:
+            guard = pr['fixer']
+            owner = pr.get('owner') or {}
+            # Missing identity may be filled only for the same observed writer.
+            if guard.get('owner_thread_id') == owner.get('thread_id') \
+                    and not guard.get('host_task_id'):
+                guard['host_task_id'] = owner.get('host_task_id')
 
     # Omissions never close a known-open PR. Only explicit host state does.
     omitted = []
@@ -1129,23 +1241,29 @@ def cmd_start(args):
         authorization = {'state': 'authorized', 'source': str(source),
                          'sha256': sha256_file(source)}
     identity = source_identity(args.script)
-    pinned = args.package_version or identity['version']
+    pinned = args.package_version or identity['installed_version']
+    job_path = getattr(args, 'job', None)
+    job_id = getattr(args, 'job_id', None)
+    if job_path:
+        store, job = verified_job(job_path)
+        require(not job_id or job_id == job['job_id'], '--job-id differs from the pinned job')
+        require(any(pin['package_digest'] == identity['digest']
+                    and Path(pin['package_dir']).resolve() == Path(identity['package_dir']).resolve()
+                    for pin in job['pins'].values()), 'this helper is not the job-pinned package')
+        job_id, job_path = job['job_id'], str(store.file)
     scope = {
         'kind': scope_kind, 'value': value,
         'include_drafts': bool(args.include_drafts),
         'include_forks': bool(args.include_forks),
         'exclusions': list(args.exclude),
     }
-    run_id = digest({'scope': scope, 'created_at': now_iso(now),
-                     'thread': args.thread_id,
-                     'policy': {'cadence_seconds': cadence,
-                                'queue_threshold_seconds': queue_threshold,
-                                'stall_threshold_seconds': stall}})[:16]
+    run_id = uuid.uuid4().hex
     state = {
         'schema_version': SCHEMA_VERSION,
         'policy_version': POLICY_VERSION,
         'run_id': run_id,
-        'job_id': getattr(args, 'job_id', None),
+        'job_id': job_id,
+        'job': job_path,
         'job_state_sha256': getattr(args, 'job_state_sha256', None),
         'created_at': now_iso(now),
         'updated_at': now_iso(now),
@@ -1366,12 +1484,19 @@ def cmd_scheduler(args):
                                          'scheduler not authorized by the owner') + \
                 '; no idle discovery, queue-age diagnosis or stalled-work wake'
             outcome = 'event-only'
+            if state['scheduler'].get('schedule_id'):
+                state['scheduler']['stopped'] = {
+                    'schedule_id': state['scheduler']['schedule_id'],
+                    'at': now_iso(now), 'verified': False,
+                    'stop': state['scheduler'].get('stop')}
+                state['scheduler']['gap'] += '; owned host schedule stop is unverified'
         state['scheduler']['recorded_at'] = now_iso(now)
         audit(state, now, 'scheduler', mode=outcome)
         save_json(path, state)
         report = scheduler_report(state, now)
         return {'status': outcome, 'scheduler': report,
-                'coverage': report['coverage'], 'gap': report['gap']}
+                'coverage': report['coverage'], 'gap': report['gap'],
+                'scheduler_stop': state['scheduler'].get('stop')}
 
 
 def normalise_pr(raw, now):
@@ -1413,6 +1538,7 @@ def normalise_pr(raw, now):
         'required_contexts_known': raw.get('required_contexts_known',
                                            raw.get('required_contexts') is not None),
         'required_contexts_observed': raw.get('required_contexts_observed'),
+        'optional_contexts_observed': raw.get('optional_contexts_observed'),
         'unresolved_threads': normalise_threads(raw),
         'review_decision': raw.get('review_decision'),
         'review_threads_complete': raw.get('review_threads_complete'),
@@ -1436,9 +1562,19 @@ def cmd_observe(args):
             return {'status': 'cancelled', 'actions': [], 'admitted': [], 'human_questions': [],
                     'cancelled': state['cancelled'],
                     'message': 'this run was cancelled; resume explicitly to continue'}
+        if args.wake_kind == 'schedule' and (
+                state['scheduler']['mode'] != 'scheduled'
+                or state['scheduler']['authorization']['state'] != 'authorized'
+                or state['scheduler'].get('stopped')):
+            report = scheduler_report(state, now)
+            return {'status': 'scheduled-continuation-blocked', 'actions': [],
+                    'admitted': [], 'human_questions': [], 'scheduler': report,
+                    'coverage': report['coverage'], 'next_wake_at': None,
+                    'scheduler_stop': state['scheduler'].get('stop')}
         observation = load_json(args.observation)
         result = reconcile_observation(state, observation, now, args.wake_id, args.wake_kind)
         if result['status'] != 'duplicate':
+            state['last_observation_wake_kind'] = args.wake_kind
             save_json(path, state)
         return result
 
@@ -1449,8 +1585,8 @@ def cmd_dispatch(args):
     A coordinator that is about to perform a host side effect must call this with
     ``--reserve`` first: the row, the writer guard and the merge exclusion exist before
     the host launches anything. The returned host handle is attached afterwards with a
-    second call naming the same request ID. A refused or uncertain launch is closed
-    with a terminal receipt so no phantom writer stays latched.
+    second call naming the same request ID. An uncertain launch keeps its reservation
+    until host reconciliation establishes a handle or confirms refusal.
     """
     path = state_path(args.state)
     with locked_state(path) as state:
@@ -1468,7 +1604,7 @@ def cmd_dispatch(args):
             require(existing['kind'] == args.kind,
                     f"request {args.request_id} is a {existing['kind']} dispatch, not {args.kind}")
             if (not reserve and args.host_task_id and not existing.get('host_task_id')
-                    and dispatch_status(existing) == 'reserved'):
+                    and dispatch_status(existing) in ('reserved', 'uncertain')):
                 existing['host_task_id'] = args.host_task_id
                 existing['status'] = 'pending'
                 existing['attached_at'] = now_iso(now)
@@ -1479,7 +1615,7 @@ def cmd_dispatch(args):
                 save_json(path, state)
                 return {'status': 'recorded', 'attached': True, 'dispatch': existing,
                         'host_task_id': args.host_task_id}
-            if reserve and dispatch_status(existing) == 'reserved':
+            if reserve and dispatch_status(existing) in ('reserved', 'uncertain'):
                 return {'status': 'already-reserved', 'request_id': args.request_id,
                         'dispatch': existing}
             return {'status': 'duplicate', 'request_id': args.request_id,
@@ -1487,8 +1623,31 @@ def cmd_dispatch(args):
         if reserve and args.host_task_id:
             raise ContinuousError(
                 'reserve before the host side effect; attach --host-task-id afterwards')
+        require(pr.get('state') == 'open' and not pr.get('excluded'),
+                'this PR is no longer eligible: lifecycle or scope exclusion changed')
+        observation = pr.get('observation') or {}
+        require(scope_matches(state['scope'], pr) and not excluded(
+            state['scope'], {**pr, **observation}), 'this PR is outside the authorized scope')
+        require(not owned_elsewhere(pr, state.get('thread_id')),
+                'this PR is owned elsewhere; explicit handoff is required')
+        require(not pr.get('discovery_gap'), 'refresh this omitted PR before reserving writes')
+        require(not (state.get('last_observation_wake_kind') == 'schedule' and (
+            state['scheduler']['mode'] != 'scheduled' or state['scheduler'].get('stopped'))),
+            'scheduled continuation is no longer authorized; reconcile the owned stop')
+        if args.head:
+            require(args.head == observation.get('head_sha'),
+                    'dispatch head differs from the current observed head')
         fixer = pr.get('fixer') or {}
         merge = live_merge_dispatch(pr)
+        resolution = next((item for item in pr['dispatches']
+                           if item['kind'] == 'resolution'
+                           and dispatch_status(item) in OPEN_DISPATCH), None)
+        if resolution:
+            raise ContinuousError(
+                f"resolution {resolution['request_id']} is pending; another write may not race it")
+        if args.kind == 'resolution' and merge:
+            raise ContinuousError(
+                f"merge {merge['request_id']} is pending; resolution may not race it")
         if args.kind == 'fixer':
             if fixer.get('in_flight'):
                 raise ContinuousError(
@@ -1595,9 +1754,11 @@ def cmd_receipt(args):
             result_path = Path(args.result).expanduser()
             require(result_path.is_file(), f'result file does not exist: {result_path}')
             result_digest = sha256_file(result_path)
-        if row['kind'] == 'fixer' and args.status in ('succeeded', 'no-change') \
-                and not result_digest:
-            raise ContinuousError('a successful fixer receipt needs --result <ingested result>')
+        if row['kind'] == 'fixer' and args.status in TERMINAL_DISPATCH:
+            # Only a confirmed refusal before a handle exists needs no execution.
+            if not (args.status == 'rejected' and not row.get('host_task_id')
+                    and guard.get('request_id') == args.request_id):
+                result_digest = accepted_fixer_result(args, state, row)
         stale = False
         if row['kind'] == 'fixer' and guard.get('in_flight'):
             if guard.get('request_id') is not None:
@@ -1673,7 +1834,7 @@ def cmd_cancel(args):
                 'instruction': 'stop the owned host schedule; no further actions will be produced'}
 
 
-def validate_upgrade_receipt(receipt_path, state, owner_decision, installed):
+def validate_upgrade_receipt(receipt_path, state, owner_decision, installed, job_path):
     """Validate the supported ``job_cli.py upgrade-package`` receipt.
 
     A migration may not replace the pinned identity on the strength of a version flag
@@ -1687,25 +1848,75 @@ def validate_upgrade_receipt(receipt_path, state, owner_decision, installed):
     require(receipt.get('package_digest') == installed['digest'],
             'the upgrade receipt does not name the running package digest; '
             'run job_cli.py upgrade-package for this installed package')
-    if receipt.get('package_dir'):
-        require(Path(receipt['package_dir']).resolve() ==
-                Path(installed['package_dir']).resolve(),
-                'the upgrade receipt package directory is not the running package')
+    require(bool(receipt.get('package_dir')),
+            'the upgrade receipt must name its package directory')
+    require(Path(receipt['package_dir']).resolve() == Path(installed['package_dir']).resolve(),
+            'the upgrade receipt package directory is not the running package')
     job_id = state.get('job_id')
     if job_id:
         require(receipt.get('job_id') == job_id,
                 f"the upgrade receipt job {receipt.get('job_id')!r} is not the pinned job "
                 f"{job_id!r}")
-    if receipt.get('owner_decision_id'):
-        require(receipt['owner_decision_id'] == owner_decision,
-                'the upgrade receipt owner decision does not match --owner-decision-id')
-    previous = receipt.get('previous_state') or {}
-    if previous.get('sha256') and state.get('job_state_sha256'):
-        require(previous['sha256'] == state['job_state_sha256'],
-                'the upgrade receipt previous state does not match this run')
+    require(bool(job_path), 'migration requires --job <pinned-job-dir> to verify the upgrade')
+    store, job = verified_job(job_path)
+    require(job['job_id'] == receipt.get('job_id'), 'upgrade receipt is not for this job')
+    require(job['workflow'].startswith('babysitter/'), 'upgrade job is not a babysitter job')
+    previous = receipt.get('previous_state')
+    require(isinstance(previous, dict) and bool(previous.get('sha256'))
+            and bool(previous.get('path')), 'upgrade receipt needs retained previous-state evidence')
+    require(Path(previous['path']).resolve() == store.path / 'migrations' / (
+        previous['sha256'] + '-job.json'), 'upgrade previous-state path is not retained by this job')
+    from core.jobs import _owner_current
+    from core.jobs.store import _regular, MAX_STATE_BYTES as JOB_MAX_BYTES, strict_load
+    try:
+        old_raw = _regular(Path(previous['path']), max_bytes=JOB_MAX_BYTES)
+        require(hashlib.sha256(old_raw).hexdigest() == previous['sha256']
+                and len(old_raw) == previous.get('bytes'), 'retained previous job bytes changed')
+        old = strict_load(old_raw)
+        require(old.get('job_id') == job['job_id'], 'retained previous state belongs to another job')
+        if state.get('job_state_sha256'):
+            require(previous['sha256'] == state['job_state_sha256'],
+                    'the upgrade receipt previous state does not match this run')
+        revision = next((item for item in job.get('plan_revisions', [])
+                         if item.get('revision', {}).get('previous_state') == previous
+                         and item.get('revision', {}).get('new_package_digest') == installed['digest']
+                         and item.get('decision_id') == owner_decision
+                         and item.get('revision', {}).get('owner_decision_id') == owner_decision), None)
+        require(revision is not None, 'no matching supported job upgrade and owner decision recorded')
+        decision = next((item for item in job['decisions']
+                         if item.get('id') == owner_decision
+                         and item.get('scope') == 'plan:' + revision['revision']['id']), None)
+        require(decision is not None and _owner_current(decision, job['policy']['max_artifact_bytes']),
+                'the upgrade owner decision evidence is unavailable or changed')
+        keys = revision['adopted_dependencies']
+        matching = [key for key in keys if key in job['pins'] and key in old['pins']
+                    and job['pins'][key]['package_digest'] == installed['digest']
+                    and Path(job['pins'][key]['package_dir']).resolve()
+                    == Path(installed['package_dir']).resolve()]
+        require(len(matching) == 1, 'job pin does not name the running upgraded package')
+        old_pin = old['pins'][matching[0]]
+        from shared.job_coordinator import verify_job_pins
+        verify_job_pins(old)
+        old_manifest = load_json(Path(old_pin['package_dir']) / 'install-manifest.json')
+        package = state.get('package') or {}
+        if package.get('pinned_version'):
+            # Earlier continuous-1 defaulted to the plugin's base version. The
+            # verified retained pin, not that abbreviated string, establishes identity.
+            require(package['pinned_version'] in (old_manifest['version'],
+                    old_manifest['version'].split('+', 1)[0]),
+                    'retained old package version does not match this continuous run')
+        if package.get('installed_digest'):
+            # Earlier helpers hashed installed files plus metadata. Accept that
+            # legacy fingerprint only after the old package passes manifest checks.
+            require(package['installed_digest'] in (old_pin['package_digest'],
+                    package_digest(Path(old_pin['package_dir']))),
+                    'retained old package digest does not match this continuous run')
+    except (ValueError, OSError, KeyError) as exc:
+        raise ContinuousError(f'upgrade evidence is invalid: {exc}') from exc
     return {'path': str(receipt_path), 'sha256': sha256_file(receipt_path),
             'job_id': receipt.get('job_id'), 'package_digest': receipt.get('package_digest'),
-            'owner_decision_id': receipt.get('owner_decision_id')}
+            'owner_decision_id': owner_decision, 'job': str(store.file),
+            'previous_state': previous}
 
 
 def cmd_resume(args):
@@ -1751,8 +1962,6 @@ def cmd_resume(args):
                          'installed_on_disk': installed['version'],
                          'detail': 'this helper is not the pinned package; preserve the brief '
                                    'and use the supported job package upgrade first'})
-        drift = [gap for gap in gaps if gap['kind'] in
-                 ('package-version', 'installed-drift', 'missing-package-identity')]
         if state.get('cancelled') and not args.resume_cancelled and not gaps:
             return {'status': 'cancelled', 'cancelled': state['cancelled'],
                     'gaps': gaps, 'changed': False,
@@ -1764,9 +1973,9 @@ def cmd_resume(args):
                                    'with an owner decision after the supported package upgrade'}
         require(not gaps or args.owner_decision_id,
                 'accepting a policy/package migration requires --owner-decision-id')
-        if drift and not getattr(args, 'upgrade_receipt', None):
+        if gaps and not getattr(args, 'upgrade_receipt', None):
             raise ContinuousError(
-                'package drift on this run needs the supported upgrade receipt: run '
+                'policy/package drift on this run needs the supported upgrade receipt: run '
                 'job_cli.py upgrade-package, then pass --upgrade-receipt <output.json> '
                 'with --accept-migration and --owner-decision-id')
         if gaps and args.package_version and installed['version'] and \
@@ -1777,7 +1986,8 @@ def cmd_resume(args):
         upgrade_receipt = None
         if getattr(args, 'upgrade_receipt', None):
             upgrade_receipt = validate_upgrade_receipt(
-                args.upgrade_receipt, state, args.owner_decision_id, installed)
+                args.upgrade_receipt, state, args.owner_decision_id, installed,
+                getattr(args, 'job', None) or state.get('job'))
         changed = False
         if gaps:
             if state.get('migration') is None:
@@ -1789,9 +1999,13 @@ def cmd_resume(args):
             state['policy_version'] = installed['policy_version']
             package['installed_version'] = installed['version']
             package['installed_digest'] = installed['digest']
-            package['pinned_version'] = args.package_version or installed['version']
+            package['pinned_version'] = args.package_version or installed['installed_version']
             package['helper'] = str(Path(args.script).resolve())
             state['package'] = package
+            if upgrade_receipt:
+                state['job_id'] = upgrade_receipt['job_id']
+                state['job'] = upgrade_receipt['job']
+                state['job_state_sha256'] = upgrade_receipt['previous_state']['sha256']
             changed = True
         if state.get('cancelled') and args.resume_cancelled:
             state['cancelled'] = None
@@ -1834,6 +2048,8 @@ def cmd_preflight(args):
     if isinstance(pin, dict):
         version = pin.get('version') or pin.get('package_version') or pin.get('installed_version')
         package_dir = pin.get('package_dir')
+        if package_dir and (Path(package_dir) / 'install-manifest.json').is_file():
+            version = load_json(Path(package_dir) / 'install-manifest.json').get('version')
     helper = (Path(package_dir) / 'scripts' / 'continuous.py') if package_dir else None
     has_helper = bool(helper and helper.is_file())
     state_present = bool(args.state) and Path(args.state).expanduser().exists()
@@ -1914,6 +2130,7 @@ def build_parser():
     start.add_argument('--scope-value', required=True)
     start.add_argument('--thread-id')
     start.add_argument('--job-id')
+    start.add_argument('--job', help='job directory whose installed package is pinned')
     start.add_argument('--job-state-sha256')
     start.add_argument('--cadence-seconds', type=int, default=DEFAULT_CADENCE_SECONDS)
     start.add_argument('--queue-threshold-seconds', type=int, default=DEFAULT_QUEUE_THRESHOLD_SECONDS)
@@ -1980,9 +2197,10 @@ def build_parser():
     receipt.add_argument('--request-id', required=True)
     receipt.add_argument('--status', required=True,
                          choices=('succeeded', 'failed', 'rejected', 'cancelled',
-                                  'superseded', 'armed', 'no-change'))
+                                  'superseded', 'armed', 'no-change', 'uncertain'))
     receipt.add_argument('--head')
     receipt.add_argument('--result')
+    receipt.add_argument('--job', help='job directory containing the accepted execution')
     receipt.add_argument('--host-task-id')
     receipt.add_argument('--reason')
     receipt.add_argument('--kind', choices=('fixer', 'merge', 'resolution'))
@@ -1994,6 +2212,7 @@ def build_parser():
     done.add_argument('--pr', required=True)
     done.add_argument('--request-id', required=True)
     done.add_argument('--result', required=True)
+    done.add_argument('--job', help='job directory containing the accepted execution')
     done.add_argument('--head')
     done.add_argument('--host-task-id')
     done.add_argument('--reason')
@@ -2022,6 +2241,7 @@ def build_parser():
     resume.add_argument('--owner-decision-id')
     resume.add_argument('--resume-cancelled', action='store_true')
     resume.add_argument('--upgrade-receipt')
+    resume.add_argument('--job', help='pinned job whose supported package upgrade is verified')
     resume.set_defaults(func=cmd_resume)
 
     preflight = sub.add_parser('preflight')

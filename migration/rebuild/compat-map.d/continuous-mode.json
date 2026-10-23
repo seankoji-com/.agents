@@ -68,6 +68,13 @@
   },
   "added": [
     {
+      "path": "tests/test_babysitter_continuous_safety.py",
+      "stage": 4,
+      "kind": "test",
+      "coverage": ["G-BS-SCOPE", "G-BS-EXACT-HEAD"],
+      "reason": "Adverse reservation, ownership, accepted-result, revocation and real installed legacy-upgrade regressions."
+    },
+    {
       "path": "plugins/babysitter/scripts/continuous.py",
       "stage": 4,
       "kind": "helper",

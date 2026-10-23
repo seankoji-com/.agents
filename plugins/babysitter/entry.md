@@ -64,12 +64,11 @@ changes: the PR still needs work.
 
 ## Continuous mode
 
-A `repo`/`org` run refreshes discovery at entry, every wake/completion and
-before yielding; a native watch is not continuation. Owner-authorised idle coverage
-uses the host scheduler via `PKG/scripts/continuous.py`, recording scope, a
-10-minute cadence, a 15-minute queue threshold, schedule ID and stop operation;
-without it, report event-only coverage and its idle discovery/queue-age gap. See
-`PKG/references/continuous.md`.
+`repo`/`org` refreshes discovery at entry, every wake/completion and before yielding.
+Authorised idle coverage uses the host scheduler via `PKG/scripts/continuous.py`:
+record scope, 10-minute cadence, 15-minute queue threshold, schedule ID and stop operation.
+Otherwise report event-only coverage and its idle discovery/queue-age gap.
+See `PKG/references/continuous.md`.
 
 ## Landing gate
 

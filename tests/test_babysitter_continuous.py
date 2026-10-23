@@ -105,6 +105,12 @@ class ContinuousCase(unittest.TestCase):
         return self.cli('schedule-record', '--now', at, '--schedule-id', schedule_id,
                         '--next-run-at', next_run)
 
+    def accepted_result(self, request, host='host-fixer'):
+        from tests.babysitter_continuous_fixtures import AcceptedJob
+        fixture = AcceptedJob(self.base / ('accepted-' + request), request, host)
+        fixture.complete()
+        return fixture.transport
+
 
 class QueuedJobCausalTest(ContinuousCase):
     def test_scheduled_wake_diagnoses_a_queued_job_that_emits_no_event(self):
@@ -320,12 +326,12 @@ class IdempotencyTest(ContinuousCase):
         self.assertEqual(result['human_questions'], [])
         url = 'https://github.com/fixture/widgets/pull/12'
         self.cli('dispatch', '--now', '2026-10-22T14:05:30Z', '--pr', url,
-                 '--request-id', action['request_id'], '--kind', 'fixer', '--head', H1)
-        result_path = self.base / 'triage-result.json'
-        result_path.write_text(json.dumps({'outcome': 'no actionable change; answered'}))
+                 '--request-id', action['request_id'], '--kind', 'fixer', '--head', H1,
+                 '--host-task-id', 'host-fixer')
+        result_path = self.accepted_result(action['request_id'])
         self.cli('receipt', '--now', '2026-10-22T14:06:00Z', '--pr', url,
                  '--request-id', action['request_id'], '--status', 'no-change',
-                 '--result', str(result_path))
+                 '--result', str(result_path), '--host-task-id', 'host-fixer')
         waiting = self.observe('2026-10-22T14:07:00Z', observation(changed), wake='re-review')
         self.assertEqual(waiting['actions'][0]['kind'], 'wait-review')
         self.assertEqual(waiting['actions'][0]['blocked']['kind'], 'requested-changes')
@@ -368,11 +374,10 @@ class IdempotencyTest(ContinuousCase):
         self.assertEqual(guarded['actions'][0]['kind'], 'wait-fixer')
         self.assertEqual(guarded['actions'][0]['blocked']['kind'], 'fixer-in-flight')
 
-        result_path = self.base / 'fixer-result.json'
-        result_path.write_text(json.dumps({'outcome': 'lint fixed', 'head': H1}))
+        result_path = self.accepted_result(request, 'task-1')
         self.cli('fixer-done', '--now', '2026-10-22T14:09:00Z',
                  '--pr', 'https://github.com/fixture/widgets/pull/12',
-                 '--request-id', request, '--result', str(result_path))
+                 '--request-id', request, '--result', str(result_path), '--host-task-id', 'task-1')
         landed = self.observe('2026-10-22T14:10:00Z', observation(pr()), wake='clear')
         self.assertEqual(landed['actions'][0]['kind'], 'merge')
         self.cli('dispatch', '--now', '2026-10-22T14:10:30Z',
@@ -382,8 +387,14 @@ class IdempotencyTest(ContinuousCase):
         self.assertEqual(pending['actions'][0]['kind'], 'merge-pending')
         resolution = self.cli('dispatch', '--now', '2026-10-22T14:11:30Z',
                               '--pr', 'https://github.com/fixture/widgets/pull/12',
-                              '--request-id', 'reply-1', '--kind', 'resolution')
-        self.assertEqual(resolution['status'], 'recorded')
+                              '--request-id', 'reply-1', '--kind', 'resolution', ok=False)
+        self.assertIn('may not race', resolution.stderr)
+        self.cli('receipt', '--now', '2026-10-22T14:11:40Z',
+                 '--pr', 'https://github.com/fixture/widgets/pull/12',
+                 '--request-id', 'merge-1', '--status', 'rejected')
+        self.cli('dispatch', '--now', '2026-10-22T14:11:50Z',
+                 '--pr', 'https://github.com/fixture/widgets/pull/12',
+                 '--request-id', 'reply-1', '--kind', 'resolution')
         repeated = self.cli('dispatch', '--now', '2026-10-22T14:12:00Z',
                             '--pr', 'https://github.com/fixture/widgets/pull/12',
                             '--request-id', 'reply-1', '--kind', 'resolution')
@@ -420,14 +431,17 @@ class CancelResumeTest(ContinuousCase):
         self.assertIn('policy-version', [g['kind'] for g in required['gaps']])
         self.assertFalse(required['changed'])
 
-        migrated = self.cli('resume', '--now', '2026-10-22T14:15:00Z',
+        refused = self.cli('resume', '--now', '2026-10-22T14:15:00Z',
                             '--package-version', '1.3.0+content.abc123',
                             '--accept-migration', '--owner-decision-id', 'owner-approve-upgrade',
-                            '--resume-cancelled')
-        self.assertEqual(migrated['status'], 'resumed')
-        self.assertTrue(migrated['changed'])
-        self.assertEqual(migrated['policy_version'], 'continuous-1')
-        self.assertEqual(migrated['migration']['owner_decision_id'], 'owner-approve-upgrade')
+                            '--resume-cancelled', ok=False)
+        self.assertIn('upgrade receipt', refused.stderr)
+        # Cancellation can be resumed independently when the package is unchanged.
+        state['policy_version'] = 'continuous-1'
+        state['package']['pinned_version'] = '1.3.0'
+        self.state.write_text(json.dumps(state))
+        resumed_state = self.cli('resume', '--now', '2026-10-22T14:15:00Z', '--resume-cancelled')
+        self.assertEqual(resumed_state['status'], 'resumed')
         resumed = self.observe('2026-10-22T14:20:00Z', observation(pr()), wake='resume')
         self.assertEqual(resumed['status'], 'ok')
 
@@ -594,7 +608,7 @@ class DispatchReservationTest(ContinuousCase):
         self.assertEqual(retried['actions'][0]['kind'], 'dispatch-fixer')
         self.assertIn('-a2', retried['actions'][0]['request_id'])
 
-    def test_a_launch_exception_closes_the_reservation_instead_of_latching_a_writer(self):
+    def test_a_lost_launch_response_keeps_the_writer_guard_until_reconciled(self):
         host = RecordingHost(observation(pr(checks=self.failing())), self.state,
                              raise_error=True)
         self.arm(host)
@@ -603,10 +617,10 @@ class DispatchReservationTest(ContinuousCase):
         self.assertEqual(result[0]['dispatched'][0]['reconciled'], 'recorded')
         state = json.loads(self.state.read_text())
         pr_state = state['prs']['https://github.com/fixture/widgets/pull/12']
-        self.assertFalse(pr_state['fixer']['in_flight'])
-        self.assertEqual(pr_state['dispatches'][0]['status'], 'failed')
+        self.assertTrue(pr_state['fixer']['in_flight'])
+        self.assertEqual(pr_state['dispatches'][0]['status'], 'uncertain')
         green = self.observe('2026-10-22T14:11:00Z', observation(pr()), wake='green')
-        self.assertEqual(green['actions'][0]['kind'], 'merge')
+        self.assertEqual(green['actions'][0]['kind'], 'wait-fixer')
 
 
 class ReceiptKindTest(ContinuousCase):
@@ -703,8 +717,8 @@ class SchedulerCoverageTest(ContinuousCase):
         self.assertIsNone(revoked['scheduler']['next_run_at'])
         self.assertEqual(revoked['scheduler']['historical_next_run_at'],
                          '2026-10-22T14:10:00Z')
-        observed = self.observe('2026-10-22T14:06:00Z', observation(pr()), wake='event')
-        self.assertEqual(observed['coverage'], 'event-only')
+        observed = self.observe('2026-10-22T14:06:00Z', observation(pr()), wake='event', kind='event')
+        self.assertEqual(observed['coverage'], 'stop-unverified')
         self.assertIsNone(observed['next_wake_at'])
         self.assertIsNone(observed['scheduler']['next_run_at'])
         self.assertFalse(observed['scheduler']['overdue'])
@@ -780,11 +794,12 @@ class StateSafetyTest(ContinuousCase):
         first = self.observe('2026-10-22T14:05:00Z', observation(pr(checks=failing)),
                              wake='fail')['actions'][0]
         self.cli('dispatch', '--now', '2026-10-22T14:05:00Z', '--pr', url,
-                 '--request-id', first['request_id'], '--kind', 'fixer', '--head', H1)
-        result = self.base / 'result.json'
-        result.write_text('{"outcome":"fixed"}')
+                 '--request-id', first['request_id'], '--kind', 'fixer', '--head', H1,
+                 '--host-task-id', 'host-fixer')
+        result = self.accepted_result(first['request_id'])
         self.cli('fixer-done', '--now', '2026-10-22T14:06:00Z', '--pr', url,
-                 '--request-id', first['request_id'], '--result', str(result))
+                 '--request-id', first['request_id'], '--result', str(result),
+                 '--host-task-id', 'host-fixer')
         second = self.observe('2026-10-22T14:07:00Z', observation(pr(checks=failing)),
                               wake='fail-2')['actions'][0]
         self.assertEqual(second['kind'], 'dispatch-fixer')
@@ -829,8 +844,9 @@ class AdoptedGuardTest(ContinuousCase):
         self.assertEqual(still['actions'][0]['kind'], 'wait-fixer')
         self.assertEqual(json.loads(self.state.read_text())['prs'][url][
             'last_meaningful_progress_at'], progress)
+        accepted = self.accepted_result('adopted-handle', 'host-fixer-7')
         cleared = self.cli('fixer-done', '--now', '2026-10-22T14:07:00Z', '--pr', url,
-                           '--request-id', 'adopted-handle', '--result', str(result),
+                           '--request-id', 'adopted-handle', '--result', str(accepted),
                            '--host-task-id', 'host-fixer-7')
         self.assertEqual(cleared['status'], 'recorded')
         landed = self.observe('2026-10-22T14:08:00Z', observation(pr()), wake='after')
@@ -863,7 +879,7 @@ class RepairAndMergeTest(ContinuousCase):
             self.cli('dispatch', '--now', f'2026-10-22T14:0{attempt}:30Z', '--pr', url,
                      '--request-id', action['request_id'], '--kind', 'fixer', '--head', H1)
             self.cli('receipt', '--now', f'2026-10-22T14:0{attempt}:45Z', '--pr', url,
-                     '--request-id', action['request_id'], '--status', 'failed')
+                     '--request-id', action['request_id'], '--status', 'rejected')
         exhausted = self.observe('2026-10-22T14:09:00Z', observation(pr(checks=failing)),
                                  wake='after-exhaustion')
         self.assertEqual(exhausted['actions'][0]['kind'], 'blocked')
@@ -919,7 +935,7 @@ class RepairAndMergeTest(ContinuousCase):
         self.assertEqual(still['actions'][0]['kind'], 'owned-elsewhere')
         self.assertEqual(self.cli('status')['prs'][owned['url']]['owner']['thread_id'], 'other')
         released = pr(owner={'thread_id': 'other', 'status': 'completed',
-                             'continuation': None})
+                             'continuation': 'handed-back'})
         after = self.observe('2026-10-22T14:07:00Z', observation(released), wake='released')
         self.assertEqual(after['actions'][0]['kind'], 'merge')
 
@@ -1168,12 +1184,10 @@ class PackagePreflightTest(ContinuousCase):
         receipt.write_text(json.dumps({'job_id': 'job-1', 'package_digest': identity['digest'],
                                        'package_dir': str(copied),
                                        'owner_decision_id': 'owner-one'}))
-        accepted = self.cli('resume', '--now', '2026-10-22T14:11:00Z',
+        refused = self.cli('resume', '--now', '2026-10-22T14:11:00Z',
                             '--accept-migration', '--owner-decision-id', 'owner-one',
-                            '--upgrade-receipt', str(receipt), helper=helper)
-        self.assertEqual(accepted['status'], 'resumed')
-        self.assertEqual(accepted['migration']['upgrade_receipt']['package_digest'],
-                         identity['digest'])
+                            '--upgrade-receipt', str(receipt), helper=helper, ok=False)
+        self.assertIn('requires --job', refused.stderr)
 
     def test_a_legacy_state_without_a_package_identity_is_a_migration_gap(self):
         self.start()
@@ -1354,6 +1368,20 @@ print('200', end='')
         result = self.observe('2026-10-22T14:05:00Z', observation(row), wake='reader-unstable')
         self.assertEqual(result['actions'][0]['kind'], 'merge')
 
+    def test_optional_failure_with_an_unsatisfied_protection_is_diagnosed_not_repaired(self):
+        checks = [{'__typename': 'CheckRun', 'name': 'optional-lint', 'status': 'COMPLETED',
+                   'conclusion': 'FAILURE', 'startedAt': '2026-10-22T13:00:00Z',
+                   'detailsUrl': None, 'isRequired': False}]
+        payload = {'data': {'viewer': {'login': 'fixture'}, 'repository': {'pullRequest':
+            self.node(checks=checks, checks_state='FAILURE', merge_state='BLOCKED')}}}
+        row = self.reader_row(payload, pr_number=12)
+        self.assertEqual(row['required_contexts_observed'], [])
+        self.assertEqual(row['optional_contexts_observed'], ['optional-lint'])
+        self.start()
+        result = self.observe('2026-10-22T14:05:00Z', observation(row), wake='optional')
+        self.assertEqual(result['actions'][0]['kind'], 'diagnose-gate')
+        self.assertEqual(result['actions'][0]['blocked']['kind'], 'stuck-aggregate-gate')
+
 
 class InstalledPackageTest(unittest.TestCase):
     def install(self, base):
@@ -1427,7 +1455,7 @@ class InstalledPackageTest(unittest.TestCase):
             self.assertEqual([row['number'] for row in second[0]['result']['admitted']], [78])
             self.assertEqual(second[0]['dispatched'][0]['recorded'], 'recorded')
 
-    def test_installed_helper_preflights_and_migrates_a_legacy_pinned_job(self):
+    def test_installed_helper_refuses_a_fabricated_legacy_upgrade_receipt(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             version_dir, _ = self.install(base)
@@ -1481,10 +1509,8 @@ class InstalledPackageTest(unittest.TestCase):
                  '--now', '2026-10-22T14:07:00Z', '--accept-migration',
                  '--owner-decision-id', 'owner-one', '--upgrade-receipt', str(receipt)],
                 capture_output=True, text=True, timeout=30)
-            self.assertEqual(migrated.returncode, 0, migrated.stderr)
-            migrated_report = json.loads(migrated.stdout)
-            self.assertEqual(migrated_report['status'], 'resumed')
-            self.assertEqual(migrated_report['policy_version'], 'continuous-1')
+            self.assertNotEqual(migrated.returncode, 0)
+            self.assertIn('requires --job', migrated.stderr)
             self.assertEqual({path.name: path.read_bytes() for path in job_dir.iterdir()},
                              before)
             self.assertEqual((old_package / 'plugin.json').read_text(),

@@ -84,10 +84,17 @@ def handle_wake(host, state_path, now, wake):
 
     Order is reserve -> host side effect -> attach handle. The reservation is the
     transaction that stops a competing fixer or merge from racing the launch; the host
-    is never called before it exists. A refused, failed or uncertain launch is closed
-    with a terminal receipt so no phantom writer stays latched.
+    is never called before it exists. A lost response keeps the reservation held until
+    host reconciliation proves refusal or identifies the launched task.
     """
     state = _state(state_path)
+    if (wake.get('kind') or 'schedule') == 'schedule' and (
+            state.get('cancelled') or state['scheduler']['mode'] != 'scheduled'
+            or state['scheduler'].get('stopped')):
+        return {'wake': wake, 'result': {'status': 'scheduled-continuation-blocked',
+                'actions': [], 'scheduler_stop': state['scheduler'].get('stop'),
+                'scheduler': continuous.scheduler_report(state, continuous.parse_time(now))},
+                'dispatched': []}
     observation = host.discover(state['scope'], now)
     with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as stream:
         json.dump(observation, stream)
@@ -131,7 +138,7 @@ def handle_wake(host, state_path, now, wake):
             receipt = host.dispatch(action, now)
         except Exception as exc:  # noqa: BLE001 - host adapters fail in many ways
             closed = _close_dispatch(
-                state_path, now, action, 'failed',
+                state_path, now, action, 'uncertain',
                 'host launch raised; the launch outcome is uncertain and no handle was '
                 f'confirmed: {type(exc).__name__}: {exc}')
             dispatched.append({'action': action, 'status': 'launch-error',
@@ -141,13 +148,19 @@ def handle_wake(host, state_path, now, wake):
             continue
         if not isinstance(receipt, dict) or receipt.get('status', 'accepted') != 'accepted':
             refusal = receipt if isinstance(receipt, dict) else {}
-            status = 'rejected' if refusal.get('status') == 'rejected' else 'failed'
+            # Only an explicit rejection confirms that no work was launched.
+            status = 'rejected' if refusal.get('status') == 'rejected' else 'uncertain'
             closed = _close_dispatch(state_path, now, action, status,
                                      refusal.get('reason') or 'host refused the dispatch')
             dispatched.append({'action': action, 'status': refusal.get('status'),
                                'reason': refusal.get('reason'),
                                'reservation': reservation.get('status'),
                                'reconciled': closed.get('status')})
+            continue
+        if not receipt.get('host_task_id'):
+            _close_dispatch(state_path, now, action, 'uncertain',
+                            'host returned acceptance without a task handle')
+            dispatched.append({'action': action, 'status': 'launch-uncertain'})
             continue
         try:
             recorded = continuous.cmd_dispatch(_namespace(
