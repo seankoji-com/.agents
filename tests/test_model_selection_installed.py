@@ -17,6 +17,54 @@ from tests.test_rebuild_installed import Sandbox
 
 
 class InstalledSelectionTests(unittest.TestCase):
+    def test_relocated_custom_routing_labels_preserve_independence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            box = Sandbox(Path(temporary))
+            for plugin in ('babysitter', 'ralph'):
+                package, _ = box.install(plugin)
+                relocated = box.base / (plugin + '-custom-relocated')
+                shutil.copytree(package, relocated)
+                self.assertEqual((relocated / 'shared/model_selection.py').read_bytes(),
+                                 (ROOT / 'shared/model_selection.py').read_bytes())
+                for driver in ('cursor', 'opencode', 'pi'):
+                    data = canonical_selection_input()
+                    data['routing_scope'] = 'global'
+                    data['capabilities']['runtimeMode'] = 'full-access'
+                    provider = data['capabilities']['providers'][0]
+                    provider['driverKind'] = driver
+                    provider['runtimeModes'] = ['auto', 'full-access']
+                    provider['models'][0]['id'] = 'myvendor-custom'
+                    work = data['work']['workhorse']
+                    work.update(model='myvendor-custom', runtimeMode='full-access')
+                    entry = {**work, 'lineage': 'myvendor'}
+                    data['routing'] = {'roles': {'workhorse': [entry],
+                                                'reviewer': [data['review_panel'][0]['target']]}}
+                    del data['profiles']['models'][0]
+                    for label in ('myvendor', 'google', 'anthropic'):
+                        with self.subTest(plugin=plugin, driver=driver, label=label):
+                            entry['lineage'] = label
+                            frozen = box.run([sys.executable, relocated/'shared/model_selection_cli.py',
+                                              'freeze', '--input', box.payload(data)], check=False)
+                            if label != 'google':
+                                self.assertEqual(frozen.returncode, 2)
+                                self.assertIn('independent of every', frozen.stderr)
+                                continue
+                            self.assertEqual(frozen.returncode, 0, frozen.stderr)
+                            record = json.loads(frozen.stdout)
+                            for role in ('workhorse', 'reviewer'):
+                                request = {'record': record, 'role': role,
+                                           'expected': record['selection_sha256']}
+                                if role == 'reviewer':
+                                    request['slot_id'] = 'review'
+                                result = box.run([sys.executable, relocated/'shared/model_selection_cli.py',
+                                                  'dispatch', '--input', box.payload(request)])
+                                plan = json.loads(result.stdout)
+                                self.assertEqual(plan['target'], work if role == 'workhorse' else
+                                                 data['review_panel'][0]['target'])
+                                self.assertEqual(plan['routing_scope'], 'global' if role == 'workhorse'
+                                                 else 'invocation-only')
+                    self.assertFalse((box.config / 't3-plugins/routing.json').exists())
+
     def test_installed_babysitter_and_ralph_short_rounds_and_exact_dispatch(self):
         with tempfile.TemporaryDirectory() as temporary:
             box = Sandbox(Path(temporary))

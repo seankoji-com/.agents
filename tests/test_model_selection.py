@@ -141,9 +141,9 @@ class SelectionTests(unittest.TestCase):
     def test_configured_endorsement_is_ordinary_quality_source_without_model_row(self):
         for missing in ('quality', 'row', 'floor'):
             with self.subTest(missing=missing):
-                data = deepcopy(self.data)
+                data = canonical_selection_input()
                 work = data['work']['workhorse']
-                data['routing'] = {'roles': {'workhorse': [{**work, 'lineage': 'alpha'}],
+                data['routing'] = {'roles': {'workhorse': [{**work, 'lineage': 'openai'}],
                                             'reviewer': [data['review_panel'][0]['target']]}}
                 data['source'] = answer('Use the configured alpha-work as workhorse globally')
                 data['routing_scope'] = 'global'
@@ -203,6 +203,39 @@ class SelectionTests(unittest.TestCase):
         data['capabilities']['providers'][0]['models'][0]['id'] = work['model']
         with self.assertRaisesRegex(models.SelectionError, 'independent of every'):
             models.freeze(data)
+
+    def test_configured_custom_basename_cannot_establish_review_independence(self):
+        for driver in ('cursor', 'opencode', 'pi'):
+            for label in (None, 'myvendor', 'other-unverified', 'google', 'anthropic'):
+                with self.subTest(driver=driver, label=label):
+                    data = canonical_selection_input()
+                    data['routing_scope'] = 'global'
+                    data['capabilities']['runtimeMode'] = 'full-access'
+                    provider = data['capabilities']['providers'][0]
+                    provider['driverKind'] = driver
+                    provider['runtimeModes'] = ['auto', 'full-access']
+                    provider['models'][0]['id'] = 'myvendor-custom'
+                    work = data['work']['workhorse']
+                    work.update(model='myvendor-custom', runtimeMode='full-access')
+                    entry = {**work, **({'lineage': label} if label else {})}
+                    data['routing'] = {'roles': {'workhorse': [entry],
+                                                'reviewer': [data['review_panel'][0]['target']]}}
+                    del data['profiles']['models'][0]
+                    original = deepcopy(data)
+                    if label == 'google':
+                        record = models.freeze(data)
+                        self.assertEqual(models.dispatch(record, role='workhorse')['target'], work)
+                        self.assertEqual(models.dispatch(record, role='workhorse')['routing_scope'], 'global')
+                        self.assertEqual(models.dispatch(record, role='reviewer', slot_id='review')[
+                            'routing_scope'], 'invocation-only')
+                    else:
+                        with self.assertRaisesRegex(models.SelectionError, 'independent of every'):
+                            models.freeze(data)
+                    self.assertEqual(data, original)
+                    # A separately sourced profile can confirm a custom lineage.
+                    data['profiles']['models'].append({'target': deepcopy(work), 'lineage': 'myvendor',
+                        'lineage_source': 'fixture:owner-confirmed-family'})
+                    self.assertEqual(models.dispatch(models.freeze(data), role='workhorse')['target'], work)
 
     def test_lineage_conflict_names_origin_and_correction_without_changing_selection(self):
         for origin, role, family in (('routing', 'workhorse', 'openai'),

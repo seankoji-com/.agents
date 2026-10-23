@@ -158,14 +158,21 @@ def suitability(target, role, profiles, capabilities, endorsement=None, configur
             (' at ' + str(floor['source']) if floor.get('source') else '') + '.')
     profile = deepcopy(matches[0]) if matches else {}
     lineage_field = 'profiles.models.lineage'
+    provider, model = model_entry(capabilities, target, target.get('execution') != 'current-context')
+    known_lineages = set(FAMILY_LINEAGE.values()) | set(DRIVER_LINEAGE.values())
+    actual_lineage = lineage(provider.get('driverKind', ''), target['model'])
+    if actual_lineage not in known_lineages:
+        actual_lineage = 'unknown'  # A custom model's basename is not verified lineage.
     if ordinary:
         profile.setdefault('quality', 1)
         if not profile.get('reason'):
             profile['reason'] = endorsement['answer']
-        if not profile.get('lineage') and configured.get('lineage'):
+        # Setup also writes custom basenames here. Those inferred labels cannot
+        # establish independence; an explicit custom family needs a sourced profile.
+        if (not profile.get('lineage') and configured.get('lineage') and
+                (actual_lineage != 'unknown' or configured['lineage'] in known_lineages)):
             profile.update(lineage=configured['lineage'], lineage_source='routing.roles.workhorse')
             lineage_field = 'routing.roles.workhorse.lineage'
-    provider, model = model_entry(capabilities, target, target.get('execution') != 'current-context')
     effort = [o for o in option_descriptors(model) if o.get('type') == 'select']
     require(not floor.get('judgement') or profile.get('judgement') is True,
             'judgement-capable model required by role floor' + context +
@@ -187,9 +194,6 @@ def suitability(target, role, profiles, capabilities, endorsement=None, configur
             'selected options below role floor' + context +
             'choose the advertised options required by profiles.roles.' + role +
             '.required_options: ' + json.dumps(required_options, sort_keys=True))
-    actual_lineage = lineage(provider.get('driverKind', ''), target['model'])
-    if actual_lineage not in set(FAMILY_LINEAGE.values()) | set(DRIVER_LINEAGE.values()):
-        actual_lineage = 'unknown'  # A custom model's basename is not verified lineage.
     declared = profile.get('lineage')
     if declared:
         require(bool(profile.get('lineage_source')), 'declared lineage needs a source')
