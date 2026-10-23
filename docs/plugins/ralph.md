@@ -38,8 +38,12 @@ catalog v0.5.0 or later. If `t3-plugins list` doesn't include it, run
 
 ## Choose the pair
 
-Each new run asks for both models from the live T3 catalog, including custom models
-and their settings, and keeps that pair for the whole run. One provider can host
+Each new run collects both models from the live T3 catalog, including custom models,
+and keeps that pair for the whole run. Questions come in short rounds: implementer,
+evaluator, then each missing option. Explicit answers skip their questions. A lineage
+or sharing conflict gets its own short question only when it needs a decision.
+The picker shows a short relevant list; the final summary records roles, exact
+models, options and scope before dispatch. One provider can host
 several model lineages, so picking two providers doesn't prove independence. Unknown
 lineage labels need your confirmation; if the pair can't be shown to be independent,
 the run doesn't start.

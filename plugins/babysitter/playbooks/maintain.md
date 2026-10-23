@@ -51,9 +51,9 @@ Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop ru
    child work gets a fixer now, all at once, with no concurrency cap and no question.
    Create one job per such PR with `PKG/references/job-plan.md`; PRs without child work
    need no job.
-5. Prepare each fixer's worktree with `bash PKG/scripts/pr-workspace.sh`. Recommend
-   the cheapest suitable tier within role floors; use upfront selected work
-   target/options and approved replacements. Show live-catalog choices without
+5. Prepare with `bash PKG/scripts/pr-workspace.sh`. Use upfront selected work
+   target/options and approved replacements. Follow shared short rounds. Recommend
+   cheapest suitable tier for missing choices. Show live-catalog choices without
    routing. Never infer an answer; report `unavailable` entries.
 6. Dispatch per `PKG/shared/job-coordination.md`: `job_cli.py prepare`, launch
    `babysitter/pr-maintainer` with `delegate_task`, and record the handle with

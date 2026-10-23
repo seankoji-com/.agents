@@ -52,7 +52,7 @@
         "assertions": [
           {
             "selector": "test_model_selection.SelectionTests",
-            "tests": 25,
+            "tests": 31,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",
@@ -70,7 +70,7 @@
         "assertions": [
           {
             "selector": "test_model_selection_installed.InstalledSelectionTests",
-            "tests": 2,
+            "tests": 3,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",

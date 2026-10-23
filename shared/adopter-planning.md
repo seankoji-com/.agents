@@ -1,7 +1,7 @@
 # Configuration, design and written-strategy review
 
 Apply `model-selection.md` first. Before substantive investigation, drafting or
-children, collect work/review choices together. Explicit choices count. Only
+children, collect work/review choices in short rounds, one decision per question. Explicit choices count. Only
 operation/capability/identity/resume preflight precedes answers. A raw factual or
 format check that later needs synthesis/delegation stops there for choices.
 

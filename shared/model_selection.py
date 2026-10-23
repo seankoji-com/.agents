@@ -98,24 +98,39 @@ def validate_target(target, capabilities, child=True):
 
 
 def suitability(target, role, profiles, capabilities):
-    require(isinstance(profiles, dict), 'suitability profile missing')
+    identity = '/'.join(key(target))
+    needed = (' for ' + role + ' ' + identity + '; provide profiles.roles.' + role +
+              ' and one profiles.models entry for this exact provider/model with quality, reason' +
+              ' and any required judgement/fixed_effort_reason evidence. These enforce the role floor.')
+    require(isinstance(profiles, dict), 'suitability profile missing' + needed)
     floor = profiles.get('roles', {}).get(role)
     require(isinstance(floor, dict) and type(floor.get('minimum')) is int and floor['minimum'] >= 0,
-            'role floor missing: ' + role)
+            'role floor missing: ' + role + needed)
     matches = [m for m in profiles.get('models', []) if key(m['target']) == key(target)]
-    require(len(matches) == 1, 'model suitability missing or ambiguous')
+    require(len(matches) == 1, 'model suitability missing or ambiguous' + needed)
     profile = matches[0]
-    require(isinstance(profile.get('reason'), str) and profile['reason'].strip(), 'suitability needs evidence/reason')
-    require(type(profile.get('quality')) is int and profile['quality'] >= floor['minimum'], 'model below role floor')
-    require(not floor.get('judgement') or profile.get('judgement') is True, 'judgement-capable model required')
+    context = ' for ' + role + ' ' + identity + '; '
+    require(isinstance(profile.get('reason'), str) and profile['reason'].strip(),
+            'suitability needs evidence/reason' + context +
+            'provide profiles.models.reason for this exact target. An explicit configured-workhorse '
+            'endorsement is accepted for ordinary work; stricter policy needs its named source.')
+    require(type(profile.get('quality')) is int and profile['quality'] >= floor['minimum'],
+            'model below role floor' + context + 'provide sourced profiles.models.quality >= ' +
+            str(floor['minimum']) + ' required by profiles.roles.' + role + '.minimum.')
+    require(not floor.get('judgement') or profile.get('judgement') is True,
+            'judgement-capable model required' + context +
+            'provide profiles.models.judgement evidence required by profiles.roles.' + role + '.judgement.')
     provider, model = model_entry(capabilities, target, target.get('execution') != 'current-context')
     effort = [o for o in model.get('options') or [] if o.get('type') == 'select']
     if floor.get('judgement') and not effort:
         require(isinstance(profile.get('fixed_effort_reason'), str) and profile['fixed_effort_reason'].strip(),
-                'fixed-effort review needs a suitability reason')
+                'fixed-effort review needs a suitability reason' + context +
+                'provide profiles.models.fixed_effort_reason explaining how this target meets the judgement floor.')
     required_options = floor.get('required_options', {})
     require(all(target.get('options', {}).get(k) == v for k, v in required_options.items()),
-            'selected options below role floor')
+            'selected options below role floor' + context +
+            'choose the advertised options required by profiles.roles.' + role +
+            '.required_options: ' + json.dumps(required_options, sort_keys=True))
     actual_lineage = lineage(provider.get('driverKind', ''), target['model'])
     declared = profile.get('lineage')
     if declared:
@@ -160,17 +175,17 @@ def discover(capabilities, profiles, routing=None, role='workhorse'):
 
 def _eligible(target, role, record):
     target = validate_target(target, record['capabilities'], target.get('execution') != 'current-context')
-    pool = discover(record['capabilities'], record['profiles'], record['routing'], role)
-    # Direct current-context work need not be a runnable child; quality/restrictions still apply.
-    if target.get('execution') == 'current-context':
-        routing = record['routing']
-        if routing is not None:
-            entries = routing.get('roles', {}).get(role)
-            require(isinstance(entries, list) and entries and key(target) in {key(e) for e in entries},
-                    'configuration gap or current-context target policy-excluded')
-    else:
-        require(any(key(row['target']) == key(target) for row in pool['candidates']),
-                'chosen target unavailable or excluded by role/routing policy')
+    # Validate the answer itself. Discovery uses recommended options, which may
+    # fail a role floor even when the owner's actual selected options satisfy it.
+    routing = record['routing']
+    if routing is not None:
+        require(isinstance(routing, dict) and isinstance(routing.get('roles'), dict),
+                'configuration gap: malformed routing')
+        entries = routing['roles'].get(role)
+        require(isinstance(entries, list) and entries and all(isinstance(e, dict) for e in entries),
+                'configuration gap: empty/malformed role pool: ' + role)
+        require(key(target) in {key(e) for e in entries},
+                'chosen target policy-excluded by routing.roles.' + role + ': ' + '/'.join(key(target)))
     settings = (record['routing'] or {}).get('providers', {}).get(target['providerInstanceId'], {})
     if settings.get('requireRuntimeMode'):
         require(target.get('runtimeMode') == settings.get('runtimeMode'), 'required configured runtime mode changed/dropped')
@@ -239,6 +254,9 @@ def freeze(data):
     for name in ('invocation_id', 'scope_id', 'operation'):
         require(isinstance(record.get(name), str) and record[name], name + ' required')
     source(record.get('source'))
+    if 'routing_scope' in record:
+        require(record['routing_scope'] in ('invocation-only', 'global'),
+                'routing_scope must be invocation-only or global; never silently narrow the owner choice')
     require(isinstance(record.get('coordinator'), dict) and all(record['coordinator'].get(k)
             for k in ('providerInstanceId', 'model')), 'coordinator actual identity required')
     for name in ('capabilities', 'routing', 'profiles'):
@@ -381,6 +399,9 @@ def dispatch(record, *, role, slot_id=None, target=None, data_classes=('reposito
     return {'target': {k: deepcopy(v) for k, v in target.items() if k in
                        ('providerInstanceId', 'model', 'options', 'runtimeMode')},
             'execution': target.get('execution', 'child'), 'selection_sha256': record['selection_sha256'],
+            'invocation_id': record['invocation_id'], 'scope_id': record['scope_id'],
+            'routing_scope': record.get('routing_scope', 'invocation-only')
+                             if role == 'workhorse' and not review and target == primary else 'invocation-only',
             'slot_id': slot_id, 'role': role, 'substituted': target != primary}
 
 

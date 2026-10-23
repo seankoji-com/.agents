@@ -74,7 +74,7 @@ the overview and `resume` starts from it.
 
 ## Plan and conclusion review
 
-Before substantive work, choose the work and review models together. Aliases reuse
+Before substantive work, choose the work and review models in short rounds. Aliases reuse
 that answer once; automatic continuations keep it. An explicit resume shows the
 pinned choices and asks whether to retain them or stop.
 

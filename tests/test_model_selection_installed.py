@@ -16,6 +16,41 @@ from tests.test_rebuild_installed import Sandbox
 
 
 class InstalledSelectionTests(unittest.TestCase):
+    def test_installed_babysitter_and_ralph_short_rounds_and_exact_dispatch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            box = Sandbox(Path(temporary))
+            for plugin in ('babysitter', 'ralph'):
+                package, _ = box.install(plugin)
+                relocated = box.base / (plugin + '-relocated')
+                shutil.copytree(package, relocated)
+                contract = (relocated / 'shared/model-selection.md').read_text()
+                self.assertIn('one decision per question', contract)
+                self.assertIn('Run-only never writes routing', contract)
+                self.assertIn('short rounds', (relocated / 'playbooks' /
+                              ('maintain.md' if plugin == 'babysitter' else 'loop.md')).read_text())
+                data = selection_input()
+                data['routing_scope'] = 'global'
+                data['routing'] = {'roles': {'workhorse': [data['work']['workhorse']],
+                                            'reviewer': [data['review_panel'][0]['target']]}}
+                data['work']['workhorse']['options'] = {'reasoningEffort': 'low'}
+                data['profiles']['roles']['workhorse']['required_options'] = {'reasoningEffort': 'low'}
+                frozen = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
+                                  '--input', box.payload(data)])
+                record = json.loads(frozen.stdout)
+                dispatched = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'dispatch',
+                    '--input', box.payload({'record': record, 'role': 'workhorse',
+                                            'expected': record['selection_sha256']})])
+                plan = json.loads(dispatched.stdout)
+                self.assertEqual(plan['target'], data['work']['workhorse'])
+                self.assertEqual(plan['routing_scope'], 'global')
+                self.assertEqual(plan['scope_id'], data['scope_id'])
+                self.assertFalse((box.config / 't3-plugins/routing.json').exists())
+                del data['profiles']['models'][0]
+                missing = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
+                                  '--input', box.payload(data)], check=False)
+                self.assertEqual(missing.returncode, 2)
+                self.assertIn('provide profiles.roles.workhorse', missing.stderr)
+
     def test_relocated_package_cli_missing_answer_then_exact_targets_reach_real_brief(self):
         with tempfile.TemporaryDirectory() as temporary:
             box = Sandbox(Path(temporary))

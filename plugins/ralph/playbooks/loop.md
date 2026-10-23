@@ -30,15 +30,19 @@ try bounded discovery and the host's documented ACP transport before declaring
 unavailable. Use only `delegate_task`, `task_status` and `task_cancel` for children,
 plus the queued `t3_thread_send` follow-up the helper issues for delta reviews.
 
-Ask interactively for BOTH exact provider-instance/model choices on every new run.
-Show available choices from this catalog, their options, and lineage evidence.
-Accept custom models when the catalog advertises them. A provider name is not a
-lineage. Use explicit catalog lineage metadata or owner-confirmed routing labels;
-unknown or inferred labels require owner confirmation. Never accept `unknown` as
-independence. Reject a same-lineage pair and ask for an independent evaluator.
-Record the lineage source in both targets. Ask about optional model settings in the
-same interaction and pin the chosen options. Do not silently replace, escalate or
-rotate either target, even following adverse feedback or provider errors.
+Collect BOTH exact provider-instance/model choices before work, following
+`PKG/shared/model-selection.md`'s short rounds. Explicit choices already supplied
+count; retain them and ask only for missing decisions. Ask for the implementer,
+then the evaluator, then each still-missing option in separate questions. Show a
+short relevant catalog list, including custom matches, rather than the full catalog,
+lineage, sharing and runtime mechanics in one picker. A provider name is not a
+lineage. Use verified canonical lineage evidence or owner-confirmed routing labels;
+unknown labels need a separate confirmation only when independence cannot otherwise
+be established. Never accept `unknown` as independence. A same-lineage pair needs
+an eligible evaluator correction; keep the implementer answer. Record the lineage
+source in both targets. Pin the chosen options.
+Do not silently replace, escalate or rotate either target, even following adverse
+feedback or provider errors.
 Show each target's resolved runtime mode during this interaction. The helper
 validates advertised modes and records the broadest supported mode within the
 parent boundary, or uses T3's `inherit` when supported modes are unadvertised.
@@ -58,8 +62,8 @@ the design and identify every finding, including blocker/major findings, against
 that base and the full task diff. A mandatory repository review route still applies.
 Check its constraints before the model-choice interaction. The selected evaluator
 must satisfy both Ralph's independence rule and that route. If the chosen pair
-cannot meet the repository gate, explain the conflict and ask for an eligible pair
-before dispatch. If the gate requires a route Ralph cannot track with this pair,
+cannot meet the repository gate, explain the conflict and ask only for the affected
+target's correction, retaining other answers, before dispatch. If the gate requires a route Ralph cannot track with this pair,
 report it as blocked.
 
 Choose a writable checkpoint directory OUTSIDE the worktree, for example an

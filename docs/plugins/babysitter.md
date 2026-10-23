@@ -36,10 +36,11 @@ A run keeps going until every targeted PR has merged or needs a person:
    threads and requested changes. The brief lists every blocker the merge helper
    found, not only the first. The child fixes the branch and pushes. It may rebase
    and publish with `--force-with-lease` pinned to the head it fetched. It never
-   merges. The model comes from the `workhorse` role in your
-   [routing config](../getting-started.md#model-routing), cheapest tier first. Without
-   a config the thread picks a cheap model itself. A child that gets stuck hands off
-   to the next candidate, with no cap on rounds.
+   merges. Your explicit configured workhorse choice controls the requested scope.
+   Otherwise babysitter recommends candidates from your
+   [routing config](../getting-started.md#model-routing) and asks for the missing
+   choice. Without routing it offers suitable live-catalog choices. A stuck child
+   uses only an approved replacement chain within the job's repair budget.
 3. **Threads.** Before another merge attempt or watch, the coordinator inspects every
    unresolved thread at the current head, including outdated ones. It verifies the
    fix, posts an evidence-based reply and resolves the thread. Findings that need no
@@ -149,8 +150,23 @@ Jobs created through the shared CLI carry `policy.identity: observed`. Required 
 
 ## Choices and written strategies
 
-Delegating maintenance asks for work/review choices upfront and reuses them on
-automatic wakes. Ordinary maintenance adds no planning artifact or evaluator. An
+Delegating maintenance asks one short question at a time and reuses your answers
+on automatic wakes and across PRs in the run. An explicit workhorse answer skips
+that question. The next round asks only for a missing scope, reviewer or option.
+The final summary records each role, exact model and scope before dispatch.
+
+"Use this workhorse for this run" leaves global routing unchanged. "Use it globally"
+records a global choice and applies it through the authorized settings workflow;
+a repository override or missing settings authority is explained without narrowing
+your choice silently. Dispatch scope and persistent routing scope are separate.
+An available reviewer you name is checked against reviewer policy and independence,
+separately from workhorse routing.
+
+Existing suitability evidence is reused. For ordinary configured workhorse work,
+your explicit endorsement of that role supplies its suitability reason. A stricter
+policy still applies. If it needs a separate profile, babysitter names the policy,
+exact model, required fields and accepted source once, with one next step. It keeps
+your answer while blocked. Ordinary maintenance adds no planning artifact or evaluator. An
 actual written repair or landing strategy receives planning review before dependent
 actions. Merge authority, requested final-head review and the coordinator's native
 PR watch remain separate requirements.

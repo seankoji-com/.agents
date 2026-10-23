@@ -113,10 +113,119 @@ class SelectionTests(unittest.TestCase):
         data = deepcopy(self.data)
         data['capabilities']['providers'][1]['models'][0]['options'] = []
         data['review_panel'][0]['target']['options'] = {}
-        with self.assertRaisesRegex(models.SelectionError, 'unavailable or excluded'):
+        with self.assertRaisesRegex(models.SelectionError, 'fixed-effort review needs a suitability reason'):
             models.freeze(data)
         data['profiles']['models'][1]['fixed_effort_reason'] = 'Fixture fixed-effort model meets bounded judgement floor.'
         self.assertTrue(models.freeze(data))
+
+    def test_selected_options_are_validated_without_recommendation_substitution(self):
+        data = deepcopy(self.data)
+        # Discovery recommends high, while this work floor requires the selected low.
+        data['work']['workhorse']['options'] = {'reasoningEffort': 'low'}
+        data['profiles']['roles']['workhorse']['required_options'] = {'reasoningEffort': 'low'}
+        data['routing'] = {'roles': {'workhorse': [data['work']['workhorse']],
+                                    'reviewer': [data['review_panel'][0]['target']]}}
+        self.assertEqual(models.discover(data['capabilities'], data['profiles'],
+                                        data['routing'])['candidates'], [])
+        record = models.freeze(data)
+        plan = models.dispatch(record, role='workhorse')
+        self.assertEqual(plan['target'], data['work']['workhorse'])
+        self.assertFalse(plan['substituted'])
+
+    def test_configured_owner_choice_reuses_suitability_and_preserves_scope(self):
+        for scope in ('invocation-only', 'global'):
+            with self.subTest(scope=scope):
+                data = deepcopy(self.data)
+                data['source'] = answer('Use the configured alpha-work as workhorse ' + scope)
+                data['routing_scope'] = scope
+                data['profiles']['models'][0]['reason'] = data['source']['answer']
+                data['routing'] = {'roles': {'workhorse': [data['work']['workhorse']],
+                                            'reviewer': [data['review_panel'][0]['target']]}}
+                original = deepcopy(data)
+                record = models.freeze(data)
+                self.assertEqual(record['source'], original['source'])
+                self.assertEqual(record['routing_scope'], scope)
+                plan = models.dispatch(record, role='workhorse')
+                self.assertEqual(plan['routing_scope'], scope)
+                self.assertEqual(plan['scope_id'], data['scope_id'])
+                self.assertEqual(plan['role'], 'workhorse')
+                self.assertEqual(models.dispatch(record, role='workhorse')['target'], data['work']['workhorse'])
+                self.assertEqual(data, original)  # No mutation of global routing or answers.
+                review_plan = models.dispatch(record, role='reviewer', slot_id='review')
+                self.assertEqual(review_plan['target'], data['review_panel'][0]['target'])
+                self.assertEqual(review_plan['routing_scope'], 'invocation-only')
+                spare = data['profiles']['models'][2]['target']
+                data['routing']['roles']['workhorse'].append(spare)
+                data['work_replacements'] = [replacement(data, spare)]
+                record = models.freeze(data)
+                substitute = models.dispatch(record, role='workhorse', target=spare,
+                    unavailable={'kind': 'capacity', 'reference': 'fixture:capacity'})
+                self.assertEqual(substitute['routing_scope'], 'invocation-only')
+                self.assertEqual(record['routing_scope'], scope)
+
+    def test_invalid_routing_scope_fails_without_narrowing(self):
+        data = deepcopy(self.data); data['routing_scope'] = 'unspecified'
+        with self.assertRaisesRegex(models.SelectionError, 'never silently narrow'):
+            models.freeze(data)
+
+    def test_missing_profile_names_exact_role_target_fields_and_next_step(self):
+        data = deepcopy(self.data)
+        data['profiles']['models'].pop(0)
+        result = self.cli('freeze', data)
+        self.assertEqual(result.returncode, 2)
+        for text in ('workhorse fixture-work/alpha-work', 'provide profiles.roles.workhorse',
+                     'profiles.models', 'quality, reason', 'enforce the role floor'):
+            self.assertIn(text, result.stderr)
+        self.assertNotIn('unavailable or excluded', result.stderr)
+        for field, value, required in (
+                ('reason', '', 'provide profiles.models.reason'),
+                ('quality', 0, 'provide sourced profiles.models.quality >= 1')):
+            data = deepcopy(self.data)
+            data['profiles']['models'][0][field] = value
+            result = self.cli('freeze', data)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn('workhorse fixture-work/alpha-work', result.stderr)
+            self.assertIn(required, result.stderr)
+        # An ordinary workhorse endorsement cannot satisfy a stricter judgement floor.
+        data = deepcopy(self.data)
+        data['routing'] = {'roles': {'workhorse': [data['work']['workhorse']]}}
+        data['source'] = answer('Use the configured alpha-work as workhorse globally')
+        data['profiles']['models'][0].update(reason=data['source']['answer'], judgement=False)
+        data['profiles']['roles']['workhorse']['judgement'] = True
+        result = self.cli('freeze', data)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('workhorse fixture-work/alpha-work', result.stderr)
+        self.assertIn('provide profiles.models.judgement evidence', result.stderr)
+        self.assertIn('profiles.roles.workhorse.judgement', result.stderr)
+
+    def test_separate_reviewer_pool_and_concrete_reviewer_conflicts(self):
+        data = deepcopy(self.data)
+        work, review = data['work']['workhorse'], data['review_panel'][0]['target']
+        data['routing'] = {'roles': {'workhorse': [work], 'reviewer': [review]}}
+        self.assertEqual(models.dispatch(models.freeze(data), role='reviewer', slot_id='review')['target'], review)
+        data['profiles']['models'][1]['judgement'] = False
+        with self.assertRaisesRegex(models.SelectionError, 'judgement-capable model required'):
+            models.freeze(data)
+        data['profiles']['models'][1]['judgement'] = True
+        data['routing']['roles']['workhorse'] = [review]
+        with self.assertRaisesRegex(models.SelectionError, 'routing.roles.workhorse: fixture-work/alpha-work'):
+            models.freeze(data)
+
+    def test_short_round_contract_retains_answers_and_preserves_gates(self):
+        contract = (ROOT / 'shared/model-selection.md').read_text()
+        for text in ('one decision per question', 'wait for its', 'still-missing decisions',
+                     '"Use it globally" answers this round', 'Run-only never writes routing',
+                     'independently of the workhorse pool', 'Before dispatch',
+                     'never privacy, suitability, scope or review-independence gates'):
+            self.assertIn(text, contract)
+        ralph = (ROOT / 'plugins/ralph/playbooks/loop.md').read_text()
+        self.assertIn('then each still-missing option in separate questions', ralph)
+        self.assertIn('keep the implementer answer', ralph)
+        self.assertIn("target's correction, retaining other answers", ralph)
+        for name in ('shared/t3-runtime.md', 'shared/adopter-planning.md',
+                     'plugins/focus-group/entry.md', 'plugins/focus-group/playbooks/plan.md',
+                     'plugins/ape/references/planning-review.md'):
+            self.assertIn('short rounds', (ROOT / name).read_text())
 
     def test_all_work_role_floors_and_joint_author_lineage(self):
         data = deepcopy(self.data); data['work']['judgement'] = deepcopy(data['work']['workhorse'])

@@ -1,7 +1,7 @@
 # Planning review
 
 Planning commands review their proposed output before dependent work. The coordinator
-first collects your work model and review panel choices together, including exact
+first collects your work model and review panel choices in short rounds, including exact
 supported effort and any permitted replacements. Explicit choices in your request
 count. Saved preferences and catalog order are recommendations. Deterministic
 doctor, status, list and formatting helpers stay direct.

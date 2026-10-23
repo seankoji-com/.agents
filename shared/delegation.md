@@ -16,7 +16,9 @@ deterministic operations such as doctor, status and list stay direct.
 
 ## Choosing a model
 
-First apply `PKG/shared/model-selection.md` and freeze the user's work/review answers.
+First apply `PKG/shared/model-selection.md`. Collect work/review answers in short
+rounds, then freeze them.
+Retain explicit choices and requested scope; recommendations never reopen an answer.
 The installed `PKG/shared/agents/reviewer-standard.md` defines reviewer depth and reporting.
 Worker bundles expose the same contract at `shared/reviewer-standard.md`.
 When a routing config exists, `t3-plugins resolve <role> --capabilities FILE` lists the

@@ -3,9 +3,9 @@
 Read once per run. The plugin entry defines the task; this file defines how it uses T3.
 
 Before substantive investigation, planning, synthesis or dispatch, apply
-`PKG/shared/model-selection.md`. Obtain work and review choices together; explicit
-choices already supplied count. Only operation/capability/identity/resumable-scope
-preflight precedes the answer. Deterministic helpers stay direct. Workers consume
+`PKG/shared/model-selection.md`. Collect work and review choices in short rounds,
+one decision per question; retain explicit answers and ask only for missing choices.
+Only operation/capability/identity/resumable-scope preflight precedes the answer. Deterministic helpers stay direct. Workers consume
 their frozen selection without another picker. Recommendations never select targets.
 
 - Inherit the active provider and model, and respect the operator's choices.
@@ -36,7 +36,7 @@ their frozen selection without another picker. Recommendations never select targ
 - Ask for approvals and owner decisions through the host's native question picker:
   the tool that presents choices to the user, such as Claude Code's `AskUserQuestion`
   or Muse Code's `request_user_input`, matched by name and description. Ask one question per decision, put the recommended
-  option first, and batch related questions. Never bury an approval in a prose status
+  option first, and use short rounds for model choices. Never bury an approval in a prose status
   update. Without a picker, ask in a separate, clearly marked question block. Until
   answered, the action stays unapproved; silence is not approval.
 - Sibling-work check: before a writable run claims a PR, branch or worktree, and when

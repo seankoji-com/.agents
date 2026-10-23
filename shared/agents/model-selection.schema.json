@@ -114,6 +114,13 @@
     },
     "review_replacements": {
       "type": "array"
+    },
+    "routing_scope": {
+      "enum": [
+        "invocation-only",
+        "global"
+      ],
+      "description": "Owner workhorse routing intent, separate from invocation/scope IDs. This helper never persists routing."
     }
   },
   "additionalProperties": true
