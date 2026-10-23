@@ -60,7 +60,12 @@ an achieved goal and no undisposed feedback in a full review. Blocker/major find
 and a failure verdict require another attempt. Minor/info findings first enter
 triage: safe deferrals need a verified issue in the target repository, a reason,
 impact, owner and next action. Filing them uses no implementation attempt and
-preserves the original review. A failed required check or unmet requirement cannot
+preserves the original review. Triage also requires the coordinator's actual GitHub
+API issue snapshot, with matching issue identity and a marker bound to the exact
+finding and reviewed revision. The receipt is stored and its integrity checked
+again before publication; a URL and evidence sentence alone leave a filing gap.
+The coordinator obtains and verifies the API response; the helper remains offline.
+A failed required check or unmet requirement cannot
 be deferred to obtain success. An unavailable issue service leaves explicit unfiled
 work and a filing gap in the handoff.
 

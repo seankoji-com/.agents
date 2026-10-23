@@ -95,12 +95,18 @@ class RalphTest(unittest.TestCase):
             if item['severity'] in {'minor', 'info'}]})
 
     def deferral(self, index=0, **fields):
-        return dict({'feedbackIndex': index, 'disposition': 'deferred',
+        row = dict({'feedbackIndex': index, 'disposition': 'deferred',
                      'issueUrl': 'https://github.com/fixture/project/issues/12',
                      'reason': 'Optional clarity improvement; supported behavior already passes',
                      'impact': 'Less detailed help text', 'owner': 'Maintainer',
                      'nextAction': 'Expand help examples and check the rendered help',
                      'evidence': 'Fixture issue-create receipt and help inspection'}, **fields)
+        row['issueReceipt'] = {'source': 'github', 'operation': 'create-issue', 'issue': {
+            'url': 'https://github.com/fixture/project/issues/12', 'issue_number': 12,
+            'state': 'open', 'title': 'Expand help examples',
+            'body': 'Fixture finding and acceptance criteria\n<!-- ' +
+                    ralph.issue_marker(self.state['tasks'][-1], index) + ' -->'}}
+        return row
 
     def test_two_lineages_can_share_one_gateway_and_custom_models(self):
         self.assertEqual(self.state['maxAttempts'], 20)
@@ -368,6 +374,41 @@ class RalphTest(unittest.TestCase):
         self.assertEqual(self.state['phase'], 'evaluate')
         self.assertTrue(self.state['tasks'][-1]['stale'])
         self.assertNotIn('feedbackDispositions', self.state['tasks'][-1])
+
+    def test_triage_requires_api_receipt_for_exact_issue_finding_and_revision(self):
+        self.git('remote', 'add', 'origin', 'https://github.com/fixture/project.git')
+        self.implementation()
+        _, task_id = self.review(feedback=[{'severity': 'minor', 'message': 'Optional help'},
+                                          {'severity': 'info', 'message': 'Optional examples'}], repair_minor=False)
+        valid = [self.deferral(), self.deferral(index=1)]
+        self.assertIn(ralph.issue_marker(self.state['tasks'][-1], 0),
+                      ralph.advance(self.state)['issueRequirements'][0]['marker'])
+        bad_rows = []
+        url_only = copy.deepcopy(valid); url_only[0].pop('issueReceipt'); bad_rows.append(url_only)
+        for field, value in (('url', 'https://github.com/fixture/project/issues/99'),
+                             ('issue_number', 99), ('state', 'closed'), ('body', 'Unrelated issue')):
+            rows = copy.deepcopy(valid); rows[0]['issueReceipt']['issue'][field] = value; bad_rows.append(rows)
+        copied = copy.deepcopy(valid); copied[0]['issueReceipt'] = copied[1]['issueReceipt']; bad_rows.append(copied)
+        stale = copy.deepcopy(self.state['tasks'][-1]); stale['taskId'] = 'previous-review'
+        rows = copy.deepcopy(valid)
+        rows[0]['issueReceipt']['issue']['body'] = '<!-- ' + ralph.issue_marker(stale, 0) + ' -->'
+        bad_rows.append(rows)
+        before = copy.deepcopy(self.state)
+        for rows in bad_rows:
+            with self.subTest(rows=rows), self.assertRaises(ralph.InvalidInput):
+                ralph.triage(self.state, {'taskId': task_id, 'dispositions': rows})
+            self.assertEqual(self.state, before)
+            self.assertFalse(ralph.publication_verified(self.state))
+        ralph.triage(self.state, {'taskId': task_id, 'dispositions': valid})
+        self.assertTrue(ralph.publication_verified(self.state))
+        original = copy.deepcopy(self.state)
+        self.state['tasks'][-1]['feedbackDispositions'][0]['issueReceipt']['issue']['body'] += '\nchanged'
+        self.assertFalse(ralph.publication_verified(self.state))
+        with self.assertRaises(ralph.InvalidInput):
+            ralph.validate_checkpoint(self.state)
+        self.state = original
+        self.state['tasks'][-1]['feedbackDispositions'][0].pop('issueReceipt')
+        self.assertFalse(ralph.publication_verified(self.state))
 
     def test_briefs_carry_every_verdict_but_only_the_latest_implementation_summary(self):
         self.state['maxAttempts'] = 8
@@ -1568,7 +1609,8 @@ class RalphTest(unittest.TestCase):
         verdict = {'goalAchieved': True, 'feedback': [{'severity': 'minor', 'message': 'Optional help examples'}],
                    'evidence': ['Fixture inspection'], 'revision': ralph.snapshot.token(self.state['tasks'][-1]['binding'])}
         response['summary'] = self.verdict_summary(verdict)
-        self.assertEqual(call('observe', response)['state']['phase'], 'triage')
+        self.state = call('observe', response)['state']
+        self.assertEqual(self.state['phase'], 'triage')
         call('triage', {'taskId': 'eval', 'dispositions': [self.deferral()]})
         before = self.state_path.read_bytes()
         self.assertTrue(call('status')['state']['readyForPublication'])

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import copy
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -153,6 +154,35 @@ def open_feedback(record):
     return [item for index, item in enumerate(record['evaluation']['feedback']) if index not in deferred]
 
 
+def json_digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def issue_marker(record, index):
+    return 'ralph-finding:' + json_digest({'taskId': record['taskId'],
+        'revision': snapshot.token(record['binding']), 'feedbackIndex': index,
+        'finding': record['evaluation']['feedback'][index]})
+
+
+def validate_issue_receipt(record, row):
+    receipt = row.get('issueReceipt')
+    require(isinstance(receipt, dict), 'deferral requires a coordinator-observed GitHub issue receipt')
+    require(receipt.get('source') == 'github' and receipt.get('operation') in
+            ('create-issue', 'fetch-issue', 'update-issue'), 'issue receipt source/operation is invalid')
+    issue = receipt.get('issue')
+    require(isinstance(issue, dict), 'issue receipt needs the returned issue snapshot')
+    require(isinstance(issue.get('url'), str) and issue['url'].casefold() == row['issueUrl'].casefold(),
+            'issue receipt URL does not match the deferral')
+    require(type(issue.get('issue_number')) is int and
+            issue['issue_number'] == int(row['issueUrl'].rsplit('/', 1)[1]), 'issue receipt number does not match')
+    require(issue.get('state') == 'open', 'deferred issue must be open')
+    text_field(issue.get('title'), 'issue receipt title')
+    marker = '<!-- ' + issue_marker(record, row['feedbackIndex']) + ' -->'
+    require(isinstance(issue.get('body'), str) and marker in issue['body'].splitlines(),
+            'issue receipt is not bound to this finding and reviewed revision')
+    require(row.get('issueReceiptSha256') == json_digest(receipt), 'stored issue receipt changed')
+
+
 def validate_dispositions(record):
     rows = object_list(record.get('feedbackDispositions', []), 'feedbackDispositions')
     seen = set()
@@ -173,6 +203,7 @@ def validate_dispositions(record):
                     'deferral requires a repository issue URL')
             for field in ('impact', 'owner', 'nextAction', 'evidence'):
                 text_field(row.get(field), 'deferral ' + field)
+            validate_issue_receipt(record, row)
     return seen
 
 
@@ -201,7 +232,11 @@ def triage(state, data):
         invalidate_review(record, observed)
         state['phase'] = 'evaluate'
         return
-    candidate = dict(record, feedbackDispositions=copy.deepcopy(data.get('dispositions')))
+    rows = object_list(copy.deepcopy(data.get('dispositions')), 'dispositions')
+    for row in rows:
+        if row.get('disposition') == 'deferred' and isinstance(row.get('issueReceipt'), dict):
+            row['issueReceiptSha256'] = json_digest(row['issueReceipt'])
+    candidate = dict(record, feedbackDispositions=rows)
     indices = validate_dispositions(candidate)
     require(indices == {i for i, item in enumerate(record['evaluation']['feedback'])
                         if item['severity'] in {'minor', 'info'}}, 'dispose every minor/info finding before continuing')
@@ -364,7 +399,10 @@ def advance(state):
     if state['stopRequested'] or state['phase'] not in {'implement', 'evaluate'}:
         return {'phase': state['phase'], **({'blocker': state['blocker']} if 'blocker' in state else {}),
                 **({'action': 'triage_feedback', 'taskId': state['tasks'][-1]['taskId'],
-                    'feedback': state['tasks'][-1]['evaluation']['feedback']} if state['phase'] == 'triage' else {})}
+                    'feedback': state['tasks'][-1]['evaluation']['feedback'],
+                    'issueRequirements': [{'feedbackIndex': i, 'marker': '<!-- ' + issue_marker(state['tasks'][-1], i) + ' -->'}
+                        for i, item in enumerate(state['tasks'][-1]['evaluation']['feedback'])
+                        if item['severity'] in {'minor', 'info'}]} if state['phase'] == 'triage' else {})}
     active = current(state)
     if active:
         if active.get('taskId'):

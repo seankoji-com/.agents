@@ -211,6 +211,14 @@ when attempts remain. Only issues that must be fixed before merge/launch block.
 the original pinned target and existing worktree. Minor/info feedback enters
 `triage` without charging another attempt. Search the target repository for a
 matching issue; reuse it or create a redacted issue under the operator's authority.
+`next` returns `issueRequirements` with a marker for each minor/info finding, bound
+to that review's task, revision, index and original finding. Include its exact marker
+on its own line in the issue body. When reusing an issue, preserve its existing body
+and append the marker through an authorised issue update, then fetch the issue.
+Keep the actual GitHub create/fetch/update response; never reconstruct or invent it
+from a URL or a worker's claim. An open issue snapshot must contain the marker,
+matching URL/number and a title. The receipt is a coordinator observation, not
+cryptographic proof of remote state; the helper never calls GitHub itself.
 Use `python3 PKG/cli.py triage --state STATE --input FILE` with:
 
 ```json
@@ -218,14 +226,21 @@ Use `python3 PKG/cli.py triage --state STATE --input FILE` with:
   "disposition":"deferred","issueUrl":"https://github.com/OWNER/REPO/issues/123",
   "reason":"Why waiting until after merge/launch is safe","impact":"User impact",
   "owner":"Responsible owner","nextAction":"Fix and acceptance criteria",
-  "evidence":"Observed issue-create/fetch receipt and finding reproduction"}]}
+  "evidence":"Observed issue-create/fetch receipt and finding reproduction",
+  "issueReceipt":{"source":"github","operation":"create-issue","issue":{
+    "url":"https://github.com/OWNER/REPO/issues/123","issue_number":123,
+    "state":"open","title":"Deferred fix","body":"Finding and acceptance criteria\n<!-- ralph-finding:EXACT_KEY_FROM_NEXT -->"}}}]}
 ```
 
 Indices address the original, unchanged feedback array. Every minor/info item
 needs a disposition. A concrete issue that must be fixed now uses `repair` with
 a reason instead. Blocker/major entries cannot be deferred. The helper checks the
-issue URL belongs to the worktree's GitHub `origin`; the coordinator must verify
-the issue exists and retain the real receipt. URL shape alone is not remote proof.
+issue URL belongs to the worktree's GitHub `origin` and requires the returned API
+snapshot to match the issue and finding marker. It retains a SHA-256 of the receipt
+and rechecks the receipt and binding for publication and checkpoint reads. The
+coordinator must verify the API response is real; URL shape or free text alone
+cannot clear the filing gap. A receipt for another finding/revision or a later
+edit of a saved receipt is refused.
 An unavailable issue service leaves the run in triage with explicit unfiled drafts
 and a filing gap, not a product defect or a claim that issues were filed.
 Triage refuses live/unverified tasks and invalidates changed-tree evidence. It
