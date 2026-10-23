@@ -200,6 +200,17 @@ class EvidenceTests(unittest.TestCase):
                              ('gap', gap['reason'], ['inspection']))
             self.assertEqual(finding['coverage_comparison']['state'], 'compatible' if compatible else 'unknown')
 
+        data['references'].append({'id': 'old-coverage', 'source': 'expired coverage attachment',
+                                   'observed_at': '2000-01-01T00:00:00+00:00',
+                                   'expires_at': '2000-01-02T00:00:00+00:00'})
+        data['coverage']['evidence'] = ['old-coverage']
+        result = self.analyze(data, snap)
+        finding = self.finding(result, 4)
+        self.assertEqual((finding['state'], finding['reason'], finding['evidence']),
+                         ('gap', gap['reason'], ['inspection']))
+        self.assertEqual(finding['coverage_comparison']['state'], 'unknown')
+        self.assertEqual(result['coverage'], {})
+
     def test_expired_unused_reference_preserves_independent_findings_timing_and_actions(self):
         data, snap = fixture()
         data['references'].append({'id': 'old', 'source': 'unused diagnostic',

@@ -376,7 +376,10 @@ def analyze(evidence, snapshot, stamp):
     coverage = evidence.get('coverage', {}) if valid else {}
     if coverage and not supported(coverage):
         coverage = {}
-        setf(4, 'unknown', 'Coverage supporting evidence expired or unavailable; revalidation required.')
+        note = 'Coverage supporting evidence expired or unavailable; revalidation required.'
+        findings[3]['coverage_comparison'] = {'state': 'unknown', 'reason': note}
+        if findings[3]['state'] != 'gap':
+            setf(4, 'unknown', note)
     if coverage:
         fields = ('tool', 'version', 'unit', 'source_inventory', 'exclusions', 'uninstrumented',
                   'generated_vendored', 'identity_policy', 'counts', 'revision')
