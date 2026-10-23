@@ -1,0 +1,71 @@
+{
+  "name": "plan",
+  "version": "0.1.0",
+  "description": "Turn an uncertain problem into a reviewed, testable plan and a handoff for implementation.",
+  "short_description": "Discover the problem and write a reviewed plan",
+  "argument_hint": "<topic or problem>",
+  "entry": "entry.md",
+  "operations": [
+    "plan"
+  ],
+  "kind": "workflow",
+  "compatibility": "experimental",
+  "workers": [
+    {
+      "id": "plan/plan-reviewer",
+      "path": "agents/plan-reviewer.md",
+      "operations": [
+        "plan"
+      ],
+      "role": "judgement",
+      "responsibility": "Challenge the exact source plan against the original request, accepted constraints and authorised repository evidence. Stay read-only and report complete planning coverage.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
+    }
+  ],
+  "worker_shared": [
+    "boundaries.md",
+    "manifest.schema.json",
+    "workers-config.schema.json",
+    "job.schema.json",
+    "stage.schema.json",
+    "worker-brief.schema.json",
+    "worker-result.schema.json",
+    "result-envelope.schema.json",
+    "acceptance.schema.json",
+    "jobs-contract.md",
+    "reviewer-standard.md",
+    "model-selection.schema.json",
+    "model-authority.schema.json",
+    "planning-policy.schema.json",
+    "planning-job.schema.json",
+    "planning-subject.schema.json",
+    "planning-assessment.schema.json",
+    "planning-direct.schema.json"
+  ],
+  "picker": [
+    "plan"
+  ],
+  "routes": [
+    {
+      "pattern": "^[\\s\\S]*$",
+      "operation": "plan"
+    }
+  ],
+  "planning_review": {
+    "schema_version": 1,
+    "purpose": "planning-review",
+    "output_types": [
+      "source-plan"
+    ],
+    "worker_id": "plan/plan-reviewer"
+  },
+  "operation_review": {
+    "plan": {
+      "selection": "upfront",
+      "planning": "source-plan",
+      "reason": "Review the accepted discovery and testable spec before producing a handoff; planning never starts implementation."
+    }
+  },
+  "default_operation": "plan"
+}

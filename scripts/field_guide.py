@@ -73,6 +73,8 @@ def load_guide(root: Path = ROOT) -> list[dict]:
     manifests = {}
     for path in sorted((root / 'plugins').glob('*/plugin.json')):
         meta = json.loads(path.read_text())
+        if meta.get('deprecated'):
+            continue
         manifests[meta['name']] = meta
     missing = sorted(set(manifests) - set(guide))
     extra = sorted(set(guide) - set(manifests))
@@ -83,7 +85,8 @@ def load_guide(root: Path = ROOT) -> list[dict]:
         absent = [f for f in GUIDE_FIELDS if not str(entry.get(f, '')).strip()]
         if absent:
             raise FieldGuideError(f'{name}: field guide entry is missing {absent}')
-        if not entry['try'].startswith(f'$t3-{name} '):
+        if not (entry['try'].startswith(f'$t3-{name} ') or
+                (manifests[name].get('default_operation') and entry['try'] == f'$t3-{name}')):
             raise FieldGuideError(f'{name}: try must start with the skill mention $t3-{name}')
         plate = entry['plate']
         if plate not in ROMAN:

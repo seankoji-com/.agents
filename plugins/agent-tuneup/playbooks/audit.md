@@ -5,7 +5,8 @@
 With no narrowing flags, use `PKG/references/central-wiring.md` and the inventory
 sequence in `PKG/playbooks/align.md`. Cover every surface and every T3 provider,
 including permission sync and the T3 worktree bootstrap audit. Return the complete
-findings and evidence gaps; do not prepare changes unless requested. Single-file
+findings and evidence gaps. The default tuneup continues to reviewed proposals;
+an explicitly inspection-only request stops at findings. Single-file
 and `--t3-projects` requests keep their explicit narrower scope.
 Run `python3 PKG/scripts/align.py audit --catalog FILE --inventory FILE` for the
 general report (`0` no findings, `1` findings/gaps, `2` invalid/unreadable input),
@@ -19,10 +20,12 @@ plus the bootstrap helper below. Retain both results for the job observation.
    The deterministic audit flags known broad permission patterns, duplicate exact
    rules, and risky sandbox settings. It never emits the settings contents or secrets.
    Keep each exit code: `0` clean, `1` findings, `2` unreadable or invalid.
-3. For Claude transcript scanning, run `scan_perms.py --json` only when requested.
+3. The default tuneup includes `scan_perms.py --json` when local Claude transcripts
+   are readable, unless the owner narrowed the scope to exclude usage analysis.
    Correlated success/failure counts are observational; frequent calls do not imply
    denied permission or justify allowlisting them. Do not publish transcripts.
-4. If one file has no open semantic question, report its findings and stop. Otherwise
+4. For an explicitly single-file inspection with no open semantic question, report
+   its findings and stop. Otherwise
    continue with a job.
 
 ## T3 project bootstrap

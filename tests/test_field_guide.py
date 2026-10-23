@@ -16,7 +16,8 @@ class RepositoryGuideTest(unittest.TestCase):
     def test_every_plugin_has_a_plate_and_every_plate_has_a_plugin(self):
         specimens = field_guide.load_guide(ROOT)
         names = {s['name'] for s in specimens}
-        manifests = {p.parent.name for p in (ROOT / 'plugins').glob('*/plugin.json')}
+        manifests = {p.parent.name for p in (ROOT / 'plugins').glob('*/plugin.json')
+                     if not json.loads(p.read_text()).get('deprecated')}
         self.assertEqual(names, manifests)
         self.assertEqual([s['order'] for s in specimens], list(range(1, len(specimens) + 1)))
 
@@ -84,6 +85,11 @@ class RepositoryGuideTest(unittest.TestCase):
 
     def test_every_try_line_is_a_skill_mention_for_a_real_operation(self):
         for s in field_guide.load_guide(ROOT):
+            meta = json.loads((ROOT / 'plugins' / s['name'] / 'plugin.json').read_text())
+            if meta.get('default_operation'):
+                self.assertTrue(s['try'] == f'$t3-{s["name"]}' or
+                                s['try'].startswith(f'$t3-{s["name"]} '), s['name'])
+                continue
             self.assertTrue(s['try'].startswith(f'$t3-{s["name"]} '), s['name'])
             words = s['try'].split()
             first = words[1]

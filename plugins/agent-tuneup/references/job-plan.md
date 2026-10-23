@@ -23,7 +23,16 @@ object the published observation must repeat exactly.
 | `proposal` | workers | `config-verifier` for proposed candidates | audit, as above |
 | `apply` | workers | `config-verifier` for applied files | `{"operation": "apply", "findings_allowed": true, "live_enforcement_required": <task>}` |
 
-`audit` uses `inspect` and `semantics`, plus `proposal` when changes were requested.
+The default `tuneup` uses readiness, local usage scanning, `inspect`, `semantics` and
+`proposal` in one job. Retain one `tuneup` model admission throughout. Before the
+final job gate, present the reviewed proposal. Concrete owner approval also covers
+the plan revision that adds the `apply` stage and its settings-apply action; record
+that decision and revise the job through the supported helpers. Do not create a
+second model chooser. A declined proposal finalizes the existing report stages
+with no settings writes. There is no synthetic conditional-stage status. Internal
+validator modes remain unchanged.
+
+For narrowly scoped internal stages, `audit` uses `inspect` and `semantics`, plus `proposal` when changes were requested.
 `align` uses `inspect` for the inventory and comparison receipts, `semantics` for
 precedence and syntax questions, and `proposal`. `apply` gets its own job, or a declared
 `apply` stage when the owner asked for it in the original request. Adding `apply` to an

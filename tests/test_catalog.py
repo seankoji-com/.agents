@@ -33,7 +33,7 @@ class CatalogTest(unittest.TestCase):
         receipts = [json.loads(line)['data'] for line in self.call('install').stdout.splitlines()]
         self.assertEqual(len(receipts), 8)
         self.assertEqual({r['plugin'] for r in receipts},
-                         {'imps', 'ape', 'babysitter', 'elephant-goldfish', 'agent-tuneup', 'ralph', 'focus-group', 'bug-report'})
+                         {'imps', 'ape', 'babysitter', 'plan', 'agent-tuneup', 'ralph', 'focus-group', 'bug-report'})
         for receipt in receipts:
             entry = Path(receipt['entry'])
             self.assertTrue(entry.is_file())
@@ -131,7 +131,7 @@ class CatalogTest(unittest.TestCase):
         self.assertEqual(self.call('prompt', 'ape', 'study', 'https://github.com/example/project').stdout.strip(),
                          f'Read {self.prefix}/ape/current/entry.md and run: study https://github.com/example/project')
         picker = self.call('prompt', 'ape').stdout.strip()
-        self.assertEqual(picker, f"Read {self.prefix}/ape/current/entry.md. Ask through the host's native question picker. Recommend the first option and do nothing until the owner answers. Options: forage, study, clean, doctor.")
+        self.assertEqual(picker, f"Read {self.prefix}/ape/current/entry.md and start the default workflow using relevant current conversation context. Ask only for missing facts; never ask which operation to run.")
         self.assertNotIn('run: doctor', picker)
 
     def test_doctor_detects_missing_files_and_external_activation(self):
