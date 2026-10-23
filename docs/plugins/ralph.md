@@ -1,10 +1,10 @@
 # ralph
 
 ralph splits building from judging. One model implements your goal in a fresh T3 task;
-a model from a different lineage evaluates the result in another fresh task. Any
-feedback at all, even a minor suggestion, sends the work back to a new implementation
-task with the same model and worktree. When the evaluator reports the goal met with
-nothing left to say, ralph opens a PR.
+a model from a different lineage evaluates the result in another fresh task.
+Blocking issues send the work back to a new implementation task with the same model
+and worktree. Safe later improvements become repository issues. When a full review
+reports the goal met with no undisposed feedback, ralph opens a PR.
 
 ## Try it
 
@@ -13,7 +13,7 @@ $t3-ralph fix the parser and add regression coverage
 ```
 
 ralph first asks you to choose the implementer and the evaluator from T3's live model
-catalog. Then it runs attempts until the evaluator is satisfied or the limit (five by
+catalog. Then it runs attempts until the evaluator is satisfied or the limit (20 by
 default) runs out. Other forms:
 
 ```text
@@ -53,11 +53,20 @@ asks you to switch the parent to Full Access.
 
 ## Feedback and stopping
 
-The default limit is five implementation attempts, including the first. Use
+The default limit is 20 implementation attempts, including the first. Use
 `--max-attempts N` to change it. The evaluator reports whether the observable goal
 was achieved, every feedback item, and the evidence it inspected. Success requires
-both an achieved goal and no feedback in a full review. Even a minor suggestion triggers another
-attempt. A failure verdict without feedback also triggers another attempt.
+an achieved goal and no undisposed feedback in a full review. Blocker/major findings
+and a failure verdict require another attempt. Minor/info findings first enter
+triage: safe deferrals need a verified issue in the target repository, a reason,
+impact, owner and next action. Filing them uses no implementation attempt and
+preserves the original review. A failed required check or unmet requirement cannot
+be deferred to obtain success. An unavailable issue service leaves explicit unfiled
+work and a filing gap in the handoff.
+
+After each returned review, the coordinator gives you at most three sentences
+about its findings and next action. The final handoff summarizes deferred fixes
+with issue links and captures a build/test lesson from observed review churn.
 
 Children receive only the supplied brief. ralph carries the original goal,
 constraints, acceptance criteria, every earlier verdict and all feedback into each
@@ -144,7 +153,7 @@ retain-or-stop admission before new work.
 
 Ordinary iterations add no planning artifact or evaluator. An actually written
 strategy receives planning review before dependent work. Its fallback policy cannot
-replace Ralph's different-lineage evaluator, every-feedback repair rule or full
+replace Ralph's different-lineage evaluator, blocking-feedback repair rule or full
 final evaluation.
 
 See [planning review](../plan-review.md) for default triggers, model choices,

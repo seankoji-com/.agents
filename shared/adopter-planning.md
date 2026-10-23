@@ -75,7 +75,7 @@ in stage `resources.adopter_strategy`; public prepare/direct/acceptance checks i
 Ralph CLI init takes `admission`; `strategy` attaches a reviewed descriptor while
 quiescent. `resume` takes admission and retain:true for the unchanged pinned pair.
 Status/stop stay direct. Legacy checkpoints are readable but need explicit
-retain-or-stop admission before more work. Every-feedback, final full evaluation,
+retain-or-stop admission before more work. Blocking-feedback repair, final full evaluation,
 recovery and lineage rules remain stronger than planning fallback. Babysitter keeps
 merge authority, requested final-head review and the coordinator's sole native watch.
 

@@ -64,8 +64,9 @@ repository evidence and the producing model-selection record. Relevant drift reo
 review. Unrelated HEAD movement remains visible without automatically repeating it.
 
 Private XDG state retains one logical output's rounds, findings and active job across
-repairs and replacement jobs. The suggested limit is three substantive assessments;
-technical attempts have a separate finite allowance. New model preferences never
+repairs and replacement jobs. New subjects allow five substantive assessments;
+existing subjects retain their recorded limit. Technical attempts have a separate
+finite allowance. New model preferences never
 reset either history or budget. Automatic continuations reuse choices; a new command
 asks afresh. Pinned Ralph/imps resumes offer retain-or-stop. Historical complete
 artifacts remain labelled `legacy-unreviewed`; changed plans need current review.
@@ -77,3 +78,19 @@ through permitted self-review remains labelled `fixed-by-self-review`.
 Planning readiness grants no
 implementation, settings, merge or publication authority. See
 [testing](testing.md#planning-review-conformance-protocol) for the separate live evidence boundary.
+
+## Final reviews and deferred fixes
+
+The planned last review, and always the last available round, keeps full required
+coverage but blocks only on issues that must be fixed before handoff, merge or
+launch. Unmet acceptance criteria, failed required checks and missing required
+evidence still block. Optional cleanup, design changes and safe later hardening
+become repository issues with impact, evidence, a safe-deferral reason, owner and
+next action. Earlier major/blocker findings retain their original severity and
+clearing requirements.
+
+After every subtask review returns, the coordinator immediately gives you at most
+three sentences about its findings, blockers, deferrals, coverage gaps and next
+action. Full findings stay in the evidence record. The handoff lists deferred
+fixes with issue links or explicit unfiled status and captures a lesson about which
+build/test or task-structure change would have caught the observed problems sooner.

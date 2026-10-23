@@ -23,6 +23,12 @@ their frozen selection without another picker. Recommendations never select targ
   Upfront named-model or bounded-class consent and sharing authority are required;
   no consent, unavailable or failed extras are skips.
   They never replace mandatory review or its independence and acceptance gates.
+- For every review, apply `PKG/shared/agents/reviewer-standard.md`, including
+  final-round blocking-only triage, repository issues for safe deferrals, an
+  immediate main-context summary of at most three sentences per returned subtask
+  review, and the operator's deferred-fix summary and build/test lesson at handoff.
+  Include the final-round instruction in reviewer briefs; the last available
+  round is always final. This does not waive requirements or raise pinned limits.
 - Tool prefixes vary by harness. Match exposed tools by name and description. If an
   expected tool is absent, attempt bounded discovery. Report the missing capability
   rather than inventing a substitute. Do not change provider configuration to unblock it.

@@ -201,11 +201,39 @@ Before dispatching again, inspect the changed files and identify the cause of
 drift, including possible evaluator edits during its read-only task. Preserve the
 evidence and resolve unexpected writes before issuing another evaluation.
 
-`goalAchieved: true` AND `feedback: []` from a full review makes the loop
-`evaluated`. Any feedback, or `goalAchieved: false`, from either scope means the
-next fresh implementer task uses the original pinned target and existing worktree.
-Even informational feedback triggers repair. If false has no feedback, the fresh
-brief still includes that verdict and asks the implementer to find the unmet goal.
+Immediately after each returned review, output the shared main-context summary of
+at most three sentences before taking another action. A full review is a final
+acceptance assessment under `PKG/shared/agents/reviewer-standard.md`, including
+when attempts remain. Only issues that must be fixed before merge/launch block.
+
+`goalAchieved: true` AND no open feedback from a full review makes the loop
+`evaluated`. Blocker/major feedback and `goalAchieved: false` require repair with
+the original pinned target and existing worktree. Minor/info feedback enters
+`triage` without charging another attempt. Search the target repository for a
+matching issue; reuse it or create a redacted issue under the operator's authority.
+Use `python3 PKG/cli.py triage --state STATE --input FILE` with:
+
+```json
+{"taskId":"returned-review-task","dispositions":[{"feedbackIndex":0,
+  "disposition":"deferred","issueUrl":"https://github.com/OWNER/REPO/issues/123",
+  "reason":"Why waiting until after merge/launch is safe","impact":"User impact",
+  "owner":"Responsible owner","nextAction":"Fix and acceptance criteria",
+  "evidence":"Observed issue-create/fetch receipt and finding reproduction"}]}
+```
+
+Indices address the original, unchanged feedback array. Every minor/info item
+needs a disposition. A concrete issue that must be fixed now uses `repair` with
+a reason instead. Blocker/major entries cannot be deferred. The helper checks the
+issue URL belongs to the worktree's GitHub `origin`; the coordinator must verify
+the issue exists and retain the real receipt. URL shape alone is not remote proof.
+An unavailable issue service leaves the run in triage with explicit unfiled drafts
+and a filing gap, not a product defect or a claim that issues were filed.
+Triage refuses live/unverified tasks and invalidates changed-tree evidence. It
+preserves raw review results and dispositions. Safe deferrals from a full pass
+need no extra implementation or evaluation, even at the attempt limit; a delta
+pass still needs the fresh full review. Required verification and unmet goals
+cannot be cleared by deferral. If false has no feedback, the fresh brief still
+includes that verdict and asks the implementer to find the unmet goal.
 At the limit, report `exhausted`, all outstanding feedback and the checkpoint path.
 Never claim success or publish a success PR merely because the limit was reached.
 
@@ -217,7 +245,9 @@ Any changed bytes require fresh evaluation; never use a verdict for an older tre
 Complete repository-required checks before the final evaluation. The evaluator
 must satisfy the repository's pre-PR review gate at the refreshed intended base.
 If it cannot, report the failed gate; never silently add or substitute a model.
-Do not publish with unresolved feedback or blocker/major findings.
+Do not publish with undisposed feedback or blocker/major findings. Include the
+deferred-fix issue links, impact, owners and next actions in the operator handoff,
+and capture the observed build/test lesson under the harness learning policy.
 
 `status` exposes `changedPaths` and `hasChanges` against the initial HEAD and dirty
 bytes, including index entries. An older baseline without index provenance reports
