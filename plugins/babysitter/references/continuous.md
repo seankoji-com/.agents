@@ -151,8 +151,16 @@ Reserve that kind before `merge-pr.sh --update-only --expected-head <sha>`; it u
 the existing update endpoint with `expected_head_sha` and exits as `UPDATED` without
 merging or arming. Record its receipt, then refresh discovery, the new head and its
 checks before reserving `merge`. Successful update receipts keep the old head blocked.
-An accepted update without a confirmed new head is `update_pending`; retain its
-reservation as `uncertain` and reconcile the host operation before another write.
+An accepted PUT without a confirmed new head, including after all five polls, is
+`update_pending update_outcome=accepted`. A lost response or ambiguous server error
+is `update_pending update_outcome=unknown`; neither permits another write. Only a
+confirmed HTTP rejection reports `update_rejected update_outcome=rejected`.
+For synchronous updates retain the helper's `request_id`, `returncode` and `stdout`
+as JSON in `receipt --result <file>`: record `uncertain`, `rejected` or `succeeded`
+according to that result. The adapter accepts the same JSON as `helper_result`.
+An uncertain synchronous PUT keeps its reservation across same-head reads until a
+later new head or matching confirmed helper outcome settles it. New-head checks
+must still be fresh. Asynchronous task handles require their terminal host receipt.
 Live updates and resolutions, including `reserved` and `uncertain`, remain the next
 action with request ID, host handle and status until a matching terminal receipt.
 Status includes dispatch records even when the PR becomes excluded or closes.

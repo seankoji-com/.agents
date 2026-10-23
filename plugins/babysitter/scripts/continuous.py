@@ -662,6 +662,36 @@ def dispatch_status(row):
     return str(row.get('status') or 'pending')
 
 
+def update_helper_receipt(pr, row, result):
+    """Classify the synchronous update-only helper, bound to its target and head.
+
+    A nonzero exit alone never proves rejection after a PUT may have been sent.
+    Unknown output, including a lost process response, therefore keeps the lock.
+    """
+    result = result if isinstance(result, dict) else {}
+    if result.get('request_id') != row.get('request_id'):
+        return 'uncertain', 'unknown'
+    target = re.escape(f"{pr['repo']}#{pr['number']}")
+    head = re.escape(str(row.get('head') or ''))
+    output = str(result.get('stdout') or '').strip()
+    updated = re.fullmatch(
+        rf'UPDATED {target} previous_head={head} head=([0-9a-f]{{40}}) refresh_gates=required',
+        output)
+    if result.get('returncode') == 0 and updated and updated[1] != row.get('head'):
+        return 'succeeded', 'updated'
+    blocked = re.match(
+        rf'BLOCKED {target} reason=(update_pending|update_rejected) blockers=\S+ '
+        rf'(?:changes_requested_by=\S+ )?detail=update_head={head} '
+        r'update_outcome=(accepted|unknown|rejected) ', output)
+    if result.get('returncode') == 4 and blocked:
+        reason, outcome = blocked.groups()
+        if reason == 'update_rejected' and outcome == 'rejected':
+            return 'rejected', outcome
+        if reason == 'update_pending' and outcome in ('accepted', 'unknown'):
+            return 'uncertain', outcome
+    return 'uncertain', 'unknown'
+
+
 def live_merge_dispatch(pr):
     return next((row for row in pr.get('dispatches', [])
                  if row.get('kind') == 'merge' and dispatch_status(row) in OPEN_DISPATCH), None)
@@ -1140,6 +1170,22 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
                 continue
             if pr['state'] != 'open':
                 continue
+        for dispatch in pr['dispatches']:
+            if (dispatch['kind'] == 'update-branch'
+                    and dispatch_status(dispatch) == 'uncertain'
+                    and dispatch.get('update_outcome') in ('accepted', 'unknown')
+                    and not dispatch.get('host_task_id')
+                    and re.fullmatch(r'[0-9a-f]{40}', str(row['observation'].get('head_sha') or ''))
+                    and row['observation']['head_sha'] != dispatch['head']):
+                # This is a completed synchronous helper with an unresolved PUT,
+                # not a possibly live asynchronous host task. A later head read
+                # settles the write; checks still need provenance at that head.
+                dispatch.update(status='succeeded', completed_at=now_iso(now),
+                                observed_head=row['observation']['head_sha'])
+                pr['branch_update'] = {'request_id': dispatch['request_id'],
+                                       'head': dispatch['head'], 'refresh_required': False}
+                audit(state, now, 'update-head-observed', pr=pr['url'],
+                      request_id=dispatch['request_id'], head=dispatch['observed_head'])
         update = pr.get('branch_update')
         if update and row['observation'].get('head_sha') != update['head']:
             # Only a new observation after the terminal update receipt can refresh
@@ -1794,6 +1840,9 @@ def cmd_receipt(args):
         if dispatch_status(row) in TERMINAL_DISPATCH and dispatch_status(row) == args.status:
             return {'status': 'duplicate', 'changed': False, 'request_id': args.request_id,
                     'dispatch': row}
+        if row['kind'] == 'update-branch' and dispatch_status(row) in TERMINAL_DISPATCH:
+            return {'status': 'stale', 'changed': False, 'request_id': args.request_id,
+                    'dispatch': row}
         if args.head and row.get('head') and args.head != row['head']:
             raise ContinuousError(
                 f"receipt head {args.head} differs from dispatch head {row['head']}")
@@ -1811,6 +1860,23 @@ def cmd_receipt(args):
             result_path = Path(args.result).expanduser()
             require(result_path.is_file(), f'result file does not exist: {result_path}')
             result_digest = sha256_file(result_path)
+        if row['kind'] == 'update-branch':
+            if args.result:
+                result = load_json(result_path)
+                require(isinstance(result, dict), 'update helper result must be a JSON object')
+                status, outcome = update_helper_receipt(pr, row, result)
+                require(args.status == status,
+                        f'update helper outcome is {outcome}; record --status {status}')
+                row['update_outcome'] = outcome
+            elif args.status != 'uncertain':
+                # An explicit host launch refusal precedes any PUT. Once a helper
+                # has reported an accepted/unknown PUT, only its evidence or a new
+                # head can settle it, even if the surrounding host task terminates.
+                require(not row.get('update_outcome') and (
+                    args.status == 'rejected' or row.get('host_task_id')),
+                        'a synchronous update requires --result with a matching helper '
+                        'outcome; an unconfirmed PUT stays uncertain until a new head '
+                        'observation or confirmed rejection')
         if row['kind'] == 'fixer' and args.status in TERMINAL_DISPATCH:
             # Only a confirmed refusal before a handle exists needs no execution.
             if not (args.status == 'rejected' and not row.get('host_task_id')

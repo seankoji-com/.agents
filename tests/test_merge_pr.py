@@ -14,7 +14,8 @@ HEAD = "a" * 40
 
 @unittest.skipUnless(shutil.which("jq"), "jq required by the shipped helper")
 class MergeTest(unittest.TestCase):
-    def run_helper(self, mode, extra_args=(), followups=(), followup_modes=()):
+    def run_helper(self, mode, extra_args=(), followups=(), followup_modes=(),
+                   repo='fixture/repo', number=1):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name, body in {
@@ -67,6 +68,9 @@ elif query.startswith("query"):
         pr["commits"]["nodes"][0]["commit"]["statusCheckRollup"] = rollup and {"state":rollup, "contexts":empty_contexts()}
     if mode == "behind-threads":
         pr["mergeStateStatus"] = "BEHIND"
+    if mode.startswith("update-"):
+        pr["mergeStateStatus"] = "BEHIND"
+        if mode == "update-poll-lost" and state_file.exists(): sys.exit(7)
     if mode.startswith("unstable-"):
         # A non-required lint run is red, so GitHub reports UNSTABLE; the required
         # contexts below decide whether the helper may merge.
@@ -146,8 +150,11 @@ elif query:
 else:
     if a[-1].endswith("/update-branch"):
         state_file.write_text("updated")
+        if mode == "update-response-lost": sys.exit(52)
     if mode == "transport": sys.exit(7)
     code = {"race":"409", "unexpected":"500", "method":"405", "forbidden":"403", "invalid":"422"}.get(mode, "200")
+    if mode.startswith("update-"):
+        code = {"update-rejected":"422", "update-server-error":"503"}.get(mode, "202")
     if mode == "method" and body.get("merge_method") == "merge": code = "200"
     payload = {"merged": code == "200" and mode != "false-success"}
 Path(a[a.index("-o")+1]).write_text(json.dumps(payload))
@@ -165,7 +172,7 @@ print(code, end="")
             modes = (mode, *followup_modes) if followup_modes else (mode,) * len(all_flags)
             self.assertEqual(len(modes), len(all_flags))
             for current_mode, flags in zip(modes, all_flags):
-                result = subprocess.run(["bash", str(getattr(self, 'script', SCRIPT)), "--repo", "fixture/repo", "--pr", "1", *flags],
+                result = subprocess.run(["bash", str(getattr(self, 'script', SCRIPT)), "--repo", repo, "--pr", str(number), *flags],
                                         env={**env, 'MERGE_FIXTURE_MODE': current_mode},
                                         capture_output=True, text=True, timeout=20)
                 results.append(result)
@@ -515,6 +522,27 @@ print(code, end="")
         self.assertNotIn('UPDATED', result.stdout)
         self.assertEqual([c for c in calls if not c.get('query')], [{'expected_head_sha': HEAD}])
         self.assertFalse(any('mutation' in c.get('query', '') for c in calls))
+
+    def test_real_update_transport_separates_pending_and_confirmed_rejection(self):
+        for mode, outcome in (('update-accepted', 'accepted'),
+                              ('update-response-lost', 'unknown'),
+                              ('update-server-error', 'unknown'),
+                              ('update-poll-lost', 'accepted'),
+                              ('update-rejected', 'rejected')):
+            with self.subTest(mode=mode):
+                result, calls = self.run_helper(mode, ['--update-only', '--expected-head', HEAD])
+                self.assertEqual(result.returncode, 4, result.stderr)
+                reason = 'update_rejected' if outcome == 'rejected' else 'update_pending'
+                self.assertIn('reason=' + reason, result.stdout)
+                self.assertIn('update_outcome=' + outcome, result.stdout)
+                self.assertIn('update_head=' + HEAD, result.stdout)
+                self.assertNotIn('UPDATED', result.stdout)
+                self.assertIn('automerge=unavailable', result.stdout)
+                self.assertEqual([c for c in calls if not c.get('query')],
+                                 [{'expected_head_sha': HEAD}])
+                self.assertFalse(any('mutation' in c.get('query', '') for c in calls))
+                if mode == 'update-accepted':
+                    self.assertEqual(len(calls), 7)  # initial read, one PUT, all five polls
 
     def test_expected_head_arms_automerge_only_at_that_head(self):
         result, calls = self.run_helper("pending", ["--expected-head", HEAD])

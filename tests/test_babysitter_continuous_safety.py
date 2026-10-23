@@ -165,6 +165,147 @@ class UpdateAndResolutionTest(ContinuousCase):
             self.assertEqual(self.cli('status', '--now', NOW, helper=helper)['prs'][URL]
                              ['next_action']['kind'], 'merge')
 
+    def test_real_update_helper_receipts_hold_same_head_and_reconcile_fresh_heads_in_both_adapters(self):
+        from tests.test_merge_pr import MergeTest, HEAD
+        for index, (helper, adapter, shell) in enumerate(self.adapters()):
+            for mode in ('update-accepted', 'update-response-lost', 'update-rejected', 'behind-then-green'):
+                with self.subTest(installed=index, mode=mode):
+                    self.state = self.base / f'transport-{index}-{mode}.json'
+                    self.start(helper=helper)
+                    test = self
+
+                    class UpdateHost(FakeHost):
+                        def dispatch(host, action, now):
+                            saved = json.loads(test.state.read_text())['prs'][URL]['dispatches'][-1]
+                            test.assertEqual(saved['status'], 'reserved')
+                            harness = MergeTest()
+                            harness.script = shell
+                            result, calls = harness.run_helper(mode,
+                                ['--update-only', '--expected-head', action['head']],
+                                repo='fixture/widgets', number=12)
+                            test.assertEqual([c for c in calls if not c.get('query')],
+                                             [{'expected_head_sha': HEAD}])
+                            test.assertFalse(any('mutation' in c.get('query', '') for c in calls))
+                            super().dispatch(action, now)
+                            host.helper_result = {'request_id': action['request_id'],
+                                                  'returncode': result.returncode, 'stdout': result.stdout}
+                            return {'helper_result': host.helper_result}
+
+                    host = UpdateHost(observation(self.row('reader', head=HEAD, merge_state='BEHIND')))
+                    result = adapter.handle_wake(host, self.state, NOW, {'kind': 'event'})
+                    request = result['result']['actions'][0]['request_id']
+                    saved = json.loads(self.state.read_text())['prs'][URL]['dispatches'][0]
+                    expected = {'update-rejected': 'rejected', 'behind-then-green': 'succeeded'}.get(mode, 'uncertain')
+                    self.assertEqual(saved['status'], expected)
+                    self.assertEqual(saved['update_outcome'], {
+                        'update-accepted': 'accepted', 'update-response-lost': 'unknown',
+                        'update-rejected': 'rejected', 'behind-then-green': 'updated'}[mode])
+                    self.assertEqual(result['dispatched'][0]['status'], expected)
+                    if expected == 'rejected':
+                        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                            '--request-id', 'confirmed-rejection-retry', '--head', HEAD,
+                            '--reserve', helper=helper)
+                        continue
+                    if expected == 'succeeded':
+                        old = adapter.handle_wake(host, self.state, NOW,
+                                                 {'kind': 'event', 'wake_id': 'old-head'})
+                        self.assertEqual(old['result']['actions'][0]['blocked']['kind'], 'branch-update-refresh')
+                        self.assertEqual(len(host.dispatched), 1)
+                    for wake in (('same-head-1', 'same-head-2') if expected == 'uncertain' else ()):
+                        again = adapter.handle_wake(host, self.state, NOW,
+                                                     {'kind': 'event', 'wake_id': wake})
+                        self.assertEqual(again['result']['actions'][0]['kind'], 'update-branch-pending')
+                        self.assertEqual(len(host.dispatched), 1)
+                        self.assertEqual(len(json.loads(self.state.read_text())['prs'][URL]['dispatches']), 1)
+                        for kind in ('update-branch', 'merge', 'fixer', 'resolution'):
+                            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', kind,
+                                '--request-id', wake + kind, '--head', HEAD, '--reserve',
+                                helper=helper, ok=False)
+                    transport = self.base / 'update-result.json'
+                    transport.write_text(json.dumps(host.helper_result))
+                    before = self.state.read_bytes()
+                    for status in (('failed', 'cancelled', 'superseded', 'no-change', 'succeeded', 'rejected')
+                                   if expected == 'uncertain' else ()):
+                        for flags in ([], ['--result', str(transport)]):
+                            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                                '--request-id', request, '--head', HEAD, '--status', status,
+                                *flags, helper=helper, ok=False)
+                            self.assertEqual(self.state.read_bytes(), before)
+                    # A new head settles the synchronous PUT, but old-head check
+                    # evidence must still block landing at that new head.
+                    updated = 'b' * 40
+                    stale = self.row('reader', head=updated)
+                    stale['checks_head_sha'] = HEAD
+                    host.snapshot = observation(stale)
+                    later = adapter.handle_wake(host, self.state, NOW,
+                                               {'kind': 'event', 'wake_id': 'new-head'})
+                    self.assertEqual(later['result']['actions'][0]['blocked']['kind'], 'stale-head-checks')
+                    self.assertEqual(len(host.dispatched), 1)
+                    self.assertEqual(json.loads(self.state.read_text())['prs'][URL]
+                                     ['dispatches'][0]['status'], 'succeeded')
+                    self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                        '--request-id', 'stale-merge', '--head', updated, '--reserve', helper=helper, ok=False)
+                    fresh = self.cli('observe', '--now', NOW, '--wake-id', 'fresh-new-head',
+                        payload=observation(self.row('reader', head=updated)), helper=helper)
+                    self.assertEqual(fresh['actions'][0]['kind'], 'merge')
+                    self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                        '--request-id', 'fresh-merge', '--head', updated, '--reserve', helper=helper)
+                    # Replaying the pending transport cannot reopen a settled update.
+                    replay = self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                        '--request-id', request, '--status', 'uncertain', '--result', str(transport), helper=helper)
+                    self.assertEqual(replay['status'], 'stale')
+
+    def test_uncertain_put_accepts_only_a_matching_confirmed_rejection(self):
+        from tests.test_merge_pr import MergeTest, HEAD
+        for index, (helper, adapter, shell) in enumerate(self.adapters()):
+            self.state = self.base / f'confirmed-{index}.json'
+            self.start(helper=helper)
+            self.cli('observe', '--now', NOW,
+                payload=observation(pr(head=HEAD, merge_state='BEHIND')), helper=helper)
+            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                     '--request-id', 'put-1', '--head', HEAD, '--reserve', helper=helper)
+            before = self.state.read_bytes()
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                '--request-id', 'put-1', '--status', 'failed', helper=helper, ok=False)
+            self.assertEqual(self.state.read_bytes(), before)
+            harness = MergeTest()
+            harness.script = shell
+            receipts = {}
+            for mode in ('update-accepted', 'update-rejected'):
+                result, _ = harness.run_helper(mode, ['--update-only', '--expected-head', HEAD],
+                                              repo='fixture/widgets', number=12)
+                receipts[mode] = {'request_id': 'put-1', 'returncode': result.returncode,
+                                  'stdout': result.stdout}
+            transport = self.base / 'confirmed-result.json'
+            transport.write_text(json.dumps(receipts['update-accepted']))
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                '--request-id', 'put-1', '--status', 'uncertain', '--result', str(transport), helper=helper)
+            for wrong in ('fixture/widgets#99', 'update_head=' + H1, 'wrong-request'):
+                original = 'fixture/widgets#12' if '#' in wrong else 'update_head=' + HEAD
+                bad = {**receipts['update-rejected'],
+                       'stdout': receipts['update-rejected']['stdout'].replace(original, wrong)}
+                if wrong == 'wrong-request':
+                    bad = {**receipts['update-rejected'], 'request_id': wrong}
+                transport.write_text(json.dumps(bad))
+                before = self.state.read_bytes()
+                self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                    '--request-id', 'put-1', '--status', 'rejected', '--result', str(transport), helper=helper, ok=False)
+                self.assertEqual(self.state.read_bytes(), before)
+            transport.write_text(json.dumps(receipts['update-rejected']))
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                '--request-id', 'put-1', '--status', 'rejected', '--result', str(transport), helper=helper)
+            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                '--request-id', 'put-2', '--head', HEAD, '--reserve', helper=helper)
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                '--request-id', 'put-1', '--status', 'rejected', '--result', str(transport), helper=helper)
+            saved = json.loads(self.state.read_text())['prs'][URL]['dispatches']
+            self.assertEqual([row['status'] for row in saved], ['rejected', 'reserved'])
+            # A host refusal before launching the helper is also a confirmed no-write.
+            refused = adapter._close_dispatch(self.state, NOW,
+                {'pr': URL, 'kind': 'update-branch', 'head': HEAD, 'request_id': 'put-2'},
+                'rejected', 'host confirmed that the helper was never launched')
+            self.assertEqual(refused['dispatch']['status'], 'rejected')
+
     def test_live_resolution_is_next_action_until_matching_terminal_receipt_in_both_adapters(self):
         for index, (helper, adapter, _) in enumerate(self.adapters()):
             for shape in ('full', 'reader'):

@@ -16,6 +16,8 @@ A host object supplies:
     due(now) -> [{'wake_id', 'kind', 'delivery_id'}]
     discover(scope, now) -> observation dict accepted by continuous.py observe
     dispatch(action, now) -> {'host_task_id': str}
+        or {'helper_result': {'request_id': str, 'returncode': int, 'stdout': str}}
+        for synchronous update-only execution
 
 Nothing here calls a network, a model or a scheduler by itself.
 """
@@ -145,6 +147,23 @@ def handle_wake(host, state_path, now, wake):
                                'reason': f'{type(exc).__name__}: {exc}',
                                'reservation': reservation.get('status'),
                                'reconciled': closed.get('status')})
+            continue
+        if kind == 'update-branch' and isinstance(receipt, dict) and 'helper_result' in receipt:
+            helper_result = receipt['helper_result']
+            status, _ = continuous.update_helper_receipt(
+                _state(state_path)['prs'][action['pr']], reservation['dispatch'], helper_result)
+            with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as stream:
+                json.dump(helper_result, stream)
+                result_path = stream.name
+            try:
+                recorded = continuous.cmd_receipt(_namespace(
+                    state=str(state_path), now=now, pr=action['pr'],
+                    request_id=action['request_id'], kind=kind, status=status,
+                    head=action['head'], host_task_id=None, result=result_path, reason=None))
+            finally:
+                Path(result_path).unlink(missing_ok=True)
+            dispatched.append({'action': action, 'status': status,
+                               'recorded': recorded['status']})
             continue
         if not isinstance(receipt, dict) or receipt.get('status', 'accepted') != 'accepted':
             refusal = receipt if isinstance(receipt, dict) else {}
