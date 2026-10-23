@@ -729,6 +729,8 @@ def validate_checkpoint(state):
             if 'reviewBaseline' in record:
                 validate_review_baseline(record['reviewBaseline'])
             if 'feedbackDispositions' in record:
+                # Failed reviews need no verdict, but dispositions must reference a valid one.
+                evaluation(record.get('evaluation'), record['binding'])
                 validate_dispositions(record)
     for key in ('blocker', 'stoppedBlocker', 'evaluatedRevision'):
         if key in state:

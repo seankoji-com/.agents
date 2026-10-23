@@ -1440,6 +1440,35 @@ class RalphTest(unittest.TestCase):
                 self.assertEqual(json.loads(result.stdout)['error']['code'], 'invalid_input')
                 self.assertEqual(self.state_path.read_bytes(), before)
 
+    def test_cli_saved_dispositions_require_a_valid_recorded_evaluation(self):
+        self.implementation()
+        _, task_id = self.issue()
+        ralph.observe(self.state, self.response(task_id, summary='Malformed evaluator output'))
+        self.assertEqual(self.state['blocker']['kind'], 'invalid_evaluation')
+        self.assertNotIn('evaluation', self.state['tasks'][-1])
+        # A genuine failed review remains readable and recoverable without dispositions.
+        ralph.validate_checkpoint(self.state)
+        states = []
+        for rows in ([], [{'feedbackIndex': 0, 'disposition': 'repair', 'reason': 'Required fix'}]):
+            state = copy.deepcopy(self.state)
+            state['tasks'][-1]['feedbackDispositions'] = rows
+            states.append(state)
+        valid = {'goalAchieved': True, 'feedback': [{'severity': 'minor', 'message': 'Optional help'}],
+                 'evidence': ['Fixture inspection'],
+                 'revision': ralph.snapshot.token(self.state['tasks'][-1]['binding'])}
+        for feedback in (None, {}, [None], [{}], [{'severity': [], 'message': 'Invalid'}]):
+            state = copy.deepcopy(states[-1])
+            state['tasks'][-1]['evaluation'] = dict(valid, feedback=feedback)
+            states.append(state)
+        for index, state in enumerate(states):
+            with self.subTest(index=index):
+                with self.assertRaises(ralph.InvalidInput):
+                    ralph.validate_checkpoint(state)
+                self.assert_checkpoint_rejected_without_mutation(state, commands=('status', 'resume', 'next', 'recover'))
+        ralph.recover(self.state, {'reason': 'Evaluator format corrected'})
+        ralph.validate_checkpoint(self.state)
+        self.assertEqual(ralph.advance(self.state)['dispatch']['role'], 'review')
+
     def test_cli_loaded_checkpoint_requires_distinct_verified_lineages(self):
         for phase in ('implement', 'evaluate'):
             if phase == 'evaluate':
