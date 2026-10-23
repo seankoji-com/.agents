@@ -208,6 +208,28 @@ def body_for(path: Path, slug: str) -> str:
     return body
 
 
+def publication_agreement(meta: dict, slug: str, mode: str, repo: str, artifact: str | None = None) -> dict:
+    """Optional publication consumes the same scoped admission before any write."""
+    try:
+        from source_plan_review import check_admission
+        admitted = check_admission(meta, slug)
+        from shared.execution_agreement import admit
+        selected = admitted['selection']
+        admit(selected, operation='plan/plan',
+              action={'issue': 'publish-issues', 'discussion': 'publish-discussion'}[mode])
+        agreement = selected['agreement']
+        if repo != agreement['scope']['repository']:
+            raise ValueError('publication repository is outside the scoped agreement')
+        if artifact:
+            path = Path(admitted['output_name']).with_name(artifact).as_posix()
+            if not any(path == allowed or allowed.endswith('/') and path.startswith(allowed)
+                       for allowed in agreement['scope']['paths']):
+                raise ValueError('publication content is outside the scoped agreement')
+        return agreement
+    except (ValueError, KeyError, TypeError, OSError) as exc:
+        raise PublishError('publication agreement: ' + str(exc)) from exc
+
+
 def cmd_ensure(args) -> int:
     tdir, meta_file = topic_paths(args.root, args.slug)
     meta = load_meta(meta_file)
@@ -234,6 +256,7 @@ def cmd_ensure(args) -> int:
         print(json.dumps({"status": "dry-run", "mode": mode, "repo": repo, "title": title}, indent=2))
         return 0
 
+    agreement = publication_agreement(meta, args.slug, mode, repo)
     require_gh()
     if mode == "issue":
         # `gh issue create` writes the URL to stdout, but not necessarily alone — version
@@ -248,6 +271,8 @@ def cmd_ensure(args) -> int:
         gh_meta.update({"mode": "issue", "repo": repo, "number": number, "url": url, "node_id": None, "category": None})
     else:
         repo_id, cat_id, cat_name = repo_ids(repo, args.category)
+        if cat_id != agreement['destinations'].get('category_id'):
+            raise PublishError('publication category is outside the scoped agreement')
         data = graphql(
             "mutation($r:ID!,$c:ID!,$t:String!,$b:String!){createDiscussion(input:{"
             "repositoryId:$r,categoryId:$c,title:$t,body:$b}){discussion{id number url}}}",
@@ -265,6 +290,7 @@ def cmd_ensure(args) -> int:
                 "url": disc["url"],
                 "node_id": disc["id"],
                 "category": cat_name,
+                "category_id": cat_id,
             }
         )
 
@@ -302,6 +328,9 @@ def cmd_post(args) -> int:
         print(json.dumps({"status": "dry-run", "artifact": args.artifact, "target": gh_meta.get("url"), "bytes": len(body)}, indent=2))
         return 0
 
+    agreement = publication_agreement(meta, args.slug, gh_meta['mode'], gh_meta['repo'], args.artifact)
+    if gh_meta['mode'] == 'discussion' and gh_meta.get('category_id') != agreement['destinations'].get('category_id'):
+        raise PublishError('publication category is outside the scoped agreement')
     require_gh()
     if gh_meta["mode"] == "issue":
         url = run(["gh", "issue", "comment", str(gh_meta["number"]), "--repo", gh_meta["repo"], "--body-file", "-"], stdin=body)

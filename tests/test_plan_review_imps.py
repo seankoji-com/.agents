@@ -7,6 +7,7 @@ import unittest
 
 from core.jobs.store import digest
 from shared import planning_review as planning
+from tests.upfront_fixtures import approved_selection
 from tests.imps_plan_review_fixtures import ImpsPlanFixture
 from tests.test_rebuild_installed import Sandbox
 
@@ -44,12 +45,15 @@ class ImpsReviewTests(unittest.TestCase):
                     f=self.fixture(op=op,**{'write':reason=='write','stages':2 if reason=='stages' else 1,
                                             'synthesis':reason=='synthesis'})
                     f.init(ok=False);self.assertFalse(f.gates.exists())
-                    f.approve();f.init();f.evidence();self.assertTrue(f.gate('validate')['data']['ready'])
-                    self.assertTrue(f.stage_validate()['accepted'])
+                    f.approve();f.init();f.evidence();result=f.gate('validate')['data']
+                    self.assertTrue(result['source_ready']);self.assertFalse(result['ready'])
+                    self.assertFalse(result['endpoint_complete'])
+                    self.assertTrue(f.stage_validate()['accepted'])  # Source-stage gate; selected endpoint remains incomplete.
 
     def test_single_read_only_initial_plan_and_deterministic_helpers_do_not_review(self):
         f=self.fixture(op='checklist');f.init();f.evidence()
-        self.assertTrue(f.gate('validate')['data']['ready']);self.assertFalse(f.metadata.exists())
+        result=f.gate('validate')['data']
+        self.assertTrue(result['source_ready']);self.assertFalse(result['endpoint_complete']);self.assertFalse(f.metadata.exists())
         for op in ('doctor','status','cancel','recipe-scaffold','recipe-check'):
             self.assertEqual(f.ape('admit',{'operation':op}),{'allowed':True,'chooser':False,'dispatch':False})
         f.gate('status');self.assertFalse(f.metadata.exists())
@@ -99,7 +103,8 @@ class ImpsReviewTests(unittest.TestCase):
             before=path.read_bytes();path.write_bytes(before+b'\n')
             f.gate('validate',ok=False);f.stage_validate(ok=False)
             path.write_bytes(before)
-        self.assertTrue(f.gate('validate')['data']['ready'])
+        result=f.gate('validate')['data']
+        self.assertTrue(result.get('source_ready',result['ready']))
         other=self.fixture();other.init();other.evidence()
         other.descriptor['planning_review']=f.descriptor['planning_review'];other.finalize(ok=False)
         f.descriptor['requirements']['REQ-ONE']='weakened';f.finalize(ok=False)
@@ -118,8 +123,8 @@ class ImpsReviewTests(unittest.TestCase):
         for event in ('wake','repair','compaction'):
             self.assertEqual(f.ape('continue',{'admission':f.admission,'invocation_id':f.id,'event':event}),f.admission)
         for retain in (None,False):
-            self.assertIn('retain-or-stop',f.ape('continue',{'admission':f.admission,'invocation_id':f.id,
-                'event':'resume','retain':retain},ok=False))
+            self.assertEqual(f.ape('continue',{'admission':f.admission,'invocation_id':f.id,
+                'event':'resume','retain':retain}),f.admission)
         self.assertEqual(f.ape('continue',{'admission':f.admission,'invocation_id':f.id,'event':'resume','retain':True}),f.admission)
         forwarded=f.ape('continue',{'admission':f.admission,'invocation_id':f.id,'forward':True})
         self.assertIn('already forwarded',f.ape('continue',{'admission':forwarded,'invocation_id':f.id,'forward':True},ok=False))
@@ -166,7 +171,8 @@ class ImpsReviewTests(unittest.TestCase):
         f.init(ok=False)  # intended edits cannot precede the initial pass
         f.local.write_text('VALUE = 1\n');f.init()
         f.local.write_text('VALUE = 2\n');f.evidence()
-        self.assertTrue(f.gate('validate')['data']['ready'])
+        result=f.gate('validate')['data']
+        self.assertTrue(result['source_ready']);self.assertFalse(result['endpoint_complete'])
         changed=deepcopy(f.context);f.plan['brief']['requirements'][0]['text']='Different acceptance'
         f.init(ok=False,context=changed)
 
@@ -231,13 +237,18 @@ class ImpsReviewTests(unittest.TestCase):
             f.plugin=moved;f.runtime=moved
             f.approve();f.init();f.evidence()
             if op=='audit':f.finalize()
-            self.assertTrue(f.stage_validate()['accepted'])
+            if op=='run':
+                self.assertTrue(f.gate('validate')['data']['source_ready'])
+                self.assertTrue(f.stage_validate()['accepted'])
+                self.assertFalse(f.gate('validate')['data']['endpoint_complete'])
+            else:
+                self.assertTrue(f.stage_validate()['accepted'])
 
     def test_multistage_audit_reviews_only_integrated_conclusions_and_binds_producers(self):
         from shared import model_selection as models
         f=self.fixture()
         d=deepcopy(f.selection_data);d['work']['judgement'].update(execution='current-context',accept_actual_settings=True)
-        f.selection=models.freeze(d)
+        f.selection=approved_selection(d)
         f.admission_input.update(selection=f.selection,selection_sha256=f.selection['selection_sha256'])
         f.admission=f.ape('admit',f.admission_input);f.descriptor['admission']=f.admission
         jid=f.id+'-audit';job_file=self.box.jobs/jid/'job.json'
@@ -264,6 +275,7 @@ class ImpsReviewTests(unittest.TestCase):
             'invocation_id':f.id,'scope_id':f.scope}
         self.box.job(self.package,'create',jid,job,extra=('--prefix',self.box.prefix,'--agents-root',self.box.agents))
         caps=deepcopy(f.selection['capabilities']);caps['parentThreadId']='fixture-coordinator'
+        caps['inheritedOptions']=f.selection['coordinator'].get('observed_options', {})
         caller=self.box.caller(self.manifest,'imps/audit')
         for sid in ('source','conclusion'):
             self.box.job(self.package,'direct-execution',jid,{'caller':caller,'stage_id':sid},

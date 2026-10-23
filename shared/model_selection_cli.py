@@ -13,7 +13,7 @@ from shared import model_selection as selection
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('freeze', 'validate', 'discover', 'gate', 'dispatch',
+    parser.add_argument('action', choices=('freeze', 'validate', 'discover', 'recommend', 'gate', 'dispatch',
                                          'correlate', 'panel', 'prospective', 'save-authority', 'load-authority'))
     parser.add_argument('--input', required=True)
     args = parser.parse_args(argv)
@@ -25,6 +25,8 @@ def main(argv=None):
             result = selection.validate(data['record'], data.get('expected'))
         elif args.action == 'discover':
             result = selection.discover(**data)
+        elif args.action == 'recommend':
+            result = selection.recommend(**data)
         elif args.action == 'gate':
             result = selection.gate(**data)
         elif args.action == 'dispatch':

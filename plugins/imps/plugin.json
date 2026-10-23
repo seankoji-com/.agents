@@ -1,6 +1,6 @@
 {
   "name": "imps",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "description": "Bounded engineering work on any T3 provider: implement, investigate, audit, and review with revision-bound evidence.",
   "short_description": "Bounded engineering work with revision-bound evidence",
   "argument_hint": "doctor | run <task> | resume <run-id> | status <run-id> | cancel <run-id> | verification-init | blast-radius [PR/range/paths] | audit [--focus <dimensions>] [--out <path>] | issues <number> [<number> ...] | prs pr <URL> | prs repo <owner/name> | prs org <owner> | checklist <path> | discussion <number or URL>; add --personas before or after any request",
@@ -213,62 +213,110 @@
     "doctor": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Local readiness has no synthesis."
+      "reason": "Local readiness has no synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "scripts/doctor.py",
+      "completion_evidence": "diagnostic exit and findings"
     },
     "status": {
       "selection": "direct",
       "planning": "none",
-      "reason": "State inspection has no synthesis."
+      "reason": "State inspection has no synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "cli.py",
+      "completion_evidence": "stored run state"
     },
     "cancel": {
       "selection": "direct",
       "planning": "none",
-      "reason": "Owned-task cancellation has no synthesis."
+      "reason": "Owned-task cancellation has no synthesis.",
+      "classification": "direct",
+      "entry": "entry.md",
+      "route": "cli.py",
+      "completion_evidence": "owned work stopped; partial evidence retained"
     },
     "resume": {
-      "selection": "retain-or-stop",
+      "selection": "continuation",
       "planning": "retained-plan",
-      "reason": "Pinned applicable runs retain targets/options; changed sources reopen review without budget reset."
+      "reason": "Reuse the scoped agreement and producing evidence without chooser; reconcile owned handles and retain findings/budgets.",
+      "classification": "continuation",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "same contract, owned handles and remaining budgets"
     },
     "verification-init": {
       "selection": "upfront",
       "planning": "verification-recipe",
-      "reason": "Review authored launch/drive/cleanup plan before execution; raw scaffold/check and unchanged reviewed recipe are direct."
+      "reason": "Review authored launch/drive/cleanup plan before execution; raw scaffold/check and unchanged reviewed recipe are direct.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "references/verification-init.md",
+      "completion_evidence": "reviewed executable verification recipe; bare scaffold is direct"
     },
     "blast-radius": {
       "selection": "upfront",
       "planning": "final-synthesis",
-      "reason": "Review integrated risks including no-risk conclusions."
+      "reason": "Review integrated risks including no-risk conclusions.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "reviewed impact report"
     },
     "audit": {
       "selection": "upfront",
       "planning": "final-synthesis",
-      "reason": "Review integrated conclusions and fix plan including zero findings."
+      "reason": "Review integrated conclusions and fix plan including zero findings.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "reviewed findings and retained refutations"
     },
     "prs": {
       "selection": "forward-once",
       "planning": "written-strategy",
-      "reason": "Forward one selection to pinned babysitter; avoid duplicate imps planning gate."
+      "reason": "Forward one selection to pinned babysitter; avoid duplicate imps planning gate.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "nested babysitter inherits agreement; each PR accounted for"
     },
     "run": {
       "selection": "upfront",
       "planning": "initial-plan",
-      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "current source gates and exact engineering endpoint"
     },
     "issues": {
       "selection": "upfront",
       "planning": "initial-plan",
-      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "accepted issue plan and selected authorised engineering endpoint"
     },
     "checklist": {
       "selection": "upfront",
       "planning": "initial-plan",
-      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "accepted checklist and selected authorised endpoint"
     },
     "discussion": {
       "selection": "upfront",
       "planning": "initial-plan",
-      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass."
+      "reason": "Review before execution for write action, multiple stages or synthesis; raw fetch and unchanged accepted read checklist add no pass.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "entry.md",
+      "completion_evidence": "accepted discussion-derived plan and selected endpoint"
     }
   }
 }

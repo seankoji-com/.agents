@@ -1,5 +1,9 @@
 # bug-report
 
+Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
+asking; direct controls stay prompt-free. Substantive work records the scoped
+agreement; nested calls and unchanged continuations reuse its binding and budgets.
+
 Verify suspected upstream problems, identify each owner, publish a redacted report
 through its documented reporting method, and follow up for one fixed 30-minute
 window. Invoking this command authorizes

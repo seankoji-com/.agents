@@ -1,12 +1,16 @@
 # Ralph for T3 Code
 
+Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
+asking; direct controls stay prompt-free. Substantive work records the scoped
+agreement; nested calls and unchanged continuations reuse its binding and budgets.
+
 Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
 Use `PKG/shared/adopter-planning.md` and `PKG/references/adopter-review-rubric.md`
 for public admission and receipt gates through `PKG/scripts/plan_review.py`.
 Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
-Implement, evaluate, and retry in T3 child tasks. Implementations and full reviews
-are fresh; delta re-reviews may continue the rejecting reviewer's thread. Read
+Implement, evaluate, and retry in T3 child tasks. Implementations and every review round
+use fresh tracked tasks under the agreed finite model chains. Read
 `PKG/shared/t3-runtime.md` and `PKG/shared/delegation.md` once, then
 `PKG/playbooks/loop.md`. Ralph requires a verified different evaluator lineage;
 the shared contract's same-lineage fallback does not apply.
@@ -20,8 +24,8 @@ Use JSON files with `--input FILE`; never interpolate goal text into shell code.
 
 - `<goal>` or `run <goal>` starts a run. `--max-attempts N` sets the number of
   implementation attempts, including the first, to a positive integer. Default: 20.
-  Ask the user to choose both models from T3's live catalog for every new run.
-- `resume <state-file>` asks retain-or-stop for the pinned pair/options, then reconciles the existing task before continuing. Retain the
+  Recommend exact work/reviewer chains and options from the live catalog in one scoped agreement, unless supplied.
+- `resume <state-file>` reuses the unchanged agreement without another chooser, then reconciles the existing task. Retain the
   chosen pair, worktree, goal, feedback and limit. Never restart an active task.
   Resolved result/provider failures use the helper's `recover` operation with a
   recorded reason. Unverified identity cannot be waived through recovery.
@@ -34,17 +38,16 @@ Use JSON files with `--input FILE`; never interpolate goal text into shell code.
   The helper has no `doctor` operation: run `python3 --version` and `git --version`,
   then call T3 `orchestrator_capabilities`.
 
-The default authority covers local edits, tests, commits, push of the task branch,
-and opening a normal PR for code changes. Respect narrower user instructions and
-repository rules. Merge, deployment, release, credential changes and messages to
-others need separate authorization. Cross-provider evaluation may receive only the
+Offer exactly Open PR, Tagged Version and Verified in Prod unless supplied.
+Record the necessary scoped action authority upfront, including merge/release/deploy
+when selected. Respect narrower instructions and repository/external approval gates. Cross-provider evaluation may receive only the
 goal's approved material; ask if the repository's private-data boundary is unclear.
 OpenCode tasks require explicit Full Access. If the parent is narrower, explain
 the requirement before starting; never silently broaden the parent.
 
 Finish only when a full-scope evaluation reports the goal achieved with an empty
-feedback list, the parent confirms the evidence is current, and the authorized PR outcome
-is observed. Every feedback item causes another implementation attempt, regardless
+feedback list, the parent confirms the evidence is current, and the selected endpoint
+has current evidence through `complete`. Source evaluation alone is intermediate. Every feedback item causes another implementation attempt, regardless
 of severity or a simultaneous success claim. A task's `completed` status alone is
 never a success verdict. Report exhausted attempts, unavailable evaluation, denied
 permissions and missing verification plainly. Do not substitute direct execution,
