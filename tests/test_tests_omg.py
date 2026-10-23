@@ -705,9 +705,8 @@ class CommandTests(unittest.TestCase):
         self.call('audit', self.repo, '--input', self.input(data), '--run-checks', code=2)
         data.pop('execution'); data['groups'] = [group()]; data['inspected_groups'] = ['restore']
         self.assertIn('model-selection', self.call('audit', self.repo, '--input', self.input(data), code=2)['error'])
-        from shared import model_selection
-        from tests.model_selection_fixtures import selection_input
-        selection = model_selection.freeze(selection_input())
+        from tests.upfront_fixtures import chosen
+        selection = chosen('tests-omg/audit', 'Private advisory report')
         data['selection_context'] = {'record': selection, 'selection_sha256': selection['selection_sha256'],
                                      'invocation_id': selection['invocation_id'], 'scope_id': selection['scope_id']}
         self.call('audit', self.repo, '--input', self.input(data))
@@ -717,6 +716,38 @@ class CommandTests(unittest.TestCase):
         data.pop('groups'); data.pop('selection_context')
         data['strategy'] = {'snapshot_sha256': 'a' * 64}
         self.assertIn('planning receipt', self.call('audit', self.repo, '--input', self.input(data), code=2)['error'])
+
+    def test_authored_audit_requires_its_scoped_agreement_and_retains_it_on_resume(self):
+        from shared import model_selection
+        from tests.model_selection_fixtures import selection_input
+        from tests.upfront_fixtures import agree, chosen
+        data = self.bound()
+        data.update(groups=[group()], inspected_groups=['restore'])
+
+        def bind(selection):
+            data['selection_context'] = {'record': selection, 'selection_sha256': selection['selection_sha256'],
+                'invocation_id': selection['invocation_id'], 'scope_id': selection['scope_id']}
+
+        # A format-valid internal selection or another public operation cannot
+        # supply authority for this audit, even if it has work/review choices.
+        for selection in (model_selection.freeze(selection_input()), chosen('ape/study'),
+                          chosen('tests-omg/doctor')):
+            bind(selection)
+            self.call('audit', self.repo, '--input', self.input(data), code=2)
+
+        raw = selection_input(); raw['operation'] = 'ape/study'
+        agree(raw, operations=['ape/study', 'tests-omg/audit'])
+        selected = model_selection.freeze(raw)
+        bind(selected)
+        first = self.call('audit', self.repo, '--input', self.input(data))
+        saved = json.loads(Path(first['audit']).read_text())
+        self.assertEqual(saved['input']['selection_context'], data['selection_context'])
+        resumed = self.call('audit', self.repo, '--input', self.input(data), '--resume', first['run_id'])
+        saved = json.loads(Path(resumed['audit']).read_text())
+        self.assertEqual(saved['input']['selection_context'], data['selection_context'])
+        self.assertEqual(saved['analysis']['recommendations'][0]['action'], 'keep')
+        self.call('status', resumed['run_id'])
+        self.call('report', resumed['run_id'])
 
     def test_org_visibility_pagination_errors_and_archived_unclassified_repos(self):
         data = {'org': {'owner': 'example', 'pages': [
@@ -832,6 +863,17 @@ class CommandTests(unittest.TestCase):
         result = self.call('audit', self.repo, script=moved / 'scripts/audit.py')
         self.assertTrue(Path(result['report']).is_file())
         self.call('report', result['run_id'], script=moved / 'scripts/audit.py')
+        from tests.upfront_fixtures import chosen
+        selected = chosen('tests-omg/audit', 'Private advisory report')
+        data = self.bound()
+        data.update(groups=[group()], inspected_groups=['restore'], selection_context={
+            'record': selected, 'selection_sha256': selected['selection_sha256'],
+            'invocation_id': selected['invocation_id'], 'scope_id': selected['scope_id']})
+        authored = self.call('audit', self.repo, '--input', self.input(data), script=moved / 'scripts/audit.py')
+        saved = json.loads(Path(authored['audit']).read_text())
+        self.assertEqual(saved['input']['selection_context']['record']['agreement'], selected['agreement'])
+        self.assertEqual(saved['analysis']['recommendations'][0]['action'], 'keep')
+        self.call('report', authored['run_id'], script=moved / 'scripts/audit.py')
         (moved / 'scripts/analysis.py').write_text('# damaged')
         p = subprocess.run([sys.executable, str(moved / 'scripts/audit.py'), 'doctor'], cwd=self.base,
                            capture_output=True, text=True, env=self.env, timeout=15)

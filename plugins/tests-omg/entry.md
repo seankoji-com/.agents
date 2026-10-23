@@ -1,5 +1,9 @@
 # tests-omg
 
+Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
+asking; direct controls stay prompt-free. Substantive audits record the scoped
+agreement; nested calls and unchanged continuations reuse its binding and budgets.
+
 Answer: what material protection would deleting each check lose, and is it worth
 its execution and maintenance cost? This is an advisory audit, never a fleet gate
 or merge certificate. Keep judgment in the coordinating agent and calculations,

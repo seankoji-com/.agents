@@ -7,7 +7,7 @@
     "use_when": "You can name the failure and what fixed looks like, and you want the checks that prove it run against the files you get back.",
     "try": "$t3-imps run fix the date parser: reject 31 April with a clear error, add a regression test, do not commit",
     "habitat": "A T3 thread attached to a repository, with a small Python core holding run state.",
-    "diet": "One task with an observable success condition and a stated endstate: local or PR.",
+    "diet": "One task with observable acceptance criteria and an agreed Open PR, Tagged Version or Verified in Prod target.",
     "field_marks": "Any edit after verification makes the evidence stale. Blocked is a complete answer. Delegation goes through T3 only."
   },
   "ape": {
@@ -43,12 +43,12 @@
   "ralph": {
     "plate": "VI",
     "binomial": "Helix iterans",
-    "summary": "Implement a goal, retry every independent evaluator finding in fresh tasks, then open a PR.",
+    "summary": "Implement a goal and repair independent evaluator findings through the agreed delivery target.",
     "use_when": "You want one model to implement a goal and a model from another lineage to grade it, with every criticism sent back for another attempt.",
     "try": "$t3-ralph fix the parser and add regression coverage",
     "habitat": "One T3 parent thread and a retained worktree, with checkpoints outside the repository.",
-    "diet": "A goal, a chosen pair of different model lineages, and an attempt limit.",
-    "field_marks": "Fresh context for every task. All feedback triggers repair. Five attempts by default. Successful code changes finish with a normal PR."
+    "diet": "A goal, exact work and reviewer backup chains, and a retained attempt limit.",
+    "field_marks": "Fresh review tasks. All feedback triggers repair. Retained budgets. Completion requires Open PR, Tagged Version or Verified in Prod evidence."
   },
   "focus-group": {
     "plate": "VII",

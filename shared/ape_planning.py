@@ -27,10 +27,13 @@ def admit(data):
     op = operation(data['operation'])
     scope = planning.logical_output_id(data['request_reference'], data['output_name'])
     selected = models.validate(data.get('selection'), data.get('selection_sha256'))
+    from shared.execution_agreement import admit as agreement_admit
+    agreement_admit(selected, operation='ape/' + op)
     planning.need(bool(data.get('selection_sha256')), 'producing selection digest required')
     models.gate(selected, invocation_id=data['invocation_id'], scope_id=scope,
                 event=data.get('event', 'new'), action='investigate', expected=data['selection_sha256'])
-    planning.need(selected['operation'] in (op, 'ape/' + op), 'selection belongs to another operation')
+    planning.need(selected['operation'] in (op, 'ape/' + op) or
+                  'ape/' + op in selected.get('agreement', {}).get('operations', []), 'selection belongs to another operation')
     for role in ('workhorse', 'judgement') if op == 'forage' else ('workhorse',):
         models.dispatch(selected, role=role)
     planning.need(any(s['required'] for s in selected['review_panel']), 'final report needs an applicable planning panel')

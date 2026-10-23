@@ -1,5 +1,9 @@
 # ape
 
+Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
+asking; direct controls stay prompt-free. Substantive work records the scoped
+agreement; nested calls and unchanged continuations reuse its binding and budgets.
+
 Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
 Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 

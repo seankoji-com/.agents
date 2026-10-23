@@ -8,6 +8,7 @@ import json
 import struct
 import zlib
 from pathlib import Path
+from tests.upfront_fixtures import approved_selection
 
 PROFILE = {'label': 'phone', 'viewport': {'width': 390, 'height': 844}, 'extra_views': ['recipe detail', 'shopping list']}
 CAPTURED_AT = '2029-05-31T23:00:00Z'
@@ -162,7 +163,7 @@ def policy_selection(ws, draft, caps=None, operation='plan'):
         'review_panel':[{'slot_id':'fidelity','role':'reviewer','coverage':['FG-PLAN','FG-AUTHORITY','FG-REVIEW'],
                          'required':True,'independent':independent,'target':reviewer}],
         'work_replacements':[],'review_replacements':[]}
-    selected = models.freeze(data)
+    selected = approved_selection(data)
     return adopter.admit('focus-group',{'operation':operation,'request_reference':reference,'output_name':output,
         'invocation_id':data['invocation_id'],'selection':selected,'selection_sha256':selected['selection_sha256']})
 
@@ -238,7 +239,7 @@ def policy_run(ws, draft):
     from copy import deepcopy
     data = deepcopy(ws.plan_admission)
     selected = deepcopy(data['selection']);selected['operation']='focus-group/run'
-    selected['invocation_id'] += '-run';selected=models.freeze(selected)
+    selected['invocation_id'] += '-run';selected=approved_selection(selected)
     record=adopter.admit('focus-group',{'operation':'run','request_reference':data['request_reference'],
         'output_name':data['output_name'],'invocation_id':selected['invocation_id'],
         'selection':selected,'selection_sha256':selected['selection_sha256']})

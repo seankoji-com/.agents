@@ -39,6 +39,6 @@ def observe_direct_ape(box, package, job_id, caller, stage_id):
     selected = box.state_of(job_id)['model_selection']
     caps = deepcopy(selected['capabilities'])
     caps.update(parentThreadId='fixture-parent', inheritedProviderInstanceId=selected['coordinator']['providerInstanceId'],
-                inheritedModel=selected['coordinator']['model'])
+                inheritedModel=selected['coordinator']['model'], inheritedOptions=selected['coordinator'].get('observed_options', {}))
     box.job(package, 'direct-execution', job_id, {'caller':caller,'stage_id':stage_id},
             extra=('--capabilities', box.payload(caps)))

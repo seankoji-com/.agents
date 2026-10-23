@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 
+from tests.upfront_fixtures import approved_selection
 from tests.thinking_plan_review_fixtures import ThinkingPlanFixture
 from tests.test_rebuild_installed import ROOT, tree_digest
 
@@ -111,7 +112,7 @@ class ThinkingPlanReviewCommands:
         # A genuinely sealed different selection still cannot replace the producing answer.
         changed.pop('selection_sha256'); changed['source']['answer'] = 'Choose again after drafting.'
         changed['source']['sha256'] = models.digest(changed['source']['answer'])
-        payload['selection'] = models.freeze(changed)
+        payload['selection'] = approved_selection(changed)
         self.fixture.cli('create', payload, ok=False)
 
     def test_positive_delegated_and_direct_receipts_reach_all_public_paths(self):
@@ -129,7 +130,8 @@ class ThinkingPlanReviewCommands:
                 self.render('--check')
                 self.validate('handoff')
                 first = self.state('resolve')
-                self.assertEqual(first['next_phase'], 'complete')
+                self.assertEqual(first['next_phase'], 'delivery')
+                self.assertFalse(first['endpoint_complete'])
                 self.assertFalse(first['execution_authorized'])
                 manifest = json.loads((self.topic / 'handoff.manifest.json').read_text())
                 self.assertEqual(manifest['schema'], 3)
@@ -243,7 +245,7 @@ class ThinkingPlanReviewCommands:
         # Reconstruct the prior format as a fixture, not by changing frozen plans.
         path = self.topic / 'meta.json'
         meta = json.loads(path.read_text())
-        for key in ('plan_review', 'plan_review_policy', 'plan_review_inputs'):
+        for key in ('plan_review', 'plan_review_policy', 'plan_review_inputs', 'model_admission'):
             meta.pop(key, None)
         path.write_text(json.dumps(meta))
         manifest_path = self.topic / 'handoff.manifest.json'

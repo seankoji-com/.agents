@@ -8,6 +8,7 @@ import re
 import sys
 
 from shared import model_selection as models
+from tests.upfront_fixtures import approved_selection
 from tests.model_selection_fixtures import selection_input, replacement, answer
 from tests.test_rebuild_installed import Sandbox, ROOT
 
@@ -25,7 +26,7 @@ def upfront_selection(slug, plugin='elephant-goldfish', operation='thinking', ou
     row = replacement(data, data['coordinator'], review=True)
     row.pop('target'); row['execution'] = 'self-review'
     data['review_replacements'].append(row)
-    return models.freeze(data)
+    return approved_selection(data)
 
 
 def init_selection_args(directory, slug, **workflow):

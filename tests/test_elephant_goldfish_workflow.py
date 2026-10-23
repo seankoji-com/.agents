@@ -310,7 +310,7 @@ class ThinkingHandoffJobTests(InstalledJobFixture):
         state = json.loads(budget.stdout)
         self.assertEqual(state['meta']['cold_read'], {'max_rounds': 12, 'rounds_performed': 0,
                                                       'limit_source': 'new-topic-default'})
-        self.assertEqual(state['next_phase'], 'complete')
+        self.assertEqual(state['next_phase'], 'delivery')
         self.assertIs(state['execution_authorized'], False)
 
         job_id, workflow = 'thinking-retry-policy', 'elephant-goldfish/thinking'

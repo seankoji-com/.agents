@@ -106,7 +106,11 @@ this is not a personal-data detector or permission to publish.
   execution authority; the coordinator must already possess it.
 - `selection_context`: authored findings or supported actions require `{record,
   selection_sha256, invocation_id, scope_id}` from the existing shared selection
-  gate. Keep the binding independently in the job/brief, not only in this input.
+  gate. The record includes the scoped upfront agreement admitting `tests-omg/audit`,
+  either as its operation or an explicitly agreed nested operation. Unchanged
+  continuations retain this producing agreement and its budgets. Keep the binding
+  independently in the job/brief, not only in this input. Older records remain
+  readable through deterministic status/report; use their pinned package for work.
   Deterministic collection/unknown records need no model launch. This admission
   proves local record consistency, not the truth of arbitrary authored claims.
 - `strategy`: only when a substantial written strategy actually exists, supply

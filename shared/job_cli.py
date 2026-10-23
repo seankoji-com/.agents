@@ -76,7 +76,7 @@ def main(argv=None):
     record_job_root(job_agents_roots(pins),a.state_root,a.job);return pins  # index new owning roots before the revision is written
    from shared.document_authors import refresh_new_task_authors
    from shared.job_coordinator import selection_plan_revision
-   selection_plan_revision(store.load(), data['new_plan'])
+   selection_plan_revision(store.load(), data['new_plan'], data['revision'])
    current_policy=store.load().get('policy', {})
    proposed_policy=data['new_plan'].get('policy', current_policy)
    if current_policy.get('model_selection_required') is True and proposed_policy.get('model_selection_required',True) is not True:

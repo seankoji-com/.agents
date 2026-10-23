@@ -96,12 +96,30 @@
         "assertions": [
           {
             "selector": "test_plan_workflow.PlanWorkflow",
-            "tests": 2,
+            "tests": 3,
             "coverage": [
               "REQ-REGISTRY",
               "REQ-HANDOFF",
               "REQ-EVIDENCE",
               "REQ-BOUNDARIES"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "disposition": "change",
+        "stage": 5,
+        "path": "tests/test_plan_publication.py",
+        "reason": "Relocated optional publication preserves scoped action, repository, content and category authority, with fake transports and unchanged continuation.",
+        "assertions": [
+          {
+            "selector": "test_plan_publication.PlanPublication",
+            "tests": 4,
+            "coverage": [
+              "REQ-BOUNDARIES",
+              "REQ-EVIDENCE",
+              "REQ-REGISTRY"
             ],
             "survives": true
           }

@@ -225,13 +225,14 @@ def authorize_input(data, run_checks):
         # Shared admission, not a new model dispatcher. The coordinator supplies
         # the actual producing selection and independent retained binding.
         sys.path.insert(0, str(PACKAGE if (PACKAGE / 'shared').is_dir() else PACKAGE.parent.parent))
-        from shared import model_selection
+        from shared import execution_agreement, model_selection
         context = data.get('selection_context', {})
         if not context.get('selection_sha256'):
             raise ValueError('authored judgments require shared model-selection admission')
         model_selection.gate(context['record'], invocation_id=context['invocation_id'],
                              scope_id=context['scope_id'], action='synthesis',
                              expected=context['selection_sha256'])
+        execution_agreement.admit(context['record'], operation='tests-omg/audit')
 
 
 def sanitize(value):

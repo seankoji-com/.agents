@@ -29,6 +29,8 @@ def admission(slug, selection, request_reference):
     scope = p.logical_output_id(request_reference, output)
     selected = models.validate(selection)
     p.need(selected['operation'] in ('plan', 'plan/plan'), 'selection is not for plan')
+    from shared.execution_agreement import admit
+    admit(selected, operation='plan/plan')
     models.gate(selected, invocation_id=selected['invocation_id'], scope_id=scope, action='draft')
     models.dispatch(selected, role='workhorse')
     return p.seal({'schema_version': 1, 'scope_id': scope, 'request_reference': request_reference,
