@@ -38,12 +38,31 @@ python3 PKG/scripts/continuous.py schedule-record --state <state.json> --now <RF
 
 The recorded scope, cadence, schedule ID and stop operation
 (`delete_scheduled_task` with that ID) go in the next status report. A second
-`schedule-record` for the same ID is idempotent; a different ID for the same scope is
-refused until the old schedule is stopped. On cancellation or handoff, stop the owned
-schedule and verify it is absent or disabled. If the scheduler is unavailable or the
-owner has not authorised it, record event-only coverage and state the gap: native
-watches cover linked PR changes only, so idle discovery and queue-age diagnosis cannot
-run.
+`schedule-record` for the same ID refreshes its next run and is idempotent; a
+different ID for the same scope is refused until the old schedule is stopped. Report
+coverage separately from authorisation:
+
+- `scheduled` means a schedule receipt is recorded;
+- `scheduled-unverified` means scheduled mode is authorised but no host receipt exists;
+- `stopped` or `stop-unverified` follows an explicit stop receipt;
+- `event-only` means there is no host wake at all.
+
+`next_wake_at` is only ever the recorded host `nextRunAt`. A delivered scheduled wake
+consumes it (`awaiting_receipt`: true) until the next host receipt; the helper never
+invents `now + cadence`, and an overdue receipt stays visible as overdue. Stop through
+the host, then record the verified result:
+
+```sh
+python3 PKG/scripts/continuous.py schedule-stop --state <state.json> --now <RFC3339> \
+  --schedule-id <ID> --verified yes
+```
+
+An unverified stop blocks re-arming until it is verified. A verified stop increments
+the schedule generation, so `schedule-plan` returns a new request key and a replacement
+may be recorded without losing the roster, dispatch history or ownership state. If the
+scheduler is unavailable or the owner has not authorised it, record event-only coverage
+and state the gap: native watches cover linked PR changes only, so idle discovery and
+queue-age diagnosis cannot run.
 
 ## Observation and state
 
@@ -59,16 +78,29 @@ python3 PKG/scripts/continuous.py observe --state <state.json> --now <RFC3339> \
 The snapshot has `complete`, optional `gaps` (`pagination`, `rate-limit`,
 `partial-search`, `denied`) and `prs`. Each PR carries `repo`, `number`, `state`,
 `head_sha` (or the reader's `head_oid`), `draft`, `fork`, `mergeable`,
-`merge_state_status`, `checks_state`, `unresolved_threads`, `required_contexts`,
-its `checks` (name, status, conclusion, `created_at`, `started_at`) and any `owner` or
-`human_blocker`. A `list-prs.sh` line can be passed unchanged as a `prs` item: its
-`pending_checks` and `failing` names are read, and `oldest_pending_check` carries the
-job's creation clock.
+`merge_state_status`, `checks_state`, `unresolved_threads`,
+`review_threads_complete`, its `checks` (name, status, conclusion, `created_at`,
+`started_at`) and any `owner` or `human_blocker`. A `list-prs.sh` line can be passed
+unchanged as a `prs` item: its `pending_checks`, `failing` names and
+`queue_clock_gaps` are read, and `oldest_pending_check` carries the job's creation
+clock. GraphQL's `CheckRun` has no `createdAt`, so the reader obtains a queued job's
+creation clock from the supported Actions job API named in `detailsUrl`; a job whose
+clock is unavailable reports `queue-age-unknown` instead of an invented age.
+
+`required_contexts` is known only for a single-PR reader call. A search page leaves it
+null, and the coordinator then classifies from GitHub's aggregate state: `UNSTABLE`
+means every required check passed and an optional one failed, while `FAILURE` is
+treated conservatively as a blocker. `checks_complete` is context-page completeness,
+not permission to skip the required-context rule; an incomplete context page is a
+recorded check-discovery gap.
 
 An omission never closes a known open PR. Resolve it from an explicit targeted host
 read with `continuous.py resolve --state <state.json> --now <RFC3339> --pr <url>
 --resolution merged|closed --head <sha>`; a temporary search omission only sets
-`reconcile-discovery` with a next check.
+`reconcile-discovery` with a next check and the current discovery gap as its detail.
+A closed PR observed open again is restored to open and reconsidered. An admitted PR
+that becomes a draft, fork or explicit exclusion stays visible as `excluded` with no
+action until it matches the scope again.
 
 The helper is deterministic and offline. It preserves the roster, admission and
 progress state between turns and returns the actions plus their deadlines. It never
@@ -86,13 +118,21 @@ For every admitted open PR the coordinator records:
 - a concrete blocker when no action is available.
 
 Queue diagnosis is specific: `waiting-for-runner` (queued, no runner),
-`running-tests` (in progress), `stale-head-checks`, `missing-contexts`,
-`stuck-aggregate-gate`, `fixer-in-flight` or `stalled-work`. Crossing the threshold
-produces `diagnose-queue` in existing authority: inspect the job and its queue reason,
-then act on what is repairable. Do not raise timeouts, weaken checks, restart
-infrastructure, or rerun an unchanged failure to manufacture progress. An external
-cause stays a named blocker with a next check. A queued auto-merge or armed watch is
-never reported as merged or complete.
+`running-tests` (in progress), `queue-age-unknown`, `stale-head-checks`,
+`missing-contexts`, `stuck-aggregate-gate`, `fixer-in-flight` or `stalled-work`.
+Crossing the threshold produces `diagnose-queue` in existing authority: inspect the job
+and its queue reason, then act on what is repairable. A failed required check, an
+unresolved thread, a conflict or an actionable requested-change review is handled
+before queue diagnosis, so a queued job never starves repair on the same PR. Do not
+raise timeouts, weaken checks, restart infrastructure, or rerun an unchanged failure to
+manufacture progress. An external cause stays a named blocker with a next check. A
+queued auto-merge or armed watch is never reported as merged or complete.
+
+Every landing decision uses current-head evidence only: checks and the checks header
+must belong to `head_sha`, `review_threads_complete` must be true after reading every
+conversation page, and a merge request is bound to its exact head. Rejected, cancelled
+or superseded attempts are reconciled, then either retried within the bounded budget or
+reported as `merge-rejected`. A live fixer blocks any merge or resolution write.
 
 Every eligible open PR ends a turn with one of: a tracked child in flight, a permitted
 merge action, confirmed ownership elsewhere, a concrete external blocker with its next
@@ -116,9 +156,30 @@ Historical links never exclude a PR forever. A tracked fixer suppresses a merge 
 branch update until its result is ingested.
 
 Repeated wakes and events share stable keys: the same wake and snapshot is a no-op,
-and a fixer dispatch keeps one request ID per head and blocker fingerprint. Neither
-duplicate schedules, dispatches, replies nor writers are created. Cancelled runs
-produce no actions until an explicit resume.
+and a fixer dispatch keeps one request ID per head, blocker fingerprint and attempt.
+Neither duplicate schedules, dispatches, replies nor writers are created. Dispatch
+records are written before the host action and reconciled from receipts:
+
+```sh
+python3 PKG/scripts/continuous.py dispatch --state <state.json> --now <RFC3339> \
+  --pr <url> --request-id <id> --kind fixer|merge|resolution --head <sha> \
+  --host-task-id <handle>
+python3 PKG/scripts/continuous.py fixer-done --state <state.json> --now <RFC3339> \
+  --pr <url> --request-id <id> --result <ingested-result.json>
+python3 PKG/scripts/continuous.py receipt --state <state.json> --now <RFC3339> \
+  --pr <url> --request-id <id> --status succeeded|failed|rejected|cancelled|armed|no-change
+```
+
+A receipt applies only to the request it names: a replay is reported as `duplicate`
+or `stale` and changes no guard or progress clock. Terminal repair attempts are drawn
+from the bounded budget, never treated as a live worker. Cancelled runs produce no
+actions until an explicit resume, though late receipts and resolution remain safe.
+
+The reference wiring for one sweep is `scripts/continuous_sweep.py`: a host adapter
+maps `create_schedule`, `due`, `discover` and `dispatch` to the T3 tools, and the
+module fixes the order arm -> delivered wake -> reconcile -> reserve -> record. The
+installed helper and that adapter are tested together against a fake host; neither is
+evidence that a live T3 wake was delivered.
 
 ## Report before yielding
 
@@ -133,13 +194,29 @@ Reporting uses unchanged evidence instead of regenerating a handoff round:
 
 ## Resume and installed-package drift
 
-`continuous.py version` reports the running package version and policy version.
-`resume` compares the state's pinned `policy_version` and package with the running
-package. It refuses a silent swap and returns `migration-required` with the exact
-gaps. Migrate only through the supported path: record the owner decision, run
-`job_cli.py upgrade-package` for a pinned job, then resume with
-`--accept-migration --owner-decision-id <id>`. Immutable briefs, evidence and the
-pinned package stay untouched; the migration receipt is appended to the state.
+`continuous.py version` reports the running package version, policy version and a
+digest of the installed package contents. `start` records that digest automatically
+and defaults the pin to the installed version, so `resume` detects a swapped running
+package without relying on `--package-version`. It refuses a silent swap and returns
+`migration-required` with the exact gaps. Migrate only through the supported path:
+record the owner decision, run `job_cli.py upgrade-package` for a pinned job, then
+resume with `--accept-migration --owner-decision-id <id>` and, when available,
+`--upgrade-receipt <file>` whose digest is recorded in the migration receipt. A helper
+whose version is not the job's pinned package refuses to accept the migration and
+names `upgrade-package` instead. Immutable briefs, evidence
+and the pinned package stay untouched; the migration receipt is appended to the state.
+
+A job created before continuous mode has no helper and no state at its pinned package.
+Resolve the pinned `PKG` as `entry.md` requires and run the new package's read-only
+preflight before assuming coverage:
+
+```sh
+python3 PKG/scripts/continuous.py preflight --job <job-dir> --now <RFC3339>
+```
+
+It reports `legacy-job` with `pinned-package-without-continuous` and changes nothing.
+Upgrade the job's package through `job_cli.py upgrade-package`, then start state with
+the upgraded package. Do not swap the package or rewrite the frozen brief.
 
 Offline and simulated tests prove the state decisions, idempotency and installed
 artifact path. They do not prove a live T3 scheduler created a schedule or delivered a

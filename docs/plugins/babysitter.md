@@ -76,18 +76,23 @@ org-wide watch.
 
 On each scheduled wake the thread refreshes the whole scope, diagnoses queue age and
 stalled work, and acts under the authorization already given. It tracks the creation
-clock of each pending check, the last meaningful progress (a head, check, thread or
-review change; not merely another read) and the next action or check deadline. A
-queue that sits past the threshold becomes a named blocker with a next check, not a
-claim that monitoring is working. Babysitter does not raise timeouts, rerun an
+clock of each pending check (read through the GitHub Actions job API, because the
+GraphQL check-run type has no creation time), the last meaningful progress (a head,
+check, thread or review change; not merely another read) and the next action or check
+deadline. A queue that sits past the threshold becomes a named blocker with a next
+check, not a claim that monitoring is working. A failed check, unresolved thread or
+conflict is repaired even when another job on the same PR is queued. Babysitter does not raise timeouts, rerun an
 unchanged failure, restart infrastructure or weaken a check to look busy. Repeated
 wakes reuse stable keys, so they do not create duplicate schedules, dispatches,
 replies or writers, and a live fixer blocks a merge or branch update.
 
-If the scheduler is unavailable or you have not authorised it, the run reports
-event-only coverage and its gap plainly: discovery and queue-age diagnosis stop while
-the thread is idle. A schedule receipt or a simulated test is not live proof; the run
-reports the host schedule and observed wakes separately.
+Coverage is reported as `scheduled` only after a host receipt is recorded. Until then
+the run says `scheduled-unverified`, and a stopped or delivered schedule is reported
+as `stopped` or `awaiting receipt` rather than given an invented next wake. If the
+scheduler is unavailable or you have not authorised it, the run reports event-only
+coverage and its gap plainly: discovery and queue-age diagnosis stop while the thread
+is idle. A schedule receipt or a simulated test is not live proof; the run reports the
+host schedule and observed wakes separately.
 
 The thread keeps one table of the targeted PRs and posts it at the end of every turn.
 Its shape, with made-up PRs:
@@ -168,8 +173,9 @@ integrity remain gates.
 T3's native watches cover linked PRs, so they cannot discover new PRs or diagnose an
 unchanged queued job while the thread is idle. Discovery runs again on the next wake
 and before handoff. Without an authorised host schedule the thread reports that idle
-gap. A resumed run exposes its installed package and continuous-policy version; a
-pinned job moves to a newer package only through the supported `job_cli.py
+gap. A resumed run compares its installed package digest and continuous-policy
+version automatically. A job pinned before continuous mode is detected by a read-only
+preflight and moves to a newer package only through the supported `job_cli.py
 upgrade-package` path with a recorded owner decision, never by silently swapping the
 installed snapshot. Unit tests don't show how a given model behaves;
 see [compatibility](../compatibility.md).

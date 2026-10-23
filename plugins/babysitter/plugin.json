@@ -18,7 +18,10 @@
     "default_cadence_seconds": 600,
     "default_queue_threshold_seconds": 900,
     "default_stall_threshold_seconds": 1800,
-    "state_helper": "scripts/continuous.py"
+    "state_helper": "scripts/continuous.py",
+    "sweep_adapter": "scripts/continuous_sweep.py",
+    "max_repair_attempts": 3,
+    "max_merge_attempts": 3
   },
   "origin": {
     "repository": "seankoji-com/claude-plugins",

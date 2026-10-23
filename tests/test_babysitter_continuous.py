@@ -5,19 +5,27 @@ transport (separately) and the installed package path. A fake clock moves while 
 check stays queued and no native event exists; the scheduled wake must diagnose the
 queue rather than claim monitoring continues.
 
-These are simulated integration tests. They do not prove a live T3 schedule or wake.
+The causal test drives a fake host adapter: its timer delivers a scheduled wake to the
+coordinator entry point, which reconciles discovery and reserves the resulting action.
+These are simulated integration tests; they do not prove a live T3 schedule or wake.
 """
+import fcntl
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins' / 'babysitter'
 HELPER = PLUGIN / 'scripts' / 'continuous.py'
+
+sys.path.insert(0, str(PLUGIN / 'scripts'))
+import continuous_sweep  # noqa: E402
 H1, H2 = '1' * 40, '2' * 40
 REPO_A, REPO_B = 'fixture/widgets', 'fixture/gadgets'
 
@@ -30,10 +38,11 @@ def pr(repo=REPO_A, number=12, *, head=H1, checks=None, mergeable='MERGEABLE',
         'state': state, 'head_sha': head, 'draft': draft, 'fork': fork,
         'mergeable': mergeable, 'merge_state_status': merge_state,
         'checks_state': checks_state, 'unresolved_threads': threads,
+        'review_threads_complete': True,
         'checks': checks if checks is not None else [
             {'name': 'ci', 'status': 'COMPLETED', 'conclusion': 'SUCCESS',
              'created_at': '2026-10-22T13:00:00Z'}],
-        'required_contexts': required_contexts or [],
+        'required_contexts': required_contexts,
         'owner': owner,
         'human_blocker': human_blocker,
     }
@@ -71,7 +80,7 @@ class ContinuousCase(unittest.TestCase):
         return proc
 
     def start(self, *, scheduler='scheduled', cadence=600, threshold=900, stall=1800,
-              kind='org', value='fixture', exclusions=()):
+              kind='org', value='fixture', exclusions=(), helper=HELPER):
         args = ['--now', '2026-10-22T14:00:00Z', '--scope-kind', kind,
                 '--scope-value', value, '--cadence-seconds', str(cadence),
                 '--queue-threshold-seconds', str(threshold),
@@ -82,7 +91,7 @@ class ContinuousCase(unittest.TestCase):
             args += ['--scheduler', 'event-only']
         for excluded in exclusions:
             args += ['--exclude', excluded]
-        return self.cli('start', *args)
+        return self.cli('start', *args, helper=helper)
 
     def observe(self, at, snapshot, *, wake='w1', kind='schedule'):
         return self.cli('observe', '--now', at, '--wake-kind', kind, '--wake-id', wake,
@@ -179,6 +188,7 @@ class DiscoveryAdmissionTest(ContinuousCase):
 
     def test_partial_discovery_preserves_known_prs_and_keeps_the_gap_visible(self):
         self.start(cadence=600)
+        self.record_schedule()
         self.observe('2026-10-22T14:05:00Z', observation(pr()), wake='complete')
         partial_snapshot = observation(
             pr(REPO_B, 78), complete=False,
@@ -217,6 +227,7 @@ class DiscoveryAdmissionTest(ContinuousCase):
             'state': 'OPEN', 'head_oid': H1, 'draft': False, 'fork': False,
             'mergeable': 'MERGEABLE', 'merge_state_status': 'BLOCKED',
             'checks_state': 'PENDING', 'unresolved_threads': 0,
+            'review_threads_complete': True, 'checks_complete': True,
             'pending_checks': [queued()], 'failing': [],
         }
         result = self.observe('2026-10-22T14:27:01Z', observation(row), wake='reader-line')
@@ -225,14 +236,18 @@ class DiscoveryAdmissionTest(ContinuousCase):
 
     def test_partial_reader_allows_unstable_when_required_contexts_pass(self):
         self.start()
+        # A normal search-reader row carries no required-context names. GitHub's
+        # UNSTABLE rollup already means every required check passed and an optional
+        # one failed, so the optional failure must not become a repair dispatch.
         row = {'repo': REPO_A, 'number': 12, 'state': 'OPEN', 'head_oid': H1,
                'draft': False, 'fork': False, 'mergeable': 'MERGEABLE',
-               'merge_state_status': 'UNSTABLE', 'checks_state': 'FAILURE',
-               'unresolved_threads': 0, 'pending_checks': [],
-               'failing': ['optional-lint'], 'required_contexts': ['ci']}
+               'merge_state_status': 'UNSTABLE', 'checks_state': 'UNSTABLE',
+               'unresolved_threads': 0, 'review_threads_complete': True,
+               'checks_complete': True, 'pending_checks': [], 'failing': ['optional-lint']}
         result = self.observe('2026-10-22T14:05:00Z', observation(row), wake='unstable')
         self.assertEqual(result['actions'][0]['kind'], 'merge')
 
+        row['checks_state'] = 'FAILURE'
         row['failing'] = ['ci']
         refused = self.observe('2026-10-22T14:06:00Z', observation(row), wake='required-fail')
         self.assertEqual(refused['actions'][0]['kind'], 'dispatch-fixer')
@@ -289,15 +304,28 @@ class DiscoveryAdmissionTest(ContinuousCase):
 
 
 class IdempotencyTest(ContinuousCase):
-    def test_requested_changes_block_merge_without_a_new_question(self):
+    def test_requested_changes_are_triaged_before_waiting_for_re_review(self):
         self.start()
         changed = pr(merge_state='BLOCKED')
         changed['review_decision'] = 'CHANGES_REQUESTED'
         changed['changes_requested_by'] = ['fixture-reviewer']
         result = self.observe('2026-10-22T14:05:00Z', observation(changed), wake='review')
-        self.assertEqual(result['actions'][0]['kind'], 'wait-review')
-        self.assertEqual(result['actions'][0]['blocked']['kind'], 'requested-changes')
+        action = result['actions'][0]
+        self.assertEqual(action['kind'], 'dispatch-fixer')
+        self.assertTrue(action['review_triage'])
         self.assertEqual(result['human_questions'], [])
+        url = 'https://github.com/fixture/widgets/pull/12'
+        self.cli('dispatch', '--now', '2026-10-22T14:05:30Z', '--pr', url,
+                 '--request-id', action['request_id'], '--kind', 'fixer', '--head', H1)
+        result_path = self.base / 'triage-result.json'
+        result_path.write_text(json.dumps({'outcome': 'no actionable change; answered'}))
+        self.cli('receipt', '--now', '2026-10-22T14:06:00Z', '--pr', url,
+                 '--request-id', action['request_id'], '--status', 'no-change',
+                 '--result', str(result_path))
+        waiting = self.observe('2026-10-22T14:07:00Z', observation(changed), wake='re-review')
+        self.assertEqual(waiting['actions'][0]['kind'], 'wait-review')
+        self.assertEqual(waiting['actions'][0]['blocked']['kind'], 'requested-changes')
+        self.assertEqual(waiting['human_questions'], [])
 
     def test_merge_needs_an_exact_head_and_a_green_current_head(self):
         self.start()
@@ -336,13 +364,16 @@ class IdempotencyTest(ContinuousCase):
         self.assertEqual(guarded['actions'][0]['kind'], 'wait-fixer')
         self.assertEqual(guarded['actions'][0]['blocked']['kind'], 'fixer-in-flight')
 
+        result_path = self.base / 'fixer-result.json'
+        result_path.write_text(json.dumps({'outcome': 'lint fixed', 'head': H1}))
         self.cli('fixer-done', '--now', '2026-10-22T14:09:00Z',
-                 '--pr', 'https://github.com/fixture/widgets/pull/12')
+                 '--pr', 'https://github.com/fixture/widgets/pull/12',
+                 '--request-id', request, '--result', str(result_path))
         landed = self.observe('2026-10-22T14:10:00Z', observation(pr()), wake='clear')
         self.assertEqual(landed['actions'][0]['kind'], 'merge')
         self.cli('dispatch', '--now', '2026-10-22T14:10:30Z',
                  '--pr', 'https://github.com/fixture/widgets/pull/12',
-                 '--request-id', 'merge-1', '--kind', 'merge')
+                 '--request-id', 'merge-1', '--kind', 'merge', '--head', H1)
         pending = self.observe('2026-10-22T14:11:00Z', observation(pr()), wake='merge-in-flight')
         self.assertEqual(pending['actions'][0]['kind'], 'merge-pending')
         resolution = self.cli('dispatch', '--now', '2026-10-22T14:11:30Z',
@@ -377,16 +408,16 @@ class CancelResumeTest(ContinuousCase):
 
         state = json.loads(self.state.read_text())
         state['policy_version'] = 'continuous-0'
-        state['package'] = {'pinned_version': '1.2.2+content.abc123'}
+        state['package']['pinned_version'] = '1.3.0+content.abc123'
         self.state.write_text(json.dumps(state))
         required = self.cli('resume', '--now', '2026-10-22T14:15:00Z',
-                            '--package-version', '1.2.2+content.abc123')
+                            '--package-version', '1.3.0+content.abc123')
         self.assertEqual(required['status'], 'migration-required')
-        self.assertIn('installed-drift', [g['kind'] for g in required['gaps']])
+        self.assertIn('policy-version', [g['kind'] for g in required['gaps']])
         self.assertFalse(required['changed'])
 
         migrated = self.cli('resume', '--now', '2026-10-22T14:15:00Z',
-                            '--package-version', '1.2.2+content.abc123',
+                            '--package-version', '1.3.0+content.abc123',
                             '--accept-migration', '--owner-decision-id', 'owner-approve-upgrade',
                             '--resume-cancelled')
         self.assertEqual(migrated['status'], 'resumed')
@@ -407,6 +438,603 @@ class CancelResumeTest(ContinuousCase):
         self.assertIn('more than once', duplicate.stderr)
 
 
+def _moment(text):
+    return datetime.fromisoformat(text.replace('Z', '+00:00'))
+
+
+def _iso(moment):
+    return moment.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+
+
+class FakeHost:
+    """Deterministic stand-in for the T3 scheduler and discovery tools."""
+
+    def __init__(self, snapshot, cadence_seconds=600):
+        self.snapshot = snapshot
+        self.cadence = cadence_seconds
+        self.clock = None
+        self.tasks = {}
+        self.created = []
+        self.dispatched = []
+        self.counter = 0
+
+    def create_schedule(self, request):
+        self.created.append(request)
+        self.counter += 1
+        schedule_id = f'sched-{self.counter}'
+        self.tasks[schedule_id] = _moment(self.clock) + timedelta(seconds=self.cadence)
+        return {'schedule_id': schedule_id, 'next_run_at': _iso(self.tasks[schedule_id]),
+                'stop': {'tool': 'delete_scheduled_task',
+                         'arguments': {'scheduledTaskId': schedule_id}}}
+
+    def delete_schedule(self, stop):
+        schedule_id = stop['arguments']['scheduledTaskId']
+        self.tasks.pop(schedule_id, None)
+        return {'verified': True}
+
+    def due(self, now):
+        moment = _moment(now)
+        wakes = []
+        for schedule_id, next_run in list(self.tasks.items()):
+            if next_run <= moment:
+                self.tasks[schedule_id] = moment + timedelta(seconds=self.cadence)
+                wakes.append({'wake_id': f'wake-{schedule_id}-{_iso(moment)}',
+                              'kind': 'schedule', 'schedule_id': schedule_id})
+        return wakes
+
+    def discover(self, scope, now):
+        return self.snapshot
+
+    def dispatch(self, action, now):
+        self.dispatched.append(dict(action))
+        return {'status': 'accepted', 'host_task_id': f'task-{len(self.dispatched)}'}
+
+
+class CausalSchedulerTest(ContinuousCase):
+    def test_timer_wake_reaches_the_coordinator_without_a_native_event(self):
+        self.start()
+        queued_pr = pr(checks=[queued()])
+        host = FakeHost(observation(queued_pr))
+        host.clock = '2026-10-22T14:00:00Z'
+        armed = continuous_sweep.arm(host, self.state, '2026-10-22T14:00:00Z')
+        self.assertEqual(armed['status'], 'armed')
+        self.assertEqual(len(host.created), 1)
+        # A second arm must not create a second schedule.
+        self.assertEqual(continuous_sweep.arm(host, self.state, '2026-10-22T14:00:01Z')['status'],
+                         'already-scheduled')
+        self.assertEqual(len(host.created), 1)
+
+        # The fake clock advances past the cadence while the job stays queued and no
+        # native PR event arrives. Only host.due delivers the wake.
+        first = continuous_sweep.tick(host, self.state, '2026-10-22T14:27:00Z')
+        self.assertEqual(len(first), 1)
+        action = first[0]['result']['actions'][0]
+        self.assertEqual(action['kind'], 'diagnose-queue')
+        self.assertEqual(action['blocked']['kind'], 'waiting-for-runner')
+        self.assertEqual(action['blocked']['age_seconds'], 900)
+        self.assertEqual(first[0]['result']['human_questions'], [])
+
+        # A new matching PR opened during the idle interval is discovered and admitted
+        # by the next delivered wake, and its permitted merge is reserved.
+        host.snapshot = observation(queued_pr, pr(REPO_B, 78, head=H2))
+        second = continuous_sweep.tick(host, self.state, '2026-10-22T14:37:00Z')
+        self.assertEqual([row['number'] for row in second[0]['result']['admitted']], [78])
+        self.assertEqual(second[0]['dispatched'][0]['action']['kind'], 'merge')
+        self.assertEqual(second[0]['dispatched'][0]['recorded'], 'recorded')
+        self.assertEqual(len(host.created), 1)
+
+        # The same delivered wake is a no-op: no duplicate dispatch or writer.
+        duplicate = continuous_sweep.handle_wake(
+            host, self.state, '2026-10-22T14:37:01Z', second[0]['wake'])
+        self.assertEqual(duplicate['result']['status'], 'duplicate')
+        self.assertEqual(duplicate['dispatched'], [])
+        self.assertEqual(len(host.dispatched), 1)
+
+
+class StateSafetyTest(ContinuousCase):
+    def test_start_never_replaces_an_existing_run(self):
+        self.start()
+        self.record_schedule()
+        before = self.state.read_bytes()
+        refused = self.cli('start', '--now', '2026-10-22T14:00:00Z', '--scope-kind', 'org',
+                           '--scope-value', 'fixture', '--scheduler', 'scheduled',
+                           '--authorization-source', str(self.request), '--thread-id', 'self',
+                           ok=False)
+        self.assertIn('already exists', refused.stderr)
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_transaction_lock_serialises_a_read_modify_write(self):
+        self.start()
+        lock_path = Path(str(self.state) + '.lock')
+        held = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            with self.assertRaises(subprocess.TimeoutExpired):
+                subprocess.run([sys.executable, str(HELPER), 'status', '--state', str(self.state)],
+                               capture_output=True, timeout=0.5)
+        finally:
+            fcntl.flock(held, fcntl.LOCK_UN)
+            os.close(held)
+        self.assertEqual(self.cli('status')['status'], 'active')
+
+    def test_dispatch_rejects_a_second_fixer_and_a_racing_merge(self):
+        self.start()
+        failing = [{'name': 'lint', 'status': 'COMPLETED', 'conclusion': 'FAILURE'}]
+        action = self.observe('2026-10-22T14:05:00Z', observation(pr(checks=failing)),
+                              wake='fail')['actions'][0]
+        url = 'https://github.com/fixture/widgets/pull/12'
+        self.cli('dispatch', '--now', '2026-10-22T14:05:00Z', '--pr', url,
+                 '--request-id', action['request_id'], '--kind', 'fixer', '--head', H1)
+        second = self.cli('dispatch', '--now', '2026-10-22T14:06:00Z', '--pr', url,
+                          '--request-id', 'fixer-2', '--kind', 'fixer', '--head', H1, ok=False)
+        self.assertIn('already in flight', second.stderr)
+        merge = self.cli('dispatch', '--now', '2026-10-22T14:06:00Z', '--pr', url,
+                         '--request-id', 'merge-1', '--kind', 'merge', '--head', H1, ok=False)
+        self.assertIn('may not race', merge.stderr)
+        missing_head = self.cli('dispatch', '--now', '2026-10-22T14:06:00Z', '--pr', url,
+                                '--request-id', 'merge-2', '--kind', 'merge', ok=False)
+        self.assertIn('exact head', missing_head.stderr)
+
+    def test_stale_fixer_receipt_is_harmless_and_does_not_clear_the_next_writer(self):
+        self.start()
+        failing = [{'name': 'lint', 'status': 'COMPLETED', 'conclusion': 'FAILURE'}]
+        url = 'https://github.com/fixture/widgets/pull/12'
+        first = self.observe('2026-10-22T14:05:00Z', observation(pr(checks=failing)),
+                             wake='fail')['actions'][0]
+        self.cli('dispatch', '--now', '2026-10-22T14:05:00Z', '--pr', url,
+                 '--request-id', first['request_id'], '--kind', 'fixer', '--head', H1)
+        result = self.base / 'result.json'
+        result.write_text('{"outcome":"fixed"}')
+        self.cli('fixer-done', '--now', '2026-10-22T14:06:00Z', '--pr', url,
+                 '--request-id', first['request_id'], '--result', str(result))
+        second = self.observe('2026-10-22T14:07:00Z', observation(pr(checks=failing)),
+                              wake='fail-2')['actions'][0]
+        self.assertEqual(second['kind'], 'dispatch-fixer')
+        self.cli('dispatch', '--now', '2026-10-22T14:07:00Z', '--pr', url,
+                 '--request-id', second['request_id'], '--kind', 'fixer', '--head', H1)
+        with_progress = json.loads(self.state.read_text())['prs'][url]['last_meaningful_progress_at']
+        replay = self.cli('receipt', '--now', '2026-10-22T14:08:00Z', '--pr', url,
+                          '--request-id', first['request_id'], '--status', 'succeeded',
+                          '--result', str(result))
+        self.assertEqual(replay['status'], 'duplicate')
+        state = json.loads(self.state.read_text())
+        self.assertEqual(state['prs'][url]['fixer']['request_id'], second['request_id'])
+        self.assertTrue(state['prs'][url]['fixer']['in_flight'])
+        self.assertEqual(state['prs'][url]['last_meaningful_progress_at'], with_progress)
+
+
+class AdoptedGuardTest(ContinuousCase):
+    def test_an_observed_writer_can_be_closed_by_its_first_receipt(self):
+        self.start()
+        url = 'https://github.com/fixture/widgets/pull/12'
+        observed = pr(owner={'thread_id': 'self', 'status': 'active',
+                             'continuation': 'in-flight', 'fixer_in_flight': True})
+        held = self.observe('2026-10-22T14:05:00Z', observation(observed), wake='adopted')
+        self.assertEqual(held['actions'][0]['kind'], 'wait-fixer')
+        result = self.base / 'adopted-result.json'
+        result.write_text('{"outcome":"fixed"}')
+        cleared = self.cli('fixer-done', '--now', '2026-10-22T14:06:00Z', '--pr', url,
+                           '--request-id', 'adopted-handle', '--result', str(result))
+        self.assertEqual(cleared['status'], 'recorded')
+        landed = self.observe('2026-10-22T14:07:00Z', observation(pr()), wake='after')
+        self.assertEqual(landed['actions'][0]['kind'], 'merge')
+
+
+class RepairAndMergeTest(ContinuousCase):
+    def test_terminal_repair_attempts_are_bounded_not_treated_as_in_flight(self):
+        self.start()
+        url = 'https://github.com/fixture/widgets/pull/12'
+        failing = [{'name': 'lint', 'status': 'COMPLETED', 'conclusion': 'FAILURE'}]
+        for attempt in range(1, 4):
+            result = self.observe(f'2026-10-22T14:0{attempt}:00Z',
+                                  observation(pr(checks=failing)), wake=f'wake-{attempt}')
+            action = result['actions'][0]
+            self.assertEqual(action['kind'], 'dispatch-fixer')
+            self.cli('dispatch', '--now', f'2026-10-22T14:0{attempt}:30Z', '--pr', url,
+                     '--request-id', action['request_id'], '--kind', 'fixer', '--head', H1)
+            self.cli('receipt', '--now', f'2026-10-22T14:0{attempt}:45Z', '--pr', url,
+                     '--request-id', action['request_id'], '--status', 'failed')
+        exhausted = self.observe('2026-10-22T14:09:00Z', observation(pr(checks=failing)),
+                                 wake='after-exhaustion')
+        self.assertEqual(exhausted['actions'][0]['kind'], 'blocked')
+        self.assertEqual(exhausted['actions'][0]['blocked']['kind'], 'repair-exhausted')
+
+    def test_merge_attempts_are_bound_to_the_exact_head(self):
+        self.start()
+        url = 'https://github.com/fixture/widgets/pull/12'
+        first = self.observe('2026-10-22T14:05:00Z', observation(pr(head=H1)), wake='green-1')
+        self.assertEqual(first['actions'][0]['kind'], 'merge')
+        self.cli('dispatch', '--now', '2026-10-22T14:05:30Z', '--pr', url,
+                 '--request-id', 'merge-h1', '--kind', 'merge', '--head', H1)
+        moved = self.observe('2026-10-22T14:06:00Z', observation(pr(head=H2)), wake='new-head')
+        self.assertEqual(moved['actions'][0]['kind'], 'merge')
+        self.assertEqual(moved['actions'][0]['head'], H2)
+        state = json.loads(self.state.read_text())
+        old = next(row for row in state['prs'][url]['dispatches']
+                   if row['request_id'] == 'merge-h1')
+        self.assertEqual(old['status'], 'superseded')
+        self.cli('dispatch', '--now', '2026-10-22T14:06:30Z', '--pr', url,
+                 '--request-id', 'merge-h2', '--kind', 'merge', '--head', H2)
+        self.cli('receipt', '--now', '2026-10-22T14:07:00Z', '--pr', url,
+                 '--request-id', 'merge-h2', '--status', 'rejected', '--head', H2)
+        retried = self.observe('2026-10-22T14:08:00Z', observation(pr(head=H2)), wake='retry')
+        self.assertEqual(retried['actions'][0]['kind'], 'merge')
+        self.assertIn('-a2', retried['actions'][0]['request_id'])
+
+    def test_excluded_rows_stay_visible_and_lose_their_action(self):
+        self.start()
+        url = 'https://github.com/fixture/widgets/pull/12'
+        self.observe('2026-10-22T14:05:00Z', observation(pr()), wake='green')
+        excluded = self.observe('2026-10-22T14:06:00Z', observation(pr(draft=True)), wake='draft')
+        self.assertEqual(excluded['actions'], [])
+        self.assertEqual(excluded['excluded'][0]['pr'], url)
+        status = self.cli('status')
+        self.assertEqual(status['prs'][url]['state'], 'excluded')
+        self.assertEqual(status['open_prs'], [])
+        returned = self.observe('2026-10-22T14:07:00Z', observation(pr()), wake='ready')
+        self.assertEqual(returned['actions'][0]['kind'], 'merge')
+        self.assertEqual(self.cli('status')['prs'][url]['state'], 'open')
+
+    def test_ownership_evidence_is_not_replaced_by_an_omitted_owner(self):
+        self.start()
+        owned = pr(owner={'thread_id': 'other', 'status': 'running',
+                          'continuation': 'in-flight'})
+        live = self.observe('2026-10-22T14:05:00Z', observation(owned), wake='owned')
+        self.assertEqual(live['actions'][0]['kind'], 'owned-elsewhere')
+        without = pr()
+        without.pop('owner')
+        still = self.observe('2026-10-22T14:06:00Z', observation(without), wake='no-owner')
+        self.assertEqual(still['actions'][0]['kind'], 'owned-elsewhere')
+        self.assertEqual(self.cli('status')['prs'][owned['url']]['owner']['thread_id'], 'other')
+        released = pr(owner={'thread_id': 'other', 'status': 'completed',
+                             'continuation': None})
+        after = self.observe('2026-10-22T14:07:00Z', observation(released), wake='released')
+        self.assertEqual(after['actions'][0]['kind'], 'merge')
+
+    def test_finished_check_evidence_from_another_head_never_authorises_a_merge(self):
+        self.start()
+        check = {'name': 'ci', 'status': 'COMPLETED', 'conclusion': 'SUCCESS',
+                 'head_sha': H2}
+        result = self.observe('2026-10-22T14:05:00Z',
+                              observation(pr(head=H1, checks=[check])), wake='wrong-head')
+        self.assertEqual(result['actions'][0]['kind'], 'wait-checks')
+        self.assertEqual(result['actions'][0]['blocked']['kind'], 'stale-head-checks')
+        header = pr(head=H1)
+        header['checks_head_sha'] = H2
+        result = self.observe('2026-10-22T14:06:00Z', observation(header), wake='wrong-header')
+        self.assertEqual(result['actions'][0]['blocked']['kind'], 'stale-head-checks')
+
+    def test_incomplete_check_context_page_blocks_landing(self):
+        self.start()
+        row = pr()
+        row['checks_complete'] = False
+        result = self.observe('2026-10-22T14:05:00Z', observation(row), wake='checks')
+        self.assertEqual(result['actions'][0]['kind'], 'wait-checks')
+        self.assertEqual(result['actions'][0]['blocked']['kind'], 'incomplete-checks')
+
+    def test_incomplete_thread_read_blocks_landing(self):
+        self.start()
+        row = pr()
+        row['review_threads_complete'] = False
+        result = self.observe('2026-10-22T14:05:00Z', observation(row), wake='threads')
+        self.assertEqual(result['actions'][0]['kind'], 'wait-threads')
+        self.assertEqual(result['actions'][0]['blocked']['kind'], 'incomplete-threads')
+        page = pr()
+        page['review_threads_complete'] = None
+        missing = self.observe('2026-10-22T14:06:00Z', observation(page), wake='no-thread-read')
+        self.assertEqual(missing['actions'][0]['kind'], 'wait-threads')
+
+    def test_queue_diagnosis_does_not_starve_a_failed_check(self):
+        self.start()
+        checks = [queued(created='2026-10-22T13:00:00Z'),
+                  {'name': 'lint', 'status': 'COMPLETED', 'conclusion': 'FAILURE'}]
+        result = self.observe('2026-10-22T14:27:00Z',
+                              observation(pr(checks=checks, checks_state='FAILURE')),
+                              wake='both')
+        self.assertEqual(result['actions'][0]['kind'], 'dispatch-fixer')
+        self.assertIn('lint', result['actions'][0]['reason'])
+
+    def test_startup_failure_is_a_repairable_failed_check(self):
+        self.start()
+        check = {'name': 'ci', 'status': 'COMPLETED', 'conclusion': 'STARTUP_FAILURE'}
+        row = pr(checks=[check], checks_state='FAILURE', merge_state='BLOCKED',
+                 required_contexts=['ci'])
+        row['head_sha'] = H1
+        result = self.observe('2026-10-22T14:05:00Z', observation(row), wake='startup')
+        self.assertEqual(result['actions'][0]['kind'], 'dispatch-fixer')
+        self.assertIn('ci', result['actions'][0]['reason'])
+
+    def test_reordered_checks_do_not_reset_the_progress_clock(self):
+        self.start()
+        first = queued(name='a', created='2026-10-22T14:00:00Z')
+        second = queued(name='b', created='2026-10-22T14:01:00Z')
+        self.observe('2026-10-22T14:05:00Z', observation(pr(checks=[first, second])),
+                     wake='order-1')
+        before = json.loads(self.state.read_text())['prs'][
+            'https://github.com/fixture/widgets/pull/12']['last_meaningful_progress_at']
+        again = self.observe('2026-10-22T14:06:00Z', observation(pr(checks=[second, first])),
+                             wake='order-2')
+        self.assertFalse(again['progress']['meaningful'])
+        after = json.loads(self.state.read_text())['prs'][
+            'https://github.com/fixture/widgets/pull/12']['last_meaningful_progress_at']
+        self.assertEqual(before, after)
+
+
+class SchedulerLifecycleTest(ContinuousCase):
+    def test_reported_coverage_distinguishes_authorization_receipt_and_delivery(self):
+        self.start()
+        unverified = self.observe('2026-10-22T14:05:00Z', observation(pr()), wake='early')
+        self.assertEqual(unverified['coverage'], 'scheduled-unverified')
+        self.assertIsNone(unverified['scheduler']['schedule_id'])
+        self.assertIsNone(unverified['next_wake_at'])
+        self.assertIn('no host schedule receipt', unverified['scheduler']['gap'])
+
+        self.record_schedule('sched-1', next_run='2026-10-22T14:10:00Z')
+        overdue = self.observe('2026-10-22T14:20:00Z', observation(pr()), wake='manual-late',
+                               kind='event')
+        self.assertTrue(overdue['scheduler']['overdue'])
+        self.assertEqual(overdue['next_wake_at'], '2026-10-22T14:10:00Z')
+
+        delivered = self.observe('2026-10-22T14:21:00Z', observation(pr()), wake='sched-1-wake')
+        self.assertEqual(delivered['coverage'], 'scheduled')
+        self.assertFalse(delivered['scheduler']['overdue'])
+        self.assertIsNone(delivered['next_wake_at'])
+        self.assertTrue(delivered['scheduler']['awaiting_receipt'])
+        self.assertEqual(delivered['scheduler']['last_wake_at'], '2026-10-22T14:21:00Z')
+
+
+    def test_event_only_mode_never_reports_a_future_wake(self):
+        started = self.start(scheduler='event-only')
+        self.assertEqual(started['scheduler']['gap'].count('event-only'), 1)
+        observed = self.observe('2026-10-22T14:05:00Z', observation(pr()), wake='event-only')
+        self.assertEqual(observed['coverage'], 'event-only')
+        self.assertIsNone(observed['next_wake_at'])
+        self.assertIsNone(observed['scheduler']['schedule_id'])
+
+    def test_cancellation_blocks_new_work_but_not_late_receipts(self):
+        self.start()
+        failing = [{'name': 'lint', 'status': 'COMPLETED', 'conclusion': 'FAILURE'}]
+        url = 'https://github.com/fixture/widgets/pull/12'
+        action = self.observe('2026-10-22T14:05:00Z', observation(pr(checks=failing)),
+                              wake='fail')['actions'][0]
+        self.cli('dispatch', '--now', '2026-10-22T14:05:30Z', '--pr', url,
+                 '--request-id', action['request_id'], '--kind', 'fixer', '--head', H1)
+        self.cli('cancel', '--now', '2026-10-22T14:06:00Z', '--reason', 'owner stopped')
+        plan = self.cli('schedule-plan')
+        self.assertEqual(plan['status'], 'cancelled')
+        self.assertIsNone(plan['request'])
+        refused = self.cli('dispatch', '--now', '2026-10-22T14:06:30Z', '--pr', url,
+                           '--request-id', 'new-worker', '--kind', 'fixer', '--head', H1,
+                           ok=False)
+        self.assertIn('cancelled', refused.stderr)
+        late = self.cli('receipt', '--now', '2026-10-22T14:07:00Z', '--pr', url,
+                        '--request-id', action['request_id'], '--status', 'rejected')
+        self.assertEqual(late['status'], 'recorded')
+
+    def test_verified_stop_allows_a_safe_rearm_that_preserves_history(self):
+        self.start()
+        self.record_schedule('sched-1')
+        unverified = self.cli('schedule-stop', '--now', '2026-10-22T14:06:00Z',
+                              '--schedule-id', 'sched-1', '--verified', 'no')
+        self.assertEqual(unverified['status'], 'stop-unverified')
+        blocked = self.cli('schedule-plan')
+        self.assertEqual(blocked['status'], 'stop-unverified')
+        self.assertIsNone(blocked['request'])
+        replaced = self.cli('schedule-record', '--now', '2026-10-22T14:06:30Z',
+                            '--schedule-id', 'sched-2',
+                            '--next-run-at', '2026-10-22T14:16:00Z', ok=False)
+        self.assertIn('verify the previous schedule', replaced.stderr)
+
+        verified = self.cli('schedule-stop', '--now', '2026-10-22T14:07:00Z',
+                            '--schedule-id', 'sched-1', '--verified', 'yes')
+        self.assertEqual(verified['status'], 'stopped')
+        plan = self.cli('schedule-plan')
+        self.assertEqual(plan['status'], 'plan')
+        self.assertEqual(plan['generation'], 2)
+        self.assertIn('-g2', plan['request']['key'])
+        recorded = self.record_schedule('sched-2', next_run='2026-10-22T14:18:00Z',
+                                        at='2026-10-22T14:08:00Z')
+        self.assertEqual(recorded['status'], 'recorded')
+        state = json.loads(self.state.read_text())
+        self.assertEqual(len(state['scheduler']['history']), 2)
+        self.assertIsNone(state['scheduler']['stopped'])
+        self.assertEqual(self.cli('status')['scheduler']['schedule_id'], 'sched-2')
+
+    def test_cancelled_run_requires_resume_before_rearming(self):
+        self.start()
+        self.record_schedule('sched-1')
+        self.cli('cancel', '--now', '2026-10-22T14:05:00Z', '--reason', 'stop')
+        self.assertEqual(self.cli('schedule-plan')['status'], 'cancelled')
+        self.cli('schedule-stop', '--now', '2026-10-22T14:06:00Z',
+                 '--schedule-id', 'sched-1', '--verified', 'yes')
+        self.assertEqual(self.cli('schedule-plan')['status'], 'cancelled')
+        self.cli('resume', '--now', '2026-10-22T14:07:00Z', '--resume-cancelled')
+        self.assertEqual(self.cli('schedule-plan')['status'], 'plan')
+
+
+class DiscoveryCoverageTest(ContinuousCase):
+    def test_partial_scope_does_not_block_a_pr_with_its_own_fresh_evidence(self):
+        self.start()
+        self.record_schedule()
+        self.observe('2026-10-22T14:05:00Z', observation(pr()), wake='complete')
+        partial = observation(pr(), complete=False,
+                              gaps=[{'kind': 'rate-limit', 'detail': 'repository B'}])
+        result = self.observe('2026-10-22T14:15:00Z', partial, wake='partial')
+        actions = {row.get('pr'): row for row in result['actions']}
+        self.assertEqual(actions['https://github.com/fixture/widgets/pull/12']['kind'], 'merge')
+        self.assertIn('rate-limit', result['discovery']['gaps'][0]['kind'])
+        for attempt in range(2, 5):
+            last = self.observe(f'2026-10-22T14:{15 + attempt:02d}:00Z', partial,
+                                wake=f'partial-{attempt}')
+        kinds = [row['kind'] for row in last['actions']]
+        self.assertIn('discovery-blocked', kinds)
+        self.assertIn('merge', kinds)
+
+    def test_current_discovery_gaps_describe_an_omitted_pr(self):
+        self.start()
+        self.observe('2026-10-22T14:05:00Z', observation(pr()), wake='complete')
+        partial = observation(complete=False,
+                              gaps=[{'kind': 'rate-limit', 'detail': 'search page 2'}])
+        result = self.observe('2026-10-22T14:15:00Z', partial, wake='partial')
+        action = result['actions'][0]
+        self.assertEqual(action['kind'], 'reconcile-discovery')
+        self.assertEqual(action['blocked']['kind'], 'discovery-omission')
+        self.assertEqual(action['blocked']['detail'][0]['kind'], 'rate-limit')
+
+    def test_closed_pr_reopens_from_an_explicit_observation(self):
+        self.start()
+        url = 'https://github.com/fixture/widgets/pull/12'
+        self.observe('2026-10-22T14:05:00Z', observation(pr()), wake='seen')
+        self.cli('resolve', '--now', '2026-10-22T14:06:00Z', '--pr', url,
+                 '--resolution', 'closed', '--head', H1)
+        self.assertEqual(self.cli('status')['open_prs'], [])
+        reopened = self.observe('2026-10-22T14:07:00Z', observation(pr()), wake='reopened')
+        self.assertEqual(self.cli('status')['open_prs'], [url])
+        self.assertEqual(reopened['actions'][0]['kind'], 'merge')
+        state = json.loads(self.state.read_text())
+        self.assertEqual(len(state['prs'][url]['reopens']), 1)
+
+
+class PackagePreflightTest(ContinuousCase):
+    def test_resume_detects_a_swapped_running_package_without_a_version_flag(self):
+        copied = self.base / 'plugin-copy'
+        shutil.copytree(PLUGIN, copied)
+        helper = copied / 'scripts' / 'continuous.py'
+        self.start(helper=helper)
+        state = json.loads(self.state.read_text())
+        self.assertEqual(state['package']['pinned_version'], '1.3.0')
+        self.assertTrue(state['package']['installed_digest'])
+        (copied / 'references' / 'continuous.md').write_text(
+            (copied / 'references' / 'continuous.md').read_text() + '\nchanged snapshot\n')
+        migration = self.cli('resume', '--now', '2026-10-22T14:10:00Z', helper=helper)
+        self.assertEqual(migration['status'], 'migration-required')
+        self.assertIn('installed-drift', [gap['kind'] for gap in migration['gaps']])
+        self.assertFalse(migration['changed'])
+
+    def test_migration_refuses_a_runner_that_is_not_the_pinned_package(self):
+        self.start()
+        state = json.loads(self.state.read_text())
+        state['policy_version'] = 'continuous-0'
+        state['package']['pinned_version'] = '1.2.2+content.abc123'
+        self.state.write_text(json.dumps(state))
+        refused = self.cli('resume', '--now', '2026-10-22T14:10:00Z',
+                           '--package-version', '1.2.2+content.abc123',
+                           '--accept-migration', '--owner-decision-id', 'owner-approve',
+                           ok=False)
+        self.assertIn('upgrade-package', refused.stderr)
+        self.assertEqual(json.loads(self.state.read_text())['policy_version'], 'continuous-0')
+
+    def test_legacy_pinned_job_preflight_preserves_every_artifact(self):
+        job_dir = self.base / 'job'
+        job_dir.mkdir()
+        old_package = self.base / 'old-package'
+        (old_package / 'scripts').mkdir(parents=True)
+        (old_package / 'plugin.json').write_text(json.dumps(
+            {'name': 'babysitter', 'version': '1.2.2'}))
+        job = {'job_id': 'job-legacy', 'workflow': 'babysitter/org',
+               'pins': {'babysitter': {'version': '1.2.2+content.332f8b2d43b5',
+                                       'package_dir': str(old_package)}}}
+        (job_dir / 'job.json').write_text(json.dumps(job))
+        before = {path.name: path.read_bytes() for path in job_dir.iterdir()}
+        result = self.cli('preflight', '--job', str(job_dir),
+                          '--now', '2026-10-22T14:05:00Z')
+        self.assertEqual(result['status'], 'legacy-job')
+        self.assertFalse(result['pinned_package_has_helper'])
+        self.assertEqual(result['gaps'][0]['kind'], 'pinned-package-without-continuous')
+        self.assertFalse(result['changed'])
+        self.assertIn('upgrade-package', result['instruction'])
+        self.assertEqual({path.name: path.read_bytes() for path in job_dir.iterdir()}, before)
+
+
+class ReaderPathTest(ContinuousCase):
+    """Feed the shipped reader's own row into the helper, not a hand-written shape."""
+
+    def reader_row(self, payload, job_payload=None):
+        directory = self.base / 'bin'
+        directory.mkdir(exist_ok=True)
+        curl = '''#!/usr/bin/env python3
+import os, sys
+from pathlib import Path
+args = sys.argv[1:]
+sys.stdin.read()
+url = next(arg for arg in args if arg.startswith('https://'))
+if '/actions/jobs/' in url:
+    body = os.environ['FIXTURE_JOB_PAYLOAD']
+else:
+    body = os.environ['FIXTURE_PAYLOAD']
+Path(args[args.index('-o') + 1]).write_text(body)
+print('200', end='')
+'''
+        for name, body in {'gh': '#!/bin/sh\nprintf fixture-token',
+                           'sleep': '#!/bin/sh\nexit 0', 'curl': curl}.items():
+            path = directory / name
+            path.write_text(body)
+            path.chmod(0o755)
+        env = {**os.environ, 'PATH': str(directory) + os.pathsep + os.environ['PATH'],
+               'FIXTURE_PAYLOAD': json.dumps(payload),
+               'FIXTURE_JOB_PAYLOAD': json.dumps(job_payload or {})}
+        proc = subprocess.run(
+            ['bash', str(PLUGIN / 'scripts' / 'list-prs.sh'), '--repo', 'fixture/repo'],
+            capture_output=True, text=True, env=env, timeout=20)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def node(self, *, checks, checks_state, merge_state='BLOCKED', review_threads_complete=True):
+        return {
+            'number': 12, 'title': 'Reader PR', 'url': 'https://github.com/fixture/repo/pull/12',
+            'state': 'OPEN', 'isDraft': False, 'isCrossRepository': False,
+            'mergeable': 'MERGEABLE', 'mergeStateStatus': merge_state,
+            'author': {'login': 'fixture'}, 'headRefName': 'topic', 'baseRefName': 'main',
+            'baseRef': {'target': {'oid': '1' * 40}},
+            'repository': {'nameWithOwner': 'fixture/repo'},
+            'commits': {'nodes': [{'commit': {'oid': H1, 'statusCheckRollup': {
+                'state': checks_state,
+                'contexts': {'totalCount': len(checks), 'pageInfo': {'hasNextPage': False},
+                             'nodes': checks}}}}]},
+            'comments': {'nodes': []}, 'reviews': {'nodes': []}, 'reviewDecision': 'APPROVED',
+            'latestReviews': {'nodes': []},
+            'reviewThreads': {'totalCount': 0,
+                              'pageInfo': {'hasNextPage': not review_threads_complete},
+                              'nodes': []},
+        }
+
+    def test_reader_queue_clock_reaches_queue_diagnosis(self):
+        checks = [
+            {'__typename': 'CheckRun', 'name': 'Validate compose files', 'status': 'QUEUED',
+             'conclusion': None, 'startedAt': None,
+             'detailsUrl': 'https://github.com/fixture/repo/actions/runs/39793710469/job/119875753605'},
+            {'__typename': 'CheckRun', 'name': 'lint', 'status': 'COMPLETED',
+             'conclusion': 'SUCCESS', 'startedAt': '2026-10-22T13:00:00Z', 'detailsUrl': None},
+        ]
+        payload = {'data': {'viewer': {'login': 'fixture'},
+                            'search': {'issueCount': 1,
+                                       'nodes': [self.node(checks=checks, checks_state='PENDING')]}}}
+        row = self.reader_row(payload, {'id': 119875753605, 'created_at': '2026-10-22T14:12:00Z'})
+        self.start()
+        result = self.observe('2026-10-22T14:27:00Z', observation(row), wake='reader-queue')
+        self.assertEqual(result['queue'][0]['age_seconds'], 900)
+        self.assertEqual(result['actions'][0]['kind'], 'diagnose-queue')
+        self.assertEqual(result['actions'][0]['blocked']['kind'], 'waiting-for-runner')
+
+    def test_reader_unstable_optional_failure_does_not_dispatch_a_repair(self):
+        checks = [
+            {'__typename': 'CheckRun', 'name': 'ci', 'status': 'COMPLETED',
+             'conclusion': 'SUCCESS', 'startedAt': '2026-10-22T13:00:00Z', 'detailsUrl': None},
+            {'__typename': 'CheckRun', 'name': 'optional-lint', 'status': 'COMPLETED',
+             'conclusion': 'FAILURE', 'startedAt': '2026-10-22T13:00:00Z', 'detailsUrl': None},
+        ]
+        payload = {'data': {'viewer': {'login': 'fixture'},
+                            'search': {'issueCount': 1,
+                                       'nodes': [self.node(checks=checks, checks_state='UNSTABLE',
+                                                           merge_state='UNSTABLE')]}}}
+        row = self.reader_row(payload)
+        self.assertIsNone(row['required_contexts'])
+        self.assertFalse(row['required_contexts_known'])
+        self.start()
+        result = self.observe('2026-10-22T14:05:00Z', observation(row), wake='reader-unstable')
+        self.assertEqual(result['actions'][0]['kind'], 'merge')
+
+
 class InstalledPackageTest(unittest.TestCase):
     def test_installed_helper_exposes_the_same_policy_and_state_decisions(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -422,6 +1050,7 @@ class InstalledPackageTest(unittest.TestCase):
             version_dir = Path(json.loads(proc.stdout)['data']['version_dir'])
             helper = version_dir / 'scripts' / 'continuous.py'
             self.assertTrue(helper.is_file())
+            self.assertTrue((version_dir / 'scripts' / 'continuous_sweep.py').is_file())
             version = subprocess.run([sys.executable, str(helper), 'version'],
                                      capture_output=True, text=True, timeout=30)
             self.assertEqual(version.returncode, 0, version.stderr)
@@ -457,6 +1086,8 @@ class InstalledPackageTest(unittest.TestCase):
         self.assertEqual(continuous['default_cadence_seconds'], 600)
         self.assertEqual(continuous['default_queue_threshold_seconds'], 900)
         self.assertEqual(continuous['state_helper'], 'scripts/continuous.py')
+        self.assertEqual(continuous['sweep_adapter'], 'scripts/continuous_sweep.py')
+        self.assertEqual(continuous['max_repair_attempts'], 3)
         for rel in ('entry.md', 'playbooks/maintain.md', 'references/scope.md'):
             self.assertIn('continuous', (PLUGIN / rel).read_text().lower())
 

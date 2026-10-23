@@ -10,16 +10,19 @@ a fake clock while a CI job stays queued.
 
 Commands::
 
-    start           create the state file and record the continuous-mode contract
+    start           create state exclusively and record the continuous-mode contract
     schedule-plan   the structured host schedule request (idempotent by key)
-    schedule-record record the host's actual schedule ID and next run
+    schedule-record record or refresh the host's schedule ID and next run
+    schedule-stop   record a verified stopped schedule before re-arming
     scheduler       record scheduler availability/authorisation for later wakes
     observe         reconcile one discovery snapshot (the core decision)
-    dispatch        record a dispatch handle for a coordinator action
-    fixer-done      clear the in-flight fixer guard after an ingested result
+    dispatch        reserve a fixer, merge or resolution action before host execution
+    receipt         record a dispatch outcome; stale replays change nothing
+    fixer-done      accepted fixer result shorthand for receipt --status succeeded
     resolve         close a known PR only from an explicit targeted host read
     cancel          stop this run; no further actions are produced
     resume          expose installed/policy version gaps and migrate explicitly
+    preflight       expose an older pinned job's continuous-coverage gap, read-only
     status          compact read of the persisted state
     version         source and installed policy identity
 
@@ -29,6 +32,7 @@ prove scheduled coverage. Without them the state reports its event-only gap.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -38,18 +42,33 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+try:  # POSIX hosts only; the plugin already requires bash and gh.
+    import fcntl
+except ImportError:  # pragma: no cover - documented as an explicit failure below
+    fcntl = None
+
 SCHEMA_VERSION = 1
 POLICY_VERSION = 'continuous-1'
 DEFAULT_CADENCE_SECONDS = 600
 DEFAULT_QUEUE_THRESHOLD_SECONDS = 900
 DEFAULT_STALL_THRESHOLD_SECONDS = 1800
 DISCOVERY_RETRY_LIMIT = 3
+MAX_REPAIR_ATTEMPTS = 3
+MAX_MERGE_ATTEMPTS = 3
+MAX_REVIEW_ATTEMPTS = 2
 MAX_STATE_BYTES = 4 * 1024 * 1024
 
 PENDING_STATUSES = {'QUEUED', 'REQUESTED', 'WAITING', 'PENDING', 'IN_PROGRESS'}
 RUNNING_STATUSES = {'IN_PROGRESS'}
 PASSING_CONCLUSIONS = {'SUCCESS', 'NEUTRAL', 'SKIPPED'}
-FAILING_CONCLUSIONS = {'FAILURE', 'CANCELLED', 'TIMED_OUT', 'STALE', 'ACTION_REQUIRED', 'ERROR'}
+FAILING_CONCLUSIONS = {'FAILURE', 'CANCELLED', 'TIMED_OUT', 'STALE', 'ACTION_REQUIRED', 'ERROR',
+                       'STARTUP_FAILURE'}
+TERMINAL_DISPATCH = {'succeeded', 'failed', 'rejected', 'cancelled', 'superseded', 'no-change'}
+OPEN_DISPATCH = {'pending', 'armed'}
+OWNER_LIVE_STATUSES = {'active', 'running', 'starting', 'queued', 'waiting', 'preparing'}
+OWNER_PARKED_STATUSES = {'parked', 'idle', 'completed'}
+OWNER_CONTINUATIONS = {'maintainer-live', 'in-flight', 'watching', 'continuing', 'dispatched'}
+OWNER_RELEASED = {'handed-back', 'released', 'none', 'stopped', 'cancelled'}
 
 # Blockers that genuinely need a person. Everything routine in the playbook must
 # resolve without a new question.
@@ -146,8 +165,79 @@ def save_json(path, value):
             os.unlink(tmp)
 
 
+def save_json_exclusive(path, value):
+    """Create a new state file. An existing run is never silently replaced."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2).encode('utf-8') + b'\n'
+    require(len(payload) <= MAX_STATE_BYTES, 'state exceeds the size limit')
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as exc:
+        raise ContinuousError(
+            f'{path} already exists; resume that run or choose a new state path') from exc
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+
+
 def state_path(path):
     return Path(path).expanduser().resolve()
+
+
+@contextlib.contextmanager
+def locked_state(path, *, create=False):
+    """Exclusive transaction over the complete read-modify-write of one run state.
+
+    Atomic replacement protects a reader from a half-written file. It does not stop
+    two coordinators from reading the same roster and overwriting each other, so the
+    lock covers the whole command. Commands save explicitly; the lock is released
+    however the command exits.
+    """
+    require(fcntl is not None, 'continuous state locking requires a POSIX host with fcntl')
+    path = state_path(path)
+    if create:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    elif not path.exists():
+        raise ContinuousError(f'no continuous state at {path}; run start first')
+    lock_path = path.with_name(path.name + '.lock')
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        if create:
+            yield None
+        else:
+            yield read_state(path)
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def package_digest(package_dir):
+    """Stable digest of the installed package contents.
+
+    Resume compares this with the snapshot recorded at start, so a swapped running
+    package is detected even when the caller passes no --package-version.
+    """
+    package = Path(package_dir)
+    rows = []
+    for path in sorted(package.rglob('*')):
+        if not path.is_file() or path.is_symlink():
+            continue
+        rel = str(path.relative_to(package))
+        if any(part.startswith('.') for part in Path(rel).parts):
+            continue
+        if rel.split(os.sep)[0] in ('__pycache__', 'dist', 'site') or rel.endswith('.pyc'):
+            continue
+        if rel.endswith('.lock') or rel.endswith('.json.tmp'):
+            continue
+        rows.append([rel, sha256_file(path)])
+    return hashlib.sha256(canonical(rows)).hexdigest()
 
 
 def read_state(path):
@@ -169,7 +259,8 @@ def source_identity(script=__file__):
     package = Path(script).resolve().parents[1]
     meta = load_json(package / 'plugin.json')
     return {'plugin': meta.get('name'), 'version': meta.get('version'),
-            'policy_version': policy_identity(meta), 'package_dir': str(package)}
+            'policy_version': policy_identity(meta), 'package_dir': str(package),
+            'digest': package_digest(package)}
 
 
 def policy_identity(meta):
@@ -241,17 +332,18 @@ def check_is_pending(check):
 
 
 def check_age_seconds(check, now):
-    """Age of the oldest trustworthy clock for a pending job.
+    """Age of the oldest trustworthy clock for a pending job, or None.
 
-    A queued job has no runner, so ``started_at`` is null and creation time is the
-    only honest start. A cancelled/rhyming API value never invents age.
+    A queued Actions job has no runner, so ``started_at`` is null and the creation
+    clock from the Actions job API is the only honest start. When no clock is known
+    the caller reports unknown age instead of treating the observation time as zero.
     """
     for field in ('created_at', 'started_at'):
         value = check.get(field)
         if value:
             created = parse_time(value, field)
             return max(0, int((now - created).total_seconds()))
-    return 0
+    return None
 
 
 def check_diagnosis(check):
@@ -272,43 +364,115 @@ def normalise_threads(raw):
 
 
 def progress_signature(raw, checks, queue):
-    """What actually changed for this PR. A repeated identical read is not progress."""
+    """What actually changed for this PR. A repeated identical read is not progress.
+
+    Both collections are sorted by their own identity, so the same queued checks in a
+    different API order do not reset the progress clock.
+    """
     return digest({
         'head': raw.get('head_sha'),
-        'checks': sorted((c['name'], c['status'], c['conclusion']) for c in checks),
+        'checks': sorted((c['name'], c['status'], c['conclusion'],
+                          c.get('created_at'), c.get('started_at'), c.get('head_sha'))
+                         for c in checks),
         'threads': normalise_threads(raw),
         'review': raw.get('review_decision'),
+        'review_threads_complete': raw.get('review_threads_complete'),
         'changes_requested': sorted(raw.get('changes_requested_by') or []),
         'merge_state': raw.get('merge_state_status') or raw.get('mergeable'),
         'state': str(raw.get('state') or 'OPEN').upper(),
-        'queue': [(q['name'], q['status'], q.get('created_at')) for q in queue],
+        'queue': sorted((q['name'], q['status'], q.get('created_at'), q.get('started_at'))
+                        for q in queue),
     })
 
 
 def owner_state(raw):
-    owner = raw.get('owner') or {}
-    if not isinstance(owner, dict):
-        raise ContinuousError('owner must be an object')
+    """Record ownership only when the snapshot actually carries ownership evidence.
+
+    A missing owner key is unavailable evidence, not a release and not a new 'none'
+    owner. Keeping the previous confirmed owner is the conservative choice; only an
+    explicit handoff releases a live maintainer.
+    """
+    owner = raw.get('owner')
+    if not isinstance(owner, dict) or not any(owner.get(k) for k in
+                                               ('thread_id', 'status', 'continuation')):
+        return None
+    status = str(owner.get('status') or 'none').lower()
+    continuation = owner.get('continuation')
     return {
         'thread_id': owner.get('thread_id'),
-        'status': owner.get('status') or 'none',
-        'continuation': owner.get('continuation'),
+        'status': status,
+        'continuation': continuation,
         'fixer_in_flight': bool(owner.get('fixer_in_flight', False)),
     }
 
 
 def owned_elsewhere(pr, self_thread):
+    """Whether another live maintainer owns this PR.
+
+    Host states are normalised: active/running/starting/queued/waiting own the PR;
+    a parked or terminal thread owns it only while a live continuation is recorded.
+    An explicit handoff releases it. Historical links alone never exclude it forever.
+    """
     owner = pr.get('owner') or {}
     thread = owner.get('thread_id')
-    if owner.get('status') not in ('active', 'parked'):
-        return False
     if not thread or thread == self_thread:
         return False
-    # A parked thread still owns the PR while its latest state maintains it. A
-    # terminal turn alone (continuation 'handed-back' or none) releases it.
-    if owner.get('status') == 'parked' and owner.get('continuation') not in ('maintainer-live', 'in-flight'):
+    status = str(owner.get('status') or 'none').lower()
+    continuation = owner.get('continuation')
+    if continuation in OWNER_RELEASED:
         return False
-    return True
+    if status in OWNER_LIVE_STATUSES:
+        return True
+    if continuation in OWNER_CONTINUATIONS:
+        return True
+    if status in OWNER_PARKED_STATUSES:
+        return False
+    return False
+
+
+def required_contexts(observation):
+    """Required check names, or None when this snapshot does not know them."""
+    value = observation.get('required_contexts')
+    known = observation.get('required_contexts_known')
+    if known is False or value is None:
+        return None
+    if not isinstance(value, list):
+        raise ContinuousError('required_contexts must be a list or null')
+    return [str(name) for name in value]
+
+
+def stale_evidence(observation, checks):
+    """Check names whose evidence belongs to a head other than the current one.
+
+    Provenance is checked for finished and pending checks alike: a SUCCESS from an
+    older head must never authorise a landing.
+    """
+    head = observation.get('head_sha')
+    fallback = observation.get('checks_head_sha')
+    stale = set()
+    if fallback and head and fallback != head:
+        stale.add('(checks_header)')
+    for check in checks:
+        evidence = check.get('head_sha') or None
+        if evidence and head and evidence != head:
+            stale.add(check['name'])
+    return sorted(stale)
+
+
+def blocking_failures(observation, failing):
+    """Failing checks that actually block landing, or every failing check when unknown.
+
+    GitHub reports UNSTABLE only when every required check passed and an optional one
+    failed, so that state is not blocking even without required-context names. A
+    FAILURE rollup with no required-context evidence stays conservative.
+    """
+    checks_state = str(observation.get('checks_state') or '').upper()
+    required = required_contexts(observation)
+    if required is not None:
+        return [name for name in failing if name in required]
+    if checks_state == 'UNSTABLE':
+        return []
+    return list(failing)
 
 
 # ---------------------------------------------------------------------------
@@ -325,16 +489,19 @@ def queue_summary(checks, now, threshold):
             'status': check['status'] or 'UNKNOWN',
             'diagnosis': check_diagnosis(check),
             'age_seconds': age,
+            'age_known': age is not None,
             'created_at': check.get('created_at'),
             'started_at': check.get('started_at'),
             'head_sha': check.get('head_sha'),
-            'over_threshold': age >= threshold,
+            'over_threshold': bool(age is not None and age >= threshold),
         })
-    oldest = max(rows, key=lambda row: row['age_seconds'], default=None)
+    known = [row for row in rows if row['age_known']]
+    oldest = max(known, key=lambda row: row['age_seconds'], default=None)
     return {
         'pending': rows,
         'oldest': oldest,
         'over_threshold': bool(oldest and oldest['over_threshold']),
+        'unknown_clock': [row['name'] for row in rows if not row['age_known']],
         'failing': [c['name'] for c in checks if c['conclusion'] in FAILING_CONCLUSIONS],
     }
 
@@ -343,8 +510,40 @@ def deadline(now, seconds):
     return now_iso(now + timedelta(seconds=seconds))
 
 
-def reconcile_pr(pr, state, now, discovery_complete):
-    """Return (action, queue, blocked, progress) for one admitted open PR."""
+def dispatch_status(row):
+    return str(row.get('status') or 'pending')
+
+
+def live_merge_dispatch(pr):
+    return next((row for row in pr.get('dispatches', [])
+                 if row.get('kind') == 'merge' and dispatch_status(row) in OPEN_DISPATCH), None)
+
+
+def merge_attempts(pr, head):
+    return [row for row in pr.get('dispatches', [])
+            if row.get('kind') == 'merge' and row.get('head') == head]
+
+
+def settlement_attempts(pr, prefix):
+    return [row for row in pr.get('dispatches', []) if row.get('request_id', '').startswith(prefix)]
+
+
+def settle_superseded(pr, head):
+    """Mark merge attempts bound to an older head as superseded, preserving history."""
+    for row in pr.get('dispatches', []):
+        if row.get('kind') == 'merge' and row.get('head') != head \
+                and dispatch_status(row) in OPEN_DISPATCH:
+            row['status'] = 'superseded'
+            row['completed_at'] = row.get('completed_at') or pr.get('last_seen_at')
+
+
+def reconcile_pr(pr, state, now, discovery):
+    """Return (action, queue, blocked, progress) for one admitted open PR.
+
+    The decision order keeps independently repairable work ahead of a queued-job
+    diagnosis: a failed required check, a conflict or an unresolved thread is acted on
+    even when some other job has been queued past the threshold.
+    """
     threshold = state['policy']['queue_threshold_seconds']
     stall = state['policy']['stall_threshold_seconds']
     cadence = state['policy']['cadence_seconds']
@@ -353,9 +552,14 @@ def reconcile_pr(pr, state, now, discovery_complete):
     queue = queue_summary(checks, now, threshold)
     raw_state = str(observation.get('state') or 'OPEN').upper()
     head = observation.get('head_sha')
-    required = set(observation.get('required_contexts') or [])
-    blocking_failing = [name for name in queue['failing'] if not required or name in required]
+    required = required_contexts(observation)
+    failing = blocking_failures(observation, queue['failing'])
+    threads = observation.get('unresolved_threads', 0)
+    conflict = str(observation.get('mergeable') or '').upper() == 'CONFLICTING'
+    review = str(observation.get('review_decision') or '').upper()
+    changes = [name for name in observation.get('changes_requested_by') or [] if name]
     progress = progress_signature(observation, checks, queue['pending'])
+    threads_complete = observation.get('review_threads_complete') is True
 
     if raw_state == 'MERGED':
         pr['state'] = 'merged'
@@ -367,31 +571,28 @@ def reconcile_pr(pr, state, now, discovery_complete):
                 queue, None, progress)
 
     if pr.get('discovery_gap'):
+        gap = discovery.get('gaps') or [{'kind': 'omission',
+                                         'detail': pr['discovery_gap']}]
         return ({'pr': pr['url'], 'kind': 'reconcile-discovery',
                  'reason': 'the current discovery snapshot omitted this known open PR',
                  'next_check_at': deadline(now, cadence)},
-                queue, {'kind': 'discovery-omission', 'detail': pr['discovery_gap']}, progress)
-
-    if not discovery_complete:
-        return ({'pr': pr['url'], 'kind': 'retry-discovery',
-                 'reason': 'discovery was partial; no completion claim is possible',
-                 'next_check_at': deadline(now, cadence)}, queue,
-                {'kind': 'discovery-incomplete', 'detail': state['discovery']['gaps']}, progress)
+                queue, {'kind': 'discovery-omission', 'detail': gap}, progress)
 
     if owned_elsewhere(pr, state.get('thread_id')):
         return ({'pr': pr['url'], 'kind': 'owned-elsewhere',
                  'reason': 'active ownership elsewhere; this run performs no writes',
                  'next_check_at': deadline(now, cadence)}, queue,
-                {'kind': 'owned-elsewhere', 'owner': pr['owner'].get('thread_id')}, progress)
+                {'kind': 'owned-elsewhere', 'owner': (pr.get('owner') or {}).get('thread_id')},
+                progress)
 
-    stale = [row for row in queue['pending']
-             if row.get('head_sha') and head and row['head_sha'] != head]
+    stale = stale_evidence(observation, checks)
     if stale:
-        detail = ', '.join(row['name'] for row in stale)
+        detail = ', '.join(stale)
         return ({'pr': pr['url'], 'kind': 'wait-checks',
-                 'reason': f'checks belong to a previous head: {detail}',
+                 'reason': f'check evidence belongs to a previous head: {detail}',
                  'next_check_at': deadline(now, cadence)}, queue,
-                {'kind': 'stale-head-checks', 'detail': detail}, progress)
+                {'kind': 'stale-head-checks', 'detail': detail,
+                 'current_head': head}, progress)
 
     fixer = pr.get('fixer') or {}
     if fixer.get('in_flight'):
@@ -399,6 +600,7 @@ def reconcile_pr(pr, state, now, discovery_complete):
         age = int((now - parse_time(started, 'fixer.started_at')).total_seconds()) if started else 0
         return ({'pr': pr['url'], 'kind': 'wait-fixer',
                  'reason': f"fixer {fixer.get('request_id')} is in flight",
+                 'request_id': fixer.get('request_id'),
                  'next_check_at': deadline(now, min(cadence, max(60, stall - age)))},
                 queue, {'kind': 'fixer-in-flight', 'detail': fixer.get('request_id')}, progress)
 
@@ -408,12 +610,71 @@ def reconcile_pr(pr, state, now, discovery_complete):
                  'reason': human.get('detail') or human['kind'],
                  'next_check_at': deadline(now, cadence)},
                 queue, {'kind': human['kind'], 'detail': human.get('detail')}, progress)
-    # A non-human-only blocker supplied by the caller is still a concrete state.
     if human and human.get('kind'):
         return ({'pr': pr['url'], 'kind': 'blocked',
                  'reason': human.get('detail') or human['kind'],
                  'next_check_at': deadline(now, cadence)}, queue,
                 {'kind': human['kind'], 'detail': human.get('detail')}, progress)
+
+    # Independently repairable work comes before queue diagnosis, so a queued job
+    # never starves a failed check, an unresolved thread or a conflict on this PR.
+    if conflict or failing or threads > 0:
+        fingerprint = digest({
+            'head': head, 'failing': sorted(failing), 'threads': threads,
+            'conflict': conflict,
+            'review': review, 'changes': sorted(changes),
+        })[:12]
+        prefix = f"{pr['number']}-maintain-{fingerprint}"
+        attempts = settlement_attempts(pr, prefix)
+        live = next((row for row in attempts if dispatch_status(row) in OPEN_DISPATCH), None)
+        if live:
+            return ({'pr': pr['url'], 'kind': 'wait-fixer',
+                     'reason': f"repair already dispatched as {live['request_id']}",
+                     'request_id': live['request_id'],
+                     'next_check_at': deadline(now, cadence)}, queue,
+                    {'kind': 'fixer-in-flight', 'detail': live['request_id']}, progress)
+        if len(attempts) >= MAX_REPAIR_ATTEMPTS:
+            detail = f'repair attempts exhausted at this head ({len(attempts)})'
+            return ({'pr': pr['url'], 'kind': 'blocked',
+                     'reason': detail, 'next_check_at': deadline(now, cadence)},
+                    queue, {'kind': 'repair-exhausted', 'detail': detail,
+                            'attempts': len(attempts)}, progress)
+        reason = ('merge conflict' if conflict else
+                  ('failing required checks ' + ', '.join(sorted(failing)) if failing else
+                   f'{threads} unresolved thread(s)'))
+        request_id = f'{prefix}-a{len(attempts) + 1}'
+        return ({'pr': pr['url'], 'kind': 'dispatch-fixer', 'request_id': request_id,
+                 'head': head, 'reason': reason,
+                 'attempt': len(attempts) + 1,
+                 'next_check_at': deadline(now, cadence)},
+                queue, None, progress)
+
+    if review == 'CHANGES_REQUESTED' or changes:
+        prefix = f"{pr['number']}-review-{(head or 'unknown')[:12]}"
+        attempts = settlement_attempts(pr, prefix)
+        live = next((row for row in attempts if dispatch_status(row) in OPEN_DISPATCH), None)
+        if live:
+            return ({'pr': pr['url'], 'kind': 'wait-fixer',
+                     'reason': f"review triage dispatched as {live['request_id']}",
+                     'request_id': live['request_id'],
+                     'next_check_at': deadline(now, cadence)}, queue,
+                    {'kind': 'review-triage', 'detail': live['request_id']}, progress)
+        resolved = next((row for row in attempts
+                         if dispatch_status(row) in ('succeeded', 'no-change')), None)
+        if resolved or len(attempts) >= MAX_REVIEW_ATTEMPTS:
+            detail = ('review triage completed; waiting for re-review' if resolved else
+                      'review triage attempts exhausted; waiting for re-review')
+            return ({'pr': pr['url'], 'kind': 'wait-review',
+                     'reason': detail, 'next_check_at': deadline(now, cadence)}, queue,
+                    {'kind': 'requested-changes', 'detail': changes,
+                     'triage': dispatch_status(resolved) if resolved else 'exhausted'}, progress)
+        request_id = f'{prefix}-a{len(attempts) + 1}'
+        return ({'pr': pr['url'], 'kind': 'dispatch-fixer', 'request_id': request_id,
+                 'head': head,
+                 'reason': 'inspect and repair the requested changes before re-review',
+                 'attempt': len(attempts) + 1,
+                 'review_triage': True,
+                 'next_check_at': deadline(now, cadence)}, queue, None, progress)
 
     if queue['over_threshold']:
         oldest = queue['oldest']
@@ -421,46 +682,45 @@ def reconcile_pr(pr, state, now, discovery_complete):
                   f"{oldest['age_seconds']}s (threshold {threshold}s)")
         return ({'pr': pr['url'], 'kind': 'diagnose-queue',
                  'reason': detail, 'next_check_at': deadline(now, cadence)},
-                queue, {'kind': oldest['diagnosis'], 'detail': detail, 'check': oldest['name']}, progress)
+                queue, {'kind': oldest['diagnosis'], 'detail': detail,
+                        'check': oldest['name'], 'age_seconds': oldest['age_seconds']}, progress)
 
-    if blocking_failing or observation.get('unresolved_threads', 0) > 0 or \
-            str(observation.get('mergeable') or '').upper() == 'CONFLICTING':
-        fingerprint = digest({'head': head, 'blockers': blocking_failing,
-                              'threads': observation.get('unresolved_threads', 0),
-                              'conflict': str(observation.get('mergeable') or '').upper()})
-        request_key = f"{pr['number']}-maintain-{fingerprint[:12]}"
-        existing = next((row for row in pr.get('dispatches', []) if row['request_id'] == request_key), None)
-        if existing:
-            return ({'pr': pr['url'], 'kind': 'wait-fixer',
-                     'reason': f"repair already dispatched as {request_key}",
-                     'next_check_at': deadline(now, cadence)}, queue,
-                    {'kind': 'fixer-in-flight', 'detail': request_key}, progress)
-        reason = ('failing checks ' + ', '.join(blocking_failing)) if blocking_failing else (
-            f"{observation.get('unresolved_threads')} unresolved thread(s)" if
-            observation.get('unresolved_threads', 0) else 'merge conflict')
-        return ({'pr': pr['url'], 'kind': 'dispatch-fixer', 'request_id': request_key,
-                 'reason': reason, 'next_check_at': deadline(now, cadence)},
-                queue, None, progress)
+    if queue['pending'] and queue['unknown_clock']:
+        detail = ', '.join(queue['unknown_clock'])
+        return ({'pr': pr['url'], 'kind': 'wait-checks',
+                 'reason': f'queue age is unknown for: {detail}',
+                 'next_check_at': deadline(now, cadence)}, queue,
+                {'kind': 'queue-age-unknown', 'detail': detail}, progress)
 
-    checks_state = str(observation.get('checks_state') or '').upper()
-    merge_state = str(observation.get('merge_state_status') or '').upper()
-    if observation.get('checks_complete', True) and observation.get('required_contexts'):
+    if observation.get('checks_source') == 'full' and observation.get('checks_complete') is False:
+        return ({'pr': pr['url'], 'kind': 'wait-checks',
+                 'reason': 'the check-context read is incomplete; fetch the remaining pages',
+                 'next_check_at': deadline(now, cadence)}, queue,
+                {'kind': 'incomplete-checks',
+                 'detail': 'full check snapshot did not include every context'}, progress)
+
+    if observation.get('checks_source') == 'full' and required is not None:
         observed = {c['name'] for c in checks}
-        missing = sorted(set(observation['required_contexts']) - observed)
+        missing = sorted(set(required) - observed)
         if missing:
             return ({'pr': pr['url'], 'kind': 'wait-checks',
                      'reason': 'required contexts missing from this head: ' + ', '.join(missing),
                      'next_check_at': deadline(now, cadence)}, queue,
                     {'kind': 'missing-contexts', 'detail': missing}, progress)
-    review = str(observation.get('review_decision') or '').upper()
-    changes = observation.get('changes_requested_by') or []
-    if review == 'CHANGES_REQUESTED' or changes:
-        return ({'pr': pr['url'], 'kind': 'wait-review',
-                 'reason': 'a review requests changes; request re-review after any fix',
+
+    if not threads_complete:
+        detail = ('the review-thread read is incomplete'
+                  if observation.get('review_threads_complete') is False else
+                  'no complete review-thread read was supplied')
+        return ({'pr': pr['url'], 'kind': 'wait-threads',
+                 'reason': detail + '; read the remaining conversations before landing',
                  'next_check_at': deadline(now, cadence)}, queue,
-                {'kind': 'requested-changes', 'detail': changes}, progress)
+                {'kind': 'incomplete-threads', 'detail': detail}, progress)
+
+    checks_state = str(observation.get('checks_state') or '').upper()
+    merge_state = str(observation.get('merge_state_status') or '').upper()
     if checks_state in ('SUCCESS', 'EXPECTED') and merge_state in ('BLOCKED', 'UNSTABLE', 'UNKNOWN') \
-            and not blocking_failing and not queue['pending']:
+            and not failing and not queue['pending']:
         return ({'pr': pr['url'], 'kind': 'diagnose-gate',
                  'reason': f'checks report {checks_state} but the aggregate gate is {merge_state}',
                  'next_check_at': deadline(now, cadence)}, queue,
@@ -472,20 +732,34 @@ def reconcile_pr(pr, state, now, discovery_complete):
                  'next_check_at': deadline(now, cadence)}, queue,
                 {'kind': 'missing-head', 'detail': 'head_sha is absent or not a full commit'}, progress)
 
-    if observation.get('checks_complete', True):
+    if observation.get('checks_source') == 'full':
         checks_ok = checks_state in ('SUCCESS', 'EXPECTED')
+        if checks_ok and required is not None:
+            observed = {c['name'] for c in checks}
+            checks_ok = all(name in observed for name in required)
     else:
-        # A partial reader line lists only pending and failing contexts. GitHub's
-        # aggregate state already encodes the required-check result.
-        checks_ok = merge_state in ('CLEAN', 'HAS_HOOKS', 'UNSTABLE')
-    if str(observation.get('mergeable') or '').upper() == 'MERGEABLE' and \
-            merge_state in ('CLEAN', 'HAS_HOOKS', 'UNSTABLE', '') and not queue['pending'] and \
-            not blocking_failing and observation.get('unresolved_threads', 0) == 0 and checks_ok:
-        if any(row.get('kind') == 'merge' for row in pr.get('dispatches', [])):
+        # A reader line lists only pending and failing contexts. GitHub's aggregate
+        # state already encodes the required-check result.
+        checks_ok = checks_state in ('SUCCESS', 'EXPECTED', 'UNSTABLE')
+    mergeable = str(observation.get('mergeable') or '').upper() == 'MERGEABLE'
+    if mergeable and merge_state in ('CLEAN', 'HAS_HOOKS', 'UNSTABLE', '') \
+            and not queue['pending'] and not failing and threads == 0 and checks_ok:
+        head_attempts = merge_attempts(pr, head)
+        live = next((row for row in head_attempts if dispatch_status(row) in OPEN_DISPATCH), None)
+        if live:
             return ({'pr': pr['url'], 'kind': 'merge-pending',
-                     'reason': 'a merge was already requested for this head; observe before retrying',
+                     'reason': f"a {dispatch_status(live)} merge was already requested for this head",
+                     'request_id': live['request_id'], 'head': head,
                      'next_check_at': deadline(now, cadence)}, queue, None, progress)
-        return ({'pr': pr['url'], 'kind': 'merge',
+        rejected = [row for row in head_attempts
+                    if dispatch_status(row) in ('rejected', 'failed', 'cancelled')]
+        if len(rejected) >= MAX_MERGE_ATTEMPTS:
+            detail = f'merge rejected {len(rejected)} times at this head'
+            return ({'pr': pr['url'], 'kind': 'blocked', 'reason': detail,
+                     'next_check_at': deadline(now, cadence)}, queue,
+                    {'kind': 'merge-rejected', 'detail': detail}, progress)
+        request_id = f"{pr['number']}-merge-{head[:12]}-a{len(head_attempts) + 1}"
+        return ({'pr': pr['url'], 'kind': 'merge', 'request_id': request_id, 'head': head,
                  'reason': 'GitHub reports every gate green at this head',
                  'next_check_at': deadline(now, cadence)}, queue, None, progress)
 
@@ -493,6 +767,8 @@ def reconcile_pr(pr, state, now, discovery_complete):
     stalled = (now - last).total_seconds() >= stall
     if stalled:
         detail = f'no meaningful progress for {int((now - last).total_seconds())}s'
+        if queue['unknown_clock']:
+            detail += '; queue age is unknown for ' + ', '.join(queue['unknown_clock'])
         return ({'pr': pr['url'], 'kind': 'diagnose-stall', 'reason': detail,
                  'next_check_at': deadline(now, cadence)}, queue,
                 {'kind': 'stalled-work', 'detail': detail}, progress)
@@ -512,217 +788,46 @@ def reconcile_pr(pr, state, now, discovery_complete):
             {'kind': 'unclassified', 'detail': 'refresh required'}, progress)
 
 
-# ---------------------------------------------------------------------------
-# commands
-
-
-def cmd_start(args):
-    now = parse_time(args.now, '--now')
-    scope_kind = args.scope_kind
-    require(scope_kind in ('org', 'repo', 'pr'), '--scope-kind must be org, repo or pr')
-    value = args.scope_value.strip()
-    require(bool(value), '--scope-value is required')
-    cadence = positive_int(args.cadence_seconds, '--cadence-seconds')
-    queue_threshold = positive_int(args.queue_threshold_seconds, '--queue-threshold-seconds')
-    stall = positive_int(args.stall_threshold_seconds, '--stall-threshold-seconds')
-    require(queue_threshold >= 60, 'queue threshold must allow at least one sweep')
-    mode = args.scheduler
-    authorization = {'state': 'unavailable', 'source': None, 'sha256': None}
-    if mode == 'scheduled':
-        require(args.authorization_source, 'scheduled mode requires --authorization-source')
-        source = Path(args.authorization_source).expanduser()
-        require(source.is_file(), f'authorization source does not exist: {source}')
-        authorization = {'state': 'authorized', 'source': str(source),
-                         'sha256': sha256_file(source)}
-    state = {
-        'schema_version': SCHEMA_VERSION,
-        'policy_version': POLICY_VERSION,
-        'created_at': now_iso(now),
-        'updated_at': now_iso(now),
-        'thread_id': args.thread_id,
-        'scope': {
-            'kind': scope_kind, 'value': value,
-            'include_drafts': bool(args.include_drafts),
-            'include_forks': bool(args.include_forks),
-            'exclusions': list(args.exclude),
-        },
-        'policy': {
-            'cadence_seconds': cadence,
-            'queue_threshold_seconds': queue_threshold,
-            'stall_threshold_seconds': stall,
-        },
-        'scheduler': {
-            'mode': mode,
-            'authorization': authorization,
-            'schedule_id': None,
-            'next_run_at': None,
-            'recorded_at': None,
-            'stop': None,
-            'gap': (None if mode == 'scheduled' else
-                    'event-only: no idle discovery, queue-age diagnosis or stalled-work wake'),
-        },
-        'package': {'pinned_version': args.package_version},
-        'prs': {},
-        'events': {},
-        'discovery': {'attempts': 0, 'last_attempt_at': None, 'last_complete_at': None,
-                      'gaps': [], 'complete': None},
-        'cancelled': None,
-        'migration': None,
-        'audit': [],
-    }
-    audit(state, now, 'start', scheduler=mode, scope=f'{scope_kind}:{value}')
-    save_json(state_path(args.state), state)
-    return {'status': 'started', 'state': str(state_path(args.state)),
-            'policy_version': POLICY_VERSION, 'scheduler': state['scheduler'],
-            'policy': state['policy'], 'scope': state['scope']}
-
-
-def schedule_request(state):
-    scope = state['scope']
-    key = f"babysitter-{scope['kind']}-{scope['value'].replace('/', '-')}-{POLICY_VERSION}"
-    prompt = (f"Continue the authorised babysitter {scope['kind']} sweep for {scope['value']}. "
-              "Refresh discovery, diagnose queue age and stalled work, admit new matching PRs, "
-              "and continue only actions already authorised by the owner's request. "
-              "Report concrete blockers, the next action and the next wake.")
+def scheduler_report(state, now):
+    """Separate authorization, recorded schedule existence and observed delivery."""
+    scheduler = state['scheduler']
+    mode = scheduler.get('mode')
+    schedule_id = scheduler.get('schedule_id')
+    next_run = scheduler.get('next_run_at')
+    stopped = scheduler.get('stopped') or {}
+    overdue = False
+    if next_run:
+        overdue = parse_time(next_run, 'next_run_at') < now
+    if mode != 'scheduled':
+        coverage = 'event-only'
+        gap = scheduler.get('gap') or (
+            'event-only: no idle discovery, queue-age diagnosis or stalled-work wake')
+    elif stopped and stopped.get('verified') is not True:
+        coverage = 'stop-unverified'
+        gap = scheduler.get('gap') or (
+            'stop requested but not verified; verify the schedule is absent before re-arming')
+    elif stopped.get('verified') is True and not schedule_id:
+        coverage = 'stopped'
+        gap = 'host schedule stopped and verified; no wake will arrive until re-armed'
+    elif schedule_id:
+        coverage = 'scheduled'
+        gap = None
+    else:
+        coverage = 'scheduled-unverified'
+        gap = scheduler.get('gap') or (
+            'scheduler authorized but no host schedule receipt is recorded')
     return {
-        'key': key,
-        'clientRequestId': key,
-        'tool': 'schedule_task',
-        'arguments': {
-            'schedule': {'type': 'interval', 'everyMs': state['policy']['cadence_seconds'] * 1000},
-            'bindToCurrentThread': True,
-            'prompt': prompt,
-            'title': f"babysitter {scope['kind']} {scope['value']} continuous sweep",
-            'clientRequestId': key,
-        },
+        'mode': mode,
+        'schedule_id': schedule_id,
+        'next_run_at': next_run,
+        'stop': scheduler.get('stop'),
+        'gap': gap,
+        'coverage': coverage,
+        'overdue': overdue,
+        'awaiting_receipt': bool(scheduler.get('awaiting_receipt')),
+        'last_wake_at': scheduler.get('last_wake_at'),
+        'last_wake_kind': scheduler.get('last_wake_kind'),
     }
-
-
-def cmd_schedule_plan(args):
-    state = read_state(args.state)
-    request = schedule_request(state)
-    if state['scheduler'].get('schedule_id'):
-        return {'status': 'already-scheduled', 'schedule_id': state['scheduler']['schedule_id'],
-                'next_run_at': state['scheduler'].get('next_run_at'),
-                'stop': state['scheduler'].get('stop'), 'request': request,
-                'instruction': 'do not create a second schedule'}
-    if state['scheduler']['mode'] != 'scheduled':
-        return {'status': 'event-only', 'request': None,
-                'gap': state['scheduler']['gap'],
-                'instruction': 'schedule only with explicit owner authorization'}
-    return {'status': 'plan', 'request': request,
-            'stop_after_create': {'tool': 'delete_scheduled_task',
-                                  'arguments': {'scheduledTaskId': '<returned schedule id>'}}}
-
-
-def cmd_schedule_record(args):
-    state = read_state(args.state)
-    now = parse_time(args.now, '--now')
-    require(state['scheduler']['mode'] == 'scheduled',
-            'event-only runs cannot record a host schedule; obtain scheduler authorization first')
-    require(bool(args.schedule_id), '--schedule-id is required')
-    require(bool(args.next_run_at), '--next-run-at is required')
-    next_run = parse_time(args.next_run_at, '--next-run-at')
-    require(next_run > now, '--next-run-at must be after the recording time')
-    current = state['scheduler'].get('schedule_id')
-    if current and current != args.schedule_id:
-        raise ContinuousError(
-            f"a different schedule ({current}) already owns this scope; "
-            "stop it before creating another")
-    request = schedule_request(state)
-    state['scheduler'].update({
-        'schedule_id': args.schedule_id,
-        'next_run_at': now_iso(next_run),
-        'recorded_at': now_iso(now),
-        'stop': {'tool': 'delete_scheduled_task',
-                 'arguments': {'scheduledTaskId': args.schedule_id}},
-        'gap': None,
-    })
-    state['scheduler']['request_key'] = request['key']
-    duplicate = current == args.schedule_id
-    audit(state, now, 'schedule', schedule_id=args.schedule_id, duplicate=duplicate)
-    save_json(state_path(args.state), state)
-    return {'status': 'already-recorded' if duplicate else 'recorded',
-            'duplicate': duplicate, 'schedule_id': args.schedule_id,
-            'next_run_at': state['scheduler']['next_run_at'],
-            'stop': state['scheduler']['stop']}
-
-
-def cmd_scheduler(args):
-    state = read_state(args.state)
-    now = parse_time(args.now, '--now')
-    available = args.available == 'yes'
-    authorized = args.authorized == 'yes'
-    if available and authorized:
-        require(state['scheduler']['authorization'].get('source') and
-                state['scheduler']['authorization'].get('sha256'),
-                'scheduler authorization needs a recorded owner source')
-        state['scheduler']['mode'] = 'scheduled'
-        state['scheduler']['authorization'] = {
-            'state': 'authorized', 'source': state['scheduler']['authorization'].get('source'),
-            'sha256': state['scheduler']['authorization'].get('sha256')}
-        state['scheduler']['gap'] = None
-        outcome = 'scheduled'
-    else:
-        state['scheduler']['mode'] = 'event-only'
-        state['scheduler']['authorization'] = {
-            'state': 'unavailable' if not available else 'unauthorized',
-            'source': state['scheduler']['authorization'].get('source'),
-            'sha256': state['scheduler']['authorization'].get('sha256')}
-        state['scheduler']['gap'] = ('scheduler unavailable' if not available else
-                                     'scheduler not authorized by the owner') + \
-            '; no idle discovery, queue-age diagnosis or stalled-work wake'
-        outcome = 'event-only'
-    state['scheduler']['recorded_at'] = now_iso(now)
-    audit(state, now, 'scheduler', mode=outcome)
-    save_json(state_path(args.state), state)
-    return {'status': outcome, 'scheduler': state['scheduler'],
-            'coverage': ('scheduled' if outcome == 'scheduled' else 'event-only'),
-            'gap': state['scheduler']['gap']}
-
-
-def normalise_pr(raw, now):
-    repo = raw.get('repo')
-    number = raw.get('number')
-    require(isinstance(repo, str) and re.fullmatch(r'[^/\s]+/[^/\s]+', repo),
-            'each PR needs a repo as owner/name')
-    require(type(number) is int and number > 0, 'each PR needs a positive number')
-    url = str(raw.get('url') or pr_key(repo, number))
-    if raw.get('checks') is not None:
-        check_rows = raw['checks']
-        checks_complete = True
-    else:
-        # A list-prs.sh line carries pending_checks and a failing-name list. Accept it
-        # directly so the coordinator does not have to reinterpret the reader.
-        check_rows = list(raw.get('pending_checks') or [])
-        check_rows += [{'name': name, 'status': 'COMPLETED', 'conclusion': 'FAILURE'}
-                       for name in raw.get('failing') or []]
-        checks_complete = False
-    checks = [normalise_check(c) for c in check_rows]
-    default_check_head = raw.get('checks_head_sha')
-    if default_check_head:
-        for check in checks:
-            if not check['head_sha']:
-                check['head_sha'] = default_check_head
-    observation = {
-        'state': str(raw.get('state') or 'OPEN').upper(),
-        'head_sha': raw.get('head_sha') or raw.get('head_oid'),
-        'checks': checks,
-        'checks_complete': checks_complete,
-        'checks_state': raw.get('checks_state'),
-        'required_contexts': list(raw.get('required_contexts') or []),
-        'unresolved_threads': normalise_threads(raw),
-        'review_decision': raw.get('review_decision'),
-        'changes_requested_by': list(raw.get('changes_requested_by') or []),
-        'mergeable': raw.get('mergeable'),
-        'merge_state_status': raw.get('merge_state_status'),
-        'draft': bool(raw.get('draft')),
-        'fork': bool(raw.get('fork')),
-        'human_blocker': raw.get('human_blocker'),
-        'fixer_in_flight': bool((raw.get('owner') or {}).get('fixer_in_flight')),
-    }
-    return {'url': url, 'repo': repo, 'number': number, 'title': raw.get('title'),
-            'observation': observation, 'owner': owner_state(raw)}
 
 
 def reconcile_observation(state, observation, now, wake_id, wake_kind):
@@ -743,25 +848,29 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
                                  'gaps': gaps, 'kind': wake_kind})[:16]
     event_key = digest({'wake': wake_id, 'kind': wake_kind, 'observation': observation})
     if event_key in state['events']:
+        report = scheduler_report(state, now)
         return {'status': 'duplicate', 'wake': {'id': wake_id, 'kind': wake_kind, 'duplicate': True},
-                'actions': [], 'admitted': [], 'human_questions': [],
-                'coverage': ('scheduled' if state['scheduler']['mode'] == 'scheduled' else 'event-only'),
+                'actions': [], 'admitted': [], 'excluded': [], 'human_questions': [],
+                'coverage': report['coverage'], 'scheduler': report,
+                'next_wake_at': report['next_run_at'],
                 'message': 'this wake and observation were already reconciled; no new work was created'}
 
-    admitted, actions, questions, queue_rows = [], [], [], []
+    admitted, actions, questions, queue_rows, excluded_rows = [], [], [], [], []
     seen_urls = set()
     progressed = False
     for row in raw_rows:
-        seen_urls.add(row['url'])
         if not scope_matches(state['scope'], {'repo': row['repo'], 'number': row['number']}):
             continue
-        if excluded(state['scope'], {'url': row['url'], 'repo': row['repo'],
-                                     'number': row['number'], 'draft': row['observation']['draft'],
-                                     'fork': row['observation']['fork']}):
-            continue
+        seen_urls.add(row['url'])
+        is_excluded = excluded(state['scope'], {'url': row['url'], 'repo': row['repo'],
+                                                'number': row['number'],
+                                                'draft': row['observation']['draft'],
+                                                'fork': row['observation']['fork']})
         pr = state['prs'].get(row['url'])
         is_new = pr is None
         if is_new:
+            if is_excluded:
+                continue
             pr = {
                 'url': row['url'], 'repo': row['repo'], 'number': row['number'],
                 'title': row['title'], 'state': 'open',
@@ -770,7 +879,7 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
                 'observation': row['observation'], 'owner': row['owner'],
                 'dispatches': [], 'fixer': {'in_flight': False, 'request_id': None,
                                             'started_at': None},
-                'discovery_gap': None,
+                'discovery_gap': None, 'excluded': None, 'reopens': [],
             }
             state['prs'][row['url']] = pr
             admitted.append({'url': row['url'], 'repo': row['repo'], 'number': row['number'],
@@ -779,19 +888,40 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
         else:
             pr['last_seen_at'] = now_iso(now)
             pr['title'] = row['title'] or pr.get('title')
-            pr['owner'] = row['owner']
+            if row['owner'] is not None:
+                pr['owner'] = row['owner']
             pr['observation'] = row['observation']
             pr['discovery_gap'] = None
-        queue = queue_summary(pr['observation']['checks'], now, state['policy']['queue_threshold_seconds'])
-        signature = progress_signature(pr['observation'], pr['observation']['checks'], queue['pending'])
+            if is_excluded:
+                pr['state'] = 'excluded'
+                pr['excluded'] = 'draft, fork or explicit exclusion no longer matches the scope'
+                excluded_rows.append({'pr': row['url'], 'reason': pr['excluded']})
+                continue
+            if pr['state'] == 'excluded':
+                pr['state'] = 'open'
+                pr['excluded'] = None
+            if pr['state'] == 'closed' and row['observation']['state'] == 'OPEN':
+                pr['state'] = 'open'
+                pr['reopened_at'] = now_iso(now)
+                pr['reopens'] = (pr.get('reopens') or []) + [now_iso(now)]
+                pr.pop('resolved_at', None)
+                pr.pop('resolved_head', None)
+            if pr['state'] == 'merged':
+                continue
+            if pr['state'] != 'open':
+                continue
+        queue = queue_summary(pr['observation']['checks'], now,
+                              state['policy']['queue_threshold_seconds'])
+        signature = progress_signature(pr['observation'], pr['observation']['checks'],
+                                       queue['pending'])
         if pr.get('progress_signature') != signature:
             pr['progress_signature'] = signature
             if not is_new:
                 pr['last_meaningful_progress_at'] = now_iso(now)
                 progressed = True
         # A fixer in flight is discovered from the observation (host handle state).
-        # Only an ingested result/local fixer-done clears the guard; a PR event
-        # alone must not let a merge race a running writer.
+        # Only an ingested result/local receipt clears the guard; a PR event alone
+        # must not let a merge race a running writer.
         if row['observation'].get('fixer_in_flight') and not pr['fixer'].get('in_flight'):
             pr['fixer'] = {'in_flight': True, 'request_id': None,
                            'started_at': pr['last_meaningful_progress_at']}
@@ -804,10 +934,12 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
         pr['discovery_gap'] = 'omitted from a partial or temporary discovery snapshot'
         omitted.append(url)
 
+    discovery = {'complete': complete, 'gaps': gaps}
     for url, pr in state['prs'].items():
         if pr.get('state') != 'open':
             continue
-        action, queue, blocked, signature = reconcile_pr(pr, state, now, complete)
+        settle_superseded(pr, pr['observation'].get('head_sha'))
+        action, queue, blocked, signature = reconcile_pr(pr, state, now, discovery)
         if blocked:
             action = {**action, 'blocked': blocked}
         pr['next_action'] = action
@@ -833,206 +965,721 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
         state['discovery']['attempts'] = 0
     else:
         state['discovery']['attempts'] = int(state['discovery'].get('attempts', 0)) + 1
+        # A scope-wide coverage gap stays visible without suppressing an independent
+        # PR whose own targeted evidence and gates are complete.
         if state['discovery']['attempts'] >= DISCOVERY_RETRY_LIMIT:
             actions.append({'kind': 'discovery-blocked', 'reason':
                             f"discovery incomplete after {state['discovery']['attempts']} attempts",
                             'next_check_at': deadline(now, state['policy']['cadence_seconds']),
                             'blocked': {'kind': 'discovery-incomplete', 'detail': gaps}})
+
+    scheduler = state['scheduler']
+    if wake_kind == 'schedule':
+        scheduler['last_wake_at'] = now_iso(now)
+        scheduler['last_wake_id'] = wake_id
+        scheduler['last_wake_kind'] = wake_kind
+        if scheduler.get('next_run_at') and \
+                parse_time(scheduler['next_run_at'], 'next_run_at') <= now:
+            # The host delivered the recorded run. The next wake time comes from the
+            # next host receipt, not from adding the cadence locally.
+            scheduler['next_run_at'] = None
+            scheduler['awaiting_receipt'] = True
+
     state['events'][event_key] = now_iso(now)
     if len(state['events']) > 500:
         state['events'] = dict(list(state['events'].items())[-500:])
     state['updated_at'] = now_iso(now)
     audit(state, now, 'observe', wake=wake_id, wake_kind=wake_kind,
-          admitted=len(admitted), actions=len(actions), progress=progressed)
-    next_wake = deadline(now, state['policy']['cadence_seconds'])
-    if state['scheduler'].get('next_run_at') and \
-            parse_time(state['scheduler']['next_run_at']) > now:
-        next_wake = state['scheduler']['next_run_at']
+          admitted=len(admitted), actions=len(actions), progress=progressed,
+          complete=complete)
+    report = scheduler_report(state, now)
     return {
         'status': 'cancelled' if state.get('cancelled') else 'ok',
         'wake': {'id': wake_id, 'kind': wake_kind, 'duplicate': False},
         'admitted': admitted,
+        'excluded': excluded_rows,
         'actions': actions,
         'queue': queue_rows,
         'discovery': {'complete': complete, 'gaps': gaps, 'omitted': omitted,
                       'attempts': state['discovery']['attempts']},
-        'scheduler': {'mode': state['scheduler']['mode'],
-                      'schedule_id': state['scheduler'].get('schedule_id'),
-                      'next_run_at': state['scheduler'].get('next_run_at'),
-                      'stop': state['scheduler'].get('stop'),
-                      'gap': state['scheduler'].get('gap')},
-        'coverage': ('scheduled' if state['scheduler']['mode'] == 'scheduled' else 'event-only'),
+        'scheduler': report,
+        'coverage': report['coverage'],
         'human_questions': questions,
         'progress': {'meaningful': progressed},
-        'next_wake_at': next_wake,
+        'next_wake_at': report['next_run_at'],
         'policy_version': state['policy_version'],
     }
 
 
+# ---------------------------------------------------------------------------
+# commands
+
+
+def cmd_start(args):
+    path = state_path(args.state)
+    now = parse_time(args.now, '--now')
+    scope_kind = args.scope_kind
+    require(scope_kind in ('org', 'repo', 'pr'), '--scope-kind must be org, repo or pr')
+    value = args.scope_value.strip()
+    require(bool(value), '--scope-value is required')
+    cadence = positive_int(args.cadence_seconds, '--cadence-seconds')
+    queue_threshold = positive_int(args.queue_threshold_seconds, '--queue-threshold-seconds')
+    stall = positive_int(args.stall_threshold_seconds, '--stall-threshold-seconds')
+    require(queue_threshold >= 60, 'queue threshold must allow at least one sweep')
+    mode = args.scheduler
+    authorization = {'state': 'unavailable', 'source': None, 'sha256': None}
+    if mode == 'scheduled':
+        require(args.authorization_source, 'scheduled mode requires --authorization-source')
+        source = Path(args.authorization_source).expanduser()
+        require(source.is_file(), f'authorization source does not exist: {source}')
+        authorization = {'state': 'authorized', 'source': str(source),
+                         'sha256': sha256_file(source)}
+    identity = source_identity(args.script)
+    pinned = args.package_version or identity['version']
+    scope = {
+        'kind': scope_kind, 'value': value,
+        'include_drafts': bool(args.include_drafts),
+        'include_forks': bool(args.include_forks),
+        'exclusions': list(args.exclude),
+    }
+    run_id = digest({'scope': scope, 'created_at': now_iso(now),
+                     'thread': args.thread_id})[:16]
+    state = {
+        'schema_version': SCHEMA_VERSION,
+        'policy_version': POLICY_VERSION,
+        'run_id': run_id,
+        'created_at': now_iso(now),
+        'updated_at': now_iso(now),
+        'thread_id': args.thread_id,
+        'scope': scope,
+        'policy': {
+            'cadence_seconds': cadence,
+            'queue_threshold_seconds': queue_threshold,
+            'stall_threshold_seconds': stall,
+        },
+        'scheduler': {
+            'mode': mode,
+            'authorization': authorization,
+            'schedule_id': None,
+            'next_run_at': None,
+            'recorded_at': None,
+            'stop': None,
+            'generation': 1,
+            'history': [],
+            'stopped': None,
+            'awaiting_receipt': False,
+            'last_wake_at': None,
+            'last_wake_id': None,
+            'last_wake_kind': None,
+            'gap': (None if mode == 'scheduled' else
+                    'event-only: no idle discovery, queue-age diagnosis or stalled-work wake'),
+        },
+        'package': {'pinned_version': pinned,
+                    'installed_version': identity['version'],
+                    'installed_digest': identity['digest'],
+                    'helper': str(Path(args.script).resolve())},
+        'prs': {},
+        'events': {},
+        'discovery': {'attempts': 0, 'last_attempt_at': None, 'last_complete_at': None,
+                      'gaps': [], 'complete': None},
+        'cancelled': None,
+        'migration': None,
+        'audit': [],
+    }
+    if mode == 'scheduled':
+        state['scheduler']['gap'] = 'scheduler authorized; no host schedule receipt recorded yet'
+    audit(state, now, 'start', scheduler=mode, scope=f'{scope_kind}:{value}', run_id=run_id)
+    # Creation is exclusive: an existing run is resumed (or migrated) explicitly,
+    # never replaced along with its roster, dispatches and writer guard.
+    with locked_state(path, create=True):
+        if path.exists():
+            raise ContinuousError(
+                f'{path} already exists; run resume for that run or choose a new state path')
+        save_json_exclusive(path, state)
+    return {'status': 'started', 'state': str(path), 'run_id': run_id,
+            'policy_version': POLICY_VERSION, 'scheduler': state['scheduler'],
+            'policy': state['policy'], 'scope': state['scope'],
+            'package': {key: state['package'][key]
+                        for key in ('pinned_version', 'installed_version', 'installed_digest')}}
+
+
+def schedule_request(state, state_file):
+    scope = state['scope']
+    generation = state['scheduler'].get('generation', 1)
+    key = (f"babysitter-{scope['kind']}-{scope['value'].replace('/', '-')}"
+           f"-{POLICY_VERSION}-g{generation}")
+    package = state.get('package') or {}
+    prompt = (
+        f"Continue the authorised babysitter {scope['kind']} sweep for {scope['value']} "
+        f"(run {state.get('run_id')}, policy {state.get('policy_version')}, "
+        f"package {package.get('pinned_version')}). Resume the pinned package with its "
+        f"continuous helper and --state {state_file}: refresh discovery, reconcile the whole "
+        "scope, diagnose queue age and stalled work, admit new matching PRs, reconcile "
+        "dispatch receipts, and continue only actions already authorised by the owner's "
+        "request. Report concrete blockers, the next action and the next wake. Do not "
+        "create a second schedule; this scheduled wake is the continuation.")
+    return {
+        'key': key,
+        'clientRequestId': key,
+        'tool': 'schedule_task',
+        'arguments': {
+            'schedule': {'type': 'interval', 'everyMs': state['policy']['cadence_seconds'] * 1000},
+            'bindToCurrentThread': bool(state.get('thread_id')),
+            'prompt': prompt,
+            'title': f"babysitter {scope['kind']} {scope['value']} continuous sweep",
+            'clientRequestId': key,
+        },
+    }
+
+
+def cmd_schedule_plan(args):
+    path = state_path(args.state)
+    with locked_state(path) as state:
+        if state.get('cancelled'):
+            return {'status': 'cancelled', 'request': None, 'cancelled': state['cancelled'],
+                    'instruction': 'resume the run explicitly before planning scheduled work'}
+        scheduler = state['scheduler']
+        stopped = scheduler.get('stopped') or {}
+        request = schedule_request(state, path)
+        if stopped and stopped.get('verified') is not True:
+            return {'status': 'stop-unverified', 'request': None,
+                    'gap': 'the previous host schedule is not verified stopped; '
+                           'verify it before re-arming',
+                    'stop': scheduler.get('stop')}
+        if scheduler.get('schedule_id') and not stopped.get('verified'):
+            return {'status': 'already-scheduled', 'schedule_id': scheduler['schedule_id'],
+                    'next_run_at': scheduler.get('next_run_at'),
+                    'stop': scheduler.get('stop'), 'request': request,
+                    'instruction': 'do not create a second schedule'}
+        if scheduler['mode'] != 'scheduled':
+            return {'status': 'event-only', 'request': None,
+                    'gap': scheduler.get('gap'),
+                    'instruction': 'schedule only with explicit owner authorization'}
+        return {'status': 'plan', 'request': request,
+                'generation': scheduler.get('generation', 1),
+                'stop_after_create': {'tool': 'delete_scheduled_task',
+                                      'arguments': {'scheduledTaskId': '<returned schedule id>'}}}
+
+
+def cmd_schedule_record(args):
+    path = state_path(args.state)
+    with locked_state(path) as state:
+        if state.get('cancelled'):
+            raise ContinuousError('this run is cancelled; resume it before recording a schedule')
+        now = parse_time(args.now, '--now')
+        require(state['scheduler']['mode'] == 'scheduled',
+                'event-only runs cannot record a host schedule; obtain scheduler authorization first')
+        require(bool(args.schedule_id), '--schedule-id is required')
+        require(bool(args.next_run_at), '--next-run-at is required')
+        next_run = parse_time(args.next_run_at, '--next-run-at')
+        require(next_run > now, '--next-run-at must be after the recording time')
+        scheduler = state['scheduler']
+        stopped = scheduler.get('stopped') or {}
+        if stopped and stopped.get('verified') is not True:
+            raise ContinuousError('verify the previous schedule is stopped before recording a replacement')
+        current = scheduler.get('schedule_id')
+        if current and current != args.schedule_id:
+            raise ContinuousError(
+                f"a different schedule ({current}) already owns this scope; "
+                "stop it before creating another")
+        request = schedule_request(state, path)
+        scheduler.update({
+            'schedule_id': args.schedule_id,
+            'next_run_at': now_iso(next_run),
+            'recorded_at': now_iso(now),
+            'stop': {'tool': 'delete_scheduled_task',
+                     'arguments': {'scheduledTaskId': args.schedule_id}},
+            'gap': None,
+            'awaiting_receipt': False,
+        })
+        scheduler['request_key'] = request['key']
+        if stopped.get('verified'):
+            scheduler['stopped'] = None
+        duplicate = current == args.schedule_id
+        audit(state, now, 'schedule', schedule_id=args.schedule_id, duplicate=duplicate)
+        save_json(path, state)
+        return {'status': 'already-recorded' if duplicate else 'recorded',
+                'duplicate': duplicate, 'schedule_id': args.schedule_id,
+                'next_run_at': scheduler['next_run_at'],
+                'stop': scheduler['stop']}
+
+
+def cmd_schedule_stop(args):
+    path = state_path(args.state)
+    with locked_state(path) as state:
+        now = parse_time(args.now, '--now')
+        scheduler = state['scheduler']
+        current = scheduler.get('schedule_id')
+        require(bool(args.schedule_id), '--schedule-id is required')
+        require(current == args.schedule_id,
+                f'schedule {args.schedule_id} is not the active schedule'
+                + (f' ({current})' if current else ''))
+        verified = args.verified == 'yes'
+        entry = {'schedule_id': args.schedule_id, 'at': now_iso(now),
+                 'verified': verified, 'stop': scheduler.get('stop')}
+        scheduler.setdefault('history', []).append(entry)
+        scheduler['stopped'] = entry
+        scheduler['next_run_at'] = None
+        scheduler['awaiting_receipt'] = False
+        if verified:
+            scheduler['schedule_id'] = None
+            scheduler['stop'] = None
+            scheduler['gap'] = 'host schedule stopped and verified; no wake will arrive until re-armed'
+            scheduler['generation'] = int(scheduler.get('generation', 1)) + 1
+        else:
+            scheduler['gap'] = ('stop requested but not verified; verify the schedule is absent '
+                                'or disabled before re-arming')
+        audit(state, now, 'schedule-stop', schedule_id=args.schedule_id, verified=verified)
+        save_json(path, state)
+        return {'status': 'stopped' if verified else 'stop-unverified',
+                'schedule_id': args.schedule_id, 'verified': verified,
+                'stop': entry.get('stop'), 'gap': scheduler['gap']}
+
+
+def cmd_scheduler(args):
+    path = state_path(args.state)
+    with locked_state(path) as state:
+        if state.get('cancelled'):
+            raise ContinuousError('this run is cancelled; resume it before changing scheduler coverage')
+        now = parse_time(args.now, '--now')
+        available = args.available == 'yes'
+        authorized = args.authorized == 'yes'
+        if available and authorized:
+            require(state['scheduler']['authorization'].get('source') and
+                    state['scheduler']['authorization'].get('sha256'),
+                    'scheduler authorization needs a recorded owner source')
+            state['scheduler']['mode'] = 'scheduled'
+            state['scheduler']['authorization'] = {
+                'state': 'authorized', 'source': state['scheduler']['authorization'].get('source'),
+                'sha256': state['scheduler']['authorization'].get('sha256')}
+            state['scheduler']['gap'] = state['scheduler'].get('gap') or (
+                'scheduler authorized; no host schedule receipt recorded yet')
+            outcome = 'scheduled'
+        else:
+            state['scheduler']['mode'] = 'event-only'
+            state['scheduler']['authorization'] = {
+                'state': 'unavailable' if not available else 'unauthorized',
+                'source': state['scheduler']['authorization'].get('source'),
+                'sha256': state['scheduler']['authorization'].get('sha256')}
+            state['scheduler']['gap'] = ('scheduler unavailable' if not available else
+                                         'scheduler not authorized by the owner') + \
+                '; no idle discovery, queue-age diagnosis or stalled-work wake'
+            outcome = 'event-only'
+        state['scheduler']['recorded_at'] = now_iso(now)
+        audit(state, now, 'scheduler', mode=outcome)
+        save_json(path, state)
+        report = scheduler_report(state, now)
+        return {'status': outcome, 'scheduler': report,
+                'coverage': report['coverage'], 'gap': report['gap']}
+
+
+def normalise_pr(raw, now):
+    repo = raw.get('repo')
+    number = raw.get('number')
+    require(isinstance(repo, str) and re.fullmatch(r'[^/\s]+/[^/\s]+', repo),
+            'each PR needs a repo as owner/name')
+    require(type(number) is int and number > 0, 'each PR needs a positive number')
+    url = str(raw.get('url') or pr_key(repo, number))
+    if raw.get('checks') is not None:
+        check_rows = raw['checks']
+        checks_complete = raw.get('checks_complete', True) is not False
+        checks_source = 'full'
+    else:
+        # A list-prs.sh line carries pending_checks and a failing-name list. Accept it
+        # directly so the coordinator does not have to reinterpret the reader.
+        check_rows = list(raw.get('pending_checks') or [])
+        check_rows += [{'name': name, 'status': 'COMPLETED', 'conclusion': 'FAILURE'}
+                       for name in raw.get('failing') or []]
+        checks_complete = raw.get('checks_complete') is True
+        checks_source = 'reader'
+    checks = [normalise_check(c) for c in check_rows]
+    default_check_head = raw.get('checks_head_sha')
+    if not default_check_head and raw.get('head_oid'):
+        default_check_head = raw.get('head_oid')
+    if default_check_head:
+        for check in checks:
+            if not check['head_sha']:
+                check['head_sha'] = default_check_head
+    observation = {
+        'state': str(raw.get('state') or 'OPEN').upper(),
+        'head_sha': raw.get('head_sha') or raw.get('head_oid'),
+        'checks': checks,
+        'checks_complete': checks_complete,
+        'checks_source': checks_source,
+        'checks_state': raw.get('checks_state'),
+        'checks_head_sha': raw.get('checks_head_sha'),
+        'required_contexts': raw.get('required_contexts'),
+        'required_contexts_known': raw.get('required_contexts_known',
+                                           raw.get('required_contexts') is not None),
+        'unresolved_threads': normalise_threads(raw),
+        'review_decision': raw.get('review_decision'),
+        'review_threads_complete': raw.get('review_threads_complete'),
+        'changes_requested_by': list(raw.get('changes_requested_by') or []),
+        'mergeable': raw.get('mergeable'),
+        'merge_state_status': raw.get('merge_state_status'),
+        'draft': bool(raw.get('draft')),
+        'fork': bool(raw.get('fork')),
+        'human_blocker': raw.get('human_blocker'),
+        'fixer_in_flight': bool((raw.get('owner') or {}).get('fixer_in_flight')),
+    }
+    return {'url': url, 'repo': repo, 'number': number, 'title': raw.get('title'),
+            'observation': observation, 'owner': owner_state(raw)}
+
+
 def cmd_observe(args):
     path = state_path(args.state)
-    state = read_state(path)
-    now = parse_time(args.now, '--now')
-    if state.get('cancelled'):
-        return {'status': 'cancelled', 'actions': [], 'admitted': [], 'human_questions': [],
-                'cancelled': state['cancelled'],
-                'message': 'this run was cancelled; resume explicitly to continue'}
-    observation = load_json(args.observation)
-    result = reconcile_observation(state, observation, now, args.wake_id, args.wake_kind)
-    if result['status'] != 'duplicate':
-        save_json(path, state)
-    return result
+    with locked_state(path) as state:
+        now = parse_time(args.now, '--now')
+        if state.get('cancelled'):
+            return {'status': 'cancelled', 'actions': [], 'admitted': [], 'human_questions': [],
+                    'cancelled': state['cancelled'],
+                    'message': 'this run was cancelled; resume explicitly to continue'}
+        observation = load_json(args.observation)
+        result = reconcile_observation(state, observation, now, args.wake_id, args.wake_kind)
+        if result['status'] != 'duplicate':
+            save_json(path, state)
+        return result
 
 
 def cmd_dispatch(args):
     path = state_path(args.state)
-    state = read_state(path)
-    now = parse_time(args.now, '--now')
-    pr = state['prs'].get(args.pr)
-    require(pr is not None, f'unknown PR: {args.pr}')
-    require(bool(args.request_id), '--request-id is required')
-    require(args.kind in ('fixer', 'merge', 'resolution'),
-            'dispatch kind must be fixer, merge or resolution')
-    existing = next((row for row in pr['dispatches'] if row['request_id'] == args.request_id), None)
-    if existing:
-        return {'status': 'duplicate', 'request_id': args.request_id,
-                'host_task_id': existing.get('host_task_id'), 'dispatch': existing}
-    if args.kind == 'fixer':
-        row = {'request_id': args.request_id, 'host_task_id': args.host_task_id,
-               'kind': 'fixer', 'created_at': now_iso(now)}
+    with locked_state(path) as state:
+        if state.get('cancelled'):
+            raise ContinuousError('this run is cancelled; resume it before dispatching new work')
+        now = parse_time(args.now, '--now')
+        pr = state['prs'].get(args.pr)
+        require(pr is not None, f'unknown PR: {args.pr}')
+        require(bool(args.request_id), '--request-id is required')
+        require(args.kind in ('fixer', 'merge', 'resolution'),
+                'dispatch kind must be fixer, merge or resolution')
+        existing = next((row for row in pr['dispatches'] if row['request_id'] == args.request_id), None)
+        if existing:
+            return {'status': 'duplicate', 'request_id': args.request_id,
+                    'host_task_id': existing.get('host_task_id'), 'dispatch': existing}
+        fixer = pr.get('fixer') or {}
+        merge = live_merge_dispatch(pr)
+        if args.kind == 'fixer':
+            if fixer.get('in_flight'):
+                raise ContinuousError(
+                    f"fixer {fixer.get('request_id')} is already in flight for {args.pr}")
+            if merge:
+                raise ContinuousError(
+                    f"merge {merge['request_id']} is pending for {args.pr}; a fixer may not race it")
+            row = {'request_id': args.request_id, 'host_task_id': args.host_task_id,
+                   'kind': 'fixer', 'head': args.head or (pr.get('observation') or {}).get('head_sha'),
+                   'status': 'pending', 'attempt': int(args.attempt or 1),
+                   'review_triage': bool(args.review_triage),
+                   'created_at': now_iso(now)}
+            pr['dispatches'].append(row)
+            pr['fixer'] = {'in_flight': True, 'request_id': args.request_id,
+                           'started_at': now_iso(now)}
+            audit(state, now, 'dispatch', pr=args.pr, request_id=args.request_id,
+                  host_task_id=args.host_task_id)
+            save_json(path, state)
+            return {'status': 'recorded', 'dispatch': row, 'fixer': pr['fixer']}
+        if args.kind == 'merge':
+            require(bool(args.head), 'a merge dispatch must name the exact head')
+            require(re.fullmatch(r'[0-9a-f]{40}', args.head) is not None,
+                    'a merge dispatch needs the full 40-character head')
+            current = (pr.get('observation') or {}).get('head_sha')
+            require(not current or args.head == current,
+                    f'merge head {args.head} is not the observed head {current}')
+            if fixer.get('in_flight'):
+                raise ContinuousError(
+                    f"fixer {fixer.get('request_id')} is in flight for {args.pr}; "
+                    "a merge may not race a live writer")
+            if merge:
+                raise ContinuousError(
+                    f"merge {merge['request_id']} is already pending for {args.pr}")
+        if args.kind == 'resolution':
+            if fixer.get('in_flight'):
+                raise ContinuousError(
+                    f"fixer {fixer.get('request_id')} is in flight for {args.pr}; "
+                    "resolve threads only after its result is ingested")
+        row = {'request_id': args.request_id, 'kind': args.kind,
+               'head': args.head or (pr.get('observation') or {}).get('head_sha'),
+               'status': 'pending', 'attempt': int(args.attempt or 1),
+               'created_at': now_iso(now)}
         pr['dispatches'].append(row)
-        pr['fixer'] = {'in_flight': True, 'request_id': args.request_id,
-                       'started_at': now_iso(now)}
         audit(state, now, 'dispatch', pr=args.pr, request_id=args.request_id,
-              host_task_id=args.host_task_id)
+              dispatch_kind=args.kind)
         save_json(path, state)
-        return {'status': 'recorded', 'dispatch': row, 'fixer': pr['fixer']}
-    row = {'request_id': args.request_id, 'kind': args.kind, 'created_at': now_iso(now)}
-    pr['dispatches'].append(row)
-    audit(state, now, 'dispatch', pr=args.pr, request_id=args.request_id,
-          dispatch_kind=args.kind)
-    save_json(path, state)
-    return {'status': 'recorded', 'dispatch': row}
+        return {'status': 'recorded', 'dispatch': row}
+
+
+def cmd_receipt(args):
+    """Record the outcome of one dispatch.
+
+    A completion applies only to the request it names. A stale replay is reported and
+    changes nothing, including the progress clock.
+    """
+    path = state_path(args.state)
+    with locked_state(path) as state:
+        now = parse_time(args.now, '--now')
+        pr = state['prs'].get(args.pr)
+        require(pr is not None, f'unknown PR: {args.pr}')
+        require(bool(args.request_id), '--request-id is required')
+        row = next((item for item in pr['dispatches']
+                    if item['request_id'] == args.request_id), None)
+        if row is None and getattr(args, 'kind', None) == 'fixer' and \
+                (pr.get('fixer') or {}).get('in_flight') and \
+                (pr.get('fixer') or {}).get('request_id') is None:
+            # The guard was adopted from a host observation before this helper saw
+            # the dispatch. Accept the first matching receipt as its terminal record.
+            row = {'request_id': args.request_id, 'kind': 'fixer',
+                   'head': (pr.get('observation') or {}).get('head_sha'),
+                   'status': 'pending', 'attempt': 1, 'created_at': now_iso(now)}
+            pr['dispatches'].append(row)
+        require(row is not None, f'unknown dispatch: {args.request_id}')
+        require(args.status in ('succeeded', 'failed', 'rejected', 'cancelled',
+                                'superseded', 'armed', 'no-change'),
+                'unsupported receipt status')
+        if dispatch_status(row) in TERMINAL_DISPATCH and dispatch_status(row) == args.status:
+            return {'status': 'duplicate', 'changed': False, 'request_id': args.request_id,
+                    'dispatch': row}
+        if args.head and row.get('head') and args.head != row['head']:
+            raise ContinuousError(
+                f"receipt head {args.head} differs from dispatch head {row['head']}")
+        result_digest = None
+        if args.result:
+            result_path = Path(args.result).expanduser()
+            require(result_path.is_file(), f'result file does not exist: {result_path}')
+            result_digest = sha256_file(result_path)
+        if row['kind'] == 'fixer' and args.status in ('succeeded', 'no-change') and not result_digest:
+            raise ContinuousError('a successful fixer receipt needs --result <ingested result>')
+        stale = row['kind'] == 'fixer' and pr.get('fixer', {}).get('request_id') not in (
+            None, args.request_id)
+        row['status'] = args.status
+        row['completed_at'] = now_iso(now)
+        if result_digest:
+            row['result_digest'] = result_digest
+        if args.status == 'armed':
+            row['status'] = 'armed'
+        if row['kind'] == 'fixer' and not stale:
+            pr['fixer'] = {'in_flight': False, 'request_id': None, 'started_at': None}
+            if args.status in ('succeeded', 'no-change'):
+                # An ingested, verified result is real progress; a replay is not.
+                pr['last_meaningful_progress_at'] = now_iso(now)
+        audit(state, now, 'receipt', pr=args.pr, request_id=args.request_id,
+              status=args.status, stale=stale)
+        save_json(path, state)
+        return {'status': 'stale' if stale else 'recorded', 'changed': not stale,
+                'request_id': args.request_id, 'dispatch': row,
+                'fixer': pr.get('fixer')}
 
 
 def cmd_resolve(args):
     """Close a known PR only from an explicit targeted host read, never from omission."""
     path = state_path(args.state)
-    state = read_state(path)
-    now = parse_time(args.now, '--now')
-    pr = state['prs'].get(args.pr)
-    require(pr is not None, f'unknown PR: {args.pr}')
-    require(args.state_value in ('merged', 'closed'), '--state must be merged or closed')
-    if args.state_value == 'merged':
-        require(bool(args.head), 'merged resolution needs the observed merge head')
-    pr['state'] = args.state_value
-    pr['resolved_at'] = now_iso(now)
-    pr['resolved_head'] = args.head
-    pr['fixer'] = {'in_flight': False, 'request_id': None, 'started_at': None}
-    pr['next_action'] = {'pr': args.pr, 'kind': args.state_value,
-                         'reason': 'explicit targeted host observation'}
-    audit(state, now, 'resolve', pr=args.pr, resolved=args.state_value, head=args.head)
-    save_json(path, state)
-    return {'status': 'resolved', 'pr': args.pr, 'state': args.state_value,
-            'head': args.head}
-
-
-def cmd_fixer_done(args):
-    path = state_path(args.state)
-    state = read_state(path)
-    now = parse_time(args.now, '--now')
-    pr = state['prs'].get(args.pr)
-    require(pr is not None, f'unknown PR: {args.pr}')
-    pr['fixer'] = {'in_flight': False, 'request_id': None, 'started_at': None}
-    pr['last_meaningful_progress_at'] = now_iso(now)
-    audit(state, now, 'fixer-done', pr=args.pr)
-    save_json(path, state)
-    return {'status': 'cleared', 'pr': args.pr}
+    with locked_state(path) as state:
+        now = parse_time(args.now, '--now')
+        pr = state['prs'].get(args.pr)
+        require(pr is not None, f'unknown PR: {args.pr}')
+        require(args.state_value in ('merged', 'closed'), '--state must be merged or closed')
+        require(bool(args.head), 'resolution needs the explicitly observed head')
+        current = (pr.get('observation') or {}).get('head_sha')
+        if current and args.head != current:
+            raise ContinuousError(
+                f'resolution head {args.head} differs from the observed head {current}')
+        pr['state'] = args.state_value
+        pr['resolved_at'] = now_iso(now)
+        pr['resolved_head'] = args.head
+        pr['fixer'] = {'in_flight': False, 'request_id': None, 'started_at': None}
+        for row in pr.get('dispatches', []):
+            if dispatch_status(row) in OPEN_DISPATCH:
+                row['status'] = 'superseded'
+                row['completed_at'] = now_iso(now)
+        pr['next_action'] = {'pr': args.pr, 'kind': args.state_value,
+                             'reason': 'explicit targeted host observation'}
+        audit(state, now, 'resolve', pr=args.pr, resolved=args.state_value, head=args.head)
+        save_json(path, state)
+        return {'status': 'resolved', 'pr': args.pr, 'state': args.state_value,
+                'head': args.head}
 
 
 def cmd_cancel(args):
     path = state_path(args.state)
-    state = read_state(path)
-    now = parse_time(args.now, '--now')
-    state['cancelled'] = {'at': now_iso(now), 'reason': args.reason}
-    audit(state, now, 'cancel', reason=args.reason)
-    save_json(path, state)
-    return {'status': 'cancelled', 'cancelled': state['cancelled'],
-            'scheduler_stop': state['scheduler'].get('stop'),
-            'instruction': 'stop the owned host schedule; no further actions will be produced'}
+    with locked_state(path) as state:
+        now = parse_time(args.now, '--now')
+        state['cancelled'] = {'at': now_iso(now), 'reason': args.reason}
+        audit(state, now, 'cancel', reason=args.reason)
+        save_json(path, state)
+        return {'status': 'cancelled', 'cancelled': state['cancelled'],
+                'scheduler_stop': state['scheduler'].get('stop'),
+                'instruction': 'stop the owned host schedule; no further actions will be produced'}
 
 
 def cmd_resume(args):
     path = state_path(args.state)
-    state = load_json(path)
-    require(state.get('schema_version') == SCHEMA_VERSION, 'unsupported continuous state schema')
+    require(fcntl is not None, 'continuous state locking requires a POSIX host with fcntl')
+    require(path.exists(), f'no continuous state at {path}')
+    lock_path = path.with_name(path.name + '.lock')
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        state = load_json(path)
+        require(state.get('schema_version') == SCHEMA_VERSION,
+                'unsupported continuous state schema')
+        now = parse_time(args.now, '--now')
+        installed = source_identity(args.script)
+        gaps = []
+        if state.get('policy_version') != installed['policy_version']:
+            gaps.append({'kind': 'policy-version',
+                         'state': state.get('policy_version'),
+                         'installed': installed['policy_version']})
+        package = state.get('package') or {}
+        pinned = package.get('pinned_version')
+        if args.package_version and pinned and args.package_version != pinned:
+            gaps.append({'kind': 'package-version',
+                         'state_pinned': pinned, 'installed_running': args.package_version})
+        if package.get('installed_digest') and package['installed_digest'] != installed['digest']:
+            gaps.append({'kind': 'installed-drift',
+                         'state_installed': package.get('installed_version'),
+                         'installed_on_disk': installed['version'],
+                         'state_digest': package.get('installed_digest'),
+                         'installed_digest': installed['digest']})
+        if args.package_version and installed['version'] and \
+                args.package_version.split('+', 1)[0] != installed['version']:
+            gaps.append({'kind': 'installed-drift',
+                         'installed_running': args.package_version,
+                         'installed_on_disk': installed['version'],
+                         'detail': 'this helper is not the pinned package; preserve the brief '
+                                   'and use the supported job package upgrade first'})
+        if state.get('cancelled') and not args.resume_cancelled and not gaps:
+            return {'status': 'cancelled', 'cancelled': state['cancelled'],
+                    'gaps': gaps, 'changed': False,
+                    'instruction': 'resume a cancelled run only with --resume-cancelled'}
+        if gaps and not args.accept_migration:
+            return {'status': 'migration-required', 'gaps': gaps, 'changed': False,
+                    'installed': installed,
+                    'instruction': 'preserve the pinned brief and state; pass --accept-migration '
+                                   'with an owner decision after the supported package upgrade'}
+        require(not gaps or args.owner_decision_id,
+                'accepting a policy/package migration requires --owner-decision-id')
+        if gaps and args.package_version and installed['version'] and \
+                args.package_version.split('+', 1)[0] != installed['version']:
+            raise ContinuousError(
+                'the running helper is not the pinned package; complete job_cli.py '
+                'upgrade-package before accepting the migration')
+        upgrade_receipt = None
+        if getattr(args, 'upgrade_receipt', None):
+            receipt_path = Path(args.upgrade_receipt).expanduser()
+            require(receipt_path.is_file(), f'upgrade receipt does not exist: {receipt_path}')
+            upgrade_receipt = {'path': str(receipt_path), 'sha256': sha256_file(receipt_path)}
+        changed = False
+        if gaps:
+            if state.get('migration') is None:
+                state['migration'] = {'at': now_iso(now), 'from': state.get('policy_version'),
+                                      'to': installed['policy_version'],
+                                      'owner_decision_id': args.owner_decision_id,
+                                      'upgrade_receipt': upgrade_receipt,
+                                      'gaps': gaps}
+            state['policy_version'] = installed['policy_version']
+            package['installed_version'] = installed['version']
+            package['installed_digest'] = installed['digest']
+            package['pinned_version'] = args.package_version or installed['version']
+            package['helper'] = str(Path(args.script).resolve())
+            state['package'] = package
+            changed = True
+        if state.get('cancelled') and args.resume_cancelled:
+            state['cancelled'] = None
+            changed = True
+        if args.package_version and not gaps:
+            state.setdefault('package', {})['pinned_version'] = args.package_version
+        state['updated_at'] = now_iso(now)
+        audit(state, now, 'resume', gaps=gaps, changed=changed)
+        save_json(path, state)
+        status = 'resumed' if not (state.get('cancelled') and not args.resume_cancelled) else 'cancelled'
+        return {'status': status, 'changed': changed, 'gaps': gaps,
+                'policy_version': state['policy_version'], 'installed': installed,
+                'migration': state.get('migration'),
+                'cancelled': state.get('cancelled')}
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def cmd_preflight(args):
+    """Expose an older pinned job's continuous-coverage gap without changing it.
+
+    A job pinned to a package from before continuous mode has neither this helper nor
+    continuous state. This read-only preflight names that gap and the supported
+    upgrade path; it never swaps the package, rewrites the brief or invents state.
+    """
     now = parse_time(args.now, '--now')
-    installed = source_identity(args.script)
+    job_path = Path(args.job).expanduser()
+    if job_path.is_dir():
+        job_path = job_path / 'job.json'
+    require(job_path.is_file(), f'job file does not exist: {job_path}')
+    job = load_json(job_path)
+    pins = job.get('pins') if isinstance(job.get('pins'), dict) else {}
+    key = args.pin
+    if key is None:
+        key = 'babysitter' if 'babysitter' in pins else next(iter(pins), None)
+    pin = pins.get(key) if key else None
+    version = None
+    package_dir = None
+    if isinstance(pin, dict):
+        version = pin.get('version') or pin.get('package_version') or pin.get('installed_version')
+        package_dir = pin.get('package_dir')
+    helper = (Path(package_dir) / 'scripts' / 'continuous.py') if package_dir else None
+    has_helper = bool(helper and helper.is_file())
+    state_present = bool(args.state) and Path(args.state).expanduser().exists()
     gaps = []
-    if state.get('policy_version') != installed['policy_version']:
-        gaps.append({'kind': 'policy-version',
-                     'state': state.get('policy_version'), 'installed': installed['policy_version']})
-    pinned = (state.get('package') or {}).get('pinned_version')
-    if args.package_version and pinned and args.package_version != pinned:
-        gaps.append({'kind': 'package-version',
-                     'state_pinned': pinned, 'installed_running': args.package_version})
-    if args.package_version and installed['version'] and \
-            args.package_version.split('+', 1)[0] != installed['version']:
-        gaps.append({'kind': 'installed-drift',
-                     'installed_running': args.package_version,
-                     'installed_on_disk': installed['version']})
-    if state.get('cancelled') and not args.resume_cancelled and not gaps:
-        return {'status': 'cancelled', 'cancelled': state['cancelled'],
-                'gaps': gaps, 'changed': False,
-                'instruction': 'resume a cancelled run only with --resume-cancelled'}
-    if gaps and not args.accept_migration:
-        return {'status': 'migration-required', 'gaps': gaps, 'changed': False,
-                'installed': installed,
-                'instruction': 'preserve the pinned brief and state; pass --accept-migration '
-                               'with an owner decision after the supported package upgrade'}
-    require(not gaps or args.owner_decision_id,
-            'accepting a policy/package migration requires --owner-decision-id')
-    changed = False
-    if gaps:
-        if state.get('migration') is None:
-            state['migration'] = {'at': now_iso(now), 'from': state.get('policy_version'),
-                                  'to': installed['policy_version'],
-                                  'owner_decision_id': args.owner_decision_id,
-                                  'gaps': gaps}
-        state['policy_version'] = installed['policy_version']
-        changed = True
-    if state.get('cancelled') and args.resume_cancelled:
-        state['cancelled'] = None
-        changed = True
-    if args.package_version:
-        state.setdefault('package', {})['pinned_version'] = args.package_version
-    state['updated_at'] = now_iso(now)
-    audit(state, now, 'resume', gaps=gaps, changed=changed)
-    save_json(path, state)
-    return {'status': 'resumed', 'changed': changed, 'gaps': gaps,
-            'policy_version': state['policy_version'], 'installed': installed,
-            'migration': state.get('migration')}
+    if not has_helper:
+        gaps.append({'kind': 'pinned-package-without-continuous',
+                     'pinned_version': version,
+                     'detail': 'the pinned package predates continuous mode and has no '
+                               'scripts/continuous.py'})
+    if state_present:
+        state = load_json(args.state)
+        if state.get('policy_version') != policy_identity(load_json(
+                Path(args.script).resolve().parents[1] / 'plugin.json')):
+            gaps.append({'kind': 'policy-version', 'state': state.get('policy_version')})
+    return {
+        'status': 'legacy-job' if gaps else 'ready',
+        'checked_at': now_iso(now),
+        'job': str(job_path),
+        'pin': key,
+        'pinned_version': version,
+        'pinned_package_has_helper': has_helper,
+        'state_present': state_present,
+        'gaps': gaps,
+        'changed': False,
+        'instruction': ('preserve the pinned brief, evidence and package; upgrade the job '
+                        'through job_cli.py upgrade-package, then start continuous state '
+                        'with the upgraded package. Do not swap the package silently.'),
+    }
 
 
 def cmd_status(args):
-    state = read_state(args.state)
-    open_prs = [url for url, pr in state['prs'].items() if pr.get('state') == 'open']
-    return {
-        'status': 'cancelled' if state.get('cancelled') else 'active',
-        'policy_version': state['policy_version'],
-        'scope': state['scope'],
-        'policy': state['policy'],
-        'scheduler': state['scheduler'],
-        'coverage': ('scheduled' if state['scheduler']['mode'] == 'scheduled' else 'event-only'),
-        'open_prs': open_prs,
-        'prs': {url: {'next_action': pr.get('next_action'), 'blocked': pr.get('blocked'),
-                      'queue': pr.get('queue', {}).get('oldest'),
-                      'last_meaningful_progress_at': pr.get('last_meaningful_progress_at'),
-                      'owner': pr.get('owner'), 'fixer': pr.get('fixer')}
-                for url, pr in state['prs'].items()},
-        'discovery': state['discovery'],
-        'cancelled': state.get('cancelled'),
-    }
+    path = state_path(args.state)
+    with locked_state(path) as state:
+        now = (parse_time(args.now, '--now') if getattr(args, 'now', None)
+               else datetime.now(timezone.utc))
+        report = scheduler_report(state, now)
+        open_prs = [url for url, pr in state['prs'].items() if pr.get('state') == 'open']
+        excluded = {url: pr.get('excluded') for url, pr in state['prs'].items()
+                    if pr.get('state') == 'excluded'}
+        return {
+            'status': 'cancelled' if state.get('cancelled') else 'active',
+            'run_id': state.get('run_id'),
+            'policy_version': state['policy_version'],
+            'scope': state['scope'],
+            'policy': state['policy'],
+            'scheduler': report,
+            'coverage': report['coverage'],
+            'open_prs': open_prs,
+            'excluded': excluded,
+            'prs': {url: {'state': pr.get('state'),
+                          'next_action': pr.get('next_action'), 'blocked': pr.get('blocked'),
+                          'queue': pr.get('queue', {}).get('oldest'),
+                          'last_meaningful_progress_at': pr.get('last_meaningful_progress_at'),
+                          'owner': pr.get('owner'), 'fixer': pr.get('fixer')}
+                    for url, pr in state['prs'].items()},
+            'discovery': state['discovery'],
+            'cancelled': state.get('cancelled'),
+        }
 
 
 def cmd_version(args):
@@ -1076,6 +1723,13 @@ def build_parser():
     record.add_argument('--next-run-at', required=True)
     record.set_defaults(func=cmd_schedule_record)
 
+    stop = sub.add_parser('schedule-stop')
+    state_arg(stop)
+    stop.add_argument('--now', required=True)
+    stop.add_argument('--schedule-id', required=True)
+    stop.add_argument('--verified', choices=('yes', 'no'), required=True)
+    stop.set_defaults(func=cmd_schedule_stop)
+
     scheduler = sub.add_parser('scheduler')
     state_arg(scheduler)
     scheduler.add_argument('--now', required=True)
@@ -1098,13 +1752,32 @@ def build_parser():
     dispatch.add_argument('--request-id', required=True)
     dispatch.add_argument('--kind', choices=('fixer', 'merge', 'resolution'), required=True)
     dispatch.add_argument('--host-task-id')
+    dispatch.add_argument('--head')
+    dispatch.add_argument('--attempt', type=int)
+    dispatch.add_argument('--review-triage', action='store_true')
     dispatch.set_defaults(func=cmd_dispatch)
+
+    receipt = sub.add_parser('receipt')
+    state_arg(receipt)
+    receipt.add_argument('--now', required=True)
+    receipt.add_argument('--pr', required=True)
+    receipt.add_argument('--request-id', required=True)
+    receipt.add_argument('--status', required=True,
+                         choices=('succeeded', 'failed', 'rejected', 'cancelled',
+                                  'superseded', 'armed', 'no-change'))
+    receipt.add_argument('--head')
+    receipt.add_argument('--result')
+    receipt.add_argument('--kind', choices=('fixer', 'merge', 'resolution'))
+    receipt.set_defaults(func=cmd_receipt)
 
     done = sub.add_parser('fixer-done')
     state_arg(done)
     done.add_argument('--now', required=True)
     done.add_argument('--pr', required=True)
-    done.set_defaults(func=cmd_fixer_done)
+    done.add_argument('--request-id', required=True)
+    done.add_argument('--result', required=True)
+    done.add_argument('--head')
+    done.set_defaults(func=cmd_receipt, status='succeeded', kind='fixer')
 
     resolve = sub.add_parser('resolve')
     state_arg(resolve)
@@ -1112,7 +1785,7 @@ def build_parser():
     resolve.add_argument('--pr', required=True)
     resolve.add_argument('--resolution', dest='state_value', required=True,
                          choices=('merged', 'closed'))
-    resolve.add_argument('--head')
+    resolve.add_argument('--head', required=True)
     resolve.set_defaults(func=cmd_resolve)
 
     cancel = sub.add_parser('cancel')
@@ -1128,10 +1801,19 @@ def build_parser():
     resume.add_argument('--accept-migration', action='store_true')
     resume.add_argument('--owner-decision-id')
     resume.add_argument('--resume-cancelled', action='store_true')
+    resume.add_argument('--upgrade-receipt')
     resume.set_defaults(func=cmd_resume)
+
+    preflight = sub.add_parser('preflight')
+    preflight.add_argument('--job', required=True)
+    preflight.add_argument('--pin')
+    preflight.add_argument('--state')
+    preflight.add_argument('--now', required=True)
+    preflight.set_defaults(func=cmd_preflight)
 
     status = sub.add_parser('status')
     state_arg(status)
+    status.add_argument('--now')
     status.set_defaults(func=cmd_status)
 
     version = sub.add_parser('version')

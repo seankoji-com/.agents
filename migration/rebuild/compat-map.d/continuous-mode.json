@@ -42,6 +42,27 @@
         "disposition": "change",
         "stage": 4,
         "reason": "Names the installed deterministic state helper."
+      },
+      {
+        "id": "plugin.json:continuous.sweep_adapter",
+        "field": "continuous.sweep_adapter",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Names the tested continuation adapter for scheduled wakes."
+      },
+      {
+        "id": "plugin.json:continuous.max_repair_attempts",
+        "field": "continuous.max_repair_attempts",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Bound on terminal fixer attempts per head and blocker fingerprint."
+      },
+      {
+        "id": "plugin.json:continuous.max_merge_attempts",
+        "field": "continuous.max_merge_attempts",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Bound on rejected merge attempts at one exact head."
       }
     ]
   },
@@ -74,6 +95,15 @@
         "G-BS-EXACT-HEAD"
       ],
       "reason": "Causal fake-clock queue diagnosis, scheduled-wake admission, idempotency, cancellation/resume and installed-package tests for issue #94."
+    },
+    {
+      "path": "plugins/babysitter/scripts/continuous_sweep.py",
+      "stage": 4,
+      "kind": "helper",
+      "coverage": [
+        "G-BS-SCOPE"
+      ],
+      "reason": "Reference host-adapter order for a scheduled wake: arm, deliver, reconcile, reserve and record, exercised by the fake-host causal test."
     }
   ]
 }
