@@ -387,6 +387,35 @@ class PlanningReviewTests(unittest.TestCase):
                 self.cli('launch', payload, ok=False)
                 self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
 
+    def test_retained_replay_refuses_non_object_brief_before_charge(self):
+        for value in ([], 'text', 1, True, None):
+            with self.subTest(value=value):
+                if self.caller:
+                    self.setUp()
+                self.create()
+                store, payload, attempt = self.interrupted_preparation()
+                subject = Path(self.created['subject_file'])
+                self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 0)
+                raw = json.dumps(value).encode()
+                Path(attempt['path']).write_bytes(raw)
+                before = (store.file.read_bytes(), subject.read_bytes())
+                with self.assertRaisesRegex(planning.PlanningError, 'immutable planning brief tampered'):
+                    planning._expected(store.load(), store.load()['tasks'][0])
+                self.assertIn('immutable planning brief tampered', self.cli('launch', payload, ok=False))
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+                # Corrupt fixture metadata explicitly to reach the root-shape guard.
+                # Real immutable brief replacements still fail the byte hash above.
+                store.mutate(self.caller, lambda job: job['tasks'][0]['brief'].update(sha256=digest(raw)))
+                before = (store.file.read_bytes(), subject.read_bytes())
+                with self.subTest(interface='helper'):
+                    with self.assertRaisesRegex(planning.PlanningError, 'planning brief must be a JSON object'):
+                        planning._expected(store.load(), store.load()['tasks'][0])
+                with self.subTest(interface='cli'):
+                    error = self.cli('launch', payload, ok=False)
+                    self.assertIn('planning_review_error: planning brief must be a JSON object', error)
+                    self.assertNotIn('Traceback', error)
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+
     def test_retained_replay_refuses_changed_authority_bytes_and_observed_identity(self):
         from core.jobs import cancel, discard
         for drift in ('observed-target', 'observed-options', 'worker', 'owner', 'cancel', 'discard', 'brief-bytes'):

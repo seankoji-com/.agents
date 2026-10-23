@@ -102,7 +102,12 @@ and independence policy. They cannot be imported or waived into this runtime.
 
   After an interrupted charge, first replay `launch` with the original `slot_id`
   and `request_id`. If charge recovery succeeds but current sharing or capacity
-  refuses dispatch, retain that local invocation's ID and actual refusal receipt.
+  refuses dispatch, retain a caller-supplied `call_id` correlation token for that
+  actual local CLI invocation and its refusal receipt. For example, generate a
+  unique token before the call and retain it alongside the real argv, request ID,
+  actual stderr and exit code. The CLI neither accepts nor emits `call_id`; the
+  helper only requires it to be nonempty and imposes no token format. It is not a
+  host-issued call ID.
   With no host handle or pending/uncertain dispatch, settle the original prepared
   `task_id` using the public command:
 
@@ -126,7 +131,7 @@ and independence policy. They cannot be imported or waived into this runtime.
     "failure": {
       "kind": "permission",
       "tool": "planning-review launch",
-      "call_id": "<actual local launch invocation ID>",
+      "call_id": "<caller-supplied token for the actual local launch invocation>",
       "request_id": "<original request_id>",
       "receipt": {"error": "<actual launch stderr>", "exit_code": 2},
       "prelaunch": true

@@ -652,6 +652,8 @@ def unavailable(store, caller, task_id, failure, environ=None):
 
     A no-handle refusal needs prelaunch=True, a matching original request_id and
     nonempty tool, call_id and receipt; kind is technical, capacity or permission.
+    For a local CLI refusal, call_id is a caller-supplied correlation token for
+    that actual invocation; the CLI neither accepts nor emits it.
     After an interrupted charge, replay the original launch first. Charge recovery
     may succeed while current sharing/capacity refuses dispatch. Record that real
     local refusal without inventing a host event or handle. Settlement neither
@@ -700,6 +702,7 @@ def _expected(job, task):
     raw = _regular(Path(brief['path']))
     need(digest(raw) == brief['sha256'], 'immutable planning brief tampered')
     assigned = strict_load(raw)
+    need(isinstance(assigned, dict), 'planning brief must be a JSON object')
     claimed = assigned.pop('effective_brief_sha256')
     need(digest(canonical(assigned)) == claimed == brief['effective_brief_sha256'], 'planning brief content hash differs')
     need(assigned['resources']['planning_snapshot'] == job['planning']['snapshot'], 'result belongs to a superseded content round')
