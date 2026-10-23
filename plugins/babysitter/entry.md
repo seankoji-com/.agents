@@ -37,7 +37,7 @@ updating behind branches, and fixing, pushing to, replying on, and resolving thr
 on those PRs until they merge. A request that says "inspect", "review only", or "do
 not merge" authorizes inspection alone. Never bypass protected branch requirements.
 
-Record scope in the job's `authorization` as per-PR actions: `read`,
+Record scope in job `authorization` as per-PR actions: `read`,
 `push` (that PR's head branch only; a rebase is published only with
 `--force-with-lease=<branch>:<observed sha>`, never a plain or unpinned force),
 `communicate` (replies and thread resolution on that PR), and `merge` (auto-merge or
@@ -66,11 +66,11 @@ changes: the PR still needs work.
 
 ## Continuous mode
 
-`repo`/`org` refreshes discovery at entry, every wake/completion and before yielding.
-Authorised idle coverage uses the host scheduler via `PKG/scripts/continuous.py`:
-record scope, 10-minute cadence, 15-minute queue threshold, schedule ID and stop operation.
+Refresh `repo`/`org` discovery at entry, every wake/completion and before yielding.
+For authorised idle coverage, record host scheduler scope, 10-minute cadence,
+15-minute queue threshold, schedule ID and stop operation via `PKG/scripts/continuous.py`.
 Otherwise report event-only coverage and its idle discovery/queue-age gap.
-See `PKG/references/continuous.md`.
+`PKG/references/continuous.md`.
 
 ## Landing gate
 
@@ -103,22 +103,20 @@ authority by themselves; briefs narrow roles to recorded actions.
 ## Acceptance
 
 `PKG/scripts/validate_pr.py` is the authority. Through `job_acceptance_cli.py` it
-accepts a stage only from a coordinator observation of the current head, every required
-check green there, a complete list of resolved threads, and the authorized endstate
+accepts a stage only from a current-head coordinator observation: every required
+check green, a complete list of resolved threads, and authorized endstate
 (`merged`, `mergeable`, or `open`) observed, with host receipts.
 A worker saying "pushed", a terminal task, an older-head check, or queued auto-merge
 is not acceptance.
-If health or ledger integrity fails, report the exact command and error and stop
-writes for that PR. Never bypass the supported workflow to land it.
+Health/ledger failures stop writes for that PR; report the exact command/error.
+Never bypass the supported workflow.
 
 ## Approvals
 
-Resolve routine choices from the brief without asking again. Ask genuine owner
-decisions through the native question picker in
-`PKG/shared/t3-runtime.md`, recommended option first, and record it with
-`job_cli.py decision`. Model choices and replacements follow upfront selection; do not infer them from
-maintenance authority. Fan-out, repair rounds, branch rewrites, and a
-roster PR's tests and regressions with the setup they need are decided: never ask,
-always yes. Ask only for new authority, material product choices, or human-only blockers after
-authorized alternatives are exhausted. Until answered the action
-stays unapproved; silence is not approval.
+Ask new authority, material product choices or human-only blockers through the
+native question picker, recommended option first; record `job_cli.py decision`.
+Model choices/replacements follow the shared short rounds, retaining answers;
+maintenance authority does not select models. Fan-out, repair rounds, branch rewrites, and a
+roster PR's tests/regressions/setup are decided: never ask, always yes.
+New matching PRs, moving heads and recoverable CI setup need no question.
+Exhaust authorized alternatives first; silence is not approval.

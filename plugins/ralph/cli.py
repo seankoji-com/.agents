@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import copy
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -23,8 +24,8 @@ from core.fsutil import atomic_json, read_json
 
 TERMINAL = {'completed', 'failed', 'cancelled', 'interrupted'}
 STATUSES = TERMINAL | {'queued', 'running', 'waiting'}
-PHASES = {'implement', 'evaluate', 'evaluated', 'exhausted', 'blocked', 'stopping', 'cancelled'}
-RESUME_PHASES = {'implement', 'evaluate', 'evaluated', 'exhausted'}
+PHASES = {'implement', 'evaluate', 'triage', 'evaluated', 'exhausted', 'blocked', 'stopping', 'cancelled'}
+RESUME_PHASES = {'implement', 'evaluate', 'triage', 'evaluated', 'exhausted'}
 BLOCKER_KINDS = {'identity', 'pending_runs', 'invalid_evaluation', 'invalid_result', 'task_failure'}
 RUNTIME_MODES = ('approval-required', 'auto-accept-edits', 'auto', 'full-access')
 SCHEMA_VERSION = 3  # 3 adds review scope; format 2 upgrades in place
@@ -164,8 +165,112 @@ def rejected(verdict):
     return not verdict['goalAchieved'] or bool(verdict['feedback'])
 
 
+def open_feedback(record):
+    deferred = {row['feedbackIndex'] for row in record.get('feedbackDispositions', [])
+                if row['disposition'] == 'deferred'}
+    return [item for index, item in enumerate(record['evaluation']['feedback']) if index not in deferred]
+
+
+def json_digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def issue_marker(record, index):
+    return 'ralph-finding:' + json_digest({'taskId': record['taskId'],
+        'revision': snapshot.token(record['binding']), 'feedbackIndex': index,
+        'finding': record['evaluation']['feedback'][index]})
+
+
+def validate_issue_receipt(record, row):
+    receipt = row.get('issueReceipt')
+    require(isinstance(receipt, dict), 'deferral requires a coordinator-observed GitHub issue receipt')
+    require(receipt.get('source') == 'github' and receipt.get('operation') in
+            ('create-issue', 'fetch-issue', 'update-issue'), 'issue receipt source/operation is invalid')
+    issue = receipt.get('issue')
+    require(isinstance(issue, dict), 'issue receipt needs the returned issue snapshot')
+    require(isinstance(issue.get('url'), str) and issue['url'].casefold() == row['issueUrl'].casefold(),
+            'issue receipt URL does not match the deferral')
+    require(type(issue.get('issue_number')) is int and
+            issue['issue_number'] == int(row['issueUrl'].rsplit('/', 1)[1]), 'issue receipt number does not match')
+    require(issue.get('state') == 'open', 'deferred issue must be open')
+    text_field(issue.get('title'), 'issue receipt title')
+    marker = '<!-- ' + issue_marker(record, row['feedbackIndex']) + ' -->'
+    require(isinstance(issue.get('body'), str) and marker in issue['body'].splitlines(),
+            'issue receipt is not bound to this finding and reviewed revision')
+    require(row.get('issueReceiptSha256') == json_digest(receipt), 'stored issue receipt changed')
+
+
+def validate_dispositions(record):
+    rows = object_list(record.get('feedbackDispositions', []), 'feedbackDispositions')
+    seen = set()
+    for row in rows:
+        index = row.get('feedbackIndex')
+        feedback = record['evaluation']['feedback']
+        require(type(index) is int and 0 <= index < len(feedback) and index not in seen,
+                'disposition needs a unique feedback index')
+        seen.add(index)
+        require(feedback[index]['severity'] in {'minor', 'info'}, 'blocker/major feedback cannot be deferred')
+        require(isinstance(row.get('disposition'), str) and row['disposition'] in {'deferred', 'repair'},
+                'invalid feedback disposition')
+        text_field(row.get('reason'), 'disposition reason')
+        if row['disposition'] == 'deferred':
+            text_field(row.get('issueUrl'), 'deferral issueUrl')
+            require(re.fullmatch(r'https://github\.com/[\w.-]+/[\w.-]+/issues/[1-9][0-9]*',
+                                 row['issueUrl']) is not None,
+                    'deferral requires a repository issue URL')
+            for field in ('impact', 'owner', 'nextAction', 'evidence'):
+                text_field(row.get(field), 'deferral ' + field)
+            validate_issue_receipt(record, row)
+    return seen
+
+
+def finish_evaluation(state, record):
+    verdict = dict(record['evaluation'], feedback=open_feedback(record))
+    if not rejected(verdict) and record['scope'] == 'delta':
+        state['phase'] = 'evaluate'
+    elif not rejected(verdict):
+        state['phase'] = 'evaluated'
+        state['evaluatedRevision'] = record['binding']
+    elif state['attempt'] >= state['maxAttempts']:
+        state['phase'] = 'exhausted'
+    else:
+        state['attempt'] += 1
+        state['phase'] = 'implement'
+
+
+def triage(state, data):
+    require(state['phase'] == 'triage', 'only a returned review awaiting triage can be disposed')
+    record = state['tasks'][-1]
+    require(data.get('taskId') == record.get('taskId'), 'triage task ID mismatch')
+    require(all(settled(t) for t in state['tasks']),
+            'reconcile all task identities and pending runs before triage')
+    observed = snapshot.take(state['worktree'])
+    if not snapshot.same(record['binding'], observed):
+        invalidate_review(record, observed)
+        state['phase'] = 'evaluate'
+        return
+    rows = object_list(copy.deepcopy(data.get('dispositions')), 'dispositions')
+    for row in rows:
+        if row.get('disposition') == 'deferred' and isinstance(row.get('issueReceipt'), dict):
+            row['issueReceiptSha256'] = json_digest(row['issueReceipt'])
+    candidate = dict(record, feedbackDispositions=rows)
+    indices = validate_dispositions(candidate)
+    require(indices == {i for i, item in enumerate(record['evaluation']['feedback'])
+                        if item['severity'] in {'minor', 'info'}}, 'dispose every minor/info finding before continuing')
+    deferred = [row for row in candidate['feedbackDispositions'] if row['disposition'] == 'deferred']
+    if deferred:
+        remote = snapshot.git(state['worktree'], 'remote', 'get-url', 'origin', check=False).strip()
+        match = re.fullmatch(r'(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)([\w.-]+/[\w.-]+?)(?:\.git)?', remote)
+        require(match is not None, 'deferral needs a GitHub origin to verify the issue repository')
+        for row in deferred:
+            require(row['issueUrl'].rsplit('/issues/', 1)[0].casefold() ==
+                    ('https://github.com/' + match[1]).casefold(), 'deferred issue belongs to another repository')
+    record['feedbackDispositions'] = candidate['feedbackDispositions']
+    finish_evaluation(state, record)
+
+
 def history_entry(task):
-    entry = {k: task[k] for k in ('role', 'attempt', 'scope', 'evaluation', 'evaluationGap', 'stale', 'invalidation')
+    entry = {k: task[k] for k in ('role', 'attempt', 'scope', 'evaluation', 'feedbackDispositions', 'evaluationGap', 'stale', 'invalidation')
              if k in task}
     if 'observation' in task:
         entry['status'] = task['observation'].get('status')
@@ -194,14 +299,14 @@ def review_scope(state):
     # Only the latest review counts: an invalidated, failed or malformed one, or a failed verdict
     # without feedback, names nothing reliable to re-check, so it gets a full review.
     if (prior is None or prior.get('stale') or 'evaluation' not in prior or 'reviewBaseline' not in prior
-            or not prior['evaluation']['feedback']):
+            or not open_feedback(prior)):
         return 'full', None, None
     base = prior['reviewBaseline']
     modes = review_baseline(state['worktree'])['modes']
     changed = snapshot.changed_since(state['worktree'], base) | {
         path for path in base['modes'].keys() | modes.keys() if base['modes'].get(path) != modes.get(path)}
     return 'delta', {'sinceRevision': snapshot.token(prior['binding']), 'changedPathsSinceReview': sorted(changed),
-                     'openFeedback': prior['evaluation']['feedback'],
+                     'openFeedback': open_feedback(prior),
                      'previousGoalAchieved': prior['evaluation']['goalAchieved']}, prior
 
 
@@ -226,7 +331,8 @@ def make_dispatch(state):
     if phase == 'implement':
         instructions = (
             'Implement the goal in the EXISTING worktree. Preserve previous work and unrelated changes. '
-            'Address ALL prior feedback. Do not publish a PR or delegate. Commit owned code when '
+            'Address ALL prior feedback except items recorded as deferred in feedbackDispositions. '
+            'Do not expand the task to implement filed deferrals. Do not publish a PR or delegate. Commit owned code when '
             'ready for final evaluation, only within the pinned authority. Return changed paths, '
             'verification evidence and unmet criteria. If you leave a feedback item unchanged, '
             'state why. '
@@ -246,11 +352,17 @@ def make_dispatch(state):
                if scope == 'delta' else
                'Verify the observable goal and challenge the design against the intended PR base and '
                'the full task diff. ')
-            + 'Report EVERY feedback item, regardless of severity. Missing '
+            + 'This is a final acceptance review: only concrete issues that must be fixed before '
+            'merge/launch may block. Keep full required coverage. Report optional improvements as '
+            'minor/info with the impact and why deferring them is safe; the coordinator files repository '
+            'issues and records their dispositions without another implementation round. '
+            'Unmet requirements and failed required checks or missing required verification remain blocking. '
+            'Report EVERY feedback item, regardless of severity. Missing '
             'verification is a gap. End with one fenced ralph-evaluation JSON object with '
             'goalAchieved (boolean), feedback (array of {severity, message}), evidence (nonempty '
             'array of strings), and revision equal to the supplied token. Success requires '
-            'goalAchieved true AND feedback empty. Make each feedback message self-contained, with '
+            'goalAchieved true AND no undisposed feedback. Do not mark the goal unachieved solely for '
+            'safe post-launch improvements. Make each feedback message self-contained, with '
             'file, line and reproduction: the next tasks receive only your latest report. '
         )
     # Stable fields first, so repeated briefs share the longest possible prefix.
@@ -312,7 +424,12 @@ def advance(state):
             invalidate_review(state['tasks'][-1], observed)
             state['phase'] = 'evaluate'
     if state['stopRequested'] or state['phase'] not in {'implement', 'evaluate'}:
-        return {'phase': state['phase'], **({'blocker': state['blocker']} if 'blocker' in state else {})}
+        return {'phase': state['phase'], **({'blocker': state['blocker']} if 'blocker' in state else {}),
+                **({'action': 'triage_feedback', 'taskId': state['tasks'][-1]['taskId'],
+                    'feedback': state['tasks'][-1]['evaluation']['feedback'],
+                    'issueRequirements': [{'feedbackIndex': i, 'marker': '<!-- ' + issue_marker(state['tasks'][-1], i) + ' -->'}
+                        for i, item in enumerate(state['tasks'][-1]['evaluation']['feedback'])
+                        if item['severity'] in {'minor', 'info'}]} if state['phase'] == 'triage' else {})}
     active = current(state)
     if active:
         if active.get('taskId'):
@@ -509,16 +626,10 @@ def observe(state, data):
         return
     record['evaluation'] = verdict
     record['consumed'] = True
-    if not rejected(verdict) and record['scope'] == 'delta':
-        state['phase'] = 'evaluate'  # A delta pass earns a full fresh review, never acceptance.
-    elif not rejected(verdict):
-        state['phase'] = 'evaluated'
-        state['evaluatedRevision'] = record['binding']
-    elif state['attempt'] >= state['maxAttempts']:
-        state['phase'] = 'exhausted'
+    if any(item['severity'] in {'minor', 'info'} for item in verdict['feedback']):
+        state['phase'] = 'triage'  # Filing safe deferrals uses no implementation or review attempt.
     else:
-        state['attempt'] += 1
-        state['phase'] = 'implement'
+        finish_evaluation(state, record)
 
 
 def operate(state, command, data):
@@ -528,6 +639,8 @@ def operate(state, command, data):
         attach(state, data)
     elif command == 'observe':
         observe(state, data)
+    elif command == 'triage':
+        triage(state, data)
     elif command == 'recover':
         recover(state, data)
     elif command == 'absent':
@@ -714,6 +827,10 @@ def validate_checkpoint(state):
             require(record.get('scope') in ('full', 'delta'), 'checkpoint review scope is invalid')
             if 'reviewBaseline' in record:
                 validate_review_baseline(record['reviewBaseline'])
+            if 'feedbackDispositions' in record:
+                # Failed reviews need no verdict, but dispositions must reference a valid one.
+                evaluation(record.get('evaluation'), record['binding'])
+                validate_dispositions(record)
     for key in ('blocker', 'stoppedBlocker', 'evaluatedRevision'):
         if key in state:
             require(isinstance(state[key], dict), f'checkpoint {key} must be an object')
@@ -737,7 +854,7 @@ def validate_checkpoint(state):
 
 def publication_verified(state):
     tasks = state['tasks']
-    if not tasks:
+    if not tasks or not isinstance(state.get('evaluatedRevision'), dict):
         return False
     review = tasks[-1]
     if (review['role'] != 'review' or review.get('scope') != 'full' or continuation(tasks, len(tasks) - 1)
@@ -750,7 +867,11 @@ def publication_verified(state):
         verdict = evaluation(review.get('evaluation'), review['binding'])
     except InvalidInput:
         return False
-    return verdict['goalAchieved'] and not verdict['feedback'] and all(settled(t) for t in tasks)
+    try:
+        validate_dispositions(review)
+    except (InvalidInput, KeyError, TypeError):
+        return False
+    return verdict['goalAchieved'] and not open_feedback(review) and all(settled(t) for t in tasks)
 
 
 def selection_ready(state, admission=None, *, resume=False, retain=None):
@@ -910,7 +1031,7 @@ def complete_endpoint(state, evidence):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('init', 'next', 'attach', 'observe', 'absent', 'status', 'stop', 'recover', 'resume', 'strategy', 'replace', 'complete'))
+    parser.add_argument('command', choices=('init', 'next', 'attach', 'observe', 'triage', 'absent', 'status', 'stop', 'recover', 'resume', 'strategy', 'replace', 'complete'))
     parser.add_argument('--state', type=Path, required=True)
     parser.add_argument('--input', type=Path)
     try:

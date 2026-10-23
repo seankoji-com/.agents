@@ -90,7 +90,8 @@ and `queue_clock_gaps` are read, and `oldest_pending_check` carries the job's
 creation clock. GraphQL's `CheckRun` has no `createdAt`, so the reader obtains a
 queued job's creation clock from the supported Actions job API named in
 `detailsUrl`; a job whose clock is unavailable reports `queue-age-unknown` instead
-of an invented age.
+of an invented age. The durable observation, queue and diagnosis retain each
+`queue_clock_gaps` name and reason.
 
 `required_contexts` is the complete configured set, which only a snapshot such as
 branch-protection evidence can claim. A single-PR reader supplies the required names
@@ -132,6 +133,9 @@ For every admitted open PR the coordinator records:
 Queue diagnosis is specific: `waiting-for-runner` (queued, no runner),
 `running-tests` (in progress), `queue-age-unknown`, `stale-head-checks`,
 `missing-contexts`, `stuck-aggregate-gate`, `fixer-in-flight` or `stalled-work`.
+An unchanged unclocked check still reaches `diagnose-stall` after the meaningful-progress
+threshold. Its queue age stays unknown, its clock-gap reasons remain visible, and it
+keeps a next check. Clock-gap metadata alone never resets meaningful progress.
 Crossing the threshold produces `diagnose-queue` in existing authority: inspect the job
 and its queue reason, then act on what is repairable. A failed required check, an
 unresolved thread, a conflict or an actionable requested-change review is handled

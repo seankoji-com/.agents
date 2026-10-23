@@ -658,6 +658,19 @@ def deadline(now, seconds):
     return now_iso(now + timedelta(seconds=seconds))
 
 
+def stall_diagnosis(pr, policy, now, clock_detail, clock_gaps):
+    last = parse_time(pr.get('last_meaningful_progress_at') or pr['admitted_at'], 'last progress')
+    elapsed = int((now - last).total_seconds())
+    if elapsed < policy['stall_threshold_seconds']:
+        return None
+    detail = f'no meaningful progress for {elapsed}s'
+    if clock_detail:
+        detail += '; queue age is unknown for ' + clock_detail
+    return ({'pr': pr['url'], 'kind': 'diagnose-stall', 'reason': detail,
+             'next_check_at': deadline(now, policy['cadence_seconds'])},
+            {'kind': 'stalled-work', 'detail': detail, 'queue_clock_gaps': clock_gaps})
+
+
 def dispatch_status(row):
     return str(row.get('status') or 'pending')
 
@@ -788,6 +801,11 @@ def reconcile_pr(pr, state, now, discovery):
     observation = pr['observation']
     checks = observation.get('checks', [])
     queue = queue_summary(checks, now, threshold)
+    queue['queue_clock_gaps'] = observation.get('queue_clock_gaps', [])
+    unknown_clock_detail = ', '.join(queue['unknown_clock'])
+    if queue['queue_clock_gaps']:
+        unknown_clock_detail += '; clock gaps: ' + '; '.join(
+            f"{gap['name']}: {gap['reason']}" for gap in queue['queue_clock_gaps'])
     raw_state = str(observation.get('state') or 'OPEN').upper()
     head = observation.get('head_sha')
     required = required_contexts(observation)
@@ -799,6 +817,9 @@ def reconcile_pr(pr, state, now, discovery):
     review = str(observation.get('review_decision') or '').upper()
     changes = [name for name in observation.get('changes_requested_by') or [] if name]
     progress = progress_signature(observation, checks, queue['pending'])
+    stalled = stall_diagnosis(pr, state['policy'], now,
+                             unknown_clock_detail if queue['unknown_clock'] else '',
+                             queue['queue_clock_gaps'])
     threads_complete = observation.get('review_threads_complete') is True
 
     if raw_state in ('MERGED', 'CLOSED'):
@@ -942,11 +963,13 @@ def reconcile_pr(pr, state, now, discovery):
                         'check': oldest['name'], 'age_seconds': oldest['age_seconds']}, progress)
 
     if queue['pending'] and queue['unknown_clock']:
-        detail = ', '.join(queue['unknown_clock'])
+        if stalled:
+            return stalled[0], queue, stalled[1], progress
         return ({'pr': pr['url'], 'kind': 'wait-checks',
-                 'reason': f'queue age is unknown for: {detail}',
+                 'reason': f'queue age is unknown for: {unknown_clock_detail}',
                  'next_check_at': deadline(now, cadence)}, queue,
-                {'kind': 'queue-age-unknown', 'detail': detail}, progress)
+                {'kind': 'queue-age-unknown', 'detail': unknown_clock_detail,
+                 'queue_clock_gaps': queue['queue_clock_gaps']}, progress)
 
     if observation.get('checks_complete') is False:
         source = observation.get('checks_source')
@@ -1061,15 +1084,8 @@ def reconcile_pr(pr, state, now, discovery):
                  'reason': 'GitHub reports every gate green at this head',
                  'next_check_at': deadline(now, cadence)}, queue, None, progress)
 
-    last = parse_time(pr.get('last_meaningful_progress_at') or pr['admitted_at'], 'last progress')
-    stalled = (now - last).total_seconds() >= stall
     if stalled:
-        detail = f'no meaningful progress for {int((now - last).total_seconds())}s'
-        if queue['unknown_clock']:
-            detail += '; queue age is unknown for ' + ', '.join(queue['unknown_clock'])
-        return ({'pr': pr['url'], 'kind': 'diagnose-stall', 'reason': detail,
-                 'next_check_at': deadline(now, cadence)}, queue,
-                {'kind': 'stalled-work', 'detail': detail}, progress)
+        return stalled[0], queue, stalled[1], progress
 
     if queue['pending']:
         oldest = queue['oldest']
@@ -1667,6 +1683,11 @@ def normalise_pr(raw, now):
         checks_complete = raw.get('checks_complete') is True
         checks_source = 'reader'
     checks = [normalise_check(c) for c in check_rows]
+    clock_gaps = raw.get('queue_clock_gaps') or []
+    require(isinstance(clock_gaps, list) and all(
+        isinstance(gap, dict) and isinstance(gap.get('name'), str) and gap['name']
+        and isinstance(gap.get('reason'), str) and gap['reason'] for gap in clock_gaps),
+        'queue_clock_gaps must list check names and reasons')
     default_check_head = raw.get('checks_head_sha')
     if not default_check_head and raw.get('head_oid'):
         default_check_head = raw.get('head_oid')
@@ -1680,6 +1701,7 @@ def normalise_pr(raw, now):
         'checks': checks,
         'checks_complete': checks_complete,
         'checks_source': checks_source,
+        'queue_clock_gaps': [dict(gap) for gap in clock_gaps],
         'checks_state': raw.get('checks_state'),
         'checks_head_sha': raw.get('checks_head_sha'),
         'required_contexts': raw.get('required_contexts'),

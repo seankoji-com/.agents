@@ -195,7 +195,10 @@ One active job owns an output. Jobs/revisions, frozen bytes, technical attempts,
 content rounds, findings, dispositions, owner decisions and receipts persist.
 Adopter metadata stores `subject_file` plus the validated receipt descriptor.
 
-The initial limit is three substantive rounds. A finite technical allowance is
+New subjects start with five substantive rounds. Existing subjects keep their
+recorded limit and counters. Mark the planned last assessment and the last
+available round as final under `shared/agents/reviewer-standard.md`: only blocking
+issues require repair; safe deferrals become repository issues. A finite technical allowance is
 frozen for the candidate chain and retained across replacement jobs. Existing
 host idempotent retry bounds apply separately. `release` refuses live/uncertain or
 unfinished substantive work; a technical-only stopped round can release without

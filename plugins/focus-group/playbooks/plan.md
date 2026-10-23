@@ -6,7 +6,7 @@ precedes owner approval; participant work stays held until both gates pass.
 
 ## 1. Collect choices and record the brief
 
-Follow `PKG/shared/model-selection.md`. Batch work/review choices before
+Follow `PKG/shared/model-selection.md`. Collect work/review choices in short rounds before
 substantive drafting, capture or investigation. Resolve exact live targets/options and any required runtime mode:
 `workhorse` for planning (judgement floor 2), `participant-01`, `participant-02`,
 and so on in participant-model order (floor 1), `analysis` (judgement floor 2),

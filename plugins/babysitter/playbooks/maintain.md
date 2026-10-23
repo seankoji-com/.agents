@@ -5,7 +5,7 @@ Require upfront named-model or bounded-class consent in the frozen selection for
 Never change checkouts merely to enable extras.
 
 The coordinator owns discovery, watches, merges, resolutions and acceptance; children
-repair one PR. Follow `PKG/references/job-plan.md`'s repair cycle.
+repair one PR. Follow `PKG/references/job-plan.md`'s repair cycle and health stop rule.
 Writable runs initialise `continuous.py` state per `PKG/references/continuous.md`;
 use event-only without scheduler authority.
 
@@ -13,7 +13,7 @@ use event-only without scheduler authority.
    record it with `job_cli.py decision`; under **ignore**, exclude PRs with an
    armed request. Inspect the roster with
    `bash PKG/scripts/list-prs.sh --all-authors --repo <owner/name>` / `--org <owner>`.
-   Read warnings: a partial page is not the whole roster. Follow
+   Warnings: a partial page is not the whole roster. Follow
    `PKG/references/scope.md`: include all authors and bots; exclude drafts and forks
    unless included by the operator. Run the sibling-work check in
    `PKG/shared/t3-runtime.md` per PR; another active thread's PR stays
@@ -49,10 +49,14 @@ use event-only without scheduler authority.
    nothing left to fix is `needs human:`. Every PR with child work gets a
    fixer now, no concurrency cap and no question, one job each with
    `PKG/references/job-plan.md`.
-5. Prepare each fixer's worktree with `bash PKG/scripts/pr-workspace.sh`. Recommend
-   the cheapest suitable tier within role floors; use upfront selected work
-   target/options and approved replacements. Show live-catalog choices without routing.
-   Never infer an answer; report `unavailable` entries.
+5. Prepare with `bash PKG/scripts/pr-workspace.sh`. Honor upfront selected work target/options;
+   explicit configured workhorse is the selection. Follow short rounds.
+   Prefer eligible `preferred_workhorse`; otherwise recommend cheapest suitable tier from the configured role pool.
+   Without routing, show suitable live-catalog choices; report `unavailable` entries.
+   Never infer an answer. Global answers: `routing_scope: global`;
+   preserve/update/read back `routing.json` and overrides under settings-write authority
+   per `PKG/shared/model-selection.md`. Run-only: `routing_scope: invocation-only`,
+   never writes routing. Keep reviewer choices separate; show role/model/options/scope before dispatch.
 6. Dispatch per `PKG/shared/job-coordination.md`: `job_cli.py prepare`, reserve with
    `continuous.py dispatch --kind fixer --reserve` before launching
    `babysitter/pr-maintainer`, then attach the handle with `--host-task-id`. Close a

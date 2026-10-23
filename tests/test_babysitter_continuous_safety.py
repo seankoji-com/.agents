@@ -9,6 +9,7 @@ from unittest.mock import patch
 from pathlib import Path
 
 from tests.babysitter_continuous_fixtures import AcceptedJob, install_legacy, legacy_source, plan
+from tests import test_babysitter_continuous as continuous_tests
 from tests.test_babysitter_continuous import (
     ContinuousCase, FakeHost, H1, H2, HELPER, observation, pr, continuous_sweep,
 )
@@ -547,6 +548,131 @@ class UpdateAndResolutionTest(ContinuousCase):
             self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'resolution',
                      '--request-id', 'reply', '--status', 'cancelled', helper=helper)
             self.assertIsNone(self.cli('status', '--now', NOW, helper=helper)['prs'][URL]['next_action'])
+
+
+class UnclockedQueueSafetyTest(ContinuousCase):
+    adapters = UpdateAndResolutionTest.adapters
+    reader_row = continuous_tests.ReaderPathTest.reader_row
+    node = continuous_tests.ReaderPathTest.node
+
+    def test_clockless_stall_is_not_hidden_by_other_incomplete_gates(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'clockless-gates-{index}.json'
+            self.start(helper=helper)
+            initial = json.loads(self.state.read_text())
+            for gap in ({'checks_complete': False}, {'review_threads_complete': False},
+                        {'review_decision': 'REVIEW_REQUIRED'}, {'merge_state_status': 'UNSTABLE'}):
+                with self.subTest(installed=index, gap=gap):
+                    state = deepcopy(initial)
+                    row = pr(checks=[{'name': 'third-party', 'status': 'QUEUED'}],
+                             merge_state='BLOCKED', checks_state='PENDING')
+                    row.update(gap)
+                    module = adapter.continuous
+                    module.reconcile_observation(state, observation(row),
+                        module.parse_time('2026-10-22T14:10:00Z'), 'first', 'schedule')
+                    result = module.reconcile_observation(state, observation(row),
+                        module.parse_time('2026-10-22T14:55:00Z'), 'stalled', 'schedule')
+                    self.assertEqual(result['actions'][0]['kind'], 'diagnose-stall')
+                    self.assertEqual(state['prs'][row['url']]['queue']['oldest'], None)
+
+    def test_unchanged_unclocked_checks_reach_stall_on_source_and_installed_timer_wakes(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            with self.subTest(installed=index):
+                self.state = self.base / f'unclocked-{index}.json'
+                self.start(helper=helper)
+                row = pr(checks=[{'name': 'third-party', 'status': 'QUEUED',
+                                  'conclusion': None}], merge_state='BLOCKED', checks_state='PENDING')
+                host = FakeHost(observation(row))
+                host.clock = '2026-10-22T14:00:00Z'
+                adapter.arm(host, self.state, host.clock)
+                first = adapter.tick(host, self.state, '2026-10-22T14:10:00Z')[0]['result']
+                self.assertEqual(first['actions'][0]['blocked']['kind'], 'queue-age-unknown')
+                for at, elapsed in [('2026-10-22T14:20:00Z', 600),
+                                    ('2026-10-22T14:40:00Z', 1800),
+                                    ('2026-10-22T16:10:00Z', 7200)]:
+                    result = adapter.tick(host, self.state, at)[0]['result']
+                    action = result['actions'][0]
+                    self.assertEqual(action['kind'], 'wait-checks' if elapsed < 1800
+                                     else 'diagnose-stall')
+                    self.assertEqual(action['blocked']['kind'], 'queue-age-unknown' if elapsed < 1800
+                                     else 'stalled-work')
+                    self.assertIn('queue age is unknown', action['reason'])
+                    if elapsed >= 1800:
+                        self.assertIn(f'no meaningful progress for {elapsed}s', action['reason'])
+                    self.assertGreater(action['next_check_at'], at)
+                    self.assertEqual(result['human_questions'], [])
+                    self.assertFalse(result['progress']['meaningful'])
+                    saved = json.loads(self.state.read_text())['prs'][row['url']]
+                    self.assertEqual(saved['last_meaningful_progress_at'], '2026-10-22T14:10:00Z')
+                    self.assertIsNone(saved['queue']['oldest'])
+                    self.assertIsNone(saved['queue']['pending'][0]['age_seconds'])
+                    self.assertFalse(saved['queue']['pending'][0]['age_known'])
+                self.assertEqual(len(host.created), 1)
+                self.assertEqual(host.dispatched, [])
+
+    def test_reader_clock_gap_reasons_survive_wakes_and_do_not_starve_repairs(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            with self.subTest(installed=index):
+                self.state = self.base / f'reader-gaps-{index}.json'
+                self.start(helper=helper)
+                checks = [
+                    {'__typename': 'CheckRun', 'name': 'third-party', 'status': 'QUEUED',
+                     'conclusion': None, 'startedAt': None,
+                     'detailsUrl': 'https://ci.example.invalid/build/7'},
+                    {'__typename': 'CheckRun', 'name': 'actions-clockless', 'status': 'QUEUED',
+                     'conclusion': None, 'startedAt': None,
+                     'detailsUrl': 'https://github.com/fixture/repo/actions/runs/1/job/7'},
+                ]
+                payload = {'data': {'viewer': {'login': 'fixture'}, 'search': {'issueCount': 1,
+                    'nodes': [self.node(checks=checks, checks_state='PENDING')]}}}
+                # Execute the source/installed reader itself, including its failed clock lookup.
+                row = self.reader_row(payload, reader=helper.with_name('list-prs.sh'))
+                gaps = [{'name': 'third-party', 'reason': 'detailsUrl does not identify an Actions job'},
+                        {'name': 'actions-clockless', 'reason': 'Actions job API returned no created_at'}]
+                self.assertCountEqual(row['queue_clock_gaps'], gaps)
+                host = FakeHost(observation(row))
+                host.clock = '2026-10-22T14:00:00Z'
+                adapter.arm(host, self.state, host.clock)
+                for at, kind in [('2026-10-22T14:10:00Z', 'wait-checks'),
+                                 ('2026-10-22T14:55:00Z', 'diagnose-stall'),
+                                 ('2026-10-22T16:10:00Z', 'diagnose-stall')]:
+                    result = adapter.tick(host, self.state, at)[0]['result']
+                    action = result['actions'][0]
+                    self.assertEqual(action['kind'], kind)
+                    self.assertEqual(action['blocked']['queue_clock_gaps'], row['queue_clock_gaps'])
+                    for gap in gaps:
+                        self.assertIn(gap['name'], action['reason'])
+                        self.assertIn(gap['reason'], action['reason'])
+                    saved = json.loads(self.state.read_text())['prs'][row['url']]
+                    self.assertEqual(saved['observation']['queue_clock_gaps'], row['queue_clock_gaps'])
+                    self.assertEqual(saved['queue']['queue_clock_gaps'], row['queue_clock_gaps'])
+                    self.assertIsNone(saved['queue']['oldest'])
+                    self.assertTrue(all(check['age_seconds'] is None for check in saved['queue']['pending']))
+                    self.assertGreater(action['next_check_at'], at)
+                    self.assertEqual(saved['last_meaningful_progress_at'], '2026-10-22T14:10:00Z')
+                    if kind == 'diagnose-stall':
+                        self.assertFalse(result['progress']['meaningful'])
+                    # Clock-gap metadata and its ordering are evidence, not check progress.
+                    row['queue_clock_gaps'] = [dict(gap) for gap in reversed(gaps)]
+                    row['queue_clock_gaps'][0]['reason'] += '; retry still has no clock'
+
+                # Another PR can repair while this PR remains stalled.
+                host.snapshot = observation(row, pr(number=13, threads=1))
+                independent = adapter.tick(host, self.state, '2026-10-22T16:20:00Z')[0]
+                self.assertEqual(independent['result']['actions'][0]['kind'], 'diagnose-stall')
+                self.assertEqual(independent['dispatched'][0]['action']['kind'], 'dispatch-fixer')
+                self.assertEqual(independent['dispatched'][0]['recorded'], 'recorded')
+                # A newly actionable failure on the queued PR also takes priority over diagnosis.
+                row['failing'] = ['lint']
+                row['checks_state'] = 'FAILURE'
+                repaired = adapter.tick(host, self.state, '2026-10-22T16:30:00Z')[0]
+                action = repaired['dispatched'][0]['action']
+                self.assertEqual(action['pr'], row['url'])
+                self.assertEqual(action['kind'], 'dispatch-fixer')
+                self.assertIn('lint', action['reason'])
+                self.assertEqual(repaired['result']['human_questions'], [])
+                self.assertEqual(len(host.dispatched), 2)
+                self.assertEqual(len(host.created), 1)
 
 
 class MergeGateContractTest(ContinuousCase):

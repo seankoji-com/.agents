@@ -1284,7 +1284,8 @@ class PackagePreflightTest(ContinuousCase):
 class ReaderPathTest(ContinuousCase):
     """Feed the shipped reader's own row into the helper, not a hand-written shape."""
 
-    def reader_row(self, payload, job_payload=None, pr_number=None):
+    def reader_row(self, payload, job_payload=None, pr_number=None,
+                   reader=PLUGIN / 'scripts' / 'list-prs.sh'):
         directory = self.base / 'bin'
         directory.mkdir(exist_ok=True)
         curl = '''#!/usr/bin/env python3
@@ -1308,7 +1309,7 @@ print('200', end='')
         env = {**os.environ, 'PATH': str(directory) + os.pathsep + os.environ['PATH'],
                'FIXTURE_PAYLOAD': json.dumps(payload),
                'FIXTURE_JOB_PAYLOAD': json.dumps(job_payload or {})}
-        argv = ['bash', str(PLUGIN / 'scripts' / 'list-prs.sh'), '--repo', 'fixture/repo']
+        argv = ['bash', str(reader), '--repo', 'fixture/repo']
         if pr_number is not None:
             argv += ['--pr', str(pr_number)]
         proc = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=20)

@@ -52,7 +52,7 @@
         "assertions": [
           {
             "selector": "test_model_selection.SelectionTests",
-            "tests": 25,
+            "tests": 47,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",
@@ -70,12 +70,27 @@
         "assertions": [
           {
             "selector": "test_model_selection_installed.InstalledSelectionTests",
-            "tests": 2,
+            "tests": 9,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",
               "REQ-DELIVERY"
             ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_routing.py",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "Extended for suitability reasons and escalation; existing assertions survive.",
+        "assertions": [
+          {
+            "selector": "test_routing.RoutingCli",
+            "replace": true,
+            "tests": 29,
+            "coverage": ["REQ-ROUTING"],
             "survives": true
           }
         ]

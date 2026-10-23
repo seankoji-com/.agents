@@ -11,5 +11,5 @@ source evidence, failure/recovery, dependencies and simpler alternatives. Return
 complete worker result with planning assessment coverage and retained objections.
 Do not edit, dispatch, accept work or grant action authority. Critique does not add
 authorship; identify any supplied replacement text. Planning fallback applies only
-to this separate job. Ralph's different-lineage evaluator, every-feedback repair
+to this separate job. Ralph's different-lineage evaluator, blocking-feedback repair
 rule and full final evaluation retain their stricter contract.

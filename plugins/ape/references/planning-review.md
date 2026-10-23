@@ -5,7 +5,7 @@ local metadata and validates references. T3 owns child dispatch. The shared
 `PKG/shared/planning-review.md` API owns review jobs, fallback, counters and acceptance.
 
 1. Before project investigation, fingerprinting, drafting or dispatch, collect the
-   native batched work/review choice. Study needs `workhorse`; forage also needs
+   native work/review choices in short rounds. Study needs `workhorse`; forage also needs
    `judgement`. Primary panel/coverage and finite authorised replacements are
    separate. Freeze scope with `logical_output_id(request_reference, output_name)`.
    `admit` takes `operation`, `request_reference`, `output_name`, `invocation_id`,

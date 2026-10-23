@@ -23,7 +23,7 @@ and ambiguous multiple targets are reported rather than silently foraging.
 
 ## What you get
 
-Before research, choose work and review models together. A URL alias reuses that
+Before research, choose work and review models in short rounds. A URL alias reuses that
 answer once. Final study reports and forage synthesis receive planning review by
 default, including no-adoption recommendations. The report records the actual
 review mode, coverage, feedback, remaining findings and rounds used. A permitted

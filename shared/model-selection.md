@@ -7,9 +7,14 @@ choice, not permission for tests, setup, fan-out, writes or remote actions.
 ## Before work
 
 Use `upfront-agreement.md` first. Inspect the request, instructions, authority and
-state. For substantive work, batch only missing consequential choices through the
-native picker, with task-specific work/reviewer chains recommended first. A clearly marked question block is the fallback. Explicit choices
-in the command count as answers. Silence, saved defaults and configuration do not.
+state. For substantive work, collect only missing consequential choices in short
+rounds through the native picker, with task-specific work/reviewer chains
+recommended first. Ask one decision per question and wait for its answer before
+the next round. A clearly marked question block is the fallback.
+Explicit choices in the command or earlier rounds count as answers. Retain them;
+ask only for still-missing decisions. Silence, saved defaults and configuration
+alone do not answer a question. An explicit choice of an available configured
+workhorse is an answer, including when the owner chooses it globally.
 Only operation, capability, identity and resumable-scope preflight may precede the
 answer. No investigation, drafting, experiments or children start first. A direct
 operation that later needs synthesis/delegation stops at that transition for choices.
@@ -17,15 +22,88 @@ Doctor/status/list and deterministic helpers neither prompt nor dispatch. Worker
 consume their frozen choice; they never ask another chooser or launch children.
 
 Discover exact provider/model pairs, including custom models, from fresh host
-capabilities. Show identities alongside labels, advertised option IDs/values,
-privacy/runtime boundaries and lineage limits. Recommend current-context work
+capabilities. Keep the full catalog and validation mechanics out of the picker.
+Show a short relevant list with exact identities alongside labels; search the
+catalog for a named/custom model before reporting it absent. Explain only concrete
+conflicts for the selected target. Recommend current-context work
 where suitable and a judgement-capable cross-lineage reviewer at advertised high
 effort. The user's suitable answer controls dispatch. Routing is a recommendation,
 never an answer. An absent configuration uses a frozen suitable catalog pool without
 writing settings. Empty/malformed pools are configuration gaps. Policy-excluded
 targets are not technical outages. Quality needs a sourced suitability profile;
-cheap tiers, model names and catalog order alone prove nothing. Fixed-effort models
-need a recorded suitability reason. Existing owner choices/configuration stay intact.
+cheap tiers, model names and catalog order alone prove nothing. First read existing
+role profiles and routing sources; do not ask the owner to restate recorded evidence.
+For ordinary configured workhorse work, the frozen owner answer is an accepted
+suitability source with quality **1**, the ordinary workhorse baseline. The helper
+uses that value and the answer's reason when a model row or those fields are absent;
+it does not require another score or invent one meeting a higher floor. A missing
+workhorse floor uses the same baseline of 1. Existing lower quality evidence still
+blocks. Routing can supply a declared lineage when the profile has none, subject to
+the canonical-family check. For an unknown custom family, only recognized routing
+labels (`openai`, `anthropic`, `google`, `xai`, `meta`, `deepseek`, `qwen`) count; a
+setup-inferred custom basename cannot establish independence. For that case, supply
+`profiles.models.lineage` and `profiles.models.lineage_source` for the exact target
+from a verified family source before review. Keep the answer quote/reference and routing snapshot.
+This does not establish judgement capability,
+lineage, fixed-effort review suitability or override a stricter repository policy.
+Higher minima remain enforced. A role floor's `source` names a stricter policy
+path/clause requiring separate model evidence; the endorsement cannot replace it.
+If that policy requires a separate source, name the policy path/clause, exact
+provider/model and role, missing profile fields, accepted source and why it is
+needed. State the blocker once and offer one actionable next step, such as supplying
+that named profile. Retain the selected model while blocked; do not cycle through
+vague evidence questions. Fixed-effort reviewers need a recorded suitability reason.
+Existing owner choices/configuration stay intact.
+
+Use these rounds, skipping decisions already answered:
+
+1. Work model for the requested role. If one model cannot meet every declared work
+   floor, ask only for the affected role's correction.
+2. Routing scope, only if ambiguous: this invocation (recommended) or global user
+   routing. "Use it globally" answers this round. Run-only never writes routing.
+   An explicit global choice stays global; record it separately from dispatch scope
+   and, when settings writes are authorized, set the top-level `preferred_workhorse`
+   to `{"providerInstanceId": "<exact provider>", "model": "<exact model>"}` in
+   `$XDG_CONFIG_HOME/t3-plugins/routing.json` (default
+   `~/.config/t3-plugins/routing.json`), preserving other candidates, roles and provider settings.
+   It must match exactly one `roles.workhorse` entry. Keep selected options on that
+   entry. Read back the user file, effective repository override and both `resolve`
+   and selection `discover` results before claiming it persisted. Both readers mark
+   that target `preferred: true` and offer it first when eligible, subject to the
+   order of independence groups for `resolve --implementer-lineage`. The preference
+   moves ahead of lower tiers only within its group. A missing or unsuitable
+   preference is reported as unavailable; retain it and explain the exact blocker
+   rather than selecting the next candidate.
+   Configs without this field retain their previous ordering. A saved preference
+   is a recommendation for a new invocation, not a new owner answer or sharing grant.
+   Never use setup to replace an existing config. Repository policy
+   still wins; explain a concrete conflict or
+   missing settings authority without quietly narrowing to run-only. A repository
+   workhorse pool replaces the inherited user preference; a repository
+   `preferred_workhorse` must match its effective pool. This chooser
+   helper freezes evidence and never writes routing settings.
+   New workhorse selections require an explicit `routing_scope` field at freeze.
+   Record an already answered scope without asking again. If it is missing, the
+   helper stops for that field alone. Validation of older sealed records retains
+   their invocation-only default; a new freeze never supplies that default.
+3. Reviewer model, independently of the workhorse pool. Check its own role floor,
+   review policy and lineage against every actual/prospective author. A workhorse
+   routing conflict does not invalidate a reviewer. Keep an explicit available
+   reviewer unless a concrete reviewer constraint fails. An unused reviewer
+   preference does not add a review stage.
+4. Each still-missing model option, one at a time, using only that model's advertised
+   values. Show resolved runtime boundaries as information; ask a separate correction
+   only if needed. Resolve unknown lineage or current-context settings in their own
+   short question when they block the chosen execution.
+5. Any missing sharing or replacement grant, one decision per question, with the
+   exact recipients, data and limits relevant to that grant. Skip optional extras
+   without consent. Keep work and review replacement authority separate.
+
+Before dispatch, show a compact record of each final role, exact provider/model,
+selected options, execution scope and routing scope. This summary is informational
+when all decisions are answered; it does not restart the chooser. Freeze all
+required choices and grants before substantive work. Short rounds change the
+interaction, never privacy, suitability, scope or review-independence gates.
 
 Declare each work role's floor before the picker. One choice must satisfy all
 roles, or obtain named per-role corrections. Check review lineage jointly against
@@ -68,7 +146,7 @@ Offer a suitable original-lineage dispute-only child, content repair or a scoped
 owner decision. A changed panel or self-review cannot clear an unchanged objection.
 
 Persist only genuine standing-project grants, using locked atomic private XDG state
-at `t3-plugins/authorities/<project-id>/model-policy.json`. The batched missing-grant
+at `t3-plugins/authorities/<project-id>/model-policy.json`. The separate missing-grant
 question explicitly offers **invocation-only** (recommended) or **standing-project**.
 Both answers include the source/answer hash, recipient/model classes and limits.
 Only the latter persists. Read applicable records without repeating permission;
@@ -85,7 +163,8 @@ round to seek extras.
 ## Lifetime and interfaces
 
 Freeze invocation/scope, user source, capability/routing/profile snapshots and
-digests, coordinator identity, work roles/options, panel slots, replacement and
+digests, coordinator identity, work roles/options, `routing_scope` (`invocation-only`
+or `global` for the workhorse, default invocation-only for older records), panel slots, replacement and
 sharing authority. Retain `selection_sha256` independently in the immutable brief
 and producing receipt. A self-recomputed hash alone cannot authenticate an answer.
 Automatic wakes, compaction, repairs and aliases reuse one invocation. New qualifying
@@ -108,8 +187,12 @@ Use `python3 PKG/shared/model_selection_cli.py ACTION --input FILE` (or
   resumes reuse their binding; scheduled fires need matching `schedule_id`, fresh `capabilities`
   and current `policy_digests` for routing/profile snapshots.
 - `dispatch`: `{record, role, slot_id?, target?, data_classes?, unavailable?, live_tasks?,
-  expected?}` returns the exact tool target/options and producing digest. A replacement
-  needs its separately approved chain and host-failure reference. It launches nothing.
+  expected?}` returns the exact tool target/options and producing digest, role,
+  invocation/scope IDs and routing intent. A primary workhorse dispatch returns the
+  frozen `routing_scope`; reviewer and replacement dispatches are invocation-only.
+  A replacement needs its separately approved chain and host-failure reference;
+  it never changes the primary model's global routing choice.
+  It launches nothing.
 - `correlate`: `{plan, observed}` compares actual provider/model and options. Missing
   effort holds acceptance for agreement-bound work until reconciled. `panel` counts distinct execution IDs and reports unused
   preferences/degradation; it does not issue acceptance.

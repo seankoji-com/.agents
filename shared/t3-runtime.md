@@ -1,13 +1,13 @@
 # T3 runtime contract
 
-Apply `upfront-agreement.md` before substantive public operations. Inspect context, infer routine facts, and batch only missing consequential decisions. Unchanged continuations and nested calls reuse the saved agreement.
+Apply `upfront-agreement.md` before substantive public operations. Inspect context, infer routine facts, and ask only missing consequential decisions in short rounds, one decision per question. Unchanged continuations and nested calls reuse the saved agreement.
 
 Read once per run. The plugin entry defines the task; this file defines how it uses T3.
 
 Before substantive investigation, planning, synthesis or dispatch, apply
-`PKG/shared/model-selection.md`. Obtain work and review choices together; explicit
-choices already supplied count. Only operation/capability/identity/resumable-scope
-preflight precedes the answer. Deterministic helpers stay direct. Workers consume
+`PKG/shared/model-selection.md`. Collect work and review choices in short rounds,
+one decision per question; retain explicit answers and ask only for missing choices.
+Only operation/capability/identity/resumable-scope preflight precedes the answer. Deterministic helpers stay direct. Workers consume
 their frozen selection without another picker. Recommendations never select targets.
 
 - Inherit the active provider and model, and respect the operator's choices.
@@ -25,6 +25,12 @@ their frozen selection without another picker. Recommendations never select targ
   Upfront named-model or bounded-class consent and sharing authority are required;
   no consent, unavailable or failed extras are skips.
   They never replace mandatory review or its independence and acceptance gates.
+- For every review, apply `PKG/shared/agents/reviewer-standard.md`, including
+  final-round blocking-only triage, repository issues for safe deferrals, an
+  immediate main-context summary of at most three sentences per returned subtask
+  review, and the operator's deferred-fix summary and build/test lesson at handoff.
+  Include the final-round instruction in reviewer briefs; the last available
+  round is always final. This does not waive requirements or raise pinned limits.
 - Tool prefixes vary by harness. Match exposed tools by name and description. If an
   expected tool is absent, attempt bounded discovery. Report the missing capability
   rather than inventing a substitute. Do not change provider configuration to unblock it.
@@ -37,10 +43,12 @@ their frozen selection without another picker. Recommendations never select targ
   Preserve unrelated changes and stop on permission denial instead of bypassing it.
 - Ask for approvals and owner decisions through the host's native question picker:
   the tool that presents choices to the user, such as Claude Code's `AskUserQuestion`
-  or Muse Code's `request_user_input`, matched by name and description. Ask one question per decision, put the recommended
-  option first, and batch related questions. Never bury an approval in a prose status
-  update. Without a picker, ask in a separate, clearly marked question block. Until
-  answered, the action stays unapproved; silence is not approval.
+  or Muse Code's `request_user_input`, matched by name and description. Ask one
+  question per decision, put the recommended option first, and ask about related
+  decisions in short rounds, including model choices.
+  Never bury an approval in a prose status update. Without a picker, ask in a
+  separate, clearly marked question block. Until answered, the action stays
+  unapproved; silence is not approval.
 - Sibling-work check: before a writable run claims a PR, branch or worktree, and when
   `t3_thread_list` is exposed, read one bounded page of this project's unsettled
   threads (`settled=false`) with active statuses (`preparing`, `queued`, `starting`,
