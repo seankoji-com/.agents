@@ -54,11 +54,16 @@ class InstalledSelectionTests(unittest.TestCase):
             for field, value, locator in (
                     ('roles', [], 'profiles.roles as an object'),
                     ('roles', None, 'profiles.roles as an object'),
+                    *(('role', value, 'profiles.roles.workhorse must be an object; '
+                       'provide profiles.roles.workhorse as an object containing the role policy.')
+                      for value in (None, [], 'strict', 1, 1.5, True, False)),
                     ('required_options', [], 'profiles.roles.workhorse.required_options'),
                     ('required_options', None, 'profiles.roles.workhorse.required_options')):
                 profiles = {'roles': {'workhorse': {'minimum': 1}}, 'models': []}
                 if field == 'roles':
                     profiles['roles'] = value
+                elif field == 'role':
+                    profiles['roles']['workhorse'] = value
                 else:
                     profiles['roles']['workhorse'][field] = value
                 result = box.run([sys.executable, catalog, 'resolve', 'workhorse',
@@ -80,19 +85,25 @@ class InstalledSelectionTests(unittest.TestCase):
                 self.assertEqual((relocated / 'shared/model_selection.py').read_bytes(),
                                  (ROOT / 'shared/model_selection.py').read_bytes())
                 for role in ('workhorse', 'reviewer'):
-                    for field in ('roles', 'required_options', 'source'):
-                        values = (None, [], 'high', 1, True) if field != 'source' else ([], {}, 1, True)
+                    for field in ('roles', 'role', 'required_options', 'source'):
+                        values = (None, [], 'high', 1, 1.5, True, False) if field != 'source' else ([], {}, 1, True)
                         for value in values:
                             with self.subTest(plugin=plugin, role=role, field=field, value=value):
                                 data = canonical_selection_input()
                                 if field == 'roles':
                                     data['profiles']['roles'] = value
                                     locator = 'profiles.roles as an object'
+                                elif field == 'role':
+                                    data['profiles']['roles'][role] = value
+                                    locator = (f'profiles.roles.{role} must be an object; '
+                                               f'provide profiles.roles.{role} as an object containing the role policy.')
                                 else:
                                     data['profiles']['roles'][role][field] = value
                                     locator = f'profiles.roles.{role}.{field}'
                                 for action, request in (('freeze', data), ('discover', {
-                                        'capabilities': data['capabilities'], 'profiles': data['profiles'], 'role': role})):
+                                        'capabilities': data['capabilities'], 'profiles': data['profiles'], 'role': role}),
+                                        ('discover', {'capabilities': {'providers': []},
+                                                      'profiles': data['profiles'], 'role': role})):
                                     result = box.run([sys.executable, helper, action,
                                                       '--input', box.payload(request)], check=False)
                                     self.assertEqual(result.returncode, 2, result.stderr)
@@ -126,7 +137,9 @@ class InstalledSelectionTests(unittest.TestCase):
                     text = ' '.join(probes.read_text().split())
                     for required in ('short rounds', 'one decision per question',
                                      'Wait for the answer before the next round',
-                                     'Until required work/reviewer choices and scope are frozen',
+                                     'routing scope (`routing_scope`: `invocation-only` or `global`)',
+                                     'and scoped work/paths are frozen',
+                                     'Retain supplied answers and skip their questions',
                                      'only operation/capability/identity/resumable-scope preflight',
                                      'independent authorised work may continue while unrelated later product questions'):
                         self.assertIn(required, text)

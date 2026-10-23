@@ -41,14 +41,14 @@ Collect the agreement's exact provider-instance/model choices before work, follo
 `PKG/shared/model-selection.md`'s short rounds. Explicit choices already supplied
 count; retain them and ask only for missing decisions. Ask for the implementer,
 then routing scope only if ambiguous (this invocation recommended, or global),
-then the evaluator, then each still-missing option or backup decision in separate questions. Show a
-short relevant catalog list, including custom matches, rather than the full catalog,
-lineage, sharing and runtime mechanics in one picker. A provider name is not a
-lineage. Use verified canonical lineage evidence or owner-confirmed routing labels;
-unknown labels need a separate confirmation only when independence cannot otherwise
-be established. Never accept `unknown` as independence. A same-lineage pair needs
-an eligible evaluator correction; keep the implementer answer. Record the lineage
-source in both targets. Pin the chosen options.
+then the evaluator, then each still-missing option or backup decision in separate
+questions. Show a short relevant catalog list, including custom matches, rather
+than the full catalog, lineage, sharing and runtime mechanics in one picker. A
+provider name is not a lineage. Use verified canonical lineage evidence or
+owner-confirmed routing labels; unknown labels need a separate confirmation only
+when independence cannot otherwise be established. Never accept `unknown` as
+independence. A same-lineage pair needs an eligible evaluator correction; keep the
+implementer answer. Record the lineage source in both targets. Pin the chosen options.
 Never silently replace, escalate or rotate a target. Only the agreement's separately
 approved finite chains permit replacement after reconciled unavailability;
 adverse feedback requires repair.

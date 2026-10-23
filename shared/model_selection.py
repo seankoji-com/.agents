@@ -138,6 +138,9 @@ def _profile_floor(profiles, role, *, context='; ', default=None):
     roles = profiles.get('roles', {})
     require(isinstance(roles, dict), 'configuration gap: role profiles malformed' + context +
             'provide profiles.roles as an object.')
+    require(role not in roles or isinstance(roles[role], dict),
+            f'configuration gap: profiles.roles.{role} must be an object; '
+            f'provide profiles.roles.{role} as an object containing the role policy.')
     floor = roles.get(role, default)
     if isinstance(floor, dict):
         require(isinstance(floor.get('required_options', {}), dict),
@@ -248,9 +251,11 @@ def prefer_workhorse(result, routing, role):
             available = True
         else:
             candidate.pop('preferred', None)
-    rank = {True: 0, None: 1, False: 2}
-    result['candidates'].sort(key=lambda c: (rank[c['independent']] if 'independent' in c else 0,
-                                            not c.get('preferred', False)))
+    # Only exact booleans verify a group. Missing or malformed annotations stay
+    # unverified, including integers equal to booleans and unhashable values.
+    result['candidates'].sort(key=lambda c: (
+        0 if c.get('independent') is True else 2 if c.get('independent') is False else 1,
+        not c.get('preferred', False)))
     result['preferred_workhorse'] = dict(zip(('providerInstanceId', 'model'), preferred))
     result['preference_status'] = 'available' if available else 'unavailable'
     return result

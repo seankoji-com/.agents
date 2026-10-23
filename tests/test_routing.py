@@ -88,6 +88,25 @@ class RoutingCli(unittest.TestCase):
                         self.assertEqual(result.stdout, '')
                         self.assertEqual(self.config.read_bytes(), before)
 
+    def test_profiled_resolve_rejects_present_nonobject_role_policy_even_without_models(self):
+        profiles = self.base / 'profiles.json'
+        for role in ('workhorse', 'reviewer'):
+            self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                        'roles': {role: [entry('codex', 'model-x1', 'low', 'openai')]}})
+            before = self.config.read_bytes()
+            for value in (None, [], 'strict', 1, 1.5, True, False):
+                profiles.write_text(json.dumps({'roles': {role: value}, 'models': []}))
+                for capabilities in (CAPABILITIES, {**CAPABILITIES, 'providers': []}):
+                    with self.subTest(role=role, value=value, empty=not capabilities['providers']):
+                        self.caps.write_text(json.dumps(capabilities))
+                        result = self.cli('resolve', role, '--capabilities', str(self.caps),
+                                          '--profiles', str(profiles), code=2)
+                        self.assertIn(f'configuration gap: profiles.roles.{role} must be an object; '
+                                      f'provide profiles.roles.{role} as an object containing the role policy.',
+                                      result.stderr)
+                        self.assertEqual(result.stdout, '')
+                        self.assertEqual(self.config.read_bytes(), before)
+
     def test_setup_writes_a_new_config_from_saved_capabilities(self):
         receipts = [json.loads(l) for l in self.cli('setup', 'imps', '--root', str(self.base / 'skills'),
                                                      '--capabilities', str(self.caps)).stdout.splitlines()]

@@ -69,10 +69,11 @@ Use these rounds, skipping decisions already answered:
    It must match exactly one `roles.workhorse` entry. Keep selected options on that
    entry. Read back the user file, effective repository override and both `resolve`
    and selection `discover` results before claiming it persisted. Both readers mark
-   that target `preferred: true` and offer it first when eligible, ahead of lower
-   tiers. With `resolve --implementer-lineage`, independence groups take precedence;
-   the preference moves first only within its group. A missing or unsuitable preference is reported as unavailable; retain it
-   and explain the exact blocker rather than selecting the next candidate.
+   that target `preferred: true` and offer it first when eligible, subject to the
+   order of independence groups for `resolve --implementer-lineage`. The preference
+   moves ahead of lower tiers only within its group. A missing or unsuitable
+   preference is reported as unavailable; retain it and explain the exact blocker
+   rather than selecting the next candidate.
    Configs without this field retain their previous ordering. A saved preference
    is a recommendation for a new invocation, not a new owner answer or sharing grant.
    Never use setup to replace an existing config. Repository policy

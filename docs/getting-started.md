@@ -319,12 +319,14 @@ on permission prompts.
 An authorized global workhorse choice is stored as the optional top-level
 `preferred_workhorse: {"providerInstanceId": "<exact provider>", "model": "<exact model>"}`,
 matching exactly one `roles.workhorse` entry. Keep its selected options on that
-entry. Both `resolve` and selection discovery offer the eligible preference first
-and mark it `preferred: true`, ahead of cheaper candidates. They report
-`preference_status: unavailable` if it cannot be used. Retain that choice and
-resolve its blocker; other candidates do not authorize a replacement. A saved
-preference remains a recommendation for a new invocation. Run-only choices never
-write this field. Without it, existing ordering is unchanged.
+entry. Both `resolve` and selection discovery offer the eligible preference first,
+subject to the order of independence groups for `resolve --implementer-lineage`,
+and mark it `preferred: true`. The preference moves ahead of cheaper candidates
+only within its group. They report `preference_status: unavailable` if it cannot
+be used. Retain that choice and resolve its blocker; other candidates do not
+authorize a replacement. A saved preference remains a recommendation for a new
+invocation. Run-only choices never write this field. Without it, existing ordering
+is unchanged.
 
 `resolve` otherwise prints the role's candidates that the capabilities file can run, in tier
 order, and lists each configured entry it could not use with the reason. It never

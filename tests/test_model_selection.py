@@ -176,6 +176,62 @@ class SelectionTests(unittest.TestCase):
                 result = models.discover(self.data['capabilities'], profiles, role=role)
                 self.assertTrue(any(row['target'] == target for row in result['candidates']))
 
+    def test_present_nonobject_role_policy_names_the_gap_before_candidate_discovery(self):
+        for role in ('workhorse', 'reviewer'):
+            target = self.data['work']['workhorse'] if role == 'workhorse' else self.data['review_panel'][0]['target']
+            message = (f'configuration gap: profiles.roles.{role} must be an object; '
+                       f'provide profiles.roles.{role} as an object containing the role policy.')
+            for value in (None, [], 'strict', 1, 1.5, True, False):
+                with self.subTest(role=role, value=value):
+                    data = deepcopy(self.data)
+                    data['profiles']['roles'][role] = value
+                    before = deepcopy(data)
+                    for invoke in (
+                            lambda: models.suitability(target, role, data['profiles'], data['capabilities']),
+                            lambda: models.freeze(data),
+                            lambda: models.discover(data['capabilities'], data['profiles'], role=role),
+                            lambda: models.discover({'providers': []}, data['profiles'], role=role)):
+                        with self.assertRaises(models.SelectionError) as caught:
+                            invoke()
+                        self.assertEqual(str(caught.exception), message)
+                    for capabilities in (data['capabilities'], {'providers': []}):
+                        result = self.cli('discover', {'capabilities': capabilities,
+                            'profiles': data['profiles'], 'role': role})
+                        self.assertEqual(result.returncode, 2, result.stderr)
+                        self.assertEqual(result.stderr.strip(), 'selection_error: ' + message)
+                        self.assertEqual(result.stdout, '')
+                    self.assertEqual(data, before)
+
+    def test_preference_treats_missing_or_malformed_independence_as_unverified(self):
+        preferred = {'providerInstanceId': 'fixture-work', 'model': 'preferred'}
+        routing = {'roles': {'workhorse': [preferred]}, 'preferred_workhorse': preferred}
+        for annotation in ({}, {'independent': None}, {'independent': 'invalid'},
+                           {'independent': []}, {'independent': {}}, {'independent': 1},
+                           {'independent': 0}, {'independent': 1.0}):
+            with self.subTest(annotation=annotation):
+                rows = [dict(preferred, **annotation),
+                        {'providerInstanceId': 'fixture-work', 'model': 'same', 'independent': False},
+                        {'providerInstanceId': 'fixture-work', 'model': 'unknown', 'independent': None},
+                        {'providerInstanceId': 'fixture-work', 'model': 'verified', 'independent': True}]
+                result = models.prefer_workhorse({'candidates': rows}, routing, 'workhorse')
+                self.assertEqual([row['model'] for row in result['candidates']],
+                                 ['verified', 'preferred', 'unknown', 'same'])
+                self.assertEqual({k: v for k, v in result['candidates'][1].items()
+                                  if k == 'independent'}, annotation)
+                self.assertTrue(result['candidates'][1]['preferred'])
+                self.assertEqual(result['preference_status'], 'available')
+        # Discovery has no independence annotations; an ordinary preference still floats.
+        rows = [{'target': {'providerInstanceId': 'fixture-work', 'model': 'other'}},
+                {'target': deepcopy(preferred)}]
+        result = models.prefer_workhorse({'candidates': rows}, routing, 'workhorse')
+        self.assertEqual(result['candidates'][0]['target'], preferred)
+        self.assertTrue(result['candidates'][0]['preferred'])
+        for policy, role in (({'roles': routing['roles']}, 'workhorse'), (routing, 'reviewer')):
+            original = {'candidates': [dict(preferred, independent=[])]}
+            before = deepcopy(original)
+            self.assertIs(models.prefer_workhorse(original, policy, role), original)
+            self.assertEqual(original, before)
+
     def test_selected_options_are_validated_without_recommendation_substitution(self):
         data = deepcopy(self.data)
         # The role's low requirement and configured answer outrank high defaults.
@@ -474,7 +530,7 @@ class SelectionTests(unittest.TestCase):
                      'independently of the workhorse pool', 'Before dispatch',
                      'never privacy, suitability, scope or review-independence gates'):
             self.assertIn(text, contract)
-        ralph = (ROOT / 'plugins/ralph/playbooks/loop.md').read_text()
+        ralph = ' '.join((ROOT / 'plugins/ralph/playbooks/loop.md').read_text().split())
         self.assertIn('then each still-missing option or backup decision in separate questions', ralph)
         self.assertIn('keep the implementer answer', ralph)
         self.assertIn("target's correction, retaining other answers", ralph)
@@ -486,7 +542,9 @@ class SelectionTests(unittest.TestCase):
         probes = ' '.join((ROOT / 'plugins/imps/references/brief-probes.md').read_text().split())
         self.assertIn('one decision per question', probes)
         self.assertIn('Wait for the answer before the next round', probes)
-        self.assertIn('Until required work/reviewer choices and scope are frozen', probes)
+        self.assertIn('routing scope (`routing_scope`: `invocation-only` or `global`)', probes)
+        self.assertIn('and scoped work/paths are frozen', probes)
+        self.assertIn('Retain supplied answers and skip their questions', probes)
         self.assertIn('only operation/capability/identity/resumable-scope preflight', probes)
         self.assertIn('independent authorised work may continue while unrelated later product questions', probes)
         self.assertIn('routing scope only if ambiguous', ralph)

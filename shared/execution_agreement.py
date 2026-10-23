@@ -57,10 +57,12 @@ def model_contract(selection):
 
 
 def inspect(data):
-    """Combine already inspected facts and supplied choices; list missing decision rounds.
+    """Combine inspected facts and supplied choices; return the missing-question backlog.
 
     The adapter names consequential required fields. Routine assumptions do not
     become questions, and no answer or authority is manufactured by this helper.
+    The caller asks only questions[0], waits for the answer, then feeds it back
+    through supplied/context and reinspects before asking the next decision.
     """
     observations = data.get('inspected', {})
     require(isinstance(observations, dict) and INSPECTIONS <= set(observations) and
@@ -70,8 +72,9 @@ def inspect(data):
     facts.update(deepcopy(data.get('supplied', {})))
     missing = [k for k in data.get('required', []) if facts.get(k) in (None, '', [])]
     questions = [{'field': k, 'recommendation': data.get('recommendations', {}).get(k)} for k in missing]
-    # Compatibility name: question_batches counts serial rounds, one question per
-    # missing decision. It does not authorize presenting all questions together.
+    # Compatibility name: question_batches counts serial rounds in the backlog.
+    # Keep all questions; the caller asks only the first, waits, supplies the
+    # answer and reinspects. Never present the whole backlog together.
     return {'facts': facts, 'assumptions': deepcopy(data.get('assumptions', [])),
             'questions': questions, 'question_batches': len(questions),
             'choices': list(ENGINEERING if data.get('operation') in ENGINEERING_OPS else

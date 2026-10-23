@@ -52,7 +52,7 @@
         "assertions": [
           {
             "selector": "test_model_selection.SelectionTests",
-            "tests": 45,
+            "tests": 47,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",
@@ -89,7 +89,7 @@
           {
             "selector": "test_routing.RoutingCli",
             "replace": true,
-            "tests": 28,
+            "tests": 29,
             "coverage": ["REQ-ROUTING"],
             "survives": true
           }

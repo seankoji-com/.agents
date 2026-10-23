@@ -43,10 +43,12 @@ their frozen selection without another picker. Recommendations never select targ
   Preserve unrelated changes and stop on permission denial instead of bypassing it.
 - Ask for approvals and owner decisions through the host's native question picker:
   the tool that presents choices to the user, such as Claude Code's `AskUserQuestion`
-  or Muse Code's `request_user_input`, matched by name and description. Ask one question per decision, put the recommended
-  option first, and ask related decisions in short rounds, including model choices. Never bury an approval in a prose status
-  update. Without a picker, ask in a separate, clearly marked question block. Until
-  answered, the action stays unapproved; silence is not approval.
+  or Muse Code's `request_user_input`, matched by name and description. Ask one
+  question per decision, put the recommended option first, and ask about related
+  decisions in short rounds, including model choices.
+  Never bury an approval in a prose status update. Without a picker, ask in a
+  separate, clearly marked question block. Until answered, the action stays
+  unapproved; silence is not approval.
 - Sibling-work check: before a writable run claims a PR, branch or worktree, and when
   `t3_thread_list` is exposed, read one bounded page of this project's unsettled
   threads (`settled=false`) with active statuses (`preparing`, `queued`, `starting`,
