@@ -64,11 +64,25 @@ PASSING_CONCLUSIONS = {'SUCCESS', 'NEUTRAL', 'SKIPPED'}
 FAILING_CONCLUSIONS = {'FAILURE', 'CANCELLED', 'TIMED_OUT', 'STALE', 'ACTION_REQUIRED', 'ERROR',
                        'STARTUP_FAILURE'}
 TERMINAL_DISPATCH = {'succeeded', 'failed', 'rejected', 'cancelled', 'superseded', 'no-change'}
-OPEN_DISPATCH = {'pending', 'armed'}
+OPEN_DISPATCH = {'reserved', 'pending', 'armed'}
+# A reservation is written before any host side effect, so an in-flight launch and a
+# live writer are indistinguishable to a competing command. Only the dispatch kind's
+# own terminal statuses may release a writer guard; 'armed' is a merge-only state.
+FIXER_RECEIPT_STATUSES = {'succeeded', 'failed', 'rejected', 'cancelled', 'superseded',
+                          'no-change'}
+MERGE_RECEIPT_STATUSES = {'armed', 'succeeded', 'failed', 'rejected', 'cancelled',
+                          'superseded'}
+RESOLUTION_RECEIPT_STATUSES = {'succeeded', 'failed', 'rejected', 'cancelled',
+                               'superseded', 'no-change'}
+KIND_RECEIPT_STATUSES = {
+    'fixer': FIXER_RECEIPT_STATUSES,
+    'merge': MERGE_RECEIPT_STATUSES,
+    'resolution': RESOLUTION_RECEIPT_STATUSES,
+}
 OWNER_LIVE_STATUSES = {'active', 'running', 'starting', 'queued', 'waiting', 'preparing'}
-OWNER_PARKED_STATUSES = {'parked', 'idle', 'completed'}
 OWNER_CONTINUATIONS = {'maintainer-live', 'in-flight', 'watching', 'continuing', 'dispatched'}
 OWNER_RELEASED = {'handed-back', 'released', 'none', 'stopped', 'cancelled'}
+OWNER_RELEASED_STATUSES = {'handed-back', 'released', 'stopped', 'cancelled'}
 
 # Blockers that genuinely need a person. Everything routine in the playbook must
 # resolve without a new question.
@@ -389,21 +403,44 @@ def owner_state(raw):
     """Record ownership only when the snapshot actually carries ownership evidence.
 
     A missing owner key is unavailable evidence, not a release and not a new 'none'
-    owner. Keeping the previous confirmed owner is the conservative choice; only an
-    explicit handoff releases a live maintainer.
+    owner. A missing continuation field is unavailable evidence too: only an explicit
+    continuation value releases or preserves a live maintainer. Keeping the previous
+    confirmed owner is the conservative choice; only an explicit handoff releases it.
     """
     owner = raw.get('owner')
     if not isinstance(owner, dict) or not any(owner.get(k) for k in
                                                ('thread_id', 'status', 'continuation')):
         return None
     status = str(owner.get('status') or 'none').lower()
-    continuation = owner.get('continuation')
     return {
         'thread_id': owner.get('thread_id'),
         'status': status,
-        'continuation': continuation,
+        'continuation': owner.get('continuation'),
+        'continuation_known': 'continuation' in owner,
         'fixer_in_flight': bool(owner.get('fixer_in_flight', False)),
+        'host_task_id': (owner.get('host_task_id') or owner.get('task_id')
+                         or owner.get('fixer_request_id')),
     }
+
+
+def merge_owner(previous, observed):
+    """Fold one ownership snapshot into the stored owner without inventing a release.
+
+    A partial update that omits the continuation field for the same thread keeps the
+    last confirmed continuation. A different thread is new evidence and replaces it.
+    """
+    previous = previous or {}
+    owner = dict(observed)
+    same_thread = owner.get('thread_id') == previous.get('thread_id')
+    if same_thread and not owner.get('continuation_known'):
+        owner['continuation'] = previous.get('continuation')
+        owner['continuation_known'] = previous.get('continuation_known', False)
+    if same_thread and owner.get('status') == 'none' and previous.get('status') not in (
+            None, 'none'):
+        owner['status'] = previous.get('status')
+    if not owner.get('host_task_id'):
+        owner['host_task_id'] = previous.get('host_task_id')
+    return owner
 
 
 def owned_elsewhere(pr, self_thread):
@@ -412,32 +449,54 @@ def owned_elsewhere(pr, self_thread):
     Host states are normalised: active/running/starting/queued/waiting own the PR;
     a parked or terminal thread owns it only while a live continuation is recorded.
     An explicit handoff releases it. Historical links alone never exclude it forever.
+    When the continuation field is unavailable the guard stays conservative rather
+    than treating a partial update as a release.
     """
     owner = pr.get('owner') or {}
     thread = owner.get('thread_id')
     if not thread or thread == self_thread:
         return False
-    status = str(owner.get('status') or 'none').lower()
+    status = str(owner.get('status') or '').lower()
     continuation = owner.get('continuation')
-    if continuation in OWNER_RELEASED:
+    known = owner.get('continuation_known', continuation is not None)
+    if continuation in OWNER_RELEASED or status in OWNER_RELEASED_STATUSES:
         return False
     if status in OWNER_LIVE_STATUSES:
         return True
     if continuation in OWNER_CONTINUATIONS:
         return True
-    if status in OWNER_PARKED_STATUSES:
-        return False
+    if not known:
+        # A parked/terminal row whose continuation was not reported is not evidence
+        # that the maintainer handed the PR back.
+        return True
     return False
 
 
 def required_contexts(observation):
-    """Required check names, or None when this snapshot does not know them."""
+    """Complete configured required-check names, or None when unknown.
+
+    Only a snapshot that can enumerate the configured set (for example a full read
+    with branch-protection evidence) may claim completeness. A reader that lists
+    ``isRequired`` on the contexts it saw knows only an observed subset.
+    """
     value = observation.get('required_contexts')
     known = observation.get('required_contexts_known')
     if known is False or value is None:
         return None
     if not isinstance(value, list):
         raise ContinuousError('required_contexts must be a list or null')
+    return [str(name) for name in value]
+
+
+def observed_required_contexts(observation):
+    """Required names among the observed contexts; an explicitly partial subset."""
+    value = observation.get('required_contexts_observed')
+    if value is None:
+        if observation.get('required_contexts_known') is not False:
+            return None
+        value = observation.get('required_contexts')
+    if not isinstance(value, list):
+        return None
     return [str(name) for name in value]
 
 
@@ -462,15 +521,19 @@ def stale_evidence(observation, checks):
 def blocking_failures(observation, failing):
     """Failing checks that actually block landing, or every failing check when unknown.
 
-    GitHub reports UNSTABLE only when every required check passed and an optional one
-    failed, so that state is not blocking even without required-context names. A
-    FAILURE rollup with no required-context evidence stays conservative.
+    GitHub's ``StatusCheckRollup.state`` is a ``StatusState`` and has no ``UNSTABLE``
+    value; optional-failure evidence comes from ``mergeStateStatus`` instead. A
+    single-PR reader can bind ``isRequired`` on the contexts it saw, which safely
+    identifies present required checks, while a complete configured set is unknown.
     """
-    checks_state = str(observation.get('checks_state') or '').upper()
     required = required_contexts(observation)
     if required is not None:
         return [name for name in failing if name in required]
-    if checks_state == 'UNSTABLE':
+    observed = observed_required_contexts(observation)
+    if observed:
+        return [name for name in failing if name in observed]
+    merge_state = str(observation.get('merge_state_status') or '').upper()
+    if merge_state == 'UNSTABLE':
         return []
     return list(failing)
 
@@ -529,10 +592,14 @@ def settlement_attempts(pr, prefix):
 
 
 def settle_superseded(pr, head):
-    """Mark merge attempts bound to an older head as superseded, preserving history."""
+    """Mark launched merge attempts bound to an older head as superseded.
+
+    A reservation that has not reached the host is never superseded: it is the only
+    record that stops a competing writer while the launch is in flight.
+    """
     for row in pr.get('dispatches', []):
         if row.get('kind') == 'merge' and row.get('head') != head \
-                and dispatch_status(row) in OPEN_DISPATCH:
+                and dispatch_status(row) in ('pending', 'armed'):
             row['status'] = 'superseded'
             row['completed_at'] = row.get('completed_at') or pr.get('last_seen_at')
 
@@ -692,12 +759,16 @@ def reconcile_pr(pr, state, now, discovery):
                  'next_check_at': deadline(now, cadence)}, queue,
                 {'kind': 'queue-age-unknown', 'detail': detail}, progress)
 
-    if observation.get('checks_source') == 'full' and observation.get('checks_complete') is False:
+    if observation.get('checks_complete') is False:
+        source = observation.get('checks_source')
+        detail = ('the check-context read is incomplete; fetch the remaining pages'
+                  if source == 'full' else
+                  'the reader snapshot is missing check contexts beyond its context page; '
+                  're-read this PR with a paginated or targeted context read')
         return ({'pr': pr['url'], 'kind': 'wait-checks',
-                 'reason': 'the check-context read is incomplete; fetch the remaining pages',
-                 'next_check_at': deadline(now, cadence)}, queue,
-                {'kind': 'incomplete-checks',
-                 'detail': 'full check snapshot did not include every context'}, progress)
+                 'reason': detail, 'next_check_at': deadline(now, cadence)}, queue,
+                {'kind': 'incomplete-checks', 'detail': detail,
+                 'continuation': f"re-read {pr['repo']}#{pr['number']} contexts"}, progress)
 
     if observation.get('checks_source') == 'full' and required is not None:
         observed = {c['name'] for c in checks}
@@ -739,8 +810,10 @@ def reconcile_pr(pr, state, now, discovery):
             checks_ok = all(name in observed for name in required)
     else:
         # A reader line lists only pending and failing contexts. GitHub's aggregate
-        # state already encodes the required-check result.
-        checks_ok = checks_state in ('SUCCESS', 'EXPECTED', 'UNSTABLE')
+        # merge state already encodes the required-check result; optional failures
+        # surface as mergeStateStatus UNSTABLE, never as a StatusState.
+        checks_ok = (checks_state in ('SUCCESS', 'EXPECTED')
+                     or str(observation.get('merge_state_status') or '').upper() == 'UNSTABLE')
     mergeable = str(observation.get('mergeable') or '').upper() == 'MERGEABLE'
     if mergeable and merge_state in ('CLEAN', 'HAS_HOOKS', 'UNSTABLE', '') \
             and not queue['pending'] and not failing and threads == 0 and checks_ok:
@@ -789,45 +862,58 @@ def reconcile_pr(pr, state, now, discovery):
 
 
 def scheduler_report(state, now):
-    """Separate authorization, recorded schedule existence and observed delivery."""
+    """Separate authorization, recorded schedule existence and observed delivery.
+
+    A stored receipt stops being a confirmed upcoming wake the moment the run is no
+    longer in scheduled mode. It is preserved as history (``historical_next_run_at``)
+    instead of being republished as ``next_wake_at``.
+    """
     scheduler = state['scheduler']
     mode = scheduler.get('mode')
     schedule_id = scheduler.get('schedule_id')
-    next_run = scheduler.get('next_run_at')
+    stored_next = scheduler.get('next_run_at')
     stopped = scheduler.get('stopped') or {}
-    overdue = False
-    if next_run:
-        overdue = parse_time(next_run, 'next_run_at') < now
-    if mode != 'scheduled':
-        coverage = 'event-only'
-        gap = scheduler.get('gap') or (
-            'event-only: no idle discovery, queue-age diagnosis or stalled-work wake')
-    elif stopped and stopped.get('verified') is not True:
-        coverage = 'stop-unverified'
-        gap = scheduler.get('gap') or (
-            'stop requested but not verified; verify the schedule is absent before re-arming')
-    elif stopped.get('verified') is True and not schedule_id:
-        coverage = 'stopped'
-        gap = 'host schedule stopped and verified; no wake will arrive until re-armed'
-    elif schedule_id:
-        coverage = 'scheduled'
-        gap = None
-    else:
-        coverage = 'scheduled-unverified'
-        gap = scheduler.get('gap') or (
-            'scheduler authorized but no host schedule receipt is recorded')
-    return {
+    report = {
         'mode': mode,
         'schedule_id': schedule_id,
-        'next_run_at': next_run,
+        'next_run_at': stored_next,
+        'historical_next_run_at': None,
         'stop': scheduler.get('stop'),
-        'gap': gap,
-        'coverage': coverage,
-        'overdue': overdue,
+        'gap': None,
+        'coverage': None,
+        'overdue': False,
         'awaiting_receipt': bool(scheduler.get('awaiting_receipt')),
         'last_wake_at': scheduler.get('last_wake_at'),
         'last_wake_kind': scheduler.get('last_wake_kind'),
     }
+    if mode != 'scheduled':
+        report.update({
+            'coverage': 'event-only',
+            'next_run_at': None,
+            'historical_next_run_at': stored_next,
+            'gap': scheduler.get('gap') or (
+                'event-only: no idle discovery, queue-age diagnosis or stalled-work wake'),
+        })
+        return report
+    report['overdue'] = bool(stored_next and parse_time(stored_next, 'next_run_at') < now)
+    if stopped and stopped.get('verified') is not True:
+        report['coverage'] = 'stop-unverified'
+        report['gap'] = scheduler.get('gap') or (
+            'stop requested but not verified; verify the schedule is absent before re-arming')
+    elif stopped.get('verified') is True and not schedule_id:
+        report['coverage'] = 'stopped'
+        report['gap'] = ('host schedule stopped and verified; no wake will arrive until re-armed')
+        report['next_run_at'] = None
+        report['historical_next_run_at'] = stored_next
+        report['overdue'] = False
+    elif schedule_id:
+        report['coverage'] = 'scheduled'
+        report['gap'] = None
+    else:
+        report['coverage'] = 'scheduled-unverified'
+        report['gap'] = scheduler.get('gap') or (
+            'scheduler authorized but no host schedule receipt is recorded')
+    return report
 
 
 def reconcile_observation(state, observation, now, wake_id, wake_kind):
@@ -889,17 +975,23 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
             pr['last_seen_at'] = now_iso(now)
             pr['title'] = row['title'] or pr.get('title')
             if row['owner'] is not None:
-                pr['owner'] = row['owner']
+                pr['owner'] = merge_owner(pr.get('owner'), row['owner'])
             pr['observation'] = row['observation']
             pr['discovery_gap'] = None
             if is_excluded:
                 pr['state'] = 'excluded'
                 pr['excluded'] = 'draft, fork or explicit exclusion no longer matches the scope'
+                # An excluded row keeps its history but may not publish a stale action.
+                pr['next_action'] = None
+                pr['blocked'] = None
+                pr['queue'] = None
+                pr['excluded_at'] = now_iso(now)
                 excluded_rows.append({'pr': row['url'], 'reason': pr['excluded']})
                 continue
             if pr['state'] == 'excluded':
                 pr['state'] = 'open'
                 pr['excluded'] = None
+                pr.pop('excluded_at', None)
             if pr['state'] == 'closed' and row['observation']['state'] == 'OPEN':
                 pr['state'] = 'open'
                 pr['reopened_at'] = now_iso(now)
@@ -920,11 +1012,13 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
                 pr['last_meaningful_progress_at'] = now_iso(now)
                 progressed = True
         # A fixer in flight is discovered from the observation (host handle state).
-        # Only an ingested result/local receipt clears the guard; a PR event alone
-        # must not let a merge race a running writer.
+        # Its observed handle is retained so only a matching ingested completion can
+        # clear the guard; a PR event alone must not let a merge race a running writer.
         if row['observation'].get('fixer_in_flight') and not pr['fixer'].get('in_flight'):
+            owner = pr.get('owner') or {}
             pr['fixer'] = {'in_flight': True, 'request_id': None,
-                           'started_at': pr['last_meaningful_progress_at']}
+                           'started_at': pr['last_meaningful_progress_at'],
+                           'host_task_id': owner.get('host_task_id')}
 
     # Omissions never close a known-open PR. Only explicit host state does.
     omitted = []
@@ -1043,11 +1137,16 @@ def cmd_start(args):
         'exclusions': list(args.exclude),
     }
     run_id = digest({'scope': scope, 'created_at': now_iso(now),
-                     'thread': args.thread_id})[:16]
+                     'thread': args.thread_id,
+                     'policy': {'cadence_seconds': cadence,
+                                'queue_threshold_seconds': queue_threshold,
+                                'stall_threshold_seconds': stall}})[:16]
     state = {
         'schema_version': SCHEMA_VERSION,
         'policy_version': POLICY_VERSION,
         'run_id': run_id,
+        'job_id': getattr(args, 'job_id', None),
+        'job_state_sha256': getattr(args, 'job_state_sha256', None),
         'created_at': now_iso(now),
         'updated_at': now_iso(now),
         'thread_id': args.thread_id,
@@ -1106,8 +1205,10 @@ def cmd_start(args):
 def schedule_request(state, state_file):
     scope = state['scope']
     generation = state['scheduler'].get('generation', 1)
+    # The durable run identity is part of the key: two runs for the same scope in the
+    # same thread must never share host idempotency, prompt or stop ownership.
     key = (f"babysitter-{scope['kind']}-{scope['value'].replace('/', '-')}"
-           f"-{POLICY_VERSION}-g{generation}")
+           f"-{POLICY_VERSION}-{state.get('run_id') or 'norun'}-g{generation}")
     package = state.get('package') or {}
     prompt = (
         f"Continue the authorised babysitter {scope['kind']} sweep for {scope['value']} "
@@ -1311,6 +1412,7 @@ def normalise_pr(raw, now):
         'required_contexts': raw.get('required_contexts'),
         'required_contexts_known': raw.get('required_contexts_known',
                                            raw.get('required_contexts') is not None),
+        'required_contexts_observed': raw.get('required_contexts_observed'),
         'unresolved_threads': normalise_threads(raw),
         'review_decision': raw.get('review_decision'),
         'review_threads_complete': raw.get('review_threads_complete'),
@@ -1342,6 +1444,14 @@ def cmd_observe(args):
 
 
 def cmd_dispatch(args):
+    """Reserve, then record, one dispatch.
+
+    A coordinator that is about to perform a host side effect must call this with
+    ``--reserve`` first: the row, the writer guard and the merge exclusion exist before
+    the host launches anything. The returned host handle is attached afterwards with a
+    second call naming the same request ID. A refused or uncertain launch is closed
+    with a terminal receipt so no phantom writer stays latched.
+    """
     path = state_path(args.state)
     with locked_state(path) as state:
         if state.get('cancelled'):
@@ -1352,10 +1462,31 @@ def cmd_dispatch(args):
         require(bool(args.request_id), '--request-id is required')
         require(args.kind in ('fixer', 'merge', 'resolution'),
                 'dispatch kind must be fixer, merge or resolution')
+        reserve = bool(getattr(args, 'reserve', False))
         existing = next((row for row in pr['dispatches'] if row['request_id'] == args.request_id), None)
         if existing:
+            require(existing['kind'] == args.kind,
+                    f"request {args.request_id} is a {existing['kind']} dispatch, not {args.kind}")
+            if (not reserve and args.host_task_id and not existing.get('host_task_id')
+                    and dispatch_status(existing) == 'reserved'):
+                existing['host_task_id'] = args.host_task_id
+                existing['status'] = 'pending'
+                existing['attached_at'] = now_iso(now)
+                if existing['kind'] == 'fixer' and pr.get('fixer'):
+                    pr['fixer']['host_task_id'] = args.host_task_id
+                audit(state, now, 'dispatch-attach', pr=args.pr,
+                      request_id=args.request_id, host_task_id=args.host_task_id)
+                save_json(path, state)
+                return {'status': 'recorded', 'attached': True, 'dispatch': existing,
+                        'host_task_id': args.host_task_id}
+            if reserve and dispatch_status(existing) == 'reserved':
+                return {'status': 'already-reserved', 'request_id': args.request_id,
+                        'dispatch': existing}
             return {'status': 'duplicate', 'request_id': args.request_id,
                     'host_task_id': existing.get('host_task_id'), 'dispatch': existing}
+        if reserve and args.host_task_id:
+            raise ContinuousError(
+                'reserve before the host side effect; attach --host-task-id afterwards')
         fixer = pr.get('fixer') or {}
         merge = live_merge_dispatch(pr)
         if args.kind == 'fixer':
@@ -1367,14 +1498,16 @@ def cmd_dispatch(args):
                     f"merge {merge['request_id']} is pending for {args.pr}; a fixer may not race it")
             row = {'request_id': args.request_id, 'host_task_id': args.host_task_id,
                    'kind': 'fixer', 'head': args.head or (pr.get('observation') or {}).get('head_sha'),
-                   'status': 'pending', 'attempt': int(args.attempt or 1),
+                   'status': 'reserved' if reserve else 'pending',
+                   'attempt': int(args.attempt or 1),
                    'review_triage': bool(args.review_triage),
                    'created_at': now_iso(now)}
             pr['dispatches'].append(row)
             pr['fixer'] = {'in_flight': True, 'request_id': args.request_id,
-                           'started_at': now_iso(now)}
-            audit(state, now, 'dispatch', pr=args.pr, request_id=args.request_id,
-                  host_task_id=args.host_task_id)
+                           'started_at': now_iso(now),
+                           'host_task_id': args.host_task_id}
+            audit(state, now, 'dispatch-reserve' if reserve else 'dispatch', pr=args.pr,
+                  request_id=args.request_id, host_task_id=args.host_task_id)
             save_json(path, state)
             return {'status': 'recorded', 'dispatch': row, 'fixer': pr['fixer']}
         if args.kind == 'merge':
@@ -1398,11 +1531,13 @@ def cmd_dispatch(args):
                     "resolve threads only after its result is ingested")
         row = {'request_id': args.request_id, 'kind': args.kind,
                'head': args.head or (pr.get('observation') or {}).get('head_sha'),
-               'status': 'pending', 'attempt': int(args.attempt or 1),
-               'created_at': now_iso(now)}
+               'status': 'reserved' if reserve else 'pending',
+               'attempt': int(args.attempt or 1),
+               'created_at': now_iso(now),
+               'host_task_id': args.host_task_id}
         pr['dispatches'].append(row)
-        audit(state, now, 'dispatch', pr=args.pr, request_id=args.request_id,
-              dispatch_kind=args.kind)
+        audit(state, now, 'dispatch-reserve' if reserve else 'dispatch', pr=args.pr,
+              request_id=args.request_id, dispatch_kind=args.kind)
         save_json(path, state)
         return {'status': 'recorded', 'dispatch': row}
 
@@ -1421,49 +1556,78 @@ def cmd_receipt(args):
         require(bool(args.request_id), '--request-id is required')
         row = next((item for item in pr['dispatches']
                     if item['request_id'] == args.request_id), None)
-        if row is None and getattr(args, 'kind', None) == 'fixer' and \
-                (pr.get('fixer') or {}).get('in_flight') and \
-                (pr.get('fixer') or {}).get('request_id') is None:
-            # The guard was adopted from a host observation before this helper saw
-            # the dispatch. Accept the first matching receipt as its terminal record.
+        guard = pr.get('fixer') or {}
+        if row is None and getattr(args, 'kind', None) == 'fixer' and guard.get('in_flight') \
+                and guard.get('request_id') is None:
+            # The guard was adopted from a host observation before this helper saw the
+            # dispatch. Only the writer's observed handle may close it: an arbitrary
+            # historical request ID is not evidence about this writer.
+            observed_handle = guard.get('host_task_id')
+            require(bool(observed_handle),
+                    'the adopted writer has no recorded host handle; re-observe it with '
+                    'owner.host_task_id before recording a completion')
+            require(args.host_task_id == observed_handle,
+                    f'receipt handle {args.host_task_id!r} does not match the adopted '
+                    f'writer handle {observed_handle!r}')
             row = {'request_id': args.request_id, 'kind': 'fixer',
                    'head': (pr.get('observation') or {}).get('head_sha'),
+                   'host_task_id': observed_handle,
                    'status': 'pending', 'attempt': 1, 'created_at': now_iso(now)}
             pr['dispatches'].append(row)
         require(row is not None, f'unknown dispatch: {args.request_id}')
-        require(args.status in ('succeeded', 'failed', 'rejected', 'cancelled',
-                                'superseded', 'armed', 'no-change'),
-                'unsupported receipt status')
+        allowed = KIND_RECEIPT_STATUSES[row['kind']]
+        require(args.status in allowed,
+                f"{row['kind']} receipts accept {', '.join(sorted(allowed))}; "
+                f"{args.status!r} is not a terminal outcome for that kind")
         if dispatch_status(row) in TERMINAL_DISPATCH and dispatch_status(row) == args.status:
             return {'status': 'duplicate', 'changed': False, 'request_id': args.request_id,
                     'dispatch': row}
         if args.head and row.get('head') and args.head != row['head']:
             raise ContinuousError(
                 f"receipt head {args.head} differs from dispatch head {row['head']}")
+        if args.host_task_id and row.get('host_task_id') and \
+                args.host_task_id != row['host_task_id']:
+            raise ContinuousError(
+                f"receipt handle {args.host_task_id} differs from dispatch handle "
+                f"{row['host_task_id']}")
         result_digest = None
         if args.result:
             result_path = Path(args.result).expanduser()
             require(result_path.is_file(), f'result file does not exist: {result_path}')
             result_digest = sha256_file(result_path)
-        if row['kind'] == 'fixer' and args.status in ('succeeded', 'no-change') and not result_digest:
+        if row['kind'] == 'fixer' and args.status in ('succeeded', 'no-change') \
+                and not result_digest:
             raise ContinuousError('a successful fixer receipt needs --result <ingested result>')
-        stale = row['kind'] == 'fixer' and pr.get('fixer', {}).get('request_id') not in (
-            None, args.request_id)
+        stale = False
+        if row['kind'] == 'fixer' and guard.get('in_flight'):
+            if guard.get('request_id') is not None:
+                stale = guard['request_id'] != args.request_id
+            else:
+                # An adopted guard is identified only by the handle observed with it.
+                handle = row.get('host_task_id') or args.host_task_id
+                stale = not (guard.get('host_task_id') and
+                             handle == guard['host_task_id'])
         row['status'] = args.status
-        row['completed_at'] = now_iso(now)
+        if args.status in TERMINAL_DISPATCH:
+            row['completed_at'] = now_iso(now)
+        else:
+            row['armed_at'] = now_iso(now)
         if result_digest:
             row['result_digest'] = result_digest
-        if args.status == 'armed':
-            row['status'] = 'armed'
-        if row['kind'] == 'fixer' and not stale:
+        if args.reason:
+            row['note'] = str(args.reason)[:500]
+        if row['kind'] == 'fixer' and not stale and args.status in TERMINAL_DISPATCH:
+            # Only a verified terminal outcome releases the writer guard. 'armed' is a
+            # merge state and proves nothing about a fixer's completion.
             pr['fixer'] = {'in_flight': False, 'request_id': None, 'started_at': None}
-            if args.status in ('succeeded', 'no-change'):
+            if args.status in ('succeeded', 'no-change') and result_digest:
                 # An ingested, verified result is real progress; a replay is not.
                 pr['last_meaningful_progress_at'] = now_iso(now)
         audit(state, now, 'receipt', pr=args.pr, request_id=args.request_id,
               status=args.status, stale=stale)
         save_json(path, state)
-        return {'status': 'stale' if stale else 'recorded', 'changed': not stale,
+        return {'status': 'stale' if stale else 'recorded',
+                'changed': not stale and args.status in TERMINAL_DISPATCH,
                 'request_id': args.request_id, 'dispatch': row,
                 'fixer': pr.get('fixer')}
 
@@ -1509,6 +1673,41 @@ def cmd_cancel(args):
                 'instruction': 'stop the owned host schedule; no further actions will be produced'}
 
 
+def validate_upgrade_receipt(receipt_path, state, owner_decision, installed):
+    """Validate the supported ``job_cli.py upgrade-package`` receipt.
+
+    A migration may not replace the pinned identity on the strength of a version flag
+    alone. The receipt must come from the upgrade operation and bind the target package
+    (and, when known, the pinned job and its previous state) to this decision.
+    """
+    receipt_path = Path(receipt_path).expanduser()
+    require(receipt_path.is_file(), f'upgrade receipt does not exist: {receipt_path}')
+    receipt = load_json(receipt_path)
+    require(isinstance(receipt, dict), 'the upgrade receipt must be a JSON object')
+    require(receipt.get('package_digest') == installed['digest'],
+            'the upgrade receipt does not name the running package digest; '
+            'run job_cli.py upgrade-package for this installed package')
+    if receipt.get('package_dir'):
+        require(Path(receipt['package_dir']).resolve() ==
+                Path(installed['package_dir']).resolve(),
+                'the upgrade receipt package directory is not the running package')
+    job_id = state.get('job_id')
+    if job_id:
+        require(receipt.get('job_id') == job_id,
+                f"the upgrade receipt job {receipt.get('job_id')!r} is not the pinned job "
+                f"{job_id!r}")
+    if receipt.get('owner_decision_id'):
+        require(receipt['owner_decision_id'] == owner_decision,
+                'the upgrade receipt owner decision does not match --owner-decision-id')
+    previous = receipt.get('previous_state') or {}
+    if previous.get('sha256') and state.get('job_state_sha256'):
+        require(previous['sha256'] == state['job_state_sha256'],
+                'the upgrade receipt previous state does not match this run')
+    return {'path': str(receipt_path), 'sha256': sha256_file(receipt_path),
+            'job_id': receipt.get('job_id'), 'package_digest': receipt.get('package_digest'),
+            'owner_decision_id': receipt.get('owner_decision_id')}
+
+
 def cmd_resume(args):
     path = state_path(args.state)
     require(fcntl is not None, 'continuous state locking requires a POSIX host with fcntl')
@@ -1532,7 +1731,14 @@ def cmd_resume(args):
         if args.package_version and pinned and args.package_version != pinned:
             gaps.append({'kind': 'package-version',
                          'state_pinned': pinned, 'installed_running': args.package_version})
-        if package.get('installed_digest') and package['installed_digest'] != installed['digest']:
+        if not package.get('installed_digest'):
+            # A state written before the fingerprint existed cannot prove which
+            # package produced it. Surface that instead of silently claiming identity.
+            gaps.append({'kind': 'missing-package-identity',
+                         'state_pinned': pinned,
+                         'detail': 'the state predates the installed-package fingerprint; '
+                                   'its package identity is unverified'})
+        elif package['installed_digest'] != installed['digest']:
             gaps.append({'kind': 'installed-drift',
                          'state_installed': package.get('installed_version'),
                          'installed_on_disk': installed['version'],
@@ -1545,6 +1751,8 @@ def cmd_resume(args):
                          'installed_on_disk': installed['version'],
                          'detail': 'this helper is not the pinned package; preserve the brief '
                                    'and use the supported job package upgrade first'})
+        drift = [gap for gap in gaps if gap['kind'] in
+                 ('package-version', 'installed-drift', 'missing-package-identity')]
         if state.get('cancelled') and not args.resume_cancelled and not gaps:
             return {'status': 'cancelled', 'cancelled': state['cancelled'],
                     'gaps': gaps, 'changed': False,
@@ -1556,6 +1764,11 @@ def cmd_resume(args):
                                    'with an owner decision after the supported package upgrade'}
         require(not gaps or args.owner_decision_id,
                 'accepting a policy/package migration requires --owner-decision-id')
+        if drift and not getattr(args, 'upgrade_receipt', None):
+            raise ContinuousError(
+                'package drift on this run needs the supported upgrade receipt: run '
+                'job_cli.py upgrade-package, then pass --upgrade-receipt <output.json> '
+                'with --accept-migration and --owner-decision-id')
         if gaps and args.package_version and installed['version'] and \
                 args.package_version.split('+', 1)[0] != installed['version']:
             raise ContinuousError(
@@ -1563,9 +1776,8 @@ def cmd_resume(args):
                 'upgrade-package before accepting the migration')
         upgrade_receipt = None
         if getattr(args, 'upgrade_receipt', None):
-            receipt_path = Path(args.upgrade_receipt).expanduser()
-            require(receipt_path.is_file(), f'upgrade receipt does not exist: {receipt_path}')
-            upgrade_receipt = {'path': str(receipt_path), 'sha256': sha256_file(receipt_path)}
+            upgrade_receipt = validate_upgrade_receipt(
+                args.upgrade_receipt, state, args.owner_decision_id, installed)
         changed = False
         if gaps:
             if state.get('migration') is None:
@@ -1673,7 +1885,7 @@ def cmd_status(args):
             'excluded': excluded,
             'prs': {url: {'state': pr.get('state'),
                           'next_action': pr.get('next_action'), 'blocked': pr.get('blocked'),
-                          'queue': pr.get('queue', {}).get('oldest'),
+                          'queue': (pr.get('queue') or {}).get('oldest'),
                           'last_meaningful_progress_at': pr.get('last_meaningful_progress_at'),
                           'owner': pr.get('owner'), 'fixer': pr.get('fixer')}
                     for url, pr in state['prs'].items()},
@@ -1701,6 +1913,8 @@ def build_parser():
     start.add_argument('--scope-kind', required=True)
     start.add_argument('--scope-value', required=True)
     start.add_argument('--thread-id')
+    start.add_argument('--job-id')
+    start.add_argument('--job-state-sha256')
     start.add_argument('--cadence-seconds', type=int, default=DEFAULT_CADENCE_SECONDS)
     start.add_argument('--queue-threshold-seconds', type=int, default=DEFAULT_QUEUE_THRESHOLD_SECONDS)
     start.add_argument('--stall-threshold-seconds', type=int, default=DEFAULT_STALL_THRESHOLD_SECONDS)
@@ -1755,6 +1969,8 @@ def build_parser():
     dispatch.add_argument('--head')
     dispatch.add_argument('--attempt', type=int)
     dispatch.add_argument('--review-triage', action='store_true')
+    dispatch.add_argument('--reserve', action='store_true',
+                          help='record the action before any host side effect')
     dispatch.set_defaults(func=cmd_dispatch)
 
     receipt = sub.add_parser('receipt')
@@ -1767,6 +1983,8 @@ def build_parser():
                                   'superseded', 'armed', 'no-change'))
     receipt.add_argument('--head')
     receipt.add_argument('--result')
+    receipt.add_argument('--host-task-id')
+    receipt.add_argument('--reason')
     receipt.add_argument('--kind', choices=('fixer', 'merge', 'resolution'))
     receipt.set_defaults(func=cmd_receipt)
 
@@ -1777,6 +1995,8 @@ def build_parser():
     done.add_argument('--request-id', required=True)
     done.add_argument('--result', required=True)
     done.add_argument('--head')
+    done.add_argument('--host-task-id')
+    done.add_argument('--reason')
     done.set_defaults(func=cmd_receipt, status='succeeded', kind='fixer')
 
     resolve = sub.add_parser('resolve')

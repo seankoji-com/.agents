@@ -49,7 +49,8 @@ def list_prs_fragment(*, pr_number=None):
     text = (ROOT / 'plugins/babysitter/scripts/list-prs.sh').read_text()
     match = re.search(r"read -r -d '' PR_FRAGMENT <<GRAPHQL \|\| true\n(.*?)\nGRAPHQL\n", text, re.S)
     field = f'isRequired(pullRequestNumber: {pr_number})' if pr_number is not None else ''
-    return match.group(1).replace('${CHECK_REQUIRED_FIELD}', field)
+    return (match.group(1).replace('${CHECK_REQUIRED_FIELD}', field)
+            .replace('${STATUS_REQUIRED_FIELD}', field))
 
 
 class Sidecar:

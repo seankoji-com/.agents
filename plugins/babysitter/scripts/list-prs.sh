@@ -51,9 +51,10 @@
 #
 # Check-context completeness per PR: checks_complete is false when the rollup has more
 # contexts than this query fetched (contexts first:100). failing and pending_checks are
-# lower bounds in that case. required_contexts is present only for a single-PR read,
-# where CheckRun.isRequired can be asked for that PR number; a search page leaves it
-# null and required_contexts_known false.
+# lower bounds in that case. A single-PR read also binds isRequired on the CheckRun and
+# StatusContext nodes it saw (required_contexts / required_contexts_observed); that is
+# an observed subset, so required_contexts_known is false and a search page leaves all
+# three null/false.
 #
 # Query cost: GitHub prices a GraphQL call by the connection requests it could need,
 # from the first/last arguments, not the rows actually returned. The thread comments
@@ -358,12 +359,15 @@ elif [ -z "$ORG" ]; then
   die "one of --org or --repo is required"
 fi
 
-# CheckRun.isRequired takes the pull request number, which is only known when this
-# reader was asked for one PR. A search page cannot bind it, so required_contexts
-# stays null there and the coordinator classifies from the rollup state instead.
+# CheckRun.isRequired and StatusContext.isRequired take the pull request number, which
+# is only known when this reader was asked for one PR. A search page cannot bind them,
+# so required_contexts stays null there and the coordinator classifies from the rollup
+# and merge state instead.
 CHECK_REQUIRED_FIELD=""
+STATUS_REQUIRED_FIELD=""
 if [ -n "$PR_NUMBER" ]; then
   CHECK_REQUIRED_FIELD="isRequired(pullRequestNumber: ${PR_NUMBER})"
+  STATUS_REQUIRED_FIELD="isRequired(pullRequestNumber: ${PR_NUMBER})"
 fi
 
 # The PullRequest selection is written once and reused by both query shapes, so a
@@ -414,7 +418,7 @@ fragment PRState on PullRequest {
             nodes {
               __typename
               ... on CheckRun { name status conclusion startedAt detailsUrl ${CHECK_REQUIRED_FIELD} }
-              ... on StatusContext { context state createdAt }
+              ... on StatusContext { context state createdAt ${STATUS_REQUIRED_FIELD} }
             }
           }
         }
@@ -617,15 +621,32 @@ printf '%s' "$RAW" | jq -c \
           checks_total: ($head.statusCheckRollup.contexts.totalCount // null),
           failing: ($head.statusCheckRollup.contexts.nodes // [] | failing_contexts),
           pending_checks: ($head.statusCheckRollup.contexts.nodes // [] | pending_checks),
-          # Only a single-PR read can bind CheckRun.isRequired. Null elsewhere so the
-          # coordinator treats required-context evidence as unknown, not empty.
+          # Only a single-PR read can bind isRequired on the contexts it saw. That is
+          # an observed subset: a required context that is absent from this page cannot
+          # be enumerated here, so required_contexts_known stays false. Null elsewhere so
+          # the coordinator treats required-context evidence as unknown, not empty.
           required_contexts: (
             if $pr_mode == 1 then
               ([ $head.statusCheckRollup.contexts.nodes[]?
-                 | select(.__typename == "CheckRun" and .isRequired == true) | .name ] | unique)
+                 | if .__typename == "CheckRun" then
+                     select(.isRequired == true) | .name
+                   elif .__typename == "StatusContext" then
+                     select(.isRequired == true) | .context
+                   else empty end ] | unique)
             else null end
           ),
-          required_contexts_known: ($pr_mode == 1),
+          # Present required contexts (a safe subset), not the complete configured set.
+          required_contexts_observed: (
+            if $pr_mode == 1 then
+              ([ $head.statusCheckRollup.contexts.nodes[]?
+                 | if .__typename == "CheckRun" then
+                     select(.isRequired == true) | .name
+                   elif .__typename == "StatusContext" then
+                     select(.isRequired == true) | .context
+                   else empty end ] | unique)
+            else null end
+          ),
+          required_contexts_known: false,
           # The oldest pending job drives queue-age diagnosis at the coordinator
           # observation time. Null when every observed check has finished.
           oldest_pending_check: (

@@ -10,6 +10,7 @@ coordinator entry point, which reconciles discovery and reserves the resulting a
 These are simulated integration tests; they do not prove a live T3 schedule or wake.
 """
 import fcntl
+import importlib.util
 import json
 import os
 import shutil
@@ -66,8 +67,8 @@ class ContinuousCase(unittest.TestCase):
         self.request = self.base / 'request.txt'
         self.request.write_text('/t3-babysitter org fixture owner authorised continuous coverage\n')
 
-    def cli(self, command, *args, ok=True, helper=HELPER, payload=None):
-        argv = [sys.executable, str(helper), command, '--state', str(self.state), *args]
+    def cli(self, command, *args, ok=True, helper=HELPER, payload=None, state=None):
+        argv = [sys.executable, str(helper), command, '--state', str(state or self.state), *args]
         if payload is not None:
             path = self.base / f'input-{len(list(self.base.glob("input-*")))}.json'
             path.write_text(json.dumps(payload))
@@ -80,11 +81,13 @@ class ContinuousCase(unittest.TestCase):
         return proc
 
     def start(self, *, scheduler='scheduled', cadence=600, threshold=900, stall=1800,
-              kind='org', value='fixture', exclusions=(), helper=HELPER):
+              kind='org', value='fixture', exclusions=(), helper=HELPER, job_id=None):
         args = ['--now', '2026-10-22T14:00:00Z', '--scope-kind', kind,
                 '--scope-value', value, '--cadence-seconds', str(cadence),
                 '--queue-threshold-seconds', str(threshold),
                 '--stall-threshold-seconds', str(stall), '--thread-id', 'self']
+        if job_id:
+            args += ['--job-id', job_id]
         if scheduler == 'scheduled':
             args += ['--scheduler', 'scheduled', '--authorization-source', str(self.request)]
         else:
@@ -237,17 +240,18 @@ class DiscoveryAdmissionTest(ContinuousCase):
     def test_partial_reader_allows_unstable_when_required_contexts_pass(self):
         self.start()
         # A normal search-reader row carries no required-context names. GitHub's
-        # UNSTABLE rollup already means every required check passed and an optional
+        # mergeStateStatus UNSTABLE means every required check passed and an optional
         # one failed, so the optional failure must not become a repair dispatch.
+        # StatusCheckRollup.state has no UNSTABLE value, so the rollup is FAILURE.
         row = {'repo': REPO_A, 'number': 12, 'state': 'OPEN', 'head_oid': H1,
                'draft': False, 'fork': False, 'mergeable': 'MERGEABLE',
-               'merge_state_status': 'UNSTABLE', 'checks_state': 'UNSTABLE',
+               'merge_state_status': 'UNSTABLE', 'checks_state': 'FAILURE',
                'unresolved_threads': 0, 'review_threads_complete': True,
                'checks_complete': True, 'pending_checks': [], 'failing': ['optional-lint']}
         result = self.observe('2026-10-22T14:05:00Z', observation(row), wake='unstable')
         self.assertEqual(result['actions'][0]['kind'], 'merge')
 
-        row['checks_state'] = 'FAILURE'
+        row['merge_state_status'] = 'BLOCKED'
         row['failing'] = ['ci']
         refused = self.observe('2026-10-22T14:06:00Z', observation(row), wake='required-fail')
         self.assertEqual(refused['actions'][0]['kind'], 'dispatch-fixer')
@@ -531,6 +535,200 @@ class CausalSchedulerTest(ContinuousCase):
         self.assertEqual(len(host.dispatched), 1)
 
 
+class RecordingHost(FakeHost):
+    """Fake host that observes the state at the moment a real launch would happen."""
+
+    def __init__(self, snapshot, state_path, *, refuse=False, raise_error=False):
+        super().__init__(snapshot)
+        self.state_path = Path(state_path)
+        self.refuse = refuse
+        self.raise_error = raise_error
+        self.seen_statuses = []
+        self.competing_returncode = None
+        self.competing_stderr = ''
+
+    def dispatch(self, action, now):
+        state = json.loads(self.state_path.read_text())
+        pr_state = state['prs'][action['pr']]
+        row = next(item for item in pr_state['dispatches']
+                   if item['request_id'] == action['request_id'])
+        self.seen_statuses.append(row['status'])
+        # A competing writer must be refused while the reservation is the only record.
+        proc = subprocess.run(
+            [sys.executable, str(HELPER), 'dispatch', '--state', str(self.state_path),
+             '--now', now, '--pr', action['pr'], '--request-id', 'competing-fixer',
+             '--kind', 'fixer', '--head', action.get('head')],
+            capture_output=True, text=True, timeout=30)
+        self.competing_returncode = proc.returncode
+        self.competing_stderr = proc.stderr
+        if self.raise_error:
+            raise RuntimeError('scheduler unavailable')
+        if self.refuse:
+            return {'status': 'rejected', 'reason': 'host refused'}
+        return super().dispatch(action, now)
+
+
+class DispatchReservationTest(ContinuousCase):
+    def failing(self):
+        return [{'name': 'lint', 'status': 'COMPLETED', 'conclusion': 'FAILURE'}]
+
+    def arm(self, host):
+        host.clock = '2026-10-22T14:00:00Z'
+        self.start()
+        return continuous_sweep.arm(host, self.state, '2026-10-22T14:00:00Z')
+
+    def test_the_reservation_exists_before_the_host_launch_and_refusal_is_reconciled(self):
+        host = RecordingHost(observation(pr(checks=self.failing())), self.state, refuse=True)
+        self.assertEqual(self.arm(host)['status'], 'armed')
+        result = continuous_sweep.tick(host, self.state, '2026-10-22T14:10:00Z')
+        self.assertEqual(host.seen_statuses, ['reserved'])
+        self.assertNotEqual(host.competing_returncode, 0)
+        self.assertIn('already in flight', host.competing_stderr)
+        self.assertEqual(result[0]['dispatched'][0]['status'], 'rejected')
+        state = json.loads(self.state.read_text())
+        pr_state = state['prs']['https://github.com/fixture/widgets/pull/12']
+        self.assertFalse(pr_state['fixer']['in_flight'])
+        self.assertEqual(pr_state['dispatches'][0]['status'], 'rejected')
+        retried = self.observe('2026-10-22T14:11:00Z',
+                               observation(pr(checks=self.failing())), wake='retry')
+        self.assertEqual(retried['actions'][0]['kind'], 'dispatch-fixer')
+        self.assertIn('-a2', retried['actions'][0]['request_id'])
+
+    def test_a_launch_exception_closes_the_reservation_instead_of_latching_a_writer(self):
+        host = RecordingHost(observation(pr(checks=self.failing())), self.state,
+                             raise_error=True)
+        self.arm(host)
+        result = continuous_sweep.tick(host, self.state, '2026-10-22T14:10:00Z')
+        self.assertEqual(result[0]['dispatched'][0]['status'], 'launch-error')
+        self.assertEqual(result[0]['dispatched'][0]['reconciled'], 'recorded')
+        state = json.loads(self.state.read_text())
+        pr_state = state['prs']['https://github.com/fixture/widgets/pull/12']
+        self.assertFalse(pr_state['fixer']['in_flight'])
+        self.assertEqual(pr_state['dispatches'][0]['status'], 'failed')
+        green = self.observe('2026-10-22T14:11:00Z', observation(pr()), wake='green')
+        self.assertEqual(green['actions'][0]['kind'], 'merge')
+
+
+class ReceiptKindTest(ContinuousCase):
+    URL = 'https://github.com/fixture/widgets/pull/12'
+
+    def test_armed_is_not_a_fixer_outcome_and_does_not_release_the_writer_guard(self):
+        self.start()
+        failing = [{'name': 'lint', 'status': 'COMPLETED', 'conclusion': 'FAILURE'}]
+        action = self.observe('2026-10-22T14:05:00Z', observation(pr(checks=failing)),
+                              wake='fail')['actions'][0]
+        self.cli('dispatch', '--now', '2026-10-22T14:05:00Z', '--pr', self.URL,
+                 '--request-id', action['request_id'], '--kind', 'fixer',
+                 '--head', H1, '--reserve')
+        refused = self.cli('receipt', '--now', '2026-10-22T14:05:30Z', '--pr', self.URL,
+                           '--request-id', action['request_id'], '--status', 'armed',
+                           ok=False)
+        self.assertIn('not a terminal outcome', refused.stderr)
+        state = json.loads(self.state.read_text())
+        self.assertTrue(state['prs'][self.URL]['fixer']['in_flight'])
+        guarded = self.observe('2026-10-22T14:06:00Z', observation(pr()), wake='green')
+        self.assertEqual(guarded['actions'][0]['kind'], 'wait-fixer')
+
+    def test_an_armed_merge_stays_pending_and_keeps_writers_out(self):
+        self.start()
+        action = self.observe('2026-10-22T14:05:00Z', observation(pr()), wake='green')['actions'][0]
+        self.assertEqual(action['kind'], 'merge')
+        self.cli('dispatch', '--now', '2026-10-22T14:05:00Z', '--pr', self.URL,
+                 '--request-id', action['request_id'], '--kind', 'merge', '--head', H1)
+        armed = self.cli('receipt', '--now', '2026-10-22T14:05:30Z', '--pr', self.URL,
+                         '--request-id', action['request_id'], '--status', 'armed')
+        self.assertEqual(armed['status'], 'recorded')
+        state = json.loads(self.state.read_text())
+        self.assertEqual(state['prs'][self.URL]['dispatches'][0]['status'], 'armed')
+        pending = self.observe('2026-10-22T14:06:00Z', observation(pr()), wake='watching')
+        self.assertEqual(pending['actions'][0]['kind'], 'merge-pending')
+        refused = self.cli('dispatch', '--now', '2026-10-22T14:06:30Z', '--pr', self.URL,
+                           '--request-id', 'fixer-race', '--kind', 'fixer',
+                           '--head', H1, ok=False)
+        self.assertIn('may not race', refused.stderr)
+
+
+class OwnerContinuationTest(ContinuousCase):
+    def test_a_missing_continuation_field_never_releases_a_live_maintainer(self):
+        self.start()
+        live = pr(owner={'thread_id': 'other', 'status': 'running',
+                         'continuation': 'maintainer-live'})
+        first = self.observe('2026-10-22T14:05:00Z', observation(live), wake='live')
+        self.assertEqual(first['actions'][0]['kind'], 'owned-elsewhere')
+        partial = pr(owner={'thread_id': 'other', 'status': 'completed'})
+        still = self.observe('2026-10-22T14:06:00Z', observation(partial), wake='partial')
+        self.assertEqual(still['actions'][0]['kind'], 'owned-elsewhere')
+        state = json.loads(self.state.read_text())
+        self.assertEqual(state['prs'][live['url']]['owner']['continuation'], 'maintainer-live')
+        handoff = pr(owner={'thread_id': 'other', 'status': 'completed',
+                            'continuation': 'handed-back'})
+        released = self.observe('2026-10-22T14:07:00Z', observation(handoff), wake='handoff')
+        self.assertEqual(released['actions'][0]['kind'], 'merge')
+
+
+class ReaderCompletenessTest(ContinuousCase):
+    def row(self, **overrides):
+        row = {'repo': REPO_A, 'number': 12, 'state': 'OPEN', 'head_oid': H1,
+               'draft': False, 'fork': False, 'mergeable': 'MERGEABLE',
+               'merge_state_status': 'CLEAN', 'checks_state': 'SUCCESS',
+               'unresolved_threads': 0, 'review_threads_complete': True,
+               'checks_complete': False, 'pending_checks': [], 'failing': []}
+        row.update(overrides)
+        return row
+
+    def test_reader_completeness_false_blocks_landing_with_a_continuation(self):
+        self.start()
+        result = self.observe('2026-10-22T14:05:00Z', observation(self.row()), wake='partial')
+        action = result['actions'][0]
+        self.assertEqual(action['kind'], 'wait-checks')
+        self.assertEqual(action['blocked']['kind'], 'incomplete-checks')
+        self.assertIn('re-read', action['blocked']['continuation'])
+
+    def test_an_unseen_queued_check_in_a_partial_reader_is_named_not_unknown(self):
+        self.start()
+        result = self.observe('2026-10-22T14:05:00Z',
+                              observation(self.row(checks_state='PENDING')), wake='pending')
+        action = result['actions'][0]
+        self.assertEqual(action['kind'], 'wait-checks')
+        self.assertEqual(action['blocked']['kind'], 'incomplete-checks')
+
+
+class SchedulerCoverageTest(ContinuousCase):
+    def test_losing_scheduler_capability_hides_the_historic_wake(self):
+        self.start()
+        self.record_schedule('sched-1', next_run='2026-10-22T14:10:00Z')
+        revoked = self.cli('scheduler', '--now', '2026-10-22T14:05:00Z',
+                           '--available', 'no', '--authorized', 'yes')
+        self.assertEqual(revoked['status'], 'event-only')
+        self.assertIsNone(revoked['scheduler']['next_run_at'])
+        self.assertEqual(revoked['scheduler']['historical_next_run_at'],
+                         '2026-10-22T14:10:00Z')
+        observed = self.observe('2026-10-22T14:06:00Z', observation(pr()), wake='event')
+        self.assertEqual(observed['coverage'], 'event-only')
+        self.assertIsNone(observed['next_wake_at'])
+        self.assertIsNone(observed['scheduler']['next_run_at'])
+        self.assertFalse(observed['scheduler']['overdue'])
+
+    def test_schedule_key_is_stable_per_run_and_distinct_between_runs(self):
+        self.start(cadence=600)
+        second = self.base / 'second-state.json'
+        self.cli('start', '--now', '2026-10-22T14:00:00Z', '--scope-kind', 'org',
+                 '--scope-value', 'fixture', '--scheduler', 'scheduled',
+                 '--authorization-source', str(self.request), '--thread-id', 'self',
+                 '--cadence-seconds', '900', state=second)
+        first_plan = self.cli('schedule-plan')
+        again = self.cli('schedule-plan')
+        other_plan = self.cli('schedule-plan', state=second)
+        self.assertEqual(first_plan['request']['clientRequestId'],
+                         again['request']['clientRequestId'])
+        self.assertNotEqual(first_plan['request']['clientRequestId'],
+                            other_plan['request']['clientRequestId'])
+        first_state = json.loads(self.state.read_text())
+        self.assertIn(first_state['run_id'], first_plan['request']['clientRequestId'])
+        self.assertIn(json.loads(second.read_text())['run_id'],
+                      other_plan['request']['clientRequestId'])
+
+
 class StateSafetyTest(ContinuousCase):
     def test_start_never_replaces_an_existing_run(self):
         self.start()
@@ -604,20 +802,52 @@ class StateSafetyTest(ContinuousCase):
 
 
 class AdoptedGuardTest(ContinuousCase):
-    def test_an_observed_writer_can_be_closed_by_its_first_receipt(self):
+    def test_an_observed_writer_can_be_closed_only_by_its_recorded_handle(self):
         self.start()
         url = 'https://github.com/fixture/widgets/pull/12'
         observed = pr(owner={'thread_id': 'self', 'status': 'active',
-                             'continuation': 'in-flight', 'fixer_in_flight': True})
+                             'continuation': 'in-flight', 'fixer_in_flight': True,
+                             'host_task_id': 'host-fixer-7'})
         held = self.observe('2026-10-22T14:05:00Z', observation(observed), wake='adopted')
         self.assertEqual(held['actions'][0]['kind'], 'wait-fixer')
         result = self.base / 'adopted-result.json'
         result.write_text('{"outcome":"fixed"}')
-        cleared = self.cli('fixer-done', '--now', '2026-10-22T14:06:00Z', '--pr', url,
-                           '--request-id', 'adopted-handle', '--result', str(result))
+        # An arbitrary historical request id and an unrelated result are not evidence
+        # about the observed writer.
+        unrelated = self.cli('fixer-done', '--now', '2026-10-22T14:06:00Z', '--pr', url,
+                             '--request-id', 'unrelated-old-task', '--result', str(result),
+                             ok=False)
+        self.assertIn('does not match the adopted writer', unrelated.stderr)
+        wrong_handle = self.cli('fixer-done', '--now', '2026-10-22T14:06:00Z', '--pr', url,
+                                '--request-id', 'adopted-handle', '--result', str(result),
+                                '--host-task-id', 'some-other-task', ok=False)
+        self.assertIn('does not match the adopted writer', wrong_handle.stderr)
+        state = json.loads(self.state.read_text())
+        progress = state['prs'][url]['last_meaningful_progress_at']
+        self.assertTrue(state['prs'][url]['fixer']['in_flight'])
+        still = self.observe('2026-10-22T14:06:30Z', observation(pr()), wake='still-held')
+        self.assertEqual(still['actions'][0]['kind'], 'wait-fixer')
+        self.assertEqual(json.loads(self.state.read_text())['prs'][url][
+            'last_meaningful_progress_at'], progress)
+        cleared = self.cli('fixer-done', '--now', '2026-10-22T14:07:00Z', '--pr', url,
+                           '--request-id', 'adopted-handle', '--result', str(result),
+                           '--host-task-id', 'host-fixer-7')
         self.assertEqual(cleared['status'], 'recorded')
-        landed = self.observe('2026-10-22T14:07:00Z', observation(pr()), wake='after')
+        landed = self.observe('2026-10-22T14:08:00Z', observation(pr()), wake='after')
         self.assertEqual(landed['actions'][0]['kind'], 'merge')
+
+    def test_an_adopted_writer_without_a_handle_cannot_be_released(self):
+        self.start()
+        url = 'https://github.com/fixture/widgets/pull/12'
+        observed = pr(owner={'thread_id': 'self', 'status': 'active',
+                             'continuation': 'in-flight', 'fixer_in_flight': True})
+        self.observe('2026-10-22T14:05:00Z', observation(observed), wake='adopted')
+        result = self.base / 'adopted-result.json'
+        result.write_text('{"outcome":"fixed"}')
+        refused = self.cli('fixer-done', '--now', '2026-10-22T14:06:00Z', '--pr', url,
+                           '--request-id', 'adopted-handle', '--result', str(result),
+                           ok=False)
+        self.assertIn('no recorded host handle', refused.stderr)
 
 
 class RepairAndMergeTest(ContinuousCase):
@@ -670,6 +900,8 @@ class RepairAndMergeTest(ContinuousCase):
         self.assertEqual(excluded['excluded'][0]['pr'], url)
         status = self.cli('status')
         self.assertEqual(status['prs'][url]['state'], 'excluded')
+        self.assertIsNone(status['prs'][url]['next_action'])
+        self.assertIsNone(status['prs'][url]['blocked'])
         self.assertEqual(status['open_prs'], [])
         returned = self.observe('2026-10-22T14:07:00Z', observation(pr()), wake='ready')
         self.assertEqual(returned['actions'][0]['kind'], 'merge')
@@ -911,6 +1143,72 @@ class PackagePreflightTest(ContinuousCase):
         self.assertIn('installed-drift', [gap['kind'] for gap in migration['gaps']])
         self.assertFalse(migration['changed'])
 
+    def test_package_drift_needs_the_supported_upgrade_receipt_for_the_target_package(self):
+        copied = self.base / 'plugin-copy'
+        shutil.copytree(PLUGIN, copied)
+        helper = copied / 'scripts' / 'continuous.py'
+        self.start(helper=helper)
+        (copied / 'references' / 'continuous.md').write_text(
+            (copied / 'references' / 'continuous.md').read_text() + '\nchanged snapshot\n')
+        identity = json.loads(subprocess.run(
+            [sys.executable, str(helper), 'version'], capture_output=True, text=True,
+            timeout=30).stdout)
+        refused = self.cli('resume', '--now', '2026-10-22T14:10:00Z',
+                           '--accept-migration', '--owner-decision-id', 'owner-one',
+                           helper=helper, ok=False)
+        self.assertIn('upgrade receipt', refused.stderr)
+        wrong = self.base / 'wrong-receipt.json'
+        wrong.write_text(json.dumps({'job_id': 'job-1', 'package_digest': '0' * 64,
+                                     'owner_decision_id': 'owner-one'}))
+        bad = self.cli('resume', '--now', '2026-10-22T14:10:00Z',
+                       '--accept-migration', '--owner-decision-id', 'owner-one',
+                       '--upgrade-receipt', str(wrong), helper=helper, ok=False)
+        self.assertIn('does not name the running package digest', bad.stderr)
+        receipt = self.base / 'upgrade-receipt.json'
+        receipt.write_text(json.dumps({'job_id': 'job-1', 'package_digest': identity['digest'],
+                                       'package_dir': str(copied),
+                                       'owner_decision_id': 'owner-one'}))
+        accepted = self.cli('resume', '--now', '2026-10-22T14:11:00Z',
+                            '--accept-migration', '--owner-decision-id', 'owner-one',
+                            '--upgrade-receipt', str(receipt), helper=helper)
+        self.assertEqual(accepted['status'], 'resumed')
+        self.assertEqual(accepted['migration']['upgrade_receipt']['package_digest'],
+                         identity['digest'])
+
+    def test_a_legacy_state_without_a_package_identity_is_a_migration_gap(self):
+        self.start()
+        state = json.loads(self.state.read_text())
+        state['package'] = {'pinned_version': None}
+        self.state.write_text(json.dumps(state))
+        migration = self.cli('resume', '--now', '2026-10-22T14:10:00Z')
+        self.assertEqual(migration['status'], 'migration-required')
+        self.assertIn('missing-package-identity', [gap['kind'] for gap in migration['gaps']])
+        self.assertFalse(migration['changed'])
+        refused = self.cli('resume', '--now', '2026-10-22T14:10:00Z',
+                           '--accept-migration', '--owner-decision-id', 'owner-one',
+                           ok=False)
+        self.assertIn('upgrade receipt', refused.stderr)
+
+    def test_an_upgrade_receipt_for_a_different_pinned_job_is_refused(self):
+        self.start(job_id='job-legacy')
+        copied = self.base / 'plugin-copy'
+        shutil.copytree(PLUGIN, copied)
+        helper = copied / 'scripts' / 'continuous.py'
+        state = json.loads(self.state.read_text())
+        state['package']['installed_digest'] = 'f' * 64
+        self.state.write_text(json.dumps(state))
+        identity = json.loads(subprocess.run(
+            [sys.executable, str(helper), 'version'], capture_output=True, text=True,
+            timeout=30).stdout)
+        receipt = self.base / 'wrong-job.json'
+        receipt.write_text(json.dumps({'job_id': 'job-other',
+                                       'package_digest': identity['digest'],
+                                       'package_dir': str(copied)}))
+        refused = self.cli('resume', '--now', '2026-10-22T14:10:00Z',
+                           '--accept-migration', '--owner-decision-id', 'owner-one',
+                           '--upgrade-receipt', str(receipt), helper=helper, ok=False)
+        self.assertIn('is not the pinned job', refused.stderr)
+
     def test_migration_refuses_a_runner_that_is_not_the_pinned_package(self):
         self.start()
         state = json.loads(self.state.read_text())
@@ -949,7 +1247,7 @@ class PackagePreflightTest(ContinuousCase):
 class ReaderPathTest(ContinuousCase):
     """Feed the shipped reader's own row into the helper, not a hand-written shape."""
 
-    def reader_row(self, payload, job_payload=None):
+    def reader_row(self, payload, job_payload=None, pr_number=None):
         directory = self.base / 'bin'
         directory.mkdir(exist_ok=True)
         curl = '''#!/usr/bin/env python3
@@ -973,9 +1271,10 @@ print('200', end='')
         env = {**os.environ, 'PATH': str(directory) + os.pathsep + os.environ['PATH'],
                'FIXTURE_PAYLOAD': json.dumps(payload),
                'FIXTURE_JOB_PAYLOAD': json.dumps(job_payload or {})}
-        proc = subprocess.run(
-            ['bash', str(PLUGIN / 'scripts' / 'list-prs.sh'), '--repo', 'fixture/repo'],
-            capture_output=True, text=True, env=env, timeout=20)
+        argv = ['bash', str(PLUGIN / 'scripts' / 'list-prs.sh'), '--repo', 'fixture/repo']
+        if pr_number is not None:
+            argv += ['--pr', str(pr_number)]
+        proc = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=20)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         return json.loads(proc.stdout)
 
@@ -1016,7 +1315,28 @@ print('200', end='')
         self.assertEqual(result['actions'][0]['kind'], 'diagnose-queue')
         self.assertEqual(result['actions'][0]['blocked']['kind'], 'waiting-for-runner')
 
-    def test_reader_unstable_optional_failure_does_not_dispatch_a_repair(self):
+    def test_pr_reader_required_status_context_reaches_repair(self):
+        checks = [
+            {'__typename': 'StatusContext', 'context': 'required-ci', 'state': 'FAILURE',
+             'createdAt': '2026-10-22T13:00:00Z', 'isRequired': True},
+            {'__typename': 'CheckRun', 'name': 'optional-lint', 'status': 'COMPLETED',
+             'conclusion': 'FAILURE', 'startedAt': '2026-10-22T13:00:00Z',
+             'detailsUrl': None, 'isRequired': False},
+        ]
+        payload = {'data': {'viewer': {'login': 'fixture'},
+                            'repository': {'pullRequest': self.node(
+                                checks=checks, checks_state='FAILURE')}}}
+        row = self.reader_row(payload, pr_number=12)
+        self.assertEqual(row['required_contexts_observed'], ['required-ci'])
+        self.assertFalse(row['required_contexts_known'])
+        self.start()
+        result = self.observe('2026-10-22T14:05:00Z', observation(row), wake='pr-reader')
+        action = result['actions'][0]
+        self.assertEqual(action['kind'], 'dispatch-fixer')
+        self.assertIn('required-ci', action['reason'])
+        self.assertNotIn('optional-lint', action['reason'])
+
+    def test_reader_optional_failure_does_not_dispatch_a_repair(self):
         checks = [
             {'__typename': 'CheckRun', 'name': 'ci', 'status': 'COMPLETED',
              'conclusion': 'SUCCESS', 'startedAt': '2026-10-22T13:00:00Z', 'detailsUrl': None},
@@ -1025,7 +1345,7 @@ print('200', end='')
         ]
         payload = {'data': {'viewer': {'login': 'fixture'},
                             'search': {'issueCount': 1,
-                                       'nodes': [self.node(checks=checks, checks_state='UNSTABLE',
+                                       'nodes': [self.node(checks=checks, checks_state='FAILURE',
                                                            merge_state='UNSTABLE')]}}}
         row = self.reader_row(payload)
         self.assertIsNone(row['required_contexts'])
@@ -1036,18 +1356,34 @@ print('200', end='')
 
 
 class InstalledPackageTest(unittest.TestCase):
+    def install(self, base):
+        env = {**os.environ, 'HOME': str(base / 'home'),
+               'XDG_CONFIG_HOME': str(base / 'config'),
+               'XDG_STATE_HOME': str(base / 'xdg-state')}
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / 'scripts/install.py'), '--plugin', 'babysitter',
+             '--prefix', str(base / 'prefix'), '--agents-root', str(base / 'agents')],
+            capture_output=True, text=True, env=env, timeout=120)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        return Path(json.loads(proc.stdout)['data']['version_dir']), env
+
+    def start_state(self, helper, base, *extra):
+        request = base / 'request.txt'
+        request.write_text('owner request\n')
+        state = base / 'installed-state.json'
+        proc = subprocess.run(
+            [sys.executable, str(helper), 'start', '--state', str(state),
+             '--now', '2026-10-22T14:00:00Z', '--scope-kind', 'org',
+             '--scope-value', 'fixture', '--scheduler', 'scheduled',
+             '--authorization-source', str(request), '--thread-id', 'self', *extra],
+            capture_output=True, text=True, timeout=30)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return state
+
     def test_installed_helper_exposes_the_same_policy_and_state_decisions(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
-            env = {**os.environ, 'HOME': str(base / 'home'),
-                   'XDG_CONFIG_HOME': str(base / 'config'),
-                   'XDG_STATE_HOME': str(base / 'xdg-state')}
-            proc = subprocess.run(
-                [sys.executable, str(ROOT / 'scripts/install.py'), '--plugin', 'babysitter',
-                 '--prefix', str(base / 'prefix'), '--agents-root', str(base / 'agents')],
-                capture_output=True, text=True, env=env, timeout=120)
-            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-            version_dir = Path(json.loads(proc.stdout)['data']['version_dir'])
+            version_dir, _ = self.install(base)
             helper = version_dir / 'scripts' / 'continuous.py'
             self.assertTrue(helper.is_file())
             self.assertTrue((version_dir / 'scripts' / 'continuous_sweep.py').is_file())
@@ -1058,16 +1394,7 @@ class InstalledPackageTest(unittest.TestCase):
             self.assertEqual(identity['policy_version'], 'continuous-1')
             self.assertTrue(identity['version'].startswith('1.3.0'), identity['version'])
 
-            request = base / 'request.txt'
-            request.write_text('owner request\n')
-            state = base / 'installed-state.json'
-            started = subprocess.run(
-                [sys.executable, str(helper), 'start', '--state', str(state),
-                 '--now', '2026-10-22T14:00:00Z', '--scope-kind', 'org',
-                 '--scope-value', 'fixture', '--scheduler', 'scheduled',
-                 '--authorization-source', str(request), '--thread-id', 'self'],
-                capture_output=True, text=True, timeout=30)
-            self.assertEqual(started.returncode, 0, started.stderr)
+            state = self.start_state(helper, base)
             observation_path = base / 'obs.json'
             observation_path.write_text(json.dumps(observation(pr(checks=[queued()]))))
             observed = subprocess.run(
@@ -1077,6 +1404,91 @@ class InstalledPackageTest(unittest.TestCase):
                 capture_output=True, text=True, timeout=30)
             self.assertEqual(observed.returncode, 0, observed.stderr)
             self.assertEqual(json.loads(observed.stdout)['actions'][0]['kind'], 'diagnose-queue')
+
+    def test_installed_adapter_delivers_the_causal_scheduled_wake(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            version_dir, _ = self.install(base)
+            helper = version_dir / 'scripts' / 'continuous.py'
+            adapter = version_dir / 'scripts' / 'continuous_sweep.py'
+            state = self.start_state(helper, base)
+            spec = importlib.util.spec_from_file_location('installed_sweep', adapter)
+            installed_sweep = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(installed_sweep)
+            queued_pr = pr(checks=[queued()])
+            host = FakeHost(observation(queued_pr))
+            host.clock = '2026-10-22T14:00:00Z'
+            armed = installed_sweep.arm(host, state, '2026-10-22T14:00:00Z')
+            self.assertEqual(armed['status'], 'armed')
+            first = installed_sweep.tick(host, state, '2026-10-22T14:27:00Z')
+            self.assertEqual(first[0]['result']['actions'][0]['kind'], 'diagnose-queue')
+            host.snapshot = observation(queued_pr, pr(REPO_B, 78, head=H2))
+            second = installed_sweep.tick(host, state, '2026-10-22T14:37:00Z')
+            self.assertEqual([row['number'] for row in second[0]['result']['admitted']], [78])
+            self.assertEqual(second[0]['dispatched'][0]['recorded'], 'recorded')
+
+    def test_installed_helper_preflights_and_migrates_a_legacy_pinned_job(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            version_dir, _ = self.install(base)
+            helper = version_dir / 'scripts' / 'continuous.py'
+            old_package = base / 'legacy-package'
+            (old_package / 'scripts').mkdir(parents=True)
+            (old_package / 'plugin.json').write_text(json.dumps(
+                {'name': 'babysitter', 'version': '1.2.2'}))
+            job_dir = base / 'job'
+            job_dir.mkdir()
+            brief = job_dir / 'brief.md'
+            brief.write_text('# frozen brief\n')
+            evidence = job_dir / 'evidence.json'
+            evidence.write_text('{"pr": "fixture/widgets#12"}\n')
+            (job_dir / 'job.json').write_text(json.dumps({
+                'job_id': 'job-legacy', 'workflow': 'babysitter/org',
+                'pins': {'babysitter': {'version': '1.2.2+content.332f8b2d43b5',
+                                        'package_dir': str(old_package)}}}))
+            before = {path.name: path.read_bytes() for path in job_dir.iterdir()}
+            preflight = subprocess.run(
+                [sys.executable, str(helper), 'preflight', '--job', str(job_dir),
+                 '--now', '2026-10-22T14:05:00Z'], capture_output=True, text=True, timeout=30)
+            self.assertEqual(preflight.returncode, 0, preflight.stderr)
+            report = json.loads(preflight.stdout)
+            self.assertEqual(report['status'], 'legacy-job')
+            self.assertFalse(report['pinned_package_has_helper'])
+            self.assertIn('scripts/continuous.py', report['gaps'][0]['detail'])
+            self.assertEqual({path.name: path.read_bytes() for path in job_dir.iterdir()}, before)
+
+            identity = json.loads(subprocess.run(
+                [sys.executable, str(helper), 'version'], capture_output=True, text=True,
+                timeout=30).stdout)
+            state = base / 'legacy-state.json'
+            state.write_text(json.dumps({
+                'schema_version': 1, 'policy_version': 'continuous-0', 'job_id': 'job-legacy',
+                'package': {'pinned_version': '1.2.2+content.332f8b2d43b5'}, 'prs': {}}))
+            first = subprocess.run(
+                [sys.executable, str(helper), 'resume', '--state', str(state),
+                 '--now', '2026-10-22T14:06:00Z'], capture_output=True, text=True, timeout=30)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            first_report = json.loads(first.stdout)
+            self.assertEqual(first_report['status'], 'migration-required')
+            kinds = {gap['kind'] for gap in first_report['gaps']}
+            self.assertEqual(kinds, {'policy-version', 'missing-package-identity'})
+            receipt = base / 'upgrade-receipt.json'
+            receipt.write_text(json.dumps({
+                'job_id': 'job-legacy', 'package_digest': identity['digest'],
+                'package_dir': str(version_dir), 'owner_decision_id': 'owner-one'}))
+            migrated = subprocess.run(
+                [sys.executable, str(helper), 'resume', '--state', str(state),
+                 '--now', '2026-10-22T14:07:00Z', '--accept-migration',
+                 '--owner-decision-id', 'owner-one', '--upgrade-receipt', str(receipt)],
+                capture_output=True, text=True, timeout=30)
+            self.assertEqual(migrated.returncode, 0, migrated.stderr)
+            migrated_report = json.loads(migrated.stdout)
+            self.assertEqual(migrated_report['status'], 'resumed')
+            self.assertEqual(migrated_report['policy_version'], 'continuous-1')
+            self.assertEqual({path.name: path.read_bytes() for path in job_dir.iterdir()},
+                             before)
+            self.assertEqual((old_package / 'plugin.json').read_text(),
+                             json.dumps({'name': 'babysitter', 'version': '1.2.2'}))
 
     def test_manifest_declares_the_continuous_policy(self):
         meta = json.loads((PLUGIN / 'plugin.json').read_text())

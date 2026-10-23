@@ -174,10 +174,12 @@ T3's native watches cover linked PRs, so they cannot discover new PRs or diagnos
 unchanged queued job while the thread is idle. Discovery runs again on the next wake
 and before handoff. Without an authorised host schedule the thread reports that idle
 gap. A resumed run compares its installed package digest and continuous-policy
-version automatically. A job pinned before continuous mode is detected by a read-only
-preflight and moves to a newer package only through the supported `job_cli.py
-upgrade-package` path with a recorded owner decision, never by silently swapping the
-installed snapshot. Unit tests don't show how a given model behaves;
+version automatically, and package drift needs the supported upgrade receipt, not
+only an owner decision. A job pinned before continuous mode is detected by a read-only
+preflight of the current package and moves to a newer package only through the
+supported `job_cli.py upgrade-package` path with a recorded owner decision and its
+receipt, never by silently swapping the installed snapshot. Unit tests don't show how
+a given model behaves;
 see [compatibility](../compatibility.md).
 
 Jobs created through the shared CLI carry `policy.identity: observed`. Required reviewer executions, their subjects, and slots marked `independent_of_author` need verified host identity at acceptance. Authoring jobs enforce author-lineage checks from `policy.author_independence`, even if a slot omits its flag. Legacy jobs without the identity marker retain target-only acceptance semantics. A first author record cannot identify earlier authors of an unrecorded document. Direct cold-read stages cannot fall back to the coordinator.

@@ -47,10 +47,12 @@ coverage separately from authorisation:
 - `stopped` or `stop-unverified` follows an explicit stop receipt;
 - `event-only` means there is no host wake at all.
 
-`next_wake_at` is only ever the recorded host `nextRunAt`. A delivered scheduled wake
+`next_wake_at` is only ever a confirmed host `nextRunAt`. A delivered scheduled wake
 consumes it (`awaiting_receipt`: true) until the next host receipt; the helper never
-invents `now + cadence`, and an overdue receipt stays visible as overdue. Stop through
-the host, then record the verified result:
+invents `now + cadence`, and an overdue receipt stays visible as overdue. If coverage
+drops to `event-only` (the scheduler becomes unavailable or is no longer authorised),
+the old receipt moves to `historical_next_run_at`: it is not a wake this run can
+expect. Stop through the host, then record the verified result:
 
 ```sh
 python3 PKG/scripts/continuous.py schedule-stop --state <state.json> --now <RFC3339> \
@@ -81,18 +83,23 @@ The snapshot has `complete`, optional `gaps` (`pagination`, `rate-limit`,
 `merge_state_status`, `checks_state`, `unresolved_threads`,
 `review_threads_complete`, its `checks` (name, status, conclusion, `created_at`,
 `started_at`) and any `owner` or `human_blocker`. A `list-prs.sh` line can be passed
-unchanged as a `prs` item: its `pending_checks`, `failing` names and
-`queue_clock_gaps` are read, and `oldest_pending_check` carries the job's creation
-clock. GraphQL's `CheckRun` has no `createdAt`, so the reader obtains a queued job's
-creation clock from the supported Actions job API named in `detailsUrl`; a job whose
-clock is unavailable reports `queue-age-unknown` instead of an invented age.
+unchanged as a `prs` item: its `pending_checks`, `failing` names, `checks_complete`
+and `queue_clock_gaps` are read, and `oldest_pending_check` carries the job's
+creation clock. GraphQL's `CheckRun` has no `createdAt`, so the reader obtains a
+queued job's creation clock from the supported Actions job API named in
+`detailsUrl`; a job whose clock is unavailable reports `queue-age-unknown` instead
+of an invented age.
 
-`required_contexts` is known only for a single-PR reader call. A search page leaves it
-null, and the coordinator then classifies from GitHub's aggregate state: `UNSTABLE`
-means every required check passed and an optional one failed, while `FAILURE` is
-treated conservatively as a blocker. `checks_complete` is context-page completeness,
-not permission to skip the required-context rule; an incomplete context page is a
-recorded check-discovery gap.
+`required_contexts` is the complete configured set, which only a snapshot such as
+branch-protection evidence can claim. A single-PR reader supplies the required names
+among the contexts it saw in `required_contexts_observed` (binding `isRequired` on
+both `CheckRun` and `StatusContext`) and always sets `required_contexts_known: false`;
+a search page supplies neither. A present required check that fails is repaired, an
+optional failure is not. `checks_state` is GitHub's `StatusState`, which has no
+`UNSTABLE` value: optional-failure evidence is `merge_state_status: UNSTABLE`. A
+`checks_complete: false` page is a recorded check-discovery gap for reader and full
+snapshots alike; it returns a continuation to re-read the remaining contexts and can
+never authorise a landing.
 
 An omission never closes a known open PR. Resolve it from an explicit targeted host
 read with `continuous.py resolve --state <state.json> --now <RFC3339> --pr <url>
@@ -100,7 +107,8 @@ read with `continuous.py resolve --state <state.json> --now <RFC3339> --pr <url>
 `reconcile-discovery` with a next check and the current discovery gap as its detail.
 A closed PR observed open again is restored to open and reconsidered. An admitted PR
 that becomes a draft, fork or explicit exclusion stays visible as `excluded` with no
-action until it matches the scope again.
+action until it matches the scope again; its previous next action is cleared so a
+status report cannot recommend a landing that is no longer permitted.
 
 The helper is deterministic and offline. It preserves the roster, admission and
 progress state between turns and returns the actions plus their deadlines. It never
@@ -151,35 +159,47 @@ A new matching PR is admitted automatically under the original request, with its
 per-PR actions recorded before writes and its own job when repair is needed. Explicit
 exclusions, drafts, forks and confirmed active ownership stay honoured. Ownership
 reconciliation uses work plus continuation state: a parked thread that still
-maintains the PR owns it; a terminal turn with no live continuation releases it.
+maintains the PR owns it, a missing continuation field on a partial update keeps the
+last confirmed one, and only an explicit handoff or release value frees the PR.
 Historical links never exclude a PR forever. A tracked fixer suppresses a merge or
 branch update until its result is ingested.
 
 Repeated wakes and events share stable keys: the same wake and snapshot is a no-op,
 and a fixer dispatch keeps one request ID per head, blocker fingerprint and attempt.
-Neither duplicate schedules, dispatches, replies nor writers are created. Dispatch
-records are written before the host action and reconciled from receipts:
+Neither duplicate schedules, dispatches, replies nor writers are created. The schedule
+key includes the run identity, so two runs for the same scope in one thread never share
+host idempotency or stop ownership. A dispatch is reserved before the host is touched:
 
 ```sh
 python3 PKG/scripts/continuous.py dispatch --state <state.json> --now <RFC3339> \
-  --pr <url> --request-id <id> --kind fixer|merge|resolution --head <sha> \
-  --host-task-id <handle>
+  --pr <url> --request-id <id> --kind fixer|merge|resolution --head <sha> --reserve
+# then perform the host launch, then attach the handle:
+python3 PKG/scripts/continuous.py dispatch --state <state.json> --now <RFC3339> \
+  --pr <url> --request-id <id> --kind fixer|merge|resolution --host-task-id <handle>
 python3 PKG/scripts/continuous.py fixer-done --state <state.json> --now <RFC3339> \
   --pr <url> --request-id <id> --result <ingested-result.json>
 python3 PKG/scripts/continuous.py receipt --state <state.json> --now <RFC3339> \
   --pr <url> --request-id <id> --status succeeded|failed|rejected|cancelled|armed|no-change
 ```
 
-A receipt applies only to the request it names: a replay is reported as `duplicate`
-or `stale` and changes no guard or progress clock. Terminal repair attempts are drawn
-from the bounded budget, never treated as a live worker. Cancelled runs produce no
-actions until an explicit resume, though late receipts and resolution remain safe.
+The reservation is the writer/merge lock: a competing fixer, merge or resolution is
+refused while it exists, even before the host has returned a handle. A launch that
+raises or is refused is closed with `receipt --status failed|rejected` so no phantom
+writer stays latched. `armed` is accepted only for a merge and keeps it pending;
+fixer and resolution receipts must name a terminal outcome. A receipt applies only to
+the request it names: a replay is reported as `duplicate` or `stale` and changes no
+guard or progress clock. An adopted writer (a PR observed with `fixer_in_flight` but
+no local dispatch) carries the handle from `owner.host_task_id`; only a receipt naming
+that handle can close it, and an adopted writer with no observed handle stays held.
+Terminal repair attempts are drawn from the bounded budget, never treated as a live
+worker. Cancelled runs produce no actions until an explicit resume, though late
+receipts and resolution remain safe.
 
 The reference wiring for one sweep is `scripts/continuous_sweep.py`: a host adapter
 maps `create_schedule`, `due`, `discover` and `dispatch` to the T3 tools, and the
-module fixes the order arm -> delivered wake -> reconcile -> reserve -> record. The
-installed helper and that adapter are tested together against a fake host; neither is
-evidence that a live T3 wake was delivered.
+module fixes the order reserve -> host launch -> attach handle. The installed adapter
+and helper are exercised together against a fake host; that proves the installed code
+path, never that a live T3 wake was delivered.
 
 ## Report before yielding
 
@@ -197,21 +217,23 @@ Reporting uses unchanged evidence instead of regenerating a handoff round:
 `continuous.py version` reports the running package version, policy version and a
 digest of the installed package contents. `start` records that digest automatically
 and defaults the pin to the installed version, so `resume` detects a swapped running
-package without relying on `--package-version`. It refuses a silent swap and returns
+package without relying on `--package-version`. A state without the fingerprint is a
+migration gap, not a silent resume. Resume refuses drift and returns
 `migration-required` with the exact gaps. Migrate only through the supported path:
 record the owner decision, run `job_cli.py upgrade-package` for a pinned job, then
-resume with `--accept-migration --owner-decision-id <id>` and, when available,
-`--upgrade-receipt <file>` whose digest is recorded in the migration receipt. A helper
-whose version is not the job's pinned package refuses to accept the migration and
-names `upgrade-package` instead. Immutable briefs, evidence
+resume with `--accept-migration --owner-decision-id <id>` and
+`--upgrade-receipt <output.json>`. The receipt must name the running package digest
+(and package directory) and, when the state records one, the pinned job; a receipt
+for another job or package is refused. Immutable briefs, evidence
 and the pinned package stay untouched; the migration receipt is appended to the state.
 
 A job created before continuous mode has no helper and no state at its pinned package.
-Resolve the pinned `PKG` as `entry.md` requires and run the new package's read-only
-preflight before assuming coverage:
+Resolve the pinned `PKG` as `entry.md` requires to read its brief and evidence, but run
+the **current** package's read-only preflight, not a helper from the legacy snapshot
+(which has none):
 
 ```sh
-python3 PKG/scripts/continuous.py preflight --job <job-dir> --now <RFC3339>
+python3 <current-package>/scripts/continuous.py preflight --job <job-dir> --now <RFC3339>
 ```
 
 It reports `legacy-job` with `pinned-package-without-continuous` and changes nothing.

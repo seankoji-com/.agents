@@ -66,8 +66,27 @@ def arm(host, state_path, now):
     return {'status': 'armed', 'plan': plan, 'schedule': recorded}
 
 
+def _close_dispatch(state_path, now, action, status, reason, host_task_id=None):
+    """Close a reservation whose host launch failed or was refused."""
+    try:
+        return continuous.cmd_receipt(_namespace(
+            state=str(state_path), now=now, pr=action['pr'],
+            request_id=action.get('request_id'),
+            kind='fixer' if action['kind'] == 'dispatch-fixer' else 'merge',
+            status=status, reason=reason, host_task_id=host_task_id,
+            head=action.get('head'), result=None))
+    except continuous.ContinuousError as exc:
+        return {'status': 'reconcile-error', 'reason': str(exc)}
+
+
 def handle_wake(host, state_path, now, wake):
-    """Reconcile one delivered wake and reserve each resulting action."""
+    """Reconcile one delivered wake and reserve each resulting action.
+
+    Order is reserve -> host side effect -> attach handle. The reservation is the
+    transaction that stops a competing fixer or merge from racing the launch; the host
+    is never called before it exists. A refused, failed or uncertain launch is closed
+    with a terminal receipt so no phantom writer stays latched.
+    """
     state = _state(state_path)
     observation = host.discover(state['scope'], now)
     with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as stream:
@@ -85,20 +104,61 @@ def handle_wake(host, state_path, now, wake):
     for action in result.get('actions', []):
         if action.get('kind') not in ('dispatch-fixer', 'merge'):
             continue
-        receipt = host.dispatch(action, now)
-        if receipt.get('status', 'accepted') != 'accepted':
-            dispatched.append({'action': action, 'status': receipt.get('status'),
-                               'reason': receipt.get('reason')})
+        kind = 'fixer' if action['kind'] == 'dispatch-fixer' else 'merge'
+        try:
+            reservation = continuous.cmd_dispatch(_namespace(
+                state=str(state_path), now=now, pr=action['pr'],
+                request_id=action.get('request_id'), kind=kind,
+                host_task_id=None, head=action.get('head'),
+                attempt=action.get('attempt'),
+                review_triage=bool(action.get('review_triage')), reserve=True))
+        except continuous.ContinuousError as exc:
+            # Nothing was launched, so no writer raced this action.
+            dispatched.append({'action': action, 'status': 'reserve-error',
+                               'reason': str(exc)})
+            continue
+        if reservation.get('status') == 'already-reserved':
+            # An outstanding reservation means a previous launch was never reconciled.
+            # Replaying it would duplicate the writer; hold and report it instead.
+            dispatched.append({'action': action, 'status': 'reservation-held',
+                               'dispatch': reservation.get('dispatch')})
+            continue
+        if reservation.get('status') != 'recorded':
+            dispatched.append({'action': action, 'status': reservation.get('status'),
+                               'dispatch': reservation.get('dispatch')})
+            continue
+        try:
+            receipt = host.dispatch(action, now)
+        except Exception as exc:  # noqa: BLE001 - host adapters fail in many ways
+            closed = _close_dispatch(
+                state_path, now, action, 'failed',
+                'host launch raised; the launch outcome is uncertain and no handle was '
+                f'confirmed: {type(exc).__name__}: {exc}')
+            dispatched.append({'action': action, 'status': 'launch-error',
+                               'reason': f'{type(exc).__name__}: {exc}',
+                               'reservation': reservation.get('status'),
+                               'reconciled': closed.get('status')})
+            continue
+        if not isinstance(receipt, dict) or receipt.get('status', 'accepted') != 'accepted':
+            refusal = receipt if isinstance(receipt, dict) else {}
+            status = 'rejected' if refusal.get('status') == 'rejected' else 'failed'
+            closed = _close_dispatch(state_path, now, action, status,
+                                     refusal.get('reason') or 'host refused the dispatch')
+            dispatched.append({'action': action, 'status': refusal.get('status'),
+                               'reason': refusal.get('reason'),
+                               'reservation': reservation.get('status'),
+                               'reconciled': closed.get('status')})
             continue
         try:
             recorded = continuous.cmd_dispatch(_namespace(
                 state=str(state_path), now=now, pr=action['pr'],
-                request_id=action.get('request_id'),
-                kind='fixer' if action['kind'] == 'dispatch-fixer' else 'merge',
+                request_id=action.get('request_id'), kind=kind,
                 host_task_id=receipt.get('host_task_id'), head=action.get('head'),
                 attempt=action.get('attempt'),
-                review_triage=bool(action.get('review_triage'))))
+                review_triage=bool(action.get('review_triage')), reserve=False))
         except continuous.ContinuousError as exc:
+            # The reservation still excludes competing writers; only the handle is
+            # missing, and it can be attached by a later retry.
             dispatched.append({'action': action, 'status': 'record-error',
                                'host_task_id': receipt.get('host_task_id'),
                                'reason': str(exc)})
