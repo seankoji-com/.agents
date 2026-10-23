@@ -15,7 +15,7 @@ class ImpsPlanFixture(ApePlanFixture):
     serial = 0
 
     def __init__(self, box, package, manifest, *, op='audit', installed=True, direct=False,
-                 stages=1, write=False, synthesis=False, code_review=False):
+                 stages=1, write=False, synthesis=False, code_review=False, work_backup=False):
         type(self).serial += 1
         self.box, self.package, self.manifest = box, package, manifest
         self.id = 'imps-' + str(self.serial); self.op = op; self.direct_mode = direct
@@ -38,6 +38,8 @@ class ImpsPlanFixture(ApePlanFixture):
         d.update(scope_id=self.scope, invocation_id=self.id, operation='imps/' + op)
         d['coordinator']['lineage'] = 'openai'; d['work']['judgement'] = deepcopy(d['work']['workhorse'])
         d['review_panel'][0].update(independent=code_review, coverage=['REQ-ONE', 'D1'])
+        if work_backup:
+            d['work_replacements'].append(replacement(d, deepcopy(d['review_panel'][0]['target'])))
         if direct:
             row = replacement(d, d['coordinator'], review=True); row.pop('target'); row['execution'] = 'self-review'
             d['review_replacements'].append(row)

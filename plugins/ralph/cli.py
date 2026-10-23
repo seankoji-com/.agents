@@ -902,7 +902,7 @@ def complete_endpoint(state, evidence):
             'no-change evaluated outcome; resolve selected endpoint instead of inventing an empty PR/tag')
     selection_ready(state)
     result = delivery.engineering(state['modelAdmission']['selection'], evidence, observed['head'],
-                                  author_lineages=state.get('authorLineages', []))
+                                  author_lineages=set(state.get('authorLineages', [])) | {state['implementer']['lineage']})
     state.setdefault('deliveryHistory', []).append(copy.deepcopy(evidence))
     state['delivery'] = {'result': result, 'evidence': copy.deepcopy(evidence)}
     return result

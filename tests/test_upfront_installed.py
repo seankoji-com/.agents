@@ -24,7 +24,7 @@ class InstalledAgreementTests(unittest.TestCase):
             box = Sandbox(Path(tmp)); package, manifest = box.install('imps')
             moved = box.base / 'relocated-imps'
             shutil.copytree(package, moved)
-            f = ImpsPlanFixture(box, moved, manifest, op='run', write=True, code_review=True)
+            f = ImpsPlanFixture(box, moved, manifest, op='run', write=True, code_review=True, work_backup=True)
             f.approve(); f.init()
             box.run(['git', '-C', f.project, 'add', 'source.py'])
             box.run(['git', '-C', f.project, '-c', 'user.name=Fixture', '-c',
@@ -45,6 +45,12 @@ class InstalledAgreementTests(unittest.TestCase):
                 f.gate('delivery', bad, ok=False)
             bad = deepcopy(evidence); bad['review']['observed']['options'] = {}
             f.gate('delivery', bad, ok=False)
+            # Approved backups alone do not establish which target authored this head.
+            for authors in (None, [], ['anthropic']):
+                bad = deepcopy(evidence)
+                if authors is not None: bad['author_lineages'] = authors
+                f.gate('delivery', bad, ok=False)
+            evidence['author_lineages'] = ['openai']  # Actual primary ran; backup remains unused.
             f.gate('delivery', evidence)
             self.assertTrue(f.gate('validate')['data']['endpoint_complete'])
             f.local.write_text('VALUE = 2\n')
@@ -149,6 +155,55 @@ class InstalledAgreementTests(unittest.TestCase):
             self.assertEqual(next_work['target'], backup)
             self.assertIn('alpha', state['authorLineages'])
             self.assertIn('beta', state['authorLineages'])
+            # Finish the backup revision and its switched evaluator, then exercise
+            # the relocated public Ralph complete command without payload authors.
+            (repo / 'source.py').write_text('VALUE = 2\n')
+            box.run(['git', '-C', repo, 'add', 'source.py'])
+            box.run(['git', '-C', repo, '-c', 'user.name=Fixture', '-c',
+                     'user.email=fixture@example.invalid', 'commit', '-qm', 'backup implementation'])
+            ralph.attach(state, {'clientRequestId': next_work['clientRequestId'], 'taskId': 'backup-host'})
+            ralph.observe(state, {'taskId': 'backup-host', 'status': 'completed', 'workState': 'result_available',
+                'hasPendingChildRuns': False, **backup, 'summary': 'Fixture backup implementation'})
+            evaluation = ralph.advance(state)['dispatch']
+            self.assertEqual(evaluation['target'], spare)
+            ralph.attach(state, {'clientRequestId': evaluation['clientRequestId'], 'taskId': 'spare-review-host'})
+            verdict = {'goalAchieved': True, 'feedback': [], 'evidence': ['Fixture full source inspection'],
+                       'revision': ralph.snapshot.token(state['tasks'][-1]['binding'])}
+            ralph.observe(state, {'taskId': 'spare-review-host', 'status': 'completed', 'workState': 'result_available',
+                'hasPendingChildRuns': False, **spare,
+                'summary': '```ralph-evaluation\n' + json.dumps(verdict) + '\n```'})
+            self.assertTrue(ralph.publication_verified(state))
+            package, _ = box.install('ralph'); moved = box.base / 'relocated-ralph'
+            shutil.copytree(package, moved)
+            checkpoint = box.base / 'completed-ralph.json'; checkpoint.write_text(json.dumps(state))
+            head = ralph.snapshot.take(str(repo))['head']
+            evidence = engineering(selected, head)
+            argv = [sys.executable, moved / 'cli.py', 'complete', '--state', checkpoint]
+            failed = box.run([*argv, '--input', box.payload(evidence)], check=False)
+            self.assertEqual(failed.returncode, 2, failed.stdout + failed.stderr)
+            self.assertIn('author/reviewer collision', failed.stdout + failed.stderr)
+            evidence['review'].update(target=spare, observed=deepcopy(spare),
+                                     unavailable=state['replacementEvidence']['evaluator'])
+            result = json.loads(box.run([*argv, '--input', box.payload(evidence)]).stdout)
+            self.assertTrue(result['complete'])
+            saved = result['state']
+            self.assertEqual(saved['attempt'], 2)
+            self.assertEqual(saved['tasks'][0]['taskId'], 'original-host')
+            self.assertIn('beta', saved['authorLineages'])
+
+    def test_relocated_completion_preserves_split_objections_and_actual_authors(self):
+        from tests.test_upfront_contract import PublicAgreementTests
+        with tempfile.TemporaryDirectory() as tmp:
+            box = Sandbox(Path(tmp)); package, _ = box.install('imps')
+            relocated = box.base / 'relocated-major-regressions'
+            shutil.copytree(package, relocated)
+            cli = relocated / 'shared/execution_agreement_cli.py'
+            for method in ('test_split_reviews_cannot_hide_any_unresolved_major',
+                           'test_completion_requires_actual_replacement_authors_but_allows_unused_backup'):
+                case = PublicAgreementTests(method)
+                case.cli = lambda command, data: box.run([sys.executable, cli, command,
+                    '--input', box.payload(data)], check=False)
+                getattr(case, method)()
 
     def test_ralph_current_full_review_source_is_distinct_from_endpoint_completion(self):
         from tests.test_ralph import RalphTest

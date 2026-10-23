@@ -8,7 +8,7 @@ import re
 from urllib.parse import urlparse
 
 from shared import execution_agreement as agreements
-from shared.model_selection import digest, require, validate, dispatch, correlate
+from shared.model_selection import digest, require, validate, dispatch, correlate, completion_authors
 
 
 def _url(value, repository=None, kind=None):
@@ -29,6 +29,13 @@ def _review(selection, evidence, author_lineages=()):
     rows = evidence.get('reviews', [evidence.get('review', {})])
     slots = [s for s in selection['review_panel'] if s['required']]
     require(slots and isinstance(rows, list), 'required independent review slots missing')
+    # Alternate representations and additional rows cannot erase objections.
+    for row in [evidence.get('review', {}), *rows]:
+        require(isinstance(row, dict), 'review evidence must be an object')
+        require(not any(f.get('severity') in ('blocker', 'major') and
+                        (f.get('disposition') not in ('fixed', 'rejected') or not f.get('evidence'))
+                        for f in row.get('findings', [])), 'unresolved adverse review findings')
+    authors = completion_authors(selection, author_lineages, evidence.get('author_lineages', ()))
     executions = set()
     for slot in slots:
         matches = [r for r in rows if r.get('slot_id') == slot['slot_id']]
@@ -38,13 +45,10 @@ def _review(selection, evidence, author_lineages=()):
                 row.get('reference') and isinstance(row.get('execution_id'), str) and
                 row['execution_id'].strip() and row['execution_id'] not in executions,
                 'current-head distinct required review missing/adverse')
-        require(not any(f.get('severity') in ('blocker', 'major') and
-                        (f.get('disposition') not in ('fixed', 'rejected') or not f.get('evidence'))
-                        for f in row.get('findings', [])), 'unresolved adverse review findings')
         executions.add(row['execution_id'])
         plan = dispatch(selection, role=slot['role'], slot_id=slot['slot_id'],
                         target=row.get('target'), unavailable=row.get('unavailable'),
-                        author_lineages=list(author_lineages) + evidence.get('author_lineages', []) + row.get('author_lineages', []))
+                        author_lineages=list(authors) + row.get('author_lineages', []))
         correlate(plan, row.get('observed', {}))
 
 

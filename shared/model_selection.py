@@ -305,6 +305,24 @@ def _prospective_authors(record):
     return authors
 
 
+def completion_authors(record, author_lineages=(), evidence_lineages=()):
+    """Require actual work history when approved alternatives can change authors.
+
+    Completion observations, like host identities, are transcribed evidence.
+    Approved but unused backups are possibilities, not revision producers.
+    """
+    authors = set()
+    for group in (author_lineages, evidence_lineages):
+        require(isinstance(group, (list, tuple, set, frozenset)) and
+                all(isinstance(value, str) and value.strip() == value and value and
+                    value.casefold() not in ('unknown', 'unverified', 'inferred') for value in group),
+                'actual work-author lineages missing/unknown')
+        authors.update(group)
+    require(not any(_subject_author_role(record, row['role']) for row in record.get('work_replacements', [])) or authors,
+            'actual work-author lineages required with approved work replacements')
+    return authors | _prospective_authors(record)
+
+
 def freeze(data):
     """Validate an explicit answer, freeze its evidence and return a sealed record."""
     require(isinstance(data, dict), 'selection input must be an object')

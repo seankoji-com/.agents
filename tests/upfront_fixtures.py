@@ -71,3 +71,17 @@ def engineering(record, head='revision-one'):
             'preparations': {k: {'status': 'passed', 'reference': 'fixture:actual-' + k} for k in ('backup', 'rollback')},
             'checks': {k: {'revision': head, 'version': '1.2.3', 'deployment_id': 'deployment-fixture',
                           'status': 'passed', 'reference': 'fixture:live-' + k} for k in ('health', 'user-flow')}}}
+
+
+def completion_payload(selected, evidence):
+    """The real public completion payload for each observed endpoint."""
+    if selected['agreement']['target']['label'] != 'Markdown PR':
+        return 'complete', {'selection': selected, 'evidence': evidence, 'revision': evidence['revision']}
+    from shared import delivery
+    content = 'a' * 64
+    row = deepcopy(evidence)
+    row['pr']['files'] = ['docs/brief.md']
+    row.update(reference='fixture:actual-markdown-pr', content_sha256=content)
+    state = delivery.reconcile(selected, delivery.start(selected, content), 'delivery', row)['state']
+    return 'delivery-complete', {'selection': selected, 'state': state, 'content_sha256': content,
+                                 'source_ready': True, 'revision': evidence['revision']}

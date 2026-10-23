@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 from shared import execution_agreement as agreements, model_selection as models
-from upfront_fixtures import chosen, engineering
+from upfront_fixtures import chosen, engineering, completion_payload
 from tests.upfront_fixtures import agree
 from tests.model_selection_fixtures import answer, selection_input, replacement
 from shared import delivery
@@ -165,6 +165,62 @@ class PublicAgreementTests(unittest.TestCase):
         legacy = selection_input(); legacy['operation'] = 'imps/run'
         legacy = models.freeze(legacy)
         self.assertNotEqual(self.cli('admit', {'selection': legacy}).returncode, 0)
+
+    def test_split_reviews_cannot_hide_any_unresolved_major(self):
+        for endpoint in (*agreements.ENGINEERING, 'Markdown PR'):
+            selected = chosen('elephant-goldfish/thinking' if endpoint == 'Markdown PR' else 'imps/run', endpoint)
+            for location in ('primary', 'slot', 'additional'):
+                for severity in ('blocker', 'major'):
+                    for disposition, proof, code in (('deferred', ['fixture:reason'], 2),
+                            ('arbitrary', ['fixture:reason'], 2), ('fixed', [], 2), ('rejected', [], 2),
+                            ('fixed', ['fixture:resolution'], 0), ('rejected', ['fixture:resolution'], 0)):
+                        with self.subTest(endpoint=endpoint, location=location, severity=severity, disposition=disposition, proof=proof):
+                            evidence = engineering(selected)
+                            if endpoint in agreements.ENGINEERING[1:]: evidence['pr']['state'] = 'merged'
+                            evidence['reviews'] = [deepcopy(evidence['review'])]
+                            row = evidence['review'] if location == 'primary' else evidence['reviews'][0]
+                            if location == 'additional':
+                                row = {'slot_id': 'historical-objection'}
+                                evidence['reviews'].append(row)
+                            row['findings'] = [{'severity': severity, 'disposition': disposition, 'evidence': proof}]
+                            result = self.cli(*completion_payload(selected, evidence))
+                            self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+                            if code: self.assertIn('unresolved adverse review findings', result.stderr)
+                            else: self.assertTrue(json.loads(result.stdout)['complete'])
+
+    def test_completion_requires_actual_replacement_authors_but_allows_unused_backup(self):
+        for endpoint in (*agreements.ENGINEERING, 'Markdown PR'):
+            raw = selection_input()
+            raw['operation'] = 'elephant-goldfish/thinking' if endpoint == 'Markdown PR' else 'imps/run'
+            backup = deepcopy(raw['review_panel'][0]['target'])
+            spare = deepcopy(raw['profiles']['models'][2]['target'])
+            raw['work_replacements'] = [replacement(raw, backup)]
+            raw['review_replacements'] = [replacement(raw, spare, review=True)]
+            agree(raw, endpoint); selected = models.freeze(raw)
+            failure = {'kind': 'technical', 'reference': 'fixture:outage', 'reconciled': [{
+                'target': raw['work']['workhorse'], 'request_id': 'original-request', 'host_task_id': 'original-host',
+                'owned': True, 'has_pending_child_runs': False, 'status': 'failed',
+                'reason': 'technical', 'reference': 'fixture:terminal'}]}
+            plan = models.dispatch(selected, role='workhorse', target=backup, unavailable=failure)
+            self.assertEqual(plan['target'], backup)
+            for authors, switched, code in ((None, False, 2), ([], False, 2), (['unknown'], False, 2),
+                    (['beta'], False, 2), (['alpha'], False, 0), (['alpha', 'beta'], True, 0),
+                    (['alpha', 'beta', 'gamma'], True, 2)):
+                with self.subTest(endpoint=endpoint, authors=authors, switched=switched):
+                    evidence = engineering(selected)
+                    if endpoint in agreements.ENGINEERING[1:]: evidence['pr']['state'] = 'merged'
+                    if authors is not None: evidence['author_lineages'] = authors
+                    if switched:
+                        evidence['review'].update(target=spare, observed=deepcopy(spare), unavailable={
+                            'kind': 'capability', 'cause': 'author-independence', 'reference': 'fixture:actual-authors',
+                            'original_not_launched': True})
+                    result = self.cli(*completion_payload(selected, evidence))
+                    self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+                    if not code: self.assertTrue(json.loads(result.stdout)['complete'])
+            # A review row alone cannot assert the work's complete author history.
+            evidence = engineering(selected); evidence['review']['author_lineages'] = ['alpha']
+            if endpoint in agreements.ENGINEERING[1:]: evidence['pr']['state'] = 'merged'
+            self.assertEqual(self.cli(*completion_payload(selected, evidence)).returncode, 2)
 
     def test_exact_engineering_choices_and_endpoint_negative_matrix(self):
         for endpoint in agreements.ENGINEERING:
