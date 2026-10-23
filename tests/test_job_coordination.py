@@ -107,6 +107,48 @@ class CoordinationTests(unittest.TestCase):
             self.assertFalse(by_task['t1']['eligible'])
             self.assertEqual(by_task['t1']['reason'], 'provider_worker_limit')
 
+    def test_core_create_inherits_consistent_provider_pins_without_adapter(self):
+        job = self.job()
+        caps = {'fixture-a': 1}
+        job['pins']['ape']['limits'] = {'max_live_workers_by_provider': caps}
+        job['pins']['second'] = copy.deepcopy(job['pins']['ape'])
+        job['dependencies'].append({'key': 'second', 'plugin': 'ape'})
+        original = copy.deepcopy(job)
+        with tempfile.TemporaryDirectory() as directory:
+            # Exercise the public core API without freeze_provider_limits.
+            create_job(job, directory, job['pins'])
+            store = Store(directory, job['job_id'])
+            self.prepare(store)
+            with self.assertRaisesRegex(JobError, 'provider_worker_limit'):
+                self.prepare(store, 't1')
+            self.assertEqual(store.load()['policy'].get('max_live_workers_by_provider'), caps)
+            self.prepare(store, 't2')
+            store.mutate(self.fixture.caller(), lambda j:
+                         j['policy']['max_live_workers_by_provider'].update({'fixture-b': 1}))
+            self.assertEqual(store.load()['pins']['ape']['limits']['max_live_workers_by_provider'], caps)
+            self.assertEqual(job, original)
+
+    def test_core_create_preserves_explicit_provider_policy_and_validates_defaults(self):
+        with tempfile.TemporaryDirectory() as directory:
+            job = self.job()
+            job['pins']['ape']['limits'] = {'max_live_workers_by_provider': {'fixture-a': 1}}
+            job['pins']['second'] = {**copy.deepcopy(job['pins']['ape']),
+                                     'limits': {'max_live_workers_by_provider': {'fixture-a': 2}}}
+            job['dependencies'].append({'key': 'second', 'plugin': 'ape'})
+            with self.assertRaisesRegex(JobError, 'conflicting pin limits'):
+                create_job(job, directory, job['pins'])
+            job['policy']['max_live_workers_by_provider'] = {}
+            create_job(job, directory, job['pins'])
+            store = Store(directory, job['job_id'])
+            self.prepare(store); self.prepare(store, 't1')
+            self.assertEqual(store.load()['policy']['max_live_workers_by_provider'], {})
+            for value in (0, True, -1):
+                job = self.job()
+                job['job_id'] = 'invalid-' + str(value)
+                job['pins']['ape']['limits'] = {'max_live_workers_by_provider': {'fixture-a': value}}
+                with self.subTest(value=value), self.assertRaises(JobError):
+                    create_job(job, directory, job['pins'])
+
     def test_compact_admission_matches_readiness_instead_of_capacity_alone(self):
         with tempfile.TemporaryDirectory() as directory:
             store = self.store(directory, self.job())
