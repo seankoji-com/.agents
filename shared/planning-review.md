@@ -79,8 +79,8 @@ and independence policy. They cannot be imported or waived into this runtime.
   candidate for an old request. Accounting recovery precedes the current sharing
   and capacity checks. If either now denies dispatch, `launch` raises (the CLI
   exits 2) without returning a brief, but keeps the recovered charge. Replaying
-  that refusal does not charge again. Reconcile the original reservation with
-  correlated failure evidence before release or replacement; an error is not
+  that refusal does not charge again. Reconcile the original reservation through
+  `unavailable` with correlated failure evidence before release or replacement; an error is not
   dispatch permission and does not imply that accounting stayed unchanged.
   First launch and replay share `path`, `sha256`, `target`, `task_id`,
   `request_id` and `mode`; other descriptor fields can differ. Replay requires
@@ -90,11 +90,58 @@ and independence policy. They cannot be imported or waived into this runtime.
   observed identity. Uncertain launches have the existing original-plus-two retry
   bound and must reconcile under their original request before replacement.
   Events receive local receipt timestamps; caller-supplied `recorded_at` is refused.
-- `unavailable(store, caller, task_id, failure)` requires correlated tool,
-  `call_id`, `request_id`, actual `receipt`, and `host_task_id` when created.
-  A no-handle failure needs `prelaunch: true`. It cannot reclassify substantive,
-  incomplete or adverse output as technical unavailability. Terminal executor
-  failure is recorded as a host failure, explicitly not a fabricated worker result.
+- `unavailable(store, caller, task_id, failure)` settles a failed host call or a
+  local prelaunch refusal. `failure.kind` must be `technical`, `capacity` or
+  `permission`; `tool`, `call_id` and `receipt` must be nonempty, and `request_id`
+  must match the original task. An attempt with owned handles requires its actual
+  `host_task_id`; one without handles requires `prelaunch: true`.
+  Unknown/active work must first reconcile through the host lifecycle. Pending,
+  uncertain or blocked host work is refused, as is any retained execution history.
+  Substantive, incomplete or adverse output cannot become technical unavailability.
+  Terminal executor failure is a host failure, never a fabricated worker result.
+
+  After an interrupted charge, first replay `launch` with the original `slot_id`
+  and `request_id`. If charge recovery succeeds but current sharing or capacity
+  refuses dispatch, retain that local invocation's ID and actual refusal receipt.
+  With no host handle or pending/uncertain dispatch, settle the original prepared
+  `task_id` using the public command:
+
+  ```sh
+  python3 PKG/shared/planning_review_cli.py unavailable --input refusal.json --state-root ROOT --job ID
+  # Equivalent: t3-plugins planning-review unavailable --input refusal.json --state-root ROOT --job ID
+  ```
+
+  `refusal.json` has this shape. Copy the returned `create.caller` object unchanged
+  and substitute the original task/request IDs and actual local refusal evidence:
+
+  ```json
+  {
+    "caller": {
+      "actor": "coordinator",
+      "workflow": "<create.caller.workflow>",
+      "installation_id": "<create.caller.installation_id>",
+      "package_digest": "<create.caller.package_digest>"
+    },
+    "task_id": "<original prepared task_id>",
+    "failure": {
+      "kind": "permission",
+      "tool": "planning-review launch",
+      "call_id": "<actual local launch invocation ID>",
+      "request_id": "<original request_id>",
+      "receipt": {"error": "<actual launch stderr>", "exit_code": 2},
+      "prelaunch": true
+    }
+  }
+  ```
+
+  Use `capacity` for a capacity refusal. The receipt object above preserves the
+  actual CLI error; the helper requires a nonempty receipt rather than this exact
+  receipt schema. A local refusal is not a failed host call. Do not invent a
+  `host-event` or `host_task_id`. This command records the original attempt's
+  unavailability without dispatch, another charge or a changed target/brief/selection.
+  It refuses an unreconciled missing charge. Subsequent `next` or `release` uses
+  the existing rules; another dispatch still needs current sharing, capacity and
+  explicit authorization. Settlement grants no new permission.
 - `ingest(store, caller, task_id, raw, completion_id)` uses the strict existing
   worker-result parser and the actual immutable brief, owned terminal execution,
   verified host identity, requested options and canonical lineage. Delegated

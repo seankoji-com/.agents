@@ -648,8 +648,14 @@ def host_event(store, caller, task_id, event):
 
 
 def unavailable(store, caller, task_id, failure, environ=None):
-    """Record a real failed host call, including no-handle prelaunch rejection.
+    """Settle a failed host call or an evidenced local prelaunch refusal.
 
+    A no-handle refusal needs prelaunch=True, a matching original request_id and
+    nonempty tool, call_id and receipt; kind is technical, capacity or permission.
+    After an interrupted charge, replay the original launch first. Charge recovery
+    may succeed while current sharing/capacity refuses dispatch. Record that real
+    local refusal without inventing a host event or handle. Settlement neither
+    dispatches nor adds a charge, changes the binding or grants permission.
     Unknown/possibly active work must first reconcile through the existing host
     lifecycle. A complete substantive response is never a technical failure.
     """
