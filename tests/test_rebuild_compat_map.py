@@ -21,7 +21,7 @@ MAP = ROOT / 'migration' / 'rebuild' / 'compat-map.json'
 SHARDS = ROOT / 'migration' / 'rebuild' / 'compat-map.d'
 ISSUE = ROOT / 'migration' / 'rebuild' / 'issue-28.md'
 WORKERS = {'imps/stage-executor', 'imps/investigator', 'imps/auditor', 'imps/reviewer', 'ape/source-researcher',
-           'ape/synthesizer', 'elephant-goldfish/factual-checker', 'elephant-goldfish/cold-reader',
+           'ape/synthesizer', 'plan/plan-reviewer', 'elephant-goldfish/factual-checker', 'elephant-goldfish/cold-reader',
            'babysitter/pr-maintainer', 'babysitter/pr-reviewer', 'agent-tuneup/config-researcher',
            'agent-tuneup/config-verifier', 'focus-group/participant', 'focus-group/analyst',
            'focus-group/fidelity-reviewer'}

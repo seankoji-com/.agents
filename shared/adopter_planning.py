@@ -13,7 +13,7 @@ from shared.imps_planning import _identity
 from shared.document_authors import import_subject_authors
 from shared.lineage import lineage
 
-OPS = {'agent-tuneup': {'align', 'audit', 'apply'},
+OPS = {'agent-tuneup': {'tuneup', 'align', 'audit', 'apply'},
        'elephant-goldfish': {'elephant', 'check'},
        'babysitter': {'pr', 'repo', 'org'}, 'ralph': {'run', 'resume'}, 'focus-group': {'plan', 'run', 'resume'}}
 DIRECT = {'doctor', 'status', 'list', 'resolve', 'cancel', 'clean', 'scan',
@@ -331,7 +331,7 @@ def approve(desc, owner, package):
 def apply_ready(context, document, package):
     """Revalidate the reviewed proposal AND concrete owner approval before writes."""
     admission = context['admission']; continuation(admission, invocation_id=admission['invocation_id'])
-    planning.need(admission['plugin'] == 'agent-tuneup' and admission['operation'] == 'apply', 'apply choices required')
+    planning.need(admission['plugin'] == 'agent-tuneup' and admission['operation'] in ('apply', 'tuneup'), 'apply choices required')
     approval = context['approval']; planning.unseal(approval)
     planning.need(document == strict_load(_regular(Path(approval['proposal']['plan_file']))),
                   'applied plan differs from the concrete reviewed proposal')

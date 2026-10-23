@@ -10,22 +10,12 @@
     "diet": "One task with an observable success condition and a stated endstate: local or PR.",
     "field_marks": "Any edit after verification makes the evidence stale. Blocked is a complete answer. Delegation goes through T3 only."
   },
-  "elephant-goldfish": {
-    "plate": "II",
-    "binomial": "Memoria duplex",
-    "summary": "Turn an uncertain idea into acceptance criteria and a brief a fresh thread can use.",
-    "use_when": "Something should change but you can't write the task yet. It interviews you and writes a brief that a fresh thread can execute.",
-    "try": "$t3-elephant-goldfish thinking retry-policy",
-    "habitat": "A thinking directory inside your repository.",
-    "diet": "A problem you cannot yet state as a task.",
-    "field_marks": "Thinking ends at the handoff and never starts implementation. Cold review and factual verification are kept as separate verdicts."
-  },
   "ape": {
     "plate": "III",
     "binomial": "Simia studiosa",
     "summary": "Find an approach in another codebase, with source citations and a small experiment to try.",
     "use_when": "Another project has probably solved your problem, and you want its code cited by line before you borrow the idea.",
-    "try": "$t3-ape study https://github.com/python/cpython how are parser error cases tested?",
+    "try": "$t3-ape https://github.com/python/cpython how are parser error cases tested?",
     "habitat": "A research workspace of cloned repositories, outside your project.",
     "diet": "A named gap and a GitHub search, or one repository URL.",
     "field_marks": "Read-only in the current project. Every recommendation cites source lines and proposes a small experiment. Never runs third-party code."
@@ -43,12 +33,12 @@
   "agent-tuneup": {
     "plate": "V",
     "binomial": "Gryllus auditor",
-    "summary": "Audit shared T3 wiring across providers, then apply reviewed native changes.",
+    "summary": "Check all agent wiring, inspect available usage and prepare approved native changes.",
     "use_when": "You want to check shared instructions, skills, permissions, MCPs, roles and repository setup across your T3 providers.",
-    "try": "$t3-agent-tuneup audit",
+    "try": "$t3-agent-tuneup",
     "habitat": "A T3 thread with a live provider catalog and identified configuration sources.",
     "diet": "A complete wiring audit, a narrower explicit target, or approval of concrete changes.",
-    "field_marks": "Read-only by default. Unknown capabilities stay visible. Native settings writes require a reviewed plan, unchanged file hashes and a private backup."
+    "field_marks": "One workflow covers readiness, audit, usage analysis, alignment and approved apply. Settings writes require a concrete reviewed plan and private backup."
   },
   "ralph": {
     "plate": "VI",
@@ -73,11 +63,21 @@
   "bug-report": {
     "plate": "VIII",
     "binomial": "Coleopterus relator",
-    "summary": "Verify suspected T3 problems, file redacted reports and follow up for 30 minutes.",
-    "use_when": "Something in T3 appears broken and you want evidence, a report in the right place and bounded follow-up.",
+    "summary": "Verify upstream defects, use their documented reporting method and follow up for 30 minutes.",
+    "use_when": "An upstream project or service appears broken and you want evidence and a report through its known reporting channel.",
     "try": "$t3-bug-report investigate the error above",
     "habitat": "A T3 conversation, a private reporting ledger and a separate reporting thread.",
     "diet": "A symptom or relevant conversation context, observed evidence and current report destinations.",
-    "field_marks": "Unconfirmed failures stay private. External defects get suggested drafts. Follow-up retains one fixed deadline."
+    "field_marks": "Unknown reporting methods retain a private draft. Verified upstreams use their documented channel. Follow-up retains one fixed deadline."
+  },
+  "plan": {
+    "plate": "II",
+    "binomial": "Consilium probabile",
+    "summary": "Turn an uncertain problem into a reviewed, testable plan and a handoff.",
+    "use_when": "You know something should change and want to establish the problem, decisions and observable acceptance before implementation.",
+    "try": "$t3-plan simplify our retry policy",
+    "habitat": "A plans directory inside your repository.",
+    "diet": "A problem you cannot yet state as a task.",
+    "field_marks": "Planning ends at the handoff. Source review binds the exact discovery, specification and declared evidence."
   }
 }

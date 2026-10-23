@@ -96,7 +96,8 @@ class RecordTest(unittest.TestCase):
         self.assertEqual(steps['echo "$HOME"']['lines'][0][1], '~')
         self.assertEqual(steps['pwd']['lines'][0][1], '~/project')
         names = [text.split()[0] for _, text in steps['t3-plugins list']['lines']]
-        manifests = sorted(p.parent.name for p in (ROOT / 'plugins').glob('*/plugin.json'))
+        manifests = sorted(p.parent.name for p in (ROOT / 'plugins').glob('*/plugin.json')
+                           if not json.loads(p.read_text()).get('deprecated'))
         self.assertEqual(names, manifests)
         self.assertEqual(steps['exit 3']['exit'], 3)
         self.assertEqual(steps['exit 3']['expected_exit'], 3)

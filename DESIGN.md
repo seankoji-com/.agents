@@ -15,7 +15,7 @@ and a real recording of them sit above the fold. Provider portability supports t
 benefit; repository history stays out of the primary reading path.
 
 The site is a naturalist's field guide to eight workflows. The metaphor is chosen
-because it is literally true of the project: the plugins have creature names, the
+because it is literally true of the project: most plugins have creature names, the
 catalog is a numbered set of specimens, and the compatibility ledger records
 sightings rather than promises. The structure carries the idea. The prose stays
 plain.
@@ -129,7 +129,7 @@ disables all animation and transitions globally.
 The site is generated from the repository, never hand-copied:
 
 - `plugins/*/plugin.json` supplies name, description, version, operations.
-- `docs/field-guide.json` supplies plate, binomial, summary, use_when, try, habitat, diet, field marks. `try` must start with the plugin's own `$t3-<name>` mention. Every plugin needs an entry and every entry needs a plugin; plates run I to N without gaps; each plugin needs a mark. The build fails otherwise.
+- `docs/field-guide.json` supplies plate, binomial, summary, use_when, try, habitat, diet, field marks. `try` must start with the plugin's own `$t3-<name>` mention. Every active plugin needs an entry and every entry needs an active plugin; plates run I to N without gaps; each plugin needs a mark. The build fails otherwise.
 - `conformance/compatibility.json` supplies the sightings table and the version caption.
 - `docs/assets/demo.svg` supplies the homepage recording; the hook refuses it if it contains a script, event handler, embedded document, import or external reference.
 - `scripts/field_guide.py` assembles these in `on_config`, renders the specimen header after each plugin page's h1, expands `<!-- sightings-matrix -->`, and inlines SVGs from `docs/assets/` only.

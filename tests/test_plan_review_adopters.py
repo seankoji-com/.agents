@@ -26,7 +26,7 @@ class AdoptersTest(unittest.TestCase):
 
     def test_source_installed_no_change_conclusions_bootstrap_and_written_strategies(self):
         for installed in (False,True):
-            for plugin,op,kind in [('agent-tuneup','align','conclusions'),('agent-tuneup','audit','conclusions'),
+            for plugin,op,kind in [('agent-tuneup','tuneup','conclusions'),('agent-tuneup','align','conclusions'),('agent-tuneup','audit','conclusions'),
                 ('agent-tuneup','audit','bootstrap'),('babysitter','pr','strategy'),('babysitter','repo','strategy'),
                 ('babysitter','org','strategy'),('ralph','run','strategy')]:
                 with self.subTest(installed=installed,plugin=plugin,op=op,kind=kind):
@@ -38,7 +38,7 @@ class AdoptersTest(unittest.TestCase):
                     state=json.loads(Path(r['subject_file']).read_text());self.assertEqual(state['rounds_used'],1)
 
     def test_selection_admission_dispatch_exact_options_missing_answers_and_direct_helpers(self):
-        for plugin,op in [('agent-tuneup','align'),('agent-tuneup','audit'),('agent-tuneup','apply'),
+        for plugin,op in [('agent-tuneup','tuneup'),('agent-tuneup','align'),('agent-tuneup','audit'),('agent-tuneup','apply'),
             ('elephant-goldfish','check'),('elephant-goldfish','elephant'),('ralph','run'),
             ('babysitter','pr'),('babysitter','repo'),('babysitter','org')]:
             for installed in (False,True):
@@ -100,6 +100,23 @@ class AdoptersTest(unittest.TestCase):
         self.assertIsNone(out)
         # No permitted confidential recipient and no authorised self-review.
         f.review('direct',{'observation':{}},ok=False);f.ape('validate',{'descriptor':f.descriptor},ok=False)
+
+    def test_default_tuneup_applies_approved_proposal_with_the_original_admission(self):
+        f = self.fixture(op='tuneup', installed=True)
+        f.proposal()
+        before = f.target.read_bytes()
+        f.owner_approve(ok=False)
+        f.approve()
+        approval = f.owner_approve()
+        context = {'admission': f.admission, 'approval': approval}
+        self.assertTrue(f.ape('apply-ready', {'context': context, 'document': f.plan})['ready'])
+        backup = f.base / 'default-workflow-backup'
+        result = self.box.run([sys.executable, f.plugin / 'scripts/align.py', 'apply',
+            '--plan', f.plan_file, '--approval', f.plan['approval_digest'], '--backup', backup,
+            '--context', self.box.payload(context)])
+        self.assertEqual(json.loads(result.stdout)['writes'], 1)
+        self.assertEqual(backup.read_bytes(), before)
+        self.assertEqual(f.target.read_bytes(), f.candidate.read_bytes())
 
     def test_alias_wakes_new_invocations_and_pinned_resume(self):
         for plugin,op in [('agent-tuneup','align'),('elephant-goldfish','check'),('babysitter','pr'),('ralph','run')]:
@@ -238,6 +255,6 @@ class AdoptersTest(unittest.TestCase):
             m=load_manifest(p);self.assertEqual(set(matrix[m['name']]),set(m['operations']))
             self.assertTrue(all(r['reason'] for r in matrix[m['name']].values()))
         def mutate(p):
-            path=p/'plugin.json';m=json.loads(path.read_text());m['operation_review'].pop('apply');path.write_text(json.dumps(m))
+            path=p/'plugin.json';m=json.loads(path.read_text());m['operation_review'].pop('tuneup');path.write_text(json.dumps(m))
         copied=self.box.source_copy('agent-tuneup',mutate=mutate)
         with self.assertRaises(RegistryError):load_manifest(copied/'plugins/agent-tuneup')

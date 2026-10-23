@@ -207,6 +207,8 @@ class SkillAdapters(unittest.TestCase):
         self.call('skills', 'install', '--root', str(self.skills))
         for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
             meta = json.loads(manifest.read_text())
+            if meta.get('deprecated'):
+                continue
             with self.subTest(plugin=meta['name']):
                 adapter = self.skills / ('t3-' + meta['name']) / 'SKILL.md'
                 front = adapter.read_text().split('---\n', 2)[1]
@@ -216,9 +218,13 @@ class SkillAdapters(unittest.TestCase):
                 self.assertIn(meta['argument_hint'], description)
                 self.assertLessEqual(len(description), 1024)
                 operations = {hint.strip().split()[0] for hint in meta['argument_hint'].split('|')}
-                self.assertEqual(operations, set(meta['operations']))
+                if not meta.get('default_operation'):
+                    self.assertEqual(operations, set(meta['operations']))
+                else:
+                    self.assertNotIn('|', meta['argument_hint'])
+                    self.assertIn('never ask the owner to select an operation', adapter.read_text())
                 self.assertEqual(len(meta['picker']), len(set(meta['picker'])))
-                self.assertGreaterEqual(len(meta['picker']), 2)
+                self.assertGreaterEqual(len(meta['picker']), 1 if meta.get('default_operation') else 2)
                 self.assertLessEqual(len(meta['picker']), 4)
                 for route in meta['routes']:
                     self.assertTrue(route['pattern'].startswith('^') and route['pattern'].endswith('$'))
@@ -380,13 +386,16 @@ class SkillAdapters(unittest.TestCase):
             'ralph': ['run', 'resume', 'status', 'doctor'],
             'elephant-goldfish': ['thinking', 'elephant', 'check', 'doctor'],
             'babysitter': ['pr', 'repo', 'org', 'doctor'],
-            'ape': ['forage', 'study', 'clean', 'doctor'],
-            'agent-tuneup': ['audit', 'align', 'scan', 'doctor'],
+            'ape': ['forage'],
+            'agent-tuneup': ['tuneup'],
             'focus-group': ['plan', 'run', 'status', 'doctor'],
-            'bug-report': ['run', 'resume', 'status', 'cancel'],
+            'bug-report': ['run'],
+            'plan': ['plan'],
         }
         for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
             meta = json.loads(manifest.read_text())
+            if meta.get('deprecated'):
+                continue
             with self.subTest(plugin=meta['name']):
                 skills.validate_picker(meta)
                 self.assertEqual(meta['picker'], expected[meta['name']])
@@ -517,14 +526,13 @@ class SkillAdapters(unittest.TestCase):
             'Clean up the README', 'search for auth libs', 'find repos', 'research caching',
         ):
             with self.subTest(plugin='ape', text=text):
-                self.assertIsNone(skills.route(ape, text))
-        self.assertEqual(tuneup['routes'], [])
-        self.assertIsNone(skills.route(tuneup, 'align the provider permissions'))
+                self.assertEqual(skills.route(ape, text), 'forage')
+        self.assertEqual(skills.route(tuneup, ''), 'tuneup')
+        self.assertEqual(skills.route(tuneup, 'align the provider permissions'), 'tuneup')
         rendered_tuneup = skills.render(tuneup, Path('entry.md'))
-        self.assertIn("With no request, ask through the host's native question picker.", rendered_tuneup)
-        self.assertIn('With no route table, ask which operation to run.', rendered_tuneup)
-        self.assertNotIn('Use the text after the skill mention as the operation and arguments.',
-                         rendered_tuneup)
+        self.assertIn('never ask the owner to select an operation', rendered_tuneup)
+        self.assertNotIn('Options:', rendered_tuneup)
+        self.assertNotIn('ask which operation to run', rendered_tuneup)
         imps = manifests['imps']
         ralph = manifests['ralph']
         elephant = manifests['elephant-goldfish']
@@ -638,6 +646,8 @@ class SkillAdapters(unittest.TestCase):
         self.call('skills', 'install', '--root', str(self.skills))
         for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
             meta = json.loads(manifest.read_text())
+            if meta.get('deprecated'):
+                continue
             with self.subTest(plugin=meta['name']):
                 text = self.openai_yaml(meta['name']).read_text()
                 line = next(l for l in text.splitlines() if l.startswith('  short_description: '))

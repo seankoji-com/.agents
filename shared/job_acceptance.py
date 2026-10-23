@@ -41,6 +41,7 @@ ADAPTERS = {
     'ape': 'validate_report.py',
     'babysitter': 'validate_pr.py',
     'elephant-goldfish': 'validate_document.py',
+    'plan': 'validate_document.py',
     'agent-tuneup': 'validate_audit.py',
     'focus-group': 'validate_study.py',
 }
@@ -625,7 +626,8 @@ def _adapter(job, stage, argv, input_file):
                     raise AcceptanceError('settings backup evidence must be outside worker/job state')
                 extra[str(path)] = digest(_regular(path, max_bytes=job['policy']['max_artifact_bytes']))
     expected = {'babysitter': ['exact-head-required-checks'], 'agent-tuneup': ['audit-criteria'],
-                'elephant-goldfish': ['workflow-observation']}.get(dep['plugin'])
+                'elephant-goldfish': ['workflow-observation'],
+                'plan': ['workflow-observation']}.get(dep['plugin'])
     if dep['plugin'] == 'ape':
         expected = [row['id'] for row in stage['criteria']]
     elif dep['plugin'] == 'focus-group':

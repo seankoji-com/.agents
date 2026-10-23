@@ -6,18 +6,20 @@ workflow when you want its checks or the files it leaves behind.
 | You have… | Use | Send in T3 |
 | --- | --- | --- |
 | A bug you can describe, or a small feature with a clear finish line | [imps](imps.md) | `$t3-imps run …` |
-| A problem you can't yet write as a task | [elephant-goldfish](elephant-goldfish.md) | `$t3-elephant-goldfish thinking TOPIC` |
-| A gap another project has probably solved | [ape](ape.md) | `$t3-ape study URL QUESTION` |
+| A problem you can't yet write as a task | [plan](plan.md) | `$t3-plan TOPIC` |
+| A gap another project has probably solved | [ape](ape.md) | `$t3-ape URL QUESTION` |
 | A PR stuck on reviews, checks or conflicts | [babysitter](babysitter.md) | `$t3-babysitter pr URL` |
-| Providers with different permissions, MCPs or plugins | [agent-tuneup](agent-tuneup.md) | `$t3-agent-tuneup align` |
+| Providers with different permissions, MCPs or plugins | [agent-tuneup](agent-tuneup.md) | `$t3-agent-tuneup` |
 | A goal you want built by one model and graded by another | [ralph](ralph.md) | `$t3-ralph GOAL` |
 | A product or prototype you want tested by a panel of invented personas | [focus-group](focus-group.md) | `$t3-focus-group plan URL` |
+| An upstream project or service that appears broken | [bug-report](bug-report.md) | `$t3-bug-report describe the error` |
 
-Common chains: elephant-goldfish writes the brief, then imps or ralph implements it.
+Common chains: plan writes the brief, then imps or ralph implements it.
 ape finds the approach before you commit to one. babysitter takes over once a PR
 exists.
 
-Every workflow has a `doctor` operation; send it first on a new machine or provider.
+Plan, ape and agent-tuneup choose their normal workflow automatically. Use the
+catalog's `t3-plugins doctor` for installed-package diagnostics.
 The first five run long work as one job: your thread keeps the plan and accepts each
 stage, while fresh T3 tasks do the stage work. See
 [architecture](../architecture.md#whole-jobs).
