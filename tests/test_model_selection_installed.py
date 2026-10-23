@@ -17,6 +17,25 @@ from tests.test_rebuild_installed import Sandbox
 
 
 class InstalledSelectionTests(unittest.TestCase):
+    def test_imps_brief_probes_keep_short_rounds_after_install_and_relocation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            box = Sandbox(Path(temporary))
+            package, _ = box.install('imps')
+            relocated = box.base / 'imps-relocated'
+            shutil.copytree(package, relocated)
+            for artifact in (package, relocated):
+                with self.subTest(artifact=artifact):
+                    entry = (artifact / 'entry.md').read_text()
+                    probes = artifact / 'references/brief-probes.md'
+                    self.assertIn('Read `PKG/references/brief-probes.md`', entry)
+                    self.assertEqual(probes.read_bytes(),
+                                     (ROOT / 'plugins/imps/references/brief-probes.md').read_bytes())
+                    text = ' '.join(probes.read_text().split())
+                    for required in ('short rounds', 'one decision per question',
+                                     'Wait for the answer before the next round'):
+                        self.assertIn(required, text)
+                    self.assertNotIn('ask a small batch', text.lower())
+
     def test_relocated_discovery_rejects_nonobject_options_and_retains_native_validation(self):
         with tempfile.TemporaryDirectory() as temporary:
             box = Sandbox(Path(temporary))

@@ -3,7 +3,8 @@
 Inspect the repo before asking for facts available in code, configuration, or tests.
 A useful brief names the observable change, its acceptance, and any constraints that
 must hold across tasks. Keep an already concrete brief intact. For missing decisions,
-ask a small batch and continue independent work.
+ask in short rounds, one decision per question. Wait for the answer before the next
+round. Retain supplied answers and continue independent authorised work.
 
 Choose probes for the actual unknown:
 

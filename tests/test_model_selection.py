@@ -440,10 +440,18 @@ class SelectionTests(unittest.TestCase):
         self.assertIn("target's correction, retaining other answers", ralph)
         for name in ('shared/t3-runtime.md', 'shared/adopter-planning.md',
                      'plugins/focus-group/entry.md', 'plugins/focus-group/playbooks/plan.md',
-                     'plugins/ape/references/planning-review.md', 'shared/upfront-agreement.md'):
+                     'plugins/ape/references/planning-review.md', 'shared/upfront-agreement.md',
+                     'plugins/imps/references/brief-probes.md'):
             self.assertIn('short rounds', (ROOT / name).read_text())
-        self.assertNotIn('batch only missing consequential decisions',
-                         (ROOT / 'shared/t3-runtime.md').read_text())
+        probes = ' '.join((ROOT / 'plugins/imps/references/brief-probes.md').read_text().split())
+        self.assertIn('one decision per question', probes)
+        self.assertIn('Wait for the answer before the next round', probes)
+        for directory in ('shared', 'plugins'):
+            for path in sorted((ROOT / directory).rglob('*.md')):
+                text = ' '.join(path.read_text().lower().split())
+                for obsolete in ('batch only missing consequential decisions', 'ask a small batch'):
+                    with self.subTest(path=str(path.relative_to(ROOT)), obsolete=obsolete):
+                        self.assertNotIn(obsolete, text)
         for text in ('only recognized routing', 'setup-inferred custom basename',
                      '`profiles.models.lineage`', '`profiles.models.lineage_source`',
                      '`preferred_workhorse`', '`preferred: true`'):

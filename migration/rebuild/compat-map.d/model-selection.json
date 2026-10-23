@@ -70,7 +70,7 @@
         "assertions": [
           {
             "selector": "test_model_selection_installed.InstalledSelectionTests",
-            "tests": 6,
+            "tests": 7,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",
