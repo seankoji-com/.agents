@@ -249,6 +249,169 @@ class PlanningReviewTests(unittest.TestCase):
             'slot_id': 'review', 'request_id': attempt['request_id']}, ok=False))
         self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
 
+    def interrupted_preparation(self, request='recover-bound'):
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        with patch.object(planning.Subject, 'save', side_effect=OSError('fixture interrupted charge')):
+            with self.assertRaisesRegex(OSError, 'fixture interrupted charge'):
+                planning.launch(store, self.caller, 'review', request, environ=self.box.env)
+        task = store.load()['tasks'][-1]
+        return store, {'slot_id': 'review', 'request_id': request}, dict(task['brief'], target=task['target'])
+
+    def test_revoked_preparation_recovers_charge_without_dispatch_permission(self):
+        target = self.selection_data['review_panel'][0]['target']
+        self.selection_data['sharing'] = [{'target': target, 'data_classes': ['private-settings'],
+            'source': answer('Share this fixture private-settings input with the selected reviewer.')}]
+        self.snapshot_data['documents'] = [{'path': str(self.plan), 'data_class': 'private-settings'}]
+        self.create()
+        store, payload, attempt = self.interrupted_preparation()
+        brief_bytes = Path(attempt['path']).read_bytes()
+        revocation = self.write('revocation.txt', 'Revoke this fixture private-settings recipient grant.')
+        self.cli('revoke-sharing', {'grants': self.selection['sharing'],
+            'source': answer(revocation.read_text()), 'source_file': str(revocation)})
+        prepared = store.file.read_bytes()
+        subject = Path(self.created['subject_file'])
+        self.assertIn('same-request launch reconciliation', self.cli('unavailable', {
+            'task_id': attempt['task_id'], 'failure': {'kind': 'permission', 'tool': 'fixture-policy',
+            'call_id': 'fixture-refusal', 'request_id': payload['request_id'],
+            'receipt': {'error': 'fixture sharing revoked'}, 'prelaunch': True}}, ok=False))
+        error = self.cli('launch', payload, ok=False)
+        state = json.loads(subject.read_bytes())
+        self.assertEqual(state['technical_used'], 1)
+        self.assertIn('sharing', error)
+        self.assertEqual(state['rounds'][-1]['attempts'], store.load()['planning']['attempts'])
+        charged = subject.read_bytes()
+        self.assertIn('sharing', self.cli('launch', payload, ok=False))
+        self.assertEqual((store.file.read_bytes(), subject.read_bytes(), Path(attempt['path']).read_bytes()),
+                         (prepared, charged, brief_bytes))
+        self.assertEqual(store.load()['tasks'][0]['handles'], [])
+        self.assertIn('same-request', self.cli('launch', dict(payload, request_id='new-request'), ok=False))
+        self.assertIn('same-request', self.cli('release', ok=False))
+        self.cli('unavailable', {'task_id': attempt['task_id'], 'failure': {
+            'kind': 'permission', 'tool': 'fixture-policy', 'call_id': 'fixture-refusal',
+            'request_id': payload['request_id'], 'receipt': {'error': 'fixture sharing revoked'}, 'prelaunch': True}})
+        self.assertIn('finished attempt', self.cli('launch', payload, ok=False))
+        self.assertIsNone(self.cli('next', {'slot_id': 'review'}))
+        self.assertEqual(self.cli('release')['released'], self.job_id)
+
+    def test_occupied_preparation_recovers_charge_before_current_admission_refusal(self):
+        from shared.job_coordination import occupancy, task_admission
+        for limit in ('provider', 'global'):
+            with self.subTest(limit=limit):
+                if self.caller:
+                    self.setUp()
+                config = self.box.config / 't3-plugins/workers.json'
+                old = config.read_bytes() if config.exists() else None
+                config.parent.mkdir(parents=True, exist_ok=True)
+                target = self.selection_data['review_panel'][0]['target']
+                config.write_text(json.dumps({'schema_version': 1, 'max_live_workers': 1 if limit == 'global' else None,
+                    'max_live_workers_by_provider': {target['providerInstanceId']: 1} if limit == 'provider' else {},
+                    'max_repair_cycles': 20, 'overrides': []}))
+                try:
+                    first_slot = deepcopy(self.selection_data['review_panel'][0])
+                    first_slot['slot_id'] = 'first'
+                    self.selection_data['review_panel'].append(first_slot)
+                    self.create()
+                    first = self.attempt('first')
+                    self.result(first)
+                    store, payload, attempt = self.interrupted_preparation()
+                    # A later owned observation reports children still pending.
+                    # This is the public lifecycle boundary, not signed-state editing.
+                    event = {'kind': 'reconciled', 'request_id': first['request_id'],
+                        'host_task_id': 'host-' + first['request_id'], 'status': 'completed',
+                        'work_state': 'waiting_for_children', 'has_pending_child_runs': True}
+                    self.cli('host-event', {'task_id': first['task_id'], 'event': event})
+                    task = store.load()['tasks'][-1]
+                    reason = limit + '_worker_limit'
+                    self.assertEqual(len(occupancy(store.load())), 2)
+                    self.assertEqual(task_admission(store.load(), task)['reason'], reason)
+                    subject = Path(self.created['subject_file'])
+                    before_job, brief_bytes = store.file.read_bytes(), Path(attempt['path']).read_bytes()
+                    self.assertIn(reason, self.cli('launch', payload, ok=False))
+                    self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 2)
+                    charged = subject.read_bytes()
+                    self.assertIn(reason, self.cli('launch', payload, ok=False))
+                    self.assertEqual((store.file.read_bytes(), subject.read_bytes(), Path(attempt['path']).read_bytes()),
+                                     (before_job, charged, brief_bytes))
+                    self.assertEqual(task['handles'], [])
+                    self.assertIn('pending or uncertain owned review', self.cli('launch', dict(payload, request_id='new-request'), ok=False))
+                    self.assertEqual((store.file.read_bytes(), subject.read_bytes()), (before_job, charged))
+                    event.update(work_state='result_available', has_pending_child_runs=False)
+                    self.cli('host-event', {'task_id': first['task_id'], 'event': event})
+                    self.assertIn('same-request', self.cli('launch', dict(payload, request_id='new-request'), ok=False))
+                    replay = self.cli('launch', payload)
+                    self.assertEqual(replay['path'], attempt['path'])
+                    self.assertEqual(replay['target'], attempt['target'])
+                    self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 2)
+                    self.result(replay)
+                    self.finish()
+                finally:
+                    config.write_bytes(old) if old is not None else config.unlink()
+
+    def test_retained_replay_validates_original_brief_and_slot_before_charge(self):
+        for drift in ('target', 'options', 'runtime', 'mode', 'lineage', 'slot', 'foreign-brief', 'snapshot', 'selection', 'pin'):
+            with self.subTest(drift=drift):
+                if self.caller:
+                    self.setUp()
+                slot = deepcopy(self.selection_data['review_panel'][0]); slot['slot_id'] = 'second'
+                self.selection_data['review_panel'].append(slot)
+                spare = {'providerInstanceId': 'fixture-spare', 'model': 'gemini-fixture', 'options': {'effort': 'high'}}
+                self.selection_data['review_replacements'].append(replacement(self.selection_data, spare, review=True))
+                self.create()
+                store, payload, attempt = self.interrupted_preparation()
+                foreign = None
+                if drift == 'foreign-brief':
+                    # Another legitimate prepared brief has valid hashes, but another request/slot.
+                    self.cli('launch', payload)
+                    self.result(dict(attempt, mode='cross-lineage'))
+                    foreign = self.attempt('second')
+                def change(job):
+                    task, retained = job['tasks'][0], job['planning']['attempts'][0]
+                    if drift == 'target':
+                        task['target'] = deepcopy(spare); retained['target'] = deepcopy(spare)
+                        retained['lineage'] = 'google'
+                    elif drift in ('options', 'runtime'):
+                        for row in (task, retained):
+                            if drift == 'options': row['target']['options']['effort'] = 'low'
+                            else: row['target']['runtimeMode'] = 'full-access'
+                    elif drift in ('mode', 'lineage'): retained[drift] = 'same-lineage' if drift == 'mode' else 'google'
+                    elif drift == 'slot': retained['slot_id'] = 'second'; payload['slot_id'] = 'second'
+                    elif drift == 'foreign-brief':
+                        retained['outcome'] = None
+                        task['brief'] = deepcopy(next(t for t in job['tasks'] if t['task_id'] == foreign['task_id'])['brief'])
+                    elif drift == 'snapshot': job['planning']['snapshot']['repository_head'] = 'different-head'
+                    elif drift == 'selection': job['model_selection']['review_panel'][0]['target'] = deepcopy(spare)
+                    elif drift == 'pin': job['pins']['workflow']['bundle_digest'] = '0' * 64
+                store.mutate(self.caller, change)
+                subject = Path(self.created['subject_file'])
+                before = (store.file.read_bytes(), subject.read_bytes())
+                self.cli('launch', payload, ok=False)
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+
+    def test_retained_replay_refuses_changed_authority_bytes_and_observed_identity(self):
+        from core.jobs import cancel, discard
+        for drift in ('observed-target', 'observed-options', 'worker', 'owner', 'cancel', 'discard', 'brief-bytes'):
+            with self.subTest(drift=drift):
+                if self.caller:
+                    self.setUp()
+                self.create()
+                attempt = self.attempt()
+                store = planning.pinned_store(self.box.jobs, self.job_id)
+                payload = {'slot_id': 'review', 'request_id': attempt['request_id']}
+                if drift.startswith('observed-'):
+                    observed = deepcopy(attempt['target'])
+                    if drift == 'observed-target': observed['model'] = 'different-model'
+                    else: observed['options']['effort'] = 'low'
+                    self.event(attempt, status='running', event_extra={'status_identity': observed})
+                elif drift == 'worker': payload['caller'] = dict(self.caller, actor='worker')
+                elif drift == 'owner': payload['caller'] = dict(self.caller, installation_id='foreign-installation')
+                elif drift == 'cancel': cancel(store, self.caller, 'fixture owner cancellation')
+                elif drift == 'discard': discard(store, self.caller, 'fixture owner discard')
+                else: Path(attempt['path']).write_bytes(Path(attempt['path']).read_bytes() + b' ')
+                subject = Path(self.created['subject_file'])
+                before = (store.file.read_bytes(), subject.read_bytes())
+                self.cli('launch', payload, ok=False)
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+
     def test_uncharged_attempt_refuses_outcomes_without_writes(self):
         self.create()
         store = planning.pinned_store(self.box.jobs, self.job_id)

@@ -527,6 +527,12 @@ def _subject_attempt(state, task):
     return old
 
 
+def _attempt_selection(job, attempt):
+    """Immutable preparation binding, separate from current dispatch permission."""
+    return {'selection_sha256': job['model_selection_sha256'], 'round': job['planning']['round'],
+            **{k: deepcopy(attempt[k]) for k in ('slot_id', 'target', 'mode', 'lineage')}}
+
+
 def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
     """Reserve one finite technical attempt and prepare an existing immutable brief.
 
@@ -535,21 +541,41 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
     job = verify_all_pins(store, caller)
     policy = manifest_policy(job)
     need(job['planning']['round'] is not None, 'begin a counted content round first')
-    def retained_brief(expected):
+    def retained_brief():
         def check(current):
             manifest_policy(current)
             attempt = next(a for a in current['planning']['attempts'] if a['request_id'] == request_id)
             need(attempt['slot_id'] == slot_id and attempt['outcome'] is None,
                  'request ID is already retained by a finished attempt')
+            # Recover the original frozen choice, never today's next available one.
+            expected = next((c for c in candidates(current, slot_id) if c['target'] == attempt['target']), None)
             need(expected is not None and all(attempt[k] == expected[k] for k in ('target', 'mode', 'lineage')),
                  'request ID target binding differs')
             task = next(t for t in current['tasks'] if t['task_id'] == attempt['task_id'])
             need(task['target'] == expected['target'] and task['request_id'] == request_id,
                  'prepared task binding differs')
             need('brief' in task, 'incomplete launch reservation requires reconciliation')
-            if not any(h.get('request_id') == request_id for h in
-                       task.get('handles', []) + task.get('followups', []) + task.get('execution_history', [])):
-                require_admission(current, task)
+            brief = task['brief']
+            need(brief['path'] == str(store.path / 'briefs' / (task['task_id'] + '-' + digest(request_id.encode()) + '.json')),
+                 'prepared brief path binding differs')
+            _expected(current, task)  # Rehash immutable bytes and their planning snapshot.
+            assigned = strict_load(_regular(Path(brief['path'])))
+            selection = _attempt_selection(current, attempt)
+            need(assigned.get('model_selection') == task.get('model_selection') == selection,
+                 'prepared planning selection/slot binding differs')
+            need(all(assigned[k] == task[k] == brief[k] for k in
+                     ('task_id', 'request_id', 'stage_id', 'logical_slot_id', 'worker_id')) and
+                 assigned['job_id'] == brief['job_id'] == current['job_id'] and
+                 assigned['target'] == task['target'] and assigned['role'] == task['role'] == 'review' and
+                 assigned['revision'] == brief['revision'] == current['planning']['snapshot']['sha256'] and
+                 assigned['snapshot'] == brief['snapshot'] == current.get('snapshot') and
+                 assigned['dependency_pins'] == current['pins'] and
+                 assigned['effective_definition'] == current['pins'][task['dependency_key']]['effective_workers'][task['worker_id']] and
+                 assigned['authorization'] == current['authorization'] and assigned['constraints'] == current['constraints'] and
+                 assigned['write_scope'] == task['write_scope'] and
+                 assigned['requirements'] == [{'id': r, 'statement': current['requirements'][r]}
+                                              for r in current['stages'][0]['requirements']],
+                 'immutable prepared task contract differs')
             return (dict(task['brief'], target=attempt['target'], task_id=task['task_id'],
                          request_id=request_id, mode=attempt['mode']), deepcopy(attempt))
         return store.transact(caller, check, 'prepare')
@@ -561,8 +587,25 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
         need(not state['rounds'][-1]['closed'], 'round is closed')
         old = next((a for a in job['planning']['attempts'] if a['request_id'] == request_id), None)
         if old:
-            brief, attempt = retained_brief(_available_candidate(job, slot_id, sharing))
+            brief, attempt = retained_brief()
             _charge_prepared_attempt(subject, state, job, attempt)
+            def dispatch_permission(current):
+                # Accounting survives revoked sharing or moved occupancy. Returning
+                # a brief still grants dispatch instructions, so recheck separately.
+                need(canonical(current) == canonical(job), 'planning job changed during charge recovery; retry with current state')
+                candidate = next(c for c in exclusions(current, slot_id, sharing) if c['target'] == attempt['target'])
+                need(not candidate['exclusion'], 'current sharing denies prepared dispatch: ' + str(candidate['exclusion']))
+                task = next(t for t in current['tasks'] if t['task_id'] == attempt['task_id'])
+                handles = task.get('handles', []) + task.get('followups', [])
+                need(not any(b.get('kind') == 'identity-mismatch' and b.get('task_id') == task['task_id'] and
+                             not b.get('reconciled') for b in current.get('blockers', [])), 'sticky host identity mismatch')
+                for event in task.get('dispatch_history', []):
+                    for name in ('status_identity', 'receipt_identity', 'configuration_identity'):
+                        if isinstance(event.get(name), dict):
+                            models.correlate({'target': task['target']}, event[name])
+                if not any(h.get('request_id') == request_id for h in handles + task.get('execution_history', [])):
+                    require_admission(current, task)
+            store.transact(caller, dispatch_permission, 'prepare')
             return brief
         need(job['planning']['round'] and not any(p['slot_id'] == slot_id for p in job['planning']['passes']),
              'slot already reviewed or no round')
@@ -580,6 +623,7 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
             j['tasks'].append({'task_id': task_id, 'stage_id': 'planning', 'logical_slot_id': task_id,
                 'request_id': request_id, 'worker_id': policy['worker_id'], 'dependency_key': 'workflow',
                 'role': 'review', 'target': candidate['target'], 'status': 'pending',
+                'model_selection': _attempt_selection(j, attempt),
                 'attempt': 0, 'handles': [], 'followups': [], 'dispatch_retries': 0,
                 'write_scope': {'mode': 'worker-evidence', 'path': 'artifacts/tasks/' + task_id}})
             require_admission(j, j['tasks'][-1])

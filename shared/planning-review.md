@@ -74,6 +74,14 @@ and independence policy. They cannot be imported or waived into this runtime.
   leaves the subject unchanged. If saving the charge is interrupted, no brief is
   returned. Re-present that same request to recover its charge exactly once
   before dispatch; replacement and release remain blocked meanwhile.
+  Recovery validates the immutable brief, original named slot, frozen selection,
+  target/options/runtime, lineage, snapshot and pins. It never selects another
+  candidate for an old request. Accounting recovery precedes the current sharing
+  and capacity checks. If either now denies dispatch, `launch` raises (the CLI
+  exits 2) without returning a brief, but keeps the recovered charge. Replaying
+  that refusal does not charge again. Reconcile the original reservation with
+  correlated failure evidence before release or replacement; an error is not
+  dispatch permission and does not imply that accounting stayed unchanged.
   First launch and replay share `path`, `sha256`, `target`, `task_id`,
   `request_id` and `mode`; other descriptor fields can differ. Replay requires
   current prepare authorization and pins, and refuses cancelled/discarded jobs.
