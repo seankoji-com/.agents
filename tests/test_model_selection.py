@@ -204,6 +204,41 @@ class SelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(models.SelectionError, 'independent of every'):
             models.freeze(data)
 
+    def test_lineage_conflict_names_origin_and_correction_without_changing_selection(self):
+        for origin, role, family in (('routing', 'workhorse', 'alpha'),
+                                     ('profile', 'workhorse', 'alpha'),
+                                     ('profile', 'reviewer', 'beta')):
+            with self.subTest(origin=origin, role=role):
+                data = deepcopy(self.data)
+                data['routing_scope'] = 'global'
+                if origin == 'routing':
+                    row = {**data['work']['workhorse'], 'lineage': 'not-alpha'}
+                    data['routing'] = {'roles': {'workhorse': [row],
+                                                'reviewer': [data['review_panel'][0]['target']]}}
+                    del data['profiles']['models'][0]
+                    field = 'routing.roles.workhorse.lineage'
+                else:
+                    row = data['profiles']['models'][0 if role == 'workhorse' else 1]
+                    row.update(lineage='not-' + family, lineage_source='fixture:profile')
+                    field = 'profiles.models.lineage'
+                original = deepcopy(data)
+                with self.assertRaises(models.SelectionError) as caught:
+                    models.freeze(data)
+                error = str(caught.exception)
+                target = data['work']['workhorse'] if role == 'workhorse' else data['review_panel'][0]['target']
+                self.assertIn(role + ' ' + '/'.join(models.key(target)), error)
+                self.assertIn('set ' + field + ' to ' + family + ' or omit that field', error)
+                self.assertEqual(data, original)
+                for correction in ('canonical', 'omit'):
+                    if correction == 'canonical':
+                        row['lineage'] = family
+                    else:
+                        del row['lineage']
+                    record = models.freeze(data)
+                    plan = models.dispatch(record, role=role, **({'slot_id': 'review'} if role == 'reviewer' else {}))
+                    self.assertEqual(plan['target'], target)
+                    self.assertEqual(plan['routing_scope'], 'global' if role == 'workhorse' else 'invocation-only')
+
     def test_missing_reviewer_evidence_names_only_reviewer_next_step(self):
         for missing, field in (('reason', 'reason'), ('judgement', 'judgement'),
                                ('fixed_effort_reason', 'fixed_effort_reason')):

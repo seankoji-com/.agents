@@ -123,12 +123,14 @@ def suitability(target, role, profiles, capabilities, endorsement=None, configur
             'provide one profiles.models entry for this exact provider/model from the role policy' +
             (' at ' + str(floor['source']) if floor.get('source') else '') + '.')
     profile = deepcopy(matches[0]) if matches else {}
+    lineage_field = 'profiles.models.lineage'
     if ordinary:
         profile.setdefault('quality', 1)
         if not profile.get('reason'):
             profile['reason'] = endorsement['answer']
         if not profile.get('lineage') and configured.get('lineage'):
             profile.update(lineage=configured['lineage'], lineage_source='routing.roles.workhorse')
+            lineage_field = 'routing.roles.workhorse.lineage'
     provider, model = model_entry(capabilities, target, target.get('execution') != 'current-context')
     effort = [o for o in model.get('options') or [] if o.get('type') == 'select']
     require(not floor.get('judgement') or profile.get('judgement') is True,
@@ -155,7 +157,10 @@ def suitability(target, role, profiles, capabilities, endorsement=None, configur
     declared = profile.get('lineage')
     if declared:
         require(bool(profile.get('lineage_source')), 'declared lineage needs a source')
-        require(actual_lineage in ('unknown', declared), 'declared lineage contradicts canonical model family')
+        require(actual_lineage in ('unknown', declared),
+                'declared lineage contradicts canonical model family' + context +
+                'set ' + lineage_field + ' to ' + actual_lineage +
+                ' or omit that field to use the canonical lineage.')
         actual_lineage = declared
     return actual_lineage
 

@@ -72,6 +72,22 @@ class InstalledSelectionTests(unittest.TestCase):
                                             'expected': endorsed_record['selection_sha256']})])
                 self.assertEqual(json.loads(exact.stdout)['target'], data['work']['workhorse'])
                 self.assertEqual(json.loads(exact.stdout)['routing_scope'], 'global')
+                data['routing']['roles']['workhorse'][0]['lineage'] = 'not-alpha'
+                conflict = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
+                                    '--input', box.payload(data)], check=False)
+                self.assertEqual(conflict.returncode, 2)
+                self.assertIn('workhorse fixture-work/alpha-work', conflict.stderr)
+                self.assertIn('set routing.roles.workhorse.lineage to alpha or omit that field', conflict.stderr)
+                del data['routing']['roles']['workhorse'][0]['lineage']
+                corrected = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
+                                     '--input', box.payload(data)])
+                corrected_record = json.loads(corrected.stdout)
+                corrected_dispatch = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'dispatch',
+                    '--input', box.payload({'record': corrected_record, 'role': 'workhorse',
+                                            'expected': corrected_record['selection_sha256']})])
+                self.assertEqual(json.loads(corrected_dispatch.stdout)['target'], data['work']['workhorse'])
+                self.assertEqual(json.loads(corrected_dispatch.stdout)['routing_scope'], 'global')
+                self.assertFalse((box.config / 't3-plugins/routing.json').exists())
                 data['profiles']['roles']['workhorse']['source'] = 'fixture-policy.md#work'
                 missing = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
                                   '--input', box.payload(data)], check=False)
