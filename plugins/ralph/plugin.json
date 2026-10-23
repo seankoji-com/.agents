@@ -1,6 +1,6 @@
 {
   "name": "ralph",
-  "version": "0.1.39",
+  "version": "0.1.40",
   "description": "Implement a goal with fresh T3 tasks, evaluate with another lineage, repair blockers and track safe deferrals as repository issues before the selected delivery endpoint.",
   "short_description": "Implement a goal, cross-evaluate it, retry before a PR",
   "argument_hint": "run [--max-attempts N] <goal> | resume <state-file> | status <state-file> | cancel <state-file> | doctor",
