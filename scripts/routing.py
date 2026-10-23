@@ -179,12 +179,15 @@ def validate(config) -> dict:
     for role, entries in roles.items():
         if not isinstance(entries, list):
             raise RoutingError('config_invalid', f'role {role} must be a list of entries')
-        for item in entries:
+        for index, item in enumerate(entries):
             if not isinstance(item, dict) or not all(isinstance(item.get(k), str) and item[k]
                                                      for k in ('providerInstanceId', 'model', 'lineage', 'tier')):
                 raise RoutingError('config_invalid', f'every {role} entry needs providerInstanceId, model, lineage and tier')
             if item['tier'] not in tiers:
                 raise RoutingError('config_invalid', f'{role} entry names unknown tier {item["tier"]!r}')
+            if 'options' in item and not isinstance(item['options'], dict):
+                raise RoutingError('config_invalid',
+                                   f'configuration gap: roles.{role}[{index}].options must be an object')
     try:
         routing_preference(config)
     except SelectionError as exc:

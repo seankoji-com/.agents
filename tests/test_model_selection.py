@@ -106,6 +106,24 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(len(result['candidates']), 1)
         self.assertTrue(all('policy-excluded' in x['reason'] for x in result['excluded']))
 
+    def test_discovery_rejects_nonobject_routing_options_before_catalog_filtering(self):
+        for role in ('workhorse', 'reviewer'):
+            for options in (None, 'high', [], [['effort', 'high']], 1, 1.5, True, False):
+                with self.subTest(role=role, options=options):
+                    # Even an unavailable entry must report its malformed field.
+                    config = {'roles': {role: [self.data['work']['workhorse'],
+                        {'providerInstanceId': 'absent', 'model': 'absent', 'options': options}]}}
+                    before = deepcopy(config)
+                    result = self.cli('discover', {'capabilities': self.data['capabilities'],
+                        'profiles': self.data['profiles'], 'routing': config, 'role': role})
+                    self.assertEqual(result.returncode, 2)
+                    self.assertIn(f'configuration gap: roles.{role}[1].options must be an object', result.stderr)
+                    self.assertNotIn('Traceback', result.stderr)
+                    self.assertEqual(result.stdout, '')
+                    with self.assertRaisesRegex(models.SelectionError, 'configuration gap'):
+                        models.discover(self.data['capabilities'], self.data['profiles'], config, role)
+                    self.assertEqual(config, before)
+
     def test_cheap_or_first_model_is_not_quality_proof_and_fixed_effort_reason(self):
         data = deepcopy(self.data); data['profiles']['models'][0]['quality'] = 0
         result = models.discover(data['capabilities'], data['profiles'], role='reviewer')

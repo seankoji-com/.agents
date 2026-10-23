@@ -252,6 +252,9 @@ def discover(capabilities, profiles, routing=None, role='workhorse'):
         configured = routing['roles'].get(role)
         require(isinstance(configured, list) and configured, 'configuration gap: empty/missing role pool')
         require(all(isinstance(t, dict) for t in configured), 'configuration gap: malformed pool')
+        for index, entry in enumerate(configured):
+            require('options' not in entry or isinstance(entry['options'], dict),
+                    f'configuration gap: roles.{role}[{index}].options must be an object')
         configured = {key(t): t for t in configured}
     candidates, excluded = [], []
     for provider in capabilities['providers']:

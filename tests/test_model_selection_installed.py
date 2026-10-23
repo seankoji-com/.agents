@@ -17,6 +17,73 @@ from tests.test_rebuild_installed import Sandbox
 
 
 class InstalledSelectionTests(unittest.TestCase):
+    def test_relocated_discovery_rejects_nonobject_options_and_retains_native_validation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            box = Sandbox(Path(temporary))
+            for plugin in ('babysitter', 'ralph'):
+                package, _ = box.install(plugin)
+                relocated = box.base / (plugin + '-options-relocated')
+                shutil.copytree(package, relocated)
+                helper = relocated / 'shared/model_selection_cli.py'
+                self.assertEqual((relocated / 'shared/model_selection.py').read_bytes(),
+                                 (ROOT / 'shared/model_selection.py').read_bytes())
+                data = canonical_selection_input()
+                work = data['work']['workhorse']
+                entry = {**work, 'tier': 'low', 'lineage': 'openai'}
+                config = {'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                          'roles': {'workhorse': [entry]}}
+                config_path = box.config / 't3-plugins/routing.json'
+                config_path.parent.mkdir(parents=True, exist_ok=True)
+                caps = box.payload(data['capabilities'])
+                profiles = box.payload(data['profiles'])
+                request = {'capabilities': data['capabilities'], 'profiles': data['profiles'],
+                           'routing': config, 'role': 'workhorse'}
+                for options in (None, 'high', [], [['reasoningEffort', 'low']], 1, 1.5, True, False):
+                    with self.subTest(plugin=plugin, options=options):
+                        entry['options'] = options
+                        config_path.write_text(json.dumps(config))
+                        before = config_path.read_bytes()
+                        commands = [
+                            [sys.executable, helper, 'discover', '--input', box.payload(request)],
+                            [sys.executable, ROOT / 'bin/t3-plugins', '--prefix', box.prefix,
+                             'resolve', 'workhorse', '--capabilities', caps],
+                            [sys.executable, ROOT / 'bin/t3-plugins', '--prefix', box.prefix,
+                             'resolve', 'workhorse', '--capabilities', caps, '--profiles', profiles],
+                        ]
+                        for command in commands:
+                            result = box.run(command, check=False)
+                            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                            self.assertIn('configuration gap: roles.workhorse[0].options must be an object',
+                                          result.stderr)
+                            self.assertNotIn('Traceback', result.stderr)
+                            self.assertEqual(result.stdout, '')
+                            self.assertEqual(config_path.read_bytes(), before)
+                for options in (None, {}, {'reasoningEffort': 'low'},
+                                {'effort': 'high'}, {'reasoningEffort': 'unsupported'}):
+                    with self.subTest(plugin=plugin, valid_shape=options):
+                        if options is None:
+                            entry.pop('options')  # Omission retains recommendation defaults.
+                        else:
+                            entry['options'] = options
+                        config_path.write_text(json.dumps(config))
+                        before = config_path.read_bytes()
+                        result = json.loads(box.run([sys.executable, helper, 'discover',
+                                                     '--input', box.payload(request)]).stdout)
+                        if options in ({'effort': 'high'}, {'reasoningEffort': 'unsupported'}):
+                            self.assertEqual(result['candidates'], [])
+                            reason = next(row['reason'] for row in result['excluded']
+                                          if row['target']['model'] == work['model'])
+                            self.assertIn('unsupported', reason)
+                        else:
+                            expected = options or {'reasoningEffort': 'high'}
+                            self.assertEqual(result['candidates'][0]['target']['options'], expected)
+                            plain = json.loads(box.t3('resolve', 'workhorse', '--capabilities', caps).stdout)
+                            self.assertEqual(plain['candidates'][0].get('options'), options)
+                            profiled = json.loads(box.t3('resolve', 'workhorse', '--capabilities', caps,
+                                                        '--profiles', profiles).stdout)
+                            self.assertEqual(profiled['candidates'][0]['target']['options'], expected)
+                        self.assertEqual(config_path.read_bytes(), before)
+
     def test_relocated_global_preference_is_recovered_by_later_readers(self):
         with tempfile.TemporaryDirectory() as temporary:
             box = Sandbox(Path(temporary))

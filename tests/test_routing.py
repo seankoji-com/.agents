@@ -72,6 +72,22 @@ class RoutingCli(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(config))
 
+    def test_resolve_rejects_nonobject_role_options_with_exact_config_field(self):
+        profiles = self.base / 'profiles.json'
+        profiles.write_text(json.dumps({'roles': {}, 'models': []}))
+        for role in ('workhorse', 'reviewer'):
+            for options in (None, 'high', [], [['effort', 'high']], 1, 1.5, True, False):
+                with self.subTest(role=role, options=options):
+                    self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                                'roles': {role: [entry('codex', 'model-x1', 'low', 'openai'),
+                                    {**entry('codex', 'model-x2', 'low', 'openai'), 'options': options}]}})
+                    before = self.config.read_bytes()
+                    for extra in ((), ('--profiles', str(profiles))):
+                        result = self.cli('resolve', role, '--capabilities', str(self.caps), *extra, code=2)
+                        self.assertIn(f'configuration gap: roles.{role}[1].options must be an object', result.stderr)
+                        self.assertEqual(result.stdout, '')
+                        self.assertEqual(self.config.read_bytes(), before)
+
     def test_setup_writes_a_new_config_from_saved_capabilities(self):
         receipts = [json.loads(l) for l in self.cli('setup', 'imps', '--root', str(self.base / 'skills'),
                                                      '--capabilities', str(self.caps)).stdout.splitlines()]
