@@ -23,7 +23,7 @@ use event-only without scheduler authority.
    may plan `read` only maintainer slots, whose `blocked` results answer triage but
    never an acceptance.
 2. Quick pass, in this thread, before any child: refresh with `continuous.py observe`;
-   for each unowned PR with no fixer in flight run
+   for each current `merge` action run
    `continuous.py dispatch --kind merge --reserve --head <head>` before
    `bash PKG/scripts/merge-pr.sh --repo <owner/name> --pr <N> --no-auto`, or
    `--arm-always` under **enable**. It merges, updates behind branches, and arms

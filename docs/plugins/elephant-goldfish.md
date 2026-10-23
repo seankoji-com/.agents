@@ -1,4 +1,14 @@
-# elephant-goldfish
+# elephant-goldfish (deprecated)
+
+Use [`$t3-plan <topic>`](plan.md) for new planning work. The old package is excluded
+from default installation and the workflow catalog. Setup removes only its owned,
+unmodified skill adapters; edited adapters, installed snapshots, documents and
+pinned job state remain intact. An explicit old-package request reports deprecation
+and remains available for compatibility. There is no automatic state migration.
+
+The elephant/goldfish premise and its durable `elephant.md` workflow are retired
+from the normal interface. The former documentation follows for old jobs only.
+
 
 You know something should change, but you can't yet hand an agent a clear task.
 elephant-goldfish interviews you, writes down what you decided, turns it into

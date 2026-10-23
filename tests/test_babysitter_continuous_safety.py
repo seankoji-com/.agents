@@ -20,6 +20,67 @@ class ReservationSafetyTest(ContinuousCase):
         return self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', kind,
                         '--request-id', request, '--head', H1, '--reserve', **kwargs)
 
+    def test_red_required_check_cannot_reserve_a_merge_or_block_its_fixer(self):
+        self.start()
+        red = pr(merge_state='BLOCKED', checks_state='FAILURE', required_contexts=['lint'],
+                 checks=[{'name': 'lint', 'status': 'COMPLETED', 'conclusion': 'FAILURE',
+                          'head_sha': H1}])
+        action = self.observe(NOW, observation(red), wake='red')['actions'][0]
+        self.assertEqual(action['kind'], 'dispatch-fixer')
+        before = self.state.read_bytes()
+        refused = self.reserve('merge', 'stale-merge', ok=False)
+        self.assertIn('current action is dispatch-fixer', refused.stderr)
+        self.assertEqual(self.state.read_bytes(), before)
+        reserved = self.reserve('fixer', action['request_id'])
+        self.assertTrue(reserved['fixer']['in_flight'])
+
+    def test_merge_dispatch_rechecks_gates_after_a_green_action_at_the_same_head(self):
+        self.start()
+        green = self.observe(NOW, observation(pr()), wake='green')['actions'][0]
+        for index, changed in enumerate((
+                pr(threads=1), pr(checks_state='PENDING', checks=[{
+                    'name': 'ci', 'status': 'QUEUED', 'created_at': NOW}]),
+                {**pr(), 'checks_complete': False},
+                {**pr(), 'review_threads_complete': False},
+                pr(merge_state=None))):
+            with self.subTest(changed=changed):
+                self.observe(NOW, observation(changed), wake=f'gate-{index}')
+                before = self.state.read_bytes()
+                # Both reserve-before-launch and the legacy direct-record path must
+                # reject an action retained from the earlier green observation.
+                for reserve in (('--reserve',), ()):
+                    refused = self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                        '--request-id', green['request_id'], '--head', H1, *reserve, ok=False)
+                    self.assertIn('current action is', refused.stderr)
+                    self.assertEqual(self.state.read_bytes(), before)
+
+    def test_installed_helper_rejects_unknown_and_red_gates_but_keeps_a_green_landing_lock(self):
+        box = Sandbox(self.base / 'installed')
+        package, manifest = box.install('babysitter')
+        self.assertTrue(manifest['version'].startswith('1.3.0'))
+        helper = package / 'scripts/continuous.py'
+        self.start(helper=helper)
+        for index, gate in enumerate((None, '', 'UNKNOWN', 'BLOCKED')):
+            row = pr(merge_state=gate)
+            if gate == 'BLOCKED':
+                row.update(checks_state='FAILURE', required_contexts=['lint'], checks=[{
+                    'name': 'lint', 'status': 'COMPLETED', 'conclusion': 'FAILURE', 'head_sha': H1}])
+            result = self.cli('observe', '--now', NOW, '--wake-kind', 'event',
+                '--wake-id', f'installed-{index}', payload=observation(row), helper=helper)
+            self.assertEqual(result['actions'][0]['kind'],
+                             'dispatch-fixer' if gate == 'BLOCKED' else 'diagnose-gate')
+            before = self.state.read_bytes()
+            refused = self.reserve('merge', 'bad-merge', helper=helper, ok=False)
+            self.assertIn('current action is', refused.stderr)
+            self.assertEqual(self.state.read_bytes(), before)
+        self.cli('observe', '--now', NOW, '--wake-kind', 'event', '--wake-id', 'green',
+                 payload=observation(pr()), helper=helper)
+        self.reserve('merge', 'green-merge', helper=helper)
+        self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                 '--request-id', 'green-merge', '--status', 'armed', helper=helper)
+        refused = self.reserve('fixer', 'racing-fixer', helper=helper, ok=False)
+        self.assertIn('a fixer may not race', refused.stderr)
+
     def test_reservation_rechecks_exclusion_ownership_and_closed_lifecycle(self):
         self.start()
         action = self.observe(NOW, observation(pr()), wake='green')['actions'][0]

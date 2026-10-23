@@ -890,7 +890,7 @@ def reconcile_pr(pr, state, now, discovery):
                 {'kind': 'incomplete-threads', 'detail': detail}, progress)
 
     checks_state = str(observation.get('checks_state') or '').upper()
-    merge_state = str(observation.get('merge_state_status') or '').upper()
+    merge_state = str(observation.get('merge_state_status') or 'UNKNOWN').upper()
     if ((checks_state in ('SUCCESS', 'EXPECTED') and merge_state in ('BLOCKED', 'UNSTABLE', 'UNKNOWN'))
         or (queue['failing'] and not failing and merge_state in ('BLOCKED', 'UNKNOWN'))) \
             and not failing and not queue['pending']:
@@ -917,7 +917,7 @@ def reconcile_pr(pr, state, now, discovery):
         checks_ok = (checks_state in ('SUCCESS', 'EXPECTED')
                      or str(observation.get('merge_state_status') or '').upper() == 'UNSTABLE')
     mergeable = str(observation.get('mergeable') or '').upper() == 'MERGEABLE'
-    if mergeable and merge_state in ('CLEAN', 'HAS_HOOKS', 'UNSTABLE', '') \
+    if mergeable and merge_state in ('CLEAN', 'HAS_HOOKS', 'UNSTABLE') \
             and not queue['pending'] and not failing and threads == 0 and checks_ok:
         head_attempts = merge_attempts(pr, head)
         live = next((row for row in head_attempts if dispatch_status(row) in OPEN_DISPATCH), None)
@@ -1683,6 +1683,13 @@ def cmd_dispatch(args):
             if merge:
                 raise ContinuousError(
                     f"merge {merge['request_id']} is already pending for {args.pr}")
+            # A retained green action is insufficient: a later observation may have
+            # found a red check or incomplete gate at the same head. Reconcile under
+            # the reservation lock before recording any landing operation.
+            action, _, _, _ = reconcile_pr(pr, state, now, state['discovery'])
+            require(action['kind'] == 'merge',
+                    f"merge gates are not satisfied; current action is {action['kind']}: "
+                    f"{action['reason']}")
         if args.kind == 'resolution':
             if fixer.get('in_flight'):
                 raise ContinuousError(

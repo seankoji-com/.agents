@@ -706,6 +706,23 @@ class ReaderCompletenessTest(ContinuousCase):
         self.assertEqual(action['kind'], 'wait-checks')
         self.assertEqual(action['blocked']['kind'], 'incomplete-checks')
 
+    def test_missing_null_and_unknown_merge_states_require_gate_diagnosis(self):
+        self.start()
+        for index, state in enumerate(('missing', None, '', 'UNKNOWN')):
+            with self.subTest(merge_state=state):
+                row = self.row(checks_complete=True, required_contexts_known=False)
+                if state == 'missing':
+                    row.pop('merge_state_status')
+                else:
+                    row['merge_state_status'] = state
+                result = self.observe('2026-10-22T14:05:00Z', observation(row),
+                                      wake=f'unknown-gate-{index}')
+                action = result['actions'][0]
+                self.assertEqual(action['kind'], 'diagnose-gate')
+                self.assertEqual(action['blocked']['kind'], 'stuck-aggregate-gate')
+                self.assertEqual(action['blocked']['detail'], 'UNKNOWN')
+                self.assertIsNotNone(action['next_check_at'])
+
 
 class SchedulerCoverageTest(ContinuousCase):
     def test_losing_scheduler_capability_hides_the_historic_wake(self):
@@ -1328,6 +1345,18 @@ print('200', end='')
         self.assertEqual(result['queue'][0]['age_seconds'], 900)
         self.assertEqual(result['actions'][0]['kind'], 'diagnose-queue')
         self.assertEqual(result['actions'][0]['blocked']['kind'], 'waiting-for-runner')
+
+    def test_reader_null_aggregate_gate_reaches_diagnosis(self):
+        node = self.node(checks=[], checks_state='SUCCESS', merge_state=None)
+        payload = {'data': {'viewer': {'login': 'fixture'},
+                           'repository': {'pullRequest': node}}}
+        row = self.reader_row(payload, pr_number=12)
+        self.assertIsNone(row['merge_state_status'])
+        self.start()
+        action = self.observe('2026-10-22T14:05:00Z', observation(row),
+                              wake='null-reader')['actions'][0]
+        self.assertEqual(action['kind'], 'diagnose-gate')
+        self.assertEqual(action['blocked']['detail'], 'UNKNOWN')
 
     def test_pr_reader_required_status_context_reaches_repair(self):
         checks = [

@@ -11,11 +11,11 @@ Run `t3-plugins --help` or `t3-plugins COMMAND --help` for all options.
 
 | Command | Result |
 | --- | --- |
-| `list` | Print bundled plugin names and descriptions; does not list installed versions |
-| `setup [PLUGIN]` | Install snapshots, worker bundles and skill adapters; omit the name for all plugins |
+| `list` | Print active bundled plugin names and descriptions; does not list installed versions |
+| `setup [PLUGIN]` | Install snapshots, worker bundles and skill adapters; omit the name for all active plugins |
 | `install [PLUGIN]` | Install snapshots and worker bundles, without skill adapters |
 | `path PLUGIN` | Print the active installed entry path |
-| `prompt PLUGIN [REQUEST…]` | Print a prompt to paste into T3; with no request, offer the workflow's manifest picker |
+| `prompt PLUGIN [REQUEST…]` | Print a prompt to paste into T3; with no request, start its default workflow when defined, otherwise use its manifest picker |
 | `doctor [PLUGIN] [--project PATH]` | Check installed files and package currency, and probe whether this process can write learnings (a global check from any directory); `--project` also refuses a learnings root inside that project, as its plugin runs would. Omit the name for all plugins |
 | `activate PLUGIN VERSION` | Select an existing snapshot without migrating run state |
 | `uninstall PLUGIN [--version VERSION]` | Remove owned snapshot and bundle files, preserving local edits, overrides and state; refuses a version a live job pins, in any recorded state root |
@@ -31,12 +31,12 @@ Run `t3-plugins --help` or `t3-plugins COMMAND --help` for all options.
 
 Omit the plugin from a `skills` command to act on all bundled plugins.
 
-Each workflow manifest declares 2 to 4 unique operation IDs for its picker and
-anchored regular-expression routes for free text. A generated adapter lists those
-options and routes. Remove any declared standalone flags before trying the routes.
-Match the full request against the patterns in order and use the first match. If
-no route matches, ask the user to choose an operation. A bare command never
-defaults to `doctor`.
+Workflows with a manifest `default_operation` start that workflow from a bare
+command or unmatched request, using relevant conversation context. Their adapters
+do not present an operation menu. Other workflows declare 2 to 4 unique picker
+options. Remove declared standalone flags before matching the full request against
+the manifest routes in order; the first match wins. Without a match or default,
+ask the user to choose an operation. A bare command never defaults to `doctor`.
 
 `setup --root PATH` replaces the default skill roots. Repeat it for multiple roots.
 `setup --capabilities FILE` initializes routing from a saved T3 capabilities response.
