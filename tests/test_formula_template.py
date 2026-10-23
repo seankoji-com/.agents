@@ -1,4 +1,5 @@
 """The Homebrew formula template must pass the tap's `brew audit --strict`."""
+import ast
 import re
 import unittest
 from pathlib import Path
@@ -9,6 +10,52 @@ WORKFLOW = (ROOT / '.github' / 'workflows' / 'release.yml').read_text()
 
 
 class FormulaTemplateTest(unittest.TestCase):
+    def condition(self, expression, *, ref, existing_tag, result, cancelled=False):
+        values = {'github.ref': ref, 'github.event.inputs.existing_tag': existing_tag,
+                  'needs.test.result': result, 'always()': True, 'cancelled()': cancelled}
+        for key, value in values.items():
+            expression = expression.replace(key, repr(value))
+        expression = expression.replace('&&', ' and ').replace('||', ' or ')
+        expression = re.sub(r'!(?!=)', 'not ', expression)
+
+        def value(node):
+            # Interpret only the boolean/comparison subset used by these gates.
+            if isinstance(node, ast.Constant):
+                return node.value
+            if isinstance(node, ast.BoolOp) and isinstance(node.op, (ast.And, ast.Or)):
+                operands = [value(item) for item in node.values]
+                return all(operands) if isinstance(node.op, ast.And) else any(operands)
+            if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+                return not value(node.operand)
+            if isinstance(node, ast.Compare) and len(node.ops) == 1:
+                left, right = value(node.left), value(node.comparators[0])
+                if isinstance(node.ops[0], ast.Eq):
+                    return left == right
+                if isinstance(node.ops[0], ast.NotEq):
+                    return left != right
+            self.fail('unsupported release condition node: ' + ast.dump(node))
+
+        return value(ast.parse(expression.strip(), mode='eval').body)
+
+    def test_publication_requires_all_shards_or_an_explicit_existing_tag_retry(self):
+        tests, release = WORKFLOW.split('\n  release:\n', 1)
+        self.assertIn('    needs: test\n', release)
+        gate = re.search(r'    if: >-\n((?:      .*\n)+)', release).group(1)
+        self.assertIn('always()', gate, 'skipped test job must not suppress an existing-tag retry')
+        gate = ' '.join(gate.split())
+        test_gate = re.search(r'(?m)^    if: (.+)$', tests).group(1)
+        for ref in ('refs/heads/master', 'refs/heads/feature'):
+            for tag in ('', 'v0.10.0'):
+                for result in ('success', 'failure', 'cancelled', 'skipped'):
+                    for cancelled in (False, True):
+                        with self.subTest(ref=ref, tag=tag, result=result, cancelled=cancelled):
+                            args = dict(ref=ref, existing_tag=tag, result=result, cancelled=cancelled)
+                            self.assertEqual(self.condition(test_gate, **args),
+                                             ref == 'refs/heads/master' and not tag)
+                            self.assertEqual(self.condition(gate, **args),
+                                not cancelled and ref == 'refs/heads/master' and
+                                (result == 'success' or bool(tag) and result == 'skipped'))
+
     def test_no_version_stanza_because_the_url_carries_it(self):
         # brew audit --strict: "`version` is redundant with version scanned from URL".
         self.assertIsNone(re.search(r'^\s*version\s', TEMPLATE, re.MULTILINE))

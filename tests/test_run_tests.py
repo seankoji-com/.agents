@@ -162,8 +162,6 @@ class RunTestsTest(unittest.TestCase):
                 run.assert_not_called()
 
     def test_ci_matrix_covers_every_shard_consumed_by_the_test_command(self):
-        workflow = (ROOT / '.github' / 'workflows' / 'test.yml').read_text()
-
         def check(text):
             matrix = re.search(r'(?m)^        shard: (\[[^\n]+\])$', text)
             command = re.search(r'(?m)^        run: python3 scripts/run_tests.py '
@@ -173,12 +171,15 @@ class RunTestsTest(unittest.TestCase):
             self.assertIn('TEST_SHARD_INDEX: ${{ matrix.shard }}', text)
             self.assertEqual(sorted(json.loads(matrix.group(1))), list(range(int(command.group(1)))))
 
-        check(workflow)
-        # Removing the highest shard leaves every remaining index valid to the
-        # runner, but silently omits tests unless the workflow contract catches it.
-        indices = re.search(r'(?m)^        shard: (\[[^\n]+\])$', workflow).group(1)
-        with self.assertRaises(AssertionError):
-            check(workflow.replace(indices, json.dumps(json.loads(indices)[:-1])))
+        for name in ('test.yml', 'release.yml'):
+            with self.subTest(workflow=name):
+                workflow = (ROOT / '.github' / 'workflows' / name).read_text()
+                check(workflow)
+                # Removing the highest shard leaves every remaining index valid to the
+                # runner, but silently omits tests unless the workflow contract catches it.
+                indices = re.search(r'(?m)^        shard: (\[[^\n]+\])$', workflow).group(1)
+                with self.assertRaises(AssertionError):
+                    check(workflow.replace(indices, json.dumps(json.loads(indices)[:-1])))
 
 
 if __name__ == '__main__':
