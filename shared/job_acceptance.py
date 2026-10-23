@@ -527,7 +527,10 @@ def _adapter(job, stage, argv, input_file):
     if dep['plugin'] == 'agent-tuneup':
         # The last integrated audit/proposal always reviews even no-change output.
         successors = [s for s in job['stages'] if stage['id'] in s['depends_on']]
-        if not successors and job['workflow'] in ('agent-tuneup/align', 'agent-tuneup/audit'):
+        integrated_audit = (job['workflow'] in ('agent-tuneup/align', 'agent-tuneup/audit') or
+                            (job['workflow'] == 'agent-tuneup/tuneup' and
+                             contract.get('criteria', {}).get('operation') == 'audit'))
+        if not successors and integrated_audit:
             desc = data.get('adopter_output')
             if not isinstance(desc, dict) or desc.get('admission') != job.get('adopter_admission'):
                 raise AcceptanceError('integrated tuneup conclusions require the producing planning descriptor')

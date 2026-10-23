@@ -110,6 +110,9 @@ class AdoptersTest(unittest.TestCase):
         approval = f.owner_approve()
         context = {'admission': f.admission, 'approval': approval}
         self.assertTrue(f.ape('apply-ready', {'context': context, 'document': f.plan})['ready'])
+        other = self.fixture(op='tuneup', installed=True)
+        f.ape('apply-ready', {'context': {**context, 'admission': other.admission},
+                             'document': f.plan}, ok=False)
         backup = f.base / 'default-workflow-backup'
         result = self.box.run([sys.executable, f.plugin / 'scripts/align.py', 'apply',
             '--plan', f.plan_file, '--approval', f.plan['approval_digest'], '--backup', backup,
@@ -206,9 +209,10 @@ class AdoptersTest(unittest.TestCase):
 
     def test_published_tuneup_conclusions_must_equal_reviewed_findings_and_changes(self):
         for installed in (False, True):
-            for op in ('audit', 'align'):
+            for op in ('tuneup', 'audit', 'align'):
                 f = self.fixture(op=op, installed=installed)
-                f.integrated_job(); f.approve(); f.accept_integrated()
+                f.integrated_job(); f.accept_integrated(ok=False)
+                f.approve(); f.accept_integrated()
                 original = deepcopy(f.domain_data)
                 for field, value in (('findings', [{'code': 'NEW', 'location': 'fixture:unreviewed'}]),
                                      ('changes', [{'id': 'unreviewed'}])):

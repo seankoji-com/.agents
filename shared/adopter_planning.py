@@ -333,6 +333,9 @@ def apply_ready(context, document, package):
     admission = context['admission']; continuation(admission, invocation_id=admission['invocation_id'])
     planning.need(admission['plugin'] == 'agent-tuneup' and admission['operation'] in ('apply', 'tuneup'), 'apply choices required')
     approval = context['approval']; planning.unseal(approval)
+    if admission['operation'] == 'tuneup':
+        planning.need(approval['proposal']['admission'] == admission,
+                      'tuneup apply must retain the reviewed proposal admission')
     planning.need(document == strict_load(_regular(Path(approval['proposal']['plan_file']))),
                   'applied plan differs from the concrete reviewed proposal')
     planning.current_file(approval['owner_file'])
