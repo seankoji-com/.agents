@@ -195,6 +195,96 @@ class AcceptedReceiptTest(ContinuousCase):
         self.assertEqual(unknown['actions'][0]['kind'], 'owned-elsewhere')
 
 
+class OwnershipReleaseTest(ContinuousCase):
+    def test_unfamiliar_continuations_keep_ownership_until_explicit_release(self):
+        self.start()
+        for index, release in enumerate(('handed-back', 'released', 'none', 'stopped', 'cancelled')):
+            self.observe(NOW, observation(pr(owner={'thread_id': 'other', 'status': 'running',
+                'continuation': 'maintainer-live'})), wake=f'live-{index}')
+            for status in ('completed', 'idle', 'failed', 'interrupted'):
+                still = self.observe(NOW, observation(pr(owner={'thread_id': 'other',
+                    'status': status, 'continuation': 'still-maintaining'})),
+                    wake=f'unknown-{index}-{status}')
+                self.assertEqual(still['actions'][0]['kind'], 'owned-elsewhere')
+                before = self.state.read_bytes()
+                for kind in ('merge', 'fixer', 'resolution'):
+                    refused = self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', kind,
+                        '--request-id', f'takeover-{kind}', '--head', H1, '--reserve', ok=False)
+                    self.assertIn('owned elsewhere', refused.stderr)
+                    self.assertEqual(self.state.read_bytes(), before)
+            released = self.observe(NOW, observation(pr(owner={'thread_id': 'other',
+                'status': 'completed', 'continuation': release})), wake=f'release-{index}')
+            self.assertEqual(released['actions'][0]['kind'], 'merge')
+
+
+class LiveMergeHeadChangeTest(ContinuousCase):
+    def exercise_live_merge(self, status, helper=HELPER):
+        self.start(helper=helper)
+        self.cli('observe', '--now', NOW, '--wake-kind', 'event', '--wake-id', 'green',
+                 payload=observation(pr()), helper=helper)
+        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+            '--request-id', 'merge-a', '--head', H1, '--reserve', helper=helper)
+        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+            '--request-id', 'merge-a', '--host-task-id', 'merge-host-1', helper=helper)
+        if status == 'armed':
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                '--request-id', 'merge-a', '--status', 'armed', helper=helper)
+        red = pr(head=H2, merge_state='BLOCKED', checks_state='FAILURE',
+            required_contexts=['lint'], checks=[{'name': 'lint', 'status': 'COMPLETED',
+                'conclusion': 'FAILURE', 'head_sha': H2}])
+        for index, row in enumerate((pr(head=H2), red)):
+            moved = self.cli('observe', '--now', NOW, '--wake-kind', 'event',
+                '--wake-id', f'moved-{index}', payload=observation(row), helper=helper)
+            self.assertEqual(moved['actions'][0]['kind'], 'merge-pending')
+            dispatch = json.loads(self.state.read_text())['prs'][URL]['dispatches'][0]
+            self.assertEqual(dispatch['status'], status)
+            self.assertNotIn('completed_at', dispatch)
+            self.assertEqual(dispatch['stale_at_head'], H2)
+            for kind in ('merge', 'fixer', 'resolution'):
+                before = self.state.read_bytes()
+                refused = self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', kind,
+                    '--request-id', f'racing-{kind}', '--head', H2, '--reserve',
+                    helper=helper, ok=False)
+                self.assertIn('merge merge-a', refused.stderr)
+                self.assertEqual(self.state.read_bytes(), before)
+        before = self.state.read_bytes()
+        for handle in ((), ('--host-task-id', 'unrelated-host')):
+            refused = self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                '--request-id', 'merge-a', '--head', H1, '--status', 'cancelled',
+                *handle, helper=helper, ok=False)
+            self.assertIn('handle', refused.stderr)
+            self.assertEqual(self.state.read_bytes(), before)
+        terminal = self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'merge',
+            '--request-id', 'merge-a', '--host-task-id', 'merge-host-1', '--head', H1,
+            '--status', 'cancelled', helper=helper)
+        self.assertEqual(terminal['dispatch']['status'], 'cancelled')
+        self.assertIn('completed_at', terminal['dispatch'])
+        ready = self.cli('observe', '--now', NOW, '--wake-kind', 'event', '--wake-id', 'settled',
+            payload=observation(red), helper=helper)
+        self.assertEqual(ready['actions'][0]['kind'], 'dispatch-fixer')
+        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'fixer',
+            '--request-id', ready['actions'][0]['request_id'], '--head', H2,
+            '--reserve', helper=helper)
+        before = self.state.read_bytes()
+        duplicate = self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'merge',
+            '--request-id', 'merge-a', '--host-task-id', 'merge-host-1', '--head', H1,
+            '--status', 'cancelled', helper=helper)
+        self.assertEqual(duplicate['status'], 'duplicate')
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertTrue(json.loads(before)['prs'][URL]['fixer']['in_flight'])
+
+    def test_pending_merge_handle_survives_green_and_red_head_changes(self):
+        self.exercise_live_merge('pending')
+
+    def test_armed_merge_handle_survives_green_and_red_head_changes(self):
+        self.exercise_live_merge('armed')
+
+    def test_installed_helper_preserves_an_armed_stale_merge_until_matching_terminal_receipt(self):
+        box = Sandbox(self.base / 'installed')
+        package, _ = box.install('babysitter')
+        self.exercise_live_merge('armed', helper=package / 'scripts/continuous.py')
+
+
 class RevocationTest(ContinuousCase):
     def test_revoke_blocks_a_due_host_wake_until_owned_stop_is_verified(self):
         host = FakeHost(observation(pr()))

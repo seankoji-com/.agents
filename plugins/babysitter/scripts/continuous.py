@@ -83,7 +83,6 @@ KIND_RECEIPT_STATUSES = {
 for _statuses in KIND_RECEIPT_STATUSES.values():
     _statuses.add('uncertain')
 OWNER_LIVE_STATUSES = {'active', 'running', 'starting', 'queued', 'waiting', 'preparing'}
-OWNER_CONTINUATIONS = {'maintainer-live', 'in-flight', 'watching', 'continuing', 'dispatched'}
 OWNER_RELEASED = {'handed-back', 'released', 'none', 'stopped', 'cancelled'}
 OWNER_RELEASED_STATUSES = {'handed-back', 'released', 'stopped', 'cancelled'}
 
@@ -542,13 +541,11 @@ def merge_owner(previous, observed):
 
 
 def owned_elsewhere(pr, self_thread):
-    """Whether another live maintainer owns this PR.
+    """Keep another maintainer's ownership until an explicit handoff or release.
 
-    Host states are normalised: active/running/starting/queued/waiting own the PR;
-    a parked or terminal thread owns it only while a live continuation is recorded.
-    An explicit handoff releases it. Historical links alone never exclude it forever.
-    When the continuation field is unavailable the guard stays conservative rather
-    than treating a partial update as a release.
+    Missing or unfamiliar continuation evidence cannot establish release, even when
+    the host reports a parked or terminal turn. Historical links can be released by
+    a fresh, explicit handoff observation.
     """
     owner = pr.get('owner') or {}
     thread = owner.get('thread_id')
@@ -556,18 +553,9 @@ def owned_elsewhere(pr, self_thread):
         return False
     status = str(owner.get('status') or '').lower()
     continuation = owner.get('continuation')
-    known = owner.get('continuation_known', continuation is not None)
     if continuation in OWNER_RELEASED or status in OWNER_RELEASED_STATUSES:
         return False
-    if status in OWNER_LIVE_STATUSES:
-        return True
-    if continuation in OWNER_CONTINUATIONS:
-        return True
-    if not known:
-        # A parked/terminal row whose continuation was not reported is not evidence
-        # that the maintainer handed the PR back.
-        return True
-    return False
+    return True
 
 
 def required_contexts(observation):
@@ -692,17 +680,17 @@ def settlement_attempts(pr, prefix):
     return [row for row in pr.get('dispatches', []) if row.get('request_id', '').startswith(prefix)]
 
 
-def settle_superseded(pr, head):
-    """Mark launched merge attempts bound to an older head as superseded.
+def mark_stale_merges(pr, head):
+    """Record head drift without releasing a possibly live landing operation.
 
-    A reservation that has not reached the host is never superseded: it is the only
-    record that stops a competing writer while the launch is in flight.
+    A head change proves nothing about host termination. Reservations, uncertain
+    launches, pending handles and armed requests all keep their exclusion until a
+    terminal receipt settles the original attempt.
     """
     for row in pr.get('dispatches', []):
         if row.get('kind') == 'merge' and row.get('head') != head \
-                and dispatch_status(row) in ('pending', 'armed'):
-            row['status'] = 'superseded'
-            row['completed_at'] = row.get('completed_at') or pr.get('last_seen_at')
+                and dispatch_status(row) in OPEN_DISPATCH:
+            row['stale_at_head'] = head
 
 
 def reconcile_pr(pr, state, now, discovery):
@@ -771,6 +759,16 @@ def reconcile_pr(pr, state, now, discovery):
                  'request_id': fixer.get('request_id'),
                  'next_check_at': deadline(now, min(cadence, max(60, stall - age)))},
                 queue, {'kind': 'fixer-in-flight', 'detail': fixer.get('request_id')}, progress)
+
+    merge = live_merge_dispatch(pr)
+    if merge:
+        return ({'pr': pr['url'], 'kind': 'merge-pending',
+                 'reason': f"merge {merge['request_id']} is {dispatch_status(merge)}; "
+                           'reconcile its host receipt before another write',
+                 'request_id': merge['request_id'], 'head': merge.get('head'),
+                 'next_check_at': deadline(now, cadence)}, queue,
+                {'kind': 'merge-in-flight', 'host_task_id': merge.get('host_task_id'),
+                 'head': merge.get('head'), 'current_head': head}, progress)
 
     human = observation.get('human_blocker') or {}
     if human.get('kind') in HUMAN_BLOCKERS:
@@ -920,12 +918,6 @@ def reconcile_pr(pr, state, now, discovery):
     if mergeable and merge_state in ('CLEAN', 'HAS_HOOKS', 'UNSTABLE') \
             and not queue['pending'] and not failing and threads == 0 and checks_ok:
         head_attempts = merge_attempts(pr, head)
-        live = next((row for row in head_attempts if dispatch_status(row) in OPEN_DISPATCH), None)
-        if live:
-            return ({'pr': pr['url'], 'kind': 'merge-pending',
-                     'reason': f"a {dispatch_status(live)} merge was already requested for this head",
-                     'request_id': live['request_id'], 'head': head,
-                     'next_check_at': deadline(now, cadence)}, queue, None, progress)
         rejected = [row for row in head_attempts
                     if dispatch_status(row) in ('rejected', 'failed', 'cancelled')]
         if len(rejected) >= MAX_MERGE_ATTEMPTS:
@@ -1144,7 +1136,7 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
     for url, pr in state['prs'].items():
         if pr.get('state') != 'open':
             continue
-        settle_superseded(pr, pr['observation'].get('head_sha'))
+        mark_stale_merges(pr, pr['observation'].get('head_sha'))
         action, queue, blocked, signature = reconcile_pr(pr, state, now, discovery)
         if blocked:
             action = {**action, 'blocked': blocked}
@@ -1751,6 +1743,10 @@ def cmd_receipt(args):
         if args.head and row.get('head') and args.head != row['head']:
             raise ContinuousError(
                 f"receipt head {args.head} differs from dispatch head {row['head']}")
+        if row['kind'] == 'merge' and args.status in TERMINAL_DISPATCH \
+                and row.get('host_task_id'):
+            require(args.host_task_id == row['host_task_id'],
+                    'a terminal merge receipt must name the recorded host handle')
         if args.host_task_id and row.get('host_task_id') and \
                 args.host_task_id != row['host_task_id']:
             raise ContinuousError(

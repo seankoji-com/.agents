@@ -910,12 +910,18 @@ class RepairAndMergeTest(ContinuousCase):
         self.cli('dispatch', '--now', '2026-10-22T14:05:30Z', '--pr', url,
                  '--request-id', 'merge-h1', '--kind', 'merge', '--head', H1)
         moved = self.observe('2026-10-22T14:06:00Z', observation(pr(head=H2)), wake='new-head')
-        self.assertEqual(moved['actions'][0]['kind'], 'merge')
-        self.assertEqual(moved['actions'][0]['head'], H2)
+        self.assertEqual(moved['actions'][0]['kind'], 'merge-pending')
+        self.assertEqual(moved['actions'][0]['head'], H1)
         state = json.loads(self.state.read_text())
         old = next(row for row in state['prs'][url]['dispatches']
                    if row['request_id'] == 'merge-h1')
-        self.assertEqual(old['status'], 'superseded')
+        self.assertEqual(old['status'], 'pending')
+        self.assertEqual(old['stale_at_head'], H2)
+        self.cli('receipt', '--now', '2026-10-22T14:06:10Z', '--pr', url,
+                 '--request-id', 'merge-h1', '--status', 'rejected', '--head', H1)
+        settled = self.observe('2026-10-22T14:06:20Z', observation(pr(head=H2)), wake='settled')
+        self.assertEqual(settled['actions'][0]['kind'], 'merge')
+        self.assertEqual(settled['actions'][0]['head'], H2)
         self.cli('dispatch', '--now', '2026-10-22T14:06:30Z', '--pr', url,
                  '--request-id', 'merge-h2', '--kind', 'merge', '--head', H2)
         self.cli('receipt', '--now', '2026-10-22T14:07:00Z', '--pr', url,

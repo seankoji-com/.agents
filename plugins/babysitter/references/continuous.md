@@ -165,6 +165,7 @@ exclusions, drafts, forks and confirmed active ownership stay honoured. Ownershi
 reconciliation uses work plus continuation state: a parked thread that still
 maintains the PR owns it, a missing continuation field on a partial update keeps the
 last confirmed one, and only an explicit handoff or release value frees the PR.
+Unfamiliar continuation values retain ownership, including after a terminal turn.
 Historical links never exclude a PR forever. A tracked fixer suppresses a merge or
 branch update until its result is ingested.
 
@@ -193,7 +194,10 @@ recheck current lifecycle, scope, ownership and head inside the transaction. A c
 refusal is `rejected`; a lost response, malformed acceptance or missing handle is
 `uncertain` and keeps the guard. Reconcile through the host with the same request ID,
 then attach its verified handle, or record confirmed refusal. Never infer absence from
-a timeout. `armed` is accepted only for a merge and keeps it pending;
+a timeout. A changed head marks an open merge attempt stale but keeps its lock;
+reconcile the original host operation to a terminal outcome before another write.
+Terminal merge receipts for an attached task must name its recorded `--host-task-id`,
+after verifying that task has ended. `armed` is accepted only for a merge and keeps it pending;
 fixer and resolution receipts must name a terminal outcome. A receipt applies only to
 the request it names: a replay is reported as `duplicate` or `stale` and changes no
 guard or progress clock. An adopted writer (a PR observed with `fixer_in_flight` but
