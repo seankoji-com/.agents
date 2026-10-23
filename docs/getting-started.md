@@ -284,7 +284,12 @@ cheap-family model it recognises (a haiku-, flash-, mini-, nano-, lite-, small- 
 luna-class name) goes to `low`, and those become the `workhorse` candidates, cheapest
 first, with the session model last as the fallback. A delegating workflow's children
 therefore have cheap recommendations available. An explicit owner choice controls dispatch;
-tiers never answer the model picker or prove suitability. The session model judges
+tiers never answer the model picker or prove suitability. For an explicitly chosen
+configured workhorse, the frozen owner answer supplies ordinary quality 1 and its
+reason if those fields or the model row are missing. No extra numeric endorsement
+is needed. Higher role floors and a role policy's named `source` still require their
+own evidence; reviewer judgement, fixed-effort and lineage gates remain separate.
+The session model judges
 at `high`. Both the tiers and the lineage labels are guesses: edit them. Providers
 default to `auto`, except OpenCode, which defaults to
 `full-access` with `"requireRuntimeMode": true` because its children otherwise stall

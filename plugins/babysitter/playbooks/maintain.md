@@ -5,7 +5,7 @@ Require: coordinator checkout is already at the reviewed PR HEAD.
 Never change checkouts merely to enable extras.
 
 The coordinator owns discovery, watches, merges, resolutions and acceptance.
-Children repair one PR each.
+Children repair individual PRs.
 Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop rule.
 
 1. Apply the entry's auto-merge default or explicit override without a question;
@@ -51,10 +51,14 @@ Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop ru
    child work gets a fixer now, all at once, with no concurrency cap and no question.
    Create one job per such PR with `PKG/references/job-plan.md`; PRs without child work
    need no job.
-5. Prepare with `bash PKG/scripts/pr-workspace.sh`. Use upfront selected work
-   target/options and approved replacements. Follow shared short rounds. Recommend
-   cheapest suitable tier for missing choices. Show live-catalog choices without
-   routing. Never infer an answer; report `unavailable` entries.
+5. Prepare with `bash PKG/scripts/pr-workspace.sh`. Honor upfront selected work target/options;
+   explicit configured workhorse is the selection. Follow short rounds.
+   Recommend cheapest suitable tier from the configured role pool for missing choices.
+   Without routing, show suitable live-catalog choices; report `unavailable` entries.
+   Never infer an answer. Global answers: `routing_scope: global`;
+   preserve/update/read back `routing.json` and overrides under settings-write authority
+   per `PKG/shared/model-selection.md`. Run-only: `routing_scope: invocation-only`,
+   never writes routing. Keep reviewer choices separate; show role/model/options/scope before dispatch.
 6. Dispatch per `PKG/shared/job-coordination.md`: `job_cli.py prepare`, launch
    `babysitter/pr-maintainer` with `delegate_task`, and record the handle with
    `task-observation`. The immutable brief carries PR context: URL, worktree, head,

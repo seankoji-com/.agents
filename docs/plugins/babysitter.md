@@ -40,7 +40,8 @@ A run keeps going until every targeted PR has merged or needs a person:
    Otherwise babysitter recommends candidates from your
    [routing config](../getting-started.md#model-routing) and asks for the missing
    choice. Without routing it offers suitable live-catalog choices. A stuck child
-   uses only an approved replacement chain within the job's repair budget.
+   retries the same target within `max_repair_cycles`. Changing models needs an
+   approved replacement chain or a new owner answer.
 3. **Threads.** Before another merge attempt or watch, the coordinator inspects every
    unresolved thread at the current head, including outdated ones. It verifies the
    fix, posts an evidence-based reply and resolves the thread. Findings that need no
@@ -156,15 +157,19 @@ that question. The next round asks only for a missing scope, reviewer or option.
 The final summary records each role, exact model and scope before dispatch.
 
 "Use this workhorse for this run" leaves global routing unchanged. "Use it globally"
-records a global choice and applies it through the authorized settings workflow;
+records `routing_scope: global` and, under settings-write authority, puts that
+configured entry first in the user `routing.json`, preserving the other settings.
+Babysitter reads back that file and the effective repository override;
 a repository override or missing settings authority is explained without narrowing
 your choice silently. Dispatch scope and persistent routing scope are separate.
 An available reviewer you name is checked against reviewer policy and independence,
 separately from workhorse routing.
 
 Existing suitability evidence is reused. For ordinary configured workhorse work,
-your explicit endorsement of that role supplies its suitability reason. A stricter
-policy still applies. If it needs a separate profile, babysitter names the policy,
+your explicit endorsement supplies ordinary quality 1 and its suitability reason
+when that model evidence is missing. You do not need to supply another score.
+Higher floors, judgement requirements and a named stricter policy still apply.
+If one needs a separate profile, babysitter names the policy,
 exact model, required fields and accepted source once, with one next step. It keeps
 your answer while blocked. Ordinary maintenance adds no planning artifact or evaluator. An
 actual written repair or landing strategy receives planning review before dependent

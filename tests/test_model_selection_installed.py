@@ -30,7 +30,7 @@ class InstalledSelectionTests(unittest.TestCase):
                               ('maintain.md' if plugin == 'babysitter' else 'loop.md')).read_text())
                 data = selection_input()
                 data['routing_scope'] = 'global'
-                data['routing'] = {'roles': {'workhorse': [data['work']['workhorse']],
+                data['routing'] = {'roles': {'workhorse': [{**data['work']['workhorse'], 'lineage': 'alpha'}],
                                             'reviewer': [data['review_panel'][0]['target']]}}
                 data['work']['workhorse']['options'] = {'reasoningEffort': 'low'}
                 data['profiles']['roles']['workhorse']['required_options'] = {'reasoningEffort': 'low'}
@@ -46,10 +46,21 @@ class InstalledSelectionTests(unittest.TestCase):
                 self.assertEqual(plan['scope_id'], data['scope_id'])
                 self.assertFalse((box.config / 't3-plugins/routing.json').exists())
                 del data['profiles']['models'][0]
+                endorsed = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
+                                   '--input', box.payload(data)])
+                endorsed_record = json.loads(endorsed.stdout)
+                exact = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'dispatch',
+                    '--input', box.payload({'record': endorsed_record, 'role': 'workhorse',
+                                            'expected': endorsed_record['selection_sha256']})])
+                self.assertEqual(json.loads(exact.stdout)['target'], data['work']['workhorse'])
+                self.assertEqual(json.loads(exact.stdout)['routing_scope'], 'global')
+                data['profiles']['roles']['workhorse']['source'] = 'fixture-policy.md#work'
                 missing = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
                                   '--input', box.payload(data)], check=False)
                 self.assertEqual(missing.returncode, 2)
-                self.assertIn('provide profiles.roles.workhorse', missing.stderr)
+                self.assertIn('provide one profiles.models entry', missing.stderr)
+                self.assertIn('fixture-policy.md#work', missing.stderr)
+                self.assertNotIn('provide profiles.roles.workhorse', missing.stderr)
 
     def test_relocated_package_cli_missing_answer_then_exact_targets_reach_real_brief(self):
         with tempfile.TemporaryDirectory() as temporary:

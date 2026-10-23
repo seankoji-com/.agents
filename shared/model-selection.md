@@ -32,11 +32,17 @@ writing settings. Empty/malformed pools are configuration gaps. Policy-excluded
 targets are not technical outages. Quality needs a sourced suitability profile;
 cheap tiers, model names and catalog order alone prove nothing. First read existing
 role profiles and routing sources; do not ask the owner to restate recorded evidence.
-For ordinary configured workhorse work, the owner's explicit endorsement of that
-configured role is an accepted suitability reason. Transcribe its quote/reference
-into the frozen profile's `reason` and retain the answer source; declare the role
-floor and quality it endorses. This does not establish judgement capability,
+For ordinary configured workhorse work, the frozen owner answer is an accepted
+suitability source with quality **1**, the ordinary workhorse baseline. The helper
+uses that value and the answer's reason when a model row or those fields are absent;
+it does not require another score or invent one meeting a higher floor. A missing
+workhorse floor uses the same baseline of 1. Existing lower quality evidence still
+blocks. Routing supplies declared lineage when the row is missing, subject to the
+canonical-family check. Keep the answer quote/reference and routing snapshot.
+This does not establish judgement capability,
 lineage, fixed-effort review suitability or override a stricter repository policy.
+Higher minima remain enforced. A role floor's `source` names a stricter policy
+path/clause requiring separate model evidence; the endorsement cannot replace it.
 If that policy requires a separate source, name the policy path/clause, exact
 provider/model and role, missing profile fields, accepted source and why it is
 needed. State the blocker once and offer one actionable next step, such as supplying

@@ -97,35 +97,55 @@ def validate_target(target, capabilities, child=True):
     return dict(deepcopy(target), options=deepcopy(options))
 
 
-def suitability(target, role, profiles, capabilities):
+def suitability(target, role, profiles, capabilities, endorsement=None, configured=None):
     identity = '/'.join(key(target))
-    needed = (' for ' + role + ' ' + identity + '; provide profiles.roles.' + role +
-              ' and one profiles.models entry for this exact provider/model with quality, reason' +
-              ' and any required judgement/fixed_effort_reason evidence. These enforce the role floor.')
-    require(isinstance(profiles, dict), 'suitability profile missing' + needed)
-    floor = profiles.get('roles', {}).get(role)
-    require(isinstance(floor, dict) and type(floor.get('minimum')) is int and floor['minimum'] >= 0,
-            'role floor missing: ' + role + needed)
-    matches = [m for m in profiles.get('models', []) if key(m['target']) == key(target)]
-    require(len(matches) == 1, 'model suitability missing or ambiguous' + needed)
-    profile = matches[0]
     context = ' for ' + role + ' ' + identity + '; '
-    require(isinstance(profile.get('reason'), str) and profile['reason'].strip(),
-            'suitability needs evidence/reason' + context +
-            'provide profiles.models.reason for this exact target. An explicit configured-workhorse '
-            'endorsement is accepted for ordinary work; stricter policy needs its named source.')
-    require(type(profile.get('quality')) is int and profile['quality'] >= floor['minimum'],
-            'model below role floor' + context + 'provide sourced profiles.models.quality >= ' +
-            str(floor['minimum']) + ' required by profiles.roles.' + role + '.minimum.')
-    require(not floor.get('judgement') or profile.get('judgement') is True,
-            'judgement-capable model required' + context +
-            'provide profiles.models.judgement evidence required by profiles.roles.' + role + '.judgement.')
+    # The answer is an accepted source for ordinary configured work, with a
+    # defined quality of 1. Never manufacture a score meeting an arbitrary floor.
+    endorsed = role == 'workhorse' and endorsement is not None and configured is not None
+    if endorsed:
+        source(endorsement)
+        require(key(configured) == key(target), 'endorsement target differs from configured workhorse')
+    require(isinstance(profiles, dict), 'suitability profile missing' + context +
+            'provide a profiles object containing the recorded role/model evidence.')
+    roles = profiles.get('roles', {})
+    require(isinstance(roles, dict), 'role profiles malformed' + context + 'provide profiles.roles as an object.')
+    floor = roles.get(role, {'minimum': 1} if endorsed else None)
+    require(isinstance(floor, dict) and type(floor.get('minimum')) is int and floor['minimum'] >= 0,
+            'role floor missing' + context + 'provide profiles.roles.' + role + '.minimum from the role policy.')
+    rows = profiles.get('models', [])
+    require(isinstance(rows, list), 'model profiles malformed' + context + 'provide profiles.models as an array.')
+    matches = [m for m in rows if isinstance(m, dict) and key(m.get('target')) == key(target)]
+    require(len(matches) <= 1, 'model suitability ambiguous' + context +
+            'retain one profiles.models entry for this exact provider/model.')
+    ordinary = endorsed and not floor.get('judgement') and not floor.get('source')
+    require(matches or ordinary, 'model suitability missing' + context +
+            'provide one profiles.models entry for this exact provider/model from the role policy' +
+            (' at ' + str(floor['source']) if floor.get('source') else '') + '.')
+    profile = deepcopy(matches[0]) if matches else {}
+    if ordinary:
+        profile.setdefault('quality', 1)
+        if not profile.get('reason'):
+            profile['reason'] = endorsement['answer']
+        if not profile.get('lineage') and configured.get('lineage'):
+            profile.update(lineage=configured['lineage'], lineage_source='routing.roles.workhorse')
     provider, model = model_entry(capabilities, target, target.get('execution') != 'current-context')
     effort = [o for o in model.get('options') or [] if o.get('type') == 'select']
+    require(not floor.get('judgement') or profile.get('judgement') is True,
+            'judgement-capable model required by role floor' + context +
+            'provide profiles.models.judgement evidence required by profiles.roles.' + role + '.judgement.')
     if floor.get('judgement') and not effort:
         require(isinstance(profile.get('fixed_effort_reason'), str) and profile['fixed_effort_reason'].strip(),
                 'fixed-effort review needs a suitability reason' + context +
                 'provide profiles.models.fixed_effort_reason explaining how this target meets the judgement floor.')
+    require(isinstance(profile.get('reason'), str) and profile['reason'].strip(),
+            'suitability needs evidence/reason' + context +
+            'provide profiles.models.reason explaining how this target meets profiles.roles.' + role +
+            (' from ' + str(floor['source']) if floor.get('source') else '') + '.')
+    require(type(profile.get('quality')) is int and profile['quality'] >= floor['minimum'],
+            'model below role floor' + context + 'provide sourced profiles.models.quality >= ' +
+            str(floor['minimum']) + ' required by profiles.roles.' + role + '.minimum' +
+            (' from ' + str(floor['source']) if floor.get('source') else '') + '.')
     required_options = floor.get('required_options', {})
     require(all(target.get('options', {}).get(k) == v for k, v in required_options.items()),
             'selected options below role floor' + context +
@@ -149,7 +169,7 @@ def discover(capabilities, profiles, routing=None, role='workhorse'):
         configured = routing['roles'].get(role)
         require(isinstance(configured, list) and configured, 'configuration gap: empty/missing role pool')
         require(all(isinstance(t, dict) for t in configured), 'configuration gap: malformed pool')
-        configured = {key(t) for t in configured}
+        configured = {key(t): t for t in configured}
     candidates, excluded = [], []
     for provider in capabilities['providers']:
         for model in provider.get('models', []):
@@ -158,6 +178,15 @@ def discover(capabilities, profiles, routing=None, role='workhorse'):
             for option in model.get('options') or []:
                 if option.get('type') == 'select' and any(c.get('id') == 'high' for c in option.get('options', [])):
                     target['options'][option['id']] = 'high'
+            # Configured options and role requirements outrank recommendation
+            # defaults. Discovery never diagnoses an owner's answer using high.
+            entry = (configured or {}).get(key(target), {})
+            target['options'].update(entry.get('options', {}))
+            floor = profiles.get('roles', {}).get(role, {}) if isinstance(profiles, dict) else {}
+            if isinstance(floor, dict):
+                for name, value in floor.get('required_options', {}).items():
+                    if name not in entry.get('options', {}):
+                        target['options'][name] = value
             settings = (routing or {}).get('providers', {}).get(provider['providerInstanceId'], {})
             if settings.get('runtimeMode'):
                 target['runtimeMode'] = settings['runtimeMode']
@@ -175,9 +204,9 @@ def discover(capabilities, profiles, routing=None, role='workhorse'):
 
 def _eligible(target, role, record):
     target = validate_target(target, record['capabilities'], target.get('execution') != 'current-context')
-    # Validate the answer itself. Discovery uses recommended options, which may
-    # fail a role floor even when the owner's actual selected options satisfy it.
+    # Validate the answer itself, never recommendation defaults.
     routing = record['routing']
+    configured = None
     if routing is not None:
         require(isinstance(routing, dict) and isinstance(routing.get('roles'), dict),
                 'configuration gap: malformed routing')
@@ -186,10 +215,14 @@ def _eligible(target, role, record):
                 'configuration gap: empty/malformed role pool: ' + role)
         require(key(target) in {key(e) for e in entries},
                 'chosen target policy-excluded by routing.roles.' + role + ': ' + '/'.join(key(target)))
+        chosen = record['work'].get(role)
+        if role == 'workhorse' and chosen and target == dict(chosen, options=chosen.get('options', {})):
+            configured = next(e for e in entries if key(e) == key(target))
     settings = (record['routing'] or {}).get('providers', {}).get(target['providerInstanceId'], {})
     if settings.get('requireRuntimeMode'):
         require(target.get('runtimeMode') == settings.get('runtimeMode'), 'required configured runtime mode changed/dropped')
-    return target, suitability(target, role, record['profiles'], record['capabilities'])
+    return target, suitability(target, role, record['profiles'], record['capabilities'],
+                               record['source'] if configured is not None else None, configured)
 
 
 def _authority(value):
@@ -240,7 +273,7 @@ def _prospective_authors(record):
     choices = list(record['work'].items())
     if record.get('operation') in ('focus-group/plan', 'focus-group/run', 'focus-group/resume'):
         choices += [(r['role'], r['target']) for r in record.get('work_replacements', [])]
-    authors.update(suitability(target, role, record['profiles'], record['capabilities'])
+    authors.update(_eligible(target, role, record)[1]
                    for role, target in choices if _subject_author_role(record, role))
     return authors
 
@@ -342,12 +375,11 @@ def gate(record, *, invocation_id, scope_id, event='new', action='dispatch', exp
         require(capabilities is not None, 'scheduled fire needs fresh capability revalidation')
         require(policy_digests == {name: record[name] for name in ('routing_sha256', 'profiles_sha256')},
                 'scheduled fire needs current routing/profile digests; changed policy needs correction')
+        fresh = dict(record, capabilities=capabilities)
         for role, target in record['work'].items():
-            validate_target(target, capabilities, target.get('execution') != 'current-context')
-            suitability(target, role, record['profiles'], capabilities)
+            _eligible(target, role, fresh)
         for slot in record['review_panel']:
-            validate_target(slot['target'], capabilities)
-            suitability(slot['target'], slot['role'], record['profiles'], capabilities)
+            _eligible(slot['target'], slot['role'], fresh)
     return {'allowed': True, 'chooser': False, 'selection_sha256': record['selection_sha256']}
 
 

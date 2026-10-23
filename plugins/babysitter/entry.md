@@ -104,13 +104,10 @@ writes for that PR. Never bypass the supported workflow to land it.
 
 ## Approvals
 
-Resolve routine choices from the brief without asking again. Ask genuine owner
-decisions through the native question picker in
-`PKG/shared/t3-runtime.md`, recommended option first, and record it with
-`job_cli.py decision`. Model choices and work replacements follow the upfront
-selection contract; do not infer them from maintenance authority. Fan-out, repair rounds, branch rewrites, and a
-roster PR's tests and regressions with the setup they need are decided: never ask,
-always yes. New matching PRs, moving heads and recoverable CI setup need no question.
-Ask only for new authority, material product choices, or human-only blockers after
-authorized alternatives are exhausted. Until answered the action
-stays unapproved; silence is not approval.
+Ask new authority, material product choices or human-only blockers through the
+native question picker, recommended option first; record `job_cli.py decision`.
+Model choices/replacements follow the shared short rounds, retaining answers;
+maintenance authority does not select models. Fan-out, repair rounds, branch rewrites, and a
+roster PR's tests/regressions/setup are decided: never ask, always yes.
+New matching PRs, moving heads and recoverable CI setup need no question.
+Exhaust authorized alternatives first; silence is not approval.

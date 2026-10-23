@@ -210,7 +210,7 @@ class BoundaryTest(unittest.TestCase):
         self.assertIn('no concurrency cap and no question', play[4])
         self.assertIn('finite `max_repair_cycles` allowance', play[8])
         self.assertIn('Fan-out, repair rounds, branch rewrites, and a', approvals)
-        self.assertIn("roster PR's tests and regressions with the setup they need are decided: never ask, always yes", approvals)
+        self.assertIn("roster PR's tests/regressions/setup are decided: never ask, always yes", approvals)
         self.assertIn('ask through the question picker', sections('references/job-plan.md')['Merge and acceptance'])
 
     def test_validator_is_the_acceptance_authority(self):
@@ -235,8 +235,12 @@ class BoundaryTest(unittest.TestCase):
         play = steps('playbooks/maintain.md')
         self.assertIn('| PR | Description | Not merged because |', play[3])
         self.assertIn('Post it after the quick pass and at the end of every turn', play[3])
-        self.assertIn('Show live-catalog choices without routing', play[5])
-        self.assertIn('cheapest suitable tier', play[5])
+        self.assertIn('Without routing, show suitable live-catalog choices', play[5])
+        self.assertIn('cheapest suitable tier from the configured role pool', play[5])
+        for text in ('workhorse is the selection', '`routing_scope: global`',
+                     '`routing.json`', 'read back', '`routing_scope: invocation-only`',
+                     'never writes routing', 'Keep reviewer choices', 'before dispatch'):
+            self.assertIn(text, play[5])
         self.assertIn('`needs human:`', play[9])
         self.assertIn('`automerge=preexisting`', play[2])
         self.assertIn("Rerun step 2's helper for that PR unless its fixer is in flight", play[8])

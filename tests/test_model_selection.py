@@ -120,17 +120,110 @@ class SelectionTests(unittest.TestCase):
 
     def test_selected_options_are_validated_without_recommendation_substitution(self):
         data = deepcopy(self.data)
-        # Discovery recommends high, while this work floor requires the selected low.
+        # The role's low requirement and configured answer outrank high defaults.
         data['work']['workhorse']['options'] = {'reasoningEffort': 'low'}
         data['profiles']['roles']['workhorse']['required_options'] = {'reasoningEffort': 'low'}
         data['routing'] = {'roles': {'workhorse': [data['work']['workhorse']],
                                     'reviewer': [data['review_panel'][0]['target']]}}
-        self.assertEqual(models.discover(data['capabilities'], data['profiles'],
-                                        data['routing'])['candidates'], [])
+        discovered = models.discover(data['capabilities'], data['profiles'], data['routing'])
+        self.assertEqual(discovered['candidates'][0]['target'], data['work']['workhorse'])
+        self.assertFalse(any(e['target']['model'] == 'alpha-work' for e in discovered['excluded']))
         record = models.freeze(data)
         plan = models.dispatch(record, role='workhorse')
         self.assertEqual(plan['target'], data['work']['workhorse'])
         self.assertFalse(plan['substituted'])
+        # A role requirement also guides recommendations without configured options.
+        data['routing']['roles']['workhorse'][0] = {k: v for k, v in data['work']['workhorse'].items()
+                                                    if k != 'options'}
+        self.assertEqual(models.discover(data['capabilities'], data['profiles'], data['routing'])[
+            'candidates'][0]['target']['options'], {'reasoningEffort': 'low'})
+
+    def test_configured_endorsement_is_ordinary_quality_source_without_model_row(self):
+        for missing in ('quality', 'row', 'floor'):
+            with self.subTest(missing=missing):
+                data = deepcopy(self.data)
+                work = data['work']['workhorse']
+                data['routing'] = {'roles': {'workhorse': [{**work, 'lineage': 'alpha'}],
+                                            'reviewer': [data['review_panel'][0]['target']]}}
+                data['source'] = answer('Use the configured alpha-work as workhorse globally')
+                data['routing_scope'] = 'global'
+                del data['profiles']['models'][0]['quality']
+                if missing in ('row', 'floor'):
+                    del data['profiles']['models'][0]
+                if missing == 'floor':
+                    del data['profiles']['roles']['workhorse']
+                data['schedule'] = {'schedule_id': 'fixture-schedule',
+                                    'source': answer('Reuse these exact choices for this fixture schedule.')}
+                original = deepcopy(data)
+                record = models.freeze(data)
+                plan = models.dispatch(record, role='workhorse')
+                self.assertEqual(plan['target'], work)
+                self.assertEqual(plan['routing_scope'], 'global')
+                self.assertEqual(data, original)
+                self.assertEqual(record['profiles'], original['profiles'])
+                self.assertEqual(record['source'], original['source'])
+                scheduled = {'invocation_id': record['invocation_id'], 'scope_id': record['scope_id'],
+                             'event': 'schedule', 'schedule_id': 'fixture-schedule',
+                             'capabilities': data['capabilities'], 'policy_digests': {
+                                 name: record[name] for name in ('routing_sha256', 'profiles_sha256')}}
+                self.assertTrue(models.gate(record, **scheduled)['allowed'])
+                absent = deepcopy(data['capabilities'])
+                absent['providers'].pop(0)
+                with self.assertRaisesRegex(models.SelectionError, 'provider absent'):
+                    models.gate(record, **dict(scheduled, capabilities=absent))
+
+    def test_endorsement_does_not_override_stricter_workhorse_evidence(self):
+        data = deepcopy(self.data)
+        work = data['work']['workhorse']
+        data['routing'] = {'roles': {'workhorse': [{**work, 'lineage': 'alpha'}]}}
+        del data['profiles']['models'][0]['quality']
+        data['profiles']['roles']['workhorse']['minimum'] = 2
+        with self.assertRaisesRegex(models.SelectionError, 'quality >= 2'):
+            models.freeze(data)
+        data['profiles']['roles']['workhorse'] = {'minimum': 1, 'source': 'fixture-policy.md#work'}
+        with self.assertRaisesRegex(models.SelectionError, 'quality >= 1.*fixture-policy.md#work'):
+            models.freeze(data)
+        del data['profiles']['models'][0]
+        with self.assertRaisesRegex(models.SelectionError, 'one profiles.models entry.*fixture-policy.md#work'):
+            models.freeze(data)
+        data['profiles']['roles']['workhorse'] = {'minimum': 1, 'judgement': True}
+        with self.assertRaisesRegex(models.SelectionError, 'model suitability missing'):
+            models.freeze(data)
+
+    def test_endorsement_does_not_grant_unknown_lineage_or_review_independence(self):
+        data = deepcopy(self.data)
+        work = data['work']['workhorse']
+        work['model'] = '123fixture'
+        data['capabilities']['providers'][0]['models'][0]['id'] = work['model']
+        data['routing'] = {'roles': {'workhorse': [work], 'reviewer': [data['review_panel'][0]['target']]}}
+        del data['profiles']['models'][0]
+        with self.assertRaisesRegex(models.SelectionError, 'independent of every'):
+            models.freeze(data)
+        work['model'] = 'beta-work'
+        data['capabilities']['providers'][0]['models'][0]['id'] = work['model']
+        with self.assertRaisesRegex(models.SelectionError, 'independent of every'):
+            models.freeze(data)
+
+    def test_missing_reviewer_evidence_names_only_reviewer_next_step(self):
+        for missing, field in (('reason', 'reason'), ('judgement', 'judgement'),
+                               ('fixed_effort_reason', 'fixed_effort_reason')):
+            with self.subTest(missing=missing):
+                data = deepcopy(self.data)
+                if missing == 'fixed_effort_reason':
+                    data['capabilities']['providers'][1]['models'][0]['options'] = []
+                    data['review_panel'][0]['target']['options'] = {}
+                else:
+                    del data['profiles']['models'][1][missing]
+                with self.assertRaises(models.SelectionError) as caught:
+                    models.freeze(data)
+                error = str(caught.exception)
+                self.assertIn('reviewer fixture-review/beta-review', error)
+                self.assertIn('provide profiles.models.' + field, error)
+                self.assertNotIn('workhorse', error)
+
+    def test_old_record_without_routing_scope_keeps_invocation_default(self):
+        self.assertNotIn('routing_scope', self.record)
+        self.assertEqual(models.dispatch(self.record, role='workhorse')['routing_scope'], 'invocation-only')
 
     def test_configured_owner_choice_reuses_suitability_and_preserves_scope(self):
         for scope in ('invocation-only', 'global'):
@@ -173,10 +266,20 @@ class SelectionTests(unittest.TestCase):
         data['profiles']['models'].pop(0)
         result = self.cli('freeze', data)
         self.assertEqual(result.returncode, 2)
-        for text in ('workhorse fixture-work/alpha-work', 'provide profiles.roles.workhorse',
-                     'profiles.models', 'quality, reason', 'enforce the role floor'):
+        for text in ('workhorse fixture-work/alpha-work', 'provide one profiles.models entry',
+                     'this exact provider/model'):
             self.assertIn(text, result.stderr)
-        self.assertNotIn('unavailable or excluded', result.stderr)
+        for text in ('profiles.roles.workhorse', 'judgement', 'fixed_effort_reason'):
+            self.assertNotIn(text, result.stderr)
+        data = deepcopy(self.data)
+        del data['profiles']['roles']['workhorse']
+        result = self.cli('freeze', data)
+        self.assertIn('provide profiles.roles.workhorse.minimum', result.stderr)
+        self.assertNotIn('profiles.models', result.stderr)
+        data['profiles'] = 'nope'
+        result = self.cli('freeze', data)
+        self.assertIn('provide a profiles object', result.stderr)
+        self.assertNotIn('profiles.roles.workhorse', result.stderr)
         for field, value, required in (
                 ('reason', '', 'provide profiles.models.reason'),
                 ('quality', 0, 'provide sourced profiles.models.quality >= 1')):
