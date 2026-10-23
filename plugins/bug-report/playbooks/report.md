@@ -37,15 +37,18 @@ by a patch tested only against 255 bytes. Do not invent successful reproduction.
 Choose one outcome per problem, with ownership evidence, expected-behavior
 evidence and current documentation/trust-boundary inspection:
 
-- `t3-defect`: observed failure violates established T3 behavior.
+- `upstream-defect`: observed failure violates the owning project's established
+  behavior. Record `upstream_name` and its verified `reporting_route` before filing.
+- `t3-defect`: legacy T3-specific classification, retained for existing sessions.
 - `unconfirmed`: missing reproduction, access, logs or conflicting ownership.
   Retain evidence and ask the specific missing question. Zero publication, launch
   or scheduling. An intermittent failure remains unconfirmed when evidence is
   insufficient; failure to reproduce does not establish an idea.
 - `t3-improvement`: established request for different T3 behavior, including an
   explicit opt-in beyond a deliberate restriction.
-- `external`: attributable to another project. Return a redacted report draft,
-  suggested destination and verified related reports. Zero external writes.
+- `external`: ownership is known but no usable documented reporting method has
+  been verified. Return a redacted draft, destination suggestion and blocker.
+  Zero external writes until reclassified with a verified method.
 - `explained`: configuration or usage explains the observation. State the evidence
   and safe next action; no speculative report.
 
@@ -55,15 +58,26 @@ owner. The helper checks record shape, not the truth of this judgment.
 
 ## 2. Search and prepare the reporting thread
 
-Read current `pingdotgg/t3code` contribution rules, report templates and relevant
-documentation. Discover available GitHub issue and Discussion reads/searches,
-write access and the actual Ideas category ID. Prefer sufficient connected tools.
-For absent operations use authenticated supported `gh api`/GraphQL, with structured
-variables or JSON files. Never interpolate report text into commands. Missing
-Discussion access keeps the draft and blocker; never reroute it to a bug issue.
+Read the owning upstream's current contribution rules, reporting instructions,
+security policy and templates. Verify ownership from observed source/package or
+service identity and authoritative upstream references. For a generic defect,
+record `reporting_route` with `method` (`github`, `web` or `email`), `destination`,
+`documentation` and `ownership_evidence`, plus `upstream_name`. A GitHub destination
+is the canonical repository root; a web destination is the documented tracker/form;
+an email destination is one documented `mailto:` recipient. Do not guess channels
+or send a security-sensitive issue publicly against the upstream's policy.
 
-Search issues and Discussions, including closed matches, aliases and error
-variants. Paginate fully. Inspect candidate bodies, comments, affected versions,
+Discover sufficient connected tools, access and any applicable categories. Prefer
+them; use authenticated supported APIs only when needed. A documented email or web
+method is usable only when the current tools can submit and return an actual
+receipt. Unknown methods or unavailable transports preserve a draft and blocker.
+Never invent credentials, a ticket URL or a sent-message receipt. Legacy T3
+improvements still use the verified Ideas category, never a substitute bug issue.
+
+Search the upstream's applicable report channels, including closed matches, aliases
+and error variants. For non-GitHub methods, record every applicable channel as
+searched or not-applicable with evidence; a documented lack of public duplicate
+search is a coverage limit, not a fabricated successful search. Paginate fully. Inspect candidate bodies, comments, affected versions,
 scope, partial fixes, resolution and canonical links. A failed or incomplete
 search cannot establish no duplicate. Record `search` per problem with queries,
 candidate observations and a reason for selecting a canonical target or new
@@ -106,7 +120,7 @@ Every launch, diagnostic, remote read, write, schedule and cleanup follows:
 2. Immediately before the outward call, `send` checks the current deadline/budget
    and classification/search generations, and marks the operation sent. Use the
    exact generated destination-bound `request` from its result. Public payloads
-   accept body/title only; the helper generates T3 repository/object/category
+   accept body/title only; the helper generates upstream-bound repository/object/category or documented-intake
    arguments for the selected supported transport. Call the host once. A guard receipt is valid only
    for the immediately following request; recheck on any intervening wait. The
    local ledger and remote API do not form an atomic transaction.
@@ -128,8 +142,8 @@ Every launch, diagnostic, remote read, write, schedule and cleanup follows:
    permission or rate-limit failures blindly.
 
 Only the reporting thread publishes. Refresh the actual destination just before
-writing; record template/category and permission observations. For a verified T3
-defect, create a new issue or add new supporting evidence to the canonical report.
+writing; record template/category and permission observations. For a verified upstream
+defect, use the documented intake to create a report or add new supporting evidence to the canonical report.
 For an established improvement use Ideas. For comments, preserve the current
 canonical-target reasoning. The report includes expected and actual behavior,
 observed reproduction, environment, impact, known workarounds, related-report
@@ -149,7 +163,10 @@ deadline is exactly 1800 seconds later. Recover its actual creation time after a
 lost response. No later post, redirect, restart, closure or resume changes it.
 Keep monitoring until deadline or explicit owner cancellation, including Ideas.
 
-Discover a native issue/Discussion watcher. If unavailable, use `schedule_task`
+Discover a native watcher for the actual reporting channel. For email, read only
+the owned report thread; for a web tracker, read the actual ticket and replies.
+Lack of readable replies is a monitoring gap, never a reason to move channels.
+Discover a native issue/Discussion watcher when applicable. If unavailable, use `schedule_task`
 in the reporting thread, with a structured schedule object
 `{"type":"interval","everyMs":120000}` and `bindToCurrentThread:true`.
 Its prompt carries the session ID, private state root, original deadline, fixed

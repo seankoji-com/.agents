@@ -3,7 +3,7 @@
 `t3-plugins setup` writes one small skill per workflow, so you can type `/` in T3,
 pick `t3-imps`, and add the task. Every provider reads the same installed entry file,
 so the workflow is identical whichever model you choose. The skills are `t3-imps`,
-`t3-ape`, `t3-babysitter`, `t3-elephant-goldfish`, `t3-agent-tuneup` and `t3-ralph`.
+`t3-ape`, `t3-babysitter`, `t3-plan`, `t3-agent-tuneup` `t3-ralph`, `t3-focus-group` and `t3-bug-report`.
 
 `setup` installs the whole catalog and writes skills into the four default folders
 below. `t3-plugins setup imps` does one plugin; repeated `--root PATH` replaces the
@@ -71,7 +71,7 @@ diagnostics as shadowed; both copies read the same installed entry.
 ## Invoke and refresh
 
 Turn on **Settings > General > Show skills in slash menu**, then run **Restart agent
-session** from T3's command palette. Type `/`, select `t3-imps`, and add an operation:
+session** from T3's command palette. Type `/`, select `t3-imps`, and describe the task:
 
 ```text
 $t3-imps doctor
@@ -80,8 +80,9 @@ $t3-imps --personas 42 43
 $t3-imps checklist path/to/audit.md
 ```
 
-Each adapter's description includes argument hints, such as
-`study <GitHub URL> [focus]` or `audit --provider <name> --settings <path>`.
+The default workflows show task arguments directly, such as `<topic or problem>`
+for plan or `[focus or repository URL]` for ape. Agent-tuneup runs its complete
+workflow without a subcommand. Other adapters retain their operation hints.
 Angle brackets mark required values; square brackets mark optional arguments.
 The hints live in the portable `description` frontmatter field. Run
 `t3-plugins setup` again and restart the agent session to refresh existing adapters.
@@ -124,3 +125,8 @@ t3-plugins skills uninstall imps --root ~/.agents/skills
 Repeat for each installed root. Removal preserves operator-added files and never
 removes the plugin snapshot or run state. Remove adapters before uninstalling the
 plugin, otherwise they report a missing entry.
+
+
+Elephant-goldfish is deprecated. Setup replaces only its owned, unmodified adapters
+with the new plan workflow; edited adapters, old installed packages and pinned state
+are preserved. Use `$t3-plan <topic>` for new work.

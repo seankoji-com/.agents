@@ -133,5 +133,7 @@
       "planning": "none",
       "reason": "Factual drift only; no newly authored plan and no cold read."
     }
-  }
+  },
+  "deprecated": true,
+  "replacement": "plan"
 }

@@ -1,9 +1,9 @@
 {
   "name": "bug-report",
-  "version": "0.1.5",
-  "description": "Verify suspected T3 problems, route redacted reports, and follow up for one fixed 30-minute window.",
-  "short_description": "Verify, report and follow up on T3 problems",
-  "argument_hint": "run [symptom or context reference] | resume <session> | status <session> | cancel <session>",
+  "version": "0.1.6",
+  "description": "Verify suspected upstream defects, use their documented reporting channel, and follow up for one fixed 30-minute window.",
+  "short_description": "Verify and report upstream defects",
+  "argument_hint": "[symptom, upstream or context reference]",
   "entry": "entry.md",
   "operations": [
     "run",
@@ -12,10 +12,7 @@
     "cancel"
   ],
   "picker": [
-    "run",
-    "resume",
-    "status",
-    "cancel"
+    "run"
   ],
   "context_on_empty": true,
   "kind": "workflow",
@@ -59,5 +56,6 @@
       "pattern": "^[\\s\\S]*$",
       "operation": "run"
     }
-  ]
+  ],
+  "default_operation": "run"
 }
