@@ -1,7 +1,7 @@
 """Real isolated installed jobs used by continuous receipt and upgrade regressions."""
 import io
+import hashlib
 import json
-import subprocess
 import tarfile
 from pathlib import Path
 
@@ -47,13 +47,14 @@ class AcceptedJob:
 
 
 def legacy_source(base, revision='4fc614b363a147c4f3220176607156be52941fa9'):
-    """Use the actual pre-continuous source from the immutable issue base."""
+    """Extract actual pinned public source, including in a shallow/offline checkout."""
     source = Path(base) / 'legacy-source'
     source.mkdir()
-    archive = subprocess.run(
-        ['git', 'archive', revision,
-         'plugins/babysitter', 'core', 'shared'], cwd=ROOT,
-        capture_output=True, check=True, timeout=30).stdout
+    fixtures = ROOT / 'tests/fixtures/babysitter-packages'
+    pin = json.loads((fixtures / 'provenance.json').read_text())['revisions'][revision]
+    archive = (fixtures / pin['archive']).read_bytes()
+    if hashlib.sha256(archive).hexdigest() != pin['sha256']:
+        raise AssertionError('historical package fixture digest differs from its pin')
     with tarfile.open(fileobj=io.BytesIO(archive)) as stream:
         for item in stream.getmembers():
             if item.issym() or item.islnk() or Path(item.name).is_absolute() \

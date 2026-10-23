@@ -2,6 +2,7 @@
 import hashlib
 import json
 import sys
+from unittest.mock import patch
 from pathlib import Path
 
 from tests.babysitter_continuous_fixtures import AcceptedJob, legacy_source, plan
@@ -164,6 +165,12 @@ class RevocationTest(ContinuousCase):
 
 
 class RealLegacyUpgradeTest(ContinuousCase):
+    def test_historical_source_extraction_works_without_git_or_subprocesses(self):
+        with patch('subprocess.run', side_effect=AssertionError('fixture extraction must be offline')):
+            source = legacy_source(self.base)
+        self.assertEqual(json.loads((source / 'plugins/babysitter/plugin.json').read_text())['version'],
+                         '1.2.10')
+
     def test_real_legacy_pin_upgrade_retains_evidence_and_resumes_with_verified_receipt(self):
         self.exercise_upgrade()
 
