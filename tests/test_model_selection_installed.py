@@ -17,6 +17,70 @@ from tests.test_rebuild_installed import Sandbox
 
 
 class InstalledSelectionTests(unittest.TestCase):
+    def test_relocated_global_preference_is_recovered_by_later_readers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            box = Sandbox(Path(temporary))
+            data = canonical_selection_input()
+            work = data['work']['workhorse']
+            cheap = deepcopy(work)
+            cheap['model'] = 'alpha-small'
+            data['capabilities']['providers'][0]['models'].insert(0,
+                {**deepcopy(data['capabilities']['providers'][0]['models'][0]), 'id': cheap['model']})
+            data['profiles']['models'].append({**deepcopy(data['profiles']['models'][0]), 'target': cheap})
+            config = {'schema_version': 1, 'tiers': ['low', 'high'],
+                      'providers': {'fixture-work': {'runtimeMode': 'auto'}},
+                      'roles': {'workhorse': [{**cheap, 'tier': 'low', 'lineage': 'openai'},
+                                               {**work, 'tier': 'high', 'lineage': 'openai'}],
+                                'reviewer': [{**data['review_panel'][0]['target'],
+                                              'tier': 'high', 'lineage': 'anthropic'}]}}
+            config_path = box.config / 't3-plugins/routing.json'
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(json.dumps(config))
+            caps = box.payload(data['capabilities'])
+            for plugin in ('babysitter', 'ralph'):
+                package, _ = box.install(plugin)
+                relocated = box.base / (plugin + '-preference-relocated')
+                shutil.copytree(package, relocated)
+                helper = relocated / 'shared/model_selection_cli.py'
+                self.assertEqual((relocated / 'shared/model_selection.py').read_bytes(),
+                                 (ROOT / 'shared/model_selection.py').read_bytes())
+                # A run-only selection and dispatch leave existing routing bytes intact.
+                before = config_path.read_bytes()
+                data.update(routing=config, routing_scope='invocation-only',
+                            source=answer('Use alpha-work for this invocation'))
+                record = json.loads(box.run([sys.executable, helper, 'freeze',
+                                             '--input', box.payload(data)]).stdout)
+                box.run([sys.executable, helper, 'dispatch', '--input', box.payload(
+                    {'record': record, 'role': 'workhorse', 'expected': record['selection_sha256']})])
+                self.assertEqual(config_path.read_bytes(), before)
+                # The coordinator, separately authorized to write settings, stores
+                # only the preference field. The chooser itself still writes nothing.
+                preferred = {k: work[k] for k in ('providerInstanceId', 'model')}
+                persisted = {**config, 'preferred_workhorse': preferred}
+                config_path.write_text(json.dumps(persisted))
+                written = config_path.read_bytes()
+                later = json.loads(box.t3('resolve', 'workhorse', '--capabilities', caps).stdout)
+                self.assertEqual([c['model'] for c in later['candidates']], ['alpha-work', 'alpha-small'])
+                self.assertTrue(later['candidates'][0]['preferred'])
+                profiled = json.loads(box.t3('resolve', 'workhorse', '--capabilities', caps,
+                                            '--profiles', box.payload(data['profiles'])).stdout)
+                self.assertEqual(profiled['candidates'][0]['target'], {**work, 'runtimeMode': 'auto'})
+                self.assertTrue(profiled['candidates'][0]['preferred'])
+                for _ in range(2):
+                    request = {'capabilities': data['capabilities'], 'profiles': data['profiles'],
+                               'routing': json.loads(config_path.read_text()), 'role': 'workhorse'}
+                    discovered = json.loads(box.run([sys.executable, helper, 'discover',
+                                                    '--input', box.payload(request)]).stdout)
+                    self.assertEqual([c['target']['model'] for c in discovered['candidates']],
+                                     ['alpha-work', 'alpha-small'])
+                    self.assertTrue(discovered['candidates'][0]['preferred'])
+                    self.assertEqual(discovered['preferred_workhorse'], preferred)
+                    self.assertEqual(discovered['preference_status'], 'available')
+                self.assertEqual(config_path.read_bytes(), written)
+                self.assertEqual(json.loads(written)['providers'], config['providers'])
+                self.assertEqual(json.loads(written)['roles'], config['roles'])
+                config_path.write_text(json.dumps(config))
+
     def test_relocated_custom_routing_labels_preserve_independence(self):
         with tempfile.TemporaryDirectory() as temporary:
             box = Sandbox(Path(temporary))

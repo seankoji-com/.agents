@@ -157,9 +157,15 @@ that question. The next round asks only for a missing scope, reviewer or option.
 The final summary records each role, exact model and scope before dispatch.
 
 "Use this workhorse for this run" leaves global routing unchanged. "Use it globally"
-records `routing_scope: global` and, under settings-write authority, puts that
-configured entry first in the user `routing.json`, preserving the other settings.
-Babysitter reads back that file and the effective repository override;
+records `routing_scope: global` and, under settings-write authority, sets
+`preferred_workhorse` in the user `routing.json` to the exact `providerInstanceId`
+and `model`, matching one configured workhorse entry and preserving other settings.
+Babysitter reads back that file, the effective repository override and both routing
+readers. Later `resolve` and selection discovery offer the eligible preference
+first, even above a cheaper tier, and mark it `preferred: true`. An unavailable
+preference stays visible with its blocker; it does not authorize a replacement.
+It remains a recommendation when a new invocation needs an owner answer.
+Repository workhorse overrides replace the user preference;
 a repository override or missing settings authority is explained without narrowing
 your choice silently. Dispatch scope and persistent routing scope are separate.
 An available reviewer you name is checked against reviewer policy and independence,

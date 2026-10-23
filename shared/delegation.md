@@ -23,7 +23,9 @@ The installed `PKG/shared/agents/reviewer-standard.md` defines reviewer depth an
 Worker bundles expose the same contract at `shared/reviewer-standard.md`.
 When a routing config exists, `t3-plugins resolve <role> --capabilities FILE` lists the
 configured candidates for `workhorse`, `reviewer` or `judgement` that the saved
-`orchestrator_capabilities` response can run, cheapest tier first. Recommend only
+`orchestrator_capabilities` response can run, with an eligible saved
+`preferred_workhorse` first and otherwise cheapest tier first. An unavailable
+preference stays blocked; the next candidate is not an authorized replacement. Recommend only
 within the declared role's quality floor. Dispatch the exact user-selected target
 and supported options. Escalation or direct work needs separately approved work
 replacement authority or a new choice; blocked/malformed results grant none.

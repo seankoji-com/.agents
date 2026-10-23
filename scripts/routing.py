@@ -16,6 +16,7 @@ import re
 import tempfile
 from pathlib import Path
 from shared.lineage import DRIVER_LINEAGE, FAMILY_LINEAGE, MULTI_LINEAGE_DRIVERS, lineage
+from shared.model_selection import SelectionError, routing_preference, prefer_workhorse
 
 SCHEMA_VERSION = 1
 ROLES = ('workhorse', 'reviewer', 'judgement')
@@ -184,6 +185,10 @@ def validate(config) -> dict:
                 raise RoutingError('config_invalid', f'every {role} entry needs providerInstanceId, model, lineage and tier')
             if item['tier'] not in tiers:
                 raise RoutingError('config_invalid', f'{role} entry names unknown tier {item["tier"]!r}')
+    try:
+        routing_preference(config)
+    except SelectionError as exc:
+        raise RoutingError('config_invalid', str(exc)) from exc
     return config
 
 
@@ -237,7 +242,15 @@ def effective_config(user_path=None, repo=None) -> tuple[dict, list]:
         if not isinstance(policy, dict) or not all(isinstance(policy.get(k, {}), dict) for k in ('providers', 'roles')):
             raise RoutingError('config_invalid', f'{repo_file} must be a JSON object with object "providers" and "roles"')
         base = config or {'schema_version': SCHEMA_VERSION, 'providers': {}, 'roles': {}}
+        # A repository workhorse pool replaces the user's pool and preference.
+        # A preference-only override must itself match the effective pool.
+        preference = {}
+        if 'preferred_workhorse' in policy:
+            preference['preferred_workhorse'] = policy['preferred_workhorse']
+        elif 'workhorse' not in policy.get('roles', {}) and 'preferred_workhorse' in base:
+            preference['preferred_workhorse'] = base['preferred_workhorse']
         config = validate({'schema_version': policy.get('schema_version', SCHEMA_VERSION),
+                           **preference,
                            'tiers': policy.get('tiers', base.get('tiers')),
                            'providers': {**base.get('providers', {}), **(policy.get('providers') or {})},
                            'roles': {**base['roles'], **(policy.get('roles') or {})}})
@@ -307,4 +320,4 @@ def resolve(role: str, capabilities: dict, config: dict | None, implementer_line
             else:
                 candidate['independent'] = candidate['lineage'] != implementer_lineage
         candidates.sort(key=lambda c: rank[c['independent']])  # stable: tier order within each group
-    return {'role': role, 'candidates': candidates, 'unavailable': unavailable}
+    return prefer_workhorse({'role': role, 'candidates': candidates, 'unavailable': unavailable}, config, role)

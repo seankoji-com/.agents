@@ -205,9 +205,47 @@ def suitability(target, role, profiles, capabilities, endorsement=None, configur
     return actual_lineage
 
 
+def routing_preference(routing):
+    """An explicit saved workhorse identity, never inferred from tier/list order."""
+    if routing is None:
+        return None
+    require(isinstance(routing, dict), 'configuration gap: malformed routing')
+    if 'preferred_workhorse' not in routing:
+        return None
+    preferred = routing['preferred_workhorse']
+    require(isinstance(preferred, dict) and set(preferred) == {'providerInstanceId', 'model'},
+            'preferred_workhorse must contain only providerInstanceId and model')
+    identity = key(preferred)
+    roles = routing.get('roles')
+    require(isinstance(roles, dict), 'preferred_workhorse requires a roles object')
+    pool = roles.get('workhorse', [])
+    require(isinstance(pool, list) and sum(key(entry) == identity for entry in pool) == 1,
+            'preferred_workhorse must match exactly one roles.workhorse entry')
+    return identity
+
+
+def prefer_workhorse(result, routing, role):
+    """Mark a saved preference, including a visible refusal, without selecting it."""
+    preferred = routing_preference(routing)
+    if preferred is None or role != 'workhorse':
+        return result
+    available = False
+    for candidate in result['candidates']:
+        if key(candidate.get('target', candidate)) == preferred:
+            candidate['preferred'] = True
+            available = True
+        else:
+            candidate.pop('preferred', None)
+    result['candidates'].sort(key=lambda c: not c.get('preferred', False))
+    result['preferred_workhorse'] = dict(zip(('providerInstanceId', 'model'), preferred))
+    result['preference_status'] = 'available' if available else 'unavailable'
+    return result
+
+
 def discover(capabilities, profiles, routing=None, role='workhorse'):
     """Recommendations only. No config writes, tier/first-model quality inference."""
     require(isinstance(capabilities, dict) and isinstance(capabilities.get('providers'), list), 'live capabilities missing')
+    routing_preference(routing)
     configured = None
     if routing is not None:
         require(isinstance(routing, dict) and isinstance(routing.get('roles'), dict), 'configuration gap: malformed routing')
@@ -244,7 +282,15 @@ def discover(capabilities, profiles, routing=None, role='workhorse'):
                 candidates.append({'target': target, 'lineage': family, 'recommendation_only': True})
             except SelectionError as exc:
                 excluded.append({'target': target, 'reason': str(exc)})
-    return {'candidates': candidates, 'excluded': excluded, 'configured': configured is not None}
+    # A configured preferred model absent from the live catalog still needs an
+    # exact exclusion; other candidates do not silently replace that preference.
+    preferred = routing_preference(routing)
+    if role == 'workhorse' and preferred and not any(
+            key(row['target']) == preferred for row in candidates + excluded):
+        excluded.append({'target': dict(zip(('providerInstanceId', 'model'), preferred)),
+                         'reason': 'preferred workhorse absent from live capabilities; retain the choice and refresh capabilities'})
+    return prefer_workhorse({'candidates': candidates, 'excluded': excluded,
+                             'configured': configured is not None}, routing, role)
 
 
 def recommend(capabilities, profiles, preferences, *, routing=None, authors=(), maximum=3):

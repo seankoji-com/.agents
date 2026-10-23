@@ -424,6 +424,56 @@ class SelectionTests(unittest.TestCase):
                      'plugins/focus-group/entry.md', 'plugins/focus-group/playbooks/plan.md',
                      'plugins/ape/references/planning-review.md', 'shared/upfront-agreement.md'):
             self.assertIn('short rounds', (ROOT / name).read_text())
+        self.assertNotIn('batch only missing consequential decisions',
+                         (ROOT / 'shared/t3-runtime.md').read_text())
+        for text in ('only recognized routing', 'setup-inferred custom basename',
+                     '`profiles.models.lineage`', '`profiles.models.lineage_source`',
+                     '`preferred_workhorse`', '`preferred: true`'):
+            self.assertIn(text, contract)
+        for family in set(models.FAMILY_LINEAGE.values()) | set(models.DRIVER_LINEAGE.values()):
+            self.assertIn('`' + family + '`', contract)
+
+    def test_saved_preference_discovery_prioritizes_only_eligible_exact_workhorse(self):
+        data = canonical_selection_input()
+        cheap = deepcopy(data['work']['workhorse'])
+        cheap['model'] = 'alpha-small'
+        data['capabilities']['providers'][0]['models'].insert(0,
+            {**deepcopy(data['capabilities']['providers'][0]['models'][0]), 'id': cheap['model']})
+        data['profiles']['models'].append({**deepcopy(data['profiles']['models'][0]), 'target': cheap})
+        preferred = {k: data['work']['workhorse'][k] for k in ('providerInstanceId', 'model')}
+        routing = {'roles': {'workhorse': [{**cheap, 'tier': 'low'},
+                                          {**data['work']['workhorse'], 'tier': 'high'}]},
+                   'preferred_workhorse': preferred}
+        before = deepcopy(routing)
+        legacy = {'roles': deepcopy(routing['roles'])}
+        old = models.discover(data['capabilities'], data['profiles'], legacy)
+        self.assertEqual([c['target']['model'] for c in old['candidates']], ['alpha-small', 'alpha-work'])
+        self.assertNotIn('preferred_workhorse', old)
+        for _ in range(2):
+            result = models.discover(data['capabilities'], data['profiles'], routing)
+            self.assertEqual([c['target']['model'] for c in result['candidates']], ['alpha-work', 'alpha-small'])
+            self.assertTrue(result['candidates'][0]['preferred'])
+            self.assertEqual(result['preference_status'], 'available')
+        data['profiles']['models'][0]['quality'] = 0
+        blocked = models.discover(data['capabilities'], data['profiles'], routing)
+        self.assertEqual(blocked['preference_status'], 'unavailable')
+        self.assertIn('quality >= 1', next(c for c in blocked['excluded'] if
+                      c['target']['model'] == 'alpha-work')['reason'])
+        self.assertFalse(any(c.get('preferred') for c in blocked['candidates']))
+        data['capabilities']['providers'][0]['models'].pop()
+        absent = models.discover(data['capabilities'], data['profiles'], routing)
+        self.assertEqual(absent['preference_status'], 'unavailable')
+        self.assertIn('absent from live capabilities', absent['excluded'][-1]['reason'])
+        self.assertEqual(routing, before)
+        del routing['preferred_workhorse']
+        self.assertNotIn('preferred_workhorse', models.discover(data['capabilities'], data['profiles'], routing))
+
+    def test_discovery_refuses_malformed_saved_preference(self):
+        for preferred in (None, {}, {'providerInstanceId': 'fixture-work', 'model': 'absent'}):
+            with self.subTest(preferred=preferred), self.assertRaisesRegex(models.SelectionError, 'preferred_workhorse'):
+                models.discover(self.data['capabilities'], self.data['profiles'],
+                                {'roles': {'workhorse': [self.data['work']['workhorse']]},
+                                 'preferred_workhorse': preferred})
 
     def test_agreement_dispatch_preserves_global_scope_and_native_option_judgement(self):
         from tests.upfront_fixtures import agree

@@ -38,8 +38,12 @@ suitability source with quality **1**, the ordinary workhorse baseline. The help
 uses that value and the answer's reason when a model row or those fields are absent;
 it does not require another score or invent one meeting a higher floor. A missing
 workhorse floor uses the same baseline of 1. Existing lower quality evidence still
-blocks. Routing supplies declared lineage when the row is missing, subject to the
-canonical-family check. Keep the answer quote/reference and routing snapshot.
+blocks. Routing can supply a declared lineage when the profile has none, subject to
+the canonical-family check. For an unknown custom family, only recognized routing
+labels (`openai`, `anthropic`, `google`, `xai`, `meta`, `deepseek`, `qwen`) count; a
+setup-inferred custom basename cannot establish independence. For that case, supply
+`profiles.models.lineage` and `profiles.models.lineage_source` for the exact target
+from a verified family source before review. Keep the answer quote/reference and routing snapshot.
 This does not establish judgement capability,
 lineage, fixed-effort review suitability or override a stricter repository policy.
 Higher minima remain enforced. A role floor's `source` names a stricter policy
@@ -58,13 +62,23 @@ Use these rounds, skipping decisions already answered:
 2. Routing scope, only if ambiguous: this invocation (recommended) or global user
    routing. "Use it globally" answers this round. Run-only never writes routing.
    An explicit global choice stays global; record it separately from dispatch scope
-   and, when settings writes are authorized, put the selected configured entry
-   first in `roles.workhorse` in `$XDG_CONFIG_HOME/t3-plugins/routing.json` (default
+   and, when settings writes are authorized, set the top-level `preferred_workhorse`
+   to `{"providerInstanceId": "<exact provider>", "model": "<exact model>"}` in
+   `$XDG_CONFIG_HOME/t3-plugins/routing.json` (default
    `~/.config/t3-plugins/routing.json`), preserving other candidates, roles and provider settings.
-   Read back the user file and effective repository override before claiming it
-   persisted. Never use setup to replace an existing config. Repository policy
+   It must match exactly one `roles.workhorse` entry. Keep selected options on that
+   entry. Read back the user file, effective repository override and both `resolve`
+   and selection `discover` results before claiming it persisted. Both readers mark
+   that target `preferred: true` and offer it first when eligible, ahead of lower
+   tiers. A missing or unsuitable preference is reported as unavailable; retain it
+   and explain the exact blocker rather than selecting the next candidate.
+   Configs without this field retain their previous ordering. A saved preference
+   is a recommendation for a new invocation, not a new owner answer or sharing grant.
+   Never use setup to replace an existing config. Repository policy
    still wins; explain a concrete conflict or
-   missing settings authority without quietly narrowing to run-only. This chooser
+   missing settings authority without quietly narrowing to run-only. A repository
+   workhorse pool replaces the inherited user preference; a repository
+   `preferred_workhorse` must match its effective pool. This chooser
    helper freezes evidence and never writes routing settings.
    New workhorse selections require an explicit `routing_scope` field at freeze.
    Record an already answered scope without asking again. If it is missing, the

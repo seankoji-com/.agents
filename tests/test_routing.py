@@ -1,6 +1,7 @@
 """User-local routing config: setup writes it from a saved capabilities file, resolve
 returns available candidates in tier order. Every call runs with an isolated HOME and
 XDG_CONFIG_HOME; the provider and model names are synthetic."""
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -218,6 +219,71 @@ class RoutingCli(unittest.TestCase):
                     'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai')]}})
         result = self.cli('resolve', 'reviewer', '--capabilities', str(self.caps), code=2)
         self.assertIn("role 'reviewer' is not configured", result.stderr)
+
+    def test_persistent_workhorse_preference_survives_later_cli_resolution(self):
+        config = {'schema_version': 1, 'tiers': ['low', 'high'], 'providers': {},
+                  'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai'),
+                                           entry('claudeAgent', 'model-c2', 'high', 'anthropic')],
+                            'reviewer': [entry('codex', 'model-x1', 'low', 'openai')]}}
+        self.write(config)
+        self.assertEqual(self.resolve('workhorse')['candidates'][0]['model'], 'model-x1')
+        config['preferred_workhorse'] = {'providerInstanceId': 'claudeAgent', 'model': 'model-c2'}
+        self.write(config)  # Emulate the authorized coordinator write, not setup.
+        before = self.config.read_bytes()
+        for _ in range(2):
+            result = self.resolve('workhorse')  # Separate later CLI invocations.
+            self.assertEqual([c['model'] for c in result['candidates']], ['model-c2', 'model-x1'])
+            self.assertTrue(result['candidates'][0]['preferred'])
+            self.assertEqual(result['preference_status'], 'available')
+            self.assertEqual(result['preferred_workhorse'], config['preferred_workhorse'])
+        self.assertNotIn('preferred_workhorse', self.resolve('reviewer'))
+        self.assertEqual(self.config.read_bytes(), before)
+        caps = deepcopy(CAPABILITIES)
+        caps['providers'][1]['canRunChildTask'] = False
+        self.caps.write_text(json.dumps(caps))
+        blocked = self.resolve('workhorse')
+        self.assertEqual(blocked['preference_status'], 'unavailable')
+        self.assertEqual(blocked['preferred_workhorse'], config['preferred_workhorse'])
+        self.assertEqual(blocked['unavailable'][0]['model'], 'model-c2')
+        self.assertFalse(any(c.get('preferred') for c in blocked['candidates']))
+        self.assertEqual(self.config.read_bytes(), before)
+
+    def test_repository_preference_precedence_preserves_unrelated_settings(self):
+        config = {'schema_version': 1, 'tiers': ['low', 'high'],
+                  'providers': {'codex': {'runtimeMode': 'auto'}},
+                  'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai'),
+                                           entry('claudeAgent', 'model-c2', 'high', 'anthropic')],
+                            'reviewer': [entry('codex', 'model-x1', 'low', 'openai')]},
+                  'preferred_workhorse': {'providerInstanceId': 'claudeAgent', 'model': 'model-c2'}}
+        self.write(config)
+        policy_path = self.repo / '.t3-plugins/routing.json'
+        self.write({'providers': {'claudeAgent': {'runtimeMode': 'full-access'}}}, policy_path)
+        effective, _ = routing.effective_config(self.config, self.repo)
+        self.assertEqual(effective['preferred_workhorse'], config['preferred_workhorse'])
+        self.assertEqual(effective['roles'], config['roles'])
+        self.assertEqual(effective['providers']['codex'], config['providers']['codex'])
+        self.write({'roles': {'workhorse': [entry('codex', 'model-x2', 'high', 'openai')]}}, policy_path)
+        effective, _ = routing.effective_config(self.config, self.repo)
+        self.assertNotIn('preferred_workhorse', effective)
+        self.assertEqual(self.resolve('workhorse')['candidates'][0]['model'], 'model-x2')
+        self.assertEqual(effective['roles']['reviewer'], config['roles']['reviewer'])
+        self.write({'preferred_workhorse': {'providerInstanceId': 'codex', 'model': 'model-x1'}}, policy_path)
+        self.assertEqual(self.resolve('workhorse')['candidates'][0]['model'], 'model-x1')
+        self.assertEqual(json.loads(self.config.read_text()), config)
+
+    def test_invalid_or_ambiguous_preferred_workhorse_is_refused(self):
+        config = {'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                  'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai')]}}
+        for value in (None, 'first', {}, {'providerInstanceId': 'codex', 'model': 'absent'},
+                      {'providerInstanceId': 'codex', 'model': 'model-x1', 'options': {}}):
+            with self.subTest(value=value):
+                self.write({**config, 'preferred_workhorse': value})
+                self.assertIn('preferred_workhorse', self.cli(
+                    'resolve', 'workhorse', '--capabilities', str(self.caps), code=2).stderr)
+        config['roles']['workhorse'] *= 2
+        config['preferred_workhorse'] = {'providerInstanceId': 'codex', 'model': 'model-x1'}
+        with self.assertRaisesRegex(routing.RoutingError, 'exactly one'):
+            routing.validate(config)
 
     def test_malformed_configs_are_rejected(self):
         bad = [

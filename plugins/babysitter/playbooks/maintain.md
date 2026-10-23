@@ -53,7 +53,7 @@ Follow `PKG/references/job-plan.md`'s repair cycle, including its health stop ru
    need no job.
 5. Prepare with `bash PKG/scripts/pr-workspace.sh`. Honor upfront selected work target/options;
    explicit configured workhorse is the selection. Follow short rounds.
-   Recommend cheapest suitable tier from the configured role pool for missing choices.
+   Prefer eligible `preferred_workhorse`; otherwise recommend cheapest suitable tier from the configured role pool.
    Without routing, show suitable live-catalog choices; report `unavailable` entries.
    Never infer an answer. Global answers: `routing_scope: global`;
    preserve/update/read back `routing.json` and overrides under settings-write authority
