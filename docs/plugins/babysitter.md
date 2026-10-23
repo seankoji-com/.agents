@@ -63,6 +63,32 @@ New matching PRs join automatically under your original authorization, with thei
 own action records and jobs. The initial list is never a frozen roster. Partial
 discovery is reported as a gap; it cannot support an "all done" claim.
 
+## Continuous coverage
+
+A native PR watch wakes for linked PR changes only. It does not discover a newly
+opened matching PR, and an unchanged queued CI job emits no event. When you
+explicitly ask for coverage that continues while idle, babysitter uses T3's own
+scheduler: one recurring wake on this thread, a 10-minute cadence by default, and a
+15-minute queued-job threshold. The run records the authorised scope, the schedule
+ID, the cadence and the stop operation, and shows them in its status. Creating that
+schedule requires your authorization; there is no second scheduler, shell poller or
+org-wide watch.
+
+On each scheduled wake the thread refreshes the whole scope, diagnoses queue age and
+stalled work, and acts under the authorization already given. It tracks the creation
+clock of each pending check, the last meaningful progress (a head, check, thread or
+review change; not merely another read) and the next action or check deadline. A
+queue that sits past the threshold becomes a named blocker with a next check, not a
+claim that monitoring is working. Babysitter does not raise timeouts, rerun an
+unchanged failure, restart infrastructure or weaken a check to look busy. Repeated
+wakes reuse stable keys, so they do not create duplicate schedules, dispatches,
+replies or writers, and a live fixer blocks a merge or branch update.
+
+If the scheduler is unavailable or you have not authorised it, the run reports
+event-only coverage and its gap plainly: discovery and queue-age diagnosis stop while
+the thread is idle. A schedule receipt or a simulated test is not live proof; the run
+reports the host schedule and observed wakes separately.
+
 The thread keeps one table of the targeted PRs and posts it at the end of every turn.
 Its shape, with made-up PRs:
 
@@ -139,10 +165,13 @@ integrity remain gates.
 
 ## Limits
 
-T3's native watches cover linked PRs, so they cannot discover new PRs while the
-thread is idle. Discovery runs again on the next wake and before handoff. Persistent
-discovery after handoff needs an explicitly requested host schedule; the thread
-reports any idle discovery gap. Unit tests don't show how a given model behaves;
+T3's native watches cover linked PRs, so they cannot discover new PRs or diagnose an
+unchanged queued job while the thread is idle. Discovery runs again on the next wake
+and before handoff. Without an authorised host schedule the thread reports that idle
+gap. A resumed run exposes its installed package and continuous-policy version; a
+pinned job moves to a newer package only through the supported `job_cli.py
+upgrade-package` path with a recorded owner decision, never by silently swapping the
+installed snapshot. Unit tests don't show how a given model behaves;
 see [compatibility](../compatibility.md).
 
 Jobs created through the shared CLI carry `policy.identity: observed`. Required reviewer executions, their subjects, and slots marked `independent_of_author` need verified host identity at acceptance. Authoring jobs enforce author-lineage checks from `policy.author_independence`, even if a slot omits its flag. Legacy jobs without the identity marker retain target-only acceptance semantics. A first author record cannot identify earlier authors of an unrecorded document. Direct cold-read stages cannot fall back to the coordinator.

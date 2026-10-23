@@ -42,6 +42,11 @@
 # reviewDecision; changes_requested_by lists the latest reviews in CHANGES_REQUESTED
 # (bots suffixed [bot]).
 #
+# Pending queue state per PR: pending_checks lists each queued or running check with
+# its name, status, createdAt and startedAt; oldest_pending_check is the earliest of
+# those. A queued job has no startedAt, so createdAt is the only clock that proves how
+# long it has waited. This reader sets no age threshold; the coordinator does.
+#
 # Query cost: GitHub prices a GraphQL call by the connection requests it could need,
 # from the first/last arguments, not the rows actually returned. The thread comments
 # dominate: limit x 100 threads. At the old 20 threads a 100-PR page cost about 25
@@ -301,8 +306,8 @@ fragment PRState on PullRequest {
           contexts(first: 30) {
             nodes {
               __typename
-              ... on CheckRun { name conclusion }
-              ... on StatusContext { context state }
+              ... on CheckRun { name status conclusion startedAt createdAt }
+              ... on StatusContext { context state createdAt }
             }
           }
         }
@@ -437,6 +442,23 @@ printf '%s' "$RAW" | jq -c \
         end
     ] | unique;
 
+  # A pending queue entry carries the only clock that can prove a job is stuck:
+  # CheckRun.createdAt exists before any runner claims the job. Callers compute
+  # age against their own observation time; this script never invents a threshold.
+  def pending_checks:
+    [ .[]?
+      | if .__typename == "CheckRun" then
+          select(.conclusion == null
+            and (.status != null and (.status | IN("QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"))))
+          | {name: .name, status: .status, conclusion: null,
+             created_at: .createdAt, started_at: .startedAt}
+        else
+          select(.state != null and (.state | IN("PENDING", "EXPECTED")))
+          | {name: .context, status: .state, conclusion: null,
+             created_at: .createdAt, started_at: null}
+        end
+    ] | unique_by(.name);
+
   . as $root
   | (.data.viewer.login) as $viewer
   | (if $nodes_path == "[.data.repository.pullRequest]"
@@ -474,6 +496,13 @@ printf '%s' "$RAW" | jq -c \
           merge_state_status: .mergeStateStatus,
           checks_state: ($head.statusCheckRollup.state // null),
           failing: ($head.statusCheckRollup.contexts.nodes // [] | failing_contexts),
+          pending_checks: ($head.statusCheckRollup.contexts.nodes // [] | pending_checks),
+          # The oldest pending job drives queue-age diagnosis at the coordinator
+          # observation time. Null when every observed check has finished.
+          oldest_pending_check: (
+            ($head.statusCheckRollup.contexts.nodes // [] | pending_checks)
+            | sort_by(.created_at // .started_at // "") | first // null
+          ),
           # Counts every thread that the required_review_thread_resolution
           # branch-protection rule blocks a merge on. That rule keys on
           # `isResolved` alone — an `isOutdated` thread (its diff line moved under

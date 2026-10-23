@@ -218,6 +218,7 @@ class Model:
             observe('check_sha', sha)
             runs.append({'id': 28000 + index, 'name': check['name'], 'head_sha': sha, 'status': 'completed',
                          'conclusion': check['conclusion'], 'started_at': CREATED, 'completed_at': CREATED,
+                         'created_at': CREATED,
                          'details_url': f'https://{self.host}/{self.full_name}/actions/runs/{28000 + index}',
                          'app': {'slug': 'bench-ci'}})
         return runs
@@ -276,7 +277,7 @@ class Model:
                                  'name': ('check_sha', check.get('sha', head))},
                  'id': f'CR_{index}', 'databaseId': 28000 + index, 'name': check['name'],
                  'status': 'COMPLETED', 'conclusion': check['conclusion'].upper(), 'startedAt': CREATED,
-                 'completedAt': CREATED, 'detailsUrl': f'https://{self.host}/{self.full_name}/actions/runs/{28000 + index}',
+                 'createdAt': CREATED, 'completedAt': CREATED, 'detailsUrl': f'https://{self.host}/{self.full_name}/actions/runs/{28000 + index}',
                  'isRequired': (lambda required: lambda args: required)(bool(check.get('required', True))),
                  'checkSuite': {'__typename': 'CheckSuite', 'workflowRun': {
                      '__typename': 'WorkflowRun', 'event': 'pull_request',

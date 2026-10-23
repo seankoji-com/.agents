@@ -182,7 +182,9 @@ class SidecarGraphQLTest(unittest.TestCase):
         self.assertEqual((data['viewer']['login'], pull['author']['login'], pull['state']), ('bench-user',) * 2 + ('OPEN',))
         self.assertEqual(commit['oid'], '1e9721ca7f65fcb51d67f3329e4761da261d563a')
         self.assertEqual(commit['statusCheckRollup']['contexts']['nodes'],
-                         [{'__typename': 'CheckRun', 'name': 'unit', 'conclusion': 'FAILURE'}])
+                         [{'__typename': 'CheckRun', 'name': 'unit', 'conclusion': 'FAILURE',
+                           'status': 'COMPLETED', 'startedAt': '2026-10-12T00:00:00Z',
+                           'createdAt': '2026-10-12T00:00:00Z'}])
         thread = pull['reviewThreads']['nodes'][0]
         self.assertEqual((thread['isResolved'], thread['comments']['nodes'][0]['body']), (False, 'seeded review concern'))
         read = [e for e in self.sidecar.events() if e['event'] == 'read'][-1]
