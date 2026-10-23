@@ -3,10 +3,11 @@
 Choose Open PR, Tagged Version or Verified in Prod upfront unless supplied. Recommend finite exact work/reviewer backup chains once; unchanged resume does not ask retain-or-stop. Reconcile the original task before approved fallback and recheck independence against every actual author. The full different-lineage evaluation remains mandatory. `readyForPublication` reports source readiness; `complete` and `endpointComplete` require actual evidence for the selected target. Legacy checkpoints keep their original pinned package and authority; new targets require an admitted restart preserving findings and remaining limits.
 
 ralph splits building from judging. One model implements your goal in a fresh T3 task;
-a model from a different lineage evaluates the result in another fresh task. Any
-feedback at all, even a minor suggestion, sends the work back to a new implementation
-task in the same worktree under the approved work chain. When the evaluator reports the goal met with
-nothing left to say, source evaluation is complete and the selected delivery gates follow.
+a model from a different lineage evaluates the result in another fresh task.
+Blocking issues send the work back to a new implementation task in the same
+worktree under the approved work chain. Safe later improvements become repository
+issues. When a full review reports the goal met with no undisposed feedback,
+source evaluation is complete and the selected delivery gates follow.
 
 ## Try it
 
@@ -64,8 +65,22 @@ asks you to switch the parent to Full Access.
 The default limit is 20 implementation attempts, including the first. Use
 `--max-attempts N` to change it. The evaluator reports whether the observable goal
 was achieved, every feedback item, and the evidence it inspected. Success requires
-both an achieved goal and no feedback in a full review. Even a minor suggestion triggers another
-attempt. A failure verdict without feedback also triggers another attempt.
+an achieved goal and no undisposed feedback in a full review. Blocker/major findings
+and a failure verdict require another attempt. Minor/info findings first enter
+triage: safe deferrals need a verified issue in the target repository, a reason,
+impact, owner and next action. Filing them uses no implementation attempt and
+preserves the original review. Triage also requires the coordinator's actual GitHub
+API issue snapshot, with matching issue identity and a marker bound to the exact
+finding and reviewed revision. The receipt is stored and its integrity checked
+again before publication; a URL and evidence sentence alone leave a filing gap.
+The coordinator obtains and verifies the API response; the helper remains offline.
+A failed required check or unmet requirement cannot
+be deferred to obtain success. An unavailable issue service leaves explicit unfiled
+work and a filing gap in the handoff.
+
+After each returned review, the coordinator gives you at most three sentences
+about its findings and next action. The final handoff summarizes deferred fixes
+with issue links and captures a build/test lesson from observed review churn.
 
 Children receive only the supplied brief. ralph carries the original goal,
 constraints, acceptance criteria, every earlier verdict and all feedback into each
@@ -141,7 +156,7 @@ needs a separately admitted restart preserving findings and remaining limits.
 
 Ordinary iterations add no planning artifact or evaluator. An actually written
 strategy receives planning review before dependent work. Its fallback policy cannot
-replace Ralph's different-lineage evaluator, every-feedback repair rule or full
+replace Ralph's different-lineage evaluator, blocking-feedback repair rule or full
 final evaluation.
 
 See [planning review](../plan-review.md) for default triggers, model choices,

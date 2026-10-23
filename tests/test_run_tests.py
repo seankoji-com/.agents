@@ -21,6 +21,28 @@ HANGING = 'import time, unittest\nclass T(unittest.TestCase):\n    def test_a(se
 
 
 class RunTestsTest(unittest.TestCase):
+    def test_identity_report_partitions_preserve_every_original_scenario_once(self):
+        from tests import test_focus_group_report_identity as original
+        from tests import test_focus_group_report_identity_remaining as remaining
+
+        def ids(suite):
+            for child in suite:
+                if isinstance(child, unittest.TestSuite):
+                    yield from ids(child)
+                else:
+                    yield child.id()
+
+        # Collect directly from the class, independently of either module's load_tests.
+        loader = unittest.TestLoader()
+        expected = [test.id() for test in loader.loadTestsFromTestCase(original.IdentityProjectionTest)]
+        actual = []
+        for module in (original, remaining):
+            suite = loader.loadTestsFromModule(module)
+            actual.extend(ids(suite))
+        self.assertEqual(len(expected), 5)
+        self.assertCountEqual(actual, expected)
+        self.assertEqual(len(actual), len(set(actual)))
+
     def suite(self, **modules):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)

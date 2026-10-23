@@ -223,6 +223,44 @@ class InstalledAgreementTests(unittest.TestCase):
         broken = deepcopy(case.state); broken['tasks'][0]['dispatch']['target']['options'] = {}
         with self.assertRaises(Exception): ralph.validate_checkpoint(broken)
 
+    def test_installed_ralph_deferral_after_absence_still_requires_endpoint_evidence(self):
+        from tests.test_ralph import RalphTest
+        case = RalphTest('runTest'); case.setUp(); self.addCleanup(case.doCleanups)
+        case.git('remote', 'add', 'origin', 'https://github.com/fixture/project.git')
+        issued = ralph.advance(case.state)['dispatch']
+        ralph.reconcile_absence(case.state, {'status': 'absent', 'clientRequestId': issued['clientRequestId'],
+            'target': issued['target'], 'hasPendingChildRuns': False, 'reference': 'fixture:host-absence'})
+        ralph.recover(case.state, {'reason': 'Verified absent launch; retry the agreed target'})
+        (case.repo / 'owned.py').write_text('VALUE = 2\n')
+        case.git('add', 'owned.py')
+        case.git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                 'commit', '-qm', 'fixture change')
+        case.implementation()
+        _, review_id = case.review(feedback=[{'severity': 'minor', 'message': 'Optional help'}], repair_minor=False)
+        box = Sandbox(case.base / 'installed-deferral'); package, _ = box.install('ralph')
+        moved = box.base / 'relocated-ralph'; shutil.copytree(package, moved)
+        checkpoint = box.base / 'deferral.json'; checkpoint.write_text(json.dumps(case.state))
+        args = [sys.executable, moved / 'cli.py']
+        def call(command, data):
+            return box.run([*args, command, '--state', checkpoint, '--input', box.payload(data)], check=False)
+        before = checkpoint.read_bytes()
+        blocked = call('complete', engineering(case.state['modelAdmission']['selection'], case.git('rev-parse', 'HEAD')))
+        self.assertEqual(blocked.returncode, 2)
+        self.assertEqual(checkpoint.read_bytes(), before)
+        triaged = json.loads(call('triage', {'taskId': review_id, 'dispositions': [case.deferral()]}).stdout)['state']
+        self.assertTrue(triaged['readyForPublication'])
+        self.assertFalse(triaged['endpointComplete'])
+        self.assertEqual(triaged['attempt'], 2)
+        self.assertTrue(triaged['tasks'][0]['consumed'])
+        self.assertNotIn('taskId', triaged['tasks'][0])
+        evidence = engineering(case.state['modelAdmission']['selection'], case.git('rev-parse', 'HEAD'))
+        failed = deepcopy(evidence); failed['ci']['checks']['required'] = 'failed'
+        self.assertEqual(call('complete', failed).returncode, 2)
+        done = json.loads(call('complete', evidence).stdout)
+        self.assertTrue(done['complete']); self.assertTrue(done['state']['endpointComplete'])
+        self.assertEqual(done['state']['tasks'][-1]['evaluation']['feedback'],
+                         [{'severity': 'minor', 'message': 'Optional help'}])
+
     def test_installed_ralph_retains_bad_receipts_and_reconciles_absent_requests(self):
         from tests.test_ralph import RalphTest
         case = RalphTest('runTest'); case.setUp(); self.addCleanup(case.doCleanups)

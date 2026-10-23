@@ -742,7 +742,7 @@ class PlanningReviewTests(unittest.TestCase):
 
     def test_persistent_budget_new_jobs_and_explicit_owner_limit(self):
         self.create()
-        for number in range(3):
+        for number in range(5):
             if number:self.cli('begin', {'requested_rereview': True})
             self.result(self.attempt(), findings=[self.finding()], verdict='adverse')
             self.finish(accepted=False)
@@ -752,7 +752,23 @@ class PlanningReviewTests(unittest.TestCase):
         self.assertRaises(AssertionError, self.create, snapshot=self.snapshot, begin=False)
         # The failed reset cannot alter the retained subject history.
         state = json.loads(Path(self.created['subject_file']).read_text())
-        self.assertEqual(state['rounds_used'], 3);self.assertIn('anthropic:F1', state['findings'])
+        self.assertEqual(state['rounds_used'], 5);self.assertIn('anthropic:F1', state['findings'])
+
+    def test_new_subject_gets_five_rounds_but_legacy_subject_keeps_recorded_three(self):
+        self.create()
+        subject_file = Path(self.created['subject_file'])
+        state = json.loads(subject_file.read_text())
+        self.assertEqual(state['round_limit'], 5)
+        self.result(self.attempt()); self.finish(); self.cli('release')
+        # Seed a historical subject; replacement jobs must not adopt today's default.
+        state = json.loads(subject_file.read_text())
+        state['round_limit'] = 3
+        subject_file.write_text(json.dumps(planning.seal(state)))
+        self.job_id += '-legacy'
+        self.create(snapshot=self.snapshot, begin=False)
+        retained = json.loads(subject_file.read_text())
+        self.assertEqual(retained['round_limit'], 3)
+        self.assertEqual(retained['rounds_used'], 1)
 
     def test_same_output_concurrent_job_refused_across_adopter_labels(self):
         self.create()
@@ -1071,12 +1087,12 @@ class PlanningReviewTests(unittest.TestCase):
 
     def test_owner_scoped_finding_decision_and_limit_increase(self):
         self.create();self.result(self.attempt(), findings=[self.finding()], verdict='adverse');self.finish(accepted=False)
-        owner = self.write('owner-answer.txt','Accept this scoped finding risk and permit four content rounds.')
+        owner = self.write('owner-answer.txt','Accept this scoped finding risk and permit six content rounds.')
         base = {'source':answer(owner.read_text()),'source_file':str(owner),'logical_output_id':self.snapshot['logical_output_id']}
         self.cli('owner-decision', {'decision':dict(base,kind='finding-decision',finding_key='anthropic:F1')})
-        self.cli('owner-decision', {'decision':dict(base,kind='limit-increase',round_limit=4)})
+        self.cli('owner-decision', {'decision':dict(base,kind='limit-increase',round_limit=6)})
         self.cli('begin', {'requested_rereview':True});self.result(self.attempt());ref=self.finish()
-        receipt=self.cli('validate', {'reference':ref});self.assertEqual(receipt['round_limit'],4)
+        receipt=self.cli('validate', {'reference':ref});self.assertEqual(receipt['round_limit'],6)
         owner.write_text('Revoked decision.')
         self.cli('validate', {'reference':ref}, ok=False)
 
@@ -1138,7 +1154,7 @@ class PlanningReviewTests(unittest.TestCase):
         self.job_id+='-new';self.create(snapshot=self.snapshot)
         state=json.loads(Path(self.created['subject_file']).read_text())
         self.assertEqual(state['rounds_used'],0);self.assertEqual(state['technical_used'],1)
-        self.assertEqual(state['technical_limit'],6)
+        self.assertEqual(state['technical_limit'],10)
 
     def test_forged_privacy_exclusion_does_not_hide_available_ordinary_reviewer(self):
         self.create()
