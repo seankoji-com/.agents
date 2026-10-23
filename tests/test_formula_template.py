@@ -81,22 +81,37 @@ class FormulaTemplateTest(unittest.TestCase):
                 self.condition(expression, **args)
         self.assertTrue(self.condition("'#' == '#'", **args))
 
-    def test_truth_table_rejects_disabled_retry_and_bypassed_guards_with_tokens_retained(self):
-        for replacement in ('always() && !always() && !cancelled()',
-                            'always() || !cancelled()'):
+    def test_truth_table_rejects_disabled_retry_and_bypassed_guards_at_specific_cases(self):
+        def gate(workflow):
+            release = workflow.split('\n  release:\n', 1)[1]
+            return ' '.join(re.search(r'    if: >-\n((?:      .*\n)+)', release).group(1).split())
+
+        cases = (
+            ("needs.test.result == 'skipped'",
+             "(needs.test.result == 'skipped' && !always())",
+             dict(existing_tag='v0.10.0', result='skipped', cancelled=False), True, 1),
+            ('always() && !cancelled()', 'always() || !cancelled()',
+             # All 32 cells become true; only 3 were allowed by the real gate.
+             dict(existing_tag='', result='success', cancelled=True), False, 29),
+        )
+        for original, replacement, args, allowed, failure_count in cases:
             with self.subTest(replacement=replacement):
-                mutated = WORKFLOW.replace('always() && !cancelled()', replacement)
+                mutated = WORKFLOW.replace(original, replacement)
                 self.assertNotEqual(mutated, WORKFLOW)
+                args['ref'] = 'refs/heads/master'
+                self.assertEqual(self.condition(gate(WORKFLOW), **args), allowed)
+                self.assertEqual(self.condition(gate(mutated), **args), not allowed)
+                # Both mutations leave ordinary successful publication intact.
+                success = dict(ref='refs/heads/master', existing_tag='',
+                               result='success', cancelled=False)
+                self.assertTrue(self.condition(gate(WORKFLOW), **success))
+                self.assertTrue(self.condition(gate(mutated), **success))
                 with patch.dict(globals(), WORKFLOW=mutated):
                     result = unittest.TestResult()
                     FormulaTemplateTest('test_publication_requires_all_shards_or_an_explicit_existing_tag_retry').run(result)
-                self.assertTrue(result.failures)
+                self.assertFalse(result.wasSuccessful())
+                self.assertEqual(len(result.failures), failure_count)
                 self.assertFalse(result.errors)
-                if '!always()' in replacement:
-                    self.assertTrue(any("tag='v0.10.0'" in str(case) and
-                                        "result='skipped'" in str(case) and
-                                        'cancelled=False' in str(case)
-                                        for case, _ in result.failures))
 
     def test_no_version_stanza_because_the_url_carries_it(self):
         # brew audit --strict: "`version` is redundant with version scanned from URL".
