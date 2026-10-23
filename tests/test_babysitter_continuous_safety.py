@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import json
 import sys
+from copy import deepcopy
 from argparse import Namespace
 from unittest.mock import patch
 from pathlib import Path
@@ -323,6 +324,155 @@ class UpdateAndResolutionTest(ContinuousCase):
                     '--status', status, helper=helper, ok=False)
                 self.assertEqual(self.state.read_bytes(), before)
 
+    def test_real_no_put_outcomes_settle_in_source_and_installed_adapters(self):
+        from tests.test_merge_pr import MergeTest, HEAD
+        for index, (helper, adapter, shell) in enumerate(self.adapters()):
+            for mode, outcome in (('merged', 'merged'), ('closed', 'closed'),
+                                  ('clean', 'not_behind'), ('conflict', 'conflict'),
+                                  ('author-pushed', 'expected_head_mismatch')):
+                with self.subTest(installed=index, mode=mode):
+                    self.state = self.base / f'no-put-{index}-{mode}.json'
+                    self.start(helper=helper)
+                    test = self
+
+                    class NoPutHost(FakeHost):
+                        def dispatch(host, action, now):
+                            saved = json.loads(test.state.read_text())['prs'][URL]['dispatches'][-1]
+                            test.assertEqual(saved['status'], 'reserved')
+                            harness = MergeTest()
+                            harness.script = shell
+                            result, calls = harness.run_helper(mode,
+                                ['--update-only', '--expected-head', HEAD],
+                                repo='fixture/widgets', number=12)
+                            test.assertTrue(calls)
+                            test.assertTrue(all(c.get('query', '').startswith('query') for c in calls))
+                            super().dispatch(action, now)
+                            return {'helper_result': {'request_id': action['request_id'],
+                                'returncode': result.returncode, 'stdout': result.stdout}}
+
+                    host = NoPutHost(observation(self.row('reader', head=HEAD, merge_state='BEHIND')))
+                    result = adapter.handle_wake(host, self.state, NOW, {'kind': 'event'})
+                    saved = json.loads(self.state.read_text())['prs'][URL]
+                    self.assertEqual(result['dispatched'][0]['status'], 'no-change')
+                    self.assertEqual(saved['dispatches'][0]['update_outcome'], outcome)
+                    self.assertEqual(saved['dispatches'][0]['status'], 'no-change')
+                    terminal = outcome in ('merged', 'closed')
+                    self.assertEqual(saved['state'], outcome if terminal else 'open')
+                    self.assertEqual(saved['next_action']['kind'], outcome if terminal else 'wait-checks')
+                    if terminal:
+                        self.assertIsNone(saved['blocked'])
+                    else:
+                        self.assertEqual(saved['blocked']['kind'], 'branch-update-refresh')
+                    # Fresh same-head CLEAN evidence clears a no-PUT refresh. A
+                    # completed update still requires a new head (covered above).
+                    fresh = self.row('reader', head=HEAD,
+                        state=outcome.upper() if terminal else 'OPEN')
+                    report = self.cli('observe', '--now', NOW, '--wake-id', 'fresh-no-put',
+                                      payload=observation(fresh), helper=helper)
+                    after = self.cli('status', '--now', NOW, helper=helper)['prs'][URL]
+                    self.assertEqual(after['state'], outcome if terminal else 'open')
+                    self.assertEqual(after['next_action']['kind'], outcome if terminal else 'merge')
+                    self.assertEqual(len(after['dispatches']), 1)
+                    self.assertEqual(len(host.dispatched), 1)
+                    if not terminal:
+                        self.assertEqual(report['actions'][0]['kind'], 'merge')
+                        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                            '--request-id', 'fresh-landing', '--head', HEAD, '--reserve', helper=helper)
+
+    def test_terminal_reads_close_lifecycle_but_preserve_unknown_launches_and_live_handles(self):
+        from tests.test_merge_pr import MergeTest, HEAD
+        for index, (helper, adapter, shell) in enumerate(self.adapters()):
+            harness = MergeTest()
+            harness.script = shell
+            result, _ = harness.run_helper('update-accepted',
+                ['--update-only', '--expected-head', HEAD], repo='fixture/widgets', number=12)
+            transport = self.base / 'terminal-read-result.json'
+            transport.write_text(json.dumps({'request_id': 'update',
+                'returncode': result.returncode, 'stdout': result.stdout}))
+            for terminal in ('merged', 'closed'):
+                for via in ('observe', 'resolve'):
+                    for launch in ('synchronous', 'attached', 'unknown-launch'):
+                        with self.subTest(installed=index, terminal=terminal, via=via, launch=launch):
+                            self.state = self.base / f'terminal-{index}-{terminal}-{via}-{launch}.json'
+                            self.start(helper=helper)
+                            self.cli('observe', '--now', NOW,
+                                payload=observation(pr(head=HEAD, merge_state='BEHIND')), helper=helper)
+                            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                                '--request-id', 'update', '--head', HEAD, '--reserve', helper=helper)
+                            if launch == 'attached':
+                                self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                                    '--request-id', 'update', '--host-task-id', 'live-update', helper=helper)
+                            flags = [] if launch == 'unknown-launch' else ['--result', str(transport)]
+                            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'update-branch',
+                                '--request-id', 'update', '--status', 'uncertain', *flags, helper=helper)
+                            before = self.state.read_bytes()
+                            if via == 'observe':
+                                self.cli('observe', '--now', NOW, '--wake-id', 'terminal-read',
+                                    payload=observation(pr(head=HEAD, state=terminal.upper(), draft=True)),
+                                    helper=helper)
+                            else:
+                                self.cli('resolve', '--now', NOW, '--pr', URL, '--resolution', terminal,
+                                    '--head', H2, helper=helper, ok=False)
+                                self.assertEqual(self.state.read_bytes(), before)
+                                self.cli('resolve', '--now', NOW, '--pr', URL, '--resolution', terminal,
+                                    '--head', HEAD, helper=helper)
+                            saved = self.cli('status', '--now', NOW, helper=helper)['prs'][URL]
+                            self.assertEqual(saved['state'], terminal)
+                            self.assertEqual(saved['dispatches'][0]['status'],
+                                             'superseded' if launch == 'synchronous' else 'uncertain')
+                            self.assertEqual(saved['next_action']['kind'],
+                                             terminal if launch == 'synchronous' else 'update-branch-pending')
+                            self.assertIsNone(json.loads(self.state.read_text())['prs'][URL]['excluded'])
+                            self.assertNotIn(URL, self.cli('status', '--now', NOW, helper=helper)['open_prs'])
+                            if launch != 'synchronous':
+                                # Explicit reopen does not discard the original exclusion.
+                                self.cli('observe', '--now', NOW, '--wake-id', 'reopen',
+                                    payload=observation(pr(head=HEAD)), helper=helper)
+                                for kind in ('fixer', 'merge', 'resolution', 'update-branch'):
+                                    self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', kind,
+                                        '--request-id', 'race-' + kind, '--head', HEAD, '--reserve',
+                                        helper=helper, ok=False)
+
+    def test_update_result_matrix_requires_identity_and_preserves_prior_uncertain_puts(self):
+        for _, adapter, _ in self.adapters():
+            module = adapter.continuous
+            row = {'request_id': 'update', 'head': H1}
+            target = {'repo': 'fixture/widgets', 'number': 12}
+            blocked = 'BLOCKED fixture/widgets#12 reason={} blockers={} detail={} automerge=unavailable'
+            cases = [
+                (0, f'UPDATED fixture/widgets#12 previous_head={H1} head={H2} refresh_gates=required', 'succeeded', 'updated'),
+                (0, 'MERGED fixture/widgets#12 via preexisting', 'no-change', 'merged'),
+            ]
+            for reason in ('closed', 'not_behind', 'conflict', 'expected_head_mismatch'):
+                detail = (f'PR head {H2} is not the expected head {H1}; refresh'
+                          if reason == 'expected_head_mismatch' else 'no PUT sent')
+                cases.append((4, blocked.format(reason, reason, detail), 'no-change', reason))
+            for reason, outcome, status in (('update_pending', 'accepted', 'uncertain'),
+                    ('update_pending', 'unknown', 'uncertain'), ('update_rejected', 'rejected', 'rejected')):
+                cases.append((4, blocked.format(reason, reason,
+                    f'update_head={H1} update_outcome={outcome} fixture outcome'), status, outcome))
+            for code, stdout, status, outcome in cases:
+                with self.subTest(code=code, stdout=stdout):
+                    result = {'request_id': 'update', 'returncode': code, 'stdout': stdout}
+                    self.assertEqual(module.update_helper_receipt(target, row, result), (status, outcome))
+                    for bad in ({**result, 'request_id': 'other'},
+                                {**result, 'stdout': stdout.replace('widgets#12', 'widgets#99')},
+                                {**result, 'returncode': 3}, {**result, 'stdout': stdout + '\nnoise'}):
+                        self.assertEqual(module.update_helper_receipt(target, row, bad), ('uncertain', 'unknown'))
+            for outcome in ('accepted', 'unknown'):
+                previous = {**row, 'update_outcome': outcome}
+                for reason in ('not_behind', 'conflict', 'expected_head_mismatch'):
+                    detail = (f'PR head {H2} is not the expected head {H1}; refresh'
+                              if reason == 'expected_head_mismatch' else 'no PUT sent')
+                    result = {'request_id': 'update', 'returncode': 4,
+                              'stdout': blocked.format(reason, reason, detail)}
+                    self.assertEqual(module.update_helper_receipt(target, previous, result),
+                                     ('uncertain', outcome))
+            for code, stdout in ((0, ''), (2, ''), (3, ''), (4, ''),
+                                 (0, f'UPDATED fixture/widgets#12 previous_head={H1} head={H1} refresh_gates=required')):
+                self.assertEqual(module.update_helper_receipt(target, row,
+                    {'request_id': 'update', 'returncode': code, 'stdout': stdout}), ('uncertain', 'unknown'))
+
     def test_live_resolution_is_next_action_until_matching_terminal_receipt_in_both_adapters(self):
         for index, (helper, adapter, _) in enumerate(self.adapters()):
             for shape in ('full', 'reader'):
@@ -397,6 +547,106 @@ class UpdateAndResolutionTest(ContinuousCase):
             self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'resolution',
                      '--request-id', 'reply', '--status', 'cancelled', helper=helper)
             self.assertIsNone(self.cli('status', '--now', NOW, helper=helper)['prs'][URL]['next_action'])
+
+
+class MergeGateContractTest(ContinuousCase):
+    adapters = UpdateAndResolutionTest.adapters
+    row = UpdateAndResolutionTest.row
+
+    def test_merge_state_rollup_review_and_mergeability_matrix_matches_landing_contract(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'merge-matrix-{index}.json'
+            self.start(helper=helper)
+            initial = json.loads(self.state.read_text())
+            module = adapter.continuous
+            for shape in ('full', 'reader'):
+                for merge_state in ('CLEAN', 'UNSTABLE', 'BEHIND', 'BLOCKED', 'HAS_HOOKS',
+                                    'UNKNOWN', 'DIRTY', 'DRAFT', '', None):
+                    for mergeable in ('MERGEABLE', 'UNKNOWN', 'CONFLICTING'):
+                        for rollup in ('SUCCESS', 'EXPECTED', 'PENDING', 'FAILURE', 'ERROR', None):
+                            for review in ('APPROVED', 'REVIEW_REQUIRED', 'CHANGES_REQUESTED'):
+                                with self.subTest(installed=index, shape=shape, merge_state=merge_state,
+                                                  mergeable=mergeable, rollup=rollup, review=review):
+                                    raw = self.row(shape, merge_state=merge_state,
+                                                   mergeable=mergeable, checks_state=rollup)
+                                    raw.update(required_contexts_observed=['ci'], review_decision=review)
+                                    state = deepcopy(initial)
+                                    action = module.reconcile_observation(state, observation(raw),
+                                        module.parse_time(NOW), 'matrix', 'event')['actions'][0]
+                                    eligible = mergeable == 'MERGEABLE' and review == 'APPROVED'
+                                    landing = eligible and (merge_state == 'UNSTABLE'
+                                                             or (merge_state == 'CLEAN' and rollup == 'SUCCESS'))
+                                    updating = eligible and merge_state == 'BEHIND' and rollup == 'SUCCESS'
+                                    self.assertEqual(action['kind'] == 'merge', landing)
+                                    self.assertEqual(action['kind'] == 'update-branch', updating)
+                                    if not landing and not updating:
+                                        self.assertIn('next_check_at', action)
+                                    self.assertEqual(state['prs'][URL]['dispatches'], [])
+
+    def test_unstable_requires_nonempty_verified_required_contexts_in_both_shapes(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'required-matrix-{index}.json'
+            self.start(helper=helper)
+            initial = json.loads(self.state.read_text())
+            module = adapter.continuous
+            for shape in ('full', 'reader'):
+                for required in (None, [], ['ci']):
+                    for complete in (False, True):
+                        for conclusion in ('SUCCESS', 'NEUTRAL', 'SKIPPED', 'FAILURE', None):
+                            with self.subTest(installed=index, shape=shape, required=required,
+                                              complete=complete, conclusion=conclusion):
+                                check = {'name': 'ci', 'status': 'COMPLETED' if conclusion else 'PENDING',
+                                         'conclusion': conclusion, 'head_sha': H1}
+                                raw = self.row(shape, merge_state='UNSTABLE', checks_state='FAILURE')
+                                raw.update(required_contexts=None, required_contexts_observed=required,
+                                           required_contexts_known=False, checks_complete=complete)
+                                if shape == 'full':
+                                    raw['checks'] = [check]
+                                else:
+                                    raw['failing'] = ['ci'] if conclusion == 'FAILURE' else []
+                                    raw['pending_checks'] = [check] if conclusion is None else []
+                                action = module.reconcile_observation(deepcopy(initial), observation(raw),
+                                    module.parse_time(NOW), 'required', 'event')['actions'][0]
+                                self.assertEqual(action['kind'] == 'merge',
+                                    bool(required) and complete and conclusion in ('SUCCESS', 'NEUTRAL', 'SKIPPED'))
+            for configured, seen in ((['ci'], None), (['ci'], []), (['ci', 'missing'], ['ci'])):
+                raw = self.row('reader', merge_state='UNSTABLE', checks_state='FAILURE')
+                raw.update(required_contexts=configured, required_contexts_known=True,
+                           required_contexts_observed=seen)
+                action = module.reconcile_observation(deepcopy(initial), observation(raw),
+                    module.parse_time(NOW), 'configured-only', 'event')['actions'][0]
+                self.assertEqual(action['kind'], 'wait-checks')
+                self.assertEqual(action['blocked']['kind'], 'unverified-required-checks')
+
+    def test_hooks_remain_a_blocker_without_dispatching_or_spending_landing_attempts(self):
+        from tests.test_merge_pr import MergeTest
+        for index, (helper, adapter, shell) in enumerate(self.adapters()):
+            harness = MergeTest()
+            harness.script = shell
+            result, calls = harness.run_helper('state-has_hooks', ['--no-auto'])
+            self.assertEqual(result.returncode, 4)
+            self.assertIn('reason=not_clean', result.stdout)
+            self.assertTrue(all(c.get('query', '').startswith('query') for c in calls))
+            for shape in ('full', 'reader'):
+                self.state = self.base / f'hooks-{index}-{shape}.json'
+                self.start(helper=helper)
+                host = FakeHost(observation(self.row(shape, merge_state='HAS_HOOKS')))
+                for wake in range(4):
+                    report = adapter.handle_wake(host, self.state, NOW,
+                                                {'kind': 'event', 'wake_id': f'hooks-{wake}'})
+                    action = report['result']['actions'][0]
+                    self.assertEqual((action['kind'], action['blocked']['kind']), ('diagnose-gate', 'has-hooks'))
+                    self.assertIn('next_check_at', action)
+                    self.assertEqual(report['dispatched'], [])
+                    before = self.state.read_bytes()
+                    self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                        '--request-id', 'invalid-landing', '--head', H1, '--reserve', helper=helper, ok=False)
+                    self.assertEqual(self.state.read_bytes(), before)
+                self.assertEqual(json.loads(self.state.read_text())['prs'][URL]['dispatches'], [])
+                host.snapshot = observation(self.row(shape))
+                clean = adapter.handle_wake(host, self.state, NOW, {'kind': 'event', 'wake_id': 'clean'})
+                self.assertEqual(clean['result']['actions'][0]['kind'], 'merge')
+                self.assertEqual(len(host.dispatched), 1)
 
 
 class ReservationSafetyTest(ContinuousCase):

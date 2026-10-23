@@ -245,15 +245,15 @@ class DiscoveryAdmissionTest(ContinuousCase):
 
     def test_partial_reader_allows_unstable_when_required_contexts_pass(self):
         self.start()
-        # A normal search-reader row carries no required-context names. GitHub's
-        # mergeStateStatus UNSTABLE means every required check passed and an optional
-        # one failed, so the optional failure must not become a repair dispatch.
+        # A targeted reader identifies required contexts among its complete page.
+        # A search-reader must obtain that evidence before an UNSTABLE landing.
         # StatusCheckRollup.state has no UNSTABLE value, so the rollup is FAILURE.
         row = {'repo': REPO_A, 'number': 12, 'state': 'OPEN', 'head_oid': H1,
                'draft': False, 'fork': False, 'mergeable': 'MERGEABLE',
                'merge_state_status': 'UNSTABLE', 'checks_state': 'FAILURE',
                'unresolved_threads': 0, 'review_threads_complete': True,
-               'checks_complete': True, 'pending_checks': [], 'failing': ['optional-lint']}
+               'checks_complete': True, 'pending_checks': [], 'failing': ['optional-lint'],
+               'required_contexts_observed': ['ci'], 'optional_contexts_observed': ['optional-lint']}
         result = self.observe('2026-10-22T14:05:00Z', observation(row), wake='unstable')
         self.assertEqual(result['actions'][0]['kind'], 'merge')
 
@@ -1401,7 +1401,8 @@ print('200', end='')
         self.assertFalse(row['required_contexts_known'])
         self.start()
         result = self.observe('2026-10-22T14:05:00Z', observation(row), wake='reader-unstable')
-        self.assertEqual(result['actions'][0]['kind'], 'merge')
+        self.assertEqual(result['actions'][0]['kind'], 'wait-checks')
+        self.assertEqual(result['actions'][0]['blocked']['kind'], 'unverified-required-checks')
 
     def test_optional_failure_with_an_unsatisfied_protection_is_diagnosed_not_repaired(self):
         checks = [{'__typename': 'CheckRun', 'name': 'optional-lint', 'status': 'COMPLETED',

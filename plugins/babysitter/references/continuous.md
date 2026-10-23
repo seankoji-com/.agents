@@ -145,6 +145,10 @@ must belong to `head_sha`, `review_threads_complete` must be true after reading 
 conversation page, and a merge request is bound to its exact head. Rejected, cancelled
 or superseded attempts are reconciled, then either retried within the bounded budget or
 reported as `merge-rejected`. A live fixer blocks any merge or resolution write.
+Landing follows `merge-pr.sh`: `CLEAN` needs a `SUCCESS` rollup; `UNSTABLE` needs
+a complete targeted context read with at least one required context and all required
+contexts green. `HAS_HOOKS` is a `has-hooks` blocker, never a landing attempt.
+`EXPECTED` checks and `REVIEW_REQUIRED` reviews remain blockers.
 
 A green `BEHIND` observation returns `update-branch`, never a landing at that head.
 Reserve that kind before `merge-pr.sh --update-only --expected-head <sha>`; it uses
@@ -156,12 +160,17 @@ An accepted PUT without a confirmed new head, including after all five polls, is
 is `update_pending update_outcome=unknown`; neither permits another write. Only a
 confirmed HTTP rejection reports `update_rejected update_outcome=rejected`.
 Record the reservation's `request_id` and the helper's `returncode` and `stdout`
-as JSON in `receipt --result <file>`: record `uncertain`, `rejected` or `succeeded`
+as JSON in `receipt --result <file>`: record `uncertain`, `rejected`, `succeeded` or `no-change`
 according to that result. The adapter accepts the same JSON as `helper_result`.
 An uncertain synchronous PUT keeps its reservation across same-head reads until a
 later new head or matching confirmed helper outcome settles it. New-head checks
 must still be fresh. Asynchronous handles require a matching terminal host receipt;
 wrapper termination alone cannot settle an unconfirmed PUT at the same head.
+Pre-PUT `MERGED`, `closed`, `not_behind`, `conflict` and `expected_head_mismatch`
+results settle as `no-change`; refresh the PR before another action. A later no-PUT
+refusal cannot retract an earlier uncertain PUT. An explicit merged/closed PR read
+closes its lifecycle and settles completed synchronous updates, while unknown launches
+and attached live handles retain their exclusions until matching host receipts.
 Live updates and resolutions, including `reserved` and `uncertain`, remain the next
 action with request ID, host handle and status until a matching terminal receipt.
 Status includes dispatch records even when the PR becomes excluded or closes.

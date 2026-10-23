@@ -679,10 +679,27 @@ def update_helper_receipt(pr, row, result):
         output)
     if result.get('returncode') == 0 and updated and updated[1] != row.get('head'):
         return 'succeeded', 'updated'
-    blocked = re.match(
+    if result.get('returncode') == 0 and re.fullmatch(
+            rf'MERGED {target} via preexisting', output):
+        return 'no-change', 'merged'
+    no_put = re.fullmatch(
+        rf'BLOCKED {target} reason=(closed|not_behind|conflict|expected_head_mismatch) '
+        r'blockers=\S+ (?:changes_requested_by=\S+ )?detail=.+ '
+        r'automerge=(?:unavailable|preexisting)', output)
+    if result.get('returncode') == 4 and no_put:
+        outcome = no_put[1]
+        if outcome == 'expected_head_mismatch' and not re.search(
+                rf' is not the expected head {head}; ', output):
+            return 'uncertain', 'unknown'
+        # A later no-PUT refusal cannot retract an earlier unconfirmed PUT. A
+        # terminal PR read can settle a completed synchronous helper separately.
+        if outcome != 'closed' and row.get('update_outcome') in ('accepted', 'unknown'):
+            return 'uncertain', row['update_outcome']
+        return 'no-change', outcome
+    blocked = re.fullmatch(
         rf'BLOCKED {target} reason=(update_pending|update_rejected) blockers=\S+ '
         rf'(?:changes_requested_by=\S+ )?detail=update_head={head} '
-        r'update_outcome=(accepted|unknown|rejected) ', output)
+        r'update_outcome=(accepted|unknown|rejected) [^\n]+ automerge=(?:unavailable|preexisting)', output)
     if result.get('returncode') == 4 and blocked:
         reason, outcome = blocked.groups()
         if reason == 'update_rejected' and outcome == 'rejected':
@@ -690,6 +707,22 @@ def update_helper_receipt(pr, row, result):
         if reason == 'update_pending' and outcome in ('accepted', 'unknown'):
             return 'uncertain', outcome
     return 'uncertain', 'unknown'
+
+
+def record_terminal_pr(pr, resolution, head, now):
+    """Close the PR lifecycle without claiming that a live host writer stopped."""
+    pr.update(state=resolution, resolved_head=head, excluded=None)
+    pr.setdefault('resolved_at', now_iso(now))
+    pr['observation']['state'] = resolution.upper()
+    pr.pop('branch_update', None)
+    for row in pr.get('dispatches', []):
+        if (row['kind'] == 'update-branch' and dispatch_status(row) in OPEN_DISPATCH
+                and not row.get('host_task_id') and row.get('result_digest')
+                and row.get('update_outcome')):
+            # Only a completed synchronous helper can be settled by a PR read.
+            # An unknown launch or attached task still needs its host receipt.
+            row.update(status='superseded', completed_at=now_iso(now),
+                       observed_state=resolution, observed_head=head)
 
 
 def live_merge_dispatch(pr):
@@ -760,12 +793,16 @@ def reconcile_pr(pr, state, now, discovery):
     required = required_contexts(observation)
     failing = blocking_failures(observation, queue['failing'])
     threads = observation.get('unresolved_threads', 0)
-    conflict = str(observation.get('mergeable') or '').upper() == 'CONFLICTING'
+    merge_state = str(observation.get('merge_state_status') or 'UNKNOWN').upper()
+    conflict = (str(observation.get('mergeable') or '').upper() == 'CONFLICTING'
+                or merge_state == 'DIRTY')
     review = str(observation.get('review_decision') or '').upper()
     changes = [name for name in observation.get('changes_requested_by') or [] if name]
     progress = progress_signature(observation, checks, queue['pending'])
     threads_complete = observation.get('review_threads_complete') is True
 
+    if raw_state in ('MERGED', 'CLOSED'):
+        record_terminal_pr(pr, raw_state.lower(), head, now)
     pending = pending_write(pr, state, now)
     if pending:
         return pending[0], queue, pending[1], progress
@@ -941,8 +978,17 @@ def reconcile_pr(pr, state, now, discovery):
                 {'kind': 'incomplete-threads', 'detail': detail}, progress)
 
     checks_state = str(observation.get('checks_state') or '').upper()
-    merge_state = str(observation.get('merge_state_status') or 'UNKNOWN').upper()
-    if ((checks_state in ('SUCCESS', 'EXPECTED') and merge_state in ('BLOCKED', 'UNSTABLE', 'UNKNOWN'))
+    if review == 'REVIEW_REQUIRED':
+        return ({'pr': pr['url'], 'kind': 'wait-review',
+                 'reason': 'GitHub requires an approving review',
+                 'next_check_at': deadline(now, cadence)}, queue,
+                {'kind': 'review-required', 'detail': review}, progress)
+    if merge_state == 'HAS_HOOKS':
+        return ({'pr': pr['url'], 'kind': 'diagnose-gate',
+                 'reason': 'GitHub reports HAS_HOOKS; reconcile hooks before landing',
+                 'next_check_at': deadline(now, cadence)}, queue,
+                {'kind': 'has-hooks', 'detail': merge_state}, progress)
+    if ((checks_state == 'SUCCESS' and merge_state in ('BLOCKED', 'UNKNOWN'))
         or (queue['failing'] and not failing and merge_state in ('BLOCKED', 'UNKNOWN'))) \
             and not failing and not queue['pending']:
         return ({'pr': pr['url'], 'kind': 'diagnose-gate',
@@ -956,20 +1002,32 @@ def reconcile_pr(pr, state, now, discovery):
                  'next_check_at': deadline(now, cadence)}, queue,
                 {'kind': 'missing-head', 'detail': 'head_sha is absent or not a full commit'}, progress)
 
-    if observation.get('checks_source') == 'full':
-        checks_ok = checks_state in ('SUCCESS', 'EXPECTED')
-        if checks_ok and required is not None:
-            observed = {c['name'] for c in checks}
-            checks_ok = all(name in observed for name in required)
-    else:
-        # A reader line lists only pending and failing contexts. GitHub's aggregate
-        # merge state already encodes the required-check result; optional failures
-        # surface as mergeStateStatus UNSTABLE, never as a StatusState.
-        checks_ok = (checks_state in ('SUCCESS', 'EXPECTED')
-                     or str(observation.get('merge_state_status') or '').upper() == 'UNSTABLE')
+    checks_ok = checks_state == 'SUCCESS'
+    if merge_state == 'UNSTABLE':
+        # Match merge-pr.sh: UNSTABLE needs at least one observed required context,
+        # a complete context page and every required context green. Search-reader
+        # rows without isRequired evidence need a targeted read before landing.
+        required_seen = observed_required_contexts(observation)
+        if required_seen is None and observation.get('checks_source') == 'full':
+            required_seen = required
+        checks_ok = (bool(required_seen) and observation.get('checks_complete') is True
+                     and (required is None or set(required).issubset(required_seen)))
+        if checks_ok and observation.get('checks_source') == 'full':
+            by_name = {c['name']: c for c in checks}
+            checks_ok = all(name in by_name and by_name[name]['conclusion'] in PASSING_CONCLUSIONS
+                            for name in required_seen)
+        elif checks_ok:
+            checks_ok = not any(c['name'] in required_seen and c['conclusion'] not in PASSING_CONCLUSIONS
+                                for c in checks)
+        if not checks_ok:
+            return ({'pr': pr['url'], 'kind': 'wait-checks',
+                     'reason': 'UNSTABLE requires a targeted read verifying every required context green',
+                     'next_check_at': deadline(now, cadence)}, queue,
+                    {'kind': 'unverified-required-checks', 'detail': merge_state}, progress)
     mergeable = str(observation.get('mergeable') or '').upper() == 'MERGEABLE'
     update = pr.get('branch_update')
-    if update and (head == update['head'] or update.get('refresh_required')):
+    if update and (update.get('refresh_required')
+                   or (head == update['head'] and update.get('outcome', 'updated') == 'updated')):
         return ({'pr': pr['url'], 'kind': 'wait-checks',
                  'reason': 'branch update completed; refresh the new head and its gates before landing',
                  'request_id': update['request_id'], 'head': head,
@@ -988,7 +1046,7 @@ def reconcile_pr(pr, state, now, discovery):
                  'request_id': f"{pr['number']}-update-{head[:12]}-a{len(attempts) + 1}",
                  'reason': 'branch is behind its base; update before refreshing landing gates',
                  'next_check_at': deadline(now, cadence)}, queue, None, progress)
-    if mergeable and merge_state in ('CLEAN', 'HAS_HOOKS', 'UNSTABLE') \
+    if mergeable and merge_state in ('CLEAN', 'UNSTABLE') \
             and not queue['pending'] and not failing and threads == 0 and checks_ok:
         head_attempts = merge_attempts(pr, head)
         rejected = [row for row in head_attempts
@@ -1021,11 +1079,12 @@ def reconcile_pr(pr, state, now, discovery):
                  'next_check_at': deadline(now, min(cadence, max(30, remaining)))},
                 queue, {'kind': oldest['diagnosis'], 'detail': oldest['name']}, progress)
 
-    # Everything GitHub needs is not visible yet: a concrete wait, never "all done".
-    return ({'pr': pr['url'], 'kind': 'unknown-state',
-             'reason': 'no green gate and no named blocker in this observation',
+    return ({'pr': pr['url'], 'kind': 'wait-checks' if not checks_ok else 'diagnose-gate',
+             'reason': f'landing blocked: mergeable={observation.get("mergeable")} '
+                       f'merge_state={merge_state} rollup={checks_state or "NONE"}',
              'next_check_at': deadline(now, cadence)}, queue,
-            {'kind': 'unclassified', 'detail': 'refresh required'}, progress)
+            {'kind': 'checks-not-successful' if not checks_ok else 'not-clean',
+             'detail': checks_state if not checks_ok else merge_state}, progress)
 
 
 def scheduler_report(state, now):
@@ -1187,7 +1246,8 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
                 audit(state, now, 'update-head-observed', pr=pr['url'],
                       request_id=dispatch['request_id'], head=dispatch['observed_head'])
         update = pr.get('branch_update')
-        if update and row['observation'].get('head_sha') != update['head']:
+        if update and (row['observation'].get('head_sha') != update['head']
+                       or update.get('outcome', 'updated') != 'updated'):
             # Only a new observation after the terminal update receipt can refresh
             # landing gates. A green snapshot read while the update ran is stale.
             update['refresh_required'] = False
@@ -1228,7 +1288,9 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
 
     discovery = {'complete': complete, 'gaps': gaps}
     for url, pr in state['prs'].items():
-        if pr.get('state') != 'open' and not pending_write(pr, state, now):
+        terminal_read = (url in seen_urls
+                         and pr['observation']['state'] in ('MERGED', 'CLOSED'))
+        if pr.get('state') != 'open' and not pending_write(pr, state, now) and not terminal_read:
             continue
         mark_stale_merges(pr, pr['observation'].get('head_sha'))
         action, queue, blocked, signature = reconcile_pr(pr, state, now, discovery)
@@ -1898,6 +1960,13 @@ def cmd_receipt(args):
         if row['kind'] == 'update-branch' and args.status == 'succeeded':
             pr['branch_update'] = {'request_id': row['request_id'], 'head': row['head'],
                                    'refresh_required': True}
+        if row['kind'] == 'update-branch' and args.status == 'no-change':
+            outcome = row['update_outcome']
+            if outcome in ('merged', 'closed'):
+                record_terminal_pr(pr, outcome, row['head'], now)
+            else:
+                pr['branch_update'] = {'request_id': row['request_id'], 'head': row['head'],
+                                       'outcome': outcome, 'refresh_required': True}
         if args.status in TERMINAL_DISPATCH:
             row['completed_at'] = now_iso(now)
         else:
@@ -1919,7 +1988,7 @@ def cmd_receipt(args):
             pending = pending_write(pr, state, now)
             if state.get('cancelled') and not pending:
                 pr.update(next_action=None, blocked=None, queue=None)
-            elif pr.get('state') == 'open' or pending:
+            elif pr.get('state') in ('open', 'merged', 'closed') or pending:
                 action, queue, blocked, _ = reconcile_pr(pr, state, now, state['discovery'])
                 pr.update(next_action={**action, **({'blocked': blocked} if blocked else {})},
                           queue=queue, blocked=blocked)
@@ -1945,16 +2014,10 @@ def cmd_resolve(args):
         if current and args.head != current:
             raise ContinuousError(
                 f'resolution head {args.head} differs from the observed head {current}')
-        pr['state'] = args.state_value
-        pr['resolved_at'] = now_iso(now)
-        pr['resolved_head'] = args.head
-        pr['fixer'] = {'in_flight': False, 'request_id': None, 'started_at': None}
-        for row in pr.get('dispatches', []):
-            if dispatch_status(row) in OPEN_DISPATCH and row['kind'] not in ('resolution', 'update-branch'):
-                row['status'] = 'superseded'
-                row['completed_at'] = now_iso(now)
-        pr['next_action'] = {'pr': args.pr, 'kind': args.state_value,
-                             'reason': 'explicit targeted host observation'}
+        record_terminal_pr(pr, args.state_value, args.head, now)
+        action, queue, blocked, _ = reconcile_pr(pr, state, now, state['discovery'])
+        pr.update(next_action={**action, **({'blocked': blocked} if blocked else {})},
+                  queue=queue, blocked=blocked)
         audit(state, now, 'resolve', pr=args.pr, resolved=args.state_value, head=args.head)
         save_json(path, state)
         return {'status': 'resolved', 'pr': args.pr, 'state': args.state_value,
