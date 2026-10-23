@@ -283,7 +283,13 @@ instance, a model, its tier and its `lineage`. Setup guesses the tiers: every
 cheap-family model it recognises (a haiku-, flash-, mini-, nano-, lite-, small- or
 luna-class name) goes to `low`, and those become the `workhorse` candidates, cheapest
 first, with the session model last as the fallback. A delegating workflow's children
-therefore start on a cheap model without you editing anything. The session model judges
+therefore have cheap recommendations available. An explicit owner choice controls dispatch;
+tiers never answer the model picker or prove suitability. For an explicitly chosen
+configured workhorse, the frozen owner answer supplies ordinary quality 1 and its
+reason if those fields or the model row are missing. No extra numeric endorsement
+is needed. Higher role floors and a role policy's named `source` still require their
+own evidence; reviewer judgement, fixed-effort and lineage gates remain separate.
+The session model judges
 at `high`. Both the tiers and the lineage labels are guesses: edit them. Providers
 default to `auto`, except OpenCode, which defaults to
 `full-access` with `"requireRuntimeMode": true` because its children otherwise stall
@@ -310,7 +316,19 @@ on permission prompts.
 }
 ```
 
-`resolve` prints the role's candidates that the capabilities file can run, in tier
+An authorized global workhorse choice is stored as the optional top-level
+`preferred_workhorse: {"providerInstanceId": "<exact provider>", "model": "<exact model>"}`,
+matching exactly one `roles.workhorse` entry. Keep its selected options on that
+entry. Both `resolve` and selection discovery offer the eligible preference first,
+subject to the order of independence groups for `resolve --implementer-lineage`,
+and mark it `preferred: true`. The preference moves ahead of cheaper candidates
+only within its group. They report `preference_status: unavailable` if it cannot
+be used. Retain that choice and resolve its blocker; other candidates do not
+authorize a replacement. A saved preference remains a recommendation for a new
+invocation. Run-only choices never write this field. Without it, existing ordering
+is unchanged.
+
+`resolve` otherwise prints the role's candidates that the capabilities file can run, in tier
 order, and lists each configured entry it could not use with the reason. It never
 substitutes a different model. When a child's mode is broader than the parent
 thread's, T3 refuses it, so `resolve` lowers the mode to the parent's and adds an
@@ -318,8 +336,11 @@ thread's, T3 refuses it, so `resolve` lowers the mode to the parent's and adds a
 `requireRuntimeMode` (OpenCode, unless set to `false`) is listed as unavailable instead. With `--implementer-lineage
 LINEAGE`, each candidate is marked `independent`: `true` for another known lineage,
 `null` when either lineage is `unknown`, `false` for the same lineage. They print in
-that order. A repository can override
+that order; a saved workhorse preference moves first only within its independence
+group. A repository can override
 roles, providers or tiers in `.t3-plugins/routing.json`; repository policy wins.
+A repository workhorse pool replaces the user's preference as well. A repository
+`preferred_workhorse` must match exactly one effective workhorse entry.
 
 ## Uninstall
 

@@ -16,12 +16,16 @@ deterministic operations such as doctor, status and list stay direct.
 
 ## Choosing a model
 
-First apply `PKG/shared/model-selection.md` and freeze the user's work/review answers.
+First apply `PKG/shared/model-selection.md`. Collect work/review answers in short
+rounds, then freeze them.
+Retain explicit choices and requested scope; recommendations never reopen an answer.
 The installed `PKG/shared/agents/reviewer-standard.md` defines reviewer depth and reporting.
 Worker bundles expose the same contract at `shared/reviewer-standard.md`.
 When a routing config exists, `t3-plugins resolve <role> --capabilities FILE` lists the
 configured candidates for `workhorse`, `reviewer` or `judgement` that the saved
-`orchestrator_capabilities` response can run, cheapest tier first. Recommend only
+`orchestrator_capabilities` response can run, with an eligible saved
+`preferred_workhorse` first and otherwise cheapest tier first. An unavailable
+preference stays blocked; the next candidate is not an authorized replacement. Recommend only
 within the declared role's quality floor. Dispatch the exact user-selected target
 and supported options. Escalation or direct work needs separately approved work
 replacement authority or a new choice; blocked/malformed results grant none.

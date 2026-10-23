@@ -14,14 +14,19 @@ helper compatibility. These internal names do not add public command choices.
 Read the request, repository instructions, existing authority and relevant state.
 Resolve the intended base, checks and unambiguous destinations there. State routine
 reversible assumptions and proceed without acknowledgement. Supplied choices are
-answers. Ask only consequential unresolved questions, in one native picker with
-recommendations first. Silence cannot grant authority. Genuine discovery acceptance
+answers. Ask only consequential unresolved questions in short rounds through the
+native picker, recommendations first. Ask one decision per question and wait for
+the answer before the next round. Retain supplied answers and ask only for still-missing
+choices or options. Show a short relevant model list; keep lineage, sharing and
+runtime mechanics out of the model picker. Raise a concrete conflict separately
+only when it needs a decision. Silence cannot grant authority. Genuine discovery acceptance
 and required host/organisation approvals remain gates.
 
 The JSON `inspect` action accepts `operation`, source references in `inspected`
 (`request`, `instructions`, `authority`, `state`), `context`, `supplied`, consequential
 `required` field names, `recommendations` and routine `assumptions`. It combines
-facts and returns only missing questions in one batch. It performs no investigation.
+facts and returns only missing questions as data. Present those questions in short
+rounds, one decision at a time. It performs no investigation.
 
 Show one concise agreement: observable target; repository/base and bounded paths;
 destinations and documented procedures; exact work/review roles, options and finite

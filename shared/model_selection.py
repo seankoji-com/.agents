@@ -131,46 +131,151 @@ def validate_target(target, capabilities, child=True):
     return dict(deepcopy(target), options=deepcopy(options))
 
 
-def suitability(target, role, profiles, capabilities):
-    require(isinstance(profiles, dict), 'suitability profile missing')
-    floor = profiles.get('roles', {}).get(role)
+def _profile_floor(profiles, role, *, context='; ', default=None):
+    """Validate policy containers before either discovery or suitability reads them."""
+    require(isinstance(profiles, dict), 'suitability profile missing' + context +
+            'provide a profiles object containing the recorded role/model evidence.')
+    roles = profiles.get('roles', {})
+    require(isinstance(roles, dict), 'configuration gap: role profiles malformed' + context +
+            'provide profiles.roles as an object.')
+    require(role not in roles or isinstance(roles[role], dict),
+            f'configuration gap: profiles.roles.{role} must be an object; '
+            f'provide profiles.roles.{role} as an object containing the role policy.')
+    floor = roles.get(role, default)
+    if isinstance(floor, dict):
+        require(isinstance(floor.get('required_options', {}), dict),
+                f'configuration gap: profiles.roles.{role}.required_options must be an object')
+        require(floor.get('source') is None or isinstance(floor['source'], str),
+                f'configuration gap: profiles.roles.{role}.source must be a policy path/clause string or null')
+    return floor
+
+
+def suitability(target, role, profiles, capabilities, endorsement=None, configured=None):
+    identity = '/'.join(key(target))
+    context = ' for ' + role + ' ' + identity + '; '
+    # The answer is an accepted source for ordinary configured work, with a
+    # defined quality of 1. Never manufacture a score meeting an arbitrary floor.
+    endorsed = role == 'workhorse' and endorsement is not None and configured is not None
+    if endorsed:
+        source(endorsement)
+        require(key(configured) == key(target), 'endorsement target differs from configured workhorse')
+    floor = _profile_floor(profiles, role, context=context, default={'minimum': 1} if endorsed else None)
     require(isinstance(floor, dict) and type(floor.get('minimum')) is int and floor['minimum'] >= 0,
-            'role floor missing: ' + role)
-    matches = [m for m in profiles.get('models', []) if key(m['target']) == key(target)]
-    require(len(matches) == 1, 'model suitability missing or ambiguous')
-    profile = matches[0]
-    require(isinstance(profile.get('reason'), str) and profile['reason'].strip(), 'suitability needs evidence/reason')
-    require(type(profile.get('quality')) is int and profile['quality'] >= floor['minimum'], 'model below role floor')
-    require(not floor.get('judgement') or profile.get('judgement') is True, 'judgement-capable model required')
+            'role floor missing' + context + 'provide profiles.roles.' + role + '.minimum from the role policy.')
+    rows = profiles.get('models', [])
+    require(isinstance(rows, list), 'model profiles malformed' + context + 'provide profiles.models as an array.')
+    matches = [m for m in rows if isinstance(m, dict) and key(m.get('target')) == key(target)]
+    require(len(matches) <= 1, 'model suitability ambiguous' + context +
+            'retain one profiles.models entry for this exact provider/model.')
+    ordinary = endorsed and not floor.get('judgement') and not floor.get('source')
+    require(matches or ordinary, 'model suitability missing' + context +
+            'provide one profiles.models entry for this exact provider/model from the role policy' +
+            (' at ' + str(floor['source']) if floor.get('source') else '') + '.')
+    profile = deepcopy(matches[0]) if matches else {}
+    lineage_field = 'profiles.models.lineage'
     provider, model = model_entry(capabilities, target, target.get('execution') != 'current-context')
+    known_lineages = set(FAMILY_LINEAGE.values()) | set(DRIVER_LINEAGE.values())
+    actual_lineage = lineage(provider.get('driverKind', ''), target['model'])
+    if actual_lineage not in known_lineages:
+        actual_lineage = 'unknown'  # A custom model's basename is not verified lineage.
+    if ordinary:
+        profile.setdefault('quality', 1)
+        if not profile.get('reason'):
+            profile['reason'] = endorsement['answer']
+        # Setup also writes custom basenames here. Those inferred labels cannot
+        # establish independence; an explicit custom family needs a sourced profile.
+        if (not profile.get('lineage') and configured.get('lineage') and
+                (actual_lineage != 'unknown' or configured['lineage'] in known_lineages)):
+            profile.update(lineage=configured['lineage'], lineage_source='routing.roles.workhorse')
+            lineage_field = 'routing.roles.workhorse.lineage'
     effort = [o for o in option_descriptors(model) if o.get('type') == 'select']
+    require(not floor.get('judgement') or profile.get('judgement') is True,
+            'judgement-capable model required by role floor' + context +
+            'provide profiles.models.judgement evidence required by profiles.roles.' + role + '.judgement.')
     if floor.get('judgement') and not effort:
         require(isinstance(profile.get('fixed_effort_reason'), str) and profile['fixed_effort_reason'].strip(),
-                'fixed-effort review needs a suitability reason')
+                'fixed-effort review needs a suitability reason' + context +
+                'provide profiles.models.fixed_effort_reason explaining how this target meets the judgement floor.')
+    require(isinstance(profile.get('reason'), str) and profile['reason'].strip(),
+            'suitability needs evidence/reason' + context +
+            'provide profiles.models.reason explaining how this target meets profiles.roles.' + role +
+            (' from ' + str(floor['source']) if floor.get('source') else '') + '.')
+    require(type(profile.get('quality')) is int and profile['quality'] >= floor['minimum'],
+            'model below role floor' + context + 'provide sourced profiles.models.quality >= ' +
+            str(floor['minimum']) + ' required by profiles.roles.' + role + '.minimum' +
+            (' from ' + str(floor['source']) if floor.get('source') else '') + '.')
     required_options = floor.get('required_options', {})
     require(all(target.get('options', {}).get(k) == v for k, v in required_options.items()),
-            'selected options below role floor')
-    actual_lineage = lineage(provider.get('driverKind', ''), target['model'])
-    if actual_lineage not in set(FAMILY_LINEAGE.values()) | set(DRIVER_LINEAGE.values()):
-        actual_lineage = 'unknown'  # A custom model's basename is not verified lineage.
+            'selected options below role floor' + context +
+            'choose the advertised options required by profiles.roles.' + role +
+            '.required_options: ' + json.dumps(required_options, sort_keys=True))
     declared = profile.get('lineage')
     if declared:
         require(bool(profile.get('lineage_source')), 'declared lineage needs a source')
-        require(actual_lineage in ('unknown', declared), 'declared lineage contradicts canonical model family')
+        require(actual_lineage in ('unknown', declared),
+                'declared lineage contradicts canonical model family' + context +
+                'set ' + lineage_field + ' to ' + actual_lineage +
+                ' or omit that field to use the canonical lineage.')
         actual_lineage = declared
     return actual_lineage
+
+
+def routing_preference(routing):
+    """An explicit saved workhorse identity, never inferred from tier/list order."""
+    if routing is None:
+        return None
+    require(isinstance(routing, dict), 'configuration gap: malformed routing')
+    if 'preferred_workhorse' not in routing:
+        return None
+    preferred = routing['preferred_workhorse']
+    require(isinstance(preferred, dict) and set(preferred) == {'providerInstanceId', 'model'},
+            'preferred_workhorse must contain only providerInstanceId and model')
+    identity = key(preferred)
+    roles = routing.get('roles')
+    require(isinstance(roles, dict), 'preferred_workhorse requires a roles object')
+    pool = roles.get('workhorse', [])
+    require(isinstance(pool, list) and sum(key(entry) == identity for entry in pool) == 1,
+            'preferred_workhorse must match exactly one roles.workhorse entry')
+    return identity
+
+
+def prefer_workhorse(result, routing, role):
+    """Mark a saved preference, including a visible refusal, without selecting it."""
+    preferred = routing_preference(routing)
+    if preferred is None or role != 'workhorse':
+        return result
+    available = False
+    for candidate in result['candidates']:
+        if key(candidate.get('target', candidate)) == preferred:
+            candidate['preferred'] = True
+            available = True
+        else:
+            candidate.pop('preferred', None)
+    # Only exact booleans verify a group. Missing or malformed annotations stay
+    # unverified, including integers equal to booleans and unhashable values.
+    result['candidates'].sort(key=lambda c: (
+        0 if c.get('independent') is True else 2 if c.get('independent') is False else 1,
+        not c.get('preferred', False)))
+    result['preferred_workhorse'] = dict(zip(('providerInstanceId', 'model'), preferred))
+    result['preference_status'] = 'available' if available else 'unavailable'
+    return result
 
 
 def discover(capabilities, profiles, routing=None, role='workhorse'):
     """Recommendations only. No config writes, tier/first-model quality inference."""
     require(isinstance(capabilities, dict) and isinstance(capabilities.get('providers'), list), 'live capabilities missing')
+    floor = _profile_floor(profiles, role, default={})
+    routing_preference(routing)
     configured = None
     if routing is not None:
         require(isinstance(routing, dict) and isinstance(routing.get('roles'), dict), 'configuration gap: malformed routing')
         configured = routing['roles'].get(role)
         require(isinstance(configured, list) and configured, 'configuration gap: empty/missing role pool')
         require(all(isinstance(t, dict) for t in configured), 'configuration gap: malformed pool')
-        configured = {key(t) for t in configured}
+        for index, entry in enumerate(configured):
+            require('options' not in entry or isinstance(entry['options'], dict),
+                    f'configuration gap: roles.{role}[{index}].options must be an object')
+        configured = {key(t): t for t in configured}
     candidates, excluded = [], []
     for provider in capabilities['providers']:
         for model in provider.get('models', []):
@@ -179,6 +284,14 @@ def discover(capabilities, profiles, routing=None, role='workhorse'):
             for option in option_descriptors(model):
                 if option.get('type') == 'select' and any(c.get('id') == 'high' for c in option.get('options', [])):
                     target['options'][option['id']] = 'high'
+            # Configured options and role requirements outrank recommendation
+            # defaults. Discovery never diagnoses an owner's answer using high.
+            entry = (configured or {}).get(key(target), {})
+            target['options'].update(entry.get('options', {}))
+            if isinstance(floor, dict):
+                for name, value in floor.get('required_options', {}).items():
+                    if name not in entry.get('options', {}):
+                        target['options'][name] = value
             settings = (routing or {}).get('providers', {}).get(provider['providerInstanceId'], {})
             if settings.get('runtimeMode'):
                 target['runtimeMode'] = settings['runtimeMode']
@@ -191,7 +304,15 @@ def discover(capabilities, profiles, routing=None, role='workhorse'):
                 candidates.append({'target': target, 'lineage': family, 'recommendation_only': True})
             except SelectionError as exc:
                 excluded.append({'target': target, 'reason': str(exc)})
-    return {'candidates': candidates, 'excluded': excluded, 'configured': configured is not None}
+    # A configured preferred model absent from the live catalog still needs an
+    # exact exclusion; other candidates do not silently replace that preference.
+    preferred = routing_preference(routing)
+    if role == 'workhorse' and preferred and not any(
+            key(row['target']) == preferred for row in candidates + excluded):
+        excluded.append({'target': dict(zip(('providerInstanceId', 'model'), preferred)),
+                         'reason': 'preferred workhorse absent from live capabilities; retain the choice and refresh capabilities'})
+    return prefer_workhorse({'candidates': candidates, 'excluded': excluded,
+                             'configured': configured is not None}, routing, role)
 
 
 def recommend(capabilities, profiles, preferences, *, routing=None, authors=(), maximum=3):
@@ -235,21 +356,25 @@ def recommend(capabilities, profiles, preferences, *, routing=None, authors=(), 
 
 def _eligible(target, role, record):
     target = validate_target(target, record['capabilities'], target.get('execution') != 'current-context')
-    pool = discover(record['capabilities'], record['profiles'], record['routing'], role)
-    # Direct current-context work need not be a runnable child; quality/restrictions still apply.
-    if target.get('execution') == 'current-context':
-        routing = record['routing']
-        if routing is not None:
-            entries = routing.get('roles', {}).get(role)
-            require(isinstance(entries, list) and entries and key(target) in {key(e) for e in entries},
-                    'configuration gap or current-context target policy-excluded')
-    else:
-        require(any(key(row['target']) == key(target) for row in pool['candidates']),
-                'chosen target unavailable or excluded by role/routing policy')
+    # Validate the answer itself, never recommendation defaults.
+    routing = record['routing']
+    configured = None
+    if routing is not None:
+        require(isinstance(routing, dict) and isinstance(routing.get('roles'), dict),
+                'configuration gap: malformed routing')
+        entries = routing['roles'].get(role)
+        require(isinstance(entries, list) and entries and all(isinstance(e, dict) for e in entries),
+                'configuration gap: empty/malformed role pool: ' + role)
+        require(key(target) in {key(e) for e in entries},
+                'chosen target policy-excluded by routing.roles.' + role + ': ' + '/'.join(key(target)))
+        chosen = record['work'].get(role)
+        if role == 'workhorse' and chosen and target == dict(chosen, options=chosen.get('options', {})):
+            configured = next(e for e in entries if key(e) == key(target))
     settings = (record['routing'] or {}).get('providers', {}).get(target['providerInstanceId'], {})
     if settings.get('requireRuntimeMode'):
         require(target.get('runtimeMode') == settings.get('runtimeMode'), 'required configured runtime mode changed/dropped')
-    return target, suitability(target, role, record['profiles'], record['capabilities'])
+    return target, suitability(target, role, record['profiles'], record['capabilities'],
+                               record['source'] if configured is not None else None, configured)
 
 
 def _authority(value):
@@ -300,7 +425,7 @@ def _prospective_authors(record):
     choices = list(record['work'].items())
     if record.get('operation') in ('focus-group/plan', 'focus-group/run', 'focus-group/resume'):
         choices += [(r['role'], r['target']) for r in record.get('work_replacements', [])]
-    authors.update(suitability(target, role, record['profiles'], record['capabilities'])
+    authors.update(_eligible(target, role, record)[1]
                    for role, target in choices if _subject_author_role(record, role))
     return authors
 
@@ -325,6 +450,10 @@ def completion_authors(record, author_lineages=(), evidence_lineages=()):
 
 def freeze(data):
     """Validate an explicit answer, freeze its evidence and return a sealed record."""
+    return _freeze(data)
+
+
+def _freeze(data, *, legacy=False):
     require(isinstance(data, dict), 'selection input must be an object')
     record = deepcopy(data)
     record.pop('selection_sha256', None)
@@ -332,12 +461,18 @@ def freeze(data):
     for name in ('invocation_id', 'scope_id', 'operation'):
         require(isinstance(record.get(name), str) and record[name], name + ' required')
     source(record.get('source'))
+    if 'routing_scope' in record:
+        require(record['routing_scope'] in ('invocation-only', 'global'),
+                'routing_scope must be invocation-only or global; never silently narrow the owner choice')
     require(isinstance(record.get('coordinator'), dict) and all(record['coordinator'].get(k)
             for k in ('providerInstanceId', 'model')), 'coordinator actual identity required')
     for name in ('capabilities', 'routing', 'profiles'):
         require(name in record, name + ' snapshot required')
         record[name + '_sha256'] = digest(record[name])
     require(isinstance(record.get('work'), dict) and record['work'], 'work choices required')
+    require(legacy or 'workhorse' not in record['work'] or 'routing_scope' in record,
+            'workhorse routing scope missing; record routing_scope as global or invocation-only from the owner answer. '
+            'If unanswered, ask only which scope applies; never silently narrow the owner choice.')
     authors = {record['coordinator'].get('lineage', 'unknown')}
     for role, chosen in record['work'].items():
         target, family = _eligible(chosen, role, record)
@@ -390,7 +525,9 @@ def validate(record, expected=None):
             'selection tampered or producing selection digest mismatch')
     for name in ('capabilities', 'routing', 'profiles'):
         require(record.get(name + '_sha256') == digest(record.get(name)), 'selection snapshot digest mismatch')
-    require(freeze(record) == record, 'selection not canonical or invalid')
+    # Existing sealed records predate explicit routing scope. Only validation
+    # retains their invocation default; freezing a new answer requires the field.
+    require(_freeze(record, legacy=True) == record, 'selection not canonical or invalid')
     return record
 
 
@@ -419,12 +556,11 @@ def gate(record, *, invocation_id, scope_id, event='new', action='dispatch', exp
         require(capabilities is not None, 'scheduled fire needs fresh capability revalidation')
         require(policy_digests == {name: record[name] for name in ('routing_sha256', 'profiles_sha256')},
                 'scheduled fire needs current routing/profile digests; changed policy needs correction')
+        fresh = dict(record, capabilities=capabilities)
         for role, target in record['work'].items():
-            validate_target(target, capabilities, target.get('execution') != 'current-context')
-            suitability(target, role, record['profiles'], capabilities)
+            _eligible(target, role, fresh)
         for slot in record['review_panel']:
-            validate_target(slot['target'], capabilities)
-            suitability(slot['target'], slot['role'], record['profiles'], capabilities)
+            _eligible(slot['target'], slot['role'], fresh)
     return {'allowed': True, 'chooser': False, 'selection_sha256': record['selection_sha256']}
 
 
@@ -487,6 +623,9 @@ def dispatch(record, *, role, slot_id=None, target=None, data_classes=('reposito
     return {'target': {k: deepcopy(v) for k, v in target.items() if k in
                        ('providerInstanceId', 'model', 'options', 'runtimeMode')},
             'execution': target.get('execution', 'child'), 'selection_sha256': record['selection_sha256'],
+            'invocation_id': record['invocation_id'], 'scope_id': record['scope_id'],
+            'routing_scope': record.get('routing_scope', 'invocation-only')
+                             if role == 'workhorse' and not review and target == primary else 'invocation-only',
             'slot_id': slot_id, 'role': role, 'substituted': target != primary,
             **({'agreement_sha256': record['agreement']['agreement_sha256']} if record.get('agreement') else {})}
 
