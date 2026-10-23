@@ -56,7 +56,10 @@ class CommandDefaults(unittest.TestCase):
             listing = cli('list').stdout.splitlines()
             self.assertTrue(any(line.startswith('plan ') for line in listing))
             self.assertFalse(any(line.startswith('elephant-goldfish ') for line in listing))
-            cli('setup', 'plan', '--root', str(root))
+            setup = cli('setup', 'plan', '--root', str(root))
+            receipt = json.loads(setup.stdout.splitlines()[0])['data']
+            self.assertIn('default workflow', receipt['paste'])
+            self.assertNotIn('run: doctor', receipt['paste'])
             self.assertTrue((root / 't3-plan/SKILL.md').is_file())
             self.assertEqual((old / 'SKILL.md').read_text(), 'Keep my local changes')
             self.assertEqual(historical.read_text(), '{"receipt":"historical"}\n')
