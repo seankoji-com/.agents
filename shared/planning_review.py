@@ -270,7 +270,7 @@ def create(data, state_root, prefix, agents_root, environ=None):
         else:
             state = {'schema_version': 1, 'project_id': data['project_id'], 'logical_output_id': snapshot['logical_output_id'],
                      'request_reference': snapshot['requests'][0]['reference'], 'output_name': snapshot['output_name'],
-                     'round_limit': 3, 'rounds_used': 0, 'technical_used': 0, 'active_job': None,
+                     'round_limit': 5, 'rounds_used': 0, 'technical_used': 0, 'active_job': None,
                      'requirements': snapshot['requirements'],
                      'sharing_revocations': [],
                      'jobs': [], 'revisions': {}, 'rounds': [], 'findings': {}, 'decisions': [], 'receipts': []}

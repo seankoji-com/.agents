@@ -77,7 +77,8 @@ in stage `resources.adopter_strategy`; public prepare/direct/acceptance checks i
 Ralph CLI init takes `admission`; `strategy` attaches a reviewed descriptor while
 quiescent. Unchanged agreement-bound `resume` reuses the saved admission without
 retain-or-stop. Status/stop stay direct. Legacy checkpoints remain pinned to their
-original package and cannot gain new endpoint/fallback authority by resuming. Every-feedback, final full evaluation,
+original package and cannot gain new endpoint/fallback authority by resuming.
+Blocking-feedback repair, final full evaluation,
 recovery and lineage rules remain stronger than planning fallback. Babysitter keeps
 merge authority, requested final-head review and the coordinator's sole native watch.
 

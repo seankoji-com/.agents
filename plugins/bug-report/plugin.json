@@ -1,6 +1,6 @@
 {
   "name": "bug-report",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Verify suspected upstream defects, use their documented reporting channel, and follow up for one fixed 30-minute window.",
   "short_description": "Verify and report upstream defects",
   "argument_hint": "[symptom, upstream or context reference]",

@@ -45,10 +45,15 @@ goal's approved material; ask if the repository's private-data boundary is uncle
 OpenCode tasks require explicit Full Access. If the parent is narrower, explain
 the requirement before starting; never silently broaden the parent.
 
-Finish only when a full-scope evaluation reports the goal achieved with an empty
-feedback list, the parent confirms the evidence is current, and the selected endpoint
-has current evidence through `complete`. Source evaluation alone is intermediate. Every feedback item causes another implementation attempt, regardless
-of severity or a simultaneous success claim. A task's `completed` status alone is
+Finish only when a full-scope evaluation reports the goal achieved with no
+undisposed feedback, the parent confirms the evidence is current, and the selected
+endpoint has current evidence through `complete`. Source evaluation alone is
+intermediate. Apply the shared final-round triage directive: safe minor/info
+findings become repository issues through `triage`, retain their original evidence
+and do not consume another implementation attempt. Blocker/major findings and
+unmet goals still require repair. Output at most three sentences in the main
+context after every returned review, then report deferred fixes and the build/test
+lesson at handoff. A task's `completed` status alone is
 never a success verdict. Report exhausted attempts, unavailable evaluation, denied
 permissions and missing verification plainly. Do not substitute direct execution,
 another scheduler, top-level threads, or a same-lineage review.

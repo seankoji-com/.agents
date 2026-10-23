@@ -195,11 +195,54 @@ Before dispatching again, inspect the changed files and identify the cause of
 drift, including possible evaluator edits during its read-only task. Preserve the
 evidence and resolve unexpected writes before issuing another evaluation.
 
-`goalAchieved: true` AND `feedback: []` from a full review makes the loop
-`evaluated`. Any feedback, or `goalAchieved: false`, from either scope means the
-next fresh implementer task uses the original pinned target and existing worktree.
-Even informational feedback triggers repair. If false has no feedback, the fresh
-brief still includes that verdict and asks the implementer to find the unmet goal.
+Immediately after each returned review, output the shared main-context summary of
+at most three sentences before taking another action. A full review is a final
+acceptance assessment under `PKG/shared/agents/reviewer-standard.md`, including
+when attempts remain. Only issues that must be fixed before merge/launch block.
+
+`goalAchieved: true` AND no open feedback from a full review makes the loop
+`evaluated`. Blocker/major feedback and `goalAchieved: false` require repair with
+the original pinned target and existing worktree. Minor/info feedback enters
+`triage` without charging another attempt. Search the target repository for a
+matching issue; reuse it or create a redacted issue under the operator's authority.
+`next` returns `issueRequirements` with a marker for each minor/info finding, bound
+to that review's task, revision, index and original finding. Include its exact marker
+on its own line in the issue body. When reusing an issue, preserve its existing body
+and append the marker through an authorised issue update, then fetch the issue.
+Keep the actual GitHub create/fetch/update response; never reconstruct or invent it
+from a URL or a worker's claim. An open issue snapshot must contain the marker,
+matching URL/number and a title. The receipt is a coordinator observation, not
+cryptographic proof of remote state; the helper never calls GitHub itself.
+Use `python3 PKG/cli.py triage --state STATE --input FILE` with:
+
+```json
+{"taskId":"returned-review-task","dispositions":[{"feedbackIndex":0,
+  "disposition":"deferred","issueUrl":"https://github.com/OWNER/REPO/issues/123",
+  "reason":"Why waiting until after merge/launch is safe","impact":"User impact",
+  "owner":"Responsible owner","nextAction":"Fix and acceptance criteria",
+  "evidence":"Observed issue-create/fetch receipt and finding reproduction",
+  "issueReceipt":{"source":"github","operation":"create-issue","issue":{
+    "url":"https://github.com/OWNER/REPO/issues/123","issue_number":123,
+    "state":"open","title":"Deferred fix","body":"Finding and acceptance criteria\n<!-- ralph-finding:EXACT_KEY_FROM_NEXT -->"}}}]}
+```
+
+Indices address the original, unchanged feedback array. Every minor/info item
+needs a disposition. A concrete issue that must be fixed now uses `repair` with
+a reason instead. Blocker/major entries cannot be deferred. The helper checks the
+issue URL belongs to the worktree's GitHub `origin` and requires the returned API
+snapshot to match the issue and finding marker. It retains a SHA-256 of the receipt
+and rechecks the receipt and binding for publication and checkpoint reads. The
+coordinator must verify the API response is real; URL shape or free text alone
+cannot clear the filing gap. A receipt for another finding/revision or a later
+edit of a saved receipt is refused.
+An unavailable issue service leaves the run in triage with explicit unfiled drafts
+and a filing gap, not a product defect or a claim that issues were filed.
+Triage refuses live/unverified tasks and invalidates changed-tree evidence. It
+preserves raw review results and dispositions. Safe deferrals from a full pass
+need no extra implementation or evaluation, even at the attempt limit; a delta
+pass still needs the fresh full review. Required verification and unmet goals
+cannot be cleared by deferral. If false has no feedback, the fresh brief still
+includes that verdict and asks the implementer to find the unmet goal.
 At the limit, report `exhausted`, all outstanding feedback and the checkpoint path.
 Never claim success or publish a success PR merely because the limit was reached.
 
@@ -214,3 +257,11 @@ only at the clean current evaluated head. `readyForPublication` is source
 readiness; `endpointComplete` is separate. Missing or stale evidence keeps
 the chosen target incomplete. Report no-change honestly and resolve an
 incompatible endpoint without inventing an empty PR or tag.
+
+Do not publish with undisposed feedback or blocker/major findings. Complete
+repository-required checks and review before final acceptance. Reconcile all
+recorded tasks and recheck the evaluated revision before delivery; source drift
+requires fresh evaluation. Include deferred-fix issue links, impact, owners and
+next actions in the operator handoff, and capture the observed build/test lesson
+under the harness learning policy. Preserve cancellation and written-strategy
+requirements in the shared runtime and planning contracts.
