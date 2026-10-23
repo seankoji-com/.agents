@@ -1,5 +1,5 @@
 site_name: t3-plugins
-site_description: Seven workflows for coding agents in T3 Code, each ending in something you can check. Install with Homebrew on macOS or Linux.
+site_description: Nine workflows for coding agents in T3 Code, each ending in something you can check. Install with Homebrew on macOS or Linux.
 site_url: https://seankoji-com.github.io/t3-plugins/
 site_dir: !ENV [T3_DOCS_SITE_DIR, site]
 repo_url: https://github.com/seankoji-com/t3-plugins
@@ -79,6 +79,7 @@ nav:
       - ralph: plugins/ralph.md
       - focus-group: plugins/focus-group.md
       - bug-report: plugins/bug-report.md
+      - tests-omg: plugins/tests-omg.md
   - Engineering:
       - Architecture: architecture.md
       - T3 thread features: design/t3-thread-features.md

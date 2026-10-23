@@ -3,7 +3,8 @@
 `t3-plugins setup` writes one small skill per workflow, so you can type `/` in T3,
 pick `t3-imps`, and add the task. Every provider reads the same installed entry file,
 so the workflow is identical whichever model you choose. The skills are `t3-imps`,
-`t3-ape`, `t3-babysitter`, `t3-elephant-goldfish`, `t3-agent-tuneup` and `t3-ralph`.
+`t3-ape`, `t3-babysitter`, `t3-elephant-goldfish`, `t3-agent-tuneup`, `t3-ralph`,
+`t3-focus-group`, `t3-bug-report` and `t3-tests-omg`.
 
 `setup` installs the whole catalog and writes skills into the four default folders
 below. `t3-plugins setup imps` does one plugin; repeated `--root PATH` replaces the

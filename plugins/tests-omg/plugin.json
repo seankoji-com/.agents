@@ -1,0 +1,24 @@
+{
+  "name": "tests-omg",
+  "version": "0.1.0",
+  "description": "Audit test protection and validation cost, with twelve evidence-based findings and private HTML/JSON recommendations.",
+  "short_description": "Audit test value and the ten-minute validation path",
+  "argument_hint": "doctor | audit [path] [--org OWNER] [--run-checks] | status <run-id> | report <run-id>",
+  "entry": "entry.md",
+  "operations": ["doctor", "audit", "status", "report"],
+  "picker": ["audit", "status", "report", "doctor"],
+  "routes": [
+    {"pattern": "^doctor$", "operation": "doctor"},
+    {"pattern": "^audit(?:\\s+[\\s\\S]+)?$", "operation": "audit"},
+    {"pattern": "^status\\s+\\S+$", "operation": "status"},
+    {"pattern": "^report\\s+\\S+$", "operation": "report"}
+  ],
+  "kind": "workflow",
+  "compatibility": "experimental",
+  "operation_review": {
+    "doctor": {"selection": "direct", "planning": "none", "reason": "Deterministic local prerequisite and artifact integrity inspection."},
+    "status": {"selection": "direct", "planning": "none", "reason": "Read saved state and revalidate source identity without model work."},
+    "report": {"selection": "direct", "planning": "none", "reason": "Verify and render saved evidence without new judgments."},
+    "audit": {"selection": "upfront", "planning": "written-strategy-only", "reason": "Collect work/review choices before investigation and synthesis; review an actual substantial written strategy through shared planning gates before dependent work. Ordinary bounded audits need no invented strategy."}
+  }
+}

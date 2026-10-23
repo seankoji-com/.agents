@@ -1,6 +1,6 @@
 # t3-plugins
 
-**Eight workflows for coding agents in [T3 Code](https://github.com/pingdotgg/t3code).
+**Nine workflows for coding agents in [T3 Code](https://github.com/pingdotgg/t3code).
 Each one ends in something you can check.**
 
 [![Tests](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml/badge.svg)](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml)
@@ -10,7 +10,7 @@ Each one ends in something you can check.**
 Ask an agent to "fix the bug" and you usually get a confident summary. With imps you
 get a run ID and a report showing which checks passed on the exact files you were
 handed; edit a file afterwards and the report says the evidence is stale. The other
-six workflows leave similar records for briefs, research, pull requests, provider
+eight workflows leave similar records for briefs, research, pull requests, provider
 settings, implement-then-grade loops and synthetic product research.
 
 ## Install (macOS or Linux)
@@ -62,6 +62,7 @@ python3 bin/t3-plugins setup && python3 bin/t3-plugins doctor
 | Check provider permissions and MCPs | `$t3-agent-tuneup audit --provider claude --settings .claude/settings.json` | Finding codes and locations, never the setting values |
 | Have one model build and another grade | `$t3-ralph fix the parser and add regression coverage` | Fresh attempts until the grader has no feedback (five by default), then a PR |
 | Try a product on invented personas | `$t3-focus-group plan https://staging.example/welcome first-run experience for busy parents` | A reviewed report of synthetic hypotheses, a ranked backlog and local issue drafts; nothing is posted |
+| Inspect test protection and validation cost | `$t3-tests-omg audit` | Twelve findings, ranked recommendations and private HTML/JSON; unknown evidence stays visible |
 | Report a suspected T3 problem | `$t3-bug-report investigate the error above` | Evidence, routing, a separate reporting thread and a fixed 30-minute follow-up window; uncertain cases stay private |
 
 Each workflow has a guide with a full example:
@@ -72,7 +73,8 @@ Each workflow has a guide with a full example:
 [agent-tuneup](docs/plugins/agent-tuneup.md) ·
 [ralph](docs/plugins/ralph.md) ·
 [focus-group](docs/plugins/focus-group.md) ·
-[bug-report](docs/plugins/bug-report.md).
+[bug-report](docs/plugins/bug-report.md) ·
+[tests-omg](docs/plugins/tests-omg.md).
 For a one-line edit, skip all of this and ask the agent directly.
 
 ## Try one without a model

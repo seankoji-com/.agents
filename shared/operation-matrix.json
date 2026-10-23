@@ -236,6 +236,28 @@
         "planning": "none",
         "reason": "Local package/catalog/schema readiness has no substantive planning or synthesis."
       }
+    },
+    "tests-omg": {
+      "doctor": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Deterministic local prerequisite and artifact integrity inspection."
+      },
+      "status": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Read saved state and revalidate source identity without model work."
+      },
+      "report": {
+        "selection": "direct",
+        "planning": "none",
+        "reason": "Verify and render saved evidence without new judgments."
+      },
+      "audit": {
+        "selection": "upfront",
+        "planning": "written-strategy-only",
+        "reason": "Collect work/review choices before investigation and synthesis; review an actual substantial written strategy through shared planning gates before dependent work. Ordinary bounded audits need no invented strategy."
+      }
     }
   }
 }
