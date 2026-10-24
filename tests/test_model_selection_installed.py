@@ -17,6 +17,48 @@ from tests.test_rebuild_installed import Sandbox
 
 
 class InstalledSelectionTests(unittest.TestCase):
+    def test_relocated_imps_keeps_endorsed_author_and_refuses_unknown_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            box = Sandbox(Path(temporary))
+            package, _ = box.install('imps')
+            relocated = box.base / 'relocated-imps'
+            shutil.copytree(package, relocated)
+            data = canonical_selection_input()
+            work = data['work']['workhorse']
+            data['routing'] = {'roles': {'workhorse': [{**work, 'lineage': 'openai'}],
+                                        'reviewer': [data['review_panel'][0]['target']]}}
+            del data['profiles']['models'][0]
+            record = models.freeze(data)
+            job = {'model_selection': record, 'tasks': [{
+                'role': 'worker', 'target': work,
+                'selection_binding': {'role': 'workhorse', 'selection_sha256': record['selection_sha256']},
+                'handles': [{'target': work, 'observed_identity': {'status': 'verified'}}],
+            }]}
+            probe = '''import json, sys
+sys.path.insert(0, sys.argv[1])
+from shared.job_coordinator import actual_author_lineages
+from shared.model_selection import dispatch, SelectionError
+job = json.load(open(sys.argv[2]))
+authors = actual_author_lineages(job)
+try:
+    review = dispatch(job['model_selection'], role='reviewer', slot_id='review', author_lineages=authors)
+    result = {'authors': sorted(authors), 'review': review['target']}
+except SelectionError as exc:
+    result = {'authors': sorted(authors), 'refusal': str(exc)}
+print(json.dumps(result))
+'''
+            for status in ('verified', 'unreported', 'mismatched'):
+                job['tasks'][0]['handles'][0]['observed_identity']['status'] = status
+                source = box.payload(job)
+                before = source.read_bytes()
+                result = json.loads(box.run([sys.executable, '-c', probe, relocated, source]).stdout)
+                self.assertEqual(source.read_bytes(), before)
+                if status == 'verified':
+                    self.assertEqual(result, {'authors': ['openai'], 'review': data['review_panel'][0]['target']})
+                else:
+                    self.assertIn('unknown', result['authors'])
+                    self.assertIn('stronger independent slot', result['refusal'])
+
     def test_relocated_catalog_keeps_saved_preference_within_independence_groups(self):
         from tests.test_routing import CAPABILITIES, entry
         with tempfile.TemporaryDirectory() as temporary:
