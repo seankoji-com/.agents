@@ -15,6 +15,24 @@
   ],
   "kind": "workflow",
   "compatibility": "experimental",
+  "workers": [
+    {
+      "id": "tests-omg/reviewer",
+      "path": "agents/reviewer.md",
+      "operations": ["audit"],
+      "role": "reviewer",
+      "responsibility": "Independently review the exact advisory report, its cited source evidence and test-value recommendations without changing the target.",
+      "allowed_scope": "read-only",
+      "output_contract": "worker-result.schema.json"
+    }
+  ],
+  "worker_shared": [
+    "boundaries.md", "manifest.schema.json", "workers-config.schema.json",
+    "job.schema.json", "stage.schema.json", "worker-brief.schema.json",
+    "worker-result.schema.json", "result-envelope.schema.json",
+    "acceptance.schema.json", "jobs-contract.md", "reviewer-standard.md",
+    "model-selection.schema.json", "model-authority.schema.json"
+  ],
   "operation_review": {
     "doctor": {"selection": "direct", "planning": "none", "reason": "Deterministic local prerequisite and artifact integrity inspection.", "classification": "direct", "entry": "entry.md", "route": "scripts/audit.py", "completion_evidence": "diagnostic exit and findings"},
     "status": {"selection": "direct", "planning": "none", "reason": "Read saved state and revalidate source identity without model work.", "classification": "direct", "entry": "entry.md", "route": "scripts/audit.py", "completion_evidence": "saved report integrity and source freshness; no new audit"},

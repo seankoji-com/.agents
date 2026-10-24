@@ -524,6 +524,106 @@ class CommandTests(unittest.TestCase):
         Path(report['report']).write_bytes(raw + b'changed')
         self.assertIn('digest mismatch', self.call('report', report['run_id'], code=2)['error'])
 
+    def test_installed_review_bundle_and_exact_advisory_acceptance(self):
+        from shared.job_coordinator import create_pinned_job, publish_observation, prepare_task, verify_pinned_dependency
+        from core.jobs import record_dispatch, record_result
+        from core.jobs.store import Store, canonical
+        from shared.job_acceptance import _adapter, AcceptanceError, accept_stage, validate_stage
+        prefix, agents = self.base / 'prefix', self.base / 'agents'
+        installed = subprocess.run([sys.executable, str(ROOT / 'scripts/install.py'),
+            '--plugin', 'tests-omg', '--prefix', str(prefix), '--agents-root', str(agents)],
+            cwd=self.base, env=self.env, capture_output=True, text=True, timeout=60)
+        self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
+        package = Path(json.loads(installed.stdout)['data']['version_dir'])
+        receipt = json.loads((package / 'install-manifest.json').read_text())
+        self.assertTrue(receipt.get('bundle_dir'))
+        snapshot = self.call('audit', self.repo, '--snapshot', script=package / 'scripts/audit.py')
+        evidence_input = self.input({'identity': {'head_sha': snapshot['head_sha'],
+            'snapshot_sha256': snapshot['sha256']}, 'expected_checks': ['unit:1']})
+        report = self.call('audit', self.repo, '--input', evidence_input, script=package / 'scripts/audit.py')
+        saved = json.loads(Path(report['audit']).read_text())
+        manifest = json.loads(Path(report['manifest']).read_text())
+        descriptor = {'state_root': str(self.state), 'run_id': report['run_id'],
+            'audit_sha256': manifest['hashes']['audit.json'], 'input_sha256': manifest['hashes']['input.json'],
+            'head_sha': saved['snapshot']['head_sha'], 'snapshot_sha256': saved['snapshot']['sha256']}
+        validator = package / 'scripts/validate_audit.py'
+        def validate(data, code):
+            path = self.base / 'descriptor.json'; path.write_text(json.dumps(data))
+            proc = subprocess.run([sys.executable, str(validator), '--input', str(path)],
+                cwd=self.base, env=self.env, capture_output=True, text=True, timeout=30)
+            self.assertEqual(proc.returncode, code, proc.stdout + proc.stderr)
+            return json.loads(proc.stdout)
+        result = validate(descriptor, 0)
+        self.assertTrue(result['accepted'])
+        # Unknown test outcomes remain unknown; valid advisory is not a test pass.
+        evidence = result['requirement_outcomes']['audit-report-integrity']['evidence']
+        self.assertEqual(evidence['validation_verdict'], 'incomplete')
+        self.assertFalse((self.repo / 'must-not-run').exists())
+        for key in ('run_id', 'audit_sha256', 'input_sha256', 'head_sha', 'snapshot_sha256'):
+            self.assertFalse(validate({**descriptor, key: 'wrong'}, 1)['accepted'])
+        job = {'schema_version': 1, 'job_id': 'audit-review', 'installation_id': receipt['installation_id'],
+            'workflow': 'tests-omg/audit', 'owner': 'fixture', 'objective': 'review exact advisory',
+            'requirements': {'R1': 'complete advisory'}, 'authorization': {'actions': ['read']},
+            'constraints': ['read only'], 'dependencies': [{'key': 'audit', 'plugin': 'tests-omg'}],
+            'pins': {}, 'policy': {'max_repair_cycles': 1, 'max_artifact_bytes': 16777216},
+            'stages': [{'id': 'review', 'depends_on': [], 'requirements': ['R1'], 'status': 'pending',
+                'validator_dependency': 'audit', 'validator_contract': descriptor}],
+            'tasks': [{'task_id': 'review', 'stage_id': 'review', 'logical_slot_id': 'review',
+                'request_id': 'review-request', 'worker_id': 'tests-omg/reviewer', 'dependency_key': 'audit',
+                'role': 'review', 'independent_of_author': True,
+                'target': {'providerInstanceId': 'fixture-reviewer', 'model': 'gemini-fixture', 'lineage': 'google'},
+                'document_authors': [{'lineage': 'openai'}],
+                'reviewed_documents': [{'path': report['audit'], 'sha256': descriptor['audit_sha256']}]}],
+            'decisions': [], 'history': [], 'metrics': {}, 'result_contract': {'schema_version': 1}}
+        jobs = self.base / 'jobs'
+        create_pinned_job(job, jobs, prefix, agents, self.base / 'workers.json')
+        caller = {'actor': 'coordinator', 'installation_id': receipt['installation_id'],
+                  'workflow': job['workflow'], 'package_digest': receipt['package_digest']}
+        store = Store(jobs, job['job_id'])
+        path = self.input(descriptor)
+        publish_observation(store, caller, 'review', str(path))
+        pinned = store.load(); stage = pinned['stages'][0]
+        argv = [str(validator), '--input', stage['observation_ref']['path']]
+        binding = _adapter(pinned, stage, argv, stage['observation_ref']['path'])[2]
+        self.assertEqual(binding['expected_outcome_ids'],
+                         ['audit-report-integrity', 'audit-scope-complete', 'audit-source-current'])
+        no_review = deepcopy(pinned); no_review['tasks'] = []
+        with self.assertRaisesRegex(ValueError, 'independent review'):
+            _adapter(no_review, stage, argv, stage['observation_ref']['path'])
+        changed = deepcopy(pinned); changed['stages'][0]['validator_contract']['audit_sha256'] = '0' * 64
+        with self.assertRaisesRegex(AcceptanceError, 'exact declared report'):
+            _adapter(changed, changed['stages'][0], argv, stage['observation_ref']['path'])
+        with self.assertRaisesRegex(AcceptanceError, 'observed execution identity'):
+            accept_stage(store, caller, 'review', argv, stage['observation_ref']['path'])
+        brief_ref = prepare_task(store, caller, 'review', verify_pinned_dependency,
+                                lambda sid: validate_stage(store, sid).get('accepted') is True)
+        brief = json.loads(Path(brief_ref['path']).read_text())
+        record_dispatch(store, caller, 'review', {'kind': 'accepted', 'request_id': 'review-request',
+            'host_task_id': 'fixture-task', 'child_thread_id': 'fixture-thread'})
+        record_dispatch(store, caller, 'review', {'kind': 'completion', 'request_id': 'review-request',
+            'host_task_id': 'fixture-task', 'completion_id': 'fixture-completion', 'status': 'completed',
+            'work_state': 'result_available', 'has_pending_child_runs': False,
+            'status_identity': {'providerInstanceId': 'fixture-reviewer', 'model': 'gemini-fixture'}})
+        result = {k: brief[k] for k in ('job_id', 'stage_id', 'logical_slot_id', 'request_id',
+                                        'worker_id', 'effective_brief_sha256', 'revision')}
+        result.update(schema_version=1, status='ready-for-acceptance', conclusion='Fixture review approves the advisory only.',
+            binding=brief['snapshot'], requirements=[{'id': 'R1', 'status': 'passed', 'evidence': 'fixture inspection'}],
+            review_verdict='approve', findings=[], gaps=[], uncertainties=[], changes=[], commands=[], artifacts=[],
+            extra_work_requests=[], metrics={})
+        record_result(store, caller, 'review', {'result': canonical(result), 'request_id': 'review-request',
+                                              'completion_id': 'fixture-completion'})
+        accepted = accept_stage(store, caller, 'review', argv, stage['observation_ref']['path'])
+        self.assertTrue(accepted['accepted'], accepted)
+        self.assertTrue(validate_stage(store, 'review')['accepted'])
+        # Source and report mutations invalidate the current advisory, not just its filename.
+        (self.repo / 'test_contract.py').write_text('changed fixture\n')
+        self.assertFalse(validate(descriptor, 1)['accepted'])
+        with self.assertRaisesRegex(ValueError, 'stale'):
+            _adapter(pinned, stage, argv, stage['observation_ref']['path'])
+        self.assertFalse(validate_stage(store, 'review')['accepted'])
+        Path(report['report']).write_text('corrupt report')
+        self.assertFalse(validate(descriptor, 1)['accepted'])
+
     def test_valid_input_with_larger_saved_counterpart_stays_openable(self):
         data = self.bound()
         data['groups'] = [{'id': 'large-existing-evidence', 'unresolved_claim': 'x' * 4_300_000}]

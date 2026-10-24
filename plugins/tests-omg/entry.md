@@ -60,6 +60,10 @@ Use `PKG/shared/delegation.md` and `PKG/shared/job-coordination.md` for substant
 multi-stage review. T3 owns dispatch and handles; no provider SDK, broker, watcher
 or second scheduler. Keep owner decisions in the coordinator. Use a finite pinned
 job and its validator receipts when delegating; an unavailable host stays unavailable.
+The installed `tests-omg/reviewer` is read-only. Bind its reviewed document to the
+saved `audit.json` hash. `scripts/validate_audit.py --input FILE` validates the exact
+report descriptor; shared job acceptance also requires that independent review.
+See `references/evidence.md` for the descriptor and stage contract.
 No audit author accepts their own independent review. If a substantial written
 implementation/experiment strategy is actually needed, apply
 `PKG/shared/planning-review.md` to that artifact through the installed imps

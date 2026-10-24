@@ -44,6 +44,7 @@ WORKER_CATALOG = {
                           'cold-reader': ('document-only usability and evidence verdict', ['thinking', 'elephant'])},
     'plan': {'plan-reviewer': ('read-only source-plan challenge and planning coverage', ['plan'])},
     'ralph': {'strategy-reviewer': ('read-only written-strategy planning assessment', ['run', 'resume'])},
+    'tests-omg': {'reviewer': ('independent source-bound test-protection advisory review', ['audit'])},
     'babysitter': {'pr-maintainer': ('one scoped PR triage and authorized repair', ['pr', 'repo', 'org']),
                    'pr-reviewer': ('independent final combined PR review', ['pr', 'repo', 'org'])},
     'agent-tuneup': {'config-researcher': ('provider-format and scope research with sources', ['tuneup']),

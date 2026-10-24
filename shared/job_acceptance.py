@@ -44,6 +44,7 @@ ADAPTERS = {
     'plan': 'validate_document.py',
     'agent-tuneup': 'validate_audit.py',
     'focus-group': 'validate_study.py',
+    'tests-omg': 'validate_audit.py',
 }
 
 def _caller(job, caller):
@@ -524,6 +525,12 @@ def _adapter(job, stage, argv, input_file):
             delivery.engineering(selected, data.get('delivery', {}), current['head'],
                                  author_lineages=actual_author_lineages(job))
     contract = stage.get('validator_contract', {})
+    if dep['plugin'] == 'tests-omg':
+        required = {'state_root', 'run_id', 'audit_sha256', 'input_sha256', 'snapshot_sha256', 'head_sha'}
+        if job['workflow'] != 'tests-omg/audit' or set(contract) != required or data != contract:
+            raise AcceptanceError('audit descriptor differs from the exact declared report')
+        from shared.tests_omg_review import report_binding
+        audit_inputs = report_binding(job, stage, contract, Path(pin['package_dir']))
     if dep['plugin'] == 'ape':
         from shared.ape_planning import validate_job
         validate_job(job)
@@ -584,7 +591,7 @@ def _adapter(job, stage, argv, input_file):
         raise AcceptanceError('validator options must be unique flag/value pairs')
     flags = dict(zip(args[::2], args[1::2]))
     extra = {}
-    if dep['plugin'] in ('ape', 'babysitter', 'agent-tuneup', 'focus-group'):
+    if dep['plugin'] in ('ape', 'babysitter', 'agent-tuneup', 'focus-group', 'tests-omg'):
         if flags != {'--input': str(inp)}:
             raise AcceptanceError('validator input differs from the pre-check input')
     elif dep['plugin'] == 'imps':
@@ -640,6 +647,8 @@ def _adapter(job, stage, argv, input_file):
                 raise AcceptanceError('observation input differs from the pre-check input')
         else:
             raise AcceptanceError('unsupported document validator mode')
+    if dep['plugin'] == 'tests-omg':
+        extra.update(audit_inputs)
     if dep['plugin'] == 'ape':
         for source in contract['sources']:
             path = Path(source['path'])
@@ -671,6 +680,8 @@ def _adapter(job, stage, argv, input_file):
     elif dep['plugin'] == 'focus-group':
         # The study validator reports one outcome per requirement the stage declares.
         expected = [str(row) for row in stage.get('requirements', [])]
+    elif dep['plugin'] == 'tests-omg':
+        expected = ['audit-report-integrity', 'audit-source-current', 'audit-scope-complete']
     elif dep['plugin'] == 'imps':
         if '--final-plan' in flags:
             expected = ['imps-stage-' + sid for sid in final_plan['required_stages']]
