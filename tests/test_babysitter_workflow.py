@@ -606,7 +606,8 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertLessEqual({'path', 'sha256', 'bytes'}, set(ref))
         raw = Path(ref['path']).read_bytes()
         self.assertEqual((hashlib.sha256(raw).hexdigest(), len(raw)), (ref['sha256'], ref['bytes']))
-        brief = json.loads(raw)
+        from shared.compact_briefs import deserialize
+        brief = deserialize(raw)
         self.observe(task_id, 'accepted', brief['request_id'], host)
         failed = status != 'ready-for-acceptance'
         result = {'schema_version': 1, **{k: brief[k] for k in ('job_id', 'stage_id', 'logical_slot_id', 'request_id',
@@ -685,7 +686,8 @@ class SyntheticJobTest(unittest.TestCase):
         self.job('create', self.plan())
         brief = self.dispatch('pr-12-maintain', changes=[{'path': 'src/widget.py', 'pushed_head': H2}])
         self.assertEqual(brief['authorization']['prs'][PR12], ['read', 'push', 'communicate', 'merge'])
-        self.assertIn('worker_id: babysitter/pr-maintainer', json.dumps(brief['effective_definition']))
+        definition = brief['effective_definition'] if brief['schema_version'] == 1 else brief['definition']
+        self.assertIn('worker_id: babysitter/pr-maintainer', json.dumps(definition))
         # A new bot thread lands at H2: the next round is a plain retry, with no head rebind between rounds.
         self.job('retry', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'reason': 'new thread at H2'})
         self.dispatch('pr-12-maintain', changes=[{'path': 'src/widget.py', 'pushed_head': H3}])
@@ -738,7 +740,8 @@ class SyntheticJobTest(unittest.TestCase):
         """One tracked same-child follow-up of the maintain slot, through the CLI."""
         request = brief['request_id'] + '-fu1'
         staged = self.job('followup-prepare', {'caller': self.caller, 'task_id': 'pr-12-maintain', 'request_id': request})
-        fu_brief = json.loads(Path(staged['path']).read_text())
+        from shared.compact_briefs import deserialize
+        fu_brief = deserialize(Path(staged['path']).read_bytes())
         host = parent + '-fu1'
         scope = {'mode': 'worker-evidence', 'path': 'artifacts/tasks/pr-12-maintain'}
         for event in ({'kind': 'followup', 'request_id': request, 'host_task_id': host, 'parent_host_task_id': parent,

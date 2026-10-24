@@ -120,12 +120,14 @@ class PlanningReviewTests(unittest.TestCase):
     def result(self, attempt, *, findings=(), verdict='approve', edit=None, identity=True, observe=True):
         if observe:
             self.event(attempt, identity=identity)
-        brief = json.loads(Path(attempt['path']).read_text())
+        from shared.compact_briefs import deserialize
+        brief = deserialize(Path(attempt['path']).read_bytes())
         result = {k: brief[k] for k in ('schema_version', 'job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256', 'revision')}
         result.update(status='ready-for-acceptance', conclusion='Fixture evidence supports the declared plan.',
             requirements=[{'id': r['id'], 'status': 'passed', 'evidence': 'fixture:observed'} for r in brief['requirements']],
             review_verdict=verdict, findings=list(findings), gaps=[], uncertainties=[], changes=[], commands=[], artifacts=[],
             binding=brief.get('snapshot'), extra_work_requests=[], metrics={}, planning_review=self.assessment())
+        result['schema_version'] = 1  # result protocol is independent of brief transport
         if edit:
             edit(result)
         path = self.write('result-' + str(self.sequence) + '.json', json.dumps(result))

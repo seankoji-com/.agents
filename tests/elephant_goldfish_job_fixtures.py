@@ -164,7 +164,8 @@ class InstalledJobFixture(unittest.TestCase):
         self.assertEqual(set(ref), {'path', 'sha256', 'bytes', 'provenance'})
         raw = Path(ref['path']).read_bytes()
         self.assertEqual(sha(raw), ref['sha256'])
-        brief = json.loads(raw)
+        from shared.compact_briefs import deserialize
+        brief = deserialize(raw)
         host = f'host-{brief["request_id"]}'
         event = {'kind': 'accepted', 'request_id': brief['request_id'], 'host_task_id': host,
                  'child_thread_id': 'child-' + host, 'status': 'running', 'work_state': 'working',

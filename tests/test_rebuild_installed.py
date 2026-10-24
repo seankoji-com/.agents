@@ -182,7 +182,8 @@ class Sandbox:
                                                      'target_reason': 'lowest suitable configured tier'})
         raw = Path(prepared['path']).read_bytes()
         assert (sha(raw), len(raw)) == (prepared['sha256'], prepared['bytes']), 'brief locator differs from bytes'
-        brief = json.loads(raw)
+        from shared.compact_briefs import deserialize
+        brief = deserialize(raw)
         self.job(pkg, 'task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
             'kind': 'accepted', 'request_id': brief['request_id'], 'host_task_id': host,
             'child_thread_id': 'child-' + host, 'status': 'running', 'work_state': 'working',

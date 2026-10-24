@@ -105,7 +105,11 @@ def authors(admission, documents, job_file=None):
                 bp = (Path(task['brief']['path']) if request == task['request_id'] else
                     Path(job_file).parent / 'briefs' / ('followup' if h in task.get('followups', []) else '') /
                     (task['task_id'] + '-' + digest(request.encode()) + '.json'))
-                brief = strict_load(_regular(bp)); frozen = brief['model_selection']; sha = frozen['selection_sha256']
+                from shared.job_coordinator import pinned_store
+                from shared.compact_briefs import producer_authority
+                jp = Path(job_file)
+                brief = producer_authority(pinned_store(jp.parent.parent, jp.parent.name), job, task, request, _regular(bp))
+                frozen = brief['model_selection']; sha = frozen['selection_sha256']
                 producing = (job.get('model_selection_history') or {}).get(sha, job['model_selection'])
                 models.validate(producing, sha)
                 binding = frozen['binding']

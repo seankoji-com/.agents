@@ -201,7 +201,8 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
         raw = _regular(Path(brief['path']), max_bytes=job['policy']['max_artifact_bytes'])
         if digest(raw) != brief['sha256']:
             raise AcceptanceError('immutable brief bytes changed')
-        assigned = strict_load(raw)
+        from shared.compact_briefs import verify_transmitted
+        assigned = verify_transmitted(store, job, task, task['request_id'], raw, brief)
         effective = assigned.pop('effective_brief_sha256')
         if digest(canonical(assigned)) != effective or effective != brief['effective_brief_sha256']:
             raise AcceptanceError('brief content correlation changed')
@@ -237,7 +238,10 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
     if require_reviews:
         for task in (t for t in job['tasks'] if t['stage_id'] == stage['id']):
             if task.get('role') == 'review':
-                assigned = strict_load(_regular(Path(task['brief']['path']), max_bytes=job['policy']['max_artifact_bytes']))
+                from shared.compact_briefs import deserialize, authoritative_full
+                assigned = deserialize(_regular(Path(task['brief']['path']), max_bytes=job['policy']['max_artifact_bytes']))
+                if assigned.get('schema_version') == 2:
+                    assigned = authoritative_full(store, job, task, task['request_id'])
                 if assigned.get('review_inputs') != review_inputs(store, job, task):
                     raise AcceptanceError('review approval is not bound to the current reviewed executions')
                 if 'reviewed_documents' in task:

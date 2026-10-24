@@ -117,10 +117,9 @@ def _authorize(job,caller,operation):
  if caller['actor']!='coordinator' and operation!='worker-evidence':
   raise JobError('coordinator-only operation')
 class Store:
- def __init__(self,state_root,job_id,verify_pins=None):
+ def __init__(self,state_root,job_id,verify_pins=None,verify_brief=None):
   if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',job_id):raise JobError('unsafe job id')
-  self.root=Path(state_root).expanduser().absolute();self.path=self.root/job_id;self.file=self.path/'job.json';self.lock=self.path/'job.lock'
-  self.verify_pins=verify_pins
+  self.root=Path(state_root).expanduser().absolute();self.path=self.root/job_id;self.file=self.path/'job.json';self.lock=self.path/'job.lock';self.verify_pins=verify_pins;self.verify_brief=verify_brief
  def locked(self):
   _reject_symlink_components(self.root)
   os.close(_directory_fd(self.root,create=True))
