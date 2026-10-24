@@ -280,6 +280,9 @@ def source_identity(script=__file__):
         from shared.worker_registry import package_digest as manifest_digest, verify_package_files
         try:
             manifest = load_json(manifest_path)
+            require(manifest.get('plugin') == meta.get('name')
+                    and manifest.get('version') == package.name,
+                    'installed package manifest identity differs from its package directory')
             fingerprint = manifest_digest(manifest)
             require(manifest.get('package_digest') == fingerprint,
                     'installed package manifest digest differs from its file list')
@@ -293,6 +296,43 @@ def source_identity(script=__file__):
             'installed_version': version,
             'policy_version': policy_identity(meta), 'package_dir': str(package),
             'digest': fingerprint}
+
+
+def package_gaps(state, installed, package_version=None):
+    """Use the same identity rules for inspection, continuation and reservation."""
+    gaps = []
+    if state.get('policy_version') != installed['policy_version']:
+        gaps.append({'kind': 'policy-version', 'state': state.get('policy_version'),
+                     'installed': installed['policy_version']})
+    package = state.get('package') or {}
+    pinned = package.get('pinned_version')
+    if package_version and pinned and package_version != pinned:
+        gaps.append({'kind': 'package-version',
+                     'state_pinned': pinned, 'installed_running': package_version})
+    if not package.get('installed_digest'):
+        gaps.append({'kind': 'missing-package-identity', 'state_pinned': pinned,
+                     'detail': 'the state predates the installed-package fingerprint; '
+                               'its package identity is unverified'})
+    elif package['installed_digest'] != installed['digest']:
+        gaps.append({'kind': 'installed-drift',
+                     'state_installed': package.get('installed_version'),
+                     'installed_on_disk': installed['version'],
+                     'state_digest': package['installed_digest'],
+                     'installed_digest': installed['digest']})
+    if package_version and installed['version'] and \
+            package_version.split('+', 1)[0] != installed['version']:
+        gaps.append({'kind': 'installed-drift', 'installed_running': package_version,
+                     'installed_on_disk': installed['version'],
+                     'detail': 'this helper is not the pinned package; preserve the brief '
+                               'and use the supported job package upgrade first'})
+    return gaps
+
+
+def require_current_package(state):
+    gaps = package_gaps(state, source_identity())
+    require(not gaps, 'policy/package migration required ('
+            + ', '.join(gap['kind'] for gap in gaps)
+            + '); run resume and use its owner-authorized migration path before continuing')
 
 
 def job_contracts(package=None):
@@ -1541,6 +1581,7 @@ def schedule_request(state, state_file):
 def cmd_schedule_plan(args):
     path = state_path(args.state)
     with locked_state(path) as state:
+        require_current_package(state)
         if state.get('cancelled'):
             return {'status': 'cancelled', 'request': None, 'cancelled': state['cancelled'],
                     'instruction': 'resume the run explicitly before planning scheduled work'}
@@ -1750,6 +1791,7 @@ def normalise_pr(raw, now):
 def cmd_observe(args):
     path = state_path(args.state)
     with locked_state(path) as state:
+        require_current_package(state)
         now = parse_time(args.now, '--now')
         if state.get('cancelled'):
             return {'status': 'cancelled', 'actions': [], 'admitted': [], 'human_questions': [],
@@ -1813,6 +1855,10 @@ def cmd_dispatch(args):
                         'dispatch': existing}
             return {'status': 'duplicate', 'request_id': args.request_id,
                     'host_task_id': existing.get('host_task_id'), 'dispatch': existing}
+        # Attaching a late handle above reconciles a launch that already happened.
+        # Every new reservation, including a direct non-reserve dispatch, must pass
+        # identity verification before it can change a writer guard or authorize work.
+        require_current_package(state)
         if reserve and args.host_task_id:
             raise ContinuousError(
                 'reserve before the host side effect; attach --host-task-id afterwards')
@@ -2226,37 +2272,9 @@ def cmd_resume(args):
                 'unsupported continuous state schema')
         now = parse_time(args.now, '--now')
         installed = source_identity(args.script)
-        gaps = []
-        if state.get('policy_version') != installed['policy_version']:
-            gaps.append({'kind': 'policy-version',
-                         'state': state.get('policy_version'),
-                         'installed': installed['policy_version']})
+        gaps = package_gaps(state, installed, args.package_version)
         package = state.get('package') or {}
         unpinned = not state.get('job_id') and not state.get('job')
-        pinned = package.get('pinned_version')
-        if args.package_version and pinned and args.package_version != pinned:
-            gaps.append({'kind': 'package-version',
-                         'state_pinned': pinned, 'installed_running': args.package_version})
-        if not package.get('installed_digest'):
-            # A state written before the fingerprint existed cannot prove which
-            # package produced it. Surface that instead of silently claiming identity.
-            gaps.append({'kind': 'missing-package-identity',
-                         'state_pinned': pinned,
-                         'detail': 'the state predates the installed-package fingerprint; '
-                                   'its package identity is unverified'})
-        elif package['installed_digest'] != installed['digest']:
-            gaps.append({'kind': 'installed-drift',
-                         'state_installed': package.get('installed_version'),
-                         'installed_on_disk': installed['version'],
-                         'state_digest': package.get('installed_digest'),
-                         'installed_digest': installed['digest']})
-        if args.package_version and installed['version'] and \
-                args.package_version.split('+', 1)[0] != installed['version']:
-            gaps.append({'kind': 'installed-drift',
-                         'installed_running': args.package_version,
-                         'installed_on_disk': installed['version'],
-                         'detail': 'this helper is not the pinned package; preserve the brief '
-                                   'and use the supported job package upgrade first'})
         if state.get('cancelled') and not args.resume_cancelled and not gaps:
             return {'status': 'cancelled', 'cancelled': state['cancelled'],
                     'gaps': gaps, 'changed': False,

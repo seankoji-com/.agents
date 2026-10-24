@@ -89,7 +89,8 @@ def handle_wake(host, state_path, now, wake):
     is never called before it exists. A lost response keeps the reservation held until
     host reconciliation proves refusal or identifies the launched task.
     """
-    state = _state(state_path)
+    with continuous.locked_state(state_path) as state:
+        continuous.require_current_package(state)
     if (wake.get('kind') or 'schedule') == 'schedule' and (
             state.get('cancelled') or state['scheduler']['mode'] != 'scheduled'
             or state['scheduler'].get('stopped')):
@@ -203,4 +204,6 @@ def handle_wake(host, state_path, now, wake):
 
 def tick(host, state_path, now):
     """Deliver every wake the host says is due at ``now``."""
+    with continuous.locked_state(state_path) as state:
+        continuous.require_current_package(state)
     return [handle_wake(host, state_path, now, wake) for wake in host.due(now)]

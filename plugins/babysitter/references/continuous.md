@@ -281,6 +281,12 @@ migration gap, not a silent resume. Inspect the run with the new package:
 python3 <new-package>/scripts/continuous.py resume --state <state.json> --now <RFC3339>
 ```
 
+Scheduled, event and manual wakes verify this identity before discovery and observation;
+new schedules and writer reservations verify it again before authorizing host work.
+Drift, missing identity or invalid installed files/manifest stop continuation without
+changing the run. Late handle attachments and completion receipts can still reconcile
+already-launched work. These checks never accept migration automatically.
+
 Resume refuses drift and returns `migration-required` with the exact gaps.
 For a pinned job, record the owner decision and run `job_cli.py upgrade-package`, then:
 

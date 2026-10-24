@@ -19,6 +19,177 @@ URL = 'https://github.com/fixture/widgets/pull/12'
 NOW = '2026-10-22T14:05:00Z'
 
 
+class WakeIdentityTest(ContinuousCase):
+    def adapters(self):
+        yield from UpdateAndResolutionTest.adapters(self)
+
+    def seed(self, helper):
+        self.start(helper=helper)
+        self.cli('observe', '--now', NOW, '--wake-id', 'seed', helper=helper,
+                 payload=observation(pr(), pr(number=13, owner={
+                     'thread_id': 'self', 'status': 'running', 'fixer_in_flight': True,
+                     'host_task_id': 'adopted-live'}), pr(number=14)))
+
+    def assert_blocked(self, helper, adapter):
+        before = self.state.read_bytes()
+        for kind in ('schedule', 'event', 'manual', 'resume'):
+            with self.subTest(wake=kind):
+                refused = self.cli('observe', '--now', NOW, '--wake-kind', kind,
+                    '--wake-id', 'blocked-' + kind, helper=helper,
+                    payload=observation(pr()), ok=False)
+                self.assertRegex(refused.stderr, 'migration required|integrity|manifest|state policy')
+                host = FakeHost(observation(pr()))
+                with patch.object(host, 'discover', side_effect=AssertionError('discovery ran')):
+                    with self.assertRaises(adapter.continuous.ContinuousError):
+                        adapter.handle_wake(host, self.state, NOW,
+                                            {'wake_id': 'blocked-' + kind, 'kind': kind})
+                self.assertEqual(host.dispatched, [])
+                self.assertEqual(self.state.read_bytes(), before)
+        for kind in ('fixer', 'merge', 'update-branch', 'resolution'):
+            for flags in (('--reserve',), ()):
+                with self.subTest(writer=kind, flags=flags):
+                    refused = self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', kind,
+                        '--request-id', 'blocked-' + kind, '--head', H1, *flags,
+                        helper=helper, ok=False)
+                    self.assertRegex(refused.stderr, 'migration required|integrity|manifest|state policy')
+                    self.assertEqual(self.state.read_bytes(), before)
+        self.cli('schedule-plan', helper=helper, ok=False)
+        host = FakeHost(observation(pr()))
+        with self.assertRaises(adapter.continuous.ContinuousError):
+            adapter.arm(host, self.state, NOW)
+        with patch.object(host, 'due', side_effect=AssertionError('host due ran')):
+            with self.assertRaises(adapter.continuous.ContinuousError):
+                adapter.tick(host, self.state, NOW)
+        self.assertEqual(host.created, [])
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_source_and_installed_missing_identity_digest_and_policy_refuse_all_continuations(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'identity-{index}.json'
+            self.seed(helper)
+            initial = self.state.read_bytes()
+            state = json.loads(initial)
+            for field, value in (('installed_digest', None), ('installed_digest', '0' * 64)):
+                with self.subTest(helper=helper, value=value):
+                    changed = deepcopy(state)
+                    changed['package'][field] = value
+                    self.state.write_text(json.dumps(changed))
+                    self.assert_blocked(helper, adapter)
+            changed = deepcopy(state)
+            changed['policy_version'] = 'continuous-0'
+            self.state.write_text(json.dumps(changed))
+            self.assert_blocked(helper, adapter)
+            self.state.write_bytes(initial)
+
+    def test_unchanged_source_and_installed_packages_continue_each_wake_and_arm_once(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            for kind in ('schedule', 'event', 'manual'):
+                self.state = self.base / f'valid-{index}-{kind}.json'
+                self.start(helper=helper)
+                host = FakeHost(observation(pr()))
+                host.clock = NOW
+                self.assertEqual(adapter.arm(host, self.state, NOW)['status'], 'armed')
+                self.assertEqual(adapter.arm(host, self.state, NOW)['status'], 'already-scheduled')
+                result = adapter.handle_wake(host, self.state, NOW,
+                                             {'wake_id': 'valid', 'kind': kind})
+                self.assertEqual(result['dispatched'][0]['status'], 'dispatched')
+                self.assertEqual(len(host.created), 1)
+                self.assertEqual(len(host.dispatched), 1)
+                self.assertEqual(adapter.handle_wake(host, self.state, NOW,
+                    {'wake_id': 'valid', 'kind': kind})['result']['status'], 'duplicate')
+                self.assertEqual(len(host.dispatched), 1)
+
+    def test_identity_is_checked_again_after_discovery_before_observation_changes_state(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'discovery-race-{index}.json'
+            self.seed(helper)
+            host = FakeHost(observation(pr()))
+            state = json.loads(self.state.read_text())
+            state['package']['installed_digest'] = '0' * 64
+            changed = json.dumps(state).encode()
+
+            def discover(scope, now):
+                self.state.write_bytes(changed)
+                return host.snapshot
+
+            with patch.object(host, 'discover', side_effect=discover):
+                with self.assertRaises(adapter.continuous.ContinuousError):
+                    adapter.handle_wake(host, self.state, NOW,
+                                        {'wake_id': 'changed-during-discovery', 'kind': 'event'})
+            self.assertEqual(host.dispatched, [])
+            self.assertEqual(self.state.read_bytes(), changed)
+
+    def test_installed_content_manifest_and_policy_drift_stop_before_any_host_call(self):
+        from shared.worker_registry import package_digest
+        box = Sandbox(self.base / 'packages')
+        package, _ = box.install('babysitter')
+        helper = package / 'scripts/continuous.py'
+        spec = importlib.util.spec_from_file_location('identity_installed_sweep',
+                                                    package / 'scripts/continuous_sweep.py')
+        adapter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adapter)
+        self.seed(helper)
+        manifest_path = package / 'install-manifest.json'
+        doc = package / 'references/continuous.md'
+        meta_path = package / 'plugin.json'
+        originals = {path: path.read_bytes() for path in (manifest_path, doc, meta_path)}
+        for case in ('valid-content-change', 'tampered-file', 'tampered-manifest',
+                     'tampered-manifest-plugin', 'tampered-manifest-version',
+                     'missing-manifest', 'valid-policy-change'):
+            with self.subTest(case=case):
+                manifest = json.loads(originals[manifest_path])
+                if case in ('valid-content-change', 'tampered-file'):
+                    doc.write_text(doc.read_text() + '\nSynthetic package change.\n')
+                if case == 'valid-policy-change':
+                    meta = json.loads(originals[meta_path])
+                    meta['continuous']['policy_version'] = 'continuous-next'
+                    meta_path.write_text(json.dumps(meta))
+                if case.startswith('valid-'):
+                    for entry in manifest['files']:
+                        entry['sha256'] = hashlib.sha256((package / entry['path']).read_bytes()).hexdigest()
+                    manifest['package_digest'] = package_digest(manifest)
+                    manifest_path.write_text(json.dumps(manifest))
+                elif case == 'tampered-manifest':
+                    manifest['package_digest'] = '0' * 64
+                    manifest_path.write_text(json.dumps(manifest))
+                elif case.startswith('tampered-manifest-'):
+                    manifest[case.removeprefix('tampered-manifest-')] = 'unrelated-package'
+                    manifest_path.write_text(json.dumps(manifest))
+                elif case == 'missing-manifest':
+                    manifest_path.unlink()
+                self.assert_blocked(helper, adapter)
+                for path, data in originals.items():
+                    path.write_bytes(data)
+
+    def test_late_handles_and_accepted_results_reconcile_without_reopening_continuation(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'late-{index}.json'
+            self.seed(helper)
+            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                     '--request-id', 'late-merge', '--head', H1, '--reserve', helper=helper)
+            fixer_url = URL.replace('/12', '/14')
+            request = f'late-fixer-{index}'
+            self.cli('dispatch', '--now', NOW, '--pr', fixer_url, '--kind', 'fixer',
+                     '--request-id', request, '--head', H1, '--reserve', helper=helper)
+            state = json.loads(self.state.read_text())
+            state['package']['installed_digest'] = '0' * 64
+            self.state.write_text(json.dumps(state))
+            for url, kind, request_id, host in ((URL, 'merge', 'late-merge', 'merge-host'),
+                                              (fixer_url, 'fixer', request, 'fixer-host')):
+                self.assertTrue(self.cli('dispatch', '--now', NOW, '--pr', url, '--kind', kind,
+                    '--request-id', request_id, '--host-task-id', host, helper=helper)['attached'])
+            result = self.accepted_result(request, 'fixer-host')
+            self.cli('fixer-done', '--now', NOW, '--pr', fixer_url, '--request-id', request,
+                     '--host-task-id', 'fixer-host', '--result', str(result), helper=helper)
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                     '--request-id', 'late-merge', '--host-task-id', 'merge-host',
+                     '--status', 'cancelled', helper=helper)
+            state = json.loads(self.state.read_text())
+            self.assertFalse(state['prs'][fixer_url]['fixer']['in_flight'])
+            self.assertTrue(state['prs'][URL.replace('/12', '/13')]['fixer']['in_flight'])
+            self.assert_blocked(helper, adapter)
+
+
 class UnpinnedMigrationTest(ContinuousCase):
     def packages(self):
         box = Sandbox(self.base / 'packages')
@@ -47,6 +218,43 @@ class UnpinnedMigrationTest(ContinuousCase):
         return self.cli('resume', '--now', NOW, '--accept-migration',
             '--owner-decision-id', decision_id, '--previous-package', str(old),
             '--owner-decision', str(decision), *extra, helper=helper, ok=ok)
+
+    def test_authorized_migration_restores_installed_wakes_and_keeps_existing_guards(self):
+        _, old, new = self.packages()
+        old_helper, helper = old / 'scripts/continuous.py', new / 'scripts/continuous.py'
+        self.start(helper=old_helper)
+        host = FakeHost(observation(pr(), pr(number=13, owner={
+            'thread_id': 'self', 'status': 'running', 'fixer_in_flight': True,
+            'host_task_id': 'adopted-live'})))
+        spec = importlib.util.spec_from_file_location('migrated_installed_wake',
+                                                    new / 'scripts/continuous_sweep.py')
+        adapter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adapter)
+        self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                 '--next-run-at', '2026-10-22T14:15:00Z', helper=old_helper)
+        self.cli('observe', '--now', NOW, '--wake-id', 'seed', helper=old_helper,
+                 payload=host.snapshot)
+        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                 '--request-id', 'live-merge', '--head', H1, '--reserve', helper=old_helper)
+        before = json.loads(self.state.read_text())
+        WakeIdentityTest.assert_blocked(self, helper, adapter)
+        decision = self.decision(helper)
+        self.migrate(helper, old, decision)
+        migrated = json.loads(self.state.read_text())
+        for field in ('run_id', 'scope', 'policy', 'scheduler', 'prs', 'events', 'discovery'):
+            self.assertEqual(migrated[field], before[field], field)
+        self.assertEqual(adapter.arm(host, self.state, NOW)['status'], 'already-scheduled')
+        self.assertEqual(host.created, [])
+        host.snapshot['prs'].append(pr(number=15))
+        result = adapter.handle_wake(host, self.state, NOW,
+                                    {'wake_id': 'after-migration', 'kind': 'schedule'})
+        self.assertEqual([item['pr'] for item in host.dispatched], [URL.replace('/12', '/15')])
+        self.assertEqual(result['dispatched'][0]['status'], 'dispatched')
+        final = json.loads(self.state.read_text())
+        self.assertEqual(final['scheduler']['schedule_id'], 'owned-schedule')
+        self.assertEqual(final['prs'][URL]['dispatches'], before['prs'][URL]['dispatches'])
+        self.assertEqual(final['prs'][URL.replace('/12', '/13')]['fixer'],
+                         before['prs'][URL.replace('/12', '/13')]['fixer'])
 
     def test_real_installed_package_changes_preserve_schedule_progress_and_live_adopted_guards(self):
         box, old, new = self.packages()
