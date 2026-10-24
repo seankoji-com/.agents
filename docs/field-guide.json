@@ -79,5 +79,15 @@
     "habitat": "A plans directory inside your repository.",
     "diet": "A problem you cannot yet state as a task.",
     "field_marks": "Planning ends at the handoff. Source review binds the exact discovery, specification and declared evidence."
+  },
+  "tests-omg": {
+    "plate": "IX",
+    "binomial": "Strix examinans",
+    "summary": "Inspect test protection and validation cost, with private HTML and evidence-based recommendations.",
+    "use_when": "Validation is slow and you want to know what protection each check adds before simplifying the suite.",
+    "try": "$t3-tests-omg audit",
+    "habitat": "An attached repository or a bounded visible organization inventory.",
+    "diet": "Source, existing runner outputs, incident history and explicitly authorized local measurements.",
+    "field_marks": "Advisory and read-only by default. Twelve findings keep unknowns visible. No CI changes or report publication."
   }
 }
