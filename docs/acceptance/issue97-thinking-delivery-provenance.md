@@ -41,6 +41,12 @@ That line is historical, not current. The owner's content-bound acceptance on 24
 
 The adjacent `issue97-thinking-delivery.md` preserves the complete accepted handoff bytes, digest `8561798e...`. The owner acceptance binds that content, and the discovery it accepted is the `9e56240f...` block defined above. Both digests are recomputable from the retained file, so a reviewer can check the binding without trusting this prose.
 
-The fixture pull request contains only these two Markdown files and targets `master`. Its head still requires independent review and the repository's local and hosted checks. This provenance records planning acceptance; it does not claim those later gates have passed.
+The fixture targets `master` and is restricted to these two Markdown paths. Its head requires independent review and the repository's local and hosted checks. This provenance records planning acceptance; it does not claim those later gates have passed.
+
+## Retained publication and continuation
+
+[PR #131](https://github.com/seankoji-com/t3-plugins/pull/131) was amended and merged at `f2a610ad870a5e18517eb5054418fa39d575192a` before the coordinating workflow recorded its live completion. The coordinator's review and local checks covered the earlier head `2e69e10c52a940d3c8676e3d23a4833cab282e83`; they do not certify the later head.
+
+This draft continuation preserves the same accepted handoff and discovery. It updates this provenance only, retains the prior PR as evidence, and requires its own current-head review and checks. It must be closed after verification, without merging. Publication grants no implementation authority.
 
 Related evidence: [original work](https://github.com/seankoji-com/t3-plugins/issues/97), [released package](https://github.com/seankoji-com/t3-plugins/releases/tag/v0.11.0), [verified Issue fixture](https://github.com/seankoji-com/t3-plugins/issues/128).
