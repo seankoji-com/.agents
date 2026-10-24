@@ -216,9 +216,12 @@ class Model:
         for index, check in enumerate(pull.get('checks', [])):
             sha = check.get('sha', pull['head_sha'])
             observe('check_sha', sha)
+            # The REST check-run object has started_at/completed_at, not created_at;
+            # the Actions job object below is the supported source of that clock.
             runs.append({'id': 28000 + index, 'name': check['name'], 'head_sha': sha, 'status': 'completed',
                          'conclusion': check['conclusion'], 'started_at': CREATED, 'completed_at': CREATED,
-                         'details_url': f'https://{self.host}/{self.full_name}/actions/runs/{28000 + index}',
+                         'details_url': (f'https://{self.host}/{self.full_name}/actions/runs/'
+                                         f'{28000 + index}/job/{30000 + index}'),
                          'app': {'slug': 'bench-ci'}})
         return runs
 
@@ -276,7 +279,9 @@ class Model:
                                  'name': ('check_sha', check.get('sha', head))},
                  'id': f'CR_{index}', 'databaseId': 28000 + index, 'name': check['name'],
                  'status': 'COMPLETED', 'conclusion': check['conclusion'].upper(), 'startedAt': CREATED,
-                 'completedAt': CREATED, 'detailsUrl': f'https://{self.host}/{self.full_name}/actions/runs/{28000 + index}',
+                 'completedAt': CREATED,
+                 'detailsUrl': (f'https://{self.host}/{self.full_name}/actions/runs/'
+                                f'{28000 + index}/job/{30000 + index}'),
                  'isRequired': (lambda required: lambda args: required)(bool(check.get('required', True))),
                  'checkSuite': {'__typename': 'CheckSuite', 'workflowRun': {
                      '__typename': 'WorkflowRun', 'event': 'pull_request',
@@ -864,6 +869,20 @@ def make_handler(model: Model, log: EventLog, protocol: str):
                 if kind == 'statuses':
                     return 200, [], ()
                 return 200, {'state': 'pending', 'sha': ref, 'total_count': 0, 'statuses': []}, ()
+            match = re.fullmatch(r'actions/jobs/(\d+)', rest)
+            if match:
+                job_id = int(match.group(1))
+                index = job_id - 30000
+                pull = model.pulls[0] if model.pulls else None
+                checks = pull.get('checks', []) if pull else []
+                if not 0 <= index < len(checks):
+                    return 404, {'message': 'Not Found'}, ()
+                observe('check_sha', checks[index].get('sha', pull['head_sha']))
+                # Actions job object: created_at exists here, before any runner claims it.
+                return 200, {'id': job_id, 'run_id': 28000 + index, 'name': checks[index]['name'],
+                             'head_sha': checks[index].get('sha', pull['head_sha']), 'status': 'queued',
+                             'conclusion': None, 'created_at': CREATED, 'started_at': None,
+                             'completed_at': None, 'labels': []}, ()
             if rest in ('branches', 'labels', 'collaborators', 'hooks', 'actions/runs'):
                 return 200, [] if rest != 'actions/runs' else {'total_count': 0, 'workflow_runs': []}, ()
             return 404, {'message': 'Not Found'}, ()

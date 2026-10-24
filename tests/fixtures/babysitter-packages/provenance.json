@@ -1,0 +1,15 @@
+{
+  "source": "https://github.com/seankoji-com/t3-plugins",
+  "paths": ["core", "shared", "plugins/babysitter"],
+  "format": "git archive --format=tar.gz",
+  "revisions": {
+    "4fc614b363a147c4f3220176607156be52941fa9": {
+      "archive": "pre-continuous.tar.gz",
+      "sha256": "3d25bbf658cb22c3f90d9d737b466c49518d3b95e571c872c9d2a2890d6e11ad"
+    },
+    "17e636c1c24be77566f24062f93a8b1dc17d94c8": {
+      "archive": "legacy-fingerprint.tar.gz",
+      "sha256": "b7ae189e761a1160f75096fea12cb0589fa3ddb7bb748938706b092e381e9126"
+    }
+  }
+}

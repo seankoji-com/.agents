@@ -1,0 +1,116 @@
+{
+  "inventory": {
+    "manifest_fields": [
+      {
+        "id": "plugin.json:continuous",
+        "field": "continuous",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Babysitter issue #94 declares its continuous-mode policy identity and defaults."
+      },
+      {
+        "id": "plugin.json:continuous.policy_version",
+        "field": "continuous.policy_version",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Resume compares the pinned policy version with the running package."
+      },
+      {
+        "id": "plugin.json:continuous.default_cadence_seconds",
+        "field": "continuous.default_cadence_seconds",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Default 10-minute host-scheduler sweep."
+      },
+      {
+        "id": "plugin.json:continuous.default_queue_threshold_seconds",
+        "field": "continuous.default_queue_threshold_seconds",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Default 15-minute queued-job diagnosis threshold."
+      },
+      {
+        "id": "plugin.json:continuous.default_stall_threshold_seconds",
+        "field": "continuous.default_stall_threshold_seconds",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Unchanged work becomes a diagnosed stall rather than silent monitoring."
+      },
+      {
+        "id": "plugin.json:continuous.state_helper",
+        "field": "continuous.state_helper",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Names the installed deterministic state helper."
+      },
+      {
+        "id": "plugin.json:continuous.sweep_adapter",
+        "field": "continuous.sweep_adapter",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Names the tested continuation adapter for scheduled wakes."
+      },
+      {
+        "id": "plugin.json:continuous.max_repair_attempts",
+        "field": "continuous.max_repair_attempts",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Bound on terminal fixer attempts per head and blocker fingerprint."
+      },
+      {
+        "id": "plugin.json:continuous.max_merge_attempts",
+        "field": "continuous.max_merge_attempts",
+        "disposition": "change",
+        "stage": 4,
+        "reason": "Bound on rejected merge attempts at one exact head."
+      }
+    ]
+  },
+  "added": [
+    {
+      "path": "tests/test_babysitter_continuous_safety.py",
+      "stage": 4,
+      "kind": "test",
+      "coverage": ["G-BS-SCOPE", "G-BS-EXACT-HEAD"],
+      "reason": "Adverse reservation, ownership, accepted-result, revocation and real installed legacy-upgrade regressions."
+    },
+    {
+      "path": "plugins/babysitter/scripts/continuous.py",
+      "stage": 4,
+      "kind": "helper",
+      "coverage": [
+        "G-BS-SCOPE",
+        "G-BS-EXACT-HEAD"
+      ],
+      "reason": "Offline coordinator state for issue #94: scheduled scope/cadence/stop, queue age, meaningful progress, next action deadlines, admission, ownership and explicit resume migration."
+    },
+    {
+      "path": "plugins/babysitter/references/continuous.md",
+      "stage": 4,
+      "kind": "instruction",
+      "coverage": [
+        "G-BS-SCOPE"
+      ],
+      "reason": "Execution contract for continuous mode, event-only fallback and verified schedule reporting."
+    },
+    {
+      "path": "tests/test_babysitter_continuous.py",
+      "stage": 4,
+      "kind": "test",
+      "coverage": [
+        "G-BS-SCOPE",
+        "G-BS-EXACT-HEAD"
+      ],
+      "reason": "Causal fake-clock queue diagnosis, scheduled-wake admission, idempotency, cancellation/resume and installed-package tests for issue #94."
+    },
+    {
+      "path": "plugins/babysitter/scripts/continuous_sweep.py",
+      "stage": 4,
+      "kind": "helper",
+      "coverage": [
+        "G-BS-SCOPE"
+      ],
+      "reason": "Reference host-adapter order for a scheduled wake: arm, deliver, reconcile, reserve and record, exercised by the fake-host causal test."
+    }
+  ]
+}
