@@ -40,6 +40,11 @@ and each private proposal before requesting concrete apply approval.
    `intentional-difference`. Do not use capability-summary states such as
    `disabled` or `not_in_supplied_sources` for wiring cells. Do not install a
    provider to fill a disabled row or run transcript scans unless requested.
+6. Use wiring v2 for detailed native definitions and portable roles, following
+   `PKG/references/central-wiring.md`. Supply only documented native surfaces for
+   the recorded runtime version, explicit paths and receipt/caller evidence. Keep
+   the private normalization proposal outside checkouts; this settings-only apply
+   workflow cannot execute it. T3 remains the sole delegation owner.
 
 ```json
 {

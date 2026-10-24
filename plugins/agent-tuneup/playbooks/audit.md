@@ -10,6 +10,9 @@ and `--t3-projects` requests keep their explicit narrower scope.
 Run `python3 PKG/scripts/align.py audit --catalog FILE --inventory FILE` for the
 general report (`0` no findings, `1` findings/gaps, `2` invalid/unreadable input),
 plus the bootstrap helper below. Retain both results for the job observation.
+For native-agent and portable-role coverage, use wiring v2 and the explicit paths
+in `PKG/references/central-wiring.md`. Keep its optional `--private-out` plan outside
+checkouts. It contains recovery descriptors, not approval or an apply command.
 
 ## Direct audit
 

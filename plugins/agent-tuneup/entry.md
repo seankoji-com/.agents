@@ -36,6 +36,10 @@ for `audit`, `PKG/playbooks/align.md` for `align` or `apply`, and
   `t3_project_update`.
 - `audit`: with no narrowing flags, audit the complete default coverage in
   `PKG/references/central-wiring.md`, including permission sync and worktree setup.
+  Wiring v2 adds explicit native-agent/portable-role discovery and a private
+  normalization proposal through the existing `align.py audit` entrypoint. V1
+  retains its earlier coverage with detailed inventory marked unavailable.
+  No agent or role migration writer is provided.
 - `align`: inventory every provider in T3's live catalog using that same default,
   compare centralized wiring and prepare native changes for review.
   Inventory and proposals write no settings. Alignment across several providers is a

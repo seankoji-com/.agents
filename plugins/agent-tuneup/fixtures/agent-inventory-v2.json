@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "providers": [],
+  "wiring": {
+    "version": 2,
+    "providers": [
+      {
+        "provider_instance_id": "fixture-native",
+        "adapter": "opencode",
+        "runtime_version": "2.1.2",
+        "agent_roots": [
+          {"path": "@ROOT@/native", "scope": "global", "format": "markdown"}
+        ],
+        "agent_configs": [
+          {"path": "@ROOT@/config.jsonc", "scope": "project", "format": "jsonc"}
+        ]
+      },
+      {"provider_instance_id": "fixture-disabled", "adapter": "opencode", "runtime_version": "2.1.2"},
+      {"provider_instance_id": "fixture-future", "adapter": "future", "runtime_version": null}
+    ],
+    "role_roots": [{"path": "@ROOT@/roles", "scope": "shared"}]
+  }
+}
