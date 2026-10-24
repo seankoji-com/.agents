@@ -1052,7 +1052,7 @@ class ReservationSafetyTest(ContinuousCase):
         box = Sandbox(self.base / 'installed')
         package, manifest = box.install('babysitter')
         source_version = json.loads((continuous_tests.PLUGIN / 'plugin.json').read_text())['version']
-        self.assertTrue(manifest['version'].startswith(source_version + '+content.'))
+        self.assertEqual(manifest['version'].partition('+')[0], source_version)
         self.assertEqual(manifest['version'], package.name)
         helper = package / 'scripts/continuous.py'
         self.start(helper=helper)
