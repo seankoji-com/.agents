@@ -19,6 +19,196 @@ URL = 'https://github.com/fixture/widgets/pull/12'
 NOW = '2026-10-22T14:05:00Z'
 
 
+class UnpinnedMigrationTest(ContinuousCase):
+    def packages(self):
+        box = Sandbox(self.base / 'packages')
+        old, _ = box.install('babysitter')
+        source = box.source_copy('babysitter')
+        doc = source / 'plugins/babysitter/references/continuous.md'
+        doc.write_text(doc.read_text() + '\nSynthetic package update.\n')
+        new, _ = box.install('babysitter', source=source)
+        self.state = self.base / 'run' / 'state.json'
+        return box, old, new
+
+    def decision(self, helper, decision_id='owner-migrate'):
+        report = self.cli('resume', '--now', NOW, helper=helper)
+        self.assertEqual(report['status'], 'migration-required')
+        scope = report['owner_decision_scope']
+        source = self.base / (decision_id + '.txt')
+        quote = 'Approve this package migration: ' + scope
+        source.write_text(quote)
+        decision = {'id': decision_id, 'scope': scope, 'source': str(source),
+                    'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(), 'quote': quote}
+        path = self.base / (decision_id + '.json')
+        path.write_text(json.dumps(decision))
+        return path
+
+    def migrate(self, helper, old, decision, *, ok=True, decision_id='owner-migrate', extra=()):
+        return self.cli('resume', '--now', NOW, '--accept-migration',
+            '--owner-decision-id', decision_id, '--previous-package', str(old),
+            '--owner-decision', str(decision), *extra, helper=helper, ok=ok)
+
+    def test_real_installed_package_changes_preserve_schedule_progress_and_live_adopted_guards(self):
+        box, old, new = self.packages()
+        old_helper, helper = old / 'scripts/continuous.py', new / 'scripts/continuous.py'
+        self.start(helper=old_helper)
+        self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                 '--next-run-at', '2026-10-22T14:15:00Z', helper=old_helper)
+        rows = observation(pr(), pr(number=13, owner={'thread_id': 'self', 'status': 'running',
+                                'fixer_in_flight': True, 'host_task_id': 'adopted-live'}),
+                           pr(number=14))
+        self.cli('observe', '--now', NOW, '--wake-id', 'before-upgrade', payload=rows, helper=old_helper)
+        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge', '--request-id', 'live-merge',
+                 '--head', H1, '--reserve', helper=old_helper)
+        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge', '--request-id', 'live-merge',
+                 '--host-task-id', 'merge-host', helper=old_helper)
+        self.cli('dispatch', '--now', NOW, '--pr', URL.replace('/12', '/14'), '--kind', 'fixer',
+                 '--request-id', 'live-fixer', '--head', H1, '--reserve', helper=old_helper)
+        self.cli('dispatch', '--now', NOW, '--pr', URL.replace('/12', '/14'), '--kind', 'fixer',
+                 '--request-id', 'live-fixer', '--host-task-id', 'fixer-host', helper=old_helper)
+        before = json.loads(self.state.read_text())
+        key = self.cli('schedule-plan', helper=old_helper)
+        old_bytes = tree_digest(old)
+        decision = self.decision(helper)
+        resumed = self.migrate(helper, old, decision)
+        self.assertEqual(resumed['status'], 'resumed')
+        after = json.loads(self.state.read_text())
+        for field in ('run_id', 'created_at', 'job_id', 'job', 'job_state_sha256', 'thread_id',
+                      'scope', 'policy', 'scheduler', 'prs', 'events', 'discovery', 'cancelled'):
+            self.assertEqual(after[field], before[field], field)
+        self.assertIsNone(after['job_id'])
+        resumed_plan = self.cli('schedule-plan', helper=helper)
+        for field in ('status', 'schedule_id', 'next_run_at', 'stop'):
+            self.assertEqual(resumed_plan.get(field), key.get(field), field)
+        self.assertEqual(resumed_plan['request']['clientRequestId'], key['request']['clientRequestId'])
+        self.assertEqual(resumed_plan['status'], 'already-scheduled')
+        self.assertEqual(tree_digest(old), old_bytes)
+        # Replaying the explicit migration writes nothing, including audit/progress clocks.
+        migrated_bytes = self.state.read_bytes()
+        self.assertEqual(self.migrate(helper, old, decision)['status'], 'duplicate')
+        self.assertEqual(self.state.read_bytes(), migrated_bytes)
+        for number in (12, 13, 14):
+            refused = self.cli('dispatch', '--now', NOW, '--pr', URL.replace('/12', f'/{number}'),
+                '--kind', 'fixer', '--request-id', 'racing-fixer', '--head', H1, '--reserve',
+                helper=helper, ok=False)
+            self.assertIn('may not race' if number == 12 else 'already in flight', refused.stderr)
+        # A second real installation requires a new decision and retains both migrations.
+        source = box.source_copy('babysitter')
+        doc = source / 'plugins/babysitter/references/continuous.md'
+        doc.write_text(doc.read_text() + '\nSecond synthetic package update.\n')
+        third, manifest = box.install('babysitter', source=source)
+        third_helper = third / 'scripts/continuous.py'
+        stale = self.migrate(third_helper, old, decision, ok=False)
+        self.assertIn('previous package identity', stale.stderr)
+        decision2 = self.decision(third_helper, 'owner-migrate-2')
+        before_second = self.state.read_bytes()
+        self.migrate(third_helper, new, decision, ok=False)
+        reused = json.loads(decision2.read_text())
+        decision2.write_text(json.dumps({**reused, 'id': 'owner-migrate'}))
+        self.migrate(third_helper, new, decision2, ok=False)
+        self.assertEqual(self.state.read_bytes(), before_second)
+        decision2.write_text(json.dumps(reused))
+        self.migrate(third_helper, new, decision2, decision_id='owner-migrate-2')
+        final = json.loads(self.state.read_text())
+        self.assertEqual(final['prs'], before['prs'])
+        self.assertEqual(final['scheduler'], before['scheduler'])
+        self.assertEqual(len(final['migration_history']), 2)
+        self.assertEqual(final['migration_history'][0], after['migration'])
+        self.assertEqual(final['package']['installed_digest'], manifest['package_digest'])
+        self.assertEqual(self.migrate(third_helper, new, decision2,
+                                    decision_id='owner-migrate-2')['status'], 'duplicate')
+        snapshot = self.state.read_bytes()
+        self.migrate(third_helper, old, decision, ok=False)
+        self.assertEqual(self.state.read_bytes(), snapshot)
+
+    def test_adverse_owner_run_state_package_and_job_identities_leave_state_unchanged(self):
+        _, old, new = self.packages()
+        helper = new / 'scripts/continuous.py'
+        self.start(helper=old / 'scripts/continuous.py')
+        decision = self.decision(helper)
+        valid = json.loads(decision.read_text())
+        before = self.state.read_bytes()
+        for field, value in (('id', 'another-owner'), ('scope', 'another-run'),
+                             ('source_sha256', 'f' * 64), ('quote', 'not in source'),
+                             ('source', str(self.state))):
+            with self.subTest(field=field):
+                decision.write_text(json.dumps({**valid, field: value}))
+                self.migrate(helper, old, decision, ok=False)
+                self.assertEqual(self.state.read_bytes(), before)
+        decision.write_text(json.dumps(valid))
+        for extra in (('--job', str(self.base / 'unrelated-job')),
+                      ('--upgrade-receipt', str(decision)),
+                      ('--package-version', '0.0.1')):
+            self.migrate(helper, old, decision, ok=False, extra=extra)
+            self.assertEqual(self.state.read_bytes(), before)
+        self.migrate(helper, new, decision, ok=False)
+        self.assertEqual(self.state.read_bytes(), before)
+        # Same old digest on a different run, or changed progress on this run, needs fresh approval.
+        state = json.loads(before)
+        for patch_state in ({'run_id': 'different-run'}, {'updated_at': '2026-10-22T14:06:00Z'},
+                            {'job_id': 'pinned-job'}, {'package': {'pinned_version': '1.3.0'}}):
+            self.state.write_text(json.dumps({**state, **patch_state}))
+            snapshot = self.state.read_bytes()
+            self.migrate(helper, old, decision, ok=False)
+            self.assertEqual(self.state.read_bytes(), snapshot)
+        self.state.write_bytes(before)
+        Path(valid['source']).write_text('changed owner evidence')
+        self.migrate(helper, old, decision, ok=False)
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_tampered_old_and_target_installed_packages_are_not_migration_authority(self):
+        _, old, new = self.packages()
+        helper = new / 'scripts/continuous.py'
+        self.start(helper=old / 'scripts/continuous.py')
+        decision = self.decision(helper)
+        before = self.state.read_bytes()
+        for package in (old, new):
+            doc = package / 'references/continuous.md'
+            original = doc.read_bytes()
+            doc.write_text('tampered fixture')
+            refused = self.migrate(helper, old, decision, ok=False)
+            self.assertIn('integrity failure', refused.stderr)
+            self.assertEqual(self.state.read_bytes(), before)
+            doc.write_bytes(original)
+        self.migrate(helper, old, decision)
+
+    def test_cancelled_event_only_run_migrates_without_resuming_or_arming(self):
+        _, old, new = self.packages()
+        helper = new / 'scripts/continuous.py'
+        self.start(helper=old / 'scripts/continuous.py', scheduler='event-only')
+        self.cli('cancel', '--now', NOW, '--reason', 'owner stopped',
+                 helper=old / 'scripts/continuous.py')
+        before = json.loads(self.state.read_text())
+        decision = self.decision(helper)
+        self.assertEqual(self.migrate(helper, old, decision)['status'], 'cancelled')
+        after = json.loads(self.state.read_text())
+        self.assertEqual(after['scheduler'], before['scheduler'])
+        self.assertEqual(after['cancelled'], before['cancelled'])
+        self.assertEqual(self.cli('schedule-plan', helper=helper)['status'], 'cancelled')
+        replay_bytes = self.state.read_bytes()
+        self.assertEqual(self.migrate(helper, old, decision)['status'], 'cancelled')
+        self.assertEqual(self.state.read_bytes(), replay_bytes)
+        self.cli('resume', '--now', NOW, '--resume-cancelled', helper=helper)
+        self.assertEqual(self.cli('schedule-plan', helper=helper)['status'], 'event-only')
+
+    def test_previous_installed_helper_unpinned_state_recovers_without_job_or_schedule_reset(self):
+        box = Sandbox(self.base / 'legacy-install')
+        source = legacy_source(self.base, '17e636c1c24be77566f24062f93a8b1dc17d94c8')
+        old, _ = install_legacy(box, source)
+        current, _ = box.install('babysitter')
+        self.state = self.base / 'run/state.json'
+        self.start(helper=old / 'scripts/continuous.py')
+        self.cli('schedule-record', '--now', NOW, '--schedule-id', 'legacy-schedule',
+                 '--next-run-at', '2026-10-22T14:15:00Z', helper=old / 'scripts/continuous.py')
+        before = json.loads(self.state.read_text())
+        decision = self.decision(current / 'scripts/continuous.py')
+        self.migrate(current / 'scripts/continuous.py', old, decision)
+        after = json.loads(self.state.read_text())
+        self.assertEqual(after['run_id'], before['run_id'])
+        self.assertEqual(after['scheduler'], before['scheduler'])
+        self.assertIsNone(after['job_id'])
+
+
 class UpdateAndResolutionTest(ContinuousCase):
     def adapters(self):
         yield HELPER, continuous_sweep, HELPER.with_name('merge-pr.sh')

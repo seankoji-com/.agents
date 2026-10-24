@@ -2085,6 +2085,10 @@ def validate_upgrade_receipt(receipt_path, state, owner_decision, installed, job
     alone. The receipt must come from the upgrade operation and bind the target package
     (and, when known, the pinned job and its previous state) to this decision.
     """
+    require(state.get('job_id') or state.get('job')
+            or not (state.get('package') or {}).get('installed_digest'),
+            'an unpinned run cannot attach a per-PR job; use --previous-package and '
+            '--owner-decision for its own package migration')
     receipt_path = Path(receipt_path).expanduser()
     require(receipt_path.is_file(), f'upgrade receipt does not exist: {receipt_path}')
     receipt = load_json(receipt_path)
@@ -2163,6 +2167,52 @@ def validate_upgrade_receipt(receipt_path, state, owner_decision, installed, job
             'previous_state': previous}
 
 
+def unpinned_migration_scope(state, state_file, installed):
+    return 'continuous-package:' + digest({
+        'run_id': state.get('run_id'), 'state_sha256': sha256_file(state_file),
+        'from': state.get('package'), 'to': installed,
+    })
+
+
+def validate_unpinned_migration(args, state, path, installed):
+    """An owner decision binds this run's retained old package to this target."""
+    require(not state.get('job_id') and not state.get('job') and not args.job
+            and not args.upgrade_receipt,
+            'pinned runs require --upgrade-receipt and --job; do not attach another job')
+    require(args.previous_package and args.owner_decision,
+            'unpinned package migration requires --previous-package <retained-package> '
+            'and --owner-decision <decision.json>; pinned jobs use an upgrade receipt')
+    package = state.get('package') or {}
+    require(package.get('installed_digest') and package.get('pinned_version')
+            and state.get('run_id'), 'unpinned migration requires the recorded package identity '
+            'and run ID; missing legacy identity needs a genuine pinned-job upgrade receipt')
+    old = source_identity(Path(args.previous_package).expanduser() / 'scripts' / 'continuous.py')
+    require(old['plugin'] == installed['plugin'] == 'babysitter',
+            'migration packages must both be babysitter')
+    require(package['installed_digest'] in (old['digest'], package_digest(old['package_dir']))
+            and package['pinned_version'] in (old['installed_version'], old['version']),
+            'retained previous package identity does not match this run')
+    decision = load_json(args.owner_decision)
+    require(isinstance(decision, dict) and decision.get('id') == args.owner_decision_id
+            and decision.get('scope') == unpinned_migration_scope(state, path, installed),
+            'owner decision does not bind this run, current state and target package')
+    require(not any(item.get('owner_decision_id') == args.owner_decision_id
+                    for item in state.get('migration_history', []) + [state.get('migration') or {}]),
+            'owner decision ID already used for a different migration')
+    require(isinstance(decision.get('source'), str), 'owner decision source must be a path')
+    source = Path(decision['source'])
+    require(source.is_absolute() and not source.resolve().is_relative_to(path.parent),
+            'owner decision source must be outside the continuous state directory')
+    job_contracts()
+    from core.jobs import _owner_current
+    require(_owner_current(decision, MAX_STATE_BYTES)
+            and decision['scope'] in decision['quote'],
+            'owner decision source bytes/hash/quote differ or do not approve this migration scope')
+    return {'decision': decision, 'decision_file': str(Path(args.owner_decision).resolve()),
+            'decision_sha256': sha256_file(args.owner_decision),
+            'state_sha256': sha256_file(path), 'from': old, 'to': installed}
+
+
 def cmd_resume(args):
     path = state_path(args.state)
     require(fcntl is not None, 'continuous state locking requires a POSIX host with fcntl')
@@ -2182,6 +2232,7 @@ def cmd_resume(args):
                          'state': state.get('policy_version'),
                          'installed': installed['policy_version']})
         package = state.get('package') or {}
+        unpinned = not state.get('job_id') and not state.get('job')
         pinned = package.get('pinned_version')
         if args.package_version and pinned and args.package_version != pinned:
             gaps.append({'kind': 'package-version',
@@ -2213,33 +2264,61 @@ def cmd_resume(args):
         if gaps and not args.accept_migration:
             return {'status': 'migration-required', 'gaps': gaps, 'changed': False,
                     'installed': installed,
-                    'instruction': 'preserve the pinned brief and state; pass --accept-migration '
-                                   'with an owner decision after the supported package upgrade'}
+                    'owner_decision_scope': (unpinned_migration_scope(state, path, installed)
+                                             if unpinned else None),
+                    'instruction': ('preserve state and retained packages; unpinned runs: pass '
+                        '--accept-migration --owner-decision-id <id> --previous-package '
+                        '<old-package> --owner-decision <decision.json> approving owner_decision_scope; '
+                        'pinned jobs: run job_cli.py upgrade-package, then pass --accept-migration '
+                        '--owner-decision-id <id> --upgrade-receipt <output.json> --job <job-dir>')}
         require(not gaps or args.owner_decision_id,
                 'accepting a policy/package migration requires --owner-decision-id')
-        if gaps and not getattr(args, 'upgrade_receipt', None):
+        if gaps and not args.upgrade_receipt and not (unpinned and args.owner_decision):
             raise ContinuousError(
-                'policy/package drift on this run needs the supported upgrade receipt: run '
-                'job_cli.py upgrade-package, then pass --upgrade-receipt <output.json> '
-                'with --accept-migration and --owner-decision-id')
+                'policy/package drift needs --previous-package and --owner-decision for an '
+                'unpinned run, or the supported upgrade receipt for a pinned job: run '
+                'job_cli.py upgrade-package, then pass --upgrade-receipt <output.json> --job '
+                '<job-dir> with --accept-migration and --owner-decision-id')
         if gaps and args.package_version and installed['version'] and \
                 args.package_version.split('+', 1)[0] != installed['version']:
             raise ContinuousError(
-                'the running helper is not the pinned package; complete job_cli.py '
-                'upgrade-package before accepting the migration')
+                '--package-version does not name the running helper; select the intended '
+                'target package first (pinned jobs require job_cli.py upgrade-package)')
         upgrade_receipt = None
+        unpinned_receipt = None
+        if args.owner_decision or args.previous_package:
+            require(args.accept_migration and args.owner_decision_id
+                    and args.owner_decision and args.previous_package,
+                    'unpinned migration requires --accept-migration, --owner-decision-id, '
+                    '--owner-decision and --previous-package')
+            if not gaps:
+                previous = (state.get('migration') or {}).get('unpinned_receipt') or {}
+                require(previous.get('decision') == load_json(args.owner_decision)
+                        and previous.get('decision_sha256') == sha256_file(args.owner_decision)
+                        and previous.get('to') == installed
+                        and Path(args.previous_package).expanduser().resolve()
+                        == Path(previous.get('from', {}).get('package_dir', '')).resolve()
+                        and previous['decision']['id'] == args.owner_decision_id,
+                        'stale or unrelated unpinned migration decision')
+                return {'status': 'duplicate', 'changed': False, 'gaps': [],
+                        'migration': state['migration'], 'cancelled': state.get('cancelled')}
+            unpinned_receipt = validate_unpinned_migration(args, state, path, installed)
         if getattr(args, 'upgrade_receipt', None):
             upgrade_receipt = validate_upgrade_receipt(
                 args.upgrade_receipt, state, args.owner_decision_id, installed,
                 getattr(args, 'job', None) or state.get('job'))
         changed = False
         if gaps:
-            if state.get('migration') is None:
-                state['migration'] = {'at': now_iso(now), 'from': state.get('policy_version'),
-                                      'to': installed['policy_version'],
-                                      'owner_decision_id': args.owner_decision_id,
-                                      'upgrade_receipt': upgrade_receipt,
-                                      'gaps': gaps}
+            history = state.setdefault('migration_history', [])
+            if state.get('migration') and state['migration'] not in history:
+                history.append(state['migration'])
+            state['migration'] = {'at': now_iso(now), 'from': state.get('policy_version'),
+                                  'to': installed['policy_version'],
+                                  'owner_decision_id': args.owner_decision_id,
+                                  'upgrade_receipt': upgrade_receipt,
+                                  'unpinned_receipt': unpinned_receipt,
+                                  'gaps': gaps}
+            history.append(state['migration'])
             state['policy_version'] = installed['policy_version']
             package['installed_version'] = installed['version']
             package['installed_digest'] = installed['digest']
@@ -2489,6 +2568,8 @@ def build_parser():
     resume.add_argument('--resume-cancelled', action='store_true')
     resume.add_argument('--upgrade-receipt')
     resume.add_argument('--job', help='pinned job whose supported package upgrade is verified')
+    resume.add_argument('--previous-package', help='retained original package of an unpinned run')
+    resume.add_argument('--owner-decision', help='scoped owner evidence JSON for unpinned migration')
     resume.set_defaults(func=cmd_resume)
 
     preflight = sub.add_parser('preflight')

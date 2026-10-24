@@ -179,8 +179,12 @@ T3's native watches cover linked PRs, so they cannot discover new PRs or diagnos
 unchanged queued job while the thread is idle. Discovery runs again on the next wake
 and before handoff. Without an authorised host schedule the thread reports that idle
 gap. A resumed run compares its installed package digest and continuous-policy
-version automatically. Package drift needs the supported upgrade receipt, verified
-against the actual job's retained state, owner decision and new pin. Revoking scheduler
+version automatically. A pinned job's package drift needs the supported upgrade receipt,
+verified against its retained state, owner decision and new pin. A scope run started
+without a job can migrate with its retained old package and an owner decision bound
+to that run, current state and new package. Both paths preserve the existing schedule,
+roster, progress and live writer guards. See the installed package's
+`references/continuous.md` for the start/resume commands. Revoking scheduler
 authority blocks late timer wakes and retains an unverified-stop warning until the
 owned schedule is confirmed stopped. A job pinned before continuous mode is detected by a read-only
 preflight of the current package and moves to a newer package only through the

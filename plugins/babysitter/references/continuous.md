@@ -21,6 +21,10 @@ python3 PKG/scripts/continuous.py start --state <state.json> --now <RFC3339> \
 python3 PKG/scripts/continuous.py schedule-plan --state <state.json>
 ```
 
+This starts an unpinned scope run, which needs no per-PR job. Keep its installed
+package for later migration. If this run already has its own pinned job, add
+`--job <job-dir>` to `start`; the helper verifies and records that job's pin.
+
 Keep `<state.json>` in the private run state, for example
 `$XDG_STATE_HOME/t3-plugins/babysitter/continuous/<run-id>.json`; never in a PR
 worktree or the job directory. It holds no credentials, only the recorded scope,
@@ -271,15 +275,62 @@ installer manifest's package digest, after verifying its listed files. Source ch
 use a source content fingerprint. `start` records the identity automatically
 and defaults the pin to the installed version, so `resume` detects a swapped running
 package without relying on `--package-version`. A state without the fingerprint is a
-migration gap, not a silent resume. Resume refuses drift and returns
-`migration-required` with the exact gaps. Migrate only through the supported path:
-record the owner decision, run `job_cli.py upgrade-package` for a pinned job, then
-resume with `--accept-migration --owner-decision-id <id>` and
-`--upgrade-receipt <output.json> --job <job-dir>`. The helper verifies the actual job's
+migration gap, not a silent resume. Inspect the run with the new package:
+
+```sh
+python3 <new-package>/scripts/continuous.py resume --state <state.json> --now <RFC3339>
+```
+
+Resume refuses drift and returns `migration-required` with the exact gaps.
+For a pinned job, record the owner decision and run `job_cli.py upgrade-package`, then:
+
+```sh
+python3 <new-package>/scripts/continuous.py resume --state <state.json> --now <RFC3339> \
+  --accept-migration --owner-decision-id <id> \
+  --upgrade-receipt <output.json> --job <job-dir>
+```
+
+The helper verifies the actual job's
 upgrade revision, owner decision source, new pin and retained previous job bytes against
 the receipt, directory and package digest. Legacy states missing a job ID recover it
 from this verified job. A digest-only receipt cannot authorise migration. Immutable briefs, evidence
 and the pinned package stay untouched; the migration receipt is appended to the state.
+
+For an existing unpinned run with a recorded package fingerprint, use its retained
+old package and the returned `owner_decision_scope`. Obtain an explicit owner
+approval quoting that exact scope. Save the owner request outside the continuous
+state directory, and record the same owner-evidence fields used by job decisions:
+
+```json
+{
+  "id": "owner-package-1",
+  "scope": "<owner_decision_scope from resume>",
+  "source": "<absolute path to owner-request.txt>",
+  "source_sha256": "<SHA-256 of those UTF-8 source bytes>",
+  "quote": "<verbatim owner approval containing that exact scope>"
+}
+```
+
+```sh
+python3 <new-package>/scripts/continuous.py resume --state <state.json> --now <RFC3339> \
+  --accept-migration --owner-decision-id owner-package-1 \
+  --previous-package <retained-old-package> --owner-decision <decision.json>
+```
+
+The scope binds the run ID, current state bytes and both package identities. If a
+wake changes state before approval is applied, inspect `resume` again and obtain a
+fresh approval for the new scope. The helper verifies the retained package against
+the run, both installed manifests/files, and the owner source hash and quote. It
+keeps the run unpinned; an unrelated per-PR upgrade receipt cannot attach a job.
+Missing legacy identity cannot use this route; the verified legacy pinned-job
+upgrade above remains required. Each subsequent package change needs its own
+decision ID. Migration history retains every receipt; replay of the latest accepted
+decision is a no-op and an older decision cannot authorize another change.
+
+Both paths preserve run/schedule IDs, schedule authorization and stop state, roster,
+progress clocks, events, dispatch history and live/adopted writer guards. Continue
+the existing schedule; do not start another run or create another host schedule.
+Cancelled runs stay cancelled unless `--resume-cancelled` is separately requested.
 
 A job created before continuous mode has no helper and no state at its pinned package.
 Resolve the pinned `PKG` as `entry.md` requires to read its brief and evidence, but run

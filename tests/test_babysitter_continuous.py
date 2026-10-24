@@ -1182,7 +1182,7 @@ class PackagePreflightTest(ContinuousCase):
         self.assertIn('installed-drift', [gap['kind'] for gap in migration['gaps']])
         self.assertFalse(migration['changed'])
 
-    def test_package_drift_needs_the_supported_upgrade_receipt_for_the_target_package(self):
+    def test_unpinned_drift_cannot_attach_an_unrelated_upgrade_receipt(self):
         copied = self.base / 'plugin-copy'
         shutil.copytree(PLUGIN, copied)
         helper = copied / 'scripts' / 'continuous.py'
@@ -1202,7 +1202,7 @@ class PackagePreflightTest(ContinuousCase):
         bad = self.cli('resume', '--now', '2026-10-22T14:10:00Z',
                        '--accept-migration', '--owner-decision-id', 'owner-one',
                        '--upgrade-receipt', str(wrong), helper=helper, ok=False)
-        self.assertIn('does not name the running package digest', bad.stderr)
+        self.assertIn('unpinned run cannot attach a per-PR job', bad.stderr)
         receipt = self.base / 'upgrade-receipt.json'
         receipt.write_text(json.dumps({'job_id': 'job-1', 'package_digest': identity['digest'],
                                        'package_dir': str(copied),
@@ -1210,7 +1210,7 @@ class PackagePreflightTest(ContinuousCase):
         refused = self.cli('resume', '--now', '2026-10-22T14:11:00Z',
                             '--accept-migration', '--owner-decision-id', 'owner-one',
                             '--upgrade-receipt', str(receipt), helper=helper, ok=False)
-        self.assertIn('requires --job', refused.stderr)
+        self.assertIn('use --previous-package and --owner-decision', refused.stderr)
 
     def test_a_legacy_state_without_a_package_identity_is_a_migration_gap(self):
         self.start()
