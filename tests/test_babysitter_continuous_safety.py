@@ -555,6 +555,50 @@ class UnclockedQueueSafetyTest(ContinuousCase):
     reader_row = continuous_tests.ReaderPathTest.reader_row
     node = continuous_tests.ReaderPathTest.node
 
+    def test_mixed_reader_queues_keep_unknown_reasons_in_public_diagnosis_and_status(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'mixed-queue-{index}.json'
+            self.start(helper=helper)
+            checks = [
+                {'__typename': 'CheckRun', 'name': 'known', 'status': 'QUEUED',
+                 'startedAt': None, 'conclusion': None,
+                 'detailsUrl': 'https://github.com/fixture/repo/actions/runs/1/job/7'},
+                {'__typename': 'CheckRun', 'name': 'unknown', 'status': 'QUEUED',
+                 'startedAt': None, 'conclusion': None,
+                 'detailsUrl': 'https://ci.example.invalid/build/7'},
+            ]
+            row = self.reader_row({'data': {'viewer': {'login': 'fixture'}, 'search': {
+                'issueCount': 1, 'nodes': [self.node(checks=checks, checks_state='PENDING')]}}},
+                job_payload={'created_at': '2026-10-22T12:00:00Z', 'head_sha': H1},
+                reader=helper.with_name('list-prs.sh'))
+            gaps = [{'name': 'unknown', 'reason': 'detailsUrl does not identify an Actions job'}]
+            self.assertEqual(row['queue_clock_gaps'], gaps)
+            host = FakeHost(observation(row))
+            host.clock = '2026-10-22T14:00:00Z'
+            adapter.arm(host, self.state, host.clock)
+            for at, age in [('2026-10-22T14:10:00Z', 7800), ('2026-10-22T14:20:00Z', 8400)]:
+                result = adapter.tick(host, self.state, at)[0]['result']
+                action = result['actions'][0]
+                self.assertEqual(action['kind'], 'diagnose-queue')
+                self.assertEqual(action['blocked']['check'], 'known')
+                self.assertEqual(action['blocked']['age_seconds'], age)
+                self.assertEqual(action['blocked']['queue_clock_gaps'], gaps)
+                self.assertIn(gaps[0]['reason'], action['reason'])
+                self.assertIn('unknown', action['reason'])
+                public = self.cli('status', '--now', at, helper=helper)['prs'][row['url']]['queue']
+                for view in (result['queue'][0], public):
+                    self.assertEqual(view['name'], 'known')
+                    self.assertEqual(view['age_seconds'], age)
+                    self.assertEqual(view['unknown_clock'], ['unknown'])
+                    self.assertEqual(view['queue_clock_gaps'], gaps)
+                saved = json.loads(self.state.read_text())['prs'][row['url']]
+                self.assertEqual(saved['observation']['queue_clock_gaps'], gaps)
+                self.assertEqual(saved['queue']['queue_clock_gaps'], gaps)
+                self.assertEqual(saved['last_meaningful_progress_at'], '2026-10-22T14:10:00Z')
+                self.assertEqual(result['human_questions'], [])
+                self.assertGreater(action['next_check_at'], at)
+            self.assertEqual(host.dispatched, [])
+
     def test_clockless_stall_is_not_hidden_by_other_incomplete_gates(self):
         for index, (helper, adapter, _) in enumerate(self.adapters()):
             self.state = self.base / f'clockless-gates-{index}.json'
@@ -892,6 +936,68 @@ class ReservationSafetyTest(ContinuousCase):
 
 
 class AcceptedReceiptTest(ContinuousCase):
+    adapters = UpdateAndResolutionTest.adapters
+
+    def test_every_terminal_history_is_immutable_before_replay_validation_in_both_packages(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            fixture = AcceptedJob(self.base / f'accepted-replay-{index}', 'original', 'host-original')
+            fixture.complete()
+            for kind in ('merge', 'fixer', 'resolution', 'update-branch'):
+                for terminal in sorted(adapter.continuous.TERMINAL_DISPATCH):
+                    with self.subTest(installed=index, kind=kind, terminal=terminal):
+                        self.state = self.base / f'terminal-{index}-{kind}-{terminal}.json'
+                        self.start(helper=helper)
+                        row = pr(merge_state='BEHIND' if kind == 'update-branch' else 'CLEAN')
+                        self.cli('observe', '--now', NOW, '--wake-id', 'initial',
+                                 payload=observation(row), helper=helper)
+                        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', kind,
+                            '--request-id', 'original', '--head', H1, '--reserve', helper=helper)
+                        flags = []
+                        if kind == 'update-branch' and terminal in ('succeeded', 'no-change'):
+                            result = self.base / 'update-terminal.json'
+                            output = (f'UPDATED fixture/widgets#12 previous_head={H1} head={H2} '
+                                      'refresh_gates=required' if terminal == 'succeeded'
+                                      else 'MERGED fixture/widgets#12 via preexisting')
+                            result.write_text(json.dumps({'request_id': 'original',
+                                'returncode': 0, 'stdout': output}))
+                            flags = ['--result', str(result)]
+                        elif kind != 'update-branch' or terminal != 'rejected':
+                            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', kind,
+                                '--request-id', 'original', '--host-task-id', fixture.host, helper=helper)
+                            flags = ['--host-task-id', fixture.host]
+                            if kind == 'update-branch':
+                                self.cli('observe', '--now', NOW, '--wake-id', 'new-head',
+                                    payload=observation(pr(head=H2)), helper=helper)
+                            if kind == 'fixer':
+                                flags += ['--result', str(fixture.transport)]
+                        command = 'fixer-done' if kind == 'fixer' and terminal == 'succeeded' else 'receipt'
+                        receipt_flags = [] if command == 'fixer-done' else ['--kind', kind, '--status', terminal]
+                        self.cli(command, '--now', '2026-10-22T14:06:00Z', '--pr', URL,
+                            '--request-id', 'original', *receipt_flags, *flags, helper=helper)
+                        saved = json.loads(self.state.read_text())['prs'][URL]
+                        self.assertEqual(saved['dispatches'][0]['status'], terminal)
+                        if kind == 'fixer' and terminal in ('succeeded', 'no-change'):
+                            self.assertEqual(saved['last_meaningful_progress_at'], '2026-10-22T14:06:00Z')
+                        # A later writer must remain protected from the entire old receipt history.
+                        if saved['state'] == 'open':
+                            self.cli('dispatch', '--now', '2026-10-22T14:07:00Z', '--pr', URL,
+                                '--kind', 'fixer', '--request-id', 'later-writer', '--reserve', helper=helper)
+                        before = self.state.read_bytes()
+                        for replay in (*sorted(adapter.continuous.TERMINAL_DISPATCH), 'uncertain', 'armed'):
+                            result = self.cli('receipt', '--now', '2026-10-22T14:30:00Z', '--pr', URL,
+                                '--kind', kind, '--request-id', 'original', '--status', replay,
+                                '--reason', 'replayed history', *flags, helper=helper)
+                            self.assertEqual(result['status'], 'duplicate' if replay == terminal else 'stale')
+                            self.assertFalse(result['changed'])
+                            self.assertEqual(self.state.read_bytes(), before)
+                        # Replays do not need old evidence to remain readable or validate again.
+                        result = self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', kind,
+                            '--request-id', 'original', '--status', 'uncertain', '--result',
+                            str(self.base / 'missing-result.json'), '--host-task-id', 'unrelated',
+                            '--head', H2, helper=helper)
+                        self.assertEqual(result['status'], 'stale')
+                        self.assertEqual(self.state.read_bytes(), before)
+
     def test_adopted_identity_can_be_filled_but_never_replaced_and_needs_ingested_result(self):
         self.start()
         owner = {'thread_id': 'self', 'status': 'running', 'fixer_in_flight': True}
@@ -1045,6 +1151,101 @@ class OwnershipReleaseTest(ContinuousCase):
         self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
             '--request-id', released['actions'][0]['request_id'], '--head', H1,
             '--reserve', helper=helper)
+
+
+class MergeCompletionSafetyTest(ContinuousCase):
+    adapters = UpdateAndResolutionTest.adapters
+
+    def wake(self, adapter, host, name, at=NOW):
+        return adapter.handle_wake(host, self.state, at, {'kind': 'event', 'wake_id': name})
+
+    def finish(self, helper, action, status):
+        self.cli('receipt', '--now', '2026-10-22T14:06:00Z', '--pr', URL, '--kind', 'merge',
+            '--request-id', action['request_id'], '--host-task-id', f'task-{action["attempt"]}',
+            '--status', status, helper=helper)
+
+    def test_superseded_and_mixed_terminal_retries_share_the_head_budget_in_both_adapters(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            for statuses in (('superseded',) * 3, ('rejected', 'failed', 'cancelled'),
+                             ('superseded', 'cancelled', 'rejected'),
+                             ('rejected', 'superseded', 'succeeded'),
+                             ('failed', 'cancelled', 'no-change')):
+                with self.subTest(installed=index, statuses=statuses):
+                    self.state = self.base / f'merge-budget-{index}-{statuses[0]}-{statuses[1]}.json'
+                    self.start(helper=helper)
+                    host = FakeHost(observation(pr()))
+                    for attempt, status in enumerate(statuses, 1):
+                        result = self.wake(adapter, host, f'attempt-{attempt}')
+                        action = result['result']['actions'][0]
+                        self.assertEqual(action['kind'], 'merge')
+                        self.assertTrue(action['request_id'].endswith(f'-a{attempt}'))
+                        self.assertEqual(result['dispatched'][0]['recorded'], 'recorded')
+                        self.finish(helper, {**action, 'attempt': attempt}, status)
+                    for wake in range(3):
+                        result = self.wake(adapter, host, f'exhausted-{wake}')
+                        self.assertEqual(result['result']['actions'][0]['blocked']['kind'],
+                            'merge-observation-required' if statuses[-1] in ('succeeded', 'no-change')
+                            else 'merge-rejected')
+                        self.assertEqual(result['dispatched'], [])
+                    # A real reopen permits reconciliation, but cannot reset the same-head budget.
+                    host.snapshot = observation(pr(state='CLOSED'))
+                    self.wake(adapter, host, 'closed', '2026-10-22T14:07:00Z')
+                    host.snapshot = observation(pr())
+                    reopened = self.wake(adapter, host, 'reopened', '2026-10-22T14:08:00Z')
+                    self.assertEqual(reopened['result']['actions'][0]['blocked']['kind'], 'merge-rejected')
+                    before = self.state.read_bytes()
+                    refused = self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                        '--request-id', 'forced-fourth', '--head', H1, '--reserve', helper=helper, ok=False)
+                    self.assertIn('merge attempts exhausted', refused.stderr)
+                    self.assertEqual(self.state.read_bytes(), before)
+                    self.assertEqual(len(host.dispatched), 3)
+                    host.snapshot = observation(pr(head=H2))
+                    fresh = self.wake(adapter, host, 'new-head')
+                    self.assertEqual(fresh['result']['actions'][0]['kind'], 'merge')
+                    self.assertTrue(fresh['result']['actions'][0]['request_id'].endswith('-a1'))
+
+    def test_success_and_no_change_wait_for_authoritative_lifecycle_or_new_head(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            for status in ('succeeded', 'no-change'):
+                for evidence in ('new-head', 'merged', 'reopened'):
+                    with self.subTest(installed=index, status=status, evidence=evidence):
+                        self.state = self.base / f'merge-complete-{index}-{status}-{evidence}.json'
+                        self.start(helper=helper)
+                        host = FakeHost(observation(pr()))
+                        action = self.wake(adapter, host, 'initial')['result']['actions'][0]
+                        self.finish(helper, {**action, 'attempt': 1}, status)
+                        terminal = deepcopy(json.loads(self.state.read_text())['prs'][URL]['dispatches'][0])
+                        for wake in range(4):
+                            result = self.wake(adapter, host, f'unchanged-{wake}', '2026-10-22T14:10:00Z')
+                            action = result['result']['actions'][0]
+                            self.assertEqual(action['kind'], 'reconcile-merge')
+                            self.assertEqual(action['blocked']['kind'], 'merge-observation-required')
+                            self.assertEqual(result['dispatched'], [])
+                            self.assertFalse(result['result']['progress']['meaningful'])
+                        before = self.state.read_bytes()
+                        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                            '--request-id', 'repeat-completed', '--head', H1, '--reserve', helper=helper, ok=False)
+                        self.assertEqual(self.state.read_bytes(), before)
+                        self.assertEqual(len(host.dispatched), 1)
+                        if evidence in ('merged', 'reopened'):
+                            host.snapshot = observation(pr(state='MERGED' if evidence == 'merged' else 'CLOSED'))
+                            result = self.wake(adapter, host, 'terminal-pr', '2026-10-22T14:11:00Z')
+                            self.assertEqual(result['result']['actions'][0]['kind'],
+                                             'merged' if evidence == 'merged' else 'closed')
+                            self.assertEqual(result['dispatched'], [])
+                        if evidence != 'merged':
+                            # A changed lifecycle/head still needs fresh current-head gates.
+                            head = H2 if evidence == 'new-head' else H1
+                            host.snapshot = observation(pr(head=head, merge_state='BLOCKED', checks_state='PENDING',
+                                checks=[{'name': 'ci', 'status': 'QUEUED', 'head_sha': H1}]))
+                            result = self.wake(adapter, host, 'fresh-red', '2026-10-22T14:12:00Z')
+                            self.assertNotEqual(result['result']['actions'][0]['kind'], 'merge')
+                            self.assertEqual(result['dispatched'], [])
+                            host.snapshot = observation(pr(head=head))
+                            result = self.wake(adapter, host, 'fresh-green', '2026-10-22T14:13:00Z')
+                            self.assertEqual(result['result']['actions'][0]['kind'], 'merge')
+                            self.assertEqual(len(host.dispatched), 2)
+                        self.assertEqual(json.loads(self.state.read_text())['prs'][URL]['dispatches'][0], terminal)
 
 
 class LiveMergeHeadChangeTest(ContinuousCase):

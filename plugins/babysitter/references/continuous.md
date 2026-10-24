@@ -148,7 +148,10 @@ Every landing decision uses current-head evidence only: checks and the checks he
 must belong to `head_sha`, `review_threads_complete` must be true after reading every
 conversation page, and a merge request is bound to its exact head. Rejected, cancelled
 or superseded attempts are reconciled, then either retried within the bounded budget or
-reported as `merge-rejected`. A live fixer blocks any merge or resolution write.
+reported as `merge-rejected`; every terminal attempt counts toward the per-head cap.
+A `succeeded` or `no-change` merge returns `reconcile-merge` on unchanged open-head
+reads until authoritative lifecycle or new-head evidence resolves it. A live fixer
+blocks any merge or resolution write.
 Landing follows `merge-pr.sh`: `CLEAN` needs a `SUCCESS` rollup; `UNSTABLE` needs
 a complete targeted context read with at least one required context and all required
 contexts green. `HAS_HOOKS` is a `has-hooks` blocker, never a landing attempt.
@@ -232,8 +235,9 @@ reconcile the original host operation to a terminal outcome before another write
 Terminal merge, update and resolution receipts must name any recorded `--host-task-id`,
 after verifying that task has ended. `armed` is accepted only for a merge and keeps it pending;
 fixer and resolution receipts must name a terminal outcome. A receipt applies only to
-the request it names: a replay is reported as `duplicate` or `stale` and changes no
-guard or progress clock. An adopted writer (a PR observed with `fixer_in_flight` but
+the request it names: every terminal row is immutable. A same-status replay is
+`duplicate`; any different status is `stale`, including `uncertain` or `armed`.
+Neither changes a guard or progress clock. An adopted writer (a PR observed with `fixer_in_flight` but
 no local dispatch) carries the handle from `owner.host_task_id`; only a receipt naming
 that handle and its accepted ingested job execution can close it. The retained transport
 must match the job's hash, request, completion and terminal host observation with no

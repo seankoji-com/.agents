@@ -72,7 +72,7 @@ OPEN_DISPATCH = {'reserved', 'uncertain', 'pending', 'armed'}
 FIXER_RECEIPT_STATUSES = {'succeeded', 'failed', 'rejected', 'cancelled', 'superseded',
                           'no-change'}
 MERGE_RECEIPT_STATUSES = {'armed', 'succeeded', 'failed', 'rejected', 'cancelled',
-                          'superseded'}
+                          'superseded', 'no-change'}
 RESOLUTION_RECEIPT_STATUSES = {'succeeded', 'failed', 'rejected', 'cancelled',
                                'superseded', 'no-change'}
 KIND_RECEIPT_STATUSES = {
@@ -658,6 +658,16 @@ def deadline(now, seconds):
     return now_iso(now + timedelta(seconds=seconds))
 
 
+def public_queue(queue):
+    """Keep the compact oldest-check view together with unknown-clock evidence."""
+    if not queue or not (queue.get('oldest') or queue.get('unknown_clock')
+                         or queue.get('queue_clock_gaps')):
+        return None
+    return {**(queue.get('oldest') or {}),
+            'unknown_clock': queue.get('unknown_clock', []),
+            'queue_clock_gaps': queue.get('queue_clock_gaps', [])}
+
+
 def stall_diagnosis(pr, policy, now, clock_detail, clock_gaps):
     last = parse_time(pr.get('last_meaningful_progress_at') or pr['admitted_at'], 'last progress')
     elapsed = int((now - last).total_seconds())
@@ -957,10 +967,13 @@ def reconcile_pr(pr, state, now, discovery):
         oldest = queue['oldest']
         detail = (f"{oldest['name']} has been {oldest['diagnosis']} for "
                   f"{oldest['age_seconds']}s (threshold {threshold}s)")
+        if unknown_clock_detail:
+            detail += '; queue age is unknown for ' + unknown_clock_detail
         return ({'pr': pr['url'], 'kind': 'diagnose-queue',
                  'reason': detail, 'next_check_at': deadline(now, cadence)},
                 queue, {'kind': oldest['diagnosis'], 'detail': detail,
-                        'check': oldest['name'], 'age_seconds': oldest['age_seconds']}, progress)
+                        'check': oldest['name'], 'age_seconds': oldest['age_seconds'],
+                        'queue_clock_gaps': queue['queue_clock_gaps']}, progress)
 
     if queue['pending'] and queue['unknown_clock']:
         if stalled:
@@ -1072,10 +1085,19 @@ def reconcile_pr(pr, state, now, discovery):
     if mergeable and merge_state in ('CLEAN', 'UNSTABLE') \
             and not queue['pending'] and not failing and threads == 0 and checks_ok:
         head_attempts = merge_attempts(pr, head)
-        rejected = [row for row in head_attempts
-                    if dispatch_status(row) in ('rejected', 'failed', 'cancelled')]
-        if len(rejected) >= MAX_MERGE_ATTEMPTS:
-            detail = f'merge rejected {len(rejected)} times at this head'
+        completed = next((row for row in reversed(head_attempts)
+                          if dispatch_status(row) in ('succeeded', 'no-change')
+                          and (not pr.get('reopened_at') or parse_time(row['completed_at'])
+                               >= parse_time(pr['reopened_at']))), None)
+        if completed:
+            detail = 'merge completed at this head; refresh authoritative PR lifecycle or head evidence'
+            return ({'pr': pr['url'], 'kind': 'reconcile-merge', 'reason': detail,
+                     'request_id': completed['request_id'], 'head': head,
+                     'next_check_at': deadline(now, cadence)}, queue,
+                    {'kind': 'merge-observation-required', 'detail': detail}, progress)
+        terminal = [row for row in head_attempts if dispatch_status(row) in TERMINAL_DISPATCH]
+        if len(terminal) >= MAX_MERGE_ATTEMPTS:
+            detail = f'merge attempts exhausted ({len(terminal)}) at this head'
             return ({'pr': pr['url'], 'kind': 'blocked', 'reason': detail,
                      'next_check_at': deadline(now, cadence)}, queue,
                     {'kind': 'merge-rejected', 'detail': detail}, progress)
@@ -1321,8 +1343,9 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
                         'recommended': (pr['observation'].get('human_blocker') or {}).get('recommended')}
             questions.append(question)
         actions.append(action)
-        if queue.get('oldest'):
-            queue_rows.append({'pr': url, **queue['oldest']})
+        visible_queue = public_queue(queue)
+        if visible_queue is not None:
+            queue_rows.append({'pr': url, **visible_queue})
 
     state['discovery'].update({
         'last_attempt_at': now_iso(now),
@@ -1917,16 +1940,13 @@ def cmd_receipt(args):
         require(row is not None, f'unknown dispatch: {args.request_id}')
         require(not getattr(args, 'kind', None) or args.kind == row['kind'],
                 'receipt kind differs from the recorded dispatch kind')
+        if dispatch_status(row) in TERMINAL_DISPATCH:
+            return {'status': 'duplicate' if dispatch_status(row) == args.status else 'stale',
+                    'changed': False, 'request_id': args.request_id, 'dispatch': row}
         allowed = KIND_RECEIPT_STATUSES[row['kind']]
         require(args.status in allowed,
                 f"{row['kind']} receipts accept {', '.join(sorted(allowed))}; "
                 f"{args.status!r} is not a terminal outcome for that kind")
-        if dispatch_status(row) in TERMINAL_DISPATCH and dispatch_status(row) == args.status:
-            return {'status': 'duplicate', 'changed': False, 'request_id': args.request_id,
-                    'dispatch': row}
-        if row['kind'] == 'update-branch' and dispatch_status(row) in TERMINAL_DISPATCH:
-            return {'status': 'stale', 'changed': False, 'request_id': args.request_id,
-                    'dispatch': row}
         if args.head and row.get('head') and args.head != row['head']:
             raise ContinuousError(
                 f"receipt head {args.head} differs from dispatch head {row['head']}")
@@ -2325,7 +2345,7 @@ def cmd_status(args):
             'excluded': excluded,
             'prs': {url: {'state': pr.get('state'),
                           'blocked': pr.get('blocked'),
-                          'queue': (pr.get('queue') or {}).get('oldest'),
+                          'queue': public_queue(pr.get('queue')),
                           'last_meaningful_progress_at': pr.get('last_meaningful_progress_at'),
                           'owner': pr.get('owner'), 'fixer': pr.get('fixer'),
                           'dispatches': pr.get('dispatches', []),
