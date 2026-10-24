@@ -20,10 +20,10 @@ import time
 import uuid
 
 sys.dont_write_bytecode = True
-from analysis import VERSION, PROFILES, analyze, evidence_rejections
+from analysis import VERSION, PROFILES, analyze, evidence_rejections, expiry, expired_exceptions, current_findings
 from render import render
 
-GENERATOR = '0.1.1'
+GENERATOR = '0.1.2'
 PACKAGE = Path(__file__).resolve().parents[1]
 MAX_INPUT = 8 * 1024 * 1024
 
@@ -83,7 +83,17 @@ def git(repo, *args):
     return p.stdout
 
 
-def snapshot(repo, max_files=4000, seconds=30):
+def snapshot_limits(max_files=4000, seconds=30, max_bytes=32 * 1024 * 1024, max_file_bytes=MAX_INPUT):
+    limits = {'files': max_files, 'seconds': seconds, 'bytes': max_bytes, 'file_bytes': max_file_bytes}
+    ceilings = {'files': 100000, 'seconds': 120, 'bytes': 512 * 1024 * 1024, 'file_bytes': 64 * 1024 * 1024}
+    if any(type(v) is not int or not 1 <= v <= ceilings[k] for k, v in limits.items()):
+        raise ValueError('snapshot limits require files 1..100000, seconds 1..120, bytes 1..536870912, file bytes 1..67108864')
+    return limits
+
+
+def snapshot(repo, max_files=4000, seconds=30, max_bytes=32 * 1024 * 1024,
+             max_file_bytes=MAX_INPUT, selected_paths=None, inventory_binding=True):
+    limits = snapshot_limits(max_files, seconds, max_bytes, max_file_bytes)
     repo = Path(repo).resolve()
     root = Path(os.fsdecode(git(repo, 'rev-parse', '--show-toplevel')).strip()).resolve()
     if repo != root:
@@ -92,9 +102,14 @@ def snapshot(repo, max_files=4000, seconds=30):
     names = sorted(set(os.fsdecode(p) for p in git(repo, 'ls-files', '-z', '--cached', '--others', '--exclude-standard').split(b'\0') if p))
     started, total = time.monotonic(), 0
     files, limitations = {}, []
-    for name in names:
-        if len(files) >= max_files or time.monotonic() - started > seconds or total >= 32 * 1024 * 1024:
-            limitations.append('Source inventory file/time/32MiB budget exhausted.')
+    selected = names if selected_paths is None else sorted(selected_paths)
+    if selected_paths is not None:
+        # Reinspect exactly the saved partial selection; never widen old coverage
+        # because a later machine can hash more files before its deadline.
+        limitations.append('Saved partial source selection; full inventory remains uninspected.')
+    for position, name in enumerate(selected):
+        if position >= max_files or time.monotonic() - started > seconds or total >= max_bytes:
+            limitations.append('Source inventory file/time/byte budget exhausted.')
             break
         path = repo / name
         if Path(name).is_absolute() or '..' in Path(name).parts:
@@ -105,7 +120,11 @@ def snapshot(repo, max_files=4000, seconds=30):
             files[name] = {'deleted': True}
         elif path.is_file() and path.resolve().is_relative_to(repo):
             try:
-                raw = read(path, min(MAX_INPUT, 32 * 1024 * 1024 - total))
+                allowance = min(max_file_bytes, max_bytes - total)
+                if path.stat().st_size > allowance:
+                    limitations.append('Source bytes unavailable: ' + name)
+                    continue
+                raw = read(path, allowance)
                 total += len(raw)
                 files[name] = {'sha256': digest(raw), 'mode': stat.S_IMODE(path.stat().st_mode)}
             except (OSError, ValueError):
@@ -113,10 +132,46 @@ def snapshot(repo, max_files=4000, seconds=30):
         else:
             limitations.append('Uninspected source directory/submodule: ' + name)
     binding = {'head_sha': head, 'files': files}
+    if inventory_binding:
+        binding['inventory_sha256'] = digest(canonical(names))
     return {**binding, 'sha256': digest(canonical(binding)), 'limitations': limitations,
             'inventory_count': len(names), 'inspected_count': len(files),
             'policy': 'tracked and nonignored untracked bytes, modes and symlink identities; no symlink traversal; ignored files excluded',
-            'limits': {'files': max_files, 'seconds': seconds, 'bytes': 32 * 1024 * 1024}}
+            'limits': limits}
+
+
+def snapshot_options(saved):
+    limits = saved.get('limits', {})
+    return snapshot_limits(limits.get('files', 4000), limits.get('seconds', 30),
+                           limits.get('bytes', 32 * 1024 * 1024), limits.get('file_bytes', MAX_INPUT))
+
+
+def snapshot_saved(repo, saved):
+    limits = snapshot_options(saved)
+    return snapshot(repo, max_files=limits['files'], seconds=limits['seconds'],
+                    max_bytes=limits['bytes'], max_file_bytes=limits['file_bytes'],
+                    selected_paths=list(saved['files']) if saved.get('limitations') else None,
+                    inventory_binding='inventory_sha256' in saved)
+
+
+def source_identity(locator, scope):
+    # Local checkout identity, not a display label or an untrusted input claim.
+    # Different clones stay separate; a moved checkout needs a new audit lineage.
+    identity = {'kind': 'local-repository', 'root': str(Path(locator).resolve())} if locator else {
+        'kind': 'organization', 'owner': scope['owner'], 'expected_source': scope.get('expected_source'),
+        'inventory': sorted(r['name'] for r in scope['inventory'])}
+    return digest(canonical(identity))
+
+
+def history_errors(data):
+    history = data.get('history', {})
+    errors = list(history.get('errors', []))
+    requested = history.get('requested', [])
+    if 'runs' in requested and history.get('runs_complete') is not True:
+        errors.append('Requested run/job/attempt history incomplete.')
+    if 'incidents' in requested and history.get('bugs_accessible') is not True:
+        errors.append('Requested incident/fix history inaccessible.')
+    return errors
 
 
 def private_dir(path):
@@ -301,6 +356,10 @@ def inventory(org, data, repo_budget, seconds):
                 errors.append('run/job/attempt history incomplete: ' + name)
             if history.get('bugs_accessible') is not True:
                 errors.append('incident/fix history inaccessible: ' + name)
+            result['asserted_binding_consistent'] = result['binding_consistent']
+            result['evidence_current'] = False
+            result['source_verification'] = 'coordinator-asserted; not independently verified'
+            result['limitations'].append('Organization source snapshots and inspection claims are coordinator-asserted; this helper has not independently inspected those repositories or verified their Git commits.')
         else:
             results.append({'repository': name, 'test_value_assessment': 'incomplete',
                             'reason': 'Inventory triage only; no snapshot-bound test-value evidence.',
@@ -311,6 +370,8 @@ def inventory(org, data, repo_budget, seconds):
             'denominator_state': 'gap' if missing else ('meets' if authoritative and not errors else 'unknown'),
             'missing_repositories': missing, 'fleet_wide': bool(authoritative and not errors and not missing),
             'visibility': 'owner-reconciled' if authoritative else 'credential-visible only',
+            'source_verification': 'coordinator-asserted; not independently verified',
+            'fleet_wide_basis': 'Inventory and submitted assessment completeness only; source and judgment truth require coordinator evidence.',
             'errors': list(dict.fromkeys(errors)), 'results': results,
             'limits': {'repos': repo_budget, 'seconds': seconds, 'pages': 100},
             'counters': {'inventoried': len(rows), 'assessed': len([r for r in results if 'analysis' in r])},
@@ -325,7 +386,10 @@ def save(root, audit, locator):
         folder.mkdir(mode=0o700)
         index_path = root / 'index.json'
         index = load(index_path) if index_path.exists() else {'schema_version': 1, 'runs': []}
-        predecessors = [r for r in index['runs'] if r['repository'] == audit['repository']]
+        audit['source_identity'] = source_identity(locator, audit['scope'])
+        # A legacy basename cannot prove which source produced a record. Leave
+        # those entries immutable and unjoined rather than guessing a migration.
+        predecessors = [r for r in index['runs'] if r.get('source_identity') == audit['source_identity']]
         predecessor = predecessors[-1]['run_id'] if predecessors else None
         audit['predecessor'] = predecessor
         audit['comparison'] = {'state': 'unknown', 'reason': 'No compatible prior observation.'}
@@ -334,9 +398,8 @@ def save(root, audit, locator):
                 _, _, old = verify(root, predecessor)
                 old_identity = old['input'].get('identity', {})
                 new_identity = audit['input'].get('identity', {})
-                expired_prior = any(r.get('available') is False or (r.get('expires_at') and
-                                    datetime.fromisoformat(r['expires_at'].replace('Z', '+00:00')) <= datetime.now(timezone.utc))
-                                    for r in old['input'].get('references', []))
+                expired_prior = bool(expired_exceptions(old['input'])) or any(r.get('available') is False or (r.get('expires_at') and
+                                    expiry(r['expires_at']) <= datetime.now(timezone.utc)) for r in old['input'].get('references', []))
                 compatible = (old['benchmark_version'] == audit['benchmark_version'] and
                               not expired_prior and
                               all(new_identity.get(k) and old_identity.get(k) == new_identity.get(k)
@@ -361,8 +424,10 @@ def save(root, audit, locator):
         for name, raw in content.items(): write(folder / name, raw)
         write(folder / 'manifest.json', canonical(manifest))
         for r in predecessors:
-            if r['revision'] != audit['snapshot']['head_sha']: r['superseded_by'] = audit['run_id']
+            if r['revision'] != audit['snapshot']['head_sha'] or r.get('snapshot_sha256') != audit['snapshot']['sha256']:
+                r['superseded_by'] = audit['run_id']
         index['runs'].append({'run_id': audit['run_id'], 'repository': audit['repository'],
+                              'source_identity': audit['source_identity'], 'snapshot_sha256': audit['snapshot']['sha256'],
                               'revision': audit['snapshot']['head_sha'], 'benchmark_version': VERSION,
                               'config_version': audit['input'].get('identity', {}).get('config_version'),
                               'history_window': audit['input'].get('history', {}), 'predecessor': predecessor,
@@ -420,6 +485,11 @@ def main(argv=None):
     p.add_argument('--profiles', nargs='*', choices=list(PROFILES), default=[])
     p.add_argument('--resume', help='retain original scope and counters; source drift refuses continuation')
     p.add_argument('--snapshot', action='store_true', help='print bounded source binding only, without storing an audit')
+    p.add_argument('--snapshot-summary', action='store_true', help='with --snapshot, omit file rows from output; the digest still binds their bytes')
+    p.add_argument('--snapshot-files', type=int, default=4000)
+    p.add_argument('--snapshot-seconds', type=int, default=None)
+    p.add_argument('--snapshot-bytes', type=int, default=32 * 1024 * 1024)
+    p.add_argument('--snapshot-file-bytes', type=int, default=MAX_INPUT)
     args = parser.parse_args(argv)
     pending = None
     try:
@@ -442,12 +512,14 @@ def main(argv=None):
             freshness = 'unknown'
             if manifest.get('source_locator'):
                 try:
-                    current = snapshot(manifest['source_locator'])
-                    freshness = 'current' if current['sha256'] == audit['snapshot']['sha256'] and not current['limitations'] else 'stale'
+                    current = snapshot_saved(manifest['source_locator'], audit['snapshot'])
+                    freshness = ('stale' if current['sha256'] != audit['snapshot']['sha256'] else
+                                 'partial' if current['limitations'] else 'current')
                 except (OSError, ValueError, subprocess.TimeoutExpired): freshness = 'unavailable'
             expired = [r['id'] for r in audit['input'].get('references', []) if r.get('expires_at') and
-                       datetime.fromisoformat(r['expires_at'].replace('Z', '+00:00')) <= datetime.now(timezone.utc)]
+                       expiry(r['expires_at']) <= datetime.now(timezone.utc)]
             unavailable = [r['id'] for r in audit['input'].get('references', []) if r.get('available') is False]
+            exceptions = expired_exceptions(audit['input'])
             index = load(root / 'index.json')
             superseded = next((r.get('superseded_by') for r in index['runs'] if r['run_id'] == args.run_id), None)
             # Re-render only the saved record. Do not upgrade any observation.
@@ -455,7 +527,10 @@ def main(argv=None):
                 if manifest['generator_version'] != GENERATOR: raise ValueError('use pinned generator version to re-render')
                 if digest(render(audit).encode()) != manifest['hashes']['report.html']:
                     raise ValueError('render differs from saved report')
-            current_evidence = freshness == 'current' and audit['analysis']['evidence_current'] and not expired and not unavailable and not superseded
+            current_evidence = freshness == 'current' and audit['analysis']['evidence_current'] and not expired and not unavailable and not exceptions and not superseded
+            freshness_reason = ('Organization evidence is coordinator-asserted; no local source locator or independent Git/source verification. Exit 0 describes a complete saved advisory only.'
+                                if audit['scope'].get('kind') == 'organization' else
+                                'Source rechecked within the saved inventory scope and limits; current_evidence also requires available support and unexpired exceptions.')
             # Older records have the same saved input binding but no rejection
             # codes. Inspect that binding without re-running the audit.
             rejected = audit['analysis'].get('evidence_rejections')
@@ -463,21 +538,31 @@ def main(argv=None):
                 rejected = evidence_rejections(audit['input'], audit['snapshot'])
             print(json.dumps({'run_id': args.run_id, 'requested_run_id': original_id,
                               'completion': audit['completion'], 'freshness': freshness,
+                              'freshness_reason': freshness_reason,
                               'current_evidence': bool(current_evidence),
+                              'current_findings': current_findings(audit['analysis']['findings'], exceptions),
+                              'expired_exceptions': exceptions,
                               'evidence_rejections': rejected,
                               'expired_evidence': expired, 'unavailable_evidence': unavailable, 'superseded_by': superseded,
                               'report': str(folder / 'report.html'), 'audit': str(folder / 'audit.json'),
                               'manifest': str(folder / 'manifest.json'), 'generator_version': GENERATOR,
                               'limitations': audit['analysis']['limitations']}))
             return 1 if (audit['completion'] != 'complete' or freshness in ('stale', 'unavailable')
-                         or rejected or expired or unavailable or superseded) else 0
+                         or rejected or expired or unavailable or exceptions or superseded) else 0
         if not 1 <= args.repo_budget <= 100 or not 1 <= args.seconds <= 3600:
             raise ValueError('repo budget 1..100 and audit seconds 1..3600 required')
         if args.snapshot and args.org: raise ValueError('--snapshot requires a local repository')
+        if args.snapshot_summary and not args.snapshot:
+            raise ValueError('--snapshot-summary requires --snapshot')
+        limits = snapshot_limits(args.snapshot_files, args.snapshot_seconds if args.snapshot_seconds is not None else min(args.seconds, 30),
+                                 args.snapshot_bytes, args.snapshot_file_bytes)
+        if limits['seconds'] > args.seconds:
+            raise ValueError('snapshot seconds cannot exceed the audit seconds budget')
         started = time.monotonic()
         requested = {'repository_path': str(Path(args.path).resolve()) if not args.org else None,
                      'org': args.org, 'profiles': args.profiles, 'repo_budget': args.repo_budget,
                      'seconds': args.seconds, 'run_checks': args.run_checks}
+        requested['snapshot_limits'] = limits
         resumed_pending = None
         if not args.snapshot:
             root = state_root(args.state_root, requested['repository_path'])
@@ -520,9 +605,11 @@ def main(argv=None):
             completion = scope['completion']
         else:
             locator = Path(args.path).resolve()
-            snap = snapshot(locator, seconds=min(args.seconds, 30))
+            snap = snapshot(locator, max_files=limits['files'], seconds=limits['seconds'],
+                            max_bytes=limits['bytes'], max_file_bytes=limits['file_bytes'])
             if args.snapshot:
-                print(json.dumps(snap)); return 1 if snap['limitations'] else 0
+                print(json.dumps({k: v for k, v in snap.items() if k != 'files'} if args.snapshot_summary else snap))
+                return 1 if snap['limitations'] else 0
             if resumed_pending and resumed_pending.get('snapshot_sha256') not in (None, snap['sha256']):
                 raise ValueError('source changed since interrupted collection; resume refuses rebinding')
             pending.update(snapshot_sha256=snap['sha256'], phase='evidence analysis',
@@ -535,14 +622,15 @@ def main(argv=None):
             scope = {'kind': 'repository', 'profiles': {k: PROFILES[k] for k in args.profiles},
                      'classification': 'composed profiles' if args.profiles else 'unknown',
                      'owner': 'repository owner', 'next_action': 'Classify risk and compose profiles.' if not args.profiles else 'Inspect named critical decisions.',
-                     'limits': {'seconds': args.seconds, 'repos': 1}, 'counters': {'repos': 1},
+                     'limits': {'seconds': args.seconds, 'repos': 1, 'snapshot': limits}, 'counters': {'repos': 1},
                      'run_checks': args.run_checks, 'owned_handles': [],
                      'inspected_groups': data.get('inspected_groups', [])}
             result = analyze(data, snap, now())
+            scope['collection_errors'] = history_errors(data)
             scope['test_value_assessment'] = ('inspected sample' if result['evidence_current'] and
                                                result['sample']['inspected'] and not result['sample']['omitted'] else 'incomplete')
             repo = data.get('repository') or locator.name
-            completion = 'partial' if snap['limitations'] or time.monotonic() - started > args.seconds else 'complete'
+            completion = 'partial' if snap['limitations'] or scope['collection_errors'] or time.monotonic() - started > args.seconds else 'complete'
         root = state_root(args.state_root, locator)
         coordinator_seconds = data.get('audit_effort', {}).get('incremental_seconds', 0)
         if type(coordinator_seconds) not in (int, float) or not 0 <= coordinator_seconds <= 86400:

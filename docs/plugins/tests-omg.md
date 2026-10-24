@@ -79,6 +79,20 @@ coverage requires authoritative expected inventory or scope supplied by the owne
 Missing pages, permission errors and budget exhaustion return partial coverage.
 Inventory triage without test-value inspection is explicitly incomplete.
 
+Local source snapshots default to 4,000 files, 32 MiB total, 8 MiB per file and
+30 seconds, bounded by the audit ceiling. For larger repositories, set
+`--snapshot-files`, `--snapshot-bytes`, `--snapshot-file-bytes` and
+`--snapshot-seconds` on both snapshot collection and audit. Maximums are 100,000
+files, 512 MiB total, 64 MiB per file and 120 seconds. Partial collection preserves
+known failures and reports uninspected scope; it cannot establish a clean claim
+about missing source. Saved revalidation uses the original scope and limits.
+
+Organization source snapshots are coordinator assertions. The helper checks their
+internal consistency, without independently inspecting remote source or verifying
+Git commits. Fleet coverage describes inventory and submitted assessment
+completeness. Complete organization status can exit 0 with freshness unknown and
+`current_evidence: false`; the output explains this source-verification limit.
+
 ## Reports and deterministic local use
 
 No model is needed to ingest existing evidence and render unknowns. Resolve the
@@ -119,8 +133,11 @@ requires revalidation in a successor audit.
 
 `status` and `report` verify saved hashes and separately report freshness, expired
 references and supersession. Rendering cannot upgrade old evidence.
-Status/report exit 1 when diagnostics expired, source is stale/unavailable or the
-report was superseded. An interrupted run's original ID follows its single saved
+Status/report exit 1 for rejected source/artifact bindings, expired or unavailable
+diagnostics or compensating exceptions, stale/unavailable source, incomplete scope,
+or supersession. Expired logs leave compact failures and timing observations visible.
+Exception expiry limits current claims without changing the historical report.
+An interrupted run's original ID follows its single saved
 successor; resuming that original checkpoint again is refused.
 
 HTML escapes run-derived text, refuses executable diagnostic URLs and uses a restrictive CSP.
