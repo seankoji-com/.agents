@@ -70,8 +70,13 @@ def main(argv=None):
     try:
         result = inspect_report(audit.load(args.input))
         accepted, status = True, 'passed'
-    except (OSError, ValueError, KeyError, TypeError, RecursionError) as exc:
-        accepted, status, result = False, 'unverified', str(exc)
+    except (OSError, ValueError, KeyError, TypeError, RecursionError):
+        # Exception text can embed private absolute state and host paths. The
+        # validator's JSON is a public evidence boundary, so expose only a stable
+        # failure code and keep diagnostic details out of the receipt.
+        accepted, status, result = False, 'unverified', {
+            'code': 'audit_validation_failed',
+            'message': 'saved audit evidence is unavailable or invalid'}
     print(json.dumps({'accepted': accepted, 'requirement_outcomes': {
         key: {'status': status, 'evidence': result} for key in OUTCOMES}}, sort_keys=True))
     return 0 if accepted else 1

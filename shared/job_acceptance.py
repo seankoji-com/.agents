@@ -530,7 +530,12 @@ def _adapter(job, stage, argv, input_file):
         if job['workflow'] != 'tests-omg/audit' or set(contract) != required or data != contract:
             raise AcceptanceError('audit descriptor differs from the exact declared report')
         from shared.tests_omg_review import report_binding
-        audit_inputs = report_binding(job, stage, contract, Path(pin['package_dir']))
+        try:
+            audit_inputs = report_binding(job, stage, contract, Path(pin['package_dir']))
+        except (OSError, subprocess.SubprocessError) as exc:
+            # This adapter check runs before accept_stage's guarded validator
+            # execution. Do not leak private paths or raw OS/process errors.
+            raise AcceptanceError('audit source pre-check failed') from exc
     if dep['plugin'] == 'ape':
         from shared.ape_planning import validate_job
         validate_job(job)
@@ -753,7 +758,12 @@ def accept_stage(store, caller, stage_id, validator_argv, input_file, expected_r
     for dependency in stage.get('depends_on', []):
         if not validate_stage(store, dependency).get('accepted'):
             raise AcceptanceError('dependency_stale: stage dependency lacks current authoritative acceptance')
-    program, pin, actual = _adapter(job, stage, validator_argv, input_file)
+    try:
+        program, pin, actual = _adapter(job, stage, validator_argv, input_file)
+    except AcceptanceError:
+        raise
+    except (OSError, subprocess.SubprocessError, JobError, ValueError, KeyError, TypeError) as exc:
+        raise AcceptanceError('validator pre-check failed') from exc
     binding = {**actual, 'revision': expected_revision,
                'semantic_sha256': _semantic_binding(job, stage), 'pin_sha256': digest(canonical(pin))}
     generation = digest(canonical(job))
