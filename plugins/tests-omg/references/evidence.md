@@ -140,6 +140,31 @@ partial and prevents a fleet-wide complete-history claim.
 
 ## Records and revalidation
 
+### Pinned advisory review
+
+The installed `tests-omg/reviewer` consumes an immutable shared-job brief. The
+coordinator supplies its frozen exact model/options; the worker never selects or
+dispatches another model. Declare `role: review`, `independent_of_author: true`,
+the actual document authors, and `reviewed_documents` containing the saved absolute
+`audit.json` path and SHA-256. Read access to source paths comes only from the brief.
+
+Use validator dependency `tests-omg` and the exact installed
+`scripts/validate_audit.py --input <published-observation>` adapter. Its descriptor,
+also the stage's exact `validator_contract`, has six fields: `state_root`, `run_id`,
+`audit_sha256`, `input_sha256`, `snapshot_sha256`, and `head_sha`. The private state
+root is absolute; obtain hashes from that saved run's manifest and snapshot. The
+adapter never follows successor IDs or selects a different run. Shared acceptance
+requires an independent review of those exact bytes in this stage or an accepted
+ancestor, and checks report/source bindings again on revalidation.
+
+The validator emits `audit-report-integrity`, `audit-source-current` and
+`audit-scope-complete`. Passing means a current complete local advisory with twelve
+findings, not passing tests, known measurements, merge authority or live acceptance.
+Honest unknowns and repository gaps remain in the saved report. Missing source,
+expired diagnostics, supersession, changed bytes and omitted selected groups block.
+Organization reports have no local source binding and remain unavailable to this
+adapter. Deterministic doctor/status/report do not launch a reviewer.
+
 A private pending-ID.json checkpoint records scope, counters and cumulative effort
 before collection, and its snapshot binding once collected. Ordinary interruption
 leaves it available to status/resume; an uncatchable runner loss can leave only this

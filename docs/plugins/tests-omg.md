@@ -98,6 +98,16 @@ model-selection admission; substantial review stays in T3's lifecycle, never a
 second model client or scheduler. The coordinator chooses and reviews judgments;
 helpers calculate and enforce evidence consistency.
 
+Substantial local audits can use the installed read-only `tests-omg/reviewer` in a
+shared pinned job. The review names the exact saved `audit.json` hash and actual
+authors; the selected model and settings stay frozen. The installed
+`scripts/validate_audit.py` adapter checks the report's hashes, deterministic HTML,
+current source, complete selected sample and twelve finding identities. Shared
+job acceptance separately requires the completed independent review. It does not
+turn unknown measurements or failed/missing repository checks into passes. The
+six-field descriptor and stage contract are documented in `references/evidence.md`
+inside the package. Organization reports remain outside this local-source adapter.
+
 State defaults to `$XDG_STATE_HOME/t3-plugins/tests-omg` (or
 `~/.local/state/t3-plugins/tests-omg`), outside the target repository. Each private
 `runs/ID/` saves input.json, audit.json, report.html and a manifest with content

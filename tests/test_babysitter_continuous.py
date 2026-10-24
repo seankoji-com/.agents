@@ -438,7 +438,7 @@ class CancelResumeTest(ContinuousCase):
         self.assertIn('upgrade receipt', refused.stderr)
         # Cancellation can be resumed independently when the package is unchanged.
         state['policy_version'] = 'continuous-1'
-        state['package']['pinned_version'] = '1.3.0'
+        state['package']['pinned_version'] = json.loads((PLUGIN / 'plugin.json').read_text())['version']
         self.state.write_text(json.dumps(state))
         resumed_state = self.cli('resume', '--now', '2026-10-22T14:15:00Z', '--resume-cancelled')
         self.assertEqual(resumed_state['status'], 'resumed')
@@ -1460,6 +1460,7 @@ class InstalledPackageTest(unittest.TestCase):
             self.assertEqual(identity['policy_version'], 'continuous-1')
             self.assertEqual(identity['version'],
                              json.loads((PLUGIN / 'plugin.json').read_text())['version'])
+            self.assertEqual(identity['installed_version'], version_dir.name)
             self.assertEqual(identity['installed_version'],
                              json.loads((version_dir / 'install-manifest.json').read_text())['version'])
 
@@ -1559,6 +1560,7 @@ class InstalledPackageTest(unittest.TestCase):
 
     def test_manifest_declares_the_continuous_policy(self):
         meta = json.loads((PLUGIN / 'plugin.json').read_text())
+        self.assertRegex(meta['version'].split('+', 1)[0], r'^\d+\.\d+\.\d+$')
         # The continuous policy survives ordinary package version increments.
         self.assertGreaterEqual(tuple(map(int, meta['version'].split('+', 1)[0].split('.'))),
                                 (1, 3, 0))

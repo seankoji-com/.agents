@@ -28,7 +28,9 @@
           "plugins/tests-omg/entry.md",
           "plugins/tests-omg/scripts/audit.py"
         ],
-        "workers": [],
+        "workers": [
+          "tests-omg/reviewer"
+        ],
         "guarantees": []
       },
       {
@@ -161,6 +163,24 @@
       "stage": 6,
       "kind": "test",
       "reason": "Issue #95 advisory tests-omg workflow; no remote actions or model runtime."
+    },
+    {
+      "path": "plugins/tests-omg/agents/reviewer.md",
+      "stage": 6,
+      "kind": "instruction",
+      "reason": "Pinned independent advisory review and exact saved-report acceptance integration."
+    },
+    {
+      "path": "plugins/tests-omg/scripts/validate_audit.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Pinned independent advisory review and exact saved-report acceptance integration."
+    },
+    {
+      "path": "shared/tests_omg_review.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Pinned independent advisory review and exact saved-report acceptance integration."
     }
   ]
 }
