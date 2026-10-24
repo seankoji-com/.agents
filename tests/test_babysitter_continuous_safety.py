@@ -1051,7 +1051,9 @@ class ReservationSafetyTest(ContinuousCase):
     def test_installed_helper_rejects_unknown_and_red_gates_but_keeps_a_green_landing_lock(self):
         box = Sandbox(self.base / 'installed')
         package, manifest = box.install('babysitter')
-        self.assertTrue(manifest['version'].startswith('1.3.0'))
+        source_version = json.loads((continuous_tests.PLUGIN / 'plugin.json').read_text())['version']
+        self.assertTrue(manifest['version'].startswith(source_version + '+content.'))
+        self.assertEqual(manifest['version'], package.name)
         helper = package / 'scripts/continuous.py'
         self.start(helper=helper)
         for index, gate in enumerate((None, '', 'UNKNOWN', 'BLOCKED')):
