@@ -41,6 +41,6 @@ That line is historical, not current. The owner's content-bound acceptance on 24
 
 The adjacent `issue97-thinking-delivery.md` preserves the complete accepted handoff bytes, digest `8561798e...`. The owner acceptance binds that content, and the discovery it accepted is the `9e56240f...` block defined above. Both digests are recomputable from the retained file, so a reviewer can check the binding without trusting this prose.
 
-The fixture pull request contains only these two Markdown files and targets refreshed `master`. Its head still requires independent review and the repository's local and hosted checks. This provenance records planning acceptance; it does not claim those later gates have passed.
+The fixture pull request contains only these two Markdown files and targets `master`. Its head still requires independent review and the repository's local and hosted checks. This provenance records planning acceptance; it does not claim those later gates have passed.
 
 Related evidence: [original work](https://github.com/seankoji-com/t3-plugins/issues/97), [released package](https://github.com/seankoji-com/t3-plugins/releases/tag/v0.11.0), [verified Issue fixture](https://github.com/seankoji-com/t3-plugins/issues/128).
