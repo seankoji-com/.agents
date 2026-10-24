@@ -180,7 +180,9 @@ class BoundaryTest(unittest.TestCase):
 
     def test_scope_refresh_never_runs_a_merge_helper_over_an_active_fixer(self):
         play = steps('playbooks/maintain.md')
-        self.assertIn('for each unowned PR with no fixer in flight run', play[2])
+        self.assertIn('reserve current `merge` or `update-branch`', play[2])
+        self.assertIn('--update-only --expected-head <head>', play[2])
+        self.assertIn('refresh new-head gates before any merge reservation', play[2])
         self.assertIn('then return to the caller', play[12])
         self.assertIn('Never re-enter step 8 from discovery', play[12])
         self.assertIn("under step 2's skip rules (in-flight fixer, review-gated)", play[12])

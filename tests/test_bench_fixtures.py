@@ -45,9 +45,12 @@ HOSTILE_GIT_CONFIG = {'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'maintenance.
 CONTRACTS = json.loads((WORKFLOWS / 'contracts.json').read_text())
 
 
-def list_prs_fragment():
+def list_prs_fragment(*, pr_number=None):
     text = (ROOT / 'plugins/babysitter/scripts/list-prs.sh').read_text()
-    return re.search(r"read -r -d '' PR_FRAGMENT <<'GRAPHQL' \|\| true\n(.*?)\nGRAPHQL\n", text, re.S).group(1)
+    match = re.search(r"read -r -d '' PR_FRAGMENT <<GRAPHQL \|\| true\n(.*?)\nGRAPHQL\n", text, re.S)
+    field = f'isRequired(pullRequestNumber: {pr_number})' if pr_number is not None else ''
+    return (match.group(1).replace('${CHECK_REQUIRED_FIELD}', field)
+            .replace('${STATUS_REQUIRED_FIELD}', field))
 
 
 class Sidecar:
@@ -182,13 +185,35 @@ class SidecarGraphQLTest(unittest.TestCase):
         self.assertEqual((data['viewer']['login'], pull['author']['login'], pull['state']), ('bench-user',) * 2 + ('OPEN',))
         self.assertEqual(commit['oid'], '1e9721ca7f65fcb51d67f3329e4761da261d563a')
         self.assertEqual(commit['statusCheckRollup']['contexts']['nodes'],
-                         [{'__typename': 'CheckRun', 'name': 'unit', 'conclusion': 'FAILURE'}])
+                         [{'__typename': 'CheckRun', 'name': 'unit', 'conclusion': 'FAILURE',
+                           'status': 'COMPLETED', 'startedAt': '2026-10-12T00:00:00Z',
+                           'detailsUrl': 'https://github.bench.test/bench-org/bench-repo/'
+                                         'actions/runs/28000/job/30000'}])
         thread = pull['reviewThreads']['nodes'][0]
         self.assertEqual((thread['isResolved'], thread['comments']['nodes'][0]['body']), (False, 'seeded review concern'))
         read = [e for e in self.sidecar.events() if e['event'] == 'read'][-1]
         self.assertEqual((read['unknown_fields'], read['errors']), ([], 0))
         self.assertEqual(read['observed'], {'check_sha': ['1e9721ca7f65fcb51d67f3329e4761da261d563a'], 'comment_id': ['thread-1'],
                                             'head_sha': ['1e9721ca7f65fcb51d67f3329e4761da261d563a']})
+
+    def test_queue_clock_uses_the_supported_actions_job_api(self):
+        # GraphQL CheckRun has no createdAt; asking for it must be an unknown field,
+        # and the Actions job object is where the queue creation clock lives.
+        query = ('query($owner: String!, $name: String!, $number: Int!) { viewer { login } '
+                 'repository(owner: $owner, name: $name) { pullRequest(number: $number) { ...PRState } } } '
+                 + list_prs_fragment(pr_number=1))
+        response = self.sidecar.graphql(query, {'owner': 'bench-org', 'name': 'bench-repo', 'number': 1})
+        read = [e for e in self.sidecar.events() if e['event'] == 'read'][-1]
+        self.assertEqual((read['unknown_fields'], read['errors']), ([], 0))
+        check = response['data']['repository']['pullRequest']['commits']['nodes'][0]['commit'][
+            'statusCheckRollup']['contexts']['nodes'][0]
+        self.assertNotIn('createdAt', check)
+        self.assertTrue(check['isRequired'])
+        self.assertIn('/actions/runs/28000/job/30000', check['detailsUrl'])
+
+        status, _, job = self.sidecar.request('GET', '/repos/bench-org/bench-repo/actions/jobs/30000')
+        self.assertEqual(status, 200)
+        self.assertEqual(job['created_at'], '2026-10-12T00:00:00Z')
 
     def test_search_and_connection_pagination(self):
         query = ('query($q: String!, $limit: Int!) { search(query: $q, type: ISSUE, first: $limit) '
