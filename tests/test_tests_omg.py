@@ -559,6 +559,12 @@ class CommandTests(unittest.TestCase):
         evidence = result['requirement_outcomes']['audit-report-integrity']['evidence']
         self.assertEqual(evidence['validation_verdict'], 'incomplete')
         self.assertFalse((self.repo / 'must-not-run').exists())
+        missing_state = {**descriptor, 'state_root': str(self.base / 'private-host-state')}
+        failed = validate(missing_state, 1)
+        self.assertNotIn(str(self.base), json.dumps(failed))
+        self.assertEqual(failed['requirement_outcomes']['audit-report-integrity']['evidence'], {
+            'code': 'audit_validation_failed',
+            'message': 'saved audit evidence is unavailable or invalid'})
         for key in ('run_id', 'audit_sha256', 'input_sha256', 'head_sha', 'snapshot_sha256'):
             self.assertFalse(validate({**descriptor, key: 'wrong'}, 1)['accepted'])
         job = {'schema_version': 1, 'job_id': 'audit-review', 'installation_id': receipt['installation_id'],
@@ -614,6 +620,13 @@ class CommandTests(unittest.TestCase):
                                               'completion_id': 'fixture-completion'})
         accepted = accept_stage(store, caller, 'review', argv, stage['observation_ref']['path'])
         self.assertTrue(accepted['accepted'], accepted)
+        from shared import job_acceptance
+        with mock.patch.object(job_acceptance, '_bounded_run',
+                               side_effect=AcceptanceError('timeout at /private/host/path')):
+            with self.assertRaisesRegex(AcceptanceError, '^audit source binding unavailable$') as caught:
+                accept_stage(store, caller, 'review', argv, stage['observation_ref']['path'])
+            self.assertNotIn('/private/host/path', str(caught.exception))
+        self.assertEqual(store.load()['stages'][0]['acceptance_runs'], 1)
         self.assertTrue(validate_stage(store, 'review')['accepted'])
         # Source and report mutations invalidate the current advisory, not just its filename.
         (self.repo / 'test_contract.py').write_text('changed fixture\n')

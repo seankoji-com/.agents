@@ -1,6 +1,5 @@
 """Bind a tests-omg job to the exact report and an independent reviewer subject."""
 from pathlib import Path
-import subprocess
 import sys
 
 from core.jobs.store import JobError, _regular, canonical, digest, strict_load
@@ -43,9 +42,16 @@ def report_binding(job, stage, descriptor, package):
         raise JobError('audit source locator missing')
     # Use the pinned audit's bounded, fsmonitor-disabled Git inventory, never the
     # target's commands/configuration or the core's different snapshot policy.
-    proc = subprocess.run([sys.executable, str(package / 'scripts/audit.py'),
-                           'audit', source, '--snapshot'], capture_output=True, timeout=45)
-    if proc.returncode or len(proc.stdout) > 16 * 1024 * 1024:
+    # Reuse acceptance's bounded runner: both streams are capped, timeout cleanup
+    # kills the owned process group, and failures are normalized before accept.
+    from shared.job_acceptance import AcceptanceError, _bounded_run
+    try:
+        proc = _bounded_run([sys.executable, str(package / 'scripts/audit.py'),
+                             'audit', source, '--snapshot'], package,
+                            {'timeout_seconds': 30, 'max_output_bytes': 1024 * 1024})
+    except (AcceptanceError, OSError) as exc:
+        raise AcceptanceError('audit source binding unavailable') from exc
+    if proc.returncode:
         raise JobError('audit source binding unavailable')
     current = strict_load(proc.stdout)
     if (current.get('limitations') or current.get('sha256') != descriptor['snapshot_sha256'] or
