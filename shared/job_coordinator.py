@@ -366,7 +366,7 @@ TERMINAL = ('completed', 'failed', 'cancelled', 'interrupted')
 def actual_author_lineages(job):
     """Every dispatched author stays an author, including failed/replaced work."""
     from core.jobs.store import tasks
-    from shared.model_selection import suitability, SelectionError, _subject_author_role
+    from shared.model_selection import _eligible, SelectionError, _subject_author_role
     selected = job.get('model_selection', {})
     result = {selected.get('coordinator', {}).get('lineage', 'unknown')}
     for task in tasks(job):
@@ -381,8 +381,11 @@ def actual_author_lineages(job):
             if identity.get('status') != 'verified':
                 result.add('unknown'); continue
             try:
-                result.add(suitability(handle.get('target') or task['target'], task['selection_binding']['role'],
-                                       producing['profiles'], producing['capabilities']))
+                # Reuse the producing admission policy, including a legitimate
+                # configured-workhorse endorsement. Never borrow current choices.
+                _, family = _eligible(handle.get('target') or task['target'],
+                                      task['selection_binding']['role'], producing)
+                result.add(family)
             except (SelectionError, KeyError):
                 result.add('unknown')
     for stage in job.get('stages', []) + [s for h in job.get('history', []) for s in h.get('stages', [])]:
