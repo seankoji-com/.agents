@@ -1461,6 +1461,8 @@ class InstalledPackageTest(unittest.TestCase):
             self.assertEqual(identity['version'],
                              json.loads((PLUGIN / 'plugin.json').read_text())['version'])
             self.assertEqual(identity['installed_version'], version_dir.name)
+            self.assertEqual(identity['installed_version'],
+                             json.loads((version_dir / 'install-manifest.json').read_text())['version'])
 
             state = self.start_state(helper, base)
             observation_path = base / 'obs.json'
@@ -1558,8 +1560,10 @@ class InstalledPackageTest(unittest.TestCase):
 
     def test_manifest_declares_the_continuous_policy(self):
         meta = json.loads((PLUGIN / 'plugin.json').read_text())
-        self.assertRegex(meta['version'], r'^\d+\.\d+\.\d+$')
-        self.assertGreaterEqual(tuple(map(int, meta['version'].split('.'))), (1, 3, 0))
+        self.assertRegex(meta['version'].split('+', 1)[0], r'^\d+\.\d+\.\d+$')
+        # The continuous policy survives ordinary package version increments.
+        self.assertGreaterEqual(tuple(map(int, meta['version'].split('+', 1)[0].split('.'))),
+                                (1, 3, 0))
         continuous = meta['continuous']
         self.assertEqual(continuous['policy_version'], 'continuous-1')
         self.assertEqual(continuous['default_cadence_seconds'], 600)

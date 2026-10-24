@@ -1054,6 +1054,10 @@ class ReservationSafetyTest(ContinuousCase):
         source_version = json.loads((continuous_tests.PLUGIN / 'plugin.json').read_text())['version']
         self.assertEqual(manifest['version'].partition('+')[0], source_version)
         self.assertEqual(manifest['version'], package.name)
+        self.assertEqual(manifest['version'],
+                         json.loads((package / 'install-manifest.json').read_text())['version'])
+        self.assertEqual(json.loads((package / 'plugin.json').read_text())['version'],
+                         json.loads((continuous_tests.PLUGIN / 'plugin.json').read_text())['version'])
         helper = package / 'scripts/continuous.py'
         self.start(helper=helper)
         for index, gate in enumerate((None, '', 'UNKNOWN', 'BLOCKED')):

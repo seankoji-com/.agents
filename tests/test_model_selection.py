@@ -304,6 +304,95 @@ class SelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(models.SelectionError, 'model suitability missing'):
             models.freeze(data)
 
+    def authored_job(self, record):
+        return {'model_selection': record, 'tasks': [{
+            'role': 'worker', 'target': deepcopy(record['work']['workhorse']),
+            'selection_binding': {'role': 'workhorse', 'selection_sha256': record['selection_sha256']},
+            'handles': [{'target': deepcopy(record['work']['workhorse']),
+                         'observed_identity': {'status': 'verified'}}],
+        }]}
+
+    def test_owner_endorsed_dispatched_authors_keep_known_lineage(self):
+        from shared.job_coordinator import actual_author_lineages
+        for missing in ('quality', 'row', 'floor'):
+            with self.subTest(missing=missing):
+                data = canonical_selection_input()
+                work = data['work']['workhorse']
+                data['routing'] = {'roles': {'workhorse': [{**work, 'lineage': 'openai'}],
+                                            'reviewer': [data['review_panel'][0]['target']]}}
+                del data['profiles']['models'][0]['quality']
+                if missing in ('row', 'floor'):
+                    del data['profiles']['models'][0]
+                if missing == 'floor':
+                    del data['profiles']['roles']['workhorse']
+                record = models.freeze(data)
+                models.dispatch(record, role='workhorse')
+                job = self.authored_job(record)
+                before = deepcopy(job)
+                authors = actual_author_lineages(job)
+                self.assertEqual(authors, {'openai'})
+                review = models.dispatch(record, role='reviewer', slot_id='review', author_lineages=authors)
+                self.assertEqual(review['target'], data['review_panel'][0]['target'])
+                self.assertEqual(job, before, 'lineage derivation must not fill or rewrite frozen evidence')
+
+    def test_author_endorsement_keeps_identity_policy_and_option_failures_unknown(self):
+        from shared.job_coordinator import actual_author_lineages
+        data = canonical_selection_input()
+        work = data['work']['workhorse']
+        data['routing'] = {'roles': {'workhorse': [{**work, 'lineage': 'openai'}],
+                                    'reviewer': [data['review_panel'][0]['target']]}}
+        del data['profiles']['models'][0]
+        record = models.freeze(data)
+        for boundary in ('unreported', 'mismatched', 'floor', 'policy', 'options', 'answer', 'unendorsed', 'custom'):
+            with self.subTest(boundary=boundary):
+                job = self.authored_job(deepcopy(record))
+                producing = job['model_selection']
+                if boundary in ('unreported', 'mismatched'):
+                    job['tasks'][0]['handles'][0]['observed_identity']['status'] = boundary
+                elif boundary == 'floor':
+                    producing['profiles']['roles']['workhorse']['minimum'] = 2
+                elif boundary == 'policy':
+                    producing['profiles']['roles']['workhorse']['source'] = 'fixture-policy.md#strict'
+                elif boundary == 'options':
+                    producing['profiles']['roles']['workhorse']['required_options'] = {'reasoningEffort': 'low'}
+                elif boundary == 'answer':
+                    producing['source']['sha256'] = '0' * 64
+                elif boundary == 'unendorsed':
+                    producing['routing'] = None
+                else:
+                    producing['capabilities']['providers'][0]['driverKind'] = 'fixture'
+                    producing['routing']['roles']['workhorse'][0]['lineage'] = work['model']
+                before = deepcopy(job)
+                self.assertIn('unknown', actual_author_lineages(job))
+                self.assertEqual(job, before)
+        job = self.authored_job(record)
+        job['tasks'][0]['followups'] = [{'target': deepcopy(work), 'observed_identity': {'status': 'unreported'}}]
+        self.assertIn('unknown', actual_author_lineages(job), 'an unknown followup author remains sticky')
+
+    def test_historical_author_uses_its_producing_selection_and_blocks_same_lineage_review(self):
+        from shared.job_coordinator import actual_author_lineages
+        data = canonical_selection_input()
+        work = data['work']['workhorse']
+        data['routing'] = {'roles': {'workhorse': [{**work, 'lineage': 'openai'}],
+                                    'reviewer': [data['review_panel'][0]['target']]}}
+        del data['profiles']['models'][0]
+        current = models.freeze(data)
+        old_data = canonical_selection_input()
+        old_data['capabilities']['providers'][0]['driverKind'] = 'claudeAgent'
+        old_data['capabilities']['providers'][1]['driverKind'] = 'codex'
+        old_data['coordinator']['lineage'] = 'anthropic'
+        old_data['profiles']['models'][0]['lineage'] = 'anthropic'
+        old_data['profiles']['models'][1]['lineage'] = 'openai'
+        old = models.freeze(old_data)
+        old_author = self.authored_job(old)['tasks'][0]
+        old_author['status'] = 'failed'
+        job = self.authored_job(current)
+        job['model_selection_history'] = {old['selection_sha256']: old}
+        job['history'] = [{'tasks': [old_author]}]
+        self.assertEqual(actual_author_lineages(job), {'openai', 'anthropic'})
+        with self.assertRaisesRegex(models.SelectionError, 'stronger independent slot'):
+            models.dispatch(current, role='reviewer', slot_id='review', author_lineages=actual_author_lineages(job))
+
     def test_endorsement_does_not_grant_unknown_lineage_or_review_independence(self):
         data = deepcopy(self.data)
         work = data['work']['workhorse']
