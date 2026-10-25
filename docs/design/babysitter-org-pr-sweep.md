@@ -47,3 +47,9 @@ fingerprint. The follow-up preserves same-head omitted detail while accepting an
 explicit clearing list and dropping it on head change. The detailed-to-lightweight
 exhausted-history regression failed before this correction; fresh verification and
 review are required.
+
+Round 3 at `383ddfc` verified reviewer-detail retention but retained major
+`F-REPAIR-BUDGET` for incomplete check tails dropping known failures. The follow-up
+holds every incomplete PR before writes and publishes a discovery gap instead of
+replacing its saved observation. Check-tail and thread-tail fixtures preserve the
+observation, terminal attempts and exhausted decision after a complete read returns.

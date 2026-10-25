@@ -207,7 +207,13 @@ class Jobs:
 
 
 def observation(report, owners):
-    return {'complete': report['complete'], 'gaps': report['gaps'],
+    incomplete = [r for r in report['prs'] if r['unknowns']]
+    # Do not replace an admitted PR's failure identity with a narrower read.
+    # The continuous ledger retains its observation and marks the omitted PR as
+    # a discovery gap, blocking every new writer until a complete read returns.
+    return {'complete': report['complete'] and not incomplete,
+        'gaps': report['gaps'] + [{'kind': 'incomplete-pr',
+            'detail': r['url'] + ': ' + ', '.join(r['unknowns'])} for r in incomplete],
         'preserve_human_blockers': True, 'preserve_reconciliation_detail': True, 'prs': [
         {'repo': r['repo'], 'number': r['number'], 'url': r['url'], 'title': r['title'],
          'state': 'OPEN', 'draft': False, 'fork': r['fork'], 'head_sha': r['head_sha'],
@@ -218,7 +224,7 @@ def observation(report, owners):
          'checks_state': {'failed': 'FAILURE', 'pending': 'PENDING', 'passed': 'SUCCESS'}.get(r['checks']),
          'failing': [c['name'] for c in r['failing_checks']],
          'pending_checks': [{'name': c['name'], 'status': c['state'], 'conclusion': None} for c in r['pending_checks']],
-         'owner': owners.get(r['url'])} for r in report['prs']]}
+         'owner': owners.get(r['url'])} for r in report['prs'] if not r['unknowns']]}
 
 
 def ownership(host, thread_id, rows):
@@ -313,6 +319,7 @@ def execute(report, api, host, jobs, config):
             outcome['status'] = 'excluded-by-saved-scope'
             continue
         try:
+            require(not row['unknowns'], 'incomplete-pr-observation: ' + ', '.join(row['unknowns']))
             current = continuous.read_state(config['continuous_state'])['prs'].get(row['url'], {})
             if row['auto_merge']:
                 for write in current.get('dispatches', []):

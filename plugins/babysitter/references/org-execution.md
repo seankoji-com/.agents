@@ -136,6 +136,10 @@ Same-head reviewer detail omitted by the org reader also survives the sweep, so
 switching from a detailed observation cannot reset the repair fingerprint. An
 explicit reviewer list, including an empty list, replaces that detail; a new head
 does not inherit it.
+Any PR with unknown or incomplete evidence is held before arming or launch. Its
+partial row stays in scan JSON but cannot replace the continuous ledger's last
+observation: an explicit discovery gap preserves its failure identity and blocks
+writers until a complete read returns. Other fully observed PRs can still proceed.
 
 The executor launches prepared work, not acceptance or semantic finding disposition.
 The existing coordinator ingests terminal results, replies/resolves verified threads,

@@ -118,6 +118,7 @@ class ExecutionTest(unittest.TestCase):
 
     def report(self, **changes):
         node = pr(contexts=[check('FAILURE')], autoMergeRequest=None, **changes)
+        node['commits']['nodes'][0]['commit']['oid'] = node['headRefOid']
         return runner.org_scan.scan(FixtureAPI([{'id': 'r', 'nameWithOwner': 'fixture/repo'}], {'r': [node]}), 'fixture')
 
     def execute(self, report=None):
@@ -175,6 +176,69 @@ class ExecutionTest(unittest.TestCase):
         self.observe(self.report(headRefOid='b' * 40))
         saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
         self.assertEqual(saved['observation']['changes_requested_by'], [])
+
+    def assert_incomplete_history_held(self, kind):
+        contexts = [check('FAILURE', 'ci')]
+        threads = []
+        if kind == 'checks':
+            contexts += [check('SUCCESS', 'pass-' + str(i)) for i in range(99)]
+            contexts += [check('FAILURE', 'lint')]
+        else:
+            threads = [{'id': str(i), 'isResolved': True, 'isOutdated': False} for i in range(100)]
+            threads += [{'id': 'unread', 'isResolved': False, 'isOutdated': False}]
+        node = pr(contexts=contexts, threads=threads, autoMergeRequest=None)
+        source = FixtureAPI([{'id': 'r', 'nameWithOwner': 'fixture/repo'}], {'r': [node]},
+            {(node['id'], 'checks'): contexts, (node['id'], 'threads'): threads})
+        full = runner.org_scan.scan(source, 'fixture')
+        self.assert_exhausted_repairs_held(full)
+        before = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+        query = source.query
+        def failed_tail(text, variables=None, estimate=1):
+            if variables and variables.get('cursor') == '100':
+                raise runner.org_scan.ScanError('request-budget')
+            return query(text, variables, estimate)
+        with patch.object(source, 'query', side_effect=failed_tail):
+            partial = runner.org_scan.scan(source, 'fixture')
+        self.assertEqual(partial['prs'][0]['unknowns'], [kind + ':request-budget'])
+        for wake in ('partial-1', 'partial-2'):
+            self.config['wake_id'] = wake
+            result = self.execute(partial)
+            self.assertEqual(result['outcomes'][0]['status'], 'held', result)
+            self.assertIn('incomplete-pr-observation', result['outcomes'][0]['reason'])
+            saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+            self.assertEqual(saved['observation'], before['observation'])
+            self.assertEqual(saved['dispatches'], before['dispatches'])
+            self.assertTrue(saved['discovery_gap'])
+        self.config['wake_id'] = 'complete-again'
+        result = self.execute(full)
+        self.assertIn('exhausted', result['outcomes'][0]['reason'])
+        self.assertEqual(self.api.calls, [])
+        self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+
+    def test_incomplete_check_tail_cannot_reset_exhausted_history(self):
+        self.assert_incomplete_history_held('checks')
+
+    def test_incomplete_thread_tail_cannot_reset_exhausted_history(self):
+        self.assert_incomplete_history_held('threads')
+
+    def test_new_pr_with_incomplete_evidence_is_held_without_admission(self):
+        report = self.report(mergeable='UNKNOWN')
+        result = self.execute(report)
+        self.assertEqual(result['outcomes'][0]['status'], 'held', result)
+        self.assertEqual(runner.continuous.read_state(self.config['continuous_state'])['prs'], {})
+        self.assertEqual(self.api.calls, [])
+        self.assertFalse(any(t in {'delegate_task', 'link_pull_request'} for t, _ in self.host.calls))
+
+    def test_incomplete_pr_does_not_starve_another_complete_pr(self):
+        nodes = [pr(mergeable='UNKNOWN', contexts=[check('FAILURE')], autoMergeRequest=None),
+                 pr(number=2, contexts=[check('FAILURE')], autoMergeRequest=None)]
+        report = runner.org_scan.scan(FixtureAPI([{'id': 'r', 'nameWithOwner': 'fixture/repo'}], {'r': nodes}), 'fixture')
+        result = self.execute(report)
+        self.assertEqual([o['status'] for o in result['outcomes']], ['held', 'dispatched'], result)
+        saved = runner.continuous.read_state(self.config['continuous_state'])
+        self.assertEqual(list(saved['prs']), [nodes[1]['url']])
+        self.assertFalse(saved['discovery']['complete'])
+        self.assertEqual(sum(t == 'delegate_task' for t, _ in self.host.calls), 1)
 
     def test_job_requests_count_toward_continuous_repair_budget(self):
         prepare = self.jobs.prepare
