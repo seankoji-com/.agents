@@ -329,7 +329,9 @@ class LateCommandTests(unittest.TestCase):
 
     def test_followup_size_stat_race_is_already_a_partial_inventory(self):
         target = self.repo / 'test_contract.py'
+        resolved_target = target.resolve()
         original_stat = Path.stat
+        original_resolve = Path.resolve
         original_symlink, original_exists, original_file = Path.is_symlink, Path.exists, Path.is_file
         for error in (FileNotFoundError, PermissionError, ValueError):
             with self.subTest(error=error):
@@ -342,10 +344,12 @@ class LateCommandTests(unittest.TestCase):
                     return original_stat(path, *args, **kwargs)
 
                 # Select the regular file deterministically, independent of
-                # which Python versions implement predicates via Path.stat.
+                # which Python versions implement predicates or non-strict
+                # resolution via Path.stat. Inject only at the size check.
                 with mock.patch.object(Path, 'is_symlink', lambda p: False if p == target else original_symlink(p)), \
                      mock.patch.object(Path, 'exists', lambda p: True if p == target else original_exists(p)), \
                      mock.patch.object(Path, 'is_file', lambda p: True if p == target else original_file(p)), \
+                     mock.patch.object(Path, 'resolve', lambda p, *a, **kw: resolved_target if p == target else original_resolve(p, *a, **kw)), \
                      mock.patch.object(Path, 'stat', stat_race):
                     snap = helper.snapshot(self.repo)
                 self.assertEqual(calls, [target])
