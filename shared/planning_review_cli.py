@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import sys
 
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core.jobs.store import _regular, strict_load
 from shared.job_coordinator import pinned_store
@@ -14,7 +15,7 @@ from core.errors import CoreError
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('capture', 'create', 'begin', 'next', 'launch', 'host-event',
+    parser.add_argument('command', choices=('capture', 'check-draft', 'create', 'begin', 'next', 'launch', 'host-event',
         'unavailable', 'result', 'direct', 'disposition', 'owner-decision', 'revoke-sharing', 'finish', 'validate', 'release'))
     parser.add_argument('--input', required=True)
     parser.add_argument('--state-root')
@@ -26,6 +27,10 @@ def main(argv=None):
         data = strict_load(_regular(Path(args.input)))
         if args.command == 'capture':
             out = planning.capture(data)
+        elif args.command == 'check-draft':
+            out = planning.check_draft(data['brief_file'], data['brief_sha256'], data['result_file'])
+            print(json.dumps(out, sort_keys=True, ensure_ascii=False))
+            return 0 if out['valid'] else 2
         elif args.command == 'validate':
             out = planning.validate_receipt(data['reference'], expected_snapshot=data.get('expected_snapshot'))
             if data.get('report_head'):

@@ -77,6 +77,51 @@ class ImpsReviewTests(unittest.TestCase):
             self.assertEqual(f.ape('admit',{'operation':op}),{'allowed':True,'chooser':False,'dispatch':False})
         f.gate('status');self.assertFalse(f.metadata.exists())
 
+    def test_whole_job_initial_plan_reconstructs_its_reviewed_contract(self):
+        from shared.imps_planning import job_contract
+        for installed in (False, True):
+            with self.subTest(installed=installed):
+                f=self.fixture(op='run',write=True,installed=installed)
+                f.descriptor['job_contract']=job_contract({
+                    'workflow':'imps/run','requirements':f.requirements,
+                    'authorization':{'actions':['edit']},'constraints':['Local only.'],
+                    'repo':{'worktree':str(f.project),'base_sha':'fixture-base'},
+                    'stages':[{'id':'execution','depends_on':[],
+                        'requirements':['REQ-ONE'],'execution_mode':'direct'}],
+                    'tasks':[],
+                })
+                f.approve()
+                metadata_before=f.metadata.read_bytes()
+                receipt_before=Path(f.receipt['path']).read_bytes()
+                f.init()
+                self.assertEqual(f.metadata.read_bytes(),metadata_before)
+                self.assertEqual(Path(f.receipt['path']).read_bytes(),receipt_before)
+                self.assertIn('job_contract',f.snapshot['imps_descriptor'])
+
+                changed_plan=deepcopy(f.plan)
+                changed_plan['brief']['text']='Different implementation'
+                rejected=f.gate('init',{**changed_plan,'imps':f.context},ok=False)
+                self.assertIn('initial plan body differs',rejected['error']['message'])
+
+                changed_context=deepcopy(f.context)
+                changed_context['stages'][0]['actions']=['read']
+                rejected=f.init(ok=False,context=changed_context)
+                self.assertIn('initial plan body differs',rejected['error']['message'])
+
+                changed_contract=deepcopy(f.descriptor)
+                changed_contract.pop('document')
+                changed_contract['job_contract']['constraints'].append('Changed contract')
+                rejected=f.ape('validate',{'descriptor':changed_contract},ok=False)
+                self.assertIn('initial plan body differs',rejected)
+
+                for path in (f.metadata,Path(f.receipt['path'])):
+                    before=path.read_bytes()
+                    path.write_bytes(before+b'\n')
+                    try:
+                        f.init(ok=False)
+                    finally:
+                        path.write_bytes(before)
+
     def test_unanswered_choices_and_missing_context_prevent_initialization(self):
         f=self.fixture(op='run',write=True)
         for key in ('selection','selection_sha256'):

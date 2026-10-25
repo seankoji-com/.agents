@@ -8,7 +8,55 @@ ownership of independent review of an implementation.
 Run `python3 PKG/shared/planning_review_cli.py COMMAND --input FILE`, or
 `t3-plugins planning-review COMMAND --input FILE`. Job operations also need
 `--state-root ROOT --job ID`; `create` needs `--prefix PREFIX --agents-root ROOT`.
-Each command returns one JSON value and exits 0, or exits 2 with a refusal.
+Successful commands return one JSON value and exit 0. Refusals exit 2 on stderr;
+`check-draft` also uses exit 2 with a JSON diagnostic on stdout for invalid drafts.
+
+## Draft diagnostics before completion
+
+An active planning reviewer can check a saved draft before returning it, when its
+brief permits these procedural reads. The checker reads the exact brief, its
+declared inputs and assigned task artifacts. It never opens live job/subject
+stores, charges a round, records a result or launches work:
+
+```sh
+python3 PKG/shared/planning_review_cli.py check-draft --input draft-input.json
+```
+
+`begin` puts the pinned helper descriptor and one-correction bound in
+`resources.draft_check`; preparation binds them into the immutable brief.
+The descriptor grants no new reads. Before capture, the coordinator must declare
+the helper and any needed procedural reads in the permitted pre-review scope.
+Keep the input frame as well as the draft in the assigned artifact directory.
+The one-correction bound is procedural; this stateless checker cannot count
+invocations. The reviewer verifies the helper's descriptor hash before running it.
+At capture, include separately opened helper/source files in `evidence_paths`.
+The assigned brief and own task-subtree input frames, drafts and diagnostics are
+contract/outputs, not additional `inspected_paths`; their hash and artifact
+bindings still apply. Do not use this distinction to hide separately read content.
+
+`draft-input.json` contains `brief_file` (the absolute file under `briefs/`),
+`brief_sha256` (the dispatch descriptor's byte hash) and `result_file` (a saved
+draft under that task's `artifacts/tasks/<task-id>/` subtree). No caller, state
+root or job argument is needed. The output has kind `planning-draft-diagnostic`,
+`valid`, `errors`, completed `checks` and `deferred_checks`. Exit 0 means the
+available draft checks passed, including a valid adverse assessment. Invalid
+drafts exit 2. `acceptance` is always false.
+
+The checker reuses strict transport, correlation, finding, coverage, actual-read,
+artifact and available response-transition checks on copied data. Artifact reads
+are capped at 16 MiB; ingestion still enforces its pinned limit. A legacy carry
+whose proof lives only in retained rounds is explicitly deferred. Current pins,
+job/subject freshness, host identity/options, fresh execution, authoritative
+finding history and remaining budgets are not certified by this diagnostic.
+Changing declared evidence makes a draft invalid; an unexpected read must remain
+disclosed, never removed to satisfy validation.
+
+Allow at most one draft correction cycle before terminal completion. Retain saved
+drafts and diagnostics under the existing evidence scope; do not suppress findings.
+If correction needs new evidence or authority, return the truthful assessment and
+gap. Returned results remain immutable and counted. No post-terminal reviewer
+follow-up, refund, automatic replacement or acceptance follows from draft checking.
+Document-only/cold-read slots cannot use this planning checker.
 
 ## Admission and snapshot
 
@@ -196,7 +244,17 @@ content rounds, findings, dispositions, owner decisions and receipts persist.
 Adopter metadata stores `subject_file` plus the validated receipt descriptor.
 
 New subjects start with five substantive rounds. Existing subjects keep their
-recorded limit and counters. Mark the planned last assessment and the last
+recorded limit and counters. Batch supported repairs before verification, following
+the shared reviewer's convergence rule. Limits are ceilings, not target pass counts;
+changed relevant inputs still require their applicable review. Before dispatch,
+check the subject has testable acceptance, a feasible dependency order and a bounded evidence set. Supply
+the current immutable brief's correlation fields, all coverage IDs and exact retained
+finding keys; historical examples are not current result templates. Bind needed
+job/ledger evidence through stable projections or explicit immutable copies.
+Do not hash live records that review ingestion itself rewrites, or the receipt
+being produced, as source inputs. Use compact status and narrow field extraction;
+keep full history on disk, all required findings and coverage in the brief.
+Mark the planned last assessment and the last
 available round as final under `shared/agents/reviewer-standard.md`: only blocking
 issues require repair; safe deferrals become repository issues. A finite technical allowance is
 frozen for the candidate chain and retained across replacement jobs. Existing
@@ -215,6 +273,14 @@ severity, scenario, source evidence and `smallest_correction`. `disposition` can
 record an evidenced rejection, open item or minor deferral with impact/owner/next
 action. Rejected/deferred major/blocker findings remain adverse. A counted fresh
 child of the original lineage can accept a rebuttal; main-context review cannot.
+An already agreed rebuttal can be acknowledged by another fresh child of that
+lineage on unchanged authored content. The original clearing execution and lineage
+remain intact; the new evidence appends to history. Legacy clearing content is
+recovered only from its retained complete pass. Missing proof, changed content,
+unknown/wrong lineage or an open account cannot use this carry path.
+Agreement provenance is retained for every severity, including minor/note accounts.
+For legacy accounts without a clearing record, recover it only from the current
+uninterrupted agreement history and its complete retained pass.
 A changed source plan can be reviewed as an actual repair through the normal
 fallback chain. A scoped `finding-decision` or explicitly labelled
 `finding-waiver` needs genuine owner source evidence; requirements remain intact.

@@ -69,6 +69,7 @@ class PlanningReviewTests(unittest.TestCase):
             {'start': 0, 'end': len(path.read_text()), 'requirement': requirement}]}
 
     def cli(self, command, data=None, ok=True, installed=False, job_id=None):
+        installed = installed or getattr(self, 'installed_only', False)
         self.sequence += 1
         data = dict(data or {})
         if command not in ('capture', 'create', 'validate'):
@@ -117,9 +118,7 @@ class PlanningReviewTests(unittest.TestCase):
         return {'coverage': [{'id': r, 'outcome': 'supported', 'evidence': 'fixture:read-and-counterexample'} for r in ('R1', 'R2', 'D1')],
                 'inspected_paths': [str(self.source)], 'responses': list(responses)}
 
-    def result(self, attempt, *, findings=(), verdict='approve', edit=None, identity=True, observe=True):
-        if observe:
-            self.event(attempt, identity=identity)
+    def draft_result(self, attempt, *, findings=(), verdict='approve', edit=None):
         brief = json.loads(Path(attempt['path']).read_text())
         result = {k: brief[k] for k in ('schema_version', 'job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256', 'revision')}
         result.update(status='ready-for-acceptance', conclusion='Fixture evidence supports the declared plan.',
@@ -128,6 +127,12 @@ class PlanningReviewTests(unittest.TestCase):
             binding=brief.get('snapshot'), extra_work_requests=[], metrics={}, planning_review=self.assessment())
         if edit:
             edit(result)
+        return result
+
+    def result(self, attempt, *, findings=(), verdict='approve', edit=None, identity=True, observe=True):
+        if observe:
+            self.event(attempt, identity=identity)
+        result = self.draft_result(attempt, findings=findings, verdict=verdict, edit=edit)
         path = self.write('result-' + str(self.sequence) + '.json', json.dumps(result))
         return self.cli('result', {'task_id': attempt['task_id'], 'result_file': str(path), 'completion_id': 'done-' + attempt['request_id']})
 
@@ -799,6 +804,46 @@ class PlanningReviewTests(unittest.TestCase):
         self.cli('begin', {'requested_rereview':True});self.unavailable(self.attempt())
         out = self.direct()
         self.assertEqual(out['outcome'],'adverse');self.finish(accepted=False)
+
+    def test_repeated_agreement_keeps_original_clearing_on_unchanged_content(self):
+        relocated = self.box.private / ('relocated-carry-' + self.job_id)
+        shutil.copytree(self.package, relocated)
+        self.package, self.installed_only = relocated, True
+        for index, severity in enumerate(('major', 'minor', 'note')):
+            with self.subTest(severity=severity):
+                if index:
+                    self.setUp()
+                self.create()
+                self.result(self.attempt(), findings=[self.finding(severity)], verdict='adverse')
+                self.finish(accepted=False)
+                evidence = self.write('rebuttal.txt', 'The caller already owns interrupted-read recovery.')
+                self.cli('disposition', {'finding_key': 'anthropic:F1', 'status': 'rejected',
+                    'evidence': {'reason': 'Caller owns restart', 'source': str(evidence)}})
+                response = {'finding_key': 'anthropic:F1', 'status': 'rebuttal-agreed', 'evidence': 'fixture:caller-recovery'}
+                self.cli('begin', {'requested_rereview': True})
+                self.result(self.attempt(), edit=lambda r: r['planning_review'].update(responses=[response]))
+                original = self.cli('validate', {'reference': self.finish()})
+                clearing = deepcopy(original['findings']['anthropic:F1']['clearing'])
+                self.cli('begin', {'requested_rereview': True})
+                out = self.result(self.attempt(), edit=lambda r: r['planning_review'].update(responses=[response]))
+                self.assertEqual(out['outcome'], 'approved', out.get('error'))
+                current = self.cli('validate', {'reference': self.finish()})
+                row = current['findings']['anthropic:F1']
+                self.assertEqual(row['clearing'], clearing)
+                self.assertEqual(row['finding']['severity'], severity)
+                self.assertGreater(len(row['history']), len(original['findings']['anthropic:F1']['history']))
+                self.assertEqual(current['rounds_used'], 3)
+                self.plan.write_text(self.plan.read_text() + 'Changed authored recovery assumptions.\n')
+                self.snapshot = self.cli('capture', self.snapshot_data)
+                self.cli('begin', {'snapshot': self.snapshot})
+                out = self.result(self.attempt(), edit=lambda r: r['planning_review'].update(responses=[response]))
+                self.assertEqual(out['outcome'], 'incomplete')
+                self.assertIn('unchanged content', out['error'])
+                self.finish(accepted=False)
+                state = json.loads(Path(self.created['subject_file']).read_text())
+                self.assertEqual(state['findings']['anthropic:F1']['clearing'], clearing)
+                self.assertEqual(state['findings']['anthropic:F1']['finding']['severity'], severity)
+                self.assertEqual(state['rounds_used'], 4)
 
     def test_repaired_content_and_minor_deferral_are_reviewed(self):
         self.create();self.result(self.attempt(), findings=[self.finding(), self.finding('minor','F2')], verdict='adverse');self.finish(accepted=False)

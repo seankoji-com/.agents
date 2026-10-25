@@ -272,7 +272,12 @@ Reporting uses unchanged evidence instead of regenerating a handoff round:
 
 `continuous.py version` reports the running package version, policy version and the
 installer manifest's package digest, after verifying its listed files. Source checkouts
-use a source content fingerprint. `start` records the identity automatically
+use `source-contracts-1`: the plugin plus the complete `shared/` and `core/` trees
+resolved by the helper's job imports. Retain all three trees for source migration;
+copying the plugin alone is unsupported. Source symlinks are refused. Older source
+fingerprints remain an explicit owner-authorized migration input, never an automatic
+continuation. Installed legacy fingerprints retain their supported upgrade path.
+`start` records the identity automatically
 and defaults the pin to the installed version, so `resume` detects a swapped running
 package without relying on `--package-version`. A state without the fingerprint is a
 migration gap, not a silent resume. Inspect the run with the new package:
@@ -280,6 +285,48 @@ migration gap, not a silent resume. Inspect the run with the new package:
 ```sh
 python3 <new-package>/scripts/continuous.py resume --state <state.json> --now <RFC3339>
 ```
+
+Scheduled, event and manual wakes verify this identity before discovery and observation;
+schedule planning/recording, scheduler enable/reauthorization (`--available yes
+--authorized yes`) and new writer reservations verify it before authorizing work.
+Drift, missing identity or invalid installed files/manifest refuse those operations
+without changing the run. These checks never accept migration automatically.
+Installed manifests and listed bytes are verified by a standard-library bootstrap
+before any packaged job contract executes. Only `plugins/babysitter` beside the
+repository's `shared/` and `core/` roots can use source fingerprints; deleting an
+installed manifest cannot select source mode. Filesystem failures are explicit errors.
+
+`status` reads the recorded/running identity and exact gaps without saving. A gap
+reports `continuation-blocked`, moves the stored wake to `historical_next_run_at`,
+retains the owned stop operation, and replaces stale action recommendations with
+`migration-required`. Already-launched writers remain visible for reconciliation.
+Continuation, `status` and unapproved `resume` compare the recorded identity before
+loading changed contracts. With matching identity, `status` also checks required
+job-contract exports; `version` and new starts check them after byte verification.
+Matching manifest hashes alone do not establish usable contracts.
+Fixer result acceptance through `receipt` or `fixer-done` also compares the run's
+identity before loading job validators. Drift requires explicit owner-authorized
+migration; refusal preserves the guard, progress clock and result state.
+
+Cancellation reports `stop-unverified` while an owned schedule needs its stop receipt,
+otherwise `cancelled`. It publishes no future wake, retains the historical receipt
+and owned stop, replaces stale work recommendations, and keeps live writers visible.
+
+These operations intentionally do not require a matching package identity:
+
+| Operation | Limit |
+| --- | --- |
+| `status`, `version`, `preflight` | Read-only inspection; invalid package bytes remain an explicit error or status gap. |
+| `cancel`, `schedule-stop` | Cancel the existing run or record its matching stop receipt; neither arms a schedule. |
+| `scheduler` with either flag `no` | Demote coverage and retain any unverified owned stop; cannot enable or reauthorize. |
+| `dispatch` attaching a handle | Attach only to the same existing reserved/uncertain request, including after cancellation. |
+| `receipt` without fixer result validation | Reconcile matching non-fixer work, or a confirmed fixer launch refusal before a handle exists; no packaged job validator executes. |
+| Terminal replays via `receipt`, `fixer-done` | Return immutable `duplicate`/`stale` before package or result validation. New fixer result acceptance requires a matching run identity. |
+| `resolve` | Record an explicit merged/closed read at the known head; live writer exclusions remain. |
+
+These transitions remain available under package and policy drift. They cannot reserve
+new work, clear cancellation, change package pins or accept migration. `resume` is the
+separate verified migration/explicit cancellation-resume path described below.
 
 Resume refuses drift and returns `migration-required` with the exact gaps.
 For a pinned job, record the owner decision and run `job_cli.py upgrade-package`, then:

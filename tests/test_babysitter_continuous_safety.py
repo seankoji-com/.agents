@@ -2,21 +2,1056 @@
 import hashlib
 import importlib.util
 import json
+import shutil
 import sys
 from copy import deepcopy
 from argparse import Namespace
 from unittest.mock import patch
 from pathlib import Path
 
-from tests.babysitter_continuous_fixtures import AcceptedJob, install_legacy, legacy_source, plan
+from tests.babysitter_continuous_fixtures import (
+    AcceptedJob, install_legacy, legacy_source, plan, source_package,
+)
 from tests import test_babysitter_continuous as continuous_tests
 from tests.test_babysitter_continuous import (
     ContinuousCase, FakeHost, H1, H2, HELPER, observation, pr, continuous_sweep,
 )
 from tests.test_rebuild_installed import Sandbox, tree_digest, worker_result
+from tests.module_partition import partition
 
 URL = 'https://github.com/fixture/widgets/pull/12'
 NOW = '2026-10-22T14:05:00Z'
+
+
+def load_tests(loader, tests, pattern):
+    # Keep the original classes importable; complementary modules collect the rest.
+    return partition(loader, WakeIdentityTest, 0, count=1)
+
+
+class WakeIdentityTest(ContinuousCase):
+    def adapters(self):
+        yield from UpdateAndResolutionTest.adapters(self)
+
+    def seed(self, helper):
+        self.start(helper=helper)
+        self.cli('observe', '--now', NOW, '--wake-id', 'seed', helper=helper,
+                 payload=observation(pr(), pr(number=13, owner={
+                     'thread_id': 'self', 'status': 'running', 'fixer_in_flight': True,
+                     'host_task_id': 'adopted-live'}), pr(number=14)))
+
+    def assert_blocked(self, helper, adapter):
+        before = self.state.read_bytes()
+        for kind in ('schedule', 'event', 'manual', 'resume'):
+            with self.subTest(wake=kind):
+                refused = self.cli('observe', '--now', NOW, '--wake-kind', kind,
+                    '--wake-id', 'blocked-' + kind, helper=helper,
+                    payload=observation(pr()), ok=False)
+                self.assertRegex(refused.stderr, 'migration required|integrity|manifest|state policy')
+                host = FakeHost(observation(pr()))
+                with patch.object(host, 'discover', side_effect=AssertionError('discovery ran')):
+                    with self.assertRaises(adapter.continuous.ContinuousError):
+                        adapter.handle_wake(host, self.state, NOW,
+                                            {'wake_id': 'blocked-' + kind, 'kind': kind})
+                self.assertEqual(host.dispatched, [])
+                self.assertEqual(self.state.read_bytes(), before)
+        for kind in ('fixer', 'merge', 'update-branch', 'resolution'):
+            for flags in (('--reserve',), ()):
+                with self.subTest(writer=kind, flags=flags):
+                    refused = self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', kind,
+                        '--request-id', 'blocked-' + kind, '--head', H1, *flags,
+                        helper=helper, ok=False)
+                    self.assertRegex(refused.stderr, 'migration required|integrity|manifest|state policy')
+                    self.assertEqual(self.state.read_bytes(), before)
+        self.cli('schedule-plan', helper=helper, ok=False)
+        for command, flags in (
+                ('schedule-record', ('--schedule-id', 'blocked-schedule',
+                                     '--next-run-at', '2026-10-22T14:20:00Z')),
+                ('scheduler', ('--available', 'yes', '--authorized', 'yes'))):
+            refused = self.cli(command, '--now', NOW, *flags, helper=helper, ok=False)
+            self.assertRegex(refused.stderr, 'migration required|integrity|manifest|state policy')
+            self.assertEqual(self.state.read_bytes(), before)
+        host = FakeHost(observation(pr()))
+        with self.assertRaises(adapter.continuous.ContinuousError):
+            adapter.arm(host, self.state, NOW)
+        with patch.object(host, 'due', side_effect=AssertionError('host due ran')):
+            with self.assertRaises(adapter.continuous.ContinuousError):
+                adapter.tick(host, self.state, NOW)
+        self.assertEqual(host.created, [])
+        report = self.cli('status', '--now', NOW, helper=helper)
+        self.assertEqual(report['coverage'], 'continuation-blocked')
+        self.assertTrue(report['package_identity_gap'])
+        self.assertNotIn(report['prs'][URL]['next_action']['kind'],
+                         ('merge', 'dispatch-fixer', 'update-branch', 'resolution'))
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_status_reports_blocked_identity_without_mutating_or_recommending_stale_work(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'status-{index}.json'
+            self.seed(helper)
+            self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
+            initial = self.state.read_bytes()
+            for field, value, gap in (('installed_digest', '0' * 64, 'installed-drift'),
+                                      ('installed_digest', None, 'missing-package-identity'),
+                                      ('policy_version', 'continuous-0', 'policy-version')):
+                state = json.loads(initial)
+                if field == 'policy_version':
+                    state[field] = value
+                else:
+                    state['package'][field] = value
+                self.state.write_text(json.dumps(state))
+                before = self.state.read_bytes()
+                report = self.cli('status', '--now', '2026-10-22T14:16:00Z', helper=helper)
+                self.assertEqual(report['status'], 'continuation-blocked')
+                self.assertEqual(report['coverage'], 'continuation-blocked')
+                self.assertIn(gap, [item['kind'] for item in report['package_identity_gap']])
+                self.assertEqual(report['package']['recorded'], state['package'])
+                self.assertTrue(report['package']['running']['digest'])
+                scheduler = report['scheduler']
+                self.assertEqual(scheduler['package_identity_gap'], report['package_identity_gap'])
+                self.assertIsNone(scheduler['next_run_at'])
+                self.assertEqual(scheduler['historical_next_run_at'], '2026-10-22T14:15:00Z')
+                self.assertEqual(scheduler['stop']['arguments']['scheduledTaskId'], 'owned-schedule')
+                self.assertEqual(report['prs'][URL]['next_action']['kind'], 'migration-required')
+                adopted = report['prs'][URL.replace('/12', '/13')]
+                self.assertTrue(adopted['fixer']['in_flight'])
+                self.assertEqual(adopted['next_action']['kind'], 'wait-fixer')
+                self.assertEqual(self.state.read_bytes(), before)
+
+    def test_source_contract_changes_are_part_of_identity(self):
+        root = self.base / 'source'
+        package = source_package(root)
+        helper = package / 'scripts/continuous.py'
+        spec = importlib.util.spec_from_file_location('source_contract_sweep',
+                                                    helper.with_name('continuous_sweep.py'))
+        adapter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adapter)
+        self.seed(helper)
+        for relative in ('core/jobs/__init__.py', 'core/jobs/store.py',
+                         'shared/job_coordinator.py', 'shared/worker_registry.py'):
+            with self.subTest(contract=relative):
+                path = root / relative
+                original = path.read_bytes()
+                before = self.state.read_bytes()
+                try:
+                    path.write_bytes(original + b'\n# Synthetic contract drift.\n')
+                    self.assert_blocked(helper, adapter)
+                finally:
+                    path.write_bytes(original)
+                    self.state.write_bytes(before)
+
+    def test_status_reports_installed_tamper_without_saving_and_keeps_owned_stop(self):
+        box = Sandbox(self.base / 'packages')
+        package, _ = box.install('babysitter')
+        helper = package / 'scripts/continuous.py'
+        self.seed(helper)
+        self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                 '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
+        before = self.state.read_bytes()
+        for relative in ('references/continuous.md', 'install-manifest.json'):
+            path = package / relative
+            original = path.read_bytes()
+            try:
+                path.write_bytes(original + (b'\nchanged\n' if relative.endswith('.md') else b'!'))
+                report = self.cli('status', '--now', NOW, helper=helper)
+                self.assertEqual(report['coverage'], 'continuation-blocked')
+                self.assertEqual(report['package_identity_gap'][0]['kind'], 'package-integrity')
+                self.assertIsNone(report['package']['running'])
+                self.assertIsNone(report['scheduler']['next_run_at'])
+                self.assertEqual(report['scheduler']['stop']['arguments']['scheduledTaskId'],
+                                 'owned-schedule')
+                self.assertEqual(report['prs'][URL]['next_action']['kind'], 'migration-required')
+                self.assertEqual(self.state.read_bytes(), before)
+            finally:
+                path.write_bytes(original)
+
+    def test_scheduler_reauthorization_is_blocked_but_demotion_stop_and_cancel_stay_available(self):
+        for index, (helper, _, _) in enumerate(self.adapters()):
+            self.state = self.base / f'scheduler-{index}.json'
+            self.seed(helper)
+            self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
+            state = json.loads(self.state.read_text())
+            state['package']['installed_digest'] = '0' * 64
+            self.state.write_text(json.dumps(state))
+            demoted = self.cli('scheduler', '--now', NOW, '--available', 'yes',
+                               '--authorized', 'no', helper=helper)
+            self.assertEqual(demoted['status'], 'event-only')
+            self.assertEqual(demoted['scheduler_stop']['arguments']['scheduledTaskId'], 'owned-schedule')
+            before = self.state.read_bytes()
+            self.cli('scheduler', '--now', NOW, '--available', 'yes', '--authorized', 'yes',
+                     helper=helper, ok=False)
+            self.assertEqual(self.state.read_bytes(), before)
+            self.cli('schedule-stop', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--verified', 'yes', helper=helper)
+            stopped = self.state.read_bytes()
+            self.cli('schedule-record', '--now', NOW, '--schedule-id', 'injected-schedule',
+                     '--next-run-at', '2026-10-22T14:20:00Z', helper=helper, ok=False)
+            self.assertEqual(self.state.read_bytes(), stopped)
+            self.cli('cancel', '--now', NOW, '--reason', 'owner stop', helper=helper)
+            final = json.loads(self.state.read_text())
+            self.assertIsNone(final['scheduler']['schedule_id'])
+            self.assertTrue(final['cancelled'])
+            self.assertEqual(final['prs'], state['prs'])
+
+    def test_policy_drift_allows_only_safe_late_reconciliation_and_disarm_even_after_cancel(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'late-policy-{index}.json'
+            self.seed(helper)
+            self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
+            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                     '--request-id', 'late-merge', '--head', H1, '--reserve', helper=helper)
+            fixer_url = URL.replace('/12', '/14')
+            request = f'late-policy-fixer-{index}'
+            self.cli('dispatch', '--now', NOW, '--pr', fixer_url, '--kind', 'fixer',
+                     '--request-id', request, '--head', H1, '--reserve', helper=helper)
+            state = json.loads(self.state.read_text())
+            state['policy_version'] = 'continuous-0'
+            self.state.write_text(json.dumps(state))
+            self.cli('scheduler', '--now', NOW, '--available', 'no', '--authorized', 'no',
+                     helper=helper)
+            self.cli('cancel', '--now', NOW, '--reason', 'owner stop', helper=helper)
+            self.cli('schedule-stop', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--verified', 'yes', helper=helper)
+            for url, kind, request_id, host in ((URL, 'merge', 'late-merge', 'merge-host'),
+                                              (fixer_url, 'fixer', request, 'fixer-host')):
+                self.assertTrue(self.cli('dispatch', '--now', NOW, '--pr', url, '--kind', kind,
+                    '--request-id', request_id, '--host-task-id', host, helper=helper)['attached'])
+            result = self.accepted_result(request, 'fixer-host')
+            before = self.state.read_bytes()
+            refused = self.cli('fixer-done', '--now', NOW, '--pr', fixer_url,
+                '--request-id', request, '--host-task-id', 'fixer-host',
+                '--result', str(result), helper=helper, ok=False)
+            self.assertIn('migration required (policy-version)', refused.stderr)
+            self.assertEqual(self.state.read_bytes(), before)
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                     '--request-id', 'late-merge', '--host-task-id', 'merge-host',
+                     '--status', 'cancelled', helper=helper)
+            self.cli('resolve', '--now', NOW, '--pr', URL, '--head', H1,
+                     '--resolution', 'closed', helper=helper)
+            before = self.state.read_bytes()
+            self.cli('dispatch', '--now', NOW, '--pr', fixer_url, '--kind', 'fixer',
+                     '--request-id', 'new-work', '--head', H1, '--reserve', helper=helper, ok=False)
+            self.cli('scheduler', '--now', NOW, '--available', 'yes', '--authorized', 'yes',
+                     helper=helper, ok=False)
+            self.assertEqual(self.state.read_bytes(), before)
+            final = json.loads(before)
+            self.assertEqual(final['policy_version'], 'continuous-0')
+            self.assertEqual(final['prs'][URL]['state'], 'closed')
+            self.assertTrue(final['prs'][fixer_url]['fixer']['in_flight'])
+            self.assertTrue(final['prs'][URL.replace('/12', '/13')]['fixer']['in_flight'])
+            self.assertTrue(final['cancelled'])
+            self.assertIsNone(final['scheduler']['schedule_id'])
+
+    def test_source_and_installed_missing_identity_digest_and_policy_refuse_all_continuations(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'identity-{index}.json'
+            self.seed(helper)
+            initial = self.state.read_bytes()
+            state = json.loads(initial)
+            for field, value in (('installed_digest', None), ('installed_digest', '0' * 64)):
+                with self.subTest(helper=helper, value=value):
+                    changed = deepcopy(state)
+                    changed['package'][field] = value
+                    self.state.write_text(json.dumps(changed))
+                    self.assert_blocked(helper, adapter)
+            changed = deepcopy(state)
+            changed['policy_version'] = 'continuous-0'
+            self.state.write_text(json.dumps(changed))
+            self.assert_blocked(helper, adapter)
+            self.state.write_bytes(initial)
+
+    def test_unchanged_source_and_installed_packages_continue_each_wake_and_arm_once(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            for kind in ('schedule', 'event', 'manual'):
+                self.state = self.base / f'valid-{index}-{kind}.json'
+                self.start(helper=helper)
+                host = FakeHost(observation(pr()))
+                host.clock = NOW
+                self.assertEqual(adapter.arm(host, self.state, NOW)['status'], 'armed')
+                self.assertEqual(adapter.arm(host, self.state, NOW)['status'], 'already-scheduled')
+                result = adapter.handle_wake(host, self.state, NOW,
+                                             {'wake_id': 'valid', 'kind': kind})
+                self.assertEqual(result['dispatched'][0]['status'], 'dispatched')
+                self.assertEqual(len(host.created), 1)
+                self.assertEqual(len(host.dispatched), 1)
+                self.assertEqual(adapter.handle_wake(host, self.state, NOW,
+                    {'wake_id': 'valid', 'kind': kind})['result']['status'], 'duplicate')
+                self.assertEqual(len(host.dispatched), 1)
+
+    def test_identity_is_checked_again_after_discovery_before_observation_changes_state(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'discovery-race-{index}.json'
+            self.seed(helper)
+            host = FakeHost(observation(pr()))
+            state = json.loads(self.state.read_text())
+            state['package']['installed_digest'] = '0' * 64
+            changed = json.dumps(state).encode()
+
+            def discover(scope, now):
+                self.state.write_bytes(changed)
+                return host.snapshot
+
+            with patch.object(host, 'discover', side_effect=discover):
+                with self.assertRaises(adapter.continuous.ContinuousError):
+                    adapter.handle_wake(host, self.state, NOW,
+                                        {'wake_id': 'changed-during-discovery', 'kind': 'event'})
+            self.assertEqual(host.dispatched, [])
+            self.assertEqual(self.state.read_bytes(), changed)
+
+    def test_installed_content_manifest_and_policy_drift_stop_before_any_host_call(self):
+        from shared.worker_registry import package_digest
+        box = Sandbox(self.base / 'packages')
+        package, _ = box.install('babysitter')
+        helper = package / 'scripts/continuous.py'
+        spec = importlib.util.spec_from_file_location('identity_installed_sweep',
+                                                    package / 'scripts/continuous_sweep.py')
+        adapter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adapter)
+        self.seed(helper)
+        manifest_path = package / 'install-manifest.json'
+        doc = package / 'references/continuous.md'
+        meta_path = package / 'plugin.json'
+        originals = {path: path.read_bytes() for path in (manifest_path, doc, meta_path)}
+        for case in ('valid-content-change', 'tampered-file', 'tampered-manifest',
+                     'tampered-manifest-plugin', 'tampered-manifest-version',
+                     'missing-manifest', 'unlisted-file', 'injected-symlink', 'valid-policy-change'):
+            with self.subTest(case=case):
+                manifest = json.loads(originals[manifest_path])
+                if case in ('valid-content-change', 'tampered-file'):
+                    doc.write_text(doc.read_text() + '\nSynthetic package change.\n')
+                if case == 'valid-policy-change':
+                    meta = json.loads(originals[meta_path])
+                    meta['continuous']['policy_version'] = 'continuous-next'
+                    meta_path.write_text(json.dumps(meta))
+                if case.startswith('valid-'):
+                    for entry in manifest['files']:
+                        entry['sha256'] = hashlib.sha256((package / entry['path']).read_bytes()).hexdigest()
+                    manifest['package_digest'] = package_digest(manifest)
+                    manifest_path.write_text(json.dumps(manifest))
+                elif case == 'tampered-manifest':
+                    manifest['package_digest'] = '0' * 64
+                    manifest_path.write_text(json.dumps(manifest))
+                elif case.startswith('tampered-manifest-'):
+                    manifest[case.removeprefix('tampered-manifest-')] = 'unrelated-package'
+                    manifest_path.write_text(json.dumps(manifest))
+                elif case == 'missing-manifest':
+                    manifest_path.unlink()
+                extra = package / 'unlisted.txt'
+                if case == 'unlisted-file':
+                    extra.write_text('Synthetic unlisted file.\n')
+                elif case == 'injected-symlink':
+                    extra.symlink_to(doc)
+                self.assert_blocked(helper, adapter)
+                extra.unlink(missing_ok=True)
+                for path, data in originals.items():
+                    path.write_bytes(data)
+
+    def test_late_handles_reconcile_but_fixer_result_acceptance_requires_current_identity(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'late-{index}.json'
+            self.seed(helper)
+            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                     '--request-id', 'late-merge', '--head', H1, '--reserve', helper=helper)
+            fixer_url = URL.replace('/12', '/14')
+            request = f'late-fixer-{index}'
+            self.cli('dispatch', '--now', NOW, '--pr', fixer_url, '--kind', 'fixer',
+                     '--request-id', request, '--head', H1, '--reserve', helper=helper)
+            state = json.loads(self.state.read_text())
+            state['package']['installed_digest'] = '0' * 64
+            self.state.write_text(json.dumps(state))
+            for url, kind, request_id, host in ((URL, 'merge', 'late-merge', 'merge-host'),
+                                              (fixer_url, 'fixer', request, 'fixer-host')):
+                self.assertTrue(self.cli('dispatch', '--now', NOW, '--pr', url, '--kind', kind,
+                    '--request-id', request_id, '--host-task-id', host, helper=helper)['attached'])
+            result = self.accepted_result(request, 'fixer-host')
+            before = self.state.read_bytes()
+            self.cli('fixer-done', '--now', NOW, '--pr', fixer_url, '--request-id', request,
+                     '--host-task-id', 'fixer-host', '--result', str(result), helper=helper, ok=False)
+            self.assertEqual(self.state.read_bytes(), before)
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                     '--request-id', 'late-merge', '--host-task-id', 'merge-host',
+                     '--status', 'cancelled', helper=helper)
+            state = json.loads(self.state.read_text())
+            self.assertTrue(state['prs'][fixer_url]['fixer']['in_flight'])
+            self.assertTrue(state['prs'][URL.replace('/12', '/13')]['fixer']['in_flight'])
+            self.assert_blocked(helper, adapter)
+
+
+class InstalledImportIntegrityTest(ContinuousCase):
+    INITIALIZATION_FAILURES = {
+        'RuntimeError': b"\nraise RuntimeError('contract initialization failed')\n",
+        'KeyError': b"\nraise KeyError('missing contract setting')\n",
+        'ValueError': b"\nraise ValueError('invalid contract setting')\n",
+        'FileNotFoundError': b"\nopen(__file__ + '.missing')\n",
+    }
+
+    @staticmethod
+    def rewrite_manifest(package):
+        from shared.worker_registry import package_digest, verify_package_files
+        path = package / 'install-manifest.json'
+        manifest = json.loads(path.read_text())
+        manifest['version'] = package.name
+        manifest['files'] = [entry for entry in manifest['files']
+                             if (package / entry['path']).is_file()]
+        for entry in manifest['files']:
+            entry['sha256'] = hashlib.sha256((package / entry['path']).read_bytes()).hexdigest()
+        manifest['package_digest'] = package_digest(manifest)
+        path.write_text(json.dumps(manifest))
+        # The trusted source verifier must accept the FINAL malformed bytes.
+        # A stale file list or digest cannot explain the subsequent import refusal.
+        verify_package_files(package, manifest)
+        assert package_digest(json.loads(path.read_text())) == manifest['package_digest']
+        return manifest
+
+    def test_changed_valid_package_refuses_accepted_fixer_results_until_owner_migration(self):
+        accepted = AcceptedJob(self.base / 'accepted', 'adopted-1', 'adopted-live')
+        accepted.complete()
+        package = accepted.package
+        helper = package / 'scripts/continuous.py'
+        self.state = self.base / 'run/state.json'
+        WakeIdentityTest.seed(self, helper)
+        initial = self.state.read_bytes()
+        evidence = tree_digest(accepted.directory)
+        target = shutil.copytree(package, package.with_name('1.3.2+g0badc0ff'))
+        marker = self.base / 'changed-contract-executed.txt'
+        contract = target / 'shared/job_coordinator.py'
+        contract.write_text(contract.read_text() + '\nfrom pathlib import Path as _ProbePath\n'
+                            + '_ProbePath(' + repr(str(marker)) + ').write_text("executed")\n')
+        manifest = self.rewrite_manifest(target)
+        changed_helper = target / 'scripts/continuous.py'
+        flags = ['--now', NOW, '--pr', URL.replace('/12', '/13'),
+                 '--request-id', 'adopted-1', '--host-task-id', 'adopted-live',
+                 '--result', str(accepted.transport), '--job', str(accepted.directory)]
+        terminal = {}
+        for command in ('receipt', 'fixer-done'):
+            extra = ['--kind', 'fixer', '--status', 'succeeded'] if command == 'receipt' else []
+            with self.subTest(command=command):
+                control = self.cli(command, *flags, *extra, helper=helper)
+                self.assertTrue(control['changed'])
+                self.assertFalse(control['fixer']['in_flight'])
+                terminal[command] = self.state.read_bytes()
+                self.state.write_bytes(initial)
+                refused = self.cli(command, *flags, *extra, helper=changed_helper, ok=False)
+                self.assertIn('policy/package migration required (installed-drift)', refused.stderr)
+                self.assertFalse(marker.exists())
+                self.assertEqual(self.state.read_bytes(), initial)
+                self.assertEqual(tree_digest(accepted.directory), evidence)
+                # Already terminal rows stay immutable before package or result validation.
+                self.state.write_bytes(terminal[command])
+                for status in ('succeeded', 'failed'):
+                    replay = self.cli('receipt', *flags, '--kind', 'fixer', '--status', status,
+                                      helper=changed_helper)
+                    self.assertEqual(replay['status'], 'duplicate' if status == 'succeeded' else 'stale')
+                    self.assertEqual(self.state.read_bytes(), terminal[command])
+                    self.assertFalse(marker.exists())
+                self.state.write_bytes(initial)
+        decision = UnpinnedMigrationTest.decision(self, changed_helper)
+        self.assertFalse(marker.exists())
+        UnpinnedMigrationTest.migrate(self, changed_helper, package, decision)
+        self.assertTrue(marker.exists())  # Explicit owner acceptance may load the target contracts.
+        migrated = self.state.read_bytes()
+        self.assertEqual(json.loads(migrated)['package']['installed_digest'], manifest['package_digest'])
+        self.assertEqual(json.loads(migrated)['prs'], json.loads(initial)['prs'])
+        for command in ('receipt', 'fixer-done'):
+            extra = ['--kind', 'fixer', '--status', 'succeeded'] if command == 'receipt' else []
+            self.state.write_bytes(migrated)
+            result = self.cli(command, *flags, *extra, helper=changed_helper)
+            self.assertTrue(result['changed'])
+            self.assertFalse(result['fixer']['in_flight'])
+            self.assertEqual(tree_digest(accepted.directory), evidence)
+
+    def test_import_failures_report_integrity_and_block_continuation_before_host_calls(self):
+        self.exercise_import_failures(consistent=False)
+
+    def test_self_consistent_unimportable_contracts_report_gaps_and_refuse_real_job_paths(self):
+        self.exercise_import_failures(consistent=True)
+
+    def exercise_import_failures(self, *, consistent):
+        box = Sandbox(self.base / 'packages')
+        package, manifest = box.install('babysitter')
+        if consistent:
+            package = shutil.copytree(package, package.with_name('1.3.2+g0badc0ff'))
+            manifest = self.rewrite_manifest(package)
+        helper = package / 'scripts/continuous.py'
+        WakeIdentityTest.seed(self, helper)
+        self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                 '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
+        before = self.state.read_bytes()
+        initial = before
+        manifest_path = package / 'install-manifest.json'
+        original_manifest = manifest_path.read_bytes()
+        snapshot = box.payload(observation(pr()))
+        accepted = AcceptedJob(self.base / 'accepted-import', 'adopted-1', 'adopted-live')
+        accepted.complete()
+        job_evidence = tree_digest(accepted.directory)
+        fixer_flags = ['--now', NOW, '--pr', URL.replace('/12', '/13'),
+                       '--request-id', 'adopted-1', '--host-task-id', 'adopted-live',
+                       '--result', accepted.transport, '--job', accepted.directory]
+        receipt_flags = [*fixer_flags, '--kind', 'fixer', '--status', 'succeeded']
+        # A genuine accepted result succeeds through the intact installed helper.
+        control = box.run([sys.executable, helper, 'receipt', '--state', self.state, *receipt_flags])
+        self.assertEqual(json.loads(control.stdout)['status'], 'recorded')
+        self.state.write_bytes(initial)
+        # A fresh process must import the installed contracts, without the test
+        # runner's already-loaded source modules concealing damaged imports.
+        probe = self.base / 'adapter_probe.py'
+        probe.write_text('''import importlib.util
+import json
+import sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('installed_sweep', sys.argv[1])
+adapter = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(adapter)
+state = Path(sys.argv[2])
+before = state.read_bytes()
+calls = []
+class Host:
+    def __getattr__(self, name):
+        calls.append(name)
+        raise AssertionError('host call before identity verification: ' + name)
+host = Host()
+errors = {}
+operations = {'arm': lambda: adapter.arm(host, state, sys.argv[3]),
+              'tick': lambda: adapter.tick(host, state, sys.argv[3])}
+for kind in ('schedule', 'event', 'manual'):
+    operations[kind] = lambda kind=kind: adapter.handle_wake(
+        host, state, sys.argv[3], {'kind': kind, 'wake_id': 'damaged-' + kind})
+for name, operation in operations.items():
+    try:
+        operation()
+    except adapter.continuous.ContinuousError as exc:
+        errors[name] = str(exc)
+    else:
+        raise AssertionError('damaged package continued: ' + name)
+    assert state.read_bytes() == before
+print(json.dumps({'errors': errors, 'host_calls': calls}))
+''')
+        listed = {entry['path'] for entry in manifest['files']}
+        modules = ['shared/worker_registry.py', 'core/jobs/store.py', 'shared/job_coordination.py']
+        if consistent:
+            modules += ['shared/job_coordinator.py', 'core/jobs/__init__.py']
+        exports = {'shared/worker_registry.py': ('package_digest', 'verify_package_files'),
+                   'shared/job_coordinator.py': ('pinned_store', 'verify_all_pins', 'verify_job_pins'),
+                   'core/jobs/__init__.py': ('_owner_current',),
+                   'core/jobs/store.py': ('_regular', 'strict_load', 'MAX_STATE_BYTES')}
+        for relative in modules:
+            path = package / relative
+            self.assertIn(relative, listed)
+            original = path.read_bytes()
+            failures = ['missing', 'syntax']
+            failures += list(exports.get(relative, ())) if consistent else (
+                ['exports'] if relative.endswith('worker_registry.py') else [])
+            if consistent and relative == 'shared/job_coordinator.py':
+                failures += list(self.INITIALIZATION_FAILURES)
+            for failure in failures:
+                with self.subTest(module=relative, failure=failure):
+                    try:
+                        if failure == 'missing':
+                            path.unlink()
+                        elif failure in ('syntax', 'exports'):
+                            path.write_bytes(b'def broken(:\n' if failure == 'syntax'
+                                             else b'# Required exports are missing.\n')
+                        elif failure in self.INITIALIZATION_FAILURES:
+                            path.write_bytes(original + self.INITIALIZATION_FAILURES[failure])
+                        else:
+                            # Keep the other exports intact so each required name is checked.
+                            path.write_bytes(original + b'\ndel ' + failure.encode() + b'\n')
+                        if consistent:
+                            final_manifest = self.rewrite_manifest(package)
+                            # Model a run that the previous helper allowed to pin to these
+                            # self-consistent bytes. Matching hashes must still report a gap.
+                            state = json.loads(initial)
+                            state['package']['installed_digest'] = final_manifest['package_digest']
+                            self.state.write_text(json.dumps(state))
+                            before = self.state.read_bytes()
+                        status = box.run([sys.executable, helper, 'status', '--state',
+                                          self.state, '--now', NOW])
+                        self.assertNotIn('Traceback', status.stderr)
+                        report = json.loads(status.stdout)
+                        self.assertEqual(report['status'], 'continuation-blocked')
+                        self.assertEqual(report['coverage'], 'continuation-blocked')
+                        self.assertEqual(report['package_identity_gap'][0]['kind'],
+                                         'package-integrity')
+                        self.assertIn('installed package integrity failure',
+                                      report['package_identity_gap'][0]['detail'])
+                        if consistent:
+                            self.assertRegex(report['package_identity_gap'][0]['detail'],
+                                failure if failure in self.INITIALIZATION_FAILURES else
+                                'No module named|cannot import name|invalid syntax')
+                            if failure in self.INITIALIZATION_FAILURES:
+                                self.assertIn('shared.job_coordinator: ' + failure,
+                                              report['package_identity_gap'][0]['detail'])
+                        self.assertIsNone(report['package']['running'])
+                        self.assertIsNone(report['scheduler']['next_run_at'])
+                        self.assertEqual(report['scheduler']['stop']['arguments']
+                                         ['scheduledTaskId'], 'owned-schedule')
+                        self.assertEqual(report['prs'][URL]['next_action']['kind'],
+                                         'migration-required')
+                        self.assertEqual(report['prs'][URL.replace('/12', '/13')]
+                                         ['next_action']['kind'], 'wait-fixer')
+                        commands = [('version', []), ('resume', ['--now', NOW]),
+                            ('observe', ['--now', NOW, '--observation', snapshot]),
+                            ('schedule-plan', []), ('schedule-record', ['--now', NOW,
+                                '--schedule-id', 'injected', '--next-run-at', NOW]),
+                            ('scheduler', ['--now', NOW, '--available', 'yes',
+                                           '--authorized', 'yes']),
+                            ('receipt', receipt_flags),
+                            ('fixer-done', fixer_flags)]
+                        commands.extend(('dispatch', ['--now', NOW, '--pr', URL,
+                            '--kind', kind, '--request-id', 'blocked-' + kind,
+                            '--head', H1, '--reserve']) for kind in
+                            ('fixer', 'merge', 'update-branch', 'resolution'))
+                        for command, flags in commands:
+                            args = [] if command == 'version' else ['--state', self.state]
+                            refused = box.run([sys.executable, helper, command, *args,
+                                               *flags], check=False)
+                            self.assertEqual(refused.returncode, 2, refused.stderr)
+                            self.assertIn('continuous_error: installed package integrity failure:',
+                                          refused.stderr)
+                            self.assertNotIn('Traceback', refused.stderr)
+                            self.assertEqual(self.state.read_bytes(), before)
+                        new_state = self.base / 'must-not-start.json'
+                        refused = box.run([sys.executable, helper, 'start', '--state', new_state,
+                            '--now', NOW, '--scope-kind', 'org', '--scope-value', 'fixture',
+                            '--job', accepted.directory], check=False)
+                        self.assertEqual(refused.returncode, 2, refused.stderr)
+                        self.assertIn('continuous_error: installed package integrity failure:',
+                                      refused.stderr)
+                        self.assertNotIn('Traceback', refused.stderr)
+                        self.assertFalse(new_state.exists())
+                        self.assertEqual(self.state.read_bytes(), before)
+                        result = box.run([sys.executable, probe,
+                            helper.with_name('continuous_sweep.py'), self.state, NOW])
+                        result = json.loads(result.stdout)
+                        self.assertEqual(result['host_calls'], [])
+                        self.assertEqual(set(result['errors']),
+                                         {'arm', 'tick', 'schedule', 'event', 'manual'})
+                        self.assertEqual(self.state.read_bytes(), before)
+                        self.assertEqual(tree_digest(accepted.directory), job_evidence)
+                    finally:
+                        path.write_bytes(original)
+                        manifest_path.write_bytes(original_manifest)
+                        self.state.write_bytes(initial)
+        restored = json.loads(box.run([sys.executable, helper, 'version']).stdout)
+        self.assertEqual(restored['digest'], manifest['package_digest'])
+        self.assertEqual(self.cli('status', '--now', NOW, helper=helper)
+                         ['package_identity_gap'], [])
+
+    def assert_migration_import_refusals(self, box, package, flags):
+        helper = package / 'scripts/continuous.py'
+        manifest_path = package / 'install-manifest.json'
+        original_manifest = manifest_path.read_bytes()
+        before = self.state.read_bytes()
+        job_evidence = tree_digest(box.jobs, box.private)
+        decision_path = (Path(flags[flags.index('--owner-decision') + 1])
+                         if '--owner-decision' in flags else None)
+        decision_bytes = decision_path.read_bytes() if decision_path else None
+        decision_source = Path(json.loads(decision_bytes)['source']) if decision_path else None
+        source_bytes = decision_source.read_bytes() if decision_source else None
+        # Exercise the coordinator and the direct core exports required by migration.
+        corruptions = [
+                ('shared/job_coordinator.py', b'def broken(:\n'),
+                ('shared/job_coordinator.py', b'\ndel verify_job_pins\n'),
+                ('core/jobs/__init__.py', b'\ndel _owner_current\n'),
+                ('core/jobs/store.py', b'\ndel MAX_STATE_BYTES\n')]
+        corruptions.extend(('shared/job_coordinator.py', payload)
+                           for payload in self.INITIALIZATION_FAILURES.values())
+        for relative, corruption in corruptions:
+            with self.subTest(migration_contract=relative, corruption=corruption):
+                path = package / relative
+                original = path.read_bytes()
+                try:
+                    path.write_bytes(corruption if corruption.startswith(b'def broken')
+                                     else original + corruption)
+                    self.rewrite_manifest(package)
+                    refused = box.run([sys.executable, helper, 'resume', '--state', self.state,
+                                       '--now', NOW, '--accept-migration', *flags], check=False)
+                    self.assertEqual(refused.returncode, 2, refused.stderr)
+                    # Changed bytes invalidate the prior approval before imports.
+                    expected = ('owner decision does not bind' if decision_path else
+                                'the upgrade receipt does not name the running package digest')
+                    self.assertIn(expected, refused.stderr)
+                    self.assertNotIn('Traceback', refused.stderr)
+                    self.assertEqual(self.state.read_bytes(), before)
+                    self.assertEqual(tree_digest(box.jobs, box.private), job_evidence)
+                    if decision_path:
+                        # A fresh genuine approval for the final malformed bytes still
+                        # cannot establish usable contracts or permit state mutation.
+                        UnpinnedMigrationTest.decision(self, helper)
+                        refused = box.run([sys.executable, helper, 'resume', '--state', self.state,
+                            '--now', NOW, '--accept-migration', *flags], check=False)
+                        self.assertEqual(refused.returncode, 2, refused.stderr)
+                        self.assertIn('continuous_error: installed package integrity failure:',
+                                      refused.stderr)
+                        self.assertNotIn('Traceback', refused.stderr)
+                        self.assertEqual(self.state.read_bytes(), before)
+                finally:
+                    path.write_bytes(original)
+                    manifest_path.write_bytes(original_manifest)
+                    if decision_path:
+                        decision_path.write_bytes(decision_bytes)
+                        decision_source.write_bytes(source_bytes)
+
+    def test_import_boundary_preserves_base_exceptions_and_exception_cause(self):
+        box = Sandbox(self.base / 'packages')
+        package, _ = box.install('babysitter')
+        package = shutil.copytree(package, package.with_name('1.3.2+g0badc0ff'))
+        path = package / 'shared/job_coordinator.py'
+        original = path.read_bytes()
+        probe = self.base / 'exception_probe.py'
+        probe.write_text('''import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location('installed_continuous', sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+try:
+    module.job_contracts()
+except module.ContinuousError as exc:
+    assert isinstance(exc.__cause__, RuntimeError)
+    assert 'shared.job_coordinator: RuntimeError: contract initialization failed' in str(exc)
+else:
+    raise AssertionError('initialization failure was accepted')
+''')
+        try:
+            path.write_bytes(original + self.INITIALIZATION_FAILURES['RuntimeError'])
+            self.rewrite_manifest(package)
+            box.run([sys.executable, probe, package / 'scripts/continuous.py'])
+            for payload, code in ((b'\nraise KeyboardInterrupt()\n', -2),
+                                  (b'\nraise SystemExit(77)\n', 77)):
+                with self.subTest(payload=payload):
+                    path.write_bytes(original + payload)
+                    self.rewrite_manifest(package)
+                    result = box.run([sys.executable, package / 'scripts/continuous.py',
+                                      'version'], check=False)
+                    self.assertEqual(result.returncode, code, result.stderr)
+                    self.assertNotIn('continuous_error:', result.stderr)
+        finally:
+            path.write_bytes(original)
+            manifest = self.rewrite_manifest(package)
+        restored = box.run([sys.executable, package / 'scripts/continuous.py', 'version'])
+        self.assertEqual(json.loads(restored.stdout)['digest'], manifest['package_digest'])
+
+    def test_self_consistent_corruption_refuses_real_pinned_upgrade_receipts(self):
+        def before_resume(box, package, receipt, job_file):
+            self.assert_migration_import_refusals(box, package, [
+                '--owner-decision-id', 'owner-upgrade', '--upgrade-receipt', receipt,
+                '--job', job_file])
+        # This performs job_cli.py upgrade-package, retains old job bytes and then
+        # resumes successfully after the malformed target contracts are restored.
+        RealLegacyUpgradeTest.exercise_upgrade(self, before_resume=before_resume)
+
+    def test_self_consistent_corruption_refuses_real_unpinned_owner_decisions(self):
+        box, old, new = UnpinnedMigrationTest.packages(self)
+        helper = new / 'scripts/continuous.py'
+        self.start(helper=old / 'scripts/continuous.py')
+        decision = UnpinnedMigrationTest.decision(self, helper)
+        before = self.state.read_bytes()
+        flags = ['--owner-decision-id', 'owner-migrate', '--previous-package', old,
+                 '--owner-decision', decision]
+        # Prove this is an approvable decision, not a malformed-evidence shortcut.
+        approved = box.run([sys.executable, helper, 'resume', '--state', self.state,
+                           '--now', NOW, '--accept-migration', *flags])
+        self.assertEqual(json.loads(approved.stdout)['status'], 'resumed')
+        self.state.write_bytes(before)
+        self.assert_migration_import_refusals(box, new, flags)
+        approved = box.run([sys.executable, helper, 'resume', '--state', self.state,
+                           '--now', NOW, '--accept-migration', *flags])
+        self.assertEqual(json.loads(approved.stdout)['status'], 'resumed')
+
+
+class BootstrapIdentityTest(ContinuousCase):
+    def adapter_probe(self, box, helper, marker):
+        probe = self.base / 'bootstrap_probe.py'
+        probe.write_text('''import importlib.util
+import json
+import sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('bootstrap_sweep', sys.argv[1])
+adapter = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(adapter)
+state, marker = Path(sys.argv[2]), Path(sys.argv[3])
+before = state.read_bytes()
+calls = []
+class Host:
+    def __getattr__(self, name):
+        calls.append(name)
+        raise AssertionError('host accessed before refusal: ' + name)
+host = Host()
+operations = [lambda: adapter.arm(host, state, sys.argv[4]),
+              lambda: adapter.tick(host, state, sys.argv[4])]
+operations += [lambda kind=kind: adapter.handle_wake(host, state, sys.argv[4],
+               {'kind': kind, 'wake_id': 'blocked-' + kind})
+               for kind in ('schedule', 'event', 'manual')]
+for operation in operations:
+    try:
+        operation()
+    except adapter.continuous.ContinuousError:
+        pass
+    else:
+        raise AssertionError('untrusted package continued')
+    assert state.read_bytes() == before
+    assert not marker.exists(), 'untrusted contract executed'
+assert calls == [], calls
+print(json.dumps({'refusals': len(operations), 'host_calls': calls}))
+''')
+        result = box.run([sys.executable, probe, helper.with_name('continuous_sweep.py'),
+                          self.state, marker, NOW])
+        self.assertEqual(json.loads(result.stdout), {'refusals': 5, 'host_calls': []})
+
+    def test_deleted_installed_manifest_refuses_new_start_and_all_existing_schedule_paths(self):
+        box = Sandbox(self.base / 'packages')
+        package, _ = box.install('babysitter')
+        helper = package / 'scripts/continuous.py'
+        WakeIdentityTest.seed(self, helper)
+        before = self.state.read_bytes()
+        copied = shutil.copytree(package, package.with_name('1.3.2+g0badc0ff'))
+        copied_helper = copied / 'scripts/continuous.py'
+        (copied / 'install-manifest.json').unlink()
+        for command, flags in (
+                ('version', []),
+                ('start', ['--state', self.base / 'missing-state.json', '--now', NOW,
+                    '--scope-kind', 'org', '--scope-value', 'fixture', '--scheduler',
+                    'scheduled', '--authorization-source', self.request]),
+                ('schedule-plan', ['--state', self.state]),
+                ('schedule-record', ['--state', self.state, '--now', NOW, '--schedule-id',
+                    'injected', '--next-run-at', '2026-10-22T14:20:00Z']),
+                ('scheduler', ['--state', self.state, '--now', NOW,
+                               '--available', 'yes', '--authorized', 'yes']),
+                ('observe', ['--state', self.state, '--now', NOW,
+                             '--observation', box.payload(observation(pr()))])):
+            refused = box.run([sys.executable, copied_helper, command, *flags], check=False)
+            self.assertEqual(refused.returncode, 2, refused.stderr)
+            self.assertIn('install-manifest.json is missing', refused.stderr)
+            self.assertNotIn('Traceback', refused.stderr)
+            self.assertEqual(self.state.read_bytes(), before)
+            self.assertFalse((self.base / 'missing-state.json').exists())
+        self.adapter_probe(box, copied_helper, self.base / 'must-not-execute')
+        report = self.cli('status', '--now', NOW, helper=copied_helper)
+        self.assertEqual(report['package_identity_gap'][0]['kind'], 'package-integrity')
+        # A repository copy without Git metadata is still a legitimate source layout.
+        source = source_package(self.base / 'source')
+        source_helper = source / 'scripts/continuous.py'
+        self.state = self.base / 'source-state.json'
+        self.start(helper=source_helper)
+        self.assertEqual(json.loads(self.state.read_text())['package']['fingerprint_scheme'],
+                         'source-contracts-1')
+        self.assertEqual(self.cli('schedule-plan', helper=source_helper)['status'], 'plan')
+        # Moving an installed bundle into that spelling still leaves its installer
+        # contract layout, so a deleted manifest cannot borrow the ancestor source.
+        disguised_root = self.base / 'installed-under-source'
+        moved = shutil.copytree(copied, disguised_root / 'plugins/babysitter')
+        for name in ('shared', 'core'):
+            shutil.copytree(source.parents[1] / name, disguised_root / name)
+        refused = box.run([sys.executable, moved / 'scripts/continuous.py', 'version'], check=False)
+        self.assertEqual(refused.returncode, 2, refused.stderr)
+
+    def test_tampered_and_unapproved_changed_contracts_never_execute_before_refusal(self):
+        box = Sandbox(self.base / 'packages')
+        package, _ = box.install('babysitter')
+        helper = package / 'scripts/continuous.py'
+        WakeIdentityTest.seed(self, helper)
+        before = self.state.read_bytes()
+        manifest_path = package / 'install-manifest.json'
+        original_manifest = manifest_path.read_bytes()
+        marker = self.base / 'contract-side-effect.txt'
+        payload = ('\nfrom pathlib import Path as _ProbePath\n_ProbePath('
+                   + repr(str(marker)) + ').write_text("untrusted execution")\n').encode()
+        # Includes initializers and the registry that older code used to verify itself.
+        for relative in ('shared/job_coordinator.py', 'shared/worker_registry.py',
+                         'core/jobs/__init__.py', 'core/jobs/store.py',
+                         'shared/job_coordination.py'):
+            path = package / relative
+            original = path.read_bytes()
+            try:
+                path.write_bytes(original + payload)
+                for consistent in (False, True):
+                    with self.subTest(module=relative, consistent=consistent):
+                        if consistent:
+                            InstalledImportIntegrityTest.rewrite_manifest(package)
+                        if not consistent:
+                            for command, flags in (
+                                    ('version', []),
+                                    ('start', ['--state', self.base / 'must-not-start.json',
+                                              '--now', NOW, '--scope-kind', 'org',
+                                              '--scope-value', 'fixture'])):
+                                result = box.run([sys.executable, helper, command, *flags], check=False)
+                                self.assertEqual(result.returncode, 2, result.stderr)
+                                self.assertEqual(result.stderr.count('installed package integrity failure:'), 1)
+                                self.assertFalse(marker.exists())
+                                self.assertFalse((self.base / 'must-not-start.json').exists())
+                        report = self.cli('status', '--now', NOW, helper=helper)
+                        self.assertEqual(report['package_identity_gap'][0]['kind'],
+                                         'installed-drift' if consistent else 'package-integrity')
+                        self.assertIsNone(report['scheduler']['next_run_at'])
+                        self.assertFalse(marker.exists())
+                        resume = self.cli('resume', '--now', NOW, helper=helper,
+                                          ok=consistent)
+                        if consistent:
+                            self.assertEqual(resume['status'], 'migration-required')
+                        for command, flags in (
+                                ('observe', ['--now', NOW, '--observation', box.payload(observation(pr()))]),
+                                ('schedule-plan', []),
+                                ('schedule-record', ['--now', NOW, '--schedule-id', 'injected',
+                                                    '--next-run-at', '2026-10-22T14:20:00Z']),
+                                ('scheduler', ['--now', NOW, '--available', 'yes', '--authorized', 'yes']),
+                                ('dispatch', ['--now', NOW, '--pr', URL, '--kind', 'merge',
+                                              '--request-id', 'untrusted', '--head', H1, '--reserve'])):
+                            refused = self.cli(command, *flags, helper=helper, ok=False)
+                            self.assertEqual(refused.returncode, 2, refused.stderr)
+                            self.assertFalse(marker.exists())
+                            self.assertEqual(self.state.read_bytes(), before)
+                        self.adapter_probe(box, helper, marker)
+                        self.assertEqual(self.state.read_bytes(), before)
+            finally:
+                path.write_bytes(original)
+                manifest_path.write_bytes(original_manifest)
+
+    def test_manifest_shape_refusals_precede_contract_execution_and_have_one_prefix(self):
+        box = Sandbox(self.base / 'packages')
+        package, _ = box.install('babysitter')
+        helper = package / 'scripts/continuous.py'
+        WakeIdentityTest.seed(self, helper)
+        before = self.state.read_bytes()
+        path = package / 'install-manifest.json'
+        original = json.loads(path.read_text())
+        marker = self.base / 'shape-side-effect.txt'
+        contract = package / 'shared/worker_registry.py'
+        contract.write_text(contract.read_text() + '\nfrom pathlib import Path as _ProbePath\n'
+                            + '_ProbePath(' + repr(str(marker)) + ').write_text("executed")\n')
+        cases = [[], {**original, 'schema_version': 2},
+                 {**original, 'plugin': None}, {**original, 'version': None},
+                 {**original, 'package_digest': None},
+                 {**original, 'files': {}}, {**original, 'files': []},
+                 {**original, 'files': [None]},
+                 {**original, 'files': original['files'] * 2},
+                 {**original, 'files': [{'path': '../outside', 'sha256': '0' * 64}]},
+                 {**original, 'files': [{'path': '/outside', 'sha256': '0' * 64}]},
+                 {**original, 'files': [{'path': 'plugin.json', 'sha256': 'invalid'}]}]
+        for index, manifest in enumerate(cases):
+            with self.subTest(shape=index):
+                path.write_text(json.dumps(manifest))
+                refused = box.run([sys.executable, helper, 'version'], check=False)
+                self.assertEqual(refused.returncode, 2, refused.stderr)
+                self.assertEqual(refused.stderr.count('installed package integrity failure:'), 1)
+                self.assertNotIn('Traceback', refused.stderr)
+                report = self.cli('status', '--now', NOW, helper=helper)
+                detail = report['package_identity_gap'][0]['detail']
+                self.assertEqual(detail.count('installed package integrity failure:'), 1)
+                self.assertFalse(marker.exists())
+                self.assertEqual(self.state.read_bytes(), before)
+
+    def test_source_identity_os_errors_are_explicit_and_preserve_absent_or_existing_state(self):
+        package = source_package(self.base / 'source')
+        helper = package / 'scripts/continuous.py'
+        self.start(helper=helper)
+        before = self.state.read_bytes()
+        target = package / 'references/continuous.md'
+        original_mode = target.stat().st_mode
+        try:
+            target.chmod(0)
+            # This is a real permission denial under the test user's credentials.
+            # No user switch, protected path, or mocked open can establish this proof.
+            with self.assertRaises(PermissionError):
+                target.read_bytes()
+            box = Sandbox(self.base / 'runner')
+            for command, flags in (
+                    ('version', []),
+                    ('start', ['--state', self.base / 'unreadable-start.json', '--now', NOW,
+                               '--scope-kind', 'org', '--scope-value', 'fixture']),
+                    ('observe', ['--state', self.state, '--now', NOW,
+                                 '--observation', box.payload(observation(pr()))])):
+                result = box.run([sys.executable, helper, command, *flags], check=False)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn('PermissionError', result.stderr)
+                self.assertEqual(result.stderr.count('installed package integrity failure:'), 1)
+                self.assertNotIn('Traceback', result.stderr)
+                self.assertFalse((self.base / 'unreadable-start.json').exists())
+                self.assertEqual(self.state.read_bytes(), before)
+            report = self.cli('status', '--now', NOW, helper=helper)
+            self.assertIn('PermissionError', report['package_identity_gap'][0]['detail'])
+            self.assertEqual(self.state.read_bytes(), before)
+        finally:
+            target.chmod(original_mode)
+        self.assertEqual(self.cli('status', '--now', NOW, helper=helper)['package_identity_gap'], [])
+
+    def test_changed_source_contract_is_compared_before_import_and_value_errors_are_normalized(self):
+        package = source_package(self.base / 'source')
+        helper = package / 'scripts/continuous.py'
+        WakeIdentityTest.seed(self, helper)
+        before = self.state.read_bytes()
+        marker = self.base / 'source-side-effect.txt'
+        contract = package.parents[1] / 'shared/job_coordinator.py'
+        contract.write_text(contract.read_text() + '\nfrom pathlib import Path as _ProbePath\n'
+                            + '_ProbePath(' + repr(str(marker)) + ').write_text("executed")\n')
+        self.assertEqual(self.cli('resume', '--now', NOW, helper=helper)['status'], 'migration-required')
+        self.assertEqual(self.cli('status', '--now', NOW, helper=helper)
+                         ['package_identity_gap'][0]['kind'], 'installed-drift')
+        self.cli('observe', '--now', NOW, helper=helper, payload=observation(pr()), ok=False)
+        self.assertFalse(marker.exists())
+        self.assertEqual(self.state.read_bytes(), before)
+        box = Sandbox(self.base / 'runner')
+        self.adapter_probe(box, helper, marker)
+        module = continuous_sweep.continuous
+        with self.assertRaises(module.ContinuousError) as caught:
+            module.source_identity('invalid\x00path')
+        self.assertIsInstance(caught.exception.__cause__, ValueError)
+        self.assertEqual(str(caught.exception).count('installed package integrity failure:'), 1)
+
+
+class CancelledCoverageTest(ContinuousCase):
+    def test_cancelled_pre_yield_and_blocked_adapter_keep_stop_history_and_live_work(self):
+        for index, (helper, adapter, _) in enumerate(UpdateAndResolutionTest.adapters(self)):
+            self.state = self.base / f'cancelled-{index}.json'
+            WakeIdentityTest.seed(self, helper)
+            # Cover every live writer kind plus a row with a stale fixer recommendation.
+            for number, kind in ((12, 'merge'), (14, 'resolution')):
+                self.cli('dispatch', '--now', NOW, '--pr', URL.replace('/12', f'/{number}'),
+                    '--kind', kind, '--request-id', kind + '-live', '--head', H1,
+                    '--reserve', helper=helper)
+            self.cli('observe', '--now', NOW, '--wake-id', 'stale-action', helper=helper,
+                payload=observation(pr(), pr(number=13), pr(number=14),
+                                    pr(number=15, threads=1), pr(number=16, merge_state='BEHIND')))
+            self.cli('dispatch', '--now', NOW, '--pr', URL.replace('/12', '/16'),
+                '--kind', 'update-branch', '--request-id', 'update-live', '--head', H1,
+                '--reserve', helper=helper)
+            self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
+            self.cli('cancel', '--now', NOW, '--reason', 'owner stop', helper=helper)
+            before = self.state.read_bytes()
+            report = self.cli('status', '--now', NOW, helper=helper)
+            self.assertEqual(report['status'], 'cancelled')
+            self.assertEqual(report['coverage'], 'stop-unverified')
+            self.assertIsNone(report['scheduler']['next_run_at'])
+            self.assertEqual(report['scheduler']['historical_next_run_at'], '2026-10-22T14:15:00Z')
+            self.assertEqual(report['scheduler']['stop']['arguments']['scheduledTaskId'], 'owned-schedule')
+            for number, kind in ((12, 'merge-pending'), (13, 'wait-fixer'),
+                                 (14, 'resolution-pending'), (15, 'cancelled'),
+                                 (16, 'update-branch-pending')):
+                self.assertEqual(report['prs'][URL.replace('/12', f'/{number}')]
+                                 ['next_action']['kind'], kind)
+            host = FakeHost(observation(pr()))
+            with patch.object(host, 'discover', side_effect=AssertionError('cancelled discovery')):
+                blocked = adapter.handle_wake(host, self.state, NOW, {'kind': 'schedule'})
+            self.assertEqual(blocked['result']['scheduler'], report['scheduler'])
+            self.assertEqual(blocked['result']['coverage'], 'stop-unverified')
+            self.assertIsNone(blocked['result']['next_wake_at'])
+            self.assertEqual(host.dispatched, [])
+            self.assertEqual(self.state.read_bytes(), before)
+            self.cli('schedule-stop', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--verified', 'yes', helper=helper)
+            stopped = self.cli('status', '--now', NOW, helper=helper)
+            self.assertEqual(stopped['coverage'], 'cancelled')
+            self.assertIsNone(stopped['scheduler']['next_run_at'])
+            # Cancellation remains authoritative even alongside package drift.
+            state = json.loads(self.state.read_text())
+            state['package']['installed_digest'] = '0' * 64
+            self.state.write_text(json.dumps(state))
+            drifted = self.cli('status', '--now', NOW, helper=helper)
+            self.assertEqual(drifted['coverage'], 'cancelled')
+            self.assertTrue(drifted['package_identity_gap'])
+            self.assertEqual(drifted['prs'][URL.replace('/12', '/15')]['next_action']['kind'], 'cancelled')
 
 
 class UnpinnedMigrationTest(ContinuousCase):
@@ -47,6 +1082,43 @@ class UnpinnedMigrationTest(ContinuousCase):
         return self.cli('resume', '--now', NOW, '--accept-migration',
             '--owner-decision-id', decision_id, '--previous-package', str(old),
             '--owner-decision', str(decision), *extra, helper=helper, ok=ok)
+
+    def test_authorized_migration_restores_installed_wakes_and_keeps_existing_guards(self):
+        _, old, new = self.packages()
+        old_helper, helper = old / 'scripts/continuous.py', new / 'scripts/continuous.py'
+        self.start(helper=old_helper)
+        host = FakeHost(observation(pr(), pr(number=13, owner={
+            'thread_id': 'self', 'status': 'running', 'fixer_in_flight': True,
+            'host_task_id': 'adopted-live'})))
+        spec = importlib.util.spec_from_file_location('migrated_installed_wake',
+                                                    new / 'scripts/continuous_sweep.py')
+        adapter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adapter)
+        self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                 '--next-run-at', '2026-10-22T14:15:00Z', helper=old_helper)
+        self.cli('observe', '--now', NOW, '--wake-id', 'seed', helper=old_helper,
+                 payload=host.snapshot)
+        self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                 '--request-id', 'live-merge', '--head', H1, '--reserve', helper=old_helper)
+        before = json.loads(self.state.read_text())
+        WakeIdentityTest.assert_blocked(self, helper, adapter)
+        decision = self.decision(helper)
+        self.migrate(helper, old, decision)
+        migrated = json.loads(self.state.read_text())
+        for field in ('run_id', 'scope', 'policy', 'scheduler', 'prs', 'events', 'discovery'):
+            self.assertEqual(migrated[field], before[field], field)
+        self.assertEqual(adapter.arm(host, self.state, NOW)['status'], 'already-scheduled')
+        self.assertEqual(host.created, [])
+        host.snapshot['prs'].append(pr(number=15))
+        result = adapter.handle_wake(host, self.state, NOW,
+                                    {'wake_id': 'after-migration', 'kind': 'schedule'})
+        self.assertEqual([item['pr'] for item in host.dispatched], [URL.replace('/12', '/15')])
+        self.assertEqual(result['dispatched'][0]['status'], 'dispatched')
+        final = json.loads(self.state.read_text())
+        self.assertEqual(final['scheduler']['schedule_id'], 'owned-schedule')
+        self.assertEqual(final['prs'][URL]['dispatches'], before['prs'][URL]['dispatches'])
+        self.assertEqual(final['prs'][URL.replace('/12', '/13')]['fixer'],
+                         before['prs'][URL.replace('/12', '/13')]['fixer'])
 
     def test_real_installed_package_changes_preserve_schedule_progress_and_live_adopted_guards(self):
         box, old, new = self.packages()
@@ -207,6 +1279,59 @@ class UnpinnedMigrationTest(ContinuousCase):
         self.assertEqual(after['run_id'], before['run_id'])
         self.assertEqual(after['scheduler'], before['scheduler'])
         self.assertIsNone(after['job_id'])
+
+
+class SourceIdentityTest(ContinuousCase):
+    def test_real_legacy_source_fingerprint_requires_authorized_migration_and_keeps_guards(self):
+        old_root = legacy_source(self.base, '17e636c1c24be77566f24062f93a8b1dc17d94c8')
+        old = old_root / 'plugins/babysitter'
+        target = source_package(self.base / 'target')
+        old_helper, helper = old / 'scripts/continuous.py', target / 'scripts/continuous.py'
+        self.state = self.base / 'run/state.json'
+        self.start(helper=old_helper)
+        self.cli('schedule-record', '--now', NOW, '--schedule-id', 'legacy-source-schedule',
+                 '--next-run-at', '2026-10-22T14:15:00Z', helper=old_helper)
+        self.cli('observe', '--now', NOW, '--wake-id', 'seed', helper=old_helper,
+                 payload=observation(pr(number=13, owner={
+                     'thread_id': 'self', 'status': 'running', 'fixer_in_flight': True,
+                     'host_task_id': 'legacy-live'})))
+        before = json.loads(self.state.read_text())
+        self.assertEqual(before['package']['installed_digest'],
+                         continuous_sweep.continuous.package_digest(old))
+        self.assertNotIn('fingerprint_scheme', before['package'])
+        preserved = self.state.read_bytes()
+        self.cli('observe', '--now', NOW, '--wake-id', 'blocked', helper=helper,
+                 payload=observation(pr()), ok=False)
+        self.assertEqual(self.state.read_bytes(), preserved)
+        decision = UnpinnedMigrationTest.decision(self, helper)
+        UnpinnedMigrationTest.migrate(self, helper, old, decision)
+        migrated = json.loads(self.state.read_text())
+        self.assertEqual(migrated['package']['fingerprint_scheme'], 'source-contracts-1')
+        for field in ('run_id', 'scheduler', 'prs', 'events', 'discovery'):
+            self.assertEqual(migrated[field], before[field])
+        self.assertEqual(self.cli('status', '--now', NOW, helper=helper)['package_identity_gap'], [])
+        self.cli('observe', '--now', NOW, '--wake-id', 'resumed', helper=helper,
+                 payload=observation(pr(number=13)))
+        self.assertTrue(json.loads(self.state.read_text())['prs'][URL.replace('/12', '/13')]
+                        ['fixer']['in_flight'])
+
+    def test_changed_source_contracts_need_retained_complete_source_and_owner_decision(self):
+        old = source_package(self.base / 'old')
+        target = source_package(self.base / 'target')
+        contract = target.parents[1] / 'shared/worker_registry.py'
+        contract.write_text(contract.read_text() + '\n# Synthetic new source contract.\n')
+        helper = target / 'scripts/continuous.py'
+        self.state = self.base / 'run/state.json'
+        self.start(helper=old / 'scripts/continuous.py')
+        before = json.loads(self.state.read_text())
+        decision = UnpinnedMigrationTest.decision(self, helper)
+        UnpinnedMigrationTest.migrate(self, helper, old, decision)
+        self.assertEqual(self.cli('status', '--now', NOW, helper=helper)['package_identity_gap'], [])
+        migrated = json.loads(self.state.read_text())
+        self.assertEqual(migrated['scheduler'], before['scheduler'])
+        self.assertEqual(migrated['prs'], before['prs'])
+        self.assertNotEqual(migrated['package']['installed_digest'], before['package']['installed_digest'])
+        self.assertEqual(UnpinnedMigrationTest.migrate(self, helper, old, decision)['status'], 'duplicate')
 
 
 class UpdateAndResolutionTest(ContinuousCase):
@@ -1555,7 +2680,7 @@ class RealLegacyUpgradeTest(ContinuousCase):
     def test_previous_helper_state_migrates_its_real_legacy_fingerprint(self):
         self.exercise_upgrade('17e636c1c24be77566f24062f93a8b1dc17d94c8')
 
-    def exercise_upgrade(self, revision=None):
+    def exercise_upgrade(self, revision=None, before_resume=None):
         box = Sandbox(self.base / 'sandbox')
         source = legacy_source(self.base, revision) if revision else legacy_source(self.base)
         refused = box.install('babysitter', source=source, check=False)
@@ -1612,6 +2737,8 @@ class RealLegacyUpgradeTest(ContinuousCase):
         original_state = self.state.read_bytes()
         required = self.cli('resume', '--now', NOW, helper=helper)
         self.assertEqual(required['status'], 'migration-required')
+        if before_resume:
+            before_resume(box, current, receipt, job_file)
         for decision_id, error in [('never-recorded', 'no matching supported'),
                                    ('owner-upgrade', None)]:
             if error:

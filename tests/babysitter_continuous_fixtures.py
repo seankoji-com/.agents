@@ -10,6 +10,16 @@ from pathlib import Path
 from tests.test_rebuild_installed import ROOT, Sandbox, worker_result
 
 
+def source_package(base):
+    """Copy a developer package together with the external contracts it imports."""
+    root = Path(base)
+    package = root / 'plugins/babysitter'
+    shutil.copytree(ROOT / 'plugins/babysitter', package)
+    for name in ('shared', 'core'):
+        shutil.copytree(ROOT / name, root / name)
+    return package
+
+
 def plan(manifest, job_id, request_id='fix-request'):
     return {
         'schema_version': 1, 'job_id': job_id,

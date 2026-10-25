@@ -1167,9 +1167,12 @@ class DiscoveryCoverageTest(ContinuousCase):
 
 
 class PackagePreflightTest(ContinuousCase):
+    def source_package(self):
+        from tests.babysitter_continuous_fixtures import source_package
+        return source_package(self.base / 'source')
+
     def test_resume_detects_a_swapped_running_package_without_a_version_flag(self):
-        copied = self.base / 'plugin-copy'
-        shutil.copytree(PLUGIN, copied)
+        copied = self.source_package()
         helper = copied / 'scripts' / 'continuous.py'
         self.start(helper=helper)
         state = json.loads(self.state.read_text())
@@ -1184,8 +1187,7 @@ class PackagePreflightTest(ContinuousCase):
         self.assertFalse(migration['changed'])
 
     def test_unpinned_drift_cannot_attach_an_unrelated_upgrade_receipt(self):
-        copied = self.base / 'plugin-copy'
-        shutil.copytree(PLUGIN, copied)
+        copied = self.source_package()
         helper = copied / 'scripts' / 'continuous.py'
         self.start(helper=helper)
         (copied / 'references' / 'continuous.md').write_text(
@@ -1229,8 +1231,7 @@ class PackagePreflightTest(ContinuousCase):
 
     def test_an_upgrade_receipt_for_a_different_pinned_job_is_refused(self):
         self.start(job_id='job-legacy')
-        copied = self.base / 'plugin-copy'
-        shutil.copytree(PLUGIN, copied)
+        copied = self.source_package()
         helper = copied / 'scripts' / 'continuous.py'
         state = json.loads(self.state.read_text())
         state['package']['installed_digest'] = 'f' * 64

@@ -37,11 +37,13 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 try:  # POSIX hosts only; the plugin already requires bash and gh.
     import fcntl
@@ -208,7 +210,7 @@ def state_path(path):
 
 
 @contextlib.contextmanager
-def locked_state(path, *, create=False):
+def locked_state(path, *, create=False, allow_policy_drift=False):
     """Exclusive transaction over the complete read-modify-write of one run state.
 
     Atomic replacement protects a reader from a half-written file. It does not stop
@@ -229,7 +231,7 @@ def locked_state(path, *, create=False):
         if create:
             yield None
         else:
-            yield read_state(path)
+            yield read_state(path, allow_policy_drift=allow_policy_drift)
     finally:
         fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
@@ -243,7 +245,7 @@ def package_digest(package_dir):
     """
     package = Path(package_dir)
     rows = []
-    for path in sorted(package.rglob('*')):
+    for path in package_paths(package):
         if not path.is_file() or path.is_symlink():
             continue
         rel = str(path.relative_to(package))
@@ -257,10 +259,84 @@ def package_digest(package_dir):
     return hashlib.sha256(canonical(rows)).hexdigest()
 
 
-def read_state(path):
+def package_paths(directory):
+    """Walk without pathlib's suppression of filesystem errors during identity checks."""
+    def failed(exc):
+        raise exc
+    paths = []
+    for root, directories, files in os.walk(directory, onerror=failed, followlinks=False):
+        paths.extend(Path(root) / name for name in directories + files)
+    return sorted(paths)
+
+
+def read_package_file(path):
+    """The bootstrap must not follow links or block on a special package file."""
+    fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+                 | getattr(os, 'O_NONBLOCK', 0))
+    try:
+        require(stat.S_ISREG(os.fstat(fd).st_mode), f'package file is not regular: {path}')
+        with os.fdopen(fd, 'rb', closefd=False) as stream:
+            return stream.read()
+    finally:
+        os.close(fd)
+
+
+def verify_installed_identity(package, meta):
+    """Stdlib bootstrap: verify all bytes before importing any packaged contract.
+
+    Keep the manifest digest and file-set rules aligned with worker_registry; that
+    registry is itself one of the files whose bytes must be checked here first.
+    """
+    manifest = json.loads(read_package_file(package / 'install-manifest.json'))
+    require(isinstance(manifest, dict), 'installed package manifest must be an object')
+    require(manifest.get('schema_version') == 1, 'unsupported installed package manifest schema')
+    require(manifest.get('plugin') == meta.get('name') == 'babysitter'
+            and manifest.get('version') == package.name,
+            'installed package manifest identity differs from its package directory')
+    files = manifest.get('files')
+    require(isinstance(files, list), 'package manifest file list is malformed')
+    expected = {'install-manifest.json'}
+    expected_dirs = set()
+    for entry in files:
+        require(isinstance(entry, dict) and isinstance(entry.get('path'), str)
+                and isinstance(entry.get('sha256'), str)
+                and re.fullmatch(r'[0-9a-f]{64}', entry['sha256']),
+                'package manifest file entry is malformed')
+        rel = entry['path']
+        safe = Path(rel)
+        require(rel and not safe.is_absolute() and '\\' not in rel
+                and '..' not in safe.parts and rel not in expected,
+                'package manifest path is unsafe or duplicated')
+        expected.add(rel)
+        expected_dirs.update(parent.as_posix() for parent in safe.parents if parent != Path('.'))
+    fingerprint = hashlib.sha256(canonical(files) + b'\n').hexdigest()
+    require(manifest.get('package_digest') == fingerprint,
+            'installed package manifest digest differs from its file list')
+    actual, actual_dirs = set(), set()
+    for path in package_paths(package):
+        rel = path.relative_to(package).as_posix()
+        if '__pycache__' in path.parts:
+            continue
+        mode = path.lstat().st_mode
+        require(not stat.S_ISLNK(mode), f'installed package contains a symlink: {rel}')
+        if stat.S_ISREG(mode):
+            actual.add(rel)
+        elif stat.S_ISDIR(mode):
+            actual_dirs.add(rel)
+        else:
+            raise ContinuousError(f'installed package contains a special file: {rel}')
+    require(actual == expected and actual_dirs == expected_dirs,
+            'installed package has missing or unlisted files/directories')
+    for entry in files:
+        require(hashlib.sha256(read_package_file(package / entry['path'])).hexdigest()
+                == entry['sha256'], f'installed package integrity failure: {entry["path"]}')
+    return manifest['version'], fingerprint
+
+
+def read_state(path, *, allow_policy_drift=False):
     state = load_json(state_path(path))
     require(state.get('schema_version') == SCHEMA_VERSION, 'unsupported continuous state schema')
-    require(state.get('policy_version') == POLICY_VERSION,
+    require(allow_policy_drift or state.get('policy_version') == POLICY_VERSION,
             f"state policy {state.get('policy_version')!r} differs from {POLICY_VERSION!r}; run resume")
     return state
 
@@ -272,55 +348,153 @@ def audit(state, now, kind, **fields):
     state['audit'] = state['audit'][-200:]
 
 
-def source_identity(script=__file__):
+def source_identity(script=__file__, *, validate_contracts=True):
+    """Verify bytes first; callers with a run compare its pin before loading contracts."""
+    try:
+        identity = package_identity(script)
+    except (ContinuousError, OSError, ValueError) as exc:
+        raise integrity_error(exc) from exc
+    if validate_contracts:
+        job_contracts(Path(identity['package_dir']))
+    return identity
+
+
+def integrity_error(exc, module=None):
+    prefix = 'installed package integrity failure: '
+    detail = str(exc)
+    already_prefixed = detail.startswith(prefix)
+    while detail.startswith(prefix):
+        detail = detail[len(prefix):]
+    if module:
+        detail = f'{module}: {type(exc).__name__}: {detail}'
+    elif not already_prefixed:
+        detail = f'{type(exc).__name__}: {detail}'
+    return ContinuousError(prefix + detail)
+
+
+def package_identity(script):
     package = Path(script).resolve().parents[1]
-    meta = load_json(package / 'plugin.json')
+    meta = json.loads(read_package_file(package / 'plugin.json'))
+    require(isinstance(meta, dict), 'package plugin.json must be an object')
+    require(meta.get('name') == 'babysitter' and isinstance(meta.get('version'), str)
+            and meta['version'], 'package plugin identity is malformed')
+    require(isinstance(meta.get('continuous', {}), dict), 'package continuous policy is malformed')
     manifest_path = package / 'install-manifest.json'
-    if manifest_path.exists():
-        job_contracts(package)
-        from shared.worker_registry import package_digest as manifest_digest, verify_package_files
-        try:
-            manifest = load_json(manifest_path)
-            fingerprint = manifest_digest(manifest)
-            require(manifest.get('package_digest') == fingerprint,
-                    'installed package manifest digest differs from its file list')
-            verify_package_files(package, manifest)
-        except (ValueError, OSError) as exc:
-            raise ContinuousError(f'installed package integrity failure: {exc}') from exc
-        version = manifest['version']
+    if manifest_path.exists() or manifest_path.is_symlink():
+        version, fingerprint = verify_installed_identity(package, meta)
+        scheme = 'install-manifest-1'
     else:
-        fingerprint, version = package_digest(package), meta.get('version')
+        # The source helper trusts job/owner APIs outside plugins/babysitter.
+        # Hash the same resolved import roots, including their transitive contracts.
+        root = job_contract_root(package)
+        roots = {'plugin': package, 'shared': root / 'shared', 'core': root / 'core'}
+        for directory in roots.values():
+            require(not directory.is_symlink()
+                    and not any(path.is_symlink() for path in package_paths(directory)),
+                    'source package/contract roots contain a symlink')
+        scheme = 'source-contracts-1'
+        fingerprint = digest({'scheme': scheme,
+                              'roots': {key: package_digest(value) for key, value in roots.items()}})
+        version = meta.get('version')
     return {'plugin': meta.get('name'), 'version': meta.get('version'),
             'installed_version': version,
             'policy_version': policy_identity(meta), 'package_dir': str(package),
-            'digest': fingerprint}
+            'digest': fingerprint, 'fingerprint_scheme': scheme}
+
+
+def package_gaps(state, installed, package_version=None):
+    """Use the same identity rules for inspection, continuation and reservation."""
+    gaps = []
+    if state.get('policy_version') != installed['policy_version']:
+        gaps.append({'kind': 'policy-version', 'state': state.get('policy_version'),
+                     'installed': installed['policy_version']})
+    package = state.get('package') or {}
+    pinned = package.get('pinned_version')
+    if package_version and pinned and package_version != pinned:
+        gaps.append({'kind': 'package-version',
+                     'state_pinned': pinned, 'installed_running': package_version})
+    if not package.get('installed_digest'):
+        gaps.append({'kind': 'missing-package-identity', 'state_pinned': pinned,
+                     'detail': 'the state predates the installed-package fingerprint; '
+                               'its package identity is unverified'})
+    elif package['installed_digest'] != installed['digest']:
+        gaps.append({'kind': 'installed-drift',
+                     'state_installed': package.get('installed_version'),
+                     'installed_on_disk': installed['version'],
+                     'state_digest': package['installed_digest'],
+                     'installed_digest': installed['digest']})
+    if package_version and installed['version'] and \
+            package_version.split('+', 1)[0] != installed['version']:
+        gaps.append({'kind': 'installed-drift', 'installed_running': package_version,
+                     'installed_on_disk': installed['version'],
+                     'detail': 'this helper is not the pinned package; preserve the brief '
+                               'and use the supported job package upgrade first'})
+    return gaps
+
+
+def require_current_package(state):
+    installed = source_identity(validate_contracts=False)
+    gaps = package_gaps(state, installed)
+    require(not gaps, 'policy/package migration required ('
+            + ', '.join(gap['kind'] for gap in gaps)
+            + '); run resume and use its owner-authorized migration path before continuing')
+    job_contracts(Path(installed['package_dir']))
+
+
+def job_contract_root(package=None):
+    """Resolve the job APIs used both by imports and the source fingerprint."""
+    package = Path(package or Path(__file__).resolve().parents[1])
+    if (package / 'install-manifest.json').is_file():
+        # An installed package must use its own contracts, even when one is missing.
+        return package
+    # Only the repository's explicit plugins/<plugin> layout is a source checkout.
+    # A versioned installer directory with a deleted manifest must never fall back.
+    root = package.parent.parent
+    require(package.parent.name == 'plugins' and package.name == 'babysitter'
+            and (root / 'shared').is_dir() and (root / 'core').is_dir()
+            and not (package / 'shared').exists() and not (package / 'core').exists(),
+            'installed package install-manifest.json is missing; '
+            'source mode requires plugins/babysitter with repository shared/ and core/')
+    return root
 
 
 def job_contracts(package=None):
-    """Load the shipped job APIs, from the package or this source checkout."""
+    """Check every required export at one boundary, including during inspection."""
     package = Path(package or Path(__file__).resolve().parents[1])
-    for root in (package, *package.parents):
-        if (root / 'shared' / 'job_coordinator.py').is_file():
-            sys.path.insert(0, str(root))
-            return
-    raise ContinuousError('supported job APIs are unavailable in this package')
+    source_identity(package / 'scripts' / 'continuous.py', validate_contracts=False)
+    sys.path.insert(0, str(job_contract_root(package)))
+    try:
+        module = 'shared.worker_registry'
+        from shared.worker_registry import package_digest as manifest_digest, verify_package_files
+        module = 'shared.job_coordinator'
+        from shared.job_coordinator import pinned_store, verify_all_pins, verify_job_pins
+        module = 'core.jobs'
+        from core.jobs import _owner_current
+        module = 'core.jobs.store'
+        from core.jobs.store import _regular, MAX_STATE_BYTES as JOB_MAX_BYTES, strict_load
+    except Exception as exc:
+        raise integrity_error(exc, module) from exc
+    return SimpleNamespace(manifest_digest=manifest_digest, verify_package_files=verify_package_files,
+                           pinned_store=pinned_store, verify_all_pins=verify_all_pins,
+                           verify_job_pins=verify_job_pins, owner_current=_owner_current,
+                           regular=_regular, max_bytes=JOB_MAX_BYTES, strict_load=strict_load)
 
 
 def verified_job(path):
-    job_contracts()
-    from shared.job_coordinator import pinned_store, verify_all_pins
+    contracts = job_contracts()
     directory = Path(path).expanduser().resolve()
     if directory.name == 'job.json':
         directory = directory.parent
     try:
-        store = pinned_store(directory.parent, directory.name)
-        return store, verify_all_pins(store)
-    except (ValueError, OSError) as exc:
+        store = contracts.pinned_store(directory.parent, directory.name)
+        return store, contracts.verify_all_pins(store)
+    except (ValueError, OSError, ImportError, SyntaxError) as exc:
         raise ContinuousError(f'job evidence is invalid: {exc}') from exc
 
 
 def accepted_fixer_result(args, state, row):
     """Bind the retained transport to an ingested execution and terminal owned handle."""
+    require_current_package(state)
     require(bool(args.result), 'a terminal fixer receipt needs --result <ingested result>')
     transport = Path(args.result).expanduser().resolve()
     job_path = getattr(args, 'job', None)
@@ -1127,7 +1301,7 @@ def reconcile_pr(pr, state, now, discovery):
              'detail': checks_state if not checks_ok else merge_state}, progress)
 
 
-def scheduler_report(state, now):
+def scheduler_report(state, now, identity_gaps=()):
     """Separate authorization, recorded schedule existence and observed delivery.
 
     A stored receipt stops being a confirmed upcoming wake the moment the run is no
@@ -1151,7 +1325,21 @@ def scheduler_report(state, now):
         'awaiting_receipt': bool(scheduler.get('awaiting_receipt')),
         'last_wake_at': scheduler.get('last_wake_at'),
         'last_wake_kind': scheduler.get('last_wake_kind'),
+        'package_identity_gap': list(identity_gaps),
     }
+    if state.get('cancelled'):
+        report.update(coverage=('stop-unverified' if schedule_id and not stopped.get('verified')
+                                else 'cancelled'), next_run_at=None,
+                      historical_next_run_at=stored_next,
+                      gap='run cancelled; no continuation wake is authorized'
+                          + ('; verify the owned host schedule is stopped' if schedule_id else ''))
+        return report
+    if identity_gaps:
+        report.update(coverage='continuation-blocked', next_run_at=None,
+                      historical_next_run_at=stored_next,
+                      gap='policy/package verification blocks continuation; inspect resume: '
+                          + ', '.join(item['kind'] for item in identity_gaps))
+        return report
     if mode != 'scheduled':
         report.update({
             'coverage': ('stop-unverified' if schedule_id and not stopped.get('verified')
@@ -1495,6 +1683,7 @@ def cmd_start(args):
         'package': {'pinned_version': pinned,
                     'installed_version': identity['version'],
                     'installed_digest': identity['digest'],
+                    'fingerprint_scheme': identity['fingerprint_scheme'],
                     'helper': str(Path(args.script).resolve())},
         'prs': {},
         'events': {},
@@ -1555,6 +1744,7 @@ def schedule_request(state, state_file):
 def cmd_schedule_plan(args):
     path = state_path(args.state)
     with locked_state(path) as state:
+        require_current_package(state)
         if state.get('cancelled'):
             return {'status': 'cancelled', 'request': None, 'cancelled': state['cancelled'],
                     'instruction': 'resume the run explicitly before planning scheduled work'}
@@ -1586,6 +1776,7 @@ def cmd_schedule_record(args):
     with locked_state(path) as state:
         if state.get('cancelled'):
             raise ContinuousError('this run is cancelled; resume it before recording a schedule')
+        require_current_package(state)
         now = parse_time(args.now, '--now')
         require(state['scheduler']['mode'] == 'scheduled',
                 'event-only runs cannot record a host schedule; obtain scheduler authorization first')
@@ -1626,7 +1817,7 @@ def cmd_schedule_record(args):
 
 def cmd_schedule_stop(args):
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         now = parse_time(args.now, '--now')
         scheduler = state['scheduler']
         current = scheduler.get('schedule_id')
@@ -1658,13 +1849,14 @@ def cmd_schedule_stop(args):
 
 def cmd_scheduler(args):
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         if state.get('cancelled'):
             raise ContinuousError('this run is cancelled; resume it before changing scheduler coverage')
         now = parse_time(args.now, '--now')
         available = args.available == 'yes'
         authorized = args.authorized == 'yes'
         if available and authorized:
+            require_current_package(state)
             require(state['scheduler']['authorization'].get('source') and
                     state['scheduler']['authorization'].get('sha256'),
                     'scheduler authorization needs a recorded owner source')
@@ -1765,10 +1957,14 @@ def normalise_pr(raw, now):
 def cmd_observe(args):
     path = state_path(args.state)
     with locked_state(path) as state:
+        require_current_package(state)
         now = parse_time(args.now, '--now')
         if state.get('cancelled'):
+            report = scheduler_report(state, now)
             return {'status': 'cancelled', 'actions': [], 'admitted': [], 'human_questions': [],
                     'cancelled': state['cancelled'],
+                    'scheduler': report, 'coverage': report['coverage'], 'next_wake_at': None,
+                    'scheduler_stop': state['scheduler'].get('stop'),
                     'message': 'this run was cancelled; resume explicitly to continue'}
         if args.wake_kind == 'schedule' and (
                 state['scheduler']['mode'] != 'scheduled'
@@ -1797,9 +1993,7 @@ def cmd_dispatch(args):
     until host reconciliation establishes a handle or confirms refusal.
     """
     path = state_path(args.state)
-    with locked_state(path) as state:
-        if state.get('cancelled'):
-            raise ContinuousError('this run is cancelled; resume it before dispatching new work')
+    with locked_state(path, allow_policy_drift=True) as state:
         now = parse_time(args.now, '--now')
         pr = state['prs'].get(args.pr)
         require(pr is not None, f'unknown PR: {args.pr}')
@@ -1828,6 +2022,12 @@ def cmd_dispatch(args):
                         'dispatch': existing}
             return {'status': 'duplicate', 'request_id': args.request_id,
                     'host_task_id': existing.get('host_task_id'), 'dispatch': existing}
+        # Attaching a late handle above reconciles a launch that already happened.
+        # Every new reservation, including a direct non-reserve dispatch, must pass
+        # identity verification before it can change a writer guard or authorize work.
+        if state.get('cancelled'):
+            raise ContinuousError('this run is cancelled; resume it before dispatching new work')
+        require_current_package(state)
         if reserve and args.host_task_id:
             raise ContinuousError(
                 'reserve before the host side effect; attach --host-task-id afterwards')
@@ -1950,7 +2150,7 @@ def cmd_receipt(args):
     changes nothing, including the progress clock.
     """
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         now = parse_time(args.now, '--now')
         pr = state['prs'].get(args.pr)
         require(pr is not None, f'unknown PR: {args.pr}')
@@ -2084,7 +2284,7 @@ def cmd_receipt(args):
 def cmd_resolve(args):
     """Close a known PR only from an explicit targeted host read, never from omission."""
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         now = parse_time(args.now, '--now')
         pr = state['prs'].get(args.pr)
         require(pr is not None, f'unknown PR: {args.pr}')
@@ -2106,7 +2306,7 @@ def cmd_resolve(args):
 
 def cmd_cancel(args):
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         now = parse_time(args.now, '--now')
         state['cancelled'] = {'at': now_iso(now), 'reason': args.reason}
         audit(state, now, 'cancel', reason=args.reason)
@@ -2152,13 +2352,12 @@ def validate_upgrade_receipt(receipt_path, state, owner_decision, installed, job
             and bool(previous.get('path')), 'upgrade receipt needs retained previous-state evidence')
     require(Path(previous['path']).resolve() == store.path / 'migrations' / (
         previous['sha256'] + '-job.json'), 'upgrade previous-state path is not retained by this job')
-    from core.jobs import _owner_current
-    from core.jobs.store import _regular, MAX_STATE_BYTES as JOB_MAX_BYTES, strict_load
+    contracts = job_contracts()
     try:
-        old_raw = _regular(Path(previous['path']), max_bytes=JOB_MAX_BYTES)
+        old_raw = contracts.regular(Path(previous['path']), max_bytes=contracts.max_bytes)
         require(hashlib.sha256(old_raw).hexdigest() == previous['sha256']
                 and len(old_raw) == previous.get('bytes'), 'retained previous job bytes changed')
-        old = strict_load(old_raw)
+        old = contracts.strict_load(old_raw)
         require(old.get('job_id') == job['job_id'], 'retained previous state belongs to another job')
         if state.get('job_state_sha256'):
             require(previous['sha256'] == state['job_state_sha256'],
@@ -2172,7 +2371,8 @@ def validate_upgrade_receipt(receipt_path, state, owner_decision, installed, job
         decision = next((item for item in job['decisions']
                          if item.get('id') == owner_decision
                          and item.get('scope') == 'plan:' + revision['revision']['id']), None)
-        require(decision is not None and _owner_current(decision, job['policy']['max_artifact_bytes']),
+        require(decision is not None and contracts.owner_current(
+                    decision, job['policy']['max_artifact_bytes']),
                 'the upgrade owner decision evidence is unavailable or changed')
         keys = revision['adopted_dependencies']
         matching = [key for key in keys if key in job['pins'] and key in old['pins']
@@ -2181,8 +2381,7 @@ def validate_upgrade_receipt(receipt_path, state, owner_decision, installed, job
                     == Path(installed['package_dir']).resolve()]
         require(len(matching) == 1, 'job pin does not name the running upgraded package')
         old_pin = old['pins'][matching[0]]
-        from shared.job_coordinator import verify_job_pins
-        verify_job_pins(old)
+        contracts.verify_job_pins(old)
         old_manifest = load_json(Path(old_pin['package_dir']) / 'install-manifest.json')
         package = state.get('package') or {}
         if package.get('pinned_version'):
@@ -2197,7 +2396,7 @@ def validate_upgrade_receipt(receipt_path, state, owner_decision, installed, job
             require(package['installed_digest'] in (old_pin['package_digest'],
                     package_digest(Path(old_pin['package_dir']))),
                     'retained old package digest does not match this continuous run')
-    except (ValueError, OSError, KeyError) as exc:
+    except (ValueError, OSError, KeyError, ImportError, SyntaxError) as exc:
         raise ContinuousError(f'upgrade evidence is invalid: {exc}') from exc
     return {'path': str(receipt_path), 'sha256': sha256_file(receipt_path),
             'job_id': receipt.get('job_id'), 'package_digest': receipt.get('package_digest'),
@@ -2224,10 +2423,16 @@ def validate_unpinned_migration(args, state, path, installed):
     require(package.get('installed_digest') and package.get('pinned_version')
             and state.get('run_id'), 'unpinned migration requires the recorded package identity '
             'and run ID; missing legacy identity needs a genuine pinned-job upgrade receipt')
-    old = source_identity(Path(args.previous_package).expanduser() / 'scripts' / 'continuous.py')
+    old = source_identity(Path(args.previous_package).expanduser() / 'scripts' / 'continuous.py',
+                          validate_contracts=False)
     require(old['plugin'] == installed['plugin'] == 'babysitter',
             'migration packages must both be babysitter')
-    require(package['installed_digest'] in (old['digest'], package_digest(old['package_dir']))
+    accepted_digests = [old['digest']]
+    if not package.get('fingerprint_scheme'):
+        # Legacy helpers hashed only package files, including installed metadata.
+        # Retain that explicit migration path without downgrading a new source pin.
+        accepted_digests.append(package_digest(old['package_dir']))
+    require(package['installed_digest'] in accepted_digests
             and package['pinned_version'] in (old['installed_version'], old['version']),
             'retained previous package identity does not match this run')
     decision = load_json(args.owner_decision)
@@ -2241,9 +2446,8 @@ def validate_unpinned_migration(args, state, path, installed):
     source = Path(decision['source'])
     require(source.is_absolute() and not source.resolve().is_relative_to(path.parent),
             'owner decision source must be outside the continuous state directory')
-    job_contracts()
-    from core.jobs import _owner_current
-    require(_owner_current(decision, MAX_STATE_BYTES)
+    contracts = job_contracts()
+    require(contracts.owner_current(decision, MAX_STATE_BYTES)
             and decision['scope'] in decision['quote'],
             'owner decision source bytes/hash/quote differ or do not approve this migration scope')
     return {'decision': decision, 'decision_file': str(Path(args.owner_decision).resolve()),
@@ -2263,38 +2467,10 @@ def cmd_resume(args):
         require(state.get('schema_version') == SCHEMA_VERSION,
                 'unsupported continuous state schema')
         now = parse_time(args.now, '--now')
-        installed = source_identity(args.script)
-        gaps = []
-        if state.get('policy_version') != installed['policy_version']:
-            gaps.append({'kind': 'policy-version',
-                         'state': state.get('policy_version'),
-                         'installed': installed['policy_version']})
+        installed = source_identity(args.script, validate_contracts=False)
+        gaps = package_gaps(state, installed, args.package_version)
         package = state.get('package') or {}
         unpinned = not state.get('job_id') and not state.get('job')
-        pinned = package.get('pinned_version')
-        if args.package_version and pinned and args.package_version != pinned:
-            gaps.append({'kind': 'package-version',
-                         'state_pinned': pinned, 'installed_running': args.package_version})
-        if not package.get('installed_digest'):
-            # A state written before the fingerprint existed cannot prove which
-            # package produced it. Surface that instead of silently claiming identity.
-            gaps.append({'kind': 'missing-package-identity',
-                         'state_pinned': pinned,
-                         'detail': 'the state predates the installed-package fingerprint; '
-                                   'its package identity is unverified'})
-        elif package['installed_digest'] != installed['digest']:
-            gaps.append({'kind': 'installed-drift',
-                         'state_installed': package.get('installed_version'),
-                         'installed_on_disk': installed['version'],
-                         'state_digest': package.get('installed_digest'),
-                         'installed_digest': installed['digest']})
-        if args.package_version and installed['version'] and \
-                args.package_version.split('+', 1)[0] != installed['version']:
-            gaps.append({'kind': 'installed-drift',
-                         'installed_running': args.package_version,
-                         'installed_on_disk': installed['version'],
-                         'detail': 'this helper is not the pinned package; preserve the brief '
-                                   'and use the supported job package upgrade first'})
         if state.get('cancelled') and not args.resume_cancelled and not gaps:
             return {'status': 'cancelled', 'cancelled': state['cancelled'],
                     'gaps': gaps, 'changed': False,
@@ -2309,6 +2485,10 @@ def cmd_resume(args):
                         '<old-package> --owner-decision <decision.json> approving owner_decision_scope; '
                         'pinned jobs: run job_cli.py upgrade-package, then pass --accept-migration '
                         '--owner-decision-id <id> --upgrade-receipt <output.json> --job <job-dir>')}
+        # No changed contract is executed for an unapproved continuation. Migration
+        # validators load the target contracts only on the explicit acceptance path.
+        if not gaps:
+            job_contracts(Path(installed['package_dir']))
         require(not gaps or args.owner_decision_id,
                 'accepting a policy/package migration requires --owner-decision-id')
         if gaps and not args.upgrade_receipt and not (unpinned and args.owner_decision):
@@ -2360,6 +2540,7 @@ def cmd_resume(args):
             state['policy_version'] = installed['policy_version']
             package['installed_version'] = installed['version']
             package['installed_digest'] = installed['digest']
+            package['fingerprint_scheme'] = installed['fingerprint_scheme']
             package['pinned_version'] = args.package_version or installed['installed_version']
             package['helper'] = str(Path(args.script).resolve())
             state['package'] = package
@@ -2443,21 +2624,61 @@ def cmd_preflight(args):
 
 def cmd_status(args):
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         now = (parse_time(args.now, '--now') if getattr(args, 'now', None)
                else datetime.now(timezone.utc))
-        report = scheduler_report(state, now)
+        installed = None
+        try:
+            installed = source_identity(getattr(args, 'script', __file__), validate_contracts=False)
+            gaps = package_gaps(state, installed)
+            if not gaps:
+                job_contracts(Path(installed['package_dir']))
+        except (ContinuousError, ValueError, OSError) as exc:
+            installed = None
+            gaps = [{'kind': 'package-integrity', 'detail': str(exc)}]
+        report = scheduler_report(state, now, gaps)
+
+        def next_action(url, pr):
+            pending = pending_write(pr, state, now)
+            if pending:
+                return pending[0]
+            if gaps or state.get('cancelled'):
+                fixer, merge = pr.get('fixer') or {}, live_merge_dispatch(pr)
+                if fixer.get('in_flight') or merge:
+                    row = fixer if fixer.get('in_flight') else merge
+                    return {'pr': url,
+                            'kind': 'wait-fixer' if fixer.get('in_flight') else 'merge-pending',
+                            'request_id': row.get('request_id'),
+                            'host_task_id': row.get('host_task_id'),
+                            'reason': 'already-launched work still needs its matching receipt; '
+                                      + ('run cancelled' if state.get('cancelled') else
+                                         'package verification blocks new work'),
+                            'next_check_at': deadline(now, state['policy']['cadence_seconds'])}
+            if state.get('cancelled'):
+                if not pr.get('next_action'):
+                    return None
+                return {'pr': url, 'kind': 'cancelled', 'reason': report['gap'],
+                        'next_check_at': None}
+            if gaps and pr.get('state') == 'open':
+                return {'pr': url, 'kind': 'migration-required', 'reason': report['gap'],
+                        'blocked': {'kind': 'package-identity', 'gaps': gaps},
+                        'next_check_at': None}
+            return pr.get('next_action')
+
         open_prs = [url for url, pr in state['prs'].items() if pr.get('state') == 'open']
         excluded = {url: pr.get('excluded') for url, pr in state['prs'].items()
                     if pr.get('state') == 'excluded'}
         return {
-            'status': 'cancelled' if state.get('cancelled') else 'active',
+            'status': ('cancelled' if state.get('cancelled') else
+                       'continuation-blocked' if gaps else 'active'),
             'run_id': state.get('run_id'),
             'policy_version': state['policy_version'],
             'scope': state['scope'],
             'policy': state['policy'],
             'scheduler': report,
             'coverage': report['coverage'],
+            'package': {'recorded': state.get('package'), 'running': installed, 'gaps': gaps},
+            'package_identity_gap': gaps,
             'open_prs': open_prs,
             'excluded': excluded,
             'prs': {url: {'state': pr.get('state'),
@@ -2466,8 +2687,7 @@ def cmd_status(args):
                           'last_meaningful_progress_at': pr.get('last_meaningful_progress_at'),
                           'owner': pr.get('owner'), 'fixer': pr.get('fixer'),
                           'dispatches': pr.get('dispatches', []),
-                          'next_action': (pending_write(pr, state, now) or
-                                          (pr.get('next_action'),))[0]}
+                          'next_action': next_action(url, pr)}
                     for url, pr in state['prs'].items()},
             'discovery': state['discovery'],
             'cancelled': state.get('cancelled'),

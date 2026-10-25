@@ -121,7 +121,9 @@ Primary reviewers are named slots with role, coverage and applicability. Each sl
 is an obligation, not an interchangeable candidate. A reviewer preference remains
 unused if no review stage applies; it does not enable optional code review. Record
 finite work replacements separately from review replacements, with exact permitted
-targets/options, effort/cost/data limits and actual authority sources. Review-only
+targets/options, effort/data limits, any owner-supplied cost limit and actual
+authority sources. A monetary ceiling is optional; do not ask for one solely to
+validate a model or replacement grant. Review-only
 fallback cannot change work models or permit delegated-to-coordinator fallback.
 Blocked/malformed work alone grants no escalation. New models, raised effort or
 extra reviewers require an upfront grant or a new answer. Complete adverse reviews

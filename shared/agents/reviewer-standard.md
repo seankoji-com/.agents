@@ -98,6 +98,46 @@ blocker or permit a claim that the issue was filed. Do not repeat a review solel
 to file or link an issue. Reviewers remain read-only and return proposals to the
 coordinator; they never file issues themselves without separate authority.
 
+## Convergence
+
+The coordinator batches supported repairs before re-review and records why another
+assessment is needed. Report every finding at its honest severity regardless of
+round count. Keep ordinary severity rules outside the existing final-round triage;
+no target pass count can suppress findings, clear a gate or approve changed bytes.
+
+After two consecutive results with the same validator error class for the same
+slot and unchanged relevant brief, snapshot and evidence, the coordinator stops
+relaunching and diagnoses the cause. The gate stays unaccepted; dependent work
+waits. Resume only after addressing the cause, within existing authority and
+remaining budgets. Do not reset counters or recommend extensions merely to repeat
+the same approach.
+
+Re-review keeps full required coverage; focus investigation on changes, affected
+integration and unresolved objections. Reuse unchanged evidence only where the
+validator permits. Keep resolved findings without reissuing them. Defer cosmetic
+edits that leave execution and evidence binding intact. Receipt/transport fixes
+keep required validation and counted fresh executions, without unrelated redesign.
+
+Before completion, check this brief's exact correlation, JSON/schema, coverage IDs,
+argv arrays, retained finding keys and status/verdict consistency. List every path
+actually read, including unexpected and mandatory procedural reads; never omit a
+read to pass validation. The assigned brief and own task-subtree input frames,
+drafts and diagnostics are contract/outputs, checked through their existing hash
+and artifact bindings, not additional inspected evidence. Separately opened source
+or helper content still belongs in `inspected_paths` and its declared read scope.
+Fix draft formatting before terminal completion within
+this execution. Returned results stay immutable and counted; existing fresh-review
+execution rules remain binding. Report protocol defects instead of inventing a
+finding response to satisfy a faulty validator.
+
+A planning brief's `resources.draft_check` names the pinned helper and byte hash.
+Verify the helper's byte hash before use; the checker does not certify its own
+installation. It grants no extra reads. Use `check-draft` only when the coordinator
+has declared the needed procedural reads in the permitted pre-review scope. Save
+the input and draft under the assigned artifact directory. Allow at most one
+pre-completion correction; keep findings and actual-read disclosures intact. The
+diagnostic is never acceptance and cannot supply host or live-state verification.
+
 ## Operator visibility and learning
 
 Immediately after each subtask review returns, including optional, adverse,

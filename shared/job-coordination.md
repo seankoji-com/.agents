@@ -138,6 +138,8 @@ final gate) to accept every requirement at the integrated snapshot.
 
 ## 6. Repair
 
+Batch repairs before re-review.
+
 `upgrade-package` requires the imps upgrade procedure.
 
 Each stage gets the initial attempt plus `max_repair_cycles` (default 20) through
