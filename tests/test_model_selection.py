@@ -762,6 +762,21 @@ class SelectionTests(unittest.TestCase):
         data['work_replacements'].append(replacement(data, direct))
         self.assertEqual(models.dispatch(models.freeze(data), role='workhorse', target=direct, unavailable=failure)['execution'], 'current-context')
 
+    def test_replacement_authority_needs_no_monetary_budget(self):
+        target = {'providerInstanceId': 'fixture-spare', 'model': 'gamma-spare', 'options': {'effort': 'high'}}
+        data = deepcopy(self.data); data['work_replacements'] = [replacement(data, target)]
+        limits = data['work_replacements'][0]['authority']['limits']
+        limits.pop('max_cost')
+        record = models.freeze(data)
+        self.assertNotIn('max_cost', record['work_replacements'][0]['authority']['limits'])
+        failure = {'kind': 'technical', 'reference': 'fixture:failed-host-call'}
+        self.assertTrue(models.dispatch(record, role='workhorse', target=target, unavailable=failure)['substituted'])
+        for value in (None, True, -1, '100', float('inf'), float('nan')):
+            with self.subTest(value=value):
+                limits['max_cost'] = value
+                with self.assertRaisesRegex(models.SelectionError, 'cost limit'):
+                    models.freeze(data)
+
     def test_no_unapproved_effort_increase_and_no_adverse_fallback_or_uncertain_duplicate(self):
         target = {'providerInstanceId': 'fixture-spare', 'model': 'gamma-spare', 'options': {'effort': 'high'}}
         data = deepcopy(self.data); data['work_replacements'] = [replacement(data, target)]
