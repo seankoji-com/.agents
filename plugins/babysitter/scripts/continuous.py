@@ -2545,6 +2545,8 @@ def build_parser():
     dispatch.add_argument('--now', required=True)
     dispatch.add_argument('--pr', required=True)
     dispatch.add_argument('--request-id', required=True)
+    dispatch.add_argument('--reconciliation-request-id',
+                          help='bind a job-owned fixer request to the current repair decision')
     dispatch.add_argument('--kind', choices=tuple(KIND_RECEIPT_STATUSES), required=True)
     dispatch.add_argument('--host-task-id')
     dispatch.add_argument('--head')

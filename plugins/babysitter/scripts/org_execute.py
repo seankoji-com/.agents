@@ -238,7 +238,7 @@ def ownership(host, thread_id, rows):
         # confirm a handoff; the deterministic runner never guesses from prose.
         for pr in thread.get('pullRequests') or ([thread['linkedPullRequest']] if thread.get('linkedPullRequest') else []):
             owners[pr['url']] = {'thread_id': thread['threadId'], 'status': 'active'}
-        title = thread.get('title', '')
+        title = thread.get('title') or ''
         for row in rows:
             if (row['url'] in title or re.search(r'(?:#|\bPR\s*#?)' + str(row['number']) + r'\b', title, re.I)
                     or (row.get('head_ref') and row['head_ref'] in title)):
@@ -478,7 +478,8 @@ def execute(report, api, host, jobs, config):
                 outcome['watch'] = 'unavailable'
     return {'schema_version': 1, 'org': report['org'], 'scan_complete': report['complete'],
             'scan_gaps': report['gaps'],
-            'complete': report['complete'] and all(r['status'] != 'held' for r in outcomes),
+            'complete': report['complete'] and all(r['status'] not in
+                {'held', 'needs-result-reconciliation'} for r in outcomes),
             'scan_summary': report['summary'], 'outcomes': outcomes, 'api': api.report()}
 
 
@@ -506,7 +507,7 @@ def run(args):
         if args.probe:
             host = ToolBridgeHost() if args.bridge else T3Host()
             caps = host.call('orchestrator_capabilities', {})
-            result = {'complete': True, 'transport': 'harness-tool-bridge' if args.bridge else 'acp',
+            result = {'complete': True, 'transport': 'harness-tool-bridge',
                       'parent_thread_id': caps['parentThreadId'], 'dispatch_available': bool(
                           caps.get('features', {}).get('appOwnedSubagents'))}
             print(('T3_RESULT ' if args.bridge else '') + json.dumps(result), flush=True)

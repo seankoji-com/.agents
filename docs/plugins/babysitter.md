@@ -114,7 +114,7 @@ the deterministic launch path. Live fixer execution and scheduled delivery remai
 separate checks.
 
 For a 15-minute sweep, request that cadence explicitly; the host schedule uses
-`--cadence-seconds 900`. The scan runs once per wake and exits.
+`continuous.py start --cadence-seconds 900`. The scan runs once per wake and exits.
 
 A native PR watch wakes for linked PR changes only. It does not discover a newly
 opened matching PR, and an unchanged queued CI job emits no event. When you

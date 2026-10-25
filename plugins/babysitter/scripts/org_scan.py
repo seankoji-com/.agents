@@ -183,7 +183,12 @@ def tail(api, node, kind, cursor):
     if (not current or current['headRefOid'] != node['headRefOid']
             or current['state'] != 'OPEN' or current['isDraft']):
         raise ScanError('pr-changed-during-pagination')
-    return current['reviewThreads'] if kind == 'threads' else rollup(current)['contexts']
+    if kind == 'threads':
+        return current['reviewThreads']
+    checks = rollup(current)
+    if checks is None:
+        raise ScanError('checks-disappeared')
+    return checks['contexts']
 
 
 def classify(node, api):

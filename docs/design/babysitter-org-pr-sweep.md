@@ -19,7 +19,7 @@ merge, release, live paid-agent execution and recurring activation are outside s
   Verify: continuous-state, workflow and installed-package tests.
 - [ ] Review the exact final commit with the t3-imps reviewer protocol and address
   blocking findings before publishing the PR. Record same-lineage review honestly.
-- [ ] Commit explicit paths, push the branch, create and link the PR, and report
+- [x] Commit explicit paths, push the branch, create and link the PR, and report
   current-head hosted checks separately from local validation.
 
 Local validation from implementation covered all 159 test modules in four shards.
@@ -34,7 +34,7 @@ PR preparation refreshes the base and binds review to a committed snapshot.
 Any review repairs require focused revalidation and a fresh review of changed
 content. No existing finding may be silently dropped or downgraded.
 
-PR #148 is draft. Review round 1 at `903140a` returned two major blockers:
+PR #148 was opened as a draft. Review round 1 at `903140a` returned two major blockers:
 `F-REPAIR-BUDGET` (executor bypassed persisted repair exhaustion) and
 `F-AUTH-REVOCATION` (lightweight observations erased authorization holds).
 Repairs preserve holds under the ledger lock, require its repair decision, and map
@@ -53,3 +53,9 @@ Round 3 at `383ddfc` verified reviewer-detail retention but retained major
 holds every incomplete PR before writes and publishes a discovery gap instead of
 replacing its saved observation. Check-tail and thread-tail fixtures preserve the
 observation, terminal attempts and exhausted decision after a complete read returns.
+
+Status at the follow-up snapshot on 25 October 2026: PR #148 is published and ready
+for review. Round 4 approved `9bb635d` and verified both original major findings
+fixed. Hosted bot feedback prompted null-rollup, CLI mapping, execution-status,
+fixture and documentation follow-ups. The unchecked final-review item applies to
+these new changes; the PR body records subsequent review and current-head CI.

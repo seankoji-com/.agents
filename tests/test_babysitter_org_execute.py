@@ -257,6 +257,8 @@ class ExecutionTest(unittest.TestCase):
             self.assertEqual(dispatch['attempt'], index + 1)
             self.assertTrue(dispatch['reconciliation_request_id'].endswith('-a' + str(index + 1)))
             self.settle(prepared['request_id'])
+            # Stand in for coordinator ingestion/disposition and preparation of
+            # the next request; owned terminal handles are never self-accepted.
             self.jobs.handles.clear()
         self.config['wake_id'] = 'exhausted'
         self.assertIn('exhausted', self.execute()['outcomes'][0]['reason'])
@@ -347,6 +349,30 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(sum(tool == 'task_status' for tool, _ in self.host.calls), 1)
         self.assertEqual(sum(q.startswith('mutation') for q, _, _ in self.api.calls), 1)
 
+    def test_terminal_handle_needing_ingestion_is_not_execution_complete(self):
+        self.execute()
+        call = self.host.call
+        def terminal(tool, arguments):
+            if tool == 'task_status':
+                return {'status': 'completed', 'workState': 'result_available', 'hasPendingChildRuns': False}
+            return call(tool, arguments)
+        with patch.object(self.host, 'call', side_effect=terminal):
+            result = self.execute()
+        self.assertEqual(result['outcomes'][0]['status'], 'needs-result-reconciliation')
+        self.assertFalse(result['complete'])
+        self.assertEqual(sum(t == 'delegate_task' for t, _ in self.host.calls), 1)
+
+    def test_cli_can_map_job_request_to_reconciled_attempt(self):
+        action = self.observe()['actions'][0]
+        args = runner.continuous.build_parser().parse_args(['dispatch',
+            '--state', self.config['continuous_state'], '--now', runner.org_scan.utc_now(),
+            '--pr', pr()['url'], '--request-id', 'cli-job-request', '--kind', 'fixer',
+            '--head', HEAD, '--attempt', '1', '--reserve',
+            '--reconciliation-request-id', action['request_id']])
+        self.assertEqual(args.func(args)['status'], 'recorded')
+        self.settle('cli-job-request')
+        self.assertEqual(self.observe()['actions'][0]['attempt'], 2)
+
     def test_lost_launch_response_holds_reservation(self):
         self.host.lose_response = True
         first, second = self.execute(), self.execute()
@@ -359,12 +385,20 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(self.jobs.workspace_calls, 1, 'an uncertain writer must not have its checkout reset')
 
     def test_other_thread_ownership_prevents_every_mutation(self):
-        self.host.threads = [{'threadId': 'sibling', 'parentThreadId': None,
+        self.host.threads = [{'threadId': 'sibling', 'parentThreadId': None, 'title': 'Other work',
                              'pullRequests': [{'url': pr()['url']}]}]
         result = self.execute()
         self.assertEqual(result['outcomes'][0]['status'], 'owned-elsewhere')
         self.assertEqual(self.api.calls, [])
         self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+
+    def test_title_only_ownership_and_nullable_titles(self):
+        row = self.report()['prs'][0]
+        for title in (row['url'], 'Fix PR #1', 'Work on ' + row['head_ref']):
+            self.host.threads = [{'threadId': 'sibling', 'title': title}]
+            self.assertIn(row['url'], runner.ownership(self.host, 'parent', [row]))
+        self.host.threads = [{'threadId': 'sibling', 'title': None}]
+        self.assertEqual(runner.ownership(self.host, 'parent', [row]), {})
 
     def test_repository_transferred_out_of_org_is_not_admitted(self):
         node = pr(repo='another-org/repo', contexts=[check('FAILURE')], autoMergeRequest=None)
@@ -377,9 +411,12 @@ class ExecutionTest(unittest.TestCase):
     def test_draft_and_head_changes_stop_arming_and_dispatch(self):
         for flag in ('draft', 'move_head'):
             with self.subTest(flag=flag):
+                self.api = API()
                 setattr(self.api, flag, True)
                 result = self.execute()
                 self.assertEqual(result['outcomes'][0]['status'], 'held')
+                self.assertEqual(result['outcomes'][0]['reason'], 'pr-no-longer-non-draft'
+                    if flag == 'draft' else 'head-changed-before-auto-merge')
                 self.assertFalse(any(q.startswith('mutation') for q, _, _ in self.api.calls))
                 self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
 
@@ -402,7 +439,7 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(sum(t == 'delegate_task' for t, _ in self.host.calls), 1)
 
     def test_missing_machine_transport_does_not_run_provider_cli(self):
-        with patch.dict(os.environ, {}, clear=True), patch.object(subprocess, 'run') as run:
+        with patch.object(subprocess, 'run') as run:
             with self.assertRaisesRegex(runner.ExecutionError, 'transport-unavailable'):
                 runner.T3Host()
             run.assert_not_called()
@@ -418,6 +455,16 @@ class ExecutionTest(unittest.TestCase):
         with self.assertRaisesRegex(runner.continuous.ContinuousError, 'auto-merge write is pending'):
             runner.continuous_command(self.config, 'dispatch', pr=row['url'], request_id='fix', kind='fixer',
                 head=HEAD, reserve=True, host_task_id=None, attempt=1, review_triage=False)
+        runner.continuous_command(self.config, 'receipt', pr=row['url'], request_id='arm', kind='auto-merge',
+            head=HEAD, status='uncertain', host_task_id=None, result=None, reason='Fixture lost response.')
+        saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][row['url']]
+        self.assertEqual(saved['next_action']['kind'], 'auto-merge-pending')
+        self.assertEqual(self.execute()['outcomes'][0]['status'], 'held')
+        self.assertEqual(self.api.calls, [])
+        runner.continuous_command(self.config, 'receipt', pr=row['url'], request_id='arm', kind='auto-merge',
+            head=HEAD, status='rejected', host_task_id=None, result=None, reason='Fixture confirms no submission.')
+        saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][row['url']]
+        self.assertEqual(saved['next_action']['kind'], 'dispatch-fixer')
 
     def test_arming_with_unresolved_threads_still_launches_the_fixer(self):
         node = pr(contexts=[check('QUEUED')], autoMergeRequest=None,

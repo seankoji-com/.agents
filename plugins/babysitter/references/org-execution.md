@@ -67,6 +67,8 @@ const source = await tools.exec_command({
   cmd: "cat " + quote(packagePath + "/scripts/org_bridge.js"), workdir,
   max_output_tokens: 5000
 });
+if (source.exit_code !== 0 || source.original_token_count > 5000)
+  throw new Error("Read the complete bridge source before evaluating it.");
 const invoke = new Function("tools", "options", source.output);
 text(await invoke(tools, {
   argv: ["python3", packagePath + "/scripts/org_scan.py", "--org", org,
@@ -142,6 +144,10 @@ observation: an explicit discovery gap preserves its failure identity and blocks
 writers until a complete read returns. Other fully observed PRs can still proceed.
 
 The executor launches prepared work, not acceptance or semantic finding disposition.
+Execution `complete` means the sweep finished without held PRs or terminal tasks
+awaiting result reconciliation. It does not mean the org is healthy or merged:
+active fixers, queued checks, external ownership and scope exclusions remain explicit
+outcomes. Held or result-awaiting work returns exit 3; a completed sweep returns 0.
 The existing coordinator ingests terminal results, replies/resolves verified threads,
 handles human decisions and charges any retry. It can then use the runner for a new
 prepared request. For a retry, retain the PR's coordinator-owned `retry_usage` and

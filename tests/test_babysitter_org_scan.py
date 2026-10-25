@@ -7,6 +7,7 @@ import copy
 import fcntl
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -149,6 +150,24 @@ class ClassificationTest(unittest.TestCase):
 
 
 class PaginationTest(unittest.TestCase):
+    def test_disappearing_rollup_keeps_known_failure_and_other_prs(self):
+        node = pr(contexts=[check('FAILURE')] + [check('SUCCESS', str(i)) for i in range(100)])
+        api = FixtureAPI([{'id': 'r', 'nameWithOwner': 'fixture/repo'}], {'r': [node, pr(number=2)]})
+        query = api.query
+        def disappearing(text, variables=None, estimate=1):
+            if variables and variables.get('cursor') == '100':
+                current = copy.deepcopy(node)
+                current['commits']['nodes'][0]['commit']['statusCheckRollup'] = None
+                return {'node': current}
+            return query(text, variables, estimate)
+        with patch.object(api, 'query', side_effect=disappearing):
+            out = scan.scan(api, 'fixture')
+        self.assertFalse(out['complete'])
+        self.assertEqual(len(out['prs']), 2)
+        self.assertEqual(out['prs'][0]['unknowns'], ['checks:checks-disappeared'])
+        self.assertEqual(out['prs'][0]['failing_checks'][0]['name'], 'ci')
+        self.assertEqual(out['prs'][1]['action'], 'healthy')
+
     def test_all_repositories_prs_threads_and_checks_with_sparse_repos(self):
         repos = [{'id': str(i), 'nameWithOwner': 'fixture/r%03d' % i} for i in range(102)]
         many = [pr(i, 'fixture/r000') for i in range(1, 28)]
@@ -168,7 +187,10 @@ class PaginationTest(unittest.TestCase):
         self.assertEqual(out['prs'][-1]['unresolved_thread_ids'], ['t100'])
         self.assertEqual(out['prs'][-1]['failing_checks'][0]['name'], 'c100')
         self.assertTrue(out['prs'][-1]['fork'])
-        self.assertLess(len(api.calls), 20)  # Includes empty repos without per-PR reads.
+        repository_pages = math.ceil(len(repos) / 100)
+        extra_pr_pages = math.ceil(len(many) / 25) - 1
+        pr_batches = math.ceil((len(repos) + extra_pr_pages) / 10)
+        self.assertEqual(len(api.calls), 1 + repository_pages + pr_batches + 2)  # Probe and two nested tails.
 
     def test_roster_has_no_search_thousand_result_cap(self):
         prs = [pr(i) for i in range(1, 1006)]
@@ -325,13 +347,13 @@ print(json.dumps({'data': data}))
             self.assertTrue(body['complete'])
             self.assertEqual(body['org'], 'fixture')
             self.assertEqual(body['dispatch'], ['https://github.com/fixture/repo/pull/1'])
-            self.assertEqual(len(log.read_text().splitlines()), 3)
+            requests_before_contention = len(log.read_text().splitlines())
             with (root / 'locks/fixture.lock').open('a') as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 3)
             self.assertEqual(json.loads(result.stdout)['gaps'][0]['reason'], 'scan-already-running')
-            self.assertEqual(len(log.read_text().splitlines()), 3)
+            self.assertEqual(len(log.read_text().splitlines()), requests_before_contention)
 
 
 if __name__ == '__main__':
