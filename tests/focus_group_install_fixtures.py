@@ -36,7 +36,7 @@ SHARED_CONTRACTS = ('boundaries.md', 'manifest.schema.json', 'workers-config.sch
 # Loaded by every audited helper process through PYTHONPATH. It never changes behaviour: it records each path the
 # process opens, lists or imports from inside the forbidden root, and appends one JSON line per process at exit.
 AUDIT_HOOK = r'''
-import atexit, errno, json, os, sys
+import atexit, errno, fcntl, json, os, sys
 _root, _log = os.environ.get('FG_FORBIDDEN_ROOT'), os.environ.get('FG_AUDIT_LOG')
 if _root and _log:
     _root, _hits, _busy = os.path.realpath(_root), [], [False]
@@ -53,6 +53,21 @@ if _root and _log:
                 # existing path/link is resolved afresh, never cached.
                 if fd is None and exc.errno == errno.ENOENT and not os.path.isabs(value) and os.sep not in value:
                     return path
+            finally:
+                if fd is not None:
+                    os.close(fd)
+        elif sys.platform == 'darwin' and hasattr(os, 'O_EVTONLY') and hasattr(fcntl, 'F_GETPATH'):
+            # The event-only descriptor resolves the current vnode without
+            # opening its data. F_GETPATH is available in Python 3.9+ on macOS.
+            # Reopen on every audit event so a retargeted alias is never cached.
+            fd = None
+            try:
+                fd = os.open(path, os.O_EVTONLY | getattr(os, 'O_CLOEXEC', 0))
+                resolved = fcntl.fcntl(fd, fcntl.F_GETPATH, b'\0' * 1024).split(b'\0', 1)[0]
+                if resolved:
+                    return os.fsdecode(resolved)
+            except OSError:
+                pass
             finally:
                 if fd is not None:
                     os.close(fd)
@@ -147,12 +162,17 @@ def audit_fidelity_probe(base):
     probe=Path(base)/'audit-control';probe.mkdir()
     env=audited(clean_env(probe),probe)
     target=ROOT/'tests/focus_group_install_fixtures.py'
-    script=('from pathlib import Path\nimport sys\n'
+    script=('from pathlib import Path\nimport os,sys,sitecustomize\n'
             'target=Path(sys.argv[1]);allowed=Path("allowed");allowed.write_text("Invented audit control.")\n'
             'alias=Path("alias");alias.symlink_to(allowed);assert alias.read_text()==allowed.read_text()\n'
-            'alias.unlink();alias.symlink_to(target);assert alias.read_bytes()\n'
-            'alias.unlink();alias.symlink_to(target.parent);list(alias.iterdir())\n'
-            'alias.unlink();alias.symlink_to(allowed);assert alias.read_text()==allowed.read_text()\n')
+            'original=os.path.realpath\n'
+            'def no_component_walk(*args,**kwargs):raise AssertionError("descriptor path fell back to component traversal")\n'
+            'if hasattr(os,"O_PATH") or sys.platform=="darwin":os.path.realpath=no_component_walk\n'
+            'try:\n'
+            ' alias.unlink();alias.symlink_to(target);assert alias.read_bytes()\n'
+            ' alias.unlink();alias.symlink_to(target.parent);list(alias.iterdir())\n'
+            ' alias.unlink();alias.symlink_to(allowed);assert alias.read_text()==allowed.read_text()\n'
+            'finally:os.path.realpath=original\n')
     p=subprocess.run([sys.executable,'-c',script,str(target)],cwd=probe,env=env,
                      capture_output=True,text=True,timeout=60)
     assert p.returncode==0,p.stdout+p.stderr
