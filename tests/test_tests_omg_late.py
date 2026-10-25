@@ -36,7 +36,74 @@ def admission(data):
     return data
 
 
+def measured_group():
+    return {**base.group('simplify'),
+        'rationale': 'Measured corpus detection is 80% with 20% of the runtime; no future safety claim.',
+        'measurement': {'scope': 'named historical corpus', 'evidence': ['inspection'],
+                        'detected': 4, 'total': 5, 'runtime_ratio': .2},
+        'protection_lost': ['obsolete-platform'],
+        'tradeoff': {'state': 'accepted', 'owner': 'platform owner',
+                     'reason': 'Platform retired; retain ledger recovery.', 'evidence': ['inspection']}}
+
+
+def malformed_recommendations():
+    for field in ('measurement', 'tradeoff'):
+        for value in ('claimed' if field == 'measurement' else 'accepted', None, False, 0, '', [], [1], {}):
+            row = measured_group()
+            row[field] = value
+            yield field, value, row
+        fields = {'evidence': ('inspection', [], [1], [[]], ['missing']),
+                  **({'scope': (False, 1, [], {}, ' '), 'detected': (True, '4', [], -1, 6),
+                      'total': (False, '5', {}, 0), 'runtime_ratio': (True, '.2', [], -1)}
+                     if field == 'measurement' else
+                     {'state': (False, [], {}, 'approved'), 'owner': (True, 1, [], {}, ' '),
+                      'reason': (True, 1, [], {}, ' ')})}
+        for nested, values in fields.items():
+            for value in values:
+                row = measured_group()
+                row[field][nested] = value
+                yield field, {nested: value}, row
+    for field in ('protection_retained', 'protection_lost'):
+        for value in (None, False, 0, '', 'case', {}, [1], [None], [[]], [{}], ['case', False]):
+            row = measured_group()
+            row[field] = value
+            yield field, value, row
+
+
 class LateEvidenceTests(unittest.TestCase):
+    def test_followup_malformed_recommendation_shapes_are_validation_errors(self):
+        for field, value, row in malformed_recommendations():
+            with self.subTest(field=field, value=value):
+                with self.assertRaisesRegex(ValueError, field):
+                    omg.recommendations([row], {'inspection': {}}, [])
+
+    def test_followup_optional_claims_are_validated_even_without_value_prose_or_losses(self):
+        for field in ('measurement', 'tradeoff'):
+            for value in (False, 0, '', [], None, 'claimed', {}):
+                with self.subTest(field=field, value=value):
+                    row = {**base.group(), field: value}
+                    with self.assertRaisesRegex(ValueError, field):
+                        omg.recommendations([row], {'inspection': {}}, [])
+
+    def test_followup_valid_measurements_tradeoffs_and_empty_lists_preserve_semantics(self):
+        data, snap = base.fixture()
+        row = measured_group()
+        row['protection_retained'].append('<script>bad()</script>')
+        data.update(groups=[row], inspected_groups=['restore'], findings=[judgment(5)])
+        result = self.analyze(data, snap)
+        rec = result['recommendations'][0]
+        self.assertEqual(rec['action'], 'simplify')
+        self.assertEqual(rec['measurement'], row['measurement'])
+        self.assertEqual(rec['tradeoff'], row['tradeoff'])
+        self.assertEqual(result['findings'][4]['state'], 'gap')
+        row['tradeoff']['state'] = 'unaccepted'
+        self.assertIsNone(self.analyze(data, snap)['recommendations'][0]['action'])
+        row = {**base.group('delete'), 'basis': 'dead-feature',
+               'protection_retained': [], 'protection_lost': []}
+        self.assertEqual(omg.recommendations([row], {'inspection': {}}, [])[0]['action'], 'delete')
+        row = {'id': 'uninspected', 'protection_retained': [], 'protection_lost': []}
+        self.assertIsNone(omg.recommendations([row], {}, [])[0]['action'])
+
     def analyze(self, data, snap):
         return omg.analyze(data, snap, '2026-10-25T00:00:00+00:00')
 
@@ -259,6 +326,111 @@ class LateCommandTests(unittest.TestCase):
     call = base.CommandTests.call
     input = base.CommandTests.input
     bound = base.CommandTests.bound
+
+    def test_followup_size_stat_race_is_already_a_partial_inventory(self):
+        target = self.repo / 'test_contract.py'
+        resolved_target = target.resolve()
+        original_stat = Path.stat
+        original_resolve = Path.resolve
+        original_symlink, original_exists, original_file = Path.is_symlink, Path.exists, Path.is_file
+        for error in (FileNotFoundError, PermissionError, ValueError):
+            with self.subTest(error=error):
+                calls = []
+
+                def stat_race(path, *args, **kwargs):
+                    if path == target:
+                        calls.append(path)
+                        raise error('fixture unavailable at size stat')
+                    return original_stat(path, *args, **kwargs)
+
+                # Select the regular file deterministically, independent of
+                # which Python versions implement predicates or non-strict
+                # resolution via Path.stat. Inject only at the size check.
+                with mock.patch.object(Path, 'is_symlink', lambda p: False if p == target else original_symlink(p)), \
+                     mock.patch.object(Path, 'exists', lambda p: True if p == target else original_exists(p)), \
+                     mock.patch.object(Path, 'is_file', lambda p: True if p == target else original_file(p)), \
+                     mock.patch.object(Path, 'resolve', lambda p, *a, **kw: resolved_target if p == target else original_resolve(p, *a, **kw)), \
+                     mock.patch.object(Path, 'stat', stat_race):
+                    snap = helper.snapshot(self.repo)
+                self.assertEqual(calls, [target])
+                self.assertEqual(snap['limitations'], ['Source bytes unavailable: test_contract.py'])
+                self.assertNotIn('test_contract.py', snap['files'])
+
+    def test_followup_symlink_selection_race_keeps_other_inventory(self):
+        target = self.repo / 'vanishing-link'
+        target.symlink_to('test_contract.py')
+        original = Path.is_symlink
+
+        def vanished_after_selection(path):
+            result = original(path)
+            if path == target and result:
+                path.unlink()
+            return result
+
+        with mock.patch.object(Path, 'is_symlink', vanished_after_selection):
+            snap = helper.snapshot(self.repo)
+        self.assertEqual(snap['limitations'], ['Source bytes unavailable: vanishing-link'])
+        self.assertIn('test_contract.py', snap['files'])
+        self.assertNotIn('vanishing-link', snap['files'])
+        data = self.bound()
+        data['findings'] = [judgment(1)]
+        result = omg.analyze(data, {**snap, 'sha256': data['identity']['snapshot_sha256']}, 'fixture')
+        self.assertEqual(result['findings'][0]['state'], 'gap')
+        self.assertFalse(result['evidence_current'])
+
+    def check_shape_cli(self, script):
+        data = admission(self.bound())
+        data['inspected_groups'] = ['restore']
+        # Cover the reported crashes, falsey bypasses and nested fields through
+        # real source and relocated installed CLI subprocesses.
+        cases = [('measurement', 'claimed'), ('measurement', False),
+                 ('measurement', {'scope': []}), ('measurement', {'evidence': [[]]}),
+                 ('tradeoff', 'accepted'), ('tradeoff', []), ('tradeoff', {'owner': 1}),
+                 ('tradeoff', {'evidence': 'inspection'}),
+                 ('protection_retained', [1]), ('protection_lost', [1]),
+                 ('protection_retained', ''), ('protection_lost', {})]
+        for field, value in cases:
+            with self.subTest(script=script, field=field, value=value):
+                row = measured_group()
+                if isinstance(value, dict) and field in ('measurement', 'tradeoff'):
+                    row[field].update(value)
+                else:
+                    row[field] = value
+                data['groups'] = [row]
+                before = set(self.state.glob('runs/*/manifest.json'))
+                proc = subprocess.run([sys.executable, '-E', '-s', str(script), '--state-root', str(self.state),
+                    'audit', str(self.repo), '--input', str(self.input(data))],
+                    cwd=self.base, env=self.env, capture_output=True, text=True, timeout=30)
+                self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+                self.assertNotIn('Traceback', proc.stdout + proc.stderr)
+                blocked = json.loads(proc.stdout)
+                self.assertEqual(blocked['completion'], 'blocked')
+                self.assertIn(field, blocked['error'])
+                self.assertEqual(before, set(self.state.glob('runs/*/manifest.json')))
+                self.assertNotIn('report', blocked)
+        data['groups'] = [measured_group()]
+        report = self.call('audit', self.repo, '--input', self.input(data), script=script)
+        rec = helper.load(Path(report['audit']))['analysis']['recommendations'][0]
+        self.assertEqual(rec['action'], 'simplify')
+        self.assertEqual(rec['measurement'], measured_group()['measurement'])
+        self.assertEqual(rec['tradeoff'], measured_group()['tradeoff'])
+        self.call('status', report['run_id'], script=script)
+        self.call('report', report['run_id'], script=script)
+
+    def test_followup_cli_rejects_malformed_evidence_without_saving_report(self):
+        self.check_shape_cli(base.SCRIPTS / 'audit.py')
+
+    def test_followup_relocated_installed_cli_validates_evidence_shapes(self):
+        import shutil
+        proc = subprocess.run([sys.executable, str(base.ROOT / 'scripts/install.py'),
+            '--plugin', 'tests-omg', '--prefix', str(self.base / 'prefix'),
+            '--agents-root', str(self.base / 'agents')], cwd=self.base,
+            capture_output=True, text=True, timeout=60)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        package = self.base / 'relocated'
+        shutil.move(json.loads(proc.stdout)['data']['version_dir'], package)
+        self.assertTrue(self.call('doctor', script=package / 'scripts/audit.py')['installed_receipt'])
+        self.check_shape_cli(package / 'scripts/audit.py')
 
     def test_supplement_requested_history_failure_is_partial_but_unmeasured_is_complete(self):
         data = self.bound()

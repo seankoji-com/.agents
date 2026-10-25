@@ -64,6 +64,38 @@ def current_findings(findings, expired):
     return result
 
 
+def recommendation_shapes(row, refs):
+    """Validate provided claims before truthiness checks or evidence lookup."""
+    for key in ('protection_retained', 'protection_lost'):
+        if not isinstance(row[key], list) or any(not isinstance(v, str) for v in row[key]):
+            raise ValueError(key + ' must be a list of strings')
+    for key in ('measurement', 'tradeoff'):
+        if key not in row:
+            continue
+        claim = row[key]
+        if not isinstance(claim, dict):
+            raise ValueError(key + ' must be an object')
+        evidence = claim.get('evidence')
+        if (not isinstance(evidence, list) or not evidence or
+                any(not isinstance(v, str) or v not in refs for v in evidence)):
+            raise ValueError(key + ' requires a nonempty list of known evidence IDs')
+        text_fields = ('scope',) if key == 'measurement' else ('owner', 'reason')
+        if any(not isinstance(claim.get(k), str) or not claim[k].strip() for k in text_fields):
+            raise ValueError(key + ' requires nonempty text for ' + ', '.join(text_fields))
+        if key == 'measurement':
+            if (type(claim.get('detected')) is not int or type(claim.get('total')) is not int or
+                    not 0 <= claim['detected'] <= claim['total'] or claim['total'] <= 0):
+                raise ValueError('measurement requires integer counts: 0 <= detected <= total and total > 0')
+            try:
+                valid_ratio = number(claim.get('runtime_ratio'))
+            except OverflowError:
+                valid_ratio = False
+            if not valid_ratio:
+                raise ValueError('measurement runtime_ratio must be a finite nonnegative number')
+        elif claim.get('state') not in ('accepted', 'unaccepted'):
+            raise ValueError('tradeoff state must be accepted or unaccepted')
+
+
 def recommendation_policy(row, refs):
     """Structured assurance policy plus bounded text checks, not a semantic oracle."""
     policy = row.get('execution_policy')
@@ -226,6 +258,7 @@ def recommendations(groups, refs, comparisons):
             raise ValueError('invalid assessment_state')
         if any(ref not in refs for ref in row['evidence']):
             raise ValueError('unknown recommendation evidence reference')
+        recommendation_shapes(row, refs)
         recommendation_policy(row, refs)
         supported = row['assessment_state'] == 'supported'
         required = ('failure', 'consequence', 'boundary', 'oracle', 'distinct_protection',
@@ -274,10 +307,6 @@ def recommendations(groups, refs, comparisons):
                                next_experiment='Repair the candidate and compare named protection, elapsed time and compute on the same corpus and environments again.')
         if row['protection_lost']:
             tradeoff = row.get('tradeoff', {})
-            if tradeoff and (tradeoff.get('state') not in ('accepted', 'unaccepted') or
-                             any(not tradeoff.get(k) for k in ('owner', 'reason', 'evidence')) or
-                             any(r not in refs for r in tradeoff['evidence'])):
-                raise ValueError('tradeoff requires state, owner, reason and known evidence')
             accepted = tradeoff.get('state') == 'accepted'
             # A directly inspected dead feature/tautology no longer represents
             # material required protection. Other real losses need an explicit
