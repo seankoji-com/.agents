@@ -94,9 +94,10 @@ def handle_wake(host, state_path, now, wake):
     if (wake.get('kind') or 'schedule') == 'schedule' and (
             state.get('cancelled') or state['scheduler']['mode'] != 'scheduled'
             or state['scheduler'].get('stopped')):
+        report = continuous.scheduler_report(state, continuous.parse_time(now))
         return {'wake': wake, 'result': {'status': 'scheduled-continuation-blocked',
                 'actions': [], 'scheduler_stop': state['scheduler'].get('stop'),
-                'scheduler': continuous.scheduler_report(state, continuous.parse_time(now))},
+                'scheduler': report, 'coverage': report['coverage'], 'next_wake_at': None},
                 'dispatched': []}
     observation = host.discover(state['scope'], now)
     with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as stream:

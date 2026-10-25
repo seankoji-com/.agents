@@ -37,6 +37,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 import uuid
@@ -243,7 +244,7 @@ def package_digest(package_dir):
     """
     package = Path(package_dir)
     rows = []
-    for path in sorted(package.rglob('*')):
+    for path in package_paths(package):
         if not path.is_file() or path.is_symlink():
             continue
         rel = str(path.relative_to(package))
@@ -255,6 +256,80 @@ def package_digest(package_dir):
             continue
         rows.append([rel, sha256_file(path)])
     return hashlib.sha256(canonical(rows)).hexdigest()
+
+
+def package_paths(directory):
+    """Walk without pathlib's suppression of filesystem errors during identity checks."""
+    def failed(exc):
+        raise exc
+    paths = []
+    for root, directories, files in os.walk(directory, onerror=failed, followlinks=False):
+        paths.extend(Path(root) / name for name in directories + files)
+    return sorted(paths)
+
+
+def read_package_file(path):
+    """The bootstrap must not follow links or block on a special package file."""
+    fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+                 | getattr(os, 'O_NONBLOCK', 0))
+    try:
+        require(stat.S_ISREG(os.fstat(fd).st_mode), f'package file is not regular: {path}')
+        with os.fdopen(fd, 'rb', closefd=False) as stream:
+            return stream.read()
+    finally:
+        os.close(fd)
+
+
+def verify_installed_identity(package, meta):
+    """Stdlib bootstrap: verify all bytes before importing any packaged contract.
+
+    Keep the manifest digest and file-set rules aligned with worker_registry; that
+    registry is itself one of the files whose bytes must be checked here first.
+    """
+    manifest = json.loads(read_package_file(package / 'install-manifest.json'))
+    require(isinstance(manifest, dict), 'installed package manifest must be an object')
+    require(manifest.get('schema_version') == 1, 'unsupported installed package manifest schema')
+    require(manifest.get('plugin') == meta.get('name') == 'babysitter'
+            and manifest.get('version') == package.name,
+            'installed package manifest identity differs from its package directory')
+    files = manifest.get('files')
+    require(isinstance(files, list), 'package manifest file list is malformed')
+    expected = {'install-manifest.json'}
+    expected_dirs = set()
+    for entry in files:
+        require(isinstance(entry, dict) and isinstance(entry.get('path'), str)
+                and isinstance(entry.get('sha256'), str)
+                and re.fullmatch(r'[0-9a-f]{64}', entry['sha256']),
+                'package manifest file entry is malformed')
+        rel = entry['path']
+        safe = Path(rel)
+        require(rel and not safe.is_absolute() and '\\' not in rel
+                and '..' not in safe.parts and rel not in expected,
+                'package manifest path is unsafe or duplicated')
+        expected.add(rel)
+        expected_dirs.update(parent.as_posix() for parent in safe.parents if parent != Path('.'))
+    fingerprint = hashlib.sha256(canonical(files) + b'\n').hexdigest()
+    require(manifest.get('package_digest') == fingerprint,
+            'installed package manifest digest differs from its file list')
+    actual, actual_dirs = set(), set()
+    for path in package_paths(package):
+        rel = path.relative_to(package).as_posix()
+        if '__pycache__' in path.parts:
+            continue
+        mode = path.lstat().st_mode
+        require(not stat.S_ISLNK(mode), f'installed package contains a symlink: {rel}')
+        if stat.S_ISREG(mode):
+            actual.add(rel)
+        elif stat.S_ISDIR(mode):
+            actual_dirs.add(rel)
+        else:
+            raise ContinuousError(f'installed package contains a special file: {rel}')
+    require(actual == expected and actual_dirs == expected_dirs,
+            'installed package has missing or unlisted files/directories')
+    for entry in files:
+        require(hashlib.sha256(read_package_file(package / entry['path'])).hexdigest()
+                == entry['sha256'], f'installed package integrity failure: {entry["path"]}')
+    return manifest['version'], fingerprint
 
 
 def read_state(path, *, allow_policy_drift=False):
@@ -272,26 +347,40 @@ def audit(state, now, kind, **fields):
     state['audit'] = state['audit'][-200:]
 
 
-def source_identity(script=__file__):
+def source_identity(script=__file__, *, validate_contracts=True):
+    """Verify bytes first; callers with a run compare its pin before loading contracts."""
+    try:
+        identity = package_identity(script)
+    except (ContinuousError, OSError, ValueError) as exc:
+        raise integrity_error(exc) from exc
+    if validate_contracts:
+        job_contracts(Path(identity['package_dir']))
+    return identity
+
+
+def integrity_error(exc, module=None):
+    prefix = 'installed package integrity failure: '
+    detail = str(exc)
+    already_prefixed = detail.startswith(prefix)
+    while detail.startswith(prefix):
+        detail = detail[len(prefix):]
+    if module:
+        detail = f'{module}: {type(exc).__name__}: {detail}'
+    elif not already_prefixed:
+        detail = f'{type(exc).__name__}: {detail}'
+    return ContinuousError(prefix + detail)
+
+
+def package_identity(script):
     package = Path(script).resolve().parents[1]
-    meta = load_json(package / 'plugin.json')
+    meta = json.loads(read_package_file(package / 'plugin.json'))
     require(isinstance(meta, dict), 'package plugin.json must be an object')
-    contracts = job_contracts(package)
+    require(meta.get('name') == 'babysitter' and isinstance(meta.get('version'), str)
+            and meta['version'], 'package plugin identity is malformed')
+    require(isinstance(meta.get('continuous', {}), dict), 'package continuous policy is malformed')
     manifest_path = package / 'install-manifest.json'
-    if manifest_path.exists():
-        try:
-            manifest = load_json(manifest_path)
-            require(isinstance(manifest, dict), 'installed package manifest must be an object')
-            require(manifest.get('plugin') == meta.get('name')
-                    and manifest.get('version') == package.name,
-                    'installed package manifest identity differs from its package directory')
-            fingerprint = contracts.manifest_digest(manifest)
-            require(manifest.get('package_digest') == fingerprint,
-                    'installed package manifest digest differs from its file list')
-            contracts.verify_package_files(package, manifest)
-        except (ValueError, OSError, ImportError, SyntaxError) as exc:
-            raise ContinuousError(f'installed package integrity failure: {exc}') from exc
-        version = manifest['version']
+    if manifest_path.exists() or manifest_path.is_symlink():
+        version, fingerprint = verify_installed_identity(package, meta)
         scheme = 'install-manifest-1'
     else:
         # The source helper trusts job/owner APIs outside plugins/babysitter.
@@ -300,7 +389,7 @@ def source_identity(script=__file__):
         roots = {'plugin': package, 'shared': root / 'shared', 'core': root / 'core'}
         for directory in roots.values():
             require(not directory.is_symlink()
-                    and not any(path.is_symlink() for path in directory.rglob('*')),
+                    and not any(path.is_symlink() for path in package_paths(directory)),
                     'source package/contract roots contain a symlink')
         scheme = 'source-contracts-1'
         fingerprint = digest({'scheme': scheme,
@@ -343,10 +432,12 @@ def package_gaps(state, installed, package_version=None):
 
 
 def require_current_package(state):
-    gaps = package_gaps(state, source_identity())
+    installed = source_identity(validate_contracts=False)
+    gaps = package_gaps(state, installed)
     require(not gaps, 'policy/package migration required ('
             + ', '.join(gap['kind'] for gap in gaps)
             + '); run resume and use its owner-authorized migration path before continuing')
+    job_contracts(Path(installed['package_dir']))
 
 
 def job_contract_root(package=None):
@@ -355,16 +446,21 @@ def job_contract_root(package=None):
     if (package / 'install-manifest.json').is_file():
         # An installed package must use its own contracts, even when one is missing.
         return package
-    for root in (package, *package.parents):
-        if (root / 'shared' / 'job_coordinator.py').is_file() and (
-                (root / 'core' / 'jobs' / '__init__.py').is_file()
-                or (root / 'core' / 'jobs.py').is_file()):
-            return root
-    raise ContinuousError('supported job APIs are unavailable in this package')
+    # Only the repository's explicit plugins/<plugin> layout is a source checkout.
+    # A versioned installer directory with a deleted manifest must never fall back.
+    root = package.parent.parent
+    require(package.parent.name == 'plugins' and package.name == 'babysitter'
+            and (root / 'shared').is_dir() and (root / 'core').is_dir()
+            and not (package / 'shared').exists() and not (package / 'core').exists(),
+            'installed package install-manifest.json is missing; '
+            'source mode requires plugins/babysitter with repository shared/ and core/')
+    return root
 
 
 def job_contracts(package=None):
     """Check every required export at one boundary, including during inspection."""
+    package = Path(package or Path(__file__).resolve().parents[1])
+    source_identity(package / 'scripts' / 'continuous.py', validate_contracts=False)
     sys.path.insert(0, str(job_contract_root(package)))
     try:
         module = 'shared.worker_registry'
@@ -376,8 +472,7 @@ def job_contracts(package=None):
         module = 'core.jobs.store'
         from core.jobs.store import _regular, MAX_STATE_BYTES as JOB_MAX_BYTES, strict_load
     except Exception as exc:
-        raise ContinuousError(
-            f'installed package integrity failure: {module}: {type(exc).__name__}: {exc}') from exc
+        raise integrity_error(exc, module) from exc
     return SimpleNamespace(manifest_digest=manifest_digest, verify_package_files=verify_package_files,
                            pinned_store=pinned_store, verify_all_pins=verify_all_pins,
                            verify_job_pins=verify_job_pins, owner_current=_owner_current,
@@ -1229,6 +1324,13 @@ def scheduler_report(state, now, identity_gaps=()):
         'last_wake_kind': scheduler.get('last_wake_kind'),
         'package_identity_gap': list(identity_gaps),
     }
+    if state.get('cancelled'):
+        report.update(coverage=('stop-unverified' if schedule_id and not stopped.get('verified')
+                                else 'cancelled'), next_run_at=None,
+                      historical_next_run_at=stored_next,
+                      gap='run cancelled; no continuation wake is authorized'
+                          + ('; verify the owned host schedule is stopped' if schedule_id else ''))
+        return report
     if identity_gaps:
         report.update(coverage='continuation-blocked', next_run_at=None,
                       historical_next_run_at=stored_next,
@@ -1842,8 +1944,11 @@ def cmd_observe(args):
         require_current_package(state)
         now = parse_time(args.now, '--now')
         if state.get('cancelled'):
+            report = scheduler_report(state, now)
             return {'status': 'cancelled', 'actions': [], 'admitted': [], 'human_questions': [],
                     'cancelled': state['cancelled'],
+                    'scheduler': report, 'coverage': report['coverage'], 'next_wake_at': None,
+                    'scheduler_stop': state['scheduler'].get('stop'),
                     'message': 'this run was cancelled; resume explicitly to continue'}
         if args.wake_kind == 'schedule' and (
                 state['scheduler']['mode'] != 'scheduled'
@@ -2279,7 +2384,8 @@ def validate_unpinned_migration(args, state, path, installed):
     require(package.get('installed_digest') and package.get('pinned_version')
             and state.get('run_id'), 'unpinned migration requires the recorded package identity '
             'and run ID; missing legacy identity needs a genuine pinned-job upgrade receipt')
-    old = source_identity(Path(args.previous_package).expanduser() / 'scripts' / 'continuous.py')
+    old = source_identity(Path(args.previous_package).expanduser() / 'scripts' / 'continuous.py',
+                          validate_contracts=False)
     require(old['plugin'] == installed['plugin'] == 'babysitter',
             'migration packages must both be babysitter')
     accepted_digests = [old['digest']]
@@ -2322,7 +2428,7 @@ def cmd_resume(args):
         require(state.get('schema_version') == SCHEMA_VERSION,
                 'unsupported continuous state schema')
         now = parse_time(args.now, '--now')
-        installed = source_identity(args.script)
+        installed = source_identity(args.script, validate_contracts=False)
         gaps = package_gaps(state, installed, args.package_version)
         package = state.get('package') or {}
         unpinned = not state.get('job_id') and not state.get('job')
@@ -2340,6 +2446,10 @@ def cmd_resume(args):
                         '<old-package> --owner-decision <decision.json> approving owner_decision_scope; '
                         'pinned jobs: run job_cli.py upgrade-package, then pass --accept-migration '
                         '--owner-decision-id <id> --upgrade-receipt <output.json> --job <job-dir>')}
+        # No changed contract is executed for an unapproved continuation. Migration
+        # validators load the target contracts only on the explicit acceptance path.
+        if not gaps:
+            job_contracts(Path(installed['package_dir']))
         require(not gaps or args.owner_decision_id,
                 'accepting a policy/package migration requires --owner-decision-id')
         if gaps and not args.upgrade_receipt and not (unpinned and args.owner_decision):
@@ -2480,9 +2590,12 @@ def cmd_status(args):
                else datetime.now(timezone.utc))
         installed = None
         try:
-            installed = source_identity(getattr(args, 'script', __file__))
+            installed = source_identity(getattr(args, 'script', __file__), validate_contracts=False)
             gaps = package_gaps(state, installed)
+            if not gaps:
+                job_contracts(Path(installed['package_dir']))
         except (ContinuousError, ValueError, OSError) as exc:
+            installed = None
             gaps = [{'kind': 'package-integrity', 'detail': str(exc)}]
         report = scheduler_report(state, now, gaps)
 
@@ -2490,7 +2603,7 @@ def cmd_status(args):
             pending = pending_write(pr, state, now)
             if pending:
                 return pending[0]
-            if gaps:
+            if gaps or state.get('cancelled'):
                 fixer, merge = pr.get('fixer') or {}, live_merge_dispatch(pr)
                 if fixer.get('in_flight') or merge:
                     row = fixer if fixer.get('in_flight') else merge
@@ -2499,8 +2612,14 @@ def cmd_status(args):
                             'request_id': row.get('request_id'),
                             'host_task_id': row.get('host_task_id'),
                             'reason': 'already-launched work still needs its matching receipt; '
-                                      'package verification blocks new work',
+                                      + ('run cancelled' if state.get('cancelled') else
+                                         'package verification blocks new work'),
                             'next_check_at': deadline(now, state['policy']['cadence_seconds'])}
+            if state.get('cancelled'):
+                if not pr.get('next_action'):
+                    return None
+                return {'pr': url, 'kind': 'cancelled', 'reason': report['gap'],
+                        'next_check_at': None}
             if gaps and pr.get('state') == 'open':
                 return {'pr': url, 'kind': 'migration-required', 'reason': report['gap'],
                         'blocked': {'kind': 'package-identity', 'gaps': gaps},

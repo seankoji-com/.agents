@@ -291,13 +291,23 @@ schedule planning/recording, scheduler enable/reauthorization (`--available yes
 --authorized yes`) and new writer reservations verify it before authorizing work.
 Drift, missing identity or invalid installed files/manifest refuse those operations
 without changing the run. These checks never accept migration automatically.
+Installed manifests and listed bytes are verified by a standard-library bootstrap
+before any packaged job contract executes. Only `plugins/babysitter` beside the
+repository's `shared/` and `core/` roots can use source fingerprints; deleting an
+installed manifest cannot select source mode. Filesystem failures are explicit errors.
 
 `status` reads the recorded/running identity and exact gaps without saving. A gap
 reports `continuation-blocked`, moves the stored wake to `historical_next_run_at`,
 retains the owned stop operation, and replaces stale action recommendations with
 `migration-required`. Already-launched writers remain visible for reconciliation.
-`status` and `version` also check every required job-contract export; matching
-manifest hashes do not establish that those contracts can be imported.
+Continuation, `status` and unapproved `resume` compare the recorded identity before
+loading changed contracts. With matching identity, `status` also checks required
+job-contract exports; `version` and new starts check them after byte verification.
+Matching manifest hashes alone do not establish usable contracts.
+
+Cancellation reports `stop-unverified` while an owned schedule needs its stop receipt,
+otherwise `cancelled`. It publishes no future wake, retains the historical receipt
+and owned stop, replaces stale work recommendations, and keeps live writers visible.
 
 These operations intentionally do not require a matching package identity:
 
