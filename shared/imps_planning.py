@@ -246,7 +246,25 @@ def _same(current, frozen):
     planning.need(planning.seal(current) == frozen, 'reviewed request/output/criteria/source/authors changed')
 
 
+def _validate_job_contract(contract):
+    """Reject impossible authored task/stage fields before a review is prepared."""
+    from core import schema
+    planning.need(isinstance(contract, dict), 'initial job contract must be an object')
+    published = schema.load_schema_file(Path(__file__).resolve().parent / 'agents/job.schema.json')
+    for collection in ('stages', 'tasks'):
+        item = deepcopy(published['properties'][collection]['items'])
+        # The authored projection omits runtime IDs and lifecycle fields. Its
+        # supplied fields still obey the same published types/enums as creation.
+        item['required'] = [k for k in item.get('required', [])
+                            if k in ('id', 'task_id', 'stage_id', 'worker_id')]
+        problems = schema.errors(contract.get(collection), {'type': 'array', 'items': item},
+                                 root=published, path='$.job_contract.' + collection)
+        planning.need(not problems, 'invalid initial job contract: ' + '; '.join(problems[:10]))
+
+
 def prepare(desc, inputs, metadata_file, package):
+    if 'job_contract' in desc:
+        _validate_job_contract(desc['job_contract'])
     path = Path(metadata_file)
     planning.need(path.is_absolute() and not path.resolve().is_relative_to(Path(inputs['repository_root']).resolve()),
                   'persistent review metadata must be absolute and outside target repository')

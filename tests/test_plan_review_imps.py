@@ -50,6 +50,25 @@ class ImpsReviewTests(unittest.TestCase):
                     self.assertFalse(result['endpoint_complete'])
                     self.assertTrue(f.stage_validate()['accepted'])  # Source-stage gate; selected endpoint remains incomplete.
 
+    def test_invalid_authored_job_role_refuses_before_review_preparation(self):
+        for installed in (False, True):
+            with self.subTest(installed=installed):
+                f=self.fixture(op='run',installed=installed,write=True)
+                f.descriptor['job_contract']={'stages':[{'id':'stage-0'}], 'tasks':[
+                    {'task_id':'execute','stage_id':'stage-0','worker_id':'imps/stage-executor',
+                     'role':'implementation'}]}
+                payload={'descriptor':f.descriptor,'inputs':f.inputs,'metadata_file':str(f.metadata)}
+                refusal=f.ape('prepare',payload,ok=False)
+                self.assertIn('job_contract.tasks[0].role',refusal)
+                self.assertFalse(f.metadata.exists())
+                self.assertFalse((f.box.jobs/f.review_id).exists())
+                for role in ('worker','review'):
+                    f.descriptor['job_contract']['tasks'][0]['role']=role
+                    f.descriptor.pop('document',None)
+                    f.metadata=f.base/('role-'+role+'.json')
+                    f.prepare()
+                    self.assertTrue(f.metadata.exists())
+
     def test_single_read_only_initial_plan_and_deterministic_helpers_do_not_review(self):
         f=self.fixture(op='checklist');f.init();f.evidence()
         result=f.gate('validate')['data']

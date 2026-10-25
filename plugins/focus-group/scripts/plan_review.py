@@ -106,7 +106,11 @@ def run_choice(study, revision):
 
 
 def task_binding(plan, record, task):
-    selected = choices(plan, record)
+    return _task_binding(plan, choices(plan, record), task)
+
+
+def _task_binding(plan, selected, task):
+    """Project one task after this invocation has validated the full matrix."""
     if task['worker_id'] == 'focus-group/participant':
         roles = [f'participant-{n:02d}' for n, target in enumerate(plan['participant_models'], 1)
                  if equal_target(target, task['target'])]
@@ -125,7 +129,7 @@ def task_binding(plan, record, task):
 def bind_job(job, plan, record):
     selected = choices(plan, record)
     for task in job['tasks']:
-        task['selection_binding'] = task_binding(plan, record, task)
+        task['selection_binding'] = _task_binding(plan, selected, task)
     for stage in job['stages']:
         stage.setdefault('resources', {}).update(focus_group_plan=job['focus_group_plan'], focus_group_admission=record)
     job.update(adopter_admission=record, model_selection=selected,
@@ -173,7 +177,7 @@ def validate_job(job, *, previous=None, creating=False):
                         'new or changed panel slot requires current choices')
         # Retired/live slots can retain their producing selection after a revision.
         if task.get('selection_binding', {}).get('selection_sha256') == selected['selection_sha256']:
-            review.need(task['selection_binding'] == task_binding(plan, record, task), 'panel slot role/choice differs')
+            review.need(task['selection_binding'] == _task_binding(plan, selected, task), 'panel slot role/choice differs')
         if plan.get('procedural_context') and task['worker_id'] == 'focus-group/participant':
             expected = authority_runtime().fg.evidence_module().material_context_files(plan, task['target'])
             review.need(task.get('context_files') == expected,
