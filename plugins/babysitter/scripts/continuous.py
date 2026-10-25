@@ -207,7 +207,7 @@ def state_path(path):
 
 
 @contextlib.contextmanager
-def locked_state(path, *, create=False):
+def locked_state(path, *, create=False, allow_policy_drift=False):
     """Exclusive transaction over the complete read-modify-write of one run state.
 
     Atomic replacement protects a reader from a half-written file. It does not stop
@@ -228,7 +228,7 @@ def locked_state(path, *, create=False):
         if create:
             yield None
         else:
-            yield read_state(path)
+            yield read_state(path, allow_policy_drift=allow_policy_drift)
     finally:
         fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
@@ -256,10 +256,10 @@ def package_digest(package_dir):
     return hashlib.sha256(canonical(rows)).hexdigest()
 
 
-def read_state(path):
+def read_state(path, *, allow_policy_drift=False):
     state = load_json(state_path(path))
     require(state.get('schema_version') == SCHEMA_VERSION, 'unsupported continuous state schema')
-    require(state.get('policy_version') == POLICY_VERSION,
+    require(allow_policy_drift or state.get('policy_version') == POLICY_VERSION,
             f"state policy {state.get('policy_version')!r} differs from {POLICY_VERSION!r}; run resume")
     return state
 
@@ -274,12 +274,14 @@ def audit(state, now, kind, **fields):
 def source_identity(script=__file__):
     package = Path(script).resolve().parents[1]
     meta = load_json(package / 'plugin.json')
+    require(isinstance(meta, dict), 'package plugin.json must be an object')
     manifest_path = package / 'install-manifest.json'
     if manifest_path.exists():
         job_contracts(package)
         from shared.worker_registry import package_digest as manifest_digest, verify_package_files
         try:
             manifest = load_json(manifest_path)
+            require(isinstance(manifest, dict), 'installed package manifest must be an object')
             require(manifest.get('plugin') == meta.get('name')
                     and manifest.get('version') == package.name,
                     'installed package manifest identity differs from its package directory')
@@ -290,12 +292,24 @@ def source_identity(script=__file__):
         except (ValueError, OSError) as exc:
             raise ContinuousError(f'installed package integrity failure: {exc}') from exc
         version = manifest['version']
+        scheme = 'install-manifest-1'
     else:
-        fingerprint, version = package_digest(package), meta.get('version')
+        # The source helper trusts job/owner APIs outside plugins/babysitter.
+        # Hash the same resolved import roots, including their transitive contracts.
+        root = job_contract_root(package)
+        roots = {'plugin': package, 'shared': root / 'shared', 'core': root / 'core'}
+        for directory in roots.values():
+            require(not directory.is_symlink()
+                    and not any(path.is_symlink() for path in directory.rglob('*')),
+                    'source package/contract roots contain a symlink')
+        scheme = 'source-contracts-1'
+        fingerprint = digest({'scheme': scheme,
+                              'roots': {key: package_digest(value) for key, value in roots.items()}})
+        version = meta.get('version')
     return {'plugin': meta.get('name'), 'version': meta.get('version'),
             'installed_version': version,
             'policy_version': policy_identity(meta), 'package_dir': str(package),
-            'digest': fingerprint}
+            'digest': fingerprint, 'fingerprint_scheme': scheme}
 
 
 def package_gaps(state, installed, package_version=None):
@@ -335,14 +349,20 @@ def require_current_package(state):
             + '); run resume and use its owner-authorized migration path before continuing')
 
 
-def job_contracts(package=None):
-    """Load the shipped job APIs, from the package or this source checkout."""
+def job_contract_root(package=None):
+    """Resolve the job APIs used both by imports and the source fingerprint."""
     package = Path(package or Path(__file__).resolve().parents[1])
     for root in (package, *package.parents):
-        if (root / 'shared' / 'job_coordinator.py').is_file():
-            sys.path.insert(0, str(root))
-            return
+        if (root / 'shared' / 'job_coordinator.py').is_file() and (
+                (root / 'core' / 'jobs' / '__init__.py').is_file()
+                or (root / 'core' / 'jobs.py').is_file()):
+            return root
     raise ContinuousError('supported job APIs are unavailable in this package')
+
+
+def job_contracts(package=None):
+    """Load the shipped job APIs, from the package or this source checkout."""
+    sys.path.insert(0, str(job_contract_root(package)))
 
 
 def verified_job(path):
@@ -1165,7 +1185,7 @@ def reconcile_pr(pr, state, now, discovery):
              'detail': checks_state if not checks_ok else merge_state}, progress)
 
 
-def scheduler_report(state, now):
+def scheduler_report(state, now, identity_gaps=()):
     """Separate authorization, recorded schedule existence and observed delivery.
 
     A stored receipt stops being a confirmed upcoming wake the moment the run is no
@@ -1189,7 +1209,14 @@ def scheduler_report(state, now):
         'awaiting_receipt': bool(scheduler.get('awaiting_receipt')),
         'last_wake_at': scheduler.get('last_wake_at'),
         'last_wake_kind': scheduler.get('last_wake_kind'),
+        'package_identity_gap': list(identity_gaps),
     }
+    if identity_gaps:
+        report.update(coverage='continuation-blocked', next_run_at=None,
+                      historical_next_run_at=stored_next,
+                      gap='policy/package verification blocks continuation; inspect resume: '
+                          + ', '.join(item['kind'] for item in identity_gaps))
+        return report
     if mode != 'scheduled':
         report.update({
             'coverage': ('stop-unverified' if schedule_id and not stopped.get('verified')
@@ -1521,6 +1548,7 @@ def cmd_start(args):
         'package': {'pinned_version': pinned,
                     'installed_version': identity['version'],
                     'installed_digest': identity['digest'],
+                    'fingerprint_scheme': identity['fingerprint_scheme'],
                     'helper': str(Path(args.script).resolve())},
         'prs': {},
         'events': {},
@@ -1613,6 +1641,7 @@ def cmd_schedule_record(args):
     with locked_state(path) as state:
         if state.get('cancelled'):
             raise ContinuousError('this run is cancelled; resume it before recording a schedule')
+        require_current_package(state)
         now = parse_time(args.now, '--now')
         require(state['scheduler']['mode'] == 'scheduled',
                 'event-only runs cannot record a host schedule; obtain scheduler authorization first')
@@ -1653,7 +1682,7 @@ def cmd_schedule_record(args):
 
 def cmd_schedule_stop(args):
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         now = parse_time(args.now, '--now')
         scheduler = state['scheduler']
         current = scheduler.get('schedule_id')
@@ -1685,13 +1714,14 @@ def cmd_schedule_stop(args):
 
 def cmd_scheduler(args):
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         if state.get('cancelled'):
             raise ContinuousError('this run is cancelled; resume it before changing scheduler coverage')
         now = parse_time(args.now, '--now')
         available = args.available == 'yes'
         authorized = args.authorized == 'yes'
         if available and authorized:
+            require_current_package(state)
             require(state['scheduler']['authorization'].get('source') and
                     state['scheduler']['authorization'].get('sha256'),
                     'scheduler authorization needs a recorded owner source')
@@ -1824,9 +1854,7 @@ def cmd_dispatch(args):
     until host reconciliation establishes a handle or confirms refusal.
     """
     path = state_path(args.state)
-    with locked_state(path) as state:
-        if state.get('cancelled'):
-            raise ContinuousError('this run is cancelled; resume it before dispatching new work')
+    with locked_state(path, allow_policy_drift=True) as state:
         now = parse_time(args.now, '--now')
         pr = state['prs'].get(args.pr)
         require(pr is not None, f'unknown PR: {args.pr}')
@@ -1858,6 +1886,8 @@ def cmd_dispatch(args):
         # Attaching a late handle above reconciles a launch that already happened.
         # Every new reservation, including a direct non-reserve dispatch, must pass
         # identity verification before it can change a writer guard or authorize work.
+        if state.get('cancelled'):
+            raise ContinuousError('this run is cancelled; resume it before dispatching new work')
         require_current_package(state)
         if reserve and args.host_task_id:
             raise ContinuousError(
@@ -1958,7 +1988,7 @@ def cmd_receipt(args):
     changes nothing, including the progress clock.
     """
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         now = parse_time(args.now, '--now')
         pr = state['prs'].get(args.pr)
         require(pr is not None, f'unknown PR: {args.pr}')
@@ -2092,7 +2122,7 @@ def cmd_receipt(args):
 def cmd_resolve(args):
     """Close a known PR only from an explicit targeted host read, never from omission."""
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         now = parse_time(args.now, '--now')
         pr = state['prs'].get(args.pr)
         require(pr is not None, f'unknown PR: {args.pr}')
@@ -2114,7 +2144,7 @@ def cmd_resolve(args):
 
 def cmd_cancel(args):
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         now = parse_time(args.now, '--now')
         state['cancelled'] = {'at': now_iso(now), 'reason': args.reason}
         audit(state, now, 'cancel', reason=args.reason)
@@ -2235,7 +2265,12 @@ def validate_unpinned_migration(args, state, path, installed):
     old = source_identity(Path(args.previous_package).expanduser() / 'scripts' / 'continuous.py')
     require(old['plugin'] == installed['plugin'] == 'babysitter',
             'migration packages must both be babysitter')
-    require(package['installed_digest'] in (old['digest'], package_digest(old['package_dir']))
+    accepted_digests = [old['digest']]
+    if not package.get('fingerprint_scheme'):
+        # Legacy helpers hashed only package files, including installed metadata.
+        # Retain that explicit migration path without downgrading a new source pin.
+        accepted_digests.append(package_digest(old['package_dir']))
+    require(package['installed_digest'] in accepted_digests
             and package['pinned_version'] in (old['installed_version'], old['version']),
             'retained previous package identity does not match this run')
     decision = load_json(args.owner_decision)
@@ -2340,6 +2375,7 @@ def cmd_resume(args):
             state['policy_version'] = installed['policy_version']
             package['installed_version'] = installed['version']
             package['installed_digest'] = installed['digest']
+            package['fingerprint_scheme'] = installed['fingerprint_scheme']
             package['pinned_version'] = args.package_version or installed['installed_version']
             package['helper'] = str(Path(args.script).resolve())
             state['package'] = package
@@ -2423,21 +2459,52 @@ def cmd_preflight(args):
 
 def cmd_status(args):
     path = state_path(args.state)
-    with locked_state(path) as state:
+    with locked_state(path, allow_policy_drift=True) as state:
         now = (parse_time(args.now, '--now') if getattr(args, 'now', None)
                else datetime.now(timezone.utc))
-        report = scheduler_report(state, now)
+        installed = None
+        try:
+            installed = source_identity(getattr(args, 'script', __file__))
+            gaps = package_gaps(state, installed)
+        except (ContinuousError, ValueError, OSError) as exc:
+            gaps = [{'kind': 'package-integrity', 'detail': str(exc)}]
+        report = scheduler_report(state, now, gaps)
+
+        def next_action(url, pr):
+            pending = pending_write(pr, state, now)
+            if pending:
+                return pending[0]
+            if gaps:
+                fixer, merge = pr.get('fixer') or {}, live_merge_dispatch(pr)
+                if fixer.get('in_flight') or merge:
+                    row = fixer if fixer.get('in_flight') else merge
+                    return {'pr': url,
+                            'kind': 'wait-fixer' if fixer.get('in_flight') else 'merge-pending',
+                            'request_id': row.get('request_id'),
+                            'host_task_id': row.get('host_task_id'),
+                            'reason': 'already-launched work still needs its matching receipt; '
+                                      'package verification blocks new work',
+                            'next_check_at': deadline(now, state['policy']['cadence_seconds'])}
+            if gaps and pr.get('state') == 'open':
+                return {'pr': url, 'kind': 'migration-required', 'reason': report['gap'],
+                        'blocked': {'kind': 'package-identity', 'gaps': gaps},
+                        'next_check_at': None}
+            return pr.get('next_action')
+
         open_prs = [url for url, pr in state['prs'].items() if pr.get('state') == 'open']
         excluded = {url: pr.get('excluded') for url, pr in state['prs'].items()
                     if pr.get('state') == 'excluded'}
         return {
-            'status': 'cancelled' if state.get('cancelled') else 'active',
+            'status': ('cancelled' if state.get('cancelled') else
+                       'continuation-blocked' if gaps else 'active'),
             'run_id': state.get('run_id'),
             'policy_version': state['policy_version'],
             'scope': state['scope'],
             'policy': state['policy'],
             'scheduler': report,
             'coverage': report['coverage'],
+            'package': {'recorded': state.get('package'), 'running': installed, 'gaps': gaps},
+            'package_identity_gap': gaps,
             'open_prs': open_prs,
             'excluded': excluded,
             'prs': {url: {'state': pr.get('state'),
@@ -2446,8 +2513,7 @@ def cmd_status(args):
                           'last_meaningful_progress_at': pr.get('last_meaningful_progress_at'),
                           'owner': pr.get('owner'), 'fixer': pr.get('fixer'),
                           'dispatches': pr.get('dispatches', []),
-                          'next_action': (pending_write(pr, state, now) or
-                                          (pr.get('next_action'),))[0]}
+                          'next_action': next_action(url, pr)}
                     for url, pr in state['prs'].items()},
             'discovery': state['discovery'],
             'cancelled': state.get('cancelled'),

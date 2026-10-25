@@ -8,7 +8,9 @@ from argparse import Namespace
 from unittest.mock import patch
 from pathlib import Path
 
-from tests.babysitter_continuous_fixtures import AcceptedJob, install_legacy, legacy_source, plan
+from tests.babysitter_continuous_fixtures import (
+    AcceptedJob, install_legacy, legacy_source, plan, source_package,
+)
 from tests import test_babysitter_continuous as continuous_tests
 from tests.test_babysitter_continuous import (
     ContinuousCase, FakeHost, H1, H2, HELPER, observation, pr, continuous_sweep,
@@ -54,6 +56,13 @@ class WakeIdentityTest(ContinuousCase):
                     self.assertRegex(refused.stderr, 'migration required|integrity|manifest|state policy')
                     self.assertEqual(self.state.read_bytes(), before)
         self.cli('schedule-plan', helper=helper, ok=False)
+        for command, flags in (
+                ('schedule-record', ('--schedule-id', 'blocked-schedule',
+                                     '--next-run-at', '2026-10-22T14:20:00Z')),
+                ('scheduler', ('--available', 'yes', '--authorized', 'yes'))):
+            refused = self.cli(command, '--now', NOW, *flags, helper=helper, ok=False)
+            self.assertRegex(refused.stderr, 'migration required|integrity|manifest|state policy')
+            self.assertEqual(self.state.read_bytes(), before)
         host = FakeHost(observation(pr()))
         with self.assertRaises(adapter.continuous.ContinuousError):
             adapter.arm(host, self.state, NOW)
@@ -61,7 +70,168 @@ class WakeIdentityTest(ContinuousCase):
             with self.assertRaises(adapter.continuous.ContinuousError):
                 adapter.tick(host, self.state, NOW)
         self.assertEqual(host.created, [])
+        report = self.cli('status', '--now', NOW, helper=helper)
+        self.assertEqual(report['coverage'], 'continuation-blocked')
+        self.assertTrue(report['package_identity_gap'])
+        self.assertNotIn(report['prs'][URL]['next_action']['kind'],
+                         ('merge', 'dispatch-fixer', 'update-branch', 'resolution'))
         self.assertEqual(self.state.read_bytes(), before)
+
+    def test_status_reports_blocked_identity_without_mutating_or_recommending_stale_work(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'status-{index}.json'
+            self.seed(helper)
+            self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
+            initial = self.state.read_bytes()
+            for field, value, gap in (('installed_digest', '0' * 64, 'installed-drift'),
+                                      ('installed_digest', None, 'missing-package-identity'),
+                                      ('policy_version', 'continuous-0', 'policy-version')):
+                state = json.loads(initial)
+                if field == 'policy_version':
+                    state[field] = value
+                else:
+                    state['package'][field] = value
+                self.state.write_text(json.dumps(state))
+                before = self.state.read_bytes()
+                report = self.cli('status', '--now', '2026-10-22T14:16:00Z', helper=helper)
+                self.assertEqual(report['status'], 'continuation-blocked')
+                self.assertEqual(report['coverage'], 'continuation-blocked')
+                self.assertIn(gap, [item['kind'] for item in report['package_identity_gap']])
+                self.assertEqual(report['package']['recorded'], state['package'])
+                self.assertTrue(report['package']['running']['digest'])
+                scheduler = report['scheduler']
+                self.assertEqual(scheduler['package_identity_gap'], report['package_identity_gap'])
+                self.assertIsNone(scheduler['next_run_at'])
+                self.assertEqual(scheduler['historical_next_run_at'], '2026-10-22T14:15:00Z')
+                self.assertEqual(scheduler['stop']['arguments']['scheduledTaskId'], 'owned-schedule')
+                self.assertEqual(report['prs'][URL]['next_action']['kind'], 'migration-required')
+                adopted = report['prs'][URL.replace('/12', '/13')]
+                self.assertTrue(adopted['fixer']['in_flight'])
+                self.assertEqual(adopted['next_action']['kind'], 'wait-fixer')
+                self.assertEqual(self.state.read_bytes(), before)
+
+    def test_source_contract_changes_are_part_of_identity(self):
+        root = self.base / 'source'
+        package = source_package(root)
+        helper = package / 'scripts/continuous.py'
+        spec = importlib.util.spec_from_file_location('source_contract_sweep',
+                                                    helper.with_name('continuous_sweep.py'))
+        adapter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adapter)
+        self.seed(helper)
+        for relative in ('core/jobs/__init__.py', 'core/jobs/store.py',
+                         'shared/job_coordinator.py', 'shared/worker_registry.py'):
+            with self.subTest(contract=relative):
+                path = root / relative
+                original = path.read_bytes()
+                before = self.state.read_bytes()
+                try:
+                    path.write_bytes(original + b'\n# Synthetic contract drift.\n')
+                    self.assert_blocked(helper, adapter)
+                finally:
+                    path.write_bytes(original)
+                    self.state.write_bytes(before)
+
+    def test_status_reports_installed_tamper_without_saving_and_keeps_owned_stop(self):
+        box = Sandbox(self.base / 'packages')
+        package, _ = box.install('babysitter')
+        helper = package / 'scripts/continuous.py'
+        self.seed(helper)
+        self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                 '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
+        before = self.state.read_bytes()
+        for relative in ('references/continuous.md', 'install-manifest.json'):
+            path = package / relative
+            original = path.read_bytes()
+            try:
+                path.write_bytes(original + (b'\nchanged\n' if relative.endswith('.md') else b'!'))
+                report = self.cli('status', '--now', NOW, helper=helper)
+                self.assertEqual(report['coverage'], 'continuation-blocked')
+                self.assertEqual(report['package_identity_gap'][0]['kind'], 'package-integrity')
+                self.assertIsNone(report['package']['running'])
+                self.assertIsNone(report['scheduler']['next_run_at'])
+                self.assertEqual(report['scheduler']['stop']['arguments']['scheduledTaskId'],
+                                 'owned-schedule')
+                self.assertEqual(report['prs'][URL]['next_action']['kind'], 'migration-required')
+                self.assertEqual(self.state.read_bytes(), before)
+            finally:
+                path.write_bytes(original)
+
+    def test_scheduler_reauthorization_is_blocked_but_demotion_stop_and_cancel_stay_available(self):
+        for index, (helper, _, _) in enumerate(self.adapters()):
+            self.state = self.base / f'scheduler-{index}.json'
+            self.seed(helper)
+            self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
+            state = json.loads(self.state.read_text())
+            state['package']['installed_digest'] = '0' * 64
+            self.state.write_text(json.dumps(state))
+            demoted = self.cli('scheduler', '--now', NOW, '--available', 'yes',
+                               '--authorized', 'no', helper=helper)
+            self.assertEqual(demoted['status'], 'event-only')
+            self.assertEqual(demoted['scheduler_stop']['arguments']['scheduledTaskId'], 'owned-schedule')
+            before = self.state.read_bytes()
+            self.cli('scheduler', '--now', NOW, '--available', 'yes', '--authorized', 'yes',
+                     helper=helper, ok=False)
+            self.assertEqual(self.state.read_bytes(), before)
+            self.cli('schedule-stop', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--verified', 'yes', helper=helper)
+            stopped = self.state.read_bytes()
+            self.cli('schedule-record', '--now', NOW, '--schedule-id', 'injected-schedule',
+                     '--next-run-at', '2026-10-22T14:20:00Z', helper=helper, ok=False)
+            self.assertEqual(self.state.read_bytes(), stopped)
+            self.cli('cancel', '--now', NOW, '--reason', 'owner stop', helper=helper)
+            final = json.loads(self.state.read_text())
+            self.assertIsNone(final['scheduler']['schedule_id'])
+            self.assertTrue(final['cancelled'])
+            self.assertEqual(final['prs'], state['prs'])
+
+    def test_policy_drift_allows_only_safe_late_reconciliation_and_disarm_even_after_cancel(self):
+        for index, (helper, adapter, _) in enumerate(self.adapters()):
+            self.state = self.base / f'late-policy-{index}.json'
+            self.seed(helper)
+            self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
+            self.cli('dispatch', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                     '--request-id', 'late-merge', '--head', H1, '--reserve', helper=helper)
+            fixer_url = URL.replace('/12', '/14')
+            request = f'late-policy-fixer-{index}'
+            self.cli('dispatch', '--now', NOW, '--pr', fixer_url, '--kind', 'fixer',
+                     '--request-id', request, '--head', H1, '--reserve', helper=helper)
+            state = json.loads(self.state.read_text())
+            state['policy_version'] = 'continuous-0'
+            self.state.write_text(json.dumps(state))
+            self.cli('scheduler', '--now', NOW, '--available', 'no', '--authorized', 'no',
+                     helper=helper)
+            self.cli('cancel', '--now', NOW, '--reason', 'owner stop', helper=helper)
+            self.cli('schedule-stop', '--now', NOW, '--schedule-id', 'owned-schedule',
+                     '--verified', 'yes', helper=helper)
+            for url, kind, request_id, host in ((URL, 'merge', 'late-merge', 'merge-host'),
+                                              (fixer_url, 'fixer', request, 'fixer-host')):
+                self.assertTrue(self.cli('dispatch', '--now', NOW, '--pr', url, '--kind', kind,
+                    '--request-id', request_id, '--host-task-id', host, helper=helper)['attached'])
+            result = self.accepted_result(request, 'fixer-host')
+            self.cli('fixer-done', '--now', NOW, '--pr', fixer_url, '--request-id', request,
+                     '--host-task-id', 'fixer-host', '--result', str(result), helper=helper)
+            self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'merge',
+                     '--request-id', 'late-merge', '--host-task-id', 'merge-host',
+                     '--status', 'cancelled', helper=helper)
+            self.cli('resolve', '--now', NOW, '--pr', URL, '--head', H1,
+                     '--resolution', 'closed', helper=helper)
+            before = self.state.read_bytes()
+            self.cli('dispatch', '--now', NOW, '--pr', fixer_url, '--kind', 'fixer',
+                     '--request-id', 'new-work', '--head', H1, '--reserve', helper=helper, ok=False)
+            self.cli('scheduler', '--now', NOW, '--available', 'yes', '--authorized', 'yes',
+                     helper=helper, ok=False)
+            self.assertEqual(self.state.read_bytes(), before)
+            final = json.loads(before)
+            self.assertEqual(final['policy_version'], 'continuous-0')
+            self.assertEqual(final['prs'][URL]['state'], 'closed')
+            self.assertFalse(final['prs'][fixer_url]['fixer']['in_flight'])
+            self.assertTrue(final['prs'][URL.replace('/12', '/13')]['fixer']['in_flight'])
+            self.assertTrue(final['cancelled'])
+            self.assertIsNone(final['scheduler']['schedule_id'])
 
     def test_source_and_installed_missing_identity_digest_and_policy_refuse_all_continuations(self):
         for index, (helper, adapter, _) in enumerate(self.adapters()):
@@ -135,7 +305,7 @@ class WakeIdentityTest(ContinuousCase):
         originals = {path: path.read_bytes() for path in (manifest_path, doc, meta_path)}
         for case in ('valid-content-change', 'tampered-file', 'tampered-manifest',
                      'tampered-manifest-plugin', 'tampered-manifest-version',
-                     'missing-manifest', 'valid-policy-change'):
+                     'missing-manifest', 'unlisted-file', 'injected-symlink', 'valid-policy-change'):
             with self.subTest(case=case):
                 manifest = json.loads(originals[manifest_path])
                 if case in ('valid-content-change', 'tampered-file'):
@@ -157,7 +327,13 @@ class WakeIdentityTest(ContinuousCase):
                     manifest_path.write_text(json.dumps(manifest))
                 elif case == 'missing-manifest':
                     manifest_path.unlink()
+                extra = package / 'unlisted.txt'
+                if case == 'unlisted-file':
+                    extra.write_text('Synthetic unlisted file.\n')
+                elif case == 'injected-symlink':
+                    extra.symlink_to(doc)
                 self.assert_blocked(helper, adapter)
+                extra.unlink(missing_ok=True)
                 for path, data in originals.items():
                     path.write_bytes(data)
 
@@ -415,6 +591,59 @@ class UnpinnedMigrationTest(ContinuousCase):
         self.assertEqual(after['run_id'], before['run_id'])
         self.assertEqual(after['scheduler'], before['scheduler'])
         self.assertIsNone(after['job_id'])
+
+
+class SourceIdentityTest(ContinuousCase):
+    def test_real_legacy_source_fingerprint_requires_authorized_migration_and_keeps_guards(self):
+        old_root = legacy_source(self.base, '17e636c1c24be77566f24062f93a8b1dc17d94c8')
+        old = old_root / 'plugins/babysitter'
+        target = source_package(self.base / 'target')
+        old_helper, helper = old / 'scripts/continuous.py', target / 'scripts/continuous.py'
+        self.state = self.base / 'run/state.json'
+        self.start(helper=old_helper)
+        self.cli('schedule-record', '--now', NOW, '--schedule-id', 'legacy-source-schedule',
+                 '--next-run-at', '2026-10-22T14:15:00Z', helper=old_helper)
+        self.cli('observe', '--now', NOW, '--wake-id', 'seed', helper=old_helper,
+                 payload=observation(pr(number=13, owner={
+                     'thread_id': 'self', 'status': 'running', 'fixer_in_flight': True,
+                     'host_task_id': 'legacy-live'})))
+        before = json.loads(self.state.read_text())
+        self.assertEqual(before['package']['installed_digest'],
+                         continuous_sweep.continuous.package_digest(old))
+        self.assertNotIn('fingerprint_scheme', before['package'])
+        preserved = self.state.read_bytes()
+        self.cli('observe', '--now', NOW, '--wake-id', 'blocked', helper=helper,
+                 payload=observation(pr()), ok=False)
+        self.assertEqual(self.state.read_bytes(), preserved)
+        decision = UnpinnedMigrationTest.decision(self, helper)
+        UnpinnedMigrationTest.migrate(self, helper, old, decision)
+        migrated = json.loads(self.state.read_text())
+        self.assertEqual(migrated['package']['fingerprint_scheme'], 'source-contracts-1')
+        for field in ('run_id', 'scheduler', 'prs', 'events', 'discovery'):
+            self.assertEqual(migrated[field], before[field])
+        self.assertEqual(self.cli('status', '--now', NOW, helper=helper)['package_identity_gap'], [])
+        self.cli('observe', '--now', NOW, '--wake-id', 'resumed', helper=helper,
+                 payload=observation(pr(number=13)))
+        self.assertTrue(json.loads(self.state.read_text())['prs'][URL.replace('/12', '/13')]
+                        ['fixer']['in_flight'])
+
+    def test_changed_source_contracts_need_retained_complete_source_and_owner_decision(self):
+        old = source_package(self.base / 'old')
+        target = source_package(self.base / 'target')
+        contract = target.parents[1] / 'shared/worker_registry.py'
+        contract.write_text(contract.read_text() + '\n# Synthetic new source contract.\n')
+        helper = target / 'scripts/continuous.py'
+        self.state = self.base / 'run/state.json'
+        self.start(helper=old / 'scripts/continuous.py')
+        before = json.loads(self.state.read_text())
+        decision = UnpinnedMigrationTest.decision(self, helper)
+        UnpinnedMigrationTest.migrate(self, helper, old, decision)
+        self.assertEqual(self.cli('status', '--now', NOW, helper=helper)['package_identity_gap'], [])
+        migrated = json.loads(self.state.read_text())
+        self.assertEqual(migrated['scheduler'], before['scheduler'])
+        self.assertEqual(migrated['prs'], before['prs'])
+        self.assertNotEqual(migrated['package']['installed_digest'], before['package']['installed_digest'])
+        self.assertEqual(UnpinnedMigrationTest.migrate(self, helper, old, decision)['status'], 'duplicate')
 
 
 class UpdateAndResolutionTest(ContinuousCase):

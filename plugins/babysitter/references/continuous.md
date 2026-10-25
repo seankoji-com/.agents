@@ -272,7 +272,12 @@ Reporting uses unchanged evidence instead of regenerating a handoff round:
 
 `continuous.py version` reports the running package version, policy version and the
 installer manifest's package digest, after verifying its listed files. Source checkouts
-use a source content fingerprint. `start` records the identity automatically
+use `source-contracts-1`: the plugin plus the complete `shared/` and `core/` trees
+resolved by the helper's job imports. Retain all three trees for source migration;
+copying the plugin alone is unsupported. Source symlinks are refused. Older source
+fingerprints remain an explicit owner-authorized migration input, never an automatic
+continuation. Installed legacy fingerprints retain their supported upgrade path.
+`start` records the identity automatically
 and defaults the pin to the installed version, so `resume` detects a swapped running
 package without relying on `--package-version`. A state without the fingerprint is a
 migration gap, not a silent resume. Inspect the run with the new package:
@@ -282,10 +287,30 @@ python3 <new-package>/scripts/continuous.py resume --state <state.json> --now <R
 ```
 
 Scheduled, event and manual wakes verify this identity before discovery and observation;
-new schedules and writer reservations verify it again before authorizing host work.
-Drift, missing identity or invalid installed files/manifest stop continuation without
-changing the run. Late handle attachments and completion receipts can still reconcile
-already-launched work. These checks never accept migration automatically.
+schedule planning/recording, scheduler enable/reauthorization (`--available yes
+--authorized yes`) and new writer reservations verify it before authorizing work.
+Drift, missing identity or invalid installed files/manifest refuse those operations
+without changing the run. These checks never accept migration automatically.
+
+`status` reads the recorded/running identity and exact gaps without saving. A gap
+reports `continuation-blocked`, moves the stored wake to `historical_next_run_at`,
+retains the owned stop operation, and replaces stale action recommendations with
+`migration-required`. Already-launched writers remain visible for reconciliation.
+
+These operations intentionally do not require a matching package identity:
+
+| Operation | Limit |
+| --- | --- |
+| `status`, `version`, `preflight` | Read-only inspection; invalid package bytes remain an explicit error or status gap. |
+| `cancel`, `schedule-stop` | Cancel the existing run or record its matching stop receipt; neither arms a schedule. |
+| `scheduler` with either flag `no` | Demote coverage and retain any unverified owned stop; cannot enable or reauthorize. |
+| `dispatch` attaching a handle | Attach only to the same existing reserved/uncertain request, including after cancellation. |
+| `receipt`, `fixer-done` | Reconcile matching existing/adopted work with all handle, accepted-result and terminal-replay checks intact. |
+| `resolve` | Record an explicit merged/closed read at the known head; live writer exclusions remain. |
+
+These transitions remain available under package and policy drift. They cannot reserve
+new work, clear cancellation, change package pins or accept migration. `resume` is the
+separate verified migration/explicit cancellation-resume path described below.
 
 Resume refuses drift and returns `migration-required` with the exact gaps.
 For a pinned job, record the owner decision and run `job_cli.py upgrade-package`, then:
