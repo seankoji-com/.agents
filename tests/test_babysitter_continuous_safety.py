@@ -338,7 +338,7 @@ class WakeIdentityTest(ContinuousCase):
                 for path, data in originals.items():
                     path.write_bytes(data)
 
-    def test_late_handles_and_accepted_results_reconcile_without_reopening_continuation(self):
+    def test_late_handles_reconcile_but_fixer_result_acceptance_requires_current_identity(self):
         for index, (helper, adapter, _) in enumerate(self.adapters()):
             self.state = self.base / f'late-{index}.json'
             self.seed(helper)
@@ -356,13 +356,15 @@ class WakeIdentityTest(ContinuousCase):
                 self.assertTrue(self.cli('dispatch', '--now', NOW, '--pr', url, '--kind', kind,
                     '--request-id', request_id, '--host-task-id', host, helper=helper)['attached'])
             result = self.accepted_result(request, 'fixer-host')
+            before = self.state.read_bytes()
             self.cli('fixer-done', '--now', NOW, '--pr', fixer_url, '--request-id', request,
-                     '--host-task-id', 'fixer-host', '--result', str(result), helper=helper)
+                     '--host-task-id', 'fixer-host', '--result', str(result), helper=helper, ok=False)
+            self.assertEqual(self.state.read_bytes(), before)
             self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'merge',
                      '--request-id', 'late-merge', '--host-task-id', 'merge-host',
                      '--status', 'cancelled', helper=helper)
             state = json.loads(self.state.read_text())
-            self.assertFalse(state['prs'][fixer_url]['fixer']['in_flight'])
+            self.assertTrue(state['prs'][fixer_url]['fixer']['in_flight'])
             self.assertTrue(state['prs'][URL.replace('/12', '/13')]['fixer']['in_flight'])
             self.assert_blocked(helper, adapter)
 
@@ -392,6 +394,63 @@ class InstalledImportIntegrityTest(ContinuousCase):
         verify_package_files(package, manifest)
         assert package_digest(json.loads(path.read_text())) == manifest['package_digest']
         return manifest
+
+    def test_changed_valid_package_refuses_accepted_fixer_results_until_owner_migration(self):
+        accepted = AcceptedJob(self.base / 'accepted', 'adopted-1', 'adopted-live')
+        accepted.complete()
+        package = accepted.package
+        helper = package / 'scripts/continuous.py'
+        self.state = self.base / 'run/state.json'
+        WakeIdentityTest.seed(self, helper)
+        initial = self.state.read_bytes()
+        evidence = tree_digest(accepted.directory)
+        target = shutil.copytree(package, package.with_name('1.3.2+g0badc0ff'))
+        marker = self.base / 'changed-contract-executed.txt'
+        contract = target / 'shared/job_coordinator.py'
+        contract.write_text(contract.read_text() + '\nfrom pathlib import Path as _ProbePath\n'
+                            + '_ProbePath(' + repr(str(marker)) + ').write_text("executed")\n')
+        manifest = self.rewrite_manifest(target)
+        changed_helper = target / 'scripts/continuous.py'
+        flags = ['--now', NOW, '--pr', URL.replace('/12', '/13'),
+                 '--request-id', 'adopted-1', '--host-task-id', 'adopted-live',
+                 '--result', str(accepted.transport), '--job', str(accepted.directory)]
+        terminal = {}
+        for command in ('receipt', 'fixer-done'):
+            extra = ['--kind', 'fixer', '--status', 'succeeded'] if command == 'receipt' else []
+            with self.subTest(command=command):
+                control = self.cli(command, *flags, *extra, helper=helper)
+                self.assertTrue(control['changed'])
+                self.assertFalse(control['fixer']['in_flight'])
+                terminal[command] = self.state.read_bytes()
+                self.state.write_bytes(initial)
+                refused = self.cli(command, *flags, *extra, helper=changed_helper, ok=False)
+                self.assertIn('policy/package migration required (installed-drift)', refused.stderr)
+                self.assertFalse(marker.exists())
+                self.assertEqual(self.state.read_bytes(), initial)
+                self.assertEqual(tree_digest(accepted.directory), evidence)
+                # Already terminal rows stay immutable before package or result validation.
+                self.state.write_bytes(terminal[command])
+                for status in ('succeeded', 'failed'):
+                    replay = self.cli('receipt', *flags, '--kind', 'fixer', '--status', status,
+                                      helper=changed_helper)
+                    self.assertEqual(replay['status'], 'duplicate' if status == 'succeeded' else 'stale')
+                    self.assertEqual(self.state.read_bytes(), terminal[command])
+                    self.assertFalse(marker.exists())
+                self.state.write_bytes(initial)
+        decision = UnpinnedMigrationTest.decision(self, changed_helper)
+        self.assertFalse(marker.exists())
+        UnpinnedMigrationTest.migrate(self, changed_helper, package, decision)
+        self.assertTrue(marker.exists())  # Explicit owner acceptance may load the target contracts.
+        migrated = self.state.read_bytes()
+        self.assertEqual(json.loads(migrated)['package']['installed_digest'], manifest['package_digest'])
+        self.assertEqual(json.loads(migrated)['prs'], json.loads(initial)['prs'])
+        for command in ('receipt', 'fixer-done'):
+            extra = ['--kind', 'fixer', '--status', 'succeeded'] if command == 'receipt' else []
+            self.state.write_bytes(migrated)
+            result = self.cli(command, *flags, *extra, helper=changed_helper)
+            self.assertTrue(result['changed'])
+            self.assertFalse(result['fixer']['in_flight'])
+            self.assertEqual(tree_digest(accepted.directory), evidence)
 
     def test_import_failures_report_integrity_and_block_continuation_before_host_calls(self):
         self.exercise_import_failures(consistent=False)
@@ -1205,6 +1264,15 @@ class UnpinnedMigrationTest(ContinuousCase):
                  '--next-run-at', '2026-10-22T14:15:00Z', helper=old / 'scripts/continuous.py')
         before = json.loads(self.state.read_text())
         decision = self.decision(current / 'scripts/continuous.py')
+        manifest = old / 'install-manifest.json'
+        original = manifest.read_bytes()
+        unchanged = self.state.read_bytes()
+        try:
+            manifest.unlink()
+            self.migrate(current / 'scripts/continuous.py', old, decision, ok=False)
+            self.assertEqual(self.state.read_bytes(), unchanged)
+        finally:
+            manifest.write_bytes(original)
         self.migrate(current / 'scripts/continuous.py', old, decision)
         after = json.loads(self.state.read_text())
         self.assertEqual(after['run_id'], before['run_id'])
@@ -1230,11 +1298,55 @@ class SourceIdentityTest(ContinuousCase):
         self.assertEqual(before['package']['installed_digest'],
                          continuous_sweep.continuous.package_digest(old))
         self.assertNotIn('fingerprint_scheme', before['package'])
+        # Historical helpers pinned only this tree. No shared/core may be needed to
+        # inspect retained source evidence, and no old contract may execute.
+        old = shutil.copytree(old, self.base / 'retained/plugins/babysitter')
+        shutil.rmtree(old_root)
         preserved = self.state.read_bytes()
         self.cli('observe', '--now', NOW, '--wake-id', 'blocked', helper=helper,
                  payload=observation(pr()), ok=False)
         self.assertEqual(self.state.read_bytes(), preserved)
         decision = UnpinnedMigrationTest.decision(self, helper)
+        for damage in ('bytes', 'version', 'plugin', 'decision-source', 'decision-target',
+                       'current-scheme', 'null-scheme'):
+            with self.subTest(damage=damage):
+                metadata = old / 'plugin.json'
+                original = metadata.read_bytes()
+                owner = json.loads(decision.read_text())
+                source = Path(owner['source'])
+                owner_bytes = source.read_bytes()
+                decision_bytes = decision.read_bytes()
+                try:
+                    if damage in ('bytes', 'version', 'plugin'):
+                        meta = json.loads(original)
+                        meta['version' if damage == 'version' else 'name' if damage == 'plugin'
+                             else 'description'] = 'changed'
+                        metadata.write_text(json.dumps(meta))
+                    elif damage == 'decision-source':
+                        source.write_text('Unrelated owner source')
+                    elif damage == 'decision-target':
+                        owner['scope'] = 'continuous-package:' + '0' * 64
+                        decision.write_text(json.dumps(owner))
+                    else:
+                        state = json.loads(preserved)
+                        state['package']['fingerprint_scheme'] = (
+                            'source-contracts-1' if damage == 'current-scheme' else None)
+                        self.state.write_text(json.dumps(state))
+                    unchanged = self.state.read_bytes()
+                    UnpinnedMigrationTest.migrate(self, helper, old, decision, ok=False)
+                    self.assertEqual(self.state.read_bytes(), unchanged)
+                finally:
+                    metadata.write_bytes(original)
+                    source.write_bytes(owner_bytes)
+                    decision.write_bytes(decision_bytes)
+                    self.state.write_bytes(preserved)
+        # The compatibility route is evidence-only. A new run cannot use a bare tree.
+        with self.assertRaises(continuous_sweep.continuous.ContinuousError):
+            continuous_sweep.continuous.source_identity(old / 'scripts/continuous.py')
+        fresh = self.base / 'new/state.json'
+        self.cli('start', '--now', NOW, '--scope-kind', 'org', '--scope-value', 'fixture',
+                 '--script', str(old / 'scripts/continuous.py'), helper=helper, state=fresh, ok=False)
+        self.assertFalse(fresh.exists())
         UnpinnedMigrationTest.migrate(self, helper, old, decision)
         migrated = json.loads(self.state.read_text())
         self.assertEqual(migrated['package']['fingerprint_scheme'], 'source-contracts-1')

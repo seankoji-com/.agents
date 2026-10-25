@@ -273,10 +273,12 @@ Reporting uses unchanged evidence instead of regenerating a handoff round:
 `continuous.py version` reports the running package version, policy version and the
 installer manifest's package digest, after verifying its listed files. Source checkouts
 use `source-contracts-1`: the plugin plus the complete `shared/` and `core/` trees
-resolved by the helper's job imports. Retain all three trees for source migration;
-copying the plugin alone is unsupported. Source symlinks are refused. Older source
-fingerprints remain an explicit owner-authorized migration input, never an automatic
-continuation. Installed legacy fingerprints retain their supported upgrade path.
+resolved by the helper's job imports. Retain all three trees for current source
+migration. Historical source states without `fingerprint_scheme` recorded only the plugin
+digest: a retained plugin-only tree remains read-only migration evidence when its
+plugin, version and digest match that state and the owner approves the exact target.
+It cannot start a new run or satisfy a current source fingerprint. Source symlinks
+are refused. Installed legacy fingerprints retain their supported upgrade path.
 `start` records the identity automatically
 and defaults the pin to the installed version, so `resume` detects a swapped running
 package without relying on `--package-version`. A state without the fingerprint is a
@@ -304,6 +306,9 @@ Continuation, `status` and unapproved `resume` compare the recorded identity bef
 loading changed contracts. With matching identity, `status` also checks required
 job-contract exports; `version` and new starts check them after byte verification.
 Matching manifest hashes alone do not establish usable contracts.
+Fixer result acceptance through `receipt` or `fixer-done` also compares the run's
+identity before loading job validators. Drift requires explicit owner-authorized
+migration; refusal preserves the guard, progress clock and result state.
 
 Cancellation reports `stop-unverified` while an owned schedule needs its stop receipt,
 otherwise `cancelled`. It publishes no future wake, retains the historical receipt
@@ -317,7 +322,8 @@ These operations intentionally do not require a matching package identity:
 | `cancel`, `schedule-stop` | Cancel the existing run or record its matching stop receipt; neither arms a schedule. |
 | `scheduler` with either flag `no` | Demote coverage and retain any unverified owned stop; cannot enable or reauthorize. |
 | `dispatch` attaching a handle | Attach only to the same existing reserved/uncertain request, including after cancellation. |
-| `receipt`, `fixer-done` | Reconcile matching existing/adopted work with all handle, accepted-result and terminal-replay checks intact; result validation requires usable job contracts. |
+| `receipt` without fixer result validation | Reconcile matching non-fixer work, or a confirmed fixer launch refusal before a handle exists; no packaged job validator executes. |
+| Terminal replays via `receipt`, `fixer-done` | Return immutable `duplicate`/`stale` before package or result validation. New fixer result acceptance requires a matching run identity. |
 | `resolve` | Record an explicit merged/closed read at the known head; live writer exclusions remain. |
 
 These transitions remain available under package and policy drift. They cannot reserve
