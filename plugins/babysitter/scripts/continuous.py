@@ -80,6 +80,7 @@ KIND_RECEIPT_STATUSES = {
     'merge': MERGE_RECEIPT_STATUSES,
     'resolution': RESOLUTION_RECEIPT_STATUSES,
     'update-branch': RESOLUTION_RECEIPT_STATUSES.copy(),
+    'auto-merge': RESOLUTION_RECEIPT_STATUSES.copy(),
 }
 for _statuses in KIND_RECEIPT_STATUSES.values():
     _statuses.add('uncertain')
@@ -761,9 +762,9 @@ def live_dispatch(pr, kind):
 def pending_write(pr, state, now):
     """Keep coordinator writes visible until their matching terminal receipts."""
     dispatches = [dict(row) for row in pr.get('dispatches', [])
-                  if row.get('kind') in ('resolution', 'update-branch')
+                  if row.get('kind') in ('resolution', 'update-branch', 'auto-merge')
                   and dispatch_status(row) in OPEN_DISPATCH]
-    for kind in ('resolution', 'update-branch'):
+    for kind in ('resolution', 'update-branch', 'auto-merge'):
         row = live_dispatch(pr, kind)
         if row:
             status = dispatch_status(row)
@@ -1842,6 +1843,14 @@ def cmd_dispatch(args):
         if update:
             raise ContinuousError(
                 f"update-branch {update['request_id']} is pending; another write may not race it")
+        arming = live_dispatch(pr, 'auto-merge')
+        require(not arming, 'auto-merge write is pending; reconcile it before another write')
+        if args.kind == 'auto-merge':
+            require(not observation.get('draft'), 'draft PRs cannot enable auto-merge')
+            require(bool(args.head) and re.fullmatch(r'[0-9a-f]{40}', args.head) is not None,
+                    'auto-merge requires the full observed head')
+            require(not fixer.get('in_flight') and not merge,
+                    'auto-merge may not race a live fixer or merge')
         if args.kind == 'resolution' and merge:
             raise ContinuousError(
                 f"merge {merge['request_id']} is pending; resolution may not race it")
@@ -1950,7 +1959,7 @@ def cmd_receipt(args):
         if args.head and row.get('head') and args.head != row['head']:
             raise ContinuousError(
                 f"receipt head {args.head} differs from dispatch head {row['head']}")
-        if row['kind'] in ('merge', 'resolution', 'update-branch') and args.status in TERMINAL_DISPATCH \
+        if row['kind'] in ('merge', 'resolution', 'update-branch', 'auto-merge') and args.status in TERMINAL_DISPATCH \
                 and row.get('host_task_id'):
             require(args.host_task_id == row['host_task_id'],
                     f"a terminal {row['kind']} receipt must name the recorded host handle")
@@ -2026,7 +2035,7 @@ def cmd_receipt(args):
                 pr['last_meaningful_progress_at'] = now_iso(now)
         audit(state, now, 'receipt', pr=args.pr, request_id=args.request_id,
               status=args.status, stale=stale)
-        if row['kind'] in ('resolution', 'update-branch'):
+        if row['kind'] in ('resolution', 'update-branch', 'auto-merge'):
             pending = pending_write(pr, state, now)
             if state.get('cancelled') and not pending:
                 pr.update(next_action=None, blocked=None, queue=None)

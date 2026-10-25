@@ -3,7 +3,9 @@
 # list-prs.sh — emit a full state snapshot, one compact JSON object per line, for
 # every open pull request the babysitter is allowed to touch.
 #
-# This is the plugin's ONLY GitHub reader. Both the initial sweep and the event
+# This is the detailed PR reader. Org discovery uses org_scan.py, a smaller,
+# fully paginated read without comment bodies or per-job queue-clock lookups.
+# Both the legacy initial sweep and the event
 # monitor call it: the sweep uses the identity fields, pr-events.sh polls it on an
 # interval and diffs consecutive snapshots to derive events. One reader means the
 # eligibility rules can never disagree between "which PRs we picked up" and "which

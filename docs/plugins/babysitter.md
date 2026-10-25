@@ -67,6 +67,55 @@ discovery is reported as a gap; it cannot support an "all done" claim.
 
 ## Continuous coverage
 
+Org mode starts with a deterministic, read-only scan:
+
+```sh
+python3 PKG/scripts/org_scan.py --org OWNER
+```
+
+Resolve `PKG` with `t3-plugins path babysitter` (use `--job JOB` for a pinned job).
+The JSON lists every accessible repository's open, non-draft PRs, including forks
+and all authors, with exact heads and stable action/reason fields. `dispatch`
+contains PRs with failed checks, unresolved review threads, conflicts or requested
+changes. Missing auto-merge goes to the coordinator; queued/running checks alone
+wait. Fork admission and write authority still follow your saved scope.
+Review-thread resolution includes outdated threads; ordinary conversation comments
+have no resolved flag. The scanner reads all check/thread pages without comment
+bodies or per-job queue-clock calls. It uses serial batched GraphQL requests,
+request/point/deadline limits, a remaining-rate reserve and an overlap lock.
+Incomplete evidence stays explicit, so an empty repair list cannot mask a failed
+scan. This read-only form never enables auto-merge or launches agents.
+
+For a writable admitted run, the same scan can execute its decisions:
+
+```sh
+python3 PKG/scripts/org_scan.py --org OWNER --execute --run-config RUN.json --bridge
+```
+
+The coordinator prepares `RUN.json` once from the saved authorization and model
+selection. Each pass enables native auto-merge on admitted non-draft PRs without a
+question, creates the per-PR jobs and launches fixers through T3. Stable request IDs,
+writer reservations and retained task handles prevent repeated sweeps from starting
+duplicate agents. An ambiguous launch stays held for reconciliation. The executor
+uses native T3 MCP tools; it never starts a provider CLI. Run that argv through the
+bundled deterministic tool bridge in Codex code mode, so a small coordinator can
+execute the flow without an external CLI transport.
+[Execution setup and limits](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/babysitter/references/org-execution.md)
+describe the configuration and host adapter. GitHub's branch rules control native
+auto-merge; without a conversation-resolution rule, it can merge with open threads.
+
+A small coordinator can read `complete`, `summary`, `dispatch` and each selected
+row's reasons, then use the existing per-PR jobs and writer reservations. Repeated
+sweeps retain active tasks rather than launching duplicates. Fetch detailed comments,
+queue clocks and current-head evidence only when the maintenance workflow needs
+them. [The scan contract](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/babysitter/references/org-scan.md)
+documents output, limits and routing. Fixture tests cover installed preparation and
+the deterministic launch path. Live fixer execution and scheduled delivery remain
+separate checks.
+
+For a 15-minute sweep, request that cadence explicitly; the host schedule uses
+`--cadence-seconds 900`. The scan runs once per wake and exits.
+
 A native PR watch wakes for linked PR changes only. It does not discover a newly
 opened matching PR, and an unchanged queued CI job emits no event. When you
 explicitly ask for coverage that continues while idle, babysitter uses T3's own
