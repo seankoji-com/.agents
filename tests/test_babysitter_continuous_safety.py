@@ -368,6 +368,13 @@ class WakeIdentityTest(ContinuousCase):
 
 
 class InstalledImportIntegrityTest(ContinuousCase):
+    INITIALIZATION_FAILURES = {
+        'RuntimeError': b"\nraise RuntimeError('contract initialization failed')\n",
+        'KeyError': b"\nraise KeyError('missing contract setting')\n",
+        'ValueError': b"\nraise ValueError('invalid contract setting')\n",
+        'FileNotFoundError': b"\nopen(__file__ + '.missing')\n",
+    }
+
     @staticmethod
     def rewrite_manifest(package):
         from shared.worker_registry import package_digest, verify_package_files
@@ -467,6 +474,8 @@ print(json.dumps({'errors': errors, 'host_calls': calls}))
             failures = ['missing', 'syntax']
             failures += list(exports.get(relative, ())) if consistent else (
                 ['exports'] if relative.endswith('worker_registry.py') else [])
+            if consistent and relative == 'shared/job_coordinator.py':
+                failures += list(self.INITIALIZATION_FAILURES)
             for failure in failures:
                 with self.subTest(module=relative, failure=failure):
                     try:
@@ -475,6 +484,8 @@ print(json.dumps({'errors': errors, 'host_calls': calls}))
                         elif failure in ('syntax', 'exports'):
                             path.write_bytes(b'def broken(:\n' if failure == 'syntax'
                                              else b'# Required exports are missing.\n')
+                        elif failure in self.INITIALIZATION_FAILURES:
+                            path.write_bytes(original + self.INITIALIZATION_FAILURES[failure])
                         else:
                             # Keep the other exports intact so each required name is checked.
                             path.write_bytes(original + b'\ndel ' + failure.encode() + b'\n')
@@ -498,7 +509,11 @@ print(json.dumps({'errors': errors, 'host_calls': calls}))
                                       report['package_identity_gap'][0]['detail'])
                         if consistent:
                             self.assertRegex(report['package_identity_gap'][0]['detail'],
-                                             'No module named|cannot import name|invalid syntax')
+                                failure if failure in self.INITIALIZATION_FAILURES else
+                                'No module named|cannot import name|invalid syntax')
+                            if failure in self.INITIALIZATION_FAILURES:
+                                self.assertIn('shared.job_coordinator: ' + failure,
+                                              report['package_identity_gap'][0]['detail'])
                         self.assertIsNone(report['package']['running'])
                         self.assertIsNone(report['scheduler']['next_run_at'])
                         self.assertEqual(report['scheduler']['stop']['arguments']
@@ -562,11 +577,14 @@ print(json.dumps({'errors': errors, 'host_calls': calls}))
         before = self.state.read_bytes()
         job_evidence = tree_digest(box.jobs, box.private)
         # Exercise the coordinator and the direct core exports required by migration.
-        for relative, corruption in (
+        corruptions = [
                 ('shared/job_coordinator.py', b'def broken(:\n'),
                 ('shared/job_coordinator.py', b'\ndel verify_job_pins\n'),
                 ('core/jobs/__init__.py', b'\ndel _owner_current\n'),
-                ('core/jobs/store.py', b'\ndel MAX_STATE_BYTES\n')):
+                ('core/jobs/store.py', b'\ndel MAX_STATE_BYTES\n')]
+        corruptions.extend(('shared/job_coordinator.py', payload)
+                           for payload in self.INITIALIZATION_FAILURES.values())
+        for relative, corruption in corruptions:
             with self.subTest(migration_contract=relative, corruption=corruption):
                 path = package / relative
                 original = path.read_bytes()
@@ -585,6 +603,45 @@ print(json.dumps({'errors': errors, 'host_calls': calls}))
                 finally:
                     path.write_bytes(original)
                     manifest_path.write_bytes(original_manifest)
+
+    def test_import_boundary_preserves_base_exceptions_and_exception_cause(self):
+        box = Sandbox(self.base / 'packages')
+        package, _ = box.install('babysitter')
+        package = shutil.copytree(package, package.with_name('1.3.2+g0badc0ff'))
+        path = package / 'shared/job_coordinator.py'
+        original = path.read_bytes()
+        probe = self.base / 'exception_probe.py'
+        probe.write_text('''import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location('installed_continuous', sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+try:
+    module.job_contracts()
+except module.ContinuousError as exc:
+    assert isinstance(exc.__cause__, RuntimeError)
+    assert 'shared.job_coordinator: RuntimeError: contract initialization failed' in str(exc)
+else:
+    raise AssertionError('initialization failure was accepted')
+''')
+        try:
+            path.write_bytes(original + self.INITIALIZATION_FAILURES['RuntimeError'])
+            self.rewrite_manifest(package)
+            box.run([sys.executable, probe, package / 'scripts/continuous.py'])
+            for payload, code in ((b'\nraise KeyboardInterrupt()\n', -2),
+                                  (b'\nraise SystemExit(77)\n', 77)):
+                with self.subTest(payload=payload):
+                    path.write_bytes(original + payload)
+                    self.rewrite_manifest(package)
+                    result = box.run([sys.executable, package / 'scripts/continuous.py',
+                                      'version'], check=False)
+                    self.assertEqual(result.returncode, code, result.stderr)
+                    self.assertNotIn('continuous_error:', result.stderr)
+        finally:
+            path.write_bytes(original)
+            manifest = self.rewrite_manifest(package)
+        restored = box.run([sys.executable, package / 'scripts/continuous.py', 'version'])
+        self.assertEqual(json.loads(restored.stdout)['digest'], manifest['package_digest'])
 
     def test_self_consistent_corruption_refuses_real_pinned_upgrade_receipts(self):
         def before_resume(box, package, receipt, job_file):

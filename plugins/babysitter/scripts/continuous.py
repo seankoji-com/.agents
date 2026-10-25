@@ -367,12 +367,17 @@ def job_contracts(package=None):
     """Check every required export at one boundary, including during inspection."""
     sys.path.insert(0, str(job_contract_root(package)))
     try:
+        module = 'shared.worker_registry'
         from shared.worker_registry import package_digest as manifest_digest, verify_package_files
+        module = 'shared.job_coordinator'
         from shared.job_coordinator import pinned_store, verify_all_pins, verify_job_pins
+        module = 'core.jobs'
         from core.jobs import _owner_current
+        module = 'core.jobs.store'
         from core.jobs.store import _regular, MAX_STATE_BYTES as JOB_MAX_BYTES, strict_load
-    except (ImportError, SyntaxError) as exc:
-        raise ContinuousError(f'installed package integrity failure: {exc}') from exc
+    except Exception as exc:
+        raise ContinuousError(
+            f'installed package integrity failure: {module}: {type(exc).__name__}: {exc}') from exc
     return SimpleNamespace(manifest_digest=manifest_digest, verify_package_files=verify_package_files,
                            pinned_store=pinned_store, verify_all_pins=verify_all_pins,
                            verify_job_pins=verify_job_pins, owner_current=_owner_current,
