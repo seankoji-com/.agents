@@ -45,10 +45,11 @@ $t3-focus-group cancel pantry-planner-onboarding
 $t3-focus-group doctor
 ```
 
-`plan`, `status` and `doctor` never start a task. `plan` with an existing study ID
-proposes a revision and shows which accepted results carry forward. `doctor` also
-checks the installed package against its install receipt: file digests, the worker
-bundle and which prefix owns them.
+`status` and `doctor` never start a task. `plan` uses a separate study-plan reviewer
+before owner approval; it never launches the participant panel. With an existing
+study ID, `plan` proposes a revision and shows which accepted results carry
+forward. `doctor` also checks the installed package against its install receipt:
+file digests, the worker bundle and which prefix owns them.
 
 ## An invented example
 
@@ -67,7 +68,7 @@ plan weekly family meals on a phone.
    and approved.
 3. You approve the revision through the question picker: "Approve focus-group
    revision 1a2b3c4d5e6f (ceiling 14 tasks)", with your own revision's hash and
-   ceiling. Nothing has started yet.
+   ceiling. The study-plan review is complete; participant work has not started yet.
 4. `run` pilots each model with its first cell. Once a pilot's answer is accepted,
    that model's other cells run. Each cell gives a first impression from the
    captures, then tries the journey "plan three weeknight dinners" in its own
@@ -79,8 +80,8 @@ plan weekly family meals on a phone.
 
 ## Decisions you make in `plan`
 
-The plan records each of these before anything runs, and shows them again with the
-revision hash:
+The plan records each of these before participant work runs, and shows them again
+with the revision hash:
 
 - **Target.** A URL or a supplied capture pack, and whether it is a fixture,
   staging or live environment. Captures happen in a fresh anonymous context, or in
