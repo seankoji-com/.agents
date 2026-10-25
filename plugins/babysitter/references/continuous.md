@@ -296,6 +296,8 @@ without changing the run. These checks never accept migration automatically.
 reports `continuation-blocked`, moves the stored wake to `historical_next_run_at`,
 retains the owned stop operation, and replaces stale action recommendations with
 `migration-required`. Already-launched writers remain visible for reconciliation.
+`status` and `version` also check every required job-contract export; matching
+manifest hashes do not establish that those contracts can be imported.
 
 These operations intentionally do not require a matching package identity:
 
@@ -305,7 +307,7 @@ These operations intentionally do not require a matching package identity:
 | `cancel`, `schedule-stop` | Cancel the existing run or record its matching stop receipt; neither arms a schedule. |
 | `scheduler` with either flag `no` | Demote coverage and retain any unverified owned stop; cannot enable or reauthorize. |
 | `dispatch` attaching a handle | Attach only to the same existing reserved/uncertain request, including after cancellation. |
-| `receipt`, `fixer-done` | Reconcile matching existing/adopted work with all handle, accepted-result and terminal-replay checks intact. |
+| `receipt`, `fixer-done` | Reconcile matching existing/adopted work with all handle, accepted-result and terminal-replay checks intact; result validation requires usable job contracts. |
 | `resolve` | Record an explicit merged/closed read at the known head; live writer exclusions remain. |
 
 These transitions remain available under package and policy drift. They cannot reserve

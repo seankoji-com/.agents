@@ -2,6 +2,7 @@
 import hashlib
 import importlib.util
 import json
+import shutil
 import sys
 from copy import deepcopy
 from argparse import Namespace
@@ -367,15 +368,56 @@ class WakeIdentityTest(ContinuousCase):
 
 
 class InstalledImportIntegrityTest(ContinuousCase):
+    @staticmethod
+    def rewrite_manifest(package):
+        from shared.worker_registry import package_digest, verify_package_files
+        path = package / 'install-manifest.json'
+        manifest = json.loads(path.read_text())
+        manifest['version'] = package.name
+        manifest['files'] = [entry for entry in manifest['files']
+                             if (package / entry['path']).is_file()]
+        for entry in manifest['files']:
+            entry['sha256'] = hashlib.sha256((package / entry['path']).read_bytes()).hexdigest()
+        manifest['package_digest'] = package_digest(manifest)
+        path.write_text(json.dumps(manifest))
+        # The trusted source verifier must accept the FINAL malformed bytes.
+        # A stale file list or digest cannot explain the subsequent import refusal.
+        verify_package_files(package, manifest)
+        assert package_digest(json.loads(path.read_text())) == manifest['package_digest']
+        return manifest
+
     def test_import_failures_report_integrity_and_block_continuation_before_host_calls(self):
+        self.exercise_import_failures(consistent=False)
+
+    def test_self_consistent_unimportable_contracts_report_gaps_and_refuse_real_job_paths(self):
+        self.exercise_import_failures(consistent=True)
+
+    def exercise_import_failures(self, *, consistent):
         box = Sandbox(self.base / 'packages')
         package, manifest = box.install('babysitter')
+        if consistent:
+            package = shutil.copytree(package, package.with_name('1.3.2+g0badc0ff'))
+            manifest = self.rewrite_manifest(package)
         helper = package / 'scripts/continuous.py'
         WakeIdentityTest.seed(self, helper)
         self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
                  '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
         before = self.state.read_bytes()
+        initial = before
+        manifest_path = package / 'install-manifest.json'
+        original_manifest = manifest_path.read_bytes()
         snapshot = box.payload(observation(pr()))
+        accepted = AcceptedJob(self.base / 'accepted-import', 'adopted-1', 'adopted-live')
+        accepted.complete()
+        job_evidence = tree_digest(accepted.directory)
+        fixer_flags = ['--now', NOW, '--pr', URL.replace('/12', '/13'),
+                       '--request-id', 'adopted-1', '--host-task-id', 'adopted-live',
+                       '--result', accepted.transport, '--job', accepted.directory]
+        receipt_flags = [*fixer_flags, '--kind', 'fixer', '--status', 'succeeded']
+        # A genuine accepted result succeeds through the intact installed helper.
+        control = box.run([sys.executable, helper, 'receipt', '--state', self.state, *receipt_flags])
+        self.assertEqual(json.loads(control.stdout)['status'], 'recorded')
+        self.state.write_bytes(initial)
         # A fresh process must import the installed contracts, without the test
         # runner's already-loaded source modules concealing damaged imports.
         probe = self.base / 'adapter_probe.py'
@@ -411,21 +453,39 @@ for name, operation in operations.items():
 print(json.dumps({'errors': errors, 'host_calls': calls}))
 ''')
         listed = {entry['path'] for entry in manifest['files']}
-        for relative in ('shared/worker_registry.py', 'core/jobs/store.py',
-                         'shared/job_coordination.py'):
+        modules = ['shared/worker_registry.py', 'core/jobs/store.py', 'shared/job_coordination.py']
+        if consistent:
+            modules += ['shared/job_coordinator.py', 'core/jobs/__init__.py']
+        exports = {'shared/worker_registry.py': ('package_digest', 'verify_package_files'),
+                   'shared/job_coordinator.py': ('pinned_store', 'verify_all_pins', 'verify_job_pins'),
+                   'core/jobs/__init__.py': ('_owner_current',),
+                   'core/jobs/store.py': ('_regular', 'strict_load', 'MAX_STATE_BYTES')}
+        for relative in modules:
             path = package / relative
             self.assertIn(relative, listed)
             original = path.read_bytes()
-            failures = ('missing', 'syntax', 'exports') if relative.endswith(
-                'worker_registry.py') else ('missing', 'syntax')
+            failures = ['missing', 'syntax']
+            failures += list(exports.get(relative, ())) if consistent else (
+                ['exports'] if relative.endswith('worker_registry.py') else [])
             for failure in failures:
                 with self.subTest(module=relative, failure=failure):
                     try:
                         if failure == 'missing':
                             path.unlink()
-                        else:
+                        elif failure in ('syntax', 'exports'):
                             path.write_bytes(b'def broken(:\n' if failure == 'syntax'
                                              else b'# Required exports are missing.\n')
+                        else:
+                            # Keep the other exports intact so each required name is checked.
+                            path.write_bytes(original + b'\ndel ' + failure.encode() + b'\n')
+                        if consistent:
+                            final_manifest = self.rewrite_manifest(package)
+                            # Model a run that the previous helper allowed to pin to these
+                            # self-consistent bytes. Matching hashes must still report a gap.
+                            state = json.loads(initial)
+                            state['package']['installed_digest'] = final_manifest['package_digest']
+                            self.state.write_text(json.dumps(state))
+                            before = self.state.read_bytes()
                         status = box.run([sys.executable, helper, 'status', '--state',
                                           self.state, '--now', NOW])
                         self.assertNotIn('Traceback', status.stderr)
@@ -436,6 +496,9 @@ print(json.dumps({'errors': errors, 'host_calls': calls}))
                                          'package-integrity')
                         self.assertIn('installed package integrity failure',
                                       report['package_identity_gap'][0]['detail'])
+                        if consistent:
+                            self.assertRegex(report['package_identity_gap'][0]['detail'],
+                                             'No module named|cannot import name|invalid syntax')
                         self.assertIsNone(report['package']['running'])
                         self.assertIsNone(report['scheduler']['next_run_at'])
                         self.assertEqual(report['scheduler']['stop']['arguments']
@@ -449,7 +512,9 @@ print(json.dumps({'errors': errors, 'host_calls': calls}))
                             ('schedule-plan', []), ('schedule-record', ['--now', NOW,
                                 '--schedule-id', 'injected', '--next-run-at', NOW]),
                             ('scheduler', ['--now', NOW, '--available', 'yes',
-                                           '--authorized', 'yes'])]
+                                           '--authorized', 'yes']),
+                            ('receipt', receipt_flags),
+                            ('fixer-done', fixer_flags)]
                         commands.extend(('dispatch', ['--now', NOW, '--pr', URL,
                             '--kind', kind, '--request-id', 'blocked-' + kind,
                             '--head', H1, '--reserve']) for kind in
@@ -463,6 +528,16 @@ print(json.dumps({'errors': errors, 'host_calls': calls}))
                                           refused.stderr)
                             self.assertNotIn('Traceback', refused.stderr)
                             self.assertEqual(self.state.read_bytes(), before)
+                        new_state = self.base / 'must-not-start.json'
+                        refused = box.run([sys.executable, helper, 'start', '--state', new_state,
+                            '--now', NOW, '--scope-kind', 'org', '--scope-value', 'fixture',
+                            '--job', accepted.directory], check=False)
+                        self.assertEqual(refused.returncode, 2, refused.stderr)
+                        self.assertIn('continuous_error: installed package integrity failure:',
+                                      refused.stderr)
+                        self.assertNotIn('Traceback', refused.stderr)
+                        self.assertFalse(new_state.exists())
+                        self.assertEqual(self.state.read_bytes(), before)
                         result = box.run([sys.executable, probe,
                             helper.with_name('continuous_sweep.py'), self.state, NOW])
                         result = json.loads(result.stdout)
@@ -470,12 +545,73 @@ print(json.dumps({'errors': errors, 'host_calls': calls}))
                         self.assertEqual(set(result['errors']),
                                          {'arm', 'tick', 'schedule', 'event', 'manual'})
                         self.assertEqual(self.state.read_bytes(), before)
+                        self.assertEqual(tree_digest(accepted.directory), job_evidence)
                     finally:
                         path.write_bytes(original)
+                        manifest_path.write_bytes(original_manifest)
+                        self.state.write_bytes(initial)
         restored = json.loads(box.run([sys.executable, helper, 'version']).stdout)
         self.assertEqual(restored['digest'], manifest['package_digest'])
         self.assertEqual(self.cli('status', '--now', NOW, helper=helper)
                          ['package_identity_gap'], [])
+
+    def assert_migration_import_refusals(self, box, package, flags):
+        helper = package / 'scripts/continuous.py'
+        manifest_path = package / 'install-manifest.json'
+        original_manifest = manifest_path.read_bytes()
+        before = self.state.read_bytes()
+        job_evidence = tree_digest(box.jobs, box.private)
+        # Exercise the coordinator and the direct core exports required by migration.
+        for relative, corruption in (
+                ('shared/job_coordinator.py', b'def broken(:\n'),
+                ('shared/job_coordinator.py', b'\ndel verify_job_pins\n'),
+                ('core/jobs/__init__.py', b'\ndel _owner_current\n'),
+                ('core/jobs/store.py', b'\ndel MAX_STATE_BYTES\n')):
+            with self.subTest(migration_contract=relative, corruption=corruption):
+                path = package / relative
+                original = path.read_bytes()
+                try:
+                    path.write_bytes(corruption if corruption.startswith(b'def broken')
+                                     else original + corruption)
+                    self.rewrite_manifest(package)
+                    refused = box.run([sys.executable, helper, 'resume', '--state', self.state,
+                                       '--now', NOW, '--accept-migration', *flags], check=False)
+                    self.assertEqual(refused.returncode, 2, refused.stderr)
+                    self.assertIn('continuous_error: installed package integrity failure:',
+                                  refused.stderr)
+                    self.assertNotIn('Traceback', refused.stderr)
+                    self.assertEqual(self.state.read_bytes(), before)
+                    self.assertEqual(tree_digest(box.jobs, box.private), job_evidence)
+                finally:
+                    path.write_bytes(original)
+                    manifest_path.write_bytes(original_manifest)
+
+    def test_self_consistent_corruption_refuses_real_pinned_upgrade_receipts(self):
+        def before_resume(box, package, receipt, job_file):
+            self.assert_migration_import_refusals(box, package, [
+                '--owner-decision-id', 'owner-upgrade', '--upgrade-receipt', receipt,
+                '--job', job_file])
+        # This performs job_cli.py upgrade-package, retains old job bytes and then
+        # resumes successfully after the malformed target contracts are restored.
+        RealLegacyUpgradeTest.exercise_upgrade(self, before_resume=before_resume)
+
+    def test_self_consistent_corruption_refuses_real_unpinned_owner_decisions(self):
+        box, old, new = UnpinnedMigrationTest.packages(self)
+        helper = new / 'scripts/continuous.py'
+        self.start(helper=old / 'scripts/continuous.py')
+        decision = UnpinnedMigrationTest.decision(self, helper)
+        before = self.state.read_bytes()
+        flags = ['--owner-decision-id', 'owner-migrate', '--previous-package', old,
+                 '--owner-decision', decision]
+        # Prove this is an approvable decision, not a malformed-evidence shortcut.
+        approved = box.run([sys.executable, helper, 'resume', '--state', self.state,
+                           '--now', NOW, '--accept-migration', *flags])
+        self.assertEqual(json.loads(approved.stdout)['status'], 'resumed')
+        self.state.write_bytes(before)
+        self.assert_migration_import_refusals(box, new, flags)
+        approved = box.run([sys.executable, helper, 'resume', '--state', self.state,
+                           '--now', NOW, '--accept-migration', *flags])
+        self.assertEqual(json.loads(approved.stdout)['status'], 'resumed')
 
 
 class UnpinnedMigrationTest(ContinuousCase):
@@ -2104,7 +2240,7 @@ class RealLegacyUpgradeTest(ContinuousCase):
     def test_previous_helper_state_migrates_its_real_legacy_fingerprint(self):
         self.exercise_upgrade('17e636c1c24be77566f24062f93a8b1dc17d94c8')
 
-    def exercise_upgrade(self, revision=None):
+    def exercise_upgrade(self, revision=None, before_resume=None):
         box = Sandbox(self.base / 'sandbox')
         source = legacy_source(self.base, revision) if revision else legacy_source(self.base)
         refused = box.install('babysitter', source=source, check=False)
@@ -2161,6 +2297,8 @@ class RealLegacyUpgradeTest(ContinuousCase):
         original_state = self.state.read_bytes()
         required = self.cli('resume', '--now', NOW, helper=helper)
         self.assertEqual(required['status'], 'migration-required')
+        if before_resume:
+            before_resume(box, current, receipt, job_file)
         for decision_id, error in [('never-recorded', 'no matching supported'),
                                    ('owner-upgrade', None)]:
             if error:

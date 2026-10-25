@@ -42,6 +42,7 @@ import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 try:  # POSIX hosts only; the plugin already requires bash and gh.
     import fcntl
@@ -275,20 +276,19 @@ def source_identity(script=__file__):
     package = Path(script).resolve().parents[1]
     meta = load_json(package / 'plugin.json')
     require(isinstance(meta, dict), 'package plugin.json must be an object')
+    contracts = job_contracts(package)
     manifest_path = package / 'install-manifest.json'
     if manifest_path.exists():
         try:
-            job_contracts(package)
-            from shared.worker_registry import package_digest as manifest_digest, verify_package_files
             manifest = load_json(manifest_path)
             require(isinstance(manifest, dict), 'installed package manifest must be an object')
             require(manifest.get('plugin') == meta.get('name')
                     and manifest.get('version') == package.name,
                     'installed package manifest identity differs from its package directory')
-            fingerprint = manifest_digest(manifest)
+            fingerprint = contracts.manifest_digest(manifest)
             require(manifest.get('package_digest') == fingerprint,
                     'installed package manifest digest differs from its file list')
-            verify_package_files(package, manifest)
+            contracts.verify_package_files(package, manifest)
         except (ValueError, OSError, ImportError, SyntaxError) as exc:
             raise ContinuousError(f'installed package integrity failure: {exc}') from exc
         version = manifest['version']
@@ -352,6 +352,9 @@ def require_current_package(state):
 def job_contract_root(package=None):
     """Resolve the job APIs used both by imports and the source fingerprint."""
     package = Path(package or Path(__file__).resolve().parents[1])
+    if (package / 'install-manifest.json').is_file():
+        # An installed package must use its own contracts, even when one is missing.
+        return package
     for root in (package, *package.parents):
         if (root / 'shared' / 'job_coordinator.py').is_file() and (
                 (root / 'core' / 'jobs' / '__init__.py').is_file()
@@ -361,20 +364,30 @@ def job_contract_root(package=None):
 
 
 def job_contracts(package=None):
-    """Load the shipped job APIs, from the package or this source checkout."""
+    """Check every required export at one boundary, including during inspection."""
     sys.path.insert(0, str(job_contract_root(package)))
+    try:
+        from shared.worker_registry import package_digest as manifest_digest, verify_package_files
+        from shared.job_coordinator import pinned_store, verify_all_pins, verify_job_pins
+        from core.jobs import _owner_current
+        from core.jobs.store import _regular, MAX_STATE_BYTES as JOB_MAX_BYTES, strict_load
+    except (ImportError, SyntaxError) as exc:
+        raise ContinuousError(f'installed package integrity failure: {exc}') from exc
+    return SimpleNamespace(manifest_digest=manifest_digest, verify_package_files=verify_package_files,
+                           pinned_store=pinned_store, verify_all_pins=verify_all_pins,
+                           verify_job_pins=verify_job_pins, owner_current=_owner_current,
+                           regular=_regular, max_bytes=JOB_MAX_BYTES, strict_load=strict_load)
 
 
 def verified_job(path):
-    job_contracts()
-    from shared.job_coordinator import pinned_store, verify_all_pins
+    contracts = job_contracts()
     directory = Path(path).expanduser().resolve()
     if directory.name == 'job.json':
         directory = directory.parent
     try:
-        store = pinned_store(directory.parent, directory.name)
-        return store, verify_all_pins(store)
-    except (ValueError, OSError) as exc:
+        store = contracts.pinned_store(directory.parent, directory.name)
+        return store, contracts.verify_all_pins(store)
+    except (ValueError, OSError, ImportError, SyntaxError) as exc:
         raise ContinuousError(f'job evidence is invalid: {exc}') from exc
 
 
@@ -2190,13 +2203,12 @@ def validate_upgrade_receipt(receipt_path, state, owner_decision, installed, job
             and bool(previous.get('path')), 'upgrade receipt needs retained previous-state evidence')
     require(Path(previous['path']).resolve() == store.path / 'migrations' / (
         previous['sha256'] + '-job.json'), 'upgrade previous-state path is not retained by this job')
-    from core.jobs import _owner_current
-    from core.jobs.store import _regular, MAX_STATE_BYTES as JOB_MAX_BYTES, strict_load
+    contracts = job_contracts()
     try:
-        old_raw = _regular(Path(previous['path']), max_bytes=JOB_MAX_BYTES)
+        old_raw = contracts.regular(Path(previous['path']), max_bytes=contracts.max_bytes)
         require(hashlib.sha256(old_raw).hexdigest() == previous['sha256']
                 and len(old_raw) == previous.get('bytes'), 'retained previous job bytes changed')
-        old = strict_load(old_raw)
+        old = contracts.strict_load(old_raw)
         require(old.get('job_id') == job['job_id'], 'retained previous state belongs to another job')
         if state.get('job_state_sha256'):
             require(previous['sha256'] == state['job_state_sha256'],
@@ -2210,7 +2222,8 @@ def validate_upgrade_receipt(receipt_path, state, owner_decision, installed, job
         decision = next((item for item in job['decisions']
                          if item.get('id') == owner_decision
                          and item.get('scope') == 'plan:' + revision['revision']['id']), None)
-        require(decision is not None and _owner_current(decision, job['policy']['max_artifact_bytes']),
+        require(decision is not None and contracts.owner_current(
+                    decision, job['policy']['max_artifact_bytes']),
                 'the upgrade owner decision evidence is unavailable or changed')
         keys = revision['adopted_dependencies']
         matching = [key for key in keys if key in job['pins'] and key in old['pins']
@@ -2219,8 +2232,7 @@ def validate_upgrade_receipt(receipt_path, state, owner_decision, installed, job
                     == Path(installed['package_dir']).resolve()]
         require(len(matching) == 1, 'job pin does not name the running upgraded package')
         old_pin = old['pins'][matching[0]]
-        from shared.job_coordinator import verify_job_pins
-        verify_job_pins(old)
+        contracts.verify_job_pins(old)
         old_manifest = load_json(Path(old_pin['package_dir']) / 'install-manifest.json')
         package = state.get('package') or {}
         if package.get('pinned_version'):
@@ -2235,7 +2247,7 @@ def validate_upgrade_receipt(receipt_path, state, owner_decision, installed, job
             require(package['installed_digest'] in (old_pin['package_digest'],
                     package_digest(Path(old_pin['package_dir']))),
                     'retained old package digest does not match this continuous run')
-    except (ValueError, OSError, KeyError) as exc:
+    except (ValueError, OSError, KeyError, ImportError, SyntaxError) as exc:
         raise ContinuousError(f'upgrade evidence is invalid: {exc}') from exc
     return {'path': str(receipt_path), 'sha256': sha256_file(receipt_path),
             'job_id': receipt.get('job_id'), 'package_digest': receipt.get('package_digest'),
@@ -2284,9 +2296,8 @@ def validate_unpinned_migration(args, state, path, installed):
     source = Path(decision['source'])
     require(source.is_absolute() and not source.resolve().is_relative_to(path.parent),
             'owner decision source must be outside the continuous state directory')
-    job_contracts()
-    from core.jobs import _owner_current
-    require(_owner_current(decision, MAX_STATE_BYTES)
+    contracts = job_contracts()
+    require(contracts.owner_current(decision, MAX_STATE_BYTES)
             and decision['scope'] in decision['quote'],
             'owner decision source bytes/hash/quote differ or do not approve this migration scope')
     return {'decision': decision, 'decision_file': str(Path(args.owner_decision).resolve()),
