@@ -79,6 +79,43 @@ Planning readiness grants no
 implementation, settings, merge or publication authority. See
 [testing](testing.md#planning-review-conformance-protocol) for the separate live evidence boundary.
 
+## Check a draft before returning it
+
+An active planning reviewer can run the installed `check-draft` helper when the
+brief authorizes its procedural reads. It checks the saved draft against the exact
+brief and permitted evidence, without opening live job/subject stores or charging
+a round:
+
+```sh
+python3 PKG/shared/planning_review_cli.py check-draft --input draft-input.json
+```
+
+The input contains `brief_file`, the dispatch descriptor's `brief_sha256`, and
+`result_file` under the assigned task artifact directory. Exit 0 means available
+draft checks passed; exit 2 reports an invalid draft. A valid adverse review can
+pass these checks. The diagnostic always says `acceptance: false` and lists checks
+deferred to ingestion, including current state, host identity/options and budgets.
+Artifact reads are capped at 16 MiB; final ingestion enforces its pinned limit.
+
+Allow at most one correction before terminal completion. Keep all findings and
+actual reads, including unexpected reads. Return an unresolved gap if a correction
+needs new authority or evidence. Completed results stay immutable and counted;
+the helper grants no retry, follow-up, waiver or readiness. Document-only/cold-read
+slots cannot use this planning checker.
+The correction bound is procedural. The reviewer checks the pinned helper hash;
+the checker does not certify its own installation. The assigned brief and own
+draft artifacts are contract/outputs; separately opened helper/source files still
+need pre-review declaration and actual-read disclosure.
+
+An unchanged-content re-review may acknowledge a previously agreed rebuttal through
+a fresh child from its original lineage. This appends evidence while preserving
+the original clearing provenance. Missing historical proof or changed content still
+requires the applicable ordinary review path.
+This applies to every severity, including minor and note findings. Receipts remain
+bound to the producer's validator bytes: upgrading does not transfer an old
+approval to a new validator. Keep historical jobs on their producing pins or
+obtain the applicable fresh review; never patch an installed validator in place.
+
 ## Final reviews and deferred fixes
 
 The planned last review, and always the last available round, keeps full required
