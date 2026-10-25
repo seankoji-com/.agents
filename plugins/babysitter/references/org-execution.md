@@ -132,6 +132,10 @@ wait-for-review decisions hold both arming and launch. Fixer reservations map th
 job request to the ledger's failure fingerprint, attempt and review-triage status;
 new per-PR jobs cannot reset that history. Reservations recheck these gates under
 the ledger lock.
+Same-head reviewer detail omitted by the org reader also survives the sweep, so
+switching from a detailed observation cannot reset the repair fingerprint. An
+explicit reviewer list, including an empty list, replaces that detail; a new head
+does not inherit it.
 
 The executor launches prepared work, not acceptance or semantic finding disposition.
 The existing coordinator ingests terminal results, replies/resolves verified threads,

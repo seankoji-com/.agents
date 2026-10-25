@@ -40,3 +40,10 @@ PR #148 is draft. Review round 1 at `903140a` returned two major blockers:
 Repairs preserve holds under the ledger lock, require its repair decision, and map
 job requests to its attempt accounting. Regression checks and a fresh review remain
 required before marking the PR ready.
+
+Round 2 at `a3eee21` cleared `F-AUTH-REVOCATION` and retained the original major
+`F-REPAIR-BUDGET`: omitted reviewer names changed the detailed observation's repair
+fingerprint. The follow-up preserves same-head omitted detail while accepting an
+explicit clearing list and dropping it on head change. The detailed-to-lightweight
+exhausted-history regression failed before this correction; fresh verification and
+review are required.

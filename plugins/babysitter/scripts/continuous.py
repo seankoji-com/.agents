@@ -1248,6 +1248,13 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
                 # hold. Read the latest value under the state lock, not from a
                 # snapshot captured before this observation was submitted.
                 row['observation']['human_blocker'] = pr['observation'].get('human_blocker')
+            if (observation.get('preserve_reconciliation_detail') is True
+                    and not row['changes_requested_by_observed']
+                    and row['observation']['head_sha'] == pr['observation'].get('head_sha')):
+                # Reviewer names participate in repair identity but are absent
+                # from the org reader. Omission cannot prove they were cleared.
+                row['observation']['changes_requested_by'] = list(
+                    pr['observation'].get('changes_requested_by') or [])
             pr['observation'] = row['observation']
             pr['discovery_gap'] = None
             if is_excluded:
@@ -1751,6 +1758,7 @@ def normalise_pr(raw, now):
         'fixer_in_flight': bool((raw.get('owner') or {}).get('fixer_in_flight')),
     }
     return {'url': url, 'repo': repo, 'number': number, 'title': raw.get('title'),
+            'changes_requested_by_observed': 'changes_requested_by' in raw,
             'observation': observation, 'owner': owner_state(raw)}
 
 

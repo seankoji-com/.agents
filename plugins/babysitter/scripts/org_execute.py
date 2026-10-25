@@ -208,7 +208,7 @@ class Jobs:
 
 def observation(report, owners):
     return {'complete': report['complete'], 'gaps': report['gaps'],
-        'preserve_human_blockers': True, 'prs': [
+        'preserve_human_blockers': True, 'preserve_reconciliation_detail': True, 'prs': [
         {'repo': r['repo'], 'number': r['number'], 'url': r['url'], 'title': r['title'],
          'state': 'OPEN', 'draft': False, 'fork': r['fork'], 'head_sha': r['head_sha'],
          'mergeable': r['mergeable'], 'merge_state_status': r['merge_state_status'],

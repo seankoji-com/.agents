@@ -123,11 +123,13 @@ class ExecutionTest(unittest.TestCase):
     def execute(self, report=None):
         return runner.execute(report or self.report(), self.api, self.host, self.jobs, self.config)
 
-    def observe(self, report=None, blocker=None):
+    def observe(self, report=None, blocker=None, reviewers=None):
         data = runner.observation(report or self.report(), {})
         if blocker:
             data.pop('preserve_human_blockers')
             data['prs'][0]['human_blocker'] = blocker
+        if reviewers is not None:
+            data['prs'][0]['changes_requested_by'] = reviewers
         file = self.directory / 'saved-observation.json'
         runner.continuous.save_json(file, data)
         self.config['wake_id'] = str(len(runner.continuous.read_state(
@@ -141,19 +143,38 @@ class ExecutionTest(unittest.TestCase):
             runner.continuous_command(self.config, 'receipt', pr=pr()['url'], request_id=request,
                 kind='fixer', head=HEAD, status=status, host_task_id=None, result=None, reason='fixture terminal result')
 
-    def test_persisted_exhausted_repairs_prevent_arming_and_dispatch(self):
+    def assert_exhausted_repairs_held(self, report=None, reviewers=None):
         for index in range(3):
-            action = self.observe()['actions'][0]
+            action = self.observe(report, reviewers=reviewers)['actions'][0]
             self.assertEqual(action['attempt'], index + 1)
             runner.continuous_command(self.config, 'dispatch', pr=pr()['url'],
                 request_id=action['request_id'], kind='fixer', head=HEAD, reserve=True,
                 host_task_id=None, attempt=action['attempt'], review_triage=False)
             self.settle(action['request_id'])
-        result = self.execute()
+        result = self.execute(report)
         self.assertEqual(result['outcomes'][0]['status'], 'held', result)
         self.assertIn('exhausted', result['outcomes'][0]['reason'])
         self.assertEqual(self.api.calls, [])
         self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+
+    def test_persisted_exhausted_repairs_prevent_arming_and_dispatch(self):
+        self.assert_exhausted_repairs_held()
+
+    def test_detailed_to_lightweight_observation_keeps_exhausted_identity(self):
+        report = self.report(reviewDecision='CHANGES_REQUESTED')
+        self.assert_exhausted_repairs_held(report, reviewers=['fixture-reviewer'])
+        saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+        self.assertEqual(saved['observation']['changes_requested_by'], ['fixture-reviewer'])
+
+    def test_reviewer_detail_can_be_explicitly_cleared_and_is_not_carried_to_new_head(self):
+        self.observe(reviewers=['fixture-reviewer'])
+        self.observe(reviewers=[])
+        saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+        self.assertEqual(saved['observation']['changes_requested_by'], [])
+        self.observe(reviewers=['fixture-reviewer'])
+        self.observe(self.report(headRefOid='b' * 40))
+        saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+        self.assertEqual(saved['observation']['changes_requested_by'], [])
 
     def test_job_requests_count_toward_continuous_repair_budget(self):
         prepare = self.jobs.prepare
