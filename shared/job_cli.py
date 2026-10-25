@@ -84,7 +84,9 @@ def main(argv=None):
    if current_policy.get('author_independence') is True and proposed_policy.get('author_independence', True) is not True:
     raise JobError('author independence policy is immutable once enabled')
    refresh_new_task_authors(store.load(),data['new_plan'])
-   out=revise_plan(store,data['caller'],data['revision'],data['new_plan'],adopt)
+   from shared.adopter_planning import transaction_guard
+   guard=transaction_guard(store.load(),'plan-revision',proposed={**store.load(),**data['new_plan']},caller=data['caller'],job_file=store.file)
+   out=revise_plan(store,data['caller'],data['revision'],data['new_plan'],adopt,commit_guard=guard)
   elif a.command=='document-revision':
    capabilities=None
    if a.capabilities:

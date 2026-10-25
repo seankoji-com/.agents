@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import json
 import re
-from functools import lru_cache
+from functools import lru_cache, reduce
+from operator import getitem
 from pathlib import Path
 
 from .errors import InvalidInput
@@ -39,15 +40,12 @@ def check_keywords(node, where='#'):
             raise InvalidInput('schema_keyword', f'unsupported schema keyword(s) at {where}: {sorted(unknown)}')
         if isinstance(node.get('items'), list) or 'propertyNames' in node and not isinstance(node['propertyNames'], dict):
             raise InvalidInput('schema_keyword', f'tuple-form items or non-object propertyNames is unsupported at {where}')
-        for key, value in node.items():
-            if key in ('properties', '$defs'):
-                for name, sub in value.items():
-                    check_keywords(sub, f'{where}/{key}/{name}')
-            elif key in ('items', 'additionalProperties', 'propertyNames') and isinstance(value, dict):
-                check_keywords(value, f'{where}/{key}')
-            elif key in ('anyOf', 'oneOf'):
-                for index, sub in enumerate(value):
-                    check_keywords(sub, f'{where}/{key}/{index}')
+        for key in ('properties', '$defs'):
+            for name, sub in node.get(key, {}).items(): check_keywords(sub, f'{where}/{key}/{name}')
+        for key in ('items', 'additionalProperties', 'propertyNames'):
+            if isinstance(node.get(key), dict): check_keywords(node[key], f'{where}/{key}')
+        for key in ('anyOf', 'oneOf'):
+            for index, sub in enumerate(node.get(key, [])): check_keywords(sub, f'{where}/{key}/{index}')
 
 
 def load_schema_file(path: Path) -> dict:
@@ -64,10 +62,12 @@ def load_schema(name: str) -> dict:
 def _resolve(root, ref):
     if not ref.startswith('#/'):
         raise InvalidInput('schema_ref', f'only local $ref supported: {ref}')
-    node = root
-    for part in ref[2:].split('/'):
-        node = node[part]
-    return node
+    return reduce(getitem, ref[2:].split('/'), root)
+
+
+def _bounds(value, schema, path, low, high, messages):
+    tests = ((low, value < schema.get(low, value), messages[0]), (high, value > schema.get(high, value), messages[1]))
+    return [f'{path}: {text.format(schema[key])}' for key, failed, text in tests if key in schema and failed]
 
 
 def errors(instance, schema, root=None, path='$'):
@@ -77,31 +77,21 @@ def errors(instance, schema, root=None, path='$'):
     if '$ref' in schema:
         return errors(instance, _resolve(root, schema['$ref']), root, path)
     expected = schema.get('type')
-    if expected is not None:
-        kinds = expected if isinstance(expected, list) else [expected]
-        if not any(_TYPES[kind](instance) for kind in kinds):
-            return [f'{path}: expected {"/".join(kinds)}']
+    kinds = expected if isinstance(expected, list) else [expected]
+    if expected is not None and not any(_TYPES[kind](instance) for kind in kinds):
+        return [f'{path}: expected {"/".join(kinds)}']
     if 'const' in schema and instance != schema['const']:
         found.append(f'{path}: must equal {schema["const"]!r}')
     if 'enum' in schema and instance not in schema['enum']:
         found.append(f'{path}: must be one of {schema["enum"]}')
     if isinstance(instance, str):
-        if 'minLength' in schema and len(instance) < schema['minLength']:
-            found.append(f'{path}: shorter than {schema["minLength"]}')
-        if 'maxLength' in schema and len(instance) > schema['maxLength']:
-            found.append(f'{path}: longer than {schema["maxLength"]}')
+        found += _bounds(len(instance), schema, path, 'minLength', 'maxLength', ('shorter than {}', 'longer than {}'))
         if 'pattern' in schema and not re.search(schema['pattern'], instance):
             found.append(f'{path}: does not match {schema["pattern"]}')
     if _TYPES['number'](instance):
-        if 'minimum' in schema and instance < schema['minimum']:
-            found.append(f'{path}: below {schema["minimum"]}')
-        if 'maximum' in schema and instance > schema['maximum']:
-            found.append(f'{path}: above {schema["maximum"]}')
+        found += _bounds(instance, schema, path, 'minimum', 'maximum', ('below {}', 'above {}'))
     if isinstance(instance, list):
-        if 'minItems' in schema and len(instance) < schema['minItems']:
-            found.append(f'{path}: fewer than {schema["minItems"]} items')
-        if 'maxItems' in schema and len(instance) > schema['maxItems']:
-            found.append(f'{path}: more than {schema["maxItems"]} items')
+        found += _bounds(len(instance), schema, path, 'minItems', 'maxItems', ('fewer than {} items', 'more than {} items'))
         if schema.get('uniqueItems'):
             seen = [json.dumps(item, sort_keys=True) for item in instance]
             if len(seen) != len(set(seen)):
@@ -110,25 +100,18 @@ def errors(instance, schema, root=None, path='$'):
             for index, item in enumerate(instance):
                 found += errors(item, schema['items'], root, f'{path}[{index}]')
     if isinstance(instance, dict):
-        for name in schema.get('required', []):
-            if name not in instance:
-                found.append(f'{path}: missing required "{name}"')
+        found += [f'{path}: missing required "{name}"' for name in schema.get('required', []) if name not in instance]
         properties = schema.get('properties', {}); extra = schema.get('additionalProperties', True)
         for key, value in instance.items():
             if 'propertyNames' in schema: found += errors(key, schema['propertyNames'], root, f'{path}.{key} (name)')
-            if key in properties:
-                found += errors(value, properties[key], root, f'{path}.{key}')
+            if key in properties or isinstance(extra, dict):
+                found += errors(value, properties.get(key, extra), root, f'{path}.{key}')
             elif extra is False:
                 found.append(f'{path}: unexpected field "{key}"')
-            elif isinstance(extra, dict):
-                found += errors(value, extra, root, f'{path}.{key}')
-    if 'anyOf' in schema:
-        if not any(not errors(instance, sub, root, path) for sub in schema['anyOf']):
-            found.append(f'{path}: matches none of anyOf')
-    if 'oneOf' in schema:
-        matches = sum(1 for sub in schema['oneOf'] if not errors(instance, sub, root, path))
-        if matches != 1:
-            found.append(f'{path}: must match exactly one of oneOf (matched {matches})')
+    if 'anyOf' in schema and not any(not errors(instance, sub, root, path) for sub in schema['anyOf']):
+        found.append(f'{path}: matches none of anyOf')
+    if 'oneOf' in schema and (matches := sum(1 for sub in schema['oneOf'] if not errors(instance, sub, root, path))) != 1:
+        found.append(f'{path}: must match exactly one of oneOf (matched {matches})')
     return found
 
 
