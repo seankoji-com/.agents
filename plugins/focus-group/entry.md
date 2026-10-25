@@ -27,6 +27,9 @@ host-backed ingestion, reconciliation, resume and journey slots) and
 `python3 PKG/scripts/report.py`; they call no model, browser, T3 tool or GitHub API,
 never loop or wait, and never schedule work. `PKG/scripts/plan_review.py` admits
 frozen choices and consumes separate planning receipts; it never dispatches.
+`PKG/scripts/authority.py` records explicit bounded owner grants, revocations and
+visibly derived revision approvals; see the study contract. It never fabricates
+a native owner answer or dispatches. Direct `study.py approve` stays literal.
 
 ## Operations
 

@@ -249,7 +249,12 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
         from shared.job_coordination import freeze_provider_limits
         freeze_provider_limits(job,pins)
         added=record_job_root(job_agents_roots(pins),state_root,job['job_id'])
-    try:return create_job(job,state_root,pins)
+    try:
+        from shared.adopter_planning import transaction_guard
+        bound = dict(job, pins=pins)
+        guard = transaction_guard(bound, 'create', caller=None,
+            job_file=Path(state_root).absolute() / job['job_id'] / 'job.json')
+        return create_job(job,state_root,pins,commit_guard=guard)
     except BaseException:
         forget_job_root(added,state_root,job['job_id']);raise
 
@@ -357,7 +362,22 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
             except AcceptanceError as exc:
                 raise JobError(str(exc)) from exc
         validate_adopter_job(job, task.get('stage_id'))
-    return prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason, bind_inputs=bind)
+    from shared.adopter_planning import transaction_guard
+    job_file = getattr(store, 'file', None)
+    guard = transaction_guard(store.load(), 'prepare', caller=caller, job_file=job_file)
+    if guard is not None:
+        if job_file is None:
+            raise JobError('guarded preparation requires real job identity')
+        # Execute external predecessor validators before taking the domain lock.
+        # The transaction reopens the bound local chain without running them.
+        job = store.load()
+        stage = next(s for s in job['stages'] if s['id'] == next(t for t in job['tasks'] if t['task_id'] == task_id)['stage_id'])
+        for dependency in stage.get('depends_on', []):
+            if not callable(verify_acceptance) or verify_acceptance(dependency) is not True:
+                raise JobError('predecessor acceptance is not current')
+        from shared.job_acceptance import validate_stage
+        verify_acceptance = lambda sid: validate_stage(store, sid, run_validator=False).get('accepted') is True
+    return prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason, bind_inputs=bind, commit_guard=guard)
 
 
 TERMINAL = ('completed', 'failed', 'cancelled', 'interrupted')
@@ -595,7 +615,9 @@ def prepare_followup(store, caller, task_id, request_id):
         reference.update(path=str(path), sha256=digest(raw))
         task['prepared_followup'] = reference
         return reference
-    return store.transact(caller, apply, 'prepare')
+    from shared.adopter_planning import transaction_guard
+    guard = transaction_guard(store.load(), 'prepare', caller=caller, job_file=store.file)
+    return store.transact(caller, apply, 'prepare', commit_guard=guard)
 
 
 def _coordinator_input(store, job, path):

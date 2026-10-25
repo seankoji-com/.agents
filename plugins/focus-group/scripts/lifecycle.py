@@ -1093,6 +1093,7 @@ def op_journey_slots(args):
     if job_revision_problem(job, revision):
         refuse('stale_revision', "the job was built for another study revision; a revision's journeys join only its "
                                  'own job. Run lifecycle.py job-revision first')
+    fg.authority_current(study)
     approval = fg.approval_state(study.approvals(revision), revision, fg.ceiling(plan, study.ledger()))
     if approval['state'] != 'approved':
         refuse('unapproved_revision', 'journey slots are added only under an approval in force for this revision')
@@ -1164,7 +1165,7 @@ def slot_contract_problem(study, job, revision, plan, stage, cell=None):
     current = any((r['task_id'], r['document']) == (task['task_id'], task.get('document'))
                   for r in evidence.brief_records(study, revision, cell['cell_id'], stage))
     if (task.get('target') != cell['target'] or not current
-            or task.get('context_files') != evidence.material_context_files(plan)):
+            or task.get('context_files') != evidence.material_context_files(plan, cell['target'])):
         return 'job_slot_stale', (f"job slot {task['task_id']} still carries an earlier revision's brief or target; "
                                   'it is held until lifecycle.py job-revision records the current one')
     return None
@@ -1175,7 +1176,7 @@ def new_slot(task_id, stage, target, document, plan):
             'worker_id': 'focus-group/participant', 'dependency_key': 'focus-group', 'target': target,
             'write_scope': {'mode': 'worker-evidence', 'path': f'artifacts/tasks/{task_id}'},
             'context_policy': 'document-only', 'document': document,
-            'context_files': evidence.material_context_files(plan), 'max_followups': 0}
+            'context_files': evidence.material_context_files(plan, target), 'max_followups': 0}
 
 
 def owner_inputs(study, job, revision, kind, new_plan):
@@ -1196,6 +1197,8 @@ def owner_inputs(study, job, revision, kind, new_plan):
         stage.setdefault('resources', {}).update(focus_group_plan=fg.planning_module().descriptor(study, revision),
                                                 focus_group_admission=record)
     last = study.approvals(revision)[-1]
+    if last.get('kind') == 'delegated-approval':
+        return last, fg.authority_module().revision_inputs(study, job, revision, kind, new_plan)
     tag = sha({'revision': revision, 'kind': kind, 'plan': new_plan})[:16]
     revision_id = decision_id = f'fg-{kind}-{tag}'
     caller = {'actor': 'coordinator', 'installation_id': job['installation_id'], 'workflow': job['workflow'],
@@ -1223,6 +1226,7 @@ def op_job_revision(args):
     if job is None:
         invalid('job_missing', 'create the job first')
     ledger, accepted = study.ledger(), study.accepted()
+    fg.authority_current(study)
     if fg.approval_state(study.approvals(revision), revision, fg.ceiling(plan, ledger))['state'] != 'approved':
         refuse('unapproved_revision', 'the job follows only a study revision with an approval in force')
     documents = load_json(args.documents, 'participant briefs') if args.documents else {}
@@ -1257,7 +1261,7 @@ def op_job_revision(args):
                 tasks.append(new_slot(task_id, stage, cell['target'], document, plan))
                 row['state'] = 'added'
             else:
-                task.update(target=cell['target'], document=document, context_files=evidence.material_context_files(plan))
+                task.update(target=cell['target'], document=document, context_files=evidence.material_context_files(plan, cell['target']))
                 row['state'] = 'updated'
         elif task is not None and not stale:
             row['state'] = 'current'

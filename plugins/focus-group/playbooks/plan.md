@@ -4,6 +4,13 @@
 the private job root. It schedules nothing and changes no product. Its separate planning review
 precedes owner approval; participant work stays held until both gates pass.
 
+When the owner explicitly grants bounded delegation, retain the entire real
+context and native observations through `authority.py grant`. After exact
+independent planning acceptance, `approve-delegated` creates a labelled derived
+approval. Never submit that contextual answer to literal `study.py approve` or
+claim a generated exact decision was the owner's answer. See the study contract
+for required grant bounds, revocation, package sequencing and proof inputs.
+
 ## 1. Collect choices and record the brief
 
 Follow `PKG/shared/model-selection.md`. Collect work/review choices in short rounds before
@@ -28,6 +35,15 @@ attempted transactions. Credential entry is unsupported.
 
 For `plan <study>`, start from the current revision's draft. Change only what the
 operator asks for.
+
+If a chosen actual harness mandates a local instruction, declare it under
+`procedural_context` before independent review and approval. Record its exact
+absolute file/hash, target/harness, purpose, mandatory source/quote, applicability,
+recipient sharing and full-byte inspection as the study contract specifies.
+Keep it separate from product stimulus. Include the instruction and its mandatory
+source as exact review evidence paths, never a sibling directory. Do not ask a
+participant to violate its harness instructions or reinterpret an old failed trace
+under the new allowance. Only the affected input needs a fresh charged attempt.
 
 ## 2. Suggest an editable panel
 

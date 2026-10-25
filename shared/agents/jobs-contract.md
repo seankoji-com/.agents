@@ -409,3 +409,35 @@ actual backup and before-edit bytes and cite the adopted owner decision scoped
 as `settings-change:<change-id>`. Adoption history remains immutable. Host actor
 and filesystem enforcement are integration prerequisites, not claims supplied
 by a worker or established by hashing its assertions.
+
+## Optional commit boundary
+
+`Store.create(..., commit_guard=None)` and `Store.transact(...,
+commit_guard=None, commit_context=None)` accept a trusted pinned Python context
+factory. Core create/prepare/revise entry points forward it. The factory receives
+copies of the before-state, operation and context under job.lock, acquires its
+single domain lock, and yields a callable. That final callable receives copies of
+before/proposed/context after normalization/schema checks and immediately before
+atomic job replacement. It runs even for a no-op. The context remains open through
+persistence, including failure cleanup. Context for plan revision binds the exact
+canonical requested JSON digest, revision/caller and previous full generation.
+Generic owner source/quote/hash is reopened inside this transaction as well.
+
+`policy.transaction_guard_required` can name create, plan-revision, prepare and
+acceptance. Previous and proposed requirements are checked; introduction without
+a guard and later removal fail closed. Required-hook refusal at revision entry
+precedes dependency adoption side effects. Unmarked workflows retain the optional
+API. Marked jobs cannot use Store.mutate or relabel an authored plan edit as result
+intake. Cancellation, status and raw result/host reconciliation stay usable.
+
+The shared boundary resolves the already verified pinned adapter, never a module
+path from job JSON. Domain code owns its lock. Lock order is job then domain; an
+operation holding only the domain lock may read the atomic job snapshot but must
+not take job.lock. Validators run outside the domain lock. Acceptance guards every
+reservation/commit/failure-record and its final generation-bound success check,
+without adding another task or final-pass charge.
+
+This trusts the installed Python adapter/coordinator. It does not authenticate a
+human cryptographically or protect against arbitrary same-OS state rewriting or a
+privileged caller inventing a no-op hook. Atomic replacement may succeed before a
+later overview write fails; retain that error and inspect current job bytes.

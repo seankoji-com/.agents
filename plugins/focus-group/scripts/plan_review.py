@@ -33,6 +33,10 @@ def admission(record):
 
 def choices(plan, record):
     selected = admission(record)['selection']
+    from importlib import import_module
+    sys.path.insert(0, str(PKG / 'scripts'))
+    fg = import_module('study')
+    fg.evidence_module().validate_procedural(plan, index=fg.catalog_index(selected['capabilities']))
     # Per-role names preserve the matrix. A generic work target cannot replace a cell.
     roles = {'workhorse': (None, 2, True), 'analysis': (plan['analysis'], 2, True)}
     roles.update({f'participant-{n:02d}': (target, 1, False)
@@ -71,6 +75,12 @@ def validate_descriptor(desc):
                 Path(desc['document']['path']).parents[2].name == plan['study_id'], 'study plan path differs')
     review.need(Path(desc['document']['path']).name == desc['study_revision'] + '.json', 'not an immutable study plan')
     choices(plan, desc['admission'])
+    if plan.get('procedural_context') and desc.get('planning_review'):
+        meta = strict_load(_regular(Path(desc['planning_review']['path'])))
+        allowed = set(meta['snapshot']['declared_paths'])
+        review.need(all(r['path'] in allowed and r['mandatory_instruction']['path'] in allowed
+                        for r in plan['procedural_context']),
+                    'procedural instruction and mandatory source must be exact planning review paths')
     return plan
 
 
@@ -96,7 +106,11 @@ def run_choice(study, revision):
 
 
 def task_binding(plan, record, task):
-    selected = choices(plan, record)
+    return _task_binding(plan, choices(plan, record), task)
+
+
+def _task_binding(plan, selected, task):
+    """Project one task after this invocation has validated the full matrix."""
     if task['worker_id'] == 'focus-group/participant':
         roles = [f'participant-{n:02d}' for n, target in enumerate(plan['participant_models'], 1)
                  if equal_target(target, task['target'])]
@@ -115,7 +129,7 @@ def task_binding(plan, record, task):
 def bind_job(job, plan, record):
     selected = choices(plan, record)
     for task in job['tasks']:
-        task['selection_binding'] = task_binding(plan, record, task)
+        task['selection_binding'] = _task_binding(plan, selected, task)
     for stage in job['stages']:
         stage.setdefault('resources', {}).update(focus_group_plan=job['focus_group_plan'], focus_group_admission=record)
     job.update(adopter_admission=record, model_selection=selected,
@@ -138,6 +152,10 @@ def validate_job(job, *, previous=None, creating=False):
     desc = next((r.get('focus_group_plan') for r in resources if r.get('focus_group_plan')), job.get('focus_group_plan'))
     review.need(isinstance(desc, dict), 'reviewed study-plan descriptor required before panel work')
     plan = validate_descriptor(desc)
+    owner_study = authority_study(job)
+    records = owner_study.approvals(owner_study.require()['revision']) if owner_study.exists() else []
+    if job.get('authorization', {}).get('delegated_authority') or records and records[-1].get('kind') == 'delegated-approval':
+        authority_runtime().check_live(owner_study, job)
     review.need(plan['study_id'] == job['job_id'] and record['scope_id'] == desc['admission']['scope_id'] and
                 record['request_reference'] == desc['admission']['request_reference'] and
                 record['output_name'] == desc['admission']['output_name'], 'study/admission/subject transplant refused')
@@ -159,8 +177,46 @@ def validate_job(job, *, previous=None, creating=False):
                         'new or changed panel slot requires current choices')
         # Retired/live slots can retain their producing selection after a revision.
         if task.get('selection_binding', {}).get('selection_sha256') == selected['selection_sha256']:
-            review.need(task['selection_binding'] == task_binding(plan, record, task), 'panel slot role/choice differs')
+            review.need(task['selection_binding'] == _task_binding(plan, selected, task), 'panel slot role/choice differs')
+        if plan.get('procedural_context') and task['worker_id'] == 'focus-group/participant':
+            expected = authority_runtime().fg.evidence_module().material_context_files(plan, task['target'])
+            review.need(task.get('context_files') == expected,
+                        'participant procedural/product read scope differs from its exact target contract')
         selection_for_task(dict(job, policy=dict(job.get('policy', {}), model_selection_required=True)), task)
+
+
+def authority_runtime():
+    sys.path.insert(0, str(PKG / 'scripts'))
+    import authority
+    return authority
+
+
+def authority_study(job):
+    desc = next((s.get('resources', {}).get('focus_group_plan') for s in job['stages']
+                 if s.get('resources', {}).get('focus_group_plan')), job.get('focus_group_plan'))
+    review.need(isinstance(desc, dict), 'study descriptor required for authority binding')
+    path = Path(desc['document']['path'])
+    review.need(path.is_absolute() and path.parent.name == 'plans' and path.parents[1].name == 'focus-group' and
+                path.parents[2].name == job['job_id'], 'authority study path differs')
+    return authority_runtime().fg.Study(path.parents[3], job['job_id'])
+
+
+def transaction_guard(job, operation, *, proposed=None, caller=None, job_file=None):
+    from core.jobs.store import guard_operations
+    candidate = proposed or job
+    studies = [authority_study(j) for j in (job, candidate)]
+    required = any(guard_operations(j) or j.get('authorization', {}).get('delegated_authority')
+                   for j in (job, candidate))
+    for study in studies:
+        records = study.approvals(study.require()['revision']) if study.exists() else []
+        required = required or bool(records and records[-1].get('kind') == 'delegated-approval')
+    if not required:
+        return None
+    review.need(all(job_file is not None and Path(job_file).absolute() == s.job_dir / 'job.json' for s in studies),
+                'authority guard belongs to another generic job')
+    review.need(job['job_id'] == candidate['job_id'] and job['workflow'] == candidate['workflow'],
+                'authority transition changes job/workflow')
+    return authority_runtime().commit_guard(studies[-1], caller=caller)
 
 
 def main(argv=None):
@@ -195,6 +251,12 @@ def main(argv=None):
                     study.write(f'planning/{revision}/run.json', record)
                 out = {'selection_sha256': record['selection_sha256'], 'dispatched': 0}
             elif args.command == 'prepare':
+                plan = study.plan(revision)['plan']
+                paths = data['inputs'].setdefault('evidence_paths', [])
+                for entry in plan.get('procedural_context', []):
+                    for path in (entry['path'], entry['mandatory_instruction']['path']):
+                        if path not in [p.get('path') if isinstance(p,dict) else p for p in paths]:
+                            paths.append(path)
                 out = adopter.prepare(desc, data['inputs'], data['metadata_file'], PKG)
             elif args.command == 'attach':
                 out = adopter.attach(desc, data['metadata_file'], data['receipt'], PKG)

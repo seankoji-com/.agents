@@ -19,6 +19,23 @@ start a watcher; T3 completion notifications wake you.
 
 ## Preflight
 
+Optional procedural context is target-specific and reviewed separately from
+product stimulus. The exact file/hash and mandatory source must remain intact,
+and the fresh catalog's actual harness must match before admission or preparation.
+Dispatch the generated `context_files` unchanged. A participant cannot add siblings
+or nested references. Retain the actual trace harness and classify auxiliary reads
+as procedure, never product evidence; missing/opaque evidence stays unverified.
+
+An explicitly delegated revision also needs its current grant, original native
+owner context and exact independent receipt to remain live. Use
+`authority.py revision-inputs` for its bounded generic revision, then the public
+decision/guarded plan-revision route. Required guards cannot be removed. Adopt
+reviewed packages while still direct/unmarked, before enabling delegation;
+upgrade-package refuses afterwards. Never bypass that refusal. Recheck authority
+immediately before host dispatch and retain any already accepted/uncertain handle.
+Revocation stops new authority-dependent preparation/disclosure/acceptance, while
+raw result ingestion, cancellation and reconciliation remain usable.
+
 Save a fresh `orchestrator_capabilities` response and wrap it as a catalog
 observation (`schema_version`, `observed_at`, `source`, `response`, optional
 schema `observations`; see `PKG/references/study-contract.md`). Save a new one

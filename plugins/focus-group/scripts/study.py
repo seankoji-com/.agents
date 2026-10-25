@@ -23,6 +23,11 @@ import stat
 import sys
 from pathlib import Path
 
+# Peer helpers import the canonical name, including while this file is the CLI.
+# Bind it before planning/authority imports so refusals share this exact class.
+if __name__ == '__main__':
+    sys.modules['study'] = sys.modules[__name__]
+
 PKG = Path(__file__).resolve().parents[1]
 # An installed package carries core/ and shared/ beside the plugin; a source checkout two levels up.
 RUNTIME = next((base for base in (PKG, PKG.parents[1]) if (base / 'core').is_dir()), PKG)
@@ -70,6 +75,24 @@ GROUP_CLAIM = re.compile(
 def planning_module():
     import plan_review
     return plan_review
+
+
+def authority_module():
+    import authority
+    return authority
+
+
+def authority_current(study, now=None):
+    """Call under the existing study lock, or as a read-only preflight.
+
+    Direct approval retains its literal grammar. Delegated approval must still
+    have a live grant; status/raw result reconciliation do not depend on this.
+    """
+    revision = study.require()['revision']
+    records = study.approvals(revision)
+    if records and records[-1].get('kind') == 'delegated-approval':
+        return authority_module().check_live(study, now=now)
+    return records[-1] if records else None
 
 
 def planning_gate(study, revision, run=False):
@@ -316,7 +339,7 @@ def normalise(draft):
         invalid('invalid_plan', 'draft must be an object with schema_version 1')
     allowed = {'schema_version', 'study_id', 'audience', 'decision', 'target', 'journeys', 'exclusions', 'personas',
                'participant_models', 'analysis', 'review', 'mode', 'capture_profile', 'prompts', 'stimulus',
-               'sharing', 'limits', 'coverage_policy', 'journey_context'}
+               'sharing', 'limits', 'coverage_policy', 'journey_context', 'procedural_context'}
     if set(draft) - allowed:
         invalid('invalid_plan', f'unknown draft fields: {sorted(set(draft) - allowed)}')
     plan = {'schema_version': SCHEMA_VERSION, 'study_id': safe_id(draft.get('study_id'), 'study_id'),
@@ -402,6 +425,12 @@ def normalise(draft):
             or coverage.get('capture_only_completes_combined') is not False):
         invalid('invalid_plan', 'coverage_policy reports journey gaps and never lets capture-only complete combined scope')
     plan['coverage_policy'] = {'journey_gaps': 'report', 'capture_only_completes_combined': False}
+    auxiliary = draft.get('procedural_context', [])
+    if not isinstance(auxiliary, list) or len(auxiliary) > 64:
+        invalid('invalid_procedural_context', 'procedural_context must be a bounded list of exact reviewed entries')
+    if auxiliary:
+        plan['procedural_context'] = copy.deepcopy(auxiliary)
+        evidence_module().validate_procedural(plan)
     return plan
 
 
@@ -756,6 +785,9 @@ def bindings(plan, cell, stage, record=None):
             'pack_sha256': sha({'files': stimulus['files'], 'manifest_sha256': stimulus.get('manifest_sha256'),
                                 'provenance': stimulus.get('provenance')}),
             'profile_sha256': sha(plan['capture_profile']), 'requested_target': cell['target']}
+    auxiliary = evidence_module().procedural_entries(plan, cell['target'])
+    if auxiliary:
+        base['procedural_context_sha256'] = sha(auxiliary)
     if stage == 'journey':
         target = plan['target']
         base.update(journey_prompt_sha256=sha(plan['prompts'].get('journey')), journeys_sha256=sha(plan['journeys']),
@@ -821,6 +853,11 @@ def mapping_for(study, target_revision):
     in the target revision itself occupies its slot first, so a prior result never carries over it,
     and a prior journey carries only when its exact predecessor is the slot's effective first
     impression in the target revision (native with a usable artifact, or carried by this mapping)."""
+    return _mapping_for(study, target_revision)[0]
+
+
+def _mapping_for(study, target_revision):
+    """Resolve one complete mapping without rescanning shared evidence per record."""
     plan = study.plan(target_revision)['plan']
     by_cell = {c['cell_id']: c for c in cells(plan)}
     stages = stages_for(plan['mode'])
@@ -828,10 +865,16 @@ def mapping_for(study, target_revision):
     records = [r for r in accepted if r['revision'] != target_revision]
     native = {(r['cell_id'], r['stage']): {'record_sha256': r['record_sha256'], 'result_sha256': r['result']['sha256']}
               for r in accepted if r['revision'] == target_revision}
-    for cell_id, (_, problem) in native_firsts(study, target_revision, accepted).items():
-        native[(cell_id, 'first-impression')]['problem'] = problem
+    resolver = evidence_module()._RecordResolver(study)
+    def problem(record):
+        found = resolver.problems(record, accepted)
+        return (found[0]['code'], found[0]['detail']) if found else None
+    firsts = {r['cell_id']: (r, problem(r)) for r in accepted
+              if (r['revision'], r['stage']) == (target_revision, 'first-impression')}
+    for cell_id, (_, found) in firsts.items():
+        native[(cell_id, 'first-impression')]['problem'] = found
     lifecycle = lifecycle_module()
-    job = lifecycle.load_job(study)
+    job = resolver.job
     entries, carried = [], dict(native)
     for record in sorted(records, key=lambda r: (STAGES.index(r['stage']), r['cell_id'], r['revision'])):
         entry = {'cell_id': record['cell_id'], 'stage': record['stage'], 'from_revision': record['revision'],
@@ -844,9 +887,9 @@ def mapping_for(study, target_revision):
         elif record['stage'] not in stages:
             entry['reasons'].append('journey is outside this revision; capture-only never completes combined scope')
         else:
-            problem = record_problem(study, record, accepted)
-            if problem:
-                entry['reasons'].append(f'accepted {problem[1]}')
+            found = problem(record)
+            if found:
+                entry['reasons'].append(f'accepted {found[1]}')
             now = bindings(plan, cell, record['stage'])
             was = record['bindings']
             changed = sorted(k for k in set(now) | set(was) if k != 'predecessors' and now.get(k) != was.get(k))
@@ -886,7 +929,7 @@ def mapping_for(study, target_revision):
         entries.append(entry)
     return {'revision': target_revision, 'entries': entries,
             'filled_slots': sorted(f'{c}:{s}' for c, s in carried if (c, s) not in native),
-            'combined_scope_complete': False if plan['mode'] == 'capture-only' else None}
+            'combined_scope_complete': False if plan['mode'] == 'capture-only' else None}, firsts
 
 
 def context_fits(recorded, policy):
@@ -906,7 +949,7 @@ def validate_mapping(study, supplied):
             or not isinstance(supplied['filled_slots'], list) or not isinstance(supplied['revision'], str)
             or not HEX64.fullmatch(supplied['revision'])):
         invalid('invalid_mapping', f'a mapping has exactly {sorted(MAPPING_KEYS)} with a plan revision hash')
-    expected = mapping_for(study, supplied['revision'])
+    expected, native = _mapping_for(study, supplied['revision'])
     want_by_record = {e['record_sha256']: e for e in expected['entries']}
     known = {r['record_sha256']: r for r in study.accepted()}
     errors, seen, valid, supplied_at = [], set(), set(), {}
@@ -954,7 +997,7 @@ def validate_mapping(study, supplied):
     # carried by this same validated mapping, or accepted in the target revision itself with a
     # usable artifact now.
     first = {cell_id: record['record_sha256'] for cell_id, (record, problem)
-             in native_firsts(study, supplied['revision'], list(known.values())).items() if problem is None}
+             in native.items() if problem is None}
     first.update({e['cell_id']: e['record_sha256'] for e in expected['entries']
                   if e['record_sha256'] in valid and e['status'] == 'carried' and e['stage'] == 'first-impression'})
     for e in expected['entries']:
@@ -1033,7 +1076,7 @@ REQUIRED_FILES = (
     'plugin.json', 'entry.md', 'playbooks/plan.md', 'playbooks/run.md', 'playbooks/capture.md', 'playbooks/journeys.md',
     'references/study-contract.md', 'references/evidence-contract.md', 'references/report-contract.md',
     'scripts/plan_review.py', 'references/adopter-review-rubric.md', 'shared/model-selection.md',
-    'shared/adopter-planning.md', 'scripts/study.py', 'scripts/evidence.py', 'scripts/lifecycle.py', 'scripts/report.py', 'scripts/validate_study.py',
+    'shared/adopter-planning.md', 'scripts/study.py', 'scripts/authority.py', 'scripts/evidence.py', 'scripts/lifecycle.py', 'scripts/report.py', 'scripts/validate_study.py',
     'templates/study-draft.example.json', 'templates/capture-manifest.example.json',
     'shared/t3-runtime.md', 'shared/delegation.md', 'shared/job-coordination.md', 'shared/job_cli.py',
     'shared/job_acceptance_cli.py', 'shared/job_acceptance.py', 'shared/lineage.py', 'shared/worker_registry.py',
@@ -1280,6 +1323,9 @@ def approval_state(records, revision, limit):
            'approved_max_tasks': approved, 'required_max_tasks': limit['max_tasks'],
            'history': [{'sequence': r['sequence'], 'kind': r['kind'], 'message_ref': r['message_ref'],
                         'max_tasks': r['scope']['max_tasks'], 'record_sha256': r['record_sha256']} for r in records]}
+    if last.get('kind') == 'delegated-approval':
+        out.update(kind='delegated-approval', derived=True, grant_id=last['grant_id'],
+                   owner_message_ref=last['owner']['message_ref'], review=last['review'])
     if state == 'insufficient':
         out['instruction'] = instruction(revision, limit)
     return out
@@ -1356,9 +1402,14 @@ def op_approve(args):
     with study.locked():
         ledger = study.ledger()
         limit = ceiling(plan, ledger)
+        evidence_module().validate_procedural(plan, study=study)
+        if study.require()['revision'] != revision:
+            refuse('stale_revision', 'current plan changed before approval recording')
+        if digest(_regular(source)) != request['source_sha256']:
+            refuse('approval_scope_mismatch', 'owner source changed before approval recording')
         affirmative(statement, raw, instruction(revision, limit))
         records = study.approvals(revision)
-        if records and approval_state(records, revision, limit)['state'] == 'approved':
+        if records and records[-1].get('kind') != 'delegated-approval' and approval_state(records, revision, limit)['state'] == 'approved':
             last = records[-1]
             if (last['message_ref'], last['statement'], last['source_sha256']) == (message_ref, statement,
                                                                                     request['source_sha256']):
@@ -1404,9 +1455,12 @@ def preflight(study, now, catalog):
     current = study.require()
     revision = current['revision']
     plan = study.plan(revision)['plan']
+    # Refuse invalid auxiliary bytes/harness before observation writes or charge.
+    evidence_module().validate_procedural(plan, study=study, index=catalog['index'])
     ledger = study.ledger()
     if ledger['cancel_requested']:
         refuse('study_cancelled', 'cancellation was requested; no new task may start')
+    authority_current(study, stamp(now))
     approval = approval_state(study.approvals(revision), revision, ceiling(plan, ledger))
     if approval['state'] == 'unapproved':
         refuse('unapproved_revision', 'the current plan revision has no matching owner approval',
@@ -1946,7 +2000,7 @@ def op_job_spec(args):
             if problem:
                 refuse(problem[0], f'{task_id}: {problem[1]}')
             slot(task_id, stage, 'focus-group/participant', cell['target'], context_policy='document-only',
-                 document=document, context_files=evidence.material_context_files(plan), max_followups=0,
+                 document=document, context_files=evidence.material_context_files(plan, cell['target']), max_followups=0,
                  focus_group={'cell_id': cell['cell_id'], 'persona_id': cell['persona_id'], 'pilot': cell['pilot']})
     # The analyst reads only its frozen analysis inputs (`report.py analysis-inputs` binds the document), and the
     # required review names the exact rendered report documents, their hash-bound authors and author independence
