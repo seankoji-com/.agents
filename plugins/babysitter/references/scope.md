@@ -8,7 +8,8 @@ restrictions, including inspect-only mode and exclusions.
 ## Discovery and admission
 
 - Discover at entry, every wake or child completion, and before yielding or final
-  handoff. Reuse the same scope and filters. Repo/org runs pass `--all-authors` to
+  handoff. Reuse the same scope and filters. Org runs use `org_scan.py` per
+  `PKG/references/org-scan.md`; repo runs pass `--all-authors` to
   `list-prs.sh`: human and bot PRs qualify. Drafts and forks stay excluded unless
   explicitly included; do not treat an author's identity as an extra exclusion.
   Admission uses the helper's eligibility filters. Add `--include-drafts` or
