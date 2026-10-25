@@ -89,13 +89,15 @@ def handle_wake(host, state_path, now, wake):
     is never called before it exists. A lost response keeps the reservation held until
     host reconciliation proves refusal or identifies the launched task.
     """
-    state = _state(state_path)
+    with continuous.locked_state(state_path) as state:
+        continuous.require_current_package(state)
     if (wake.get('kind') or 'schedule') == 'schedule' and (
             state.get('cancelled') or state['scheduler']['mode'] != 'scheduled'
             or state['scheduler'].get('stopped')):
+        report = continuous.scheduler_report(state, continuous.parse_time(now))
         return {'wake': wake, 'result': {'status': 'scheduled-continuation-blocked',
                 'actions': [], 'scheduler_stop': state['scheduler'].get('stop'),
-                'scheduler': continuous.scheduler_report(state, continuous.parse_time(now))},
+                'scheduler': report, 'coverage': report['coverage'], 'next_wake_at': None},
                 'dispatched': []}
     observation = host.discover(state['scope'], now)
     with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as stream:
@@ -203,4 +205,6 @@ def handle_wake(host, state_path, now, wake):
 
 def tick(host, state_path, now):
     """Deliver every wake the host says is due at ``now``."""
+    with continuous.locked_state(state_path) as state:
+        continuous.require_current_package(state)
     return [handle_wake(host, state_path, now, wake) for wake in host.due(now)]
