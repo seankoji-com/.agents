@@ -33,3 +33,10 @@ live fixer execution, host deduplication, a fixer push or scheduled delivery.
 PR preparation refreshes the base and binds review to a committed snapshot.
 Any review repairs require focused revalidation and a fresh review of changed
 content. No existing finding may be silently dropped or downgraded.
+
+PR #148 is draft. Review round 1 at `903140a` returned two major blockers:
+`F-REPAIR-BUDGET` (executor bypassed persisted repair exhaustion) and
+`F-AUTH-REVOCATION` (lightweight observations erased authorization holds).
+Repairs preserve holds under the ledger lock, require its repair decision, and map
+job requests to its attempt accounting. Regression checks and a fresh review remain
+required before marking the PR ready.

@@ -207,7 +207,8 @@ class Jobs:
 
 
 def observation(report, owners):
-    return {'complete': report['complete'], 'gaps': report['gaps'], 'prs': [
+    return {'complete': report['complete'], 'gaps': report['gaps'],
+        'preserve_human_blockers': True, 'prs': [
         {'repo': r['repo'], 'number': r['number'], 'url': r['url'], 'title': r['title'],
          'state': 'OPEN', 'draft': False, 'fork': r['fork'], 'head_sha': r['head_sha'],
          'mergeable': r['mergeable'], 'merge_state_status': r['merge_state_status'],
@@ -332,11 +333,24 @@ def execute(report, api, host, jobs, config):
             require(not continuous.live_merge_dispatch(current), 'merge-reservation-held')
             require(not continuous.pending_write(current, state, continuous.parse_time(org_scan.utc_now())),
                     'coordinator-write-reservation-held')
+            ledger = continuous.read_state(config['continuous_state'])
+            action = continuous.reconcile_pr(ledger['prs'][row['url']], ledger,
+                continuous.parse_time(org_scan.utc_now()), ledger.get('discovery') or {})[0]
+            require(action['kind'] not in ('blocked', 'needs-human', 'wait-review'),
+                    'continuous-action-held: ' + action['reason'])
+            if row['action'] == 'dispatch':
+                require(action['kind'] == 'dispatch-fixer', 'continuous-repair-not-admitted: ' + action['kind'])
             prepared = None
             if not row['auto_merge'] or row['action'] == 'dispatch':
                 # Admission, frozen selection and package/worker integrity are
                 # checked before *any* write, including auto-merge.
                 prepared = jobs.prepare(row)
+                if row['action'] == 'dispatch' and action['attempt'] > 1:
+                    retry_usage = config.get('retry_usage', {}).get(row['url'])
+                    prior_findings = config.get('prior_findings', {}).get(row['url'])
+                    require(isinstance(retry_usage, dict) and isinstance(prior_findings, list),
+                            'retry-needs-retained-counters-and-findings')
+                    prepared.update(retry_usage=retry_usage, prior_findings=prior_findings)
                 host.call('link_pull_request', {'url': row['url']})
             if not row['auto_merge']:
                 base = 'arm-' + digest([config['run_id'], row['url'], row['head_sha']])[:32]
@@ -398,6 +412,7 @@ def execute(report, api, host, jobs, config):
                       + '. Fetch every current unresolved review thread and its comments, including all pages, '
                       'before editing. Keep every finding and report its disposition. '
                       'retry_usage (coordinator data): ' + json.dumps(prepared['retry_usage'])
+                      + '. Continuous repair decision (coordinator data): ' + json.dumps(action)
                       + '. Prior findings (data): ' + json.dumps(prepared['prior_findings'])
                       + '. Never dispatch, watch, merge, post, resolve or accept. '
                       'Work only in the prepared PR checkout at ' + worktree + '. '
@@ -406,7 +421,8 @@ def execute(report, api, host, jobs, config):
                       'Return the exact worker-result JSON or artifact envelope required by the brief.')
             reserved = continuous_command(config, 'dispatch', pr=row['url'], request_id=prepared['request_id'],
                 kind='fixer', head=row['head_sha'], reserve=True, host_task_id=None,
-                attempt=prepared['attempt'], review_triage=False)
+                attempt=action['attempt'], review_triage=bool(action.get('review_triage')),
+                reconciliation_request_id=action['request_id'])
             require(reserved['status'] == 'recorded', 'fixer-reservation-held')
             try:
                 request_args = {'task': prompt, 'target': {
@@ -433,7 +449,8 @@ def execute(report, api, host, jobs, config):
                 'receipt_identity': {k: receipt[k] for k in ('providerInstanceId', 'model', 'options') if k in receipt}})
             continuous_command(config, 'dispatch', pr=row['url'], request_id=prepared['request_id'],
                 kind='fixer', head=row['head_sha'], reserve=False, host_task_id=receipt['taskId'],
-                attempt=prepared['attempt'], review_triage=False)
+                attempt=action['attempt'], review_triage=bool(action.get('review_triage')),
+                reconciliation_request_id=action['request_id'])
             outcome.update(status='dispatched', task_id=receipt['taskId'], request_id=prepared['request_id'])
             require(receipt.get('providerInstanceId') == target['providerInstanceId']
                     and receipt.get('model') == target['model'], 'host-identity-mismatch')

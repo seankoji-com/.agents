@@ -126,6 +126,12 @@ are retained even if they differ from the requested target.
 Auto-merge writes, branch updates, resolutions and fixers exclude competing writes
 through the same continuous ledger. An active fixer can temporarily defer re-arming
 if GitHub removed the flag; the executor does not race its writer.
+Lightweight GitHub sweeps preserve coordinator-owned human and authorization holds.
+Only an explicit coordinator observation can clear them. Exhausted repair and
+wait-for-review decisions hold both arming and launch. Fixer reservations map the
+job request to the ledger's failure fingerprint, attempt and review-triage status;
+new per-PR jobs cannot reset that history. Reservations recheck these gates under
+the ledger lock.
 
 The executor launches prepared work, not acceptance or semantic finding disposition.
 The existing coordinator ingests terminal results, replies/resolves verified threads,

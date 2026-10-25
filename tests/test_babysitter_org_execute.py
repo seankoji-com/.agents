@@ -123,6 +123,117 @@ class ExecutionTest(unittest.TestCase):
     def execute(self, report=None):
         return runner.execute(report or self.report(), self.api, self.host, self.jobs, self.config)
 
+    def observe(self, report=None, blocker=None):
+        data = runner.observation(report or self.report(), {})
+        if blocker:
+            data.pop('preserve_human_blockers')
+            data['prs'][0]['human_blocker'] = blocker
+        file = self.directory / 'saved-observation.json'
+        runner.continuous.save_json(file, data)
+        self.config['wake_id'] = str(len(runner.continuous.read_state(
+            self.config['continuous_state'])['events']))
+        return runner.continuous_command(self.config, 'observe', observation=str(file),
+            wake_kind='manual', wake_id=self.config['wake_id'])
+
+    def settle(self, request, status='failed'):
+        # Fixture the accepted job evidence, retaining the real ledger transition.
+        with patch.object(runner.continuous, 'accepted_fixer_result', return_value='a' * 64):
+            runner.continuous_command(self.config, 'receipt', pr=pr()['url'], request_id=request,
+                kind='fixer', head=HEAD, status=status, host_task_id=None, result=None, reason='fixture terminal result')
+
+    def test_persisted_exhausted_repairs_prevent_arming_and_dispatch(self):
+        for index in range(3):
+            action = self.observe()['actions'][0]
+            self.assertEqual(action['attempt'], index + 1)
+            runner.continuous_command(self.config, 'dispatch', pr=pr()['url'],
+                request_id=action['request_id'], kind='fixer', head=HEAD, reserve=True,
+                host_task_id=None, attempt=action['attempt'], review_triage=False)
+            self.settle(action['request_id'])
+        result = self.execute()
+        self.assertEqual(result['outcomes'][0]['status'], 'held', result)
+        self.assertIn('exhausted', result['outcomes'][0]['reason'])
+        self.assertEqual(self.api.calls, [])
+        self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+
+    def test_job_requests_count_toward_continuous_repair_budget(self):
+        prepare = self.jobs.prepare
+        self.config['retry_usage'] = {pr()['url']: {'attempts': [{'elapsed_seconds': 1}],
+            'max_attempts': 3, 'max_seconds': 300}}
+        self.config['prior_findings'] = {pr()['url']: [{'id': 'retained-finding'}]}
+        for index in range(3):
+            self.config['wake_id'] = 'repair-' + str(index)
+            prepared = prepare(self.report()['prs'][0])
+            prepared['request_id'] = 'job-request-' + str(index)
+            with patch.object(self.jobs, 'prepare', return_value=prepared):
+                result = self.execute()
+            self.assertEqual(result['outcomes'][0]['status'], 'dispatched', result)
+            saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+            dispatch = saved['dispatches'][-1]
+            self.assertEqual(dispatch['attempt'], index + 1)
+            self.assertTrue(dispatch['reconciliation_request_id'].endswith('-a' + str(index + 1)))
+            self.settle(prepared['request_id'])
+            self.jobs.handles.clear()
+        self.config['wake_id'] = 'exhausted'
+        self.assertIn('exhausted', self.execute()['outcomes'][0]['reason'])
+        self.assertEqual(sum(t == 'delegate_task' for t, _ in self.host.calls), 3)
+
+    def test_new_job_cannot_reset_missing_retry_history(self):
+        action = self.observe()['actions'][0]
+        runner.continuous_command(self.config, 'dispatch', pr=pr()['url'],
+            request_id=action['request_id'], kind='fixer', head=HEAD, reserve=True,
+            host_task_id=None, attempt=1, review_triage=False)
+        self.settle(action['request_id'])
+        self.assertEqual(self.execute()['outcomes'][0]['reason'], 'retry-needs-retained-counters-and-findings')
+        self.assertEqual(self.api.calls, [])
+
+    def test_hold_added_during_preparation_is_checked_at_reservation(self):
+        prepare = self.jobs.prepare
+        def revoke(row):
+            self.observe(blocker={'kind': 'missing-authorization', 'detail': 'Revoked during preparation.'})
+            return prepare(row)
+        with patch.object(self.jobs, 'prepare', side_effect=revoke):
+            result = self.execute()
+        self.assertEqual(result['outcomes'][0]['status'], 'held', result)
+        self.assertEqual(self.api.calls, [])
+        self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+
+    def test_authorization_hold_survives_repeated_lightweight_wakes(self):
+        blocker = {'kind': 'missing-authorization', 'detail': 'Owner revoked this PR.'}
+        self.observe(blocker=blocker)
+        for index in range(2):
+            self.config['wake_id'] = 'held-' + str(index)
+            result = self.execute()
+            self.assertEqual(result['outcomes'][0]['status'], 'held', result)
+            saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+            self.assertEqual(saved['observation']['human_blocker'], blocker)
+        self.assertEqual(self.api.calls, [])
+        self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+        data = runner.observation(self.report(), {})
+        data.pop('preserve_human_blockers')
+        data['prs'][0]['human_blocker'] = None  # Explicit coordinator disposition.
+        file = self.directory / 'clear-hold.json'
+        runner.continuous.save_json(file, data)
+        runner.continuous_command(self.config, 'observe', observation=str(file),
+            wake_kind='manual', wake_id='authority-cleared')
+        self.assertEqual(self.execute()['outcomes'][0]['status'], 'dispatched')
+
+    def test_review_triage_identity_and_wait_review_are_preserved(self):
+        node = pr(contexts=[check('SUCCESS')], autoMergeRequest=None, reviewDecision='CHANGES_REQUESTED')
+        report = runner.org_scan.scan(FixtureAPI([{'id': 'r', 'nameWithOwner': 'fixture/repo'}], {'r': [node]}), 'fixture')
+        self.assertEqual(self.execute(report)['outcomes'][0]['status'], 'dispatched')
+        saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+        self.assertTrue(saved['dispatches'][-1]['review_triage'])
+        self.assertIn('-review-', saved['dispatches'][-1]['reconciliation_request_id'])
+        self.settle('fix-request', status='succeeded')
+        self.jobs.handles.clear()
+        self.config['wake_id'] = 'review-still-required'
+        self.api.calls.clear()
+        result = self.execute(report)
+        self.assertEqual(result['outcomes'][0]['status'], 'held', result)
+        self.assertIn('re-review', result['outcomes'][0]['reason'])
+        self.assertEqual(self.api.calls, [])
+        self.assertEqual(sum(t == 'delegate_task' for t, _ in self.host.calls), 1)
+
     def test_auto_merge_is_default_and_one_fix_launch_uses_frozen_target(self):
         result = self.execute()
         self.assertEqual(result['outcomes'][0]['status'], 'dispatched', result)
