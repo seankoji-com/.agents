@@ -853,6 +853,11 @@ def mapping_for(study, target_revision):
     in the target revision itself occupies its slot first, so a prior result never carries over it,
     and a prior journey carries only when its exact predecessor is the slot's effective first
     impression in the target revision (native with a usable artifact, or carried by this mapping)."""
+    return _mapping_for(study, target_revision)[0]
+
+
+def _mapping_for(study, target_revision):
+    """Resolve one complete mapping without rescanning shared evidence per record."""
     plan = study.plan(target_revision)['plan']
     by_cell = {c['cell_id']: c for c in cells(plan)}
     stages = stages_for(plan['mode'])
@@ -860,10 +865,16 @@ def mapping_for(study, target_revision):
     records = [r for r in accepted if r['revision'] != target_revision]
     native = {(r['cell_id'], r['stage']): {'record_sha256': r['record_sha256'], 'result_sha256': r['result']['sha256']}
               for r in accepted if r['revision'] == target_revision}
-    for cell_id, (_, problem) in native_firsts(study, target_revision, accepted).items():
-        native[(cell_id, 'first-impression')]['problem'] = problem
+    resolver = evidence_module()._RecordResolver(study)
+    def problem(record):
+        found = resolver.problems(record, accepted)
+        return (found[0]['code'], found[0]['detail']) if found else None
+    firsts = {r['cell_id']: (r, problem(r)) for r in accepted
+              if (r['revision'], r['stage']) == (target_revision, 'first-impression')}
+    for cell_id, (_, found) in firsts.items():
+        native[(cell_id, 'first-impression')]['problem'] = found
     lifecycle = lifecycle_module()
-    job = lifecycle.load_job(study)
+    job = resolver.job
     entries, carried = [], dict(native)
     for record in sorted(records, key=lambda r: (STAGES.index(r['stage']), r['cell_id'], r['revision'])):
         entry = {'cell_id': record['cell_id'], 'stage': record['stage'], 'from_revision': record['revision'],
@@ -876,9 +887,9 @@ def mapping_for(study, target_revision):
         elif record['stage'] not in stages:
             entry['reasons'].append('journey is outside this revision; capture-only never completes combined scope')
         else:
-            problem = record_problem(study, record, accepted)
-            if problem:
-                entry['reasons'].append(f'accepted {problem[1]}')
+            found = problem(record)
+            if found:
+                entry['reasons'].append(f'accepted {found[1]}')
             now = bindings(plan, cell, record['stage'])
             was = record['bindings']
             changed = sorted(k for k in set(now) | set(was) if k != 'predecessors' and now.get(k) != was.get(k))
@@ -918,7 +929,7 @@ def mapping_for(study, target_revision):
         entries.append(entry)
     return {'revision': target_revision, 'entries': entries,
             'filled_slots': sorted(f'{c}:{s}' for c, s in carried if (c, s) not in native),
-            'combined_scope_complete': False if plan['mode'] == 'capture-only' else None}
+            'combined_scope_complete': False if plan['mode'] == 'capture-only' else None}, firsts
 
 
 def context_fits(recorded, policy):
@@ -938,7 +949,7 @@ def validate_mapping(study, supplied):
             or not isinstance(supplied['filled_slots'], list) or not isinstance(supplied['revision'], str)
             or not HEX64.fullmatch(supplied['revision'])):
         invalid('invalid_mapping', f'a mapping has exactly {sorted(MAPPING_KEYS)} with a plan revision hash')
-    expected = mapping_for(study, supplied['revision'])
+    expected, native = _mapping_for(study, supplied['revision'])
     want_by_record = {e['record_sha256']: e for e in expected['entries']}
     known = {r['record_sha256']: r for r in study.accepted()}
     errors, seen, valid, supplied_at = [], set(), set(), {}
@@ -986,7 +997,7 @@ def validate_mapping(study, supplied):
     # carried by this same validated mapping, or accepted in the target revision itself with a
     # usable artifact now.
     first = {cell_id: record['record_sha256'] for cell_id, (record, problem)
-             in native_firsts(study, supplied['revision'], list(known.values())).items() if problem is None}
+             in native.items() if problem is None}
     first.update({e['cell_id']: e['record_sha256'] for e in expected['entries']
                   if e['record_sha256'] in valid and e['status'] == 'carried' and e['stage'] == 'first-impression'})
     for e in expected['entries']:

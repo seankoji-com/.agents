@@ -1341,6 +1341,10 @@ def record_trace_problem(study, record):
     """(code, reason) when a recorded trace shows an accepted record's own execution was contaminated,
     else None. The accepted record and its bytes are kept; only their use and disclosure stop."""
     state, _ = trace_compliance(study, record.get('request_id'))
+    return _trace_problem(state)
+
+
+def _trace_problem(state):
     if state == 'contaminated':
         return 'trace_contaminated', ('execution was contaminated according to a recorded tool trace; it is retained '
                                       'but never used or disclosed')
@@ -1921,6 +1925,38 @@ def record_problems(study, record, accepted=None):
     exact accepted bytes, still clear, not from a contaminated execution, from an execution whose exact
     request shows a verified or owner-accepted identity now, and built on a usable predecessor; otherwise
     problems (locations only). Nothing is rewritten."""
+    return _record_problems(study, record, accepted,
+        lambda row: fg.lifecycle_module().identity_problem(study, row),
+        lambda row: record_trace_problem(study, row))
+
+
+class _RecordResolver:
+    """One carry check's job/trace reads, discarded before the next live check.
+
+    First-impression artifacts and material are still reopened for each record.
+    Journey predecessor resolution retains the ordinary complete resolver.
+    """
+    def __init__(self, study):
+        self.study = study
+        self.job = fg.lifecycle_module().load_job(study)
+        self.traces = {}
+        for row in records(study, 'traces'):
+            if row.get('request_id') is not None:
+                self.traces.setdefault(row['request_id'], []).append(row)
+
+    def trace_problem(self, record):
+        states = {r['compliance'] for r in self.traces.get(record.get('request_id'), [])}
+        return _trace_problem('contaminated' if 'contaminated' in states else 'unverified')
+
+    def problems(self, record, accepted=None):
+        if record['stage'] != 'first-impression':
+            return record_problems(self.study, record, accepted)
+        return _record_problems(self.study, record, accepted,
+            lambda row: fg.lifecycle_module().identity_problem(self.study, row, self.job),
+            self.trace_problem)
+
+
+def _record_problems(study, record, accepted, identity_problem, trace_problem):
     tag = {'record_sha256': record['record_sha256'], 'cell_id': record['cell_id'], 'stage': record['stage']}
     out = []
     data, problem = study.artifact_bytes(record)
@@ -1928,11 +1964,11 @@ def record_problems(study, record, accepted=None):
         out.append(dict(tag, code=problem[0], detail=problem[1]))
     # Identity is read now from the record's own request (FG-3): a later host source naming another model makes
     # the record unusable, and everything built on it with it, until the owner accepts that exact discrepancy.
-    unverified = fg.lifecycle_module().identity_problem(study, record)
+    unverified = identity_problem(record)
     if unverified:
         out.append(dict(tag, code='identity_unverified', identity=unverified[0], detail=unverified[1]))
     # A trace inspected after acceptance stops use and disclosure; it never rewrites the accepted record.
-    traced = record_trace_problem(study, record)
+    traced = trace_problem(record)
     if traced:
         out.append(dict(tag, code=traced[0], detail=traced[1]))
     if data is not None:
