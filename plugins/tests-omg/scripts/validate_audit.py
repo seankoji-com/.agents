@@ -38,8 +38,10 @@ def inspect_report(descriptor):
     refs = data.get('references', [])
     now = datetime.now(timezone.utc)
     if any(r.get('available') is False or (r.get('expires_at') and
-           datetime.fromisoformat(r['expires_at'].replace('Z', '+00:00')) <= now) for r in refs):
+           audit.expiry(r['expires_at']) <= now) for r in refs):
         raise ValueError('audit diagnostics unavailable or expired')
+    if audit.expired_exceptions(data):
+        raise ValueError('audit compensating exception expired')
     index = audit.load(root / 'index.json')
     rows = [r for r in index['runs'] if r['run_id'] == descriptor['run_id']]
     if len(rows) != 1 or rows[0].get('superseded_by'):
@@ -48,7 +50,7 @@ def inspect_report(descriptor):
     if not source or saved['scope'].get('kind') != 'repository':
         raise ValueError('local repository source locator required; organization review is unavailable')
     audit.state_root(descriptor['state_root'], repo=source, create=False)
-    current = audit.snapshot(source)
+    current = audit.snapshot_saved(source, saved['snapshot'])
     if (current['limitations'] or current['sha256'] != descriptor['snapshot_sha256'] or
             current['head_sha'] != descriptor['head_sha'] or
             not saved['analysis'].get('evidence_current') or

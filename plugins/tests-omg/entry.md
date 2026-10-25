@@ -53,6 +53,10 @@ The helper also supports `audit --snapshot`, `--input FILE`, composable `--profi
 `--repo-budget`, `--seconds` and `--resume RUN`. Resume preserves scope, counters,
 owned handles and cumulative time. Changed source requires a successor audit;
 never silently rebind old conclusions.
+Source inventory limits have bounded `--snapshot-files`, `--snapshot-bytes`,
+`--snapshot-file-bytes` and `--snapshot-seconds` overrides. Record the same options
+for binding and audit; see the evidence contract. Partial inventory preserves known
+gaps. Organization snapshots are coordinator assertions, not helper-verified source.
 
 ## Coordination and boundaries
 
