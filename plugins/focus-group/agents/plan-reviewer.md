@@ -53,10 +53,22 @@ fences around it. Copy the correlation fields from your brief. Use status
 `ready-for-acceptance`, `needs-followup`, `blocked` or `failed`. Give every assigned
 requirement an outcome (`passed`, `failed`, `unverified`, `unavailable`) with
 evidence. Report every finding with a stable `id`, severity (`blocker`, `major`,
-`minor`, `note`), a concrete `scenario` and its `source_evidence`. Assess the study
-protocol against the pinned rubric and include the required planning assessment.
+`minor`, `note`), a concrete `scenario`, `source_evidence` and `smallest_correction`.
+Assess the study protocol even when no participant results exist. If the plan
+cites product or participant evidence, an invented or altered quote, hidden
+dissent or double-counted support is a `blocker`.
 Set `review_verdict` to `approve`, `adverse` or `unavailable`; any blocker or major
 finding makes it `adverse`.
+
+Include `planning_review` following `planning-assessment.schema.json`:
+
+- `coverage`: one entry for every requirement and `load_bearing_decisions` ID,
+  with an `outcome` of `supported`, `contradicted` or `unverified`, plus evidence.
+- `inspected_paths`: the exact paths actually read, bound to the frozen snapshot.
+- `responses`: a disposition and evidence for each retained finding, with
+  `finding_key` set to its exact key in `resources.prior_findings`. Use an empty
+  list when none are retained. A deferred response also needs `impact`, `owner`
+  and `next_action`.
 
 ## Redaction
 

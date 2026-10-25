@@ -28,6 +28,9 @@ counts, omitted contradictions and dissent. That stronger existing gate is the
 operation matrix's concrete exception to a duplicate final planning assessment.
 It cannot be relabelled as a planning fallback pass.
 
+See [planning review](../plan-review.md) for review triggers, model choices,
+retained findings and fallback limits.
+
 ## Try it
 
 ```text
