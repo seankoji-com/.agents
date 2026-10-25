@@ -277,9 +277,9 @@ def source_identity(script=__file__):
     require(isinstance(meta, dict), 'package plugin.json must be an object')
     manifest_path = package / 'install-manifest.json'
     if manifest_path.exists():
-        job_contracts(package)
-        from shared.worker_registry import package_digest as manifest_digest, verify_package_files
         try:
+            job_contracts(package)
+            from shared.worker_registry import package_digest as manifest_digest, verify_package_files
             manifest = load_json(manifest_path)
             require(isinstance(manifest, dict), 'installed package manifest must be an object')
             require(manifest.get('plugin') == meta.get('name')
@@ -289,7 +289,7 @@ def source_identity(script=__file__):
             require(manifest.get('package_digest') == fingerprint,
                     'installed package manifest digest differs from its file list')
             verify_package_files(package, manifest)
-        except (ValueError, OSError) as exc:
+        except (ValueError, OSError, ImportError, SyntaxError) as exc:
             raise ContinuousError(f'installed package integrity failure: {exc}') from exc
         version = manifest['version']
         scheme = 'install-manifest-1'

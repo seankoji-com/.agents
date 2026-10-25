@@ -366,6 +366,118 @@ class WakeIdentityTest(ContinuousCase):
             self.assert_blocked(helper, adapter)
 
 
+class InstalledImportIntegrityTest(ContinuousCase):
+    def test_import_failures_report_integrity_and_block_continuation_before_host_calls(self):
+        box = Sandbox(self.base / 'packages')
+        package, manifest = box.install('babysitter')
+        helper = package / 'scripts/continuous.py'
+        WakeIdentityTest.seed(self, helper)
+        self.cli('schedule-record', '--now', NOW, '--schedule-id', 'owned-schedule',
+                 '--next-run-at', '2026-10-22T14:15:00Z', helper=helper)
+        before = self.state.read_bytes()
+        snapshot = box.payload(observation(pr()))
+        # A fresh process must import the installed contracts, without the test
+        # runner's already-loaded source modules concealing damaged imports.
+        probe = self.base / 'adapter_probe.py'
+        probe.write_text('''import importlib.util
+import json
+import sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('installed_sweep', sys.argv[1])
+adapter = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(adapter)
+state = Path(sys.argv[2])
+before = state.read_bytes()
+calls = []
+class Host:
+    def __getattr__(self, name):
+        calls.append(name)
+        raise AssertionError('host call before identity verification: ' + name)
+host = Host()
+errors = {}
+operations = {'arm': lambda: adapter.arm(host, state, sys.argv[3]),
+              'tick': lambda: adapter.tick(host, state, sys.argv[3])}
+for kind in ('schedule', 'event', 'manual'):
+    operations[kind] = lambda kind=kind: adapter.handle_wake(
+        host, state, sys.argv[3], {'kind': kind, 'wake_id': 'damaged-' + kind})
+for name, operation in operations.items():
+    try:
+        operation()
+    except adapter.continuous.ContinuousError as exc:
+        errors[name] = str(exc)
+    else:
+        raise AssertionError('damaged package continued: ' + name)
+    assert state.read_bytes() == before
+print(json.dumps({'errors': errors, 'host_calls': calls}))
+''')
+        listed = {entry['path'] for entry in manifest['files']}
+        for relative in ('shared/worker_registry.py', 'core/jobs/store.py',
+                         'shared/job_coordination.py'):
+            path = package / relative
+            self.assertIn(relative, listed)
+            original = path.read_bytes()
+            failures = ('missing', 'syntax', 'exports') if relative.endswith(
+                'worker_registry.py') else ('missing', 'syntax')
+            for failure in failures:
+                with self.subTest(module=relative, failure=failure):
+                    try:
+                        if failure == 'missing':
+                            path.unlink()
+                        else:
+                            path.write_bytes(b'def broken(:\n' if failure == 'syntax'
+                                             else b'# Required exports are missing.\n')
+                        status = box.run([sys.executable, helper, 'status', '--state',
+                                          self.state, '--now', NOW])
+                        self.assertNotIn('Traceback', status.stderr)
+                        report = json.loads(status.stdout)
+                        self.assertEqual(report['status'], 'continuation-blocked')
+                        self.assertEqual(report['coverage'], 'continuation-blocked')
+                        self.assertEqual(report['package_identity_gap'][0]['kind'],
+                                         'package-integrity')
+                        self.assertIn('installed package integrity failure',
+                                      report['package_identity_gap'][0]['detail'])
+                        self.assertIsNone(report['package']['running'])
+                        self.assertIsNone(report['scheduler']['next_run_at'])
+                        self.assertEqual(report['scheduler']['stop']['arguments']
+                                         ['scheduledTaskId'], 'owned-schedule')
+                        self.assertEqual(report['prs'][URL]['next_action']['kind'],
+                                         'migration-required')
+                        self.assertEqual(report['prs'][URL.replace('/12', '/13')]
+                                         ['next_action']['kind'], 'wait-fixer')
+                        commands = [('version', []), ('resume', ['--now', NOW]),
+                            ('observe', ['--now', NOW, '--observation', snapshot]),
+                            ('schedule-plan', []), ('schedule-record', ['--now', NOW,
+                                '--schedule-id', 'injected', '--next-run-at', NOW]),
+                            ('scheduler', ['--now', NOW, '--available', 'yes',
+                                           '--authorized', 'yes'])]
+                        commands.extend(('dispatch', ['--now', NOW, '--pr', URL,
+                            '--kind', kind, '--request-id', 'blocked-' + kind,
+                            '--head', H1, '--reserve']) for kind in
+                            ('fixer', 'merge', 'update-branch', 'resolution'))
+                        for command, flags in commands:
+                            args = [] if command == 'version' else ['--state', self.state]
+                            refused = box.run([sys.executable, helper, command, *args,
+                                               *flags], check=False)
+                            self.assertEqual(refused.returncode, 2, refused.stderr)
+                            self.assertIn('continuous_error: installed package integrity failure:',
+                                          refused.stderr)
+                            self.assertNotIn('Traceback', refused.stderr)
+                            self.assertEqual(self.state.read_bytes(), before)
+                        result = box.run([sys.executable, probe,
+                            helper.with_name('continuous_sweep.py'), self.state, NOW])
+                        result = json.loads(result.stdout)
+                        self.assertEqual(result['host_calls'], [])
+                        self.assertEqual(set(result['errors']),
+                                         {'arm', 'tick', 'schedule', 'event', 'manual'})
+                        self.assertEqual(self.state.read_bytes(), before)
+                    finally:
+                        path.write_bytes(original)
+        restored = json.loads(box.run([sys.executable, helper, 'version']).stdout)
+        self.assertEqual(restored['digest'], manifest['package_digest'])
+        self.assertEqual(self.cli('status', '--now', NOW, helper=helper)
+                         ['package_identity_gap'], [])
+
+
 class UnpinnedMigrationTest(ContinuousCase):
     def packages(self):
         box = Sandbox(self.base / 'packages')
