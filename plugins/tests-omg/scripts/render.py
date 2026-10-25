@@ -56,8 +56,8 @@ def render(audit):
         refs.append('<li>' + label + disclosure('Date, identity and availability', r) + '</li>')
     recommendations = ''.join('<article><h3>' + e(r['id']) + ': ' + e(r['action'] or 'needs evidence') +
                               '</h3><p>' + e(r.get('rationale') or r['unresolved_claim']) +
-                              '</p><p>Retained: ' + e(r['protection_retained']) +
-                              '. Lost: ' + e(r['protection_lost']) + '</p>' + disclosure('Protection, cost and evidence', r) + '</article>'
+                              '</p><p>Retained: ' + e(', '.join(r['protection_retained']) or 'none named') +
+                              '. Lost: ' + e(', '.join(r['protection_lost']) or 'none named') + '</p>' + disclosure('Protection, cost and evidence', r) + '</article>'
                               for r in audit['analysis']['recommendations'])
     scope = audit['scope']
     organization = scope.get('kind') == 'organization'

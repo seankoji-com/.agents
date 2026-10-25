@@ -45,9 +45,21 @@ def report_binding(job, stage, descriptor, package):
     # Reuse acceptance's bounded runner: both streams are capped, timeout cleanup
     # kills the owned process group, and failures are normalized before accept.
     from shared.job_acceptance import AcceptanceError, _bounded_run
+    if saved['snapshot'].get('limitations'):
+        raise JobError('audit source is incomplete')
+    # The acceptance adapter must use the saved collection limits too. Falling
+    # back to defaults would reject valid larger scopes or inspect a new scope.
+    limits = saved['snapshot'].get('limits', {})
+    snapshot_args = []
+    if 'inventory_sha256' in saved['snapshot']:
+        snapshot_args.append('--snapshot-summary')
+        for key, flag in (('files', '--snapshot-files'), ('seconds', '--snapshot-seconds'),
+                          ('bytes', '--snapshot-bytes'), ('file_bytes', '--snapshot-file-bytes')):
+            if key in limits:
+                snapshot_args.extend([flag, str(limits[key])])
     try:
         proc = _bounded_run([sys.executable, str(package / 'scripts/audit.py'),
-                             'audit', source, '--snapshot'], package,
+                             'audit', source, '--snapshot', *snapshot_args], package,
                             {'timeout_seconds': 30, 'max_output_bytes': 1024 * 1024})
     except (AcceptanceError, OSError) as exc:
         raise AcceptanceError('audit source binding unavailable') from exc

@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import random
 import re
+from copy import deepcopy
 from datetime import datetime, timezone
 
 VERSION = '1.0'
@@ -26,6 +27,80 @@ PROFILES = {
 
 def number(value):
     return type(value) in (int, float) and math.isfinite(value) and value >= 0
+
+
+def expiry(value):
+    """Require an explicit timezone; never compare naive dates to the clock."""
+    try:
+        parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError('timezone required')
+        return parsed
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValueError('expiry must be an ISO datetime with a timezone') from exc
+
+
+def expired_exceptions(evidence):
+    """Revalidate exception history without recalculating any saved judgment."""
+    result = []
+    for finding in evidence.get('findings', []):
+        for index, exception in enumerate(finding.get('exceptions', [])):
+            if any(not exception.get(k) for k in ('owner', 'reason', 'evidence', 'expires_at')):
+                raise ValueError('exception missing owner/reason/compensating evidence/expiry')
+            if expiry(exception['expires_at']) <= datetime.now(timezone.utc):
+                result.append({**exception, 'finding': finding['id'], 'index': index})
+    return result
+
+
+def current_findings(findings, expired):
+    """A separate current view. Saved observations and reports stay immutable."""
+    result = deepcopy(findings)
+    affected = {e['finding'] for e in expired}
+    for finding in result:
+        if finding['id'] in affected:
+            finding['exception_current'] = False
+            if finding['state'] in ('meets', 'not_applicable'):
+                finding.update(state='unknown', reason='Compensating exception expired; revalidation required. ' + finding['reason'])
+    return result
+
+
+def recommendation_policy(row, refs):
+    """Structured assurance policy plus bounded text checks, not a semantic oracle."""
+    policy = row.get('execution_policy')
+    if policy is not None and policy != ('removed' if row['action'] == 'delete' else 'before_merge'):
+        raise ValueError('retained assurance must complete pre-merge; delete removes it completely')
+    prose = ' '.join(str(row.get(k, '')) for k in ('rationale', 'next_experiment', 'savings', 'proposal'))
+    normalized = re.sub(r'\beighty\b', '80', prose, flags=re.I)
+    normalized = re.sub(r'\btwenty\b', '20', normalized, flags=re.I)
+    percent = r'(?:%|per\s*cent)'
+    value_claim = re.search(r'80\s*/\s*20|80\s*' + percent + r'\s*(?:of\s+(?:the\s+)?)?(?:value|protection|safety)|'
+                            r'(?:value|protection|safety)[^.!?]*80\s*' + percent + r'|'
+                            r'most\s+of\s+(?:the\s+)?(?:value|protection|safety)[^.!?]*20\s*' + percent, normalized, re.I)
+    if value_claim or row.get('measurement'):
+        m = row.get('measurement', {})
+        scope_prose = re.sub(r'\bno\s+future\s+safety\s+claim\b', '', prose, flags=re.I)
+        measured = (m.get('scope') and m.get('evidence') and all(r in refs for r in m['evidence']) and
+                    type(m.get('detected')) is int and type(m.get('total')) is int and
+                    0 <= m['detected'] <= m['total'] and m['total'] > 0 and number(m.get('runtime_ratio')) and
+                    re.search(r'\b(?:measured|sampled|corpus)\b', prose, re.I) and
+                    not re.search(r'\b(?:future|universal|all)\s+(?:protection|safety|value)\b', scope_prose, re.I))
+        if measured and re.search(r'80\s*(?:' + percent + r'|/\s*20)', normalized, re.I):
+            measured = math.isclose(m['detected'] / m['total'], .8)
+        if measured and re.search(r'20\s*' + percent + r'|80\s*/\s*20|a\s+fifth', normalized, re.I):
+            measured = math.isclose(m['runtime_ratio'], .2)
+        if not measured:
+            raise ValueError('invented 80/20 protection claim')
+    # Match where checks will execute, not the product workload they protect.
+    # A nightly ledger batch and background-job retry contract are valid targets.
+    target = r'(?:suite|tests?|checks?|validation|e2e)'
+    destination = r'(?:nightly|weekly|cron|post[ -]merge|after\s+merge|background|optional\s+slow)'
+    if (re.search(r'\b(?:move|shift|relocate|offload|defer|schedule|make)\b[^.!?;]*\b' + target + r'\b[^.!?;]*\b' + destination, prose, re.I) or
+            re.search(r'\b(?:run|keep)\s+(?:(?:this|the|these|our|slow|expensive|e2e)\s+)*' + target +
+                      r'\s+(?:(?:only|exclusively)\s+)?(?:(?:in|on|as|to)\s+(?:(?:a|the)\s+)?)?' + destination, prose, re.I) or
+            re.search(r'\b(?:run|keep)\s+(?:in\s+(?:the\s+)?background|optional\s+slow\s+' + target + r')\b', prose, re.I) or
+            re.search(r'(?:^|[.!?;]\s*)(?:nightly|weekly|post[ -]merge|background|optional)\s+(?:slow\s+)?' + target + r'\b', prose, re.I) or
+            re.search(r'\bdefer[^.!?;]*suite\b', prose, re.I)):
+        raise ValueError('slow-suite deferral is not a removal recommendation')
 
 
 def percentile(values, p):
@@ -151,16 +226,7 @@ def recommendations(groups, refs, comparisons):
             raise ValueError('invalid assessment_state')
         if any(ref not in refs for ref in row['evidence']):
             raise ValueError('unknown recommendation evidence reference')
-        # These are not measurable universal targets. Nor can deferral satisfy
-        # removal of low-value checks from the pre-merge assurance set.
-        prose = ' '.join(str(row.get(k, '')) for k in ('rationale', 'next_experiment', 'savings', 'proposal'))
-        if re.search(r'80\s*/\s*20|80\s*(?:%|percent)\s*(?:of\s+(?:the\s+)?)?(?:value|protection|safety)|'
-                     r'(?:value|protection|safety)[^.!?]*80\s*(?:%|percent)', prose, re.I):
-            raise ValueError('invented 80/20 protection claim')
-        if re.search(r'\b(?:move|shift|relocate|run|defer|schedule|make|keep|offload)\b[^.!?]*\b(?:nightly|post.merge|background|optional slow)\b|'
-                     r'\b(?:nightly|post.merge|background|optional)\s+(?:slow\s+)?(?:suite|tests?|checks?|job)\b|'
-                     r'\bdefer[^.!?]*suite\b', prose, re.I):
-            raise ValueError('slow-suite deferral is not a removal recommendation')
+        recommendation_policy(row, refs)
         supported = row['assessment_state'] == 'supported'
         required = ('failure', 'consequence', 'boundary', 'oracle', 'distinct_protection',
                     'rationale', 'maintenance', 'owner')
@@ -202,8 +268,26 @@ def recommendations(groups, refs, comparisons):
                 costs = ('existing_seconds', 'candidate_seconds', 'existing_runner_minutes', 'candidate_runner_minutes')
                 if lost or unknown or not row['protection_retained'] or any(not number(comparison.get(k)) for k in costs):
                     row.update(assessment_state='needs_evidence', action=None,
+                               protection_issue='Replacement detection or cost is unsupported.',
+                               protection_issue_state='gap' if lost else 'unknown',
                                unresolved_claim='Candidate detection or cost remains unsupported. Lost/unknown cases: ' + ', '.join(sorted(set(lost + unknown))),
                                next_experiment='Repair the candidate and compare named protection, elapsed time and compute on the same corpus and environments again.')
+        if row['protection_lost']:
+            tradeoff = row.get('tradeoff', {})
+            if tradeoff and (tradeoff.get('state') not in ('accepted', 'unaccepted') or
+                             any(not tradeoff.get(k) for k in ('owner', 'reason', 'evidence')) or
+                             any(r not in refs for r in tradeoff['evidence'])):
+                raise ValueError('tradeoff requires state, owner, reason and known evidence')
+            accepted = tradeoff.get('state') == 'accepted'
+            # A directly inspected dead feature/tautology no longer represents
+            # material required protection. Other real losses need an explicit
+            # owner disposition; replacement must still pass its comparison.
+            obsolete = row['action'] == 'delete' and row.get('basis') in ('dead-feature', 'obvious-tautology')
+            if not row.get('protection_issue') and not accepted and not obsolete:
+                row.update(assessment_state='needs_evidence', action=None,
+                           protection_issue='Named protection loss has no accepted evidence-bound tradeoff.',
+                           unresolved_claim='Determine whether the named lost protection is still required.',
+                           next_experiment='Inspect the lost cases and obtain the responsible owner disposition before recommending removal.')
         rows.append(row)
     # Ranking is the coordinator's explicit priority, never a weighted safety score.
     return sorted(rows, key=lambda r: (r.get('priority', 999), r['id']))
@@ -233,8 +317,16 @@ def evidence_rejections(evidence, snapshot):
 
 def analyze(evidence, snapshot, stamp):
     findings = [base_finding(i, stamp, snapshot['head_sha']) for i in range(1, 13)]
+    authored = set()
     def setf(i, state, reason, refs=()):
-        findings[i - 1].update(state=state, reason=reason, evidence=list(refs))
+        finding = findings[i - 1]
+        observation = {'state': state, 'reason': reason, 'evidence': list(refs)}
+        finding.setdefault('guards', []).append(observation)
+        # A guard constrains a clean claim. It cannot erase an observed gap or
+        # upgrade an authored uncertainty just because a sample/identity is good.
+        if finding['state'] == 'gap' or (i in authored and finding['state'] == 'unknown' and state != 'gap'):
+            return
+        finding.update(observation)
     refs = {r['id']: r for r in evidence.get('references', [])}
     if len(refs) != len(evidence.get('references', [])):
         raise ValueError('duplicate evidence reference')
@@ -242,7 +334,7 @@ def analyze(evidence, snapshot, stamp):
     for ref in refs.values():
         if not ref.get('observed_at') or not ref.get('source'):
             raise ValueError('evidence references need date and source')
-        if ref.get('expires_at') and datetime.fromisoformat(ref['expires_at'].replace('Z', '+00:00')) <= datetime.now(timezone.utc):
+        if ref.get('expires_at') and expiry(ref['expires_at']) <= datetime.now(timezone.utc):
             unavailable.append(ref['id'])
         if ref.get('available') is False:
             unavailable.append(ref['id'])
@@ -251,7 +343,8 @@ def analyze(evidence, snapshot, stamp):
     tested = identity.get('tested_sha')
     rejected = evidence_rejections(evidence, snapshot)
     mixed = 'artifact_identity_mismatch' in rejected
-    valid = current and not mixed and not snapshot.get('limitations')
+    valid = current and not mixed
+    expired = expired_exceptions(evidence)
     limitations = list(snapshot.get('limitations', []))
     if not current:
         limitations.append('Input evidence is not bound to this source snapshot; all input conclusions are unavailable.')
@@ -262,6 +355,10 @@ def analyze(evidence, snapshot, stamp):
     usable_refs = {k: v for k, v in refs.items() if k not in unavailable}
     def supported(item):
         return not any(ref not in usable_refs for ref in item.get('evidence', []))
+    def source_supported(item):
+        paths = item.get('source_paths')
+        return not snapshot.get('limitations') or (isinstance(paths, list) and bool(paths) and
+            all(p in snapshot.get('files', {}) for p in paths))
     groups = evidence.get('groups', [])
     if len({g['id'] for g in groups}) != len(groups):
         raise ValueError('duplicate check group')
@@ -283,12 +380,27 @@ def analyze(evidence, snapshot, stamp):
         for exception in j.get('exceptions', []):
             if any(not exception.get(k) for k in ('owner', 'reason', 'evidence', 'expires_at')):
                 raise ValueError('exception missing owner/reason/compensating evidence/expiry')
+            if any(r not in refs for r in exception['evidence']):
+                raise ValueError('unknown exception evidence reference')
         if j.get('revision', snapshot['head_sha']) != snapshot['head_sha']:
             raise ValueError('finding revision differs from inspected snapshot')
-        if valid and supported(j) and all(supported(x) for x in j.get('exceptions', [])):
-            findings[i - 1].update(j)
+        if valid:
+            findings[i - 1].update(deepcopy(j))
             findings[i - 1]['dimension'] = DIMENSIONS[i - 1]
-    runs = [timing(r) for r in evidence.get('runs', []) if supported(r)] if valid else []
+            findings[i - 1]['observations'] = [deepcopy(j)]
+            authored.add(i)
+            if not supported(j) or not all(supported(x) for x in j.get('exceptions', [])):
+                findings[i - 1]['support_current'] = False
+                if j['state'] != 'gap':
+                    findings[i - 1].update(state='unknown', reason='Supporting evidence unavailable; historical observation retained. ' + j['reason'])
+    runs = []
+    for r in evidence.get('runs', []) if valid else []:
+        calculated = timing(r)
+        calculated.update(evidence=r.get('evidence', []), support_current=supported(r))
+        if not supported(r):
+            calculated['available_seconds'] = None
+            calculated['limitations'].append('Supporting diagnostics expired or unavailable; compact historical timing retained.')
+        runs.append(calculated)
     values = [r['available_seconds'] for r in runs if r['available_seconds'] is not None]
     observed = [r['observed_seconds'] for r in runs if number(r['observed_seconds'])]
     breaches = [r for r in runs if (r['available_seconds'] is not None and r['available_seconds'] > 600)
@@ -301,12 +413,13 @@ def analyze(evidence, snapshot, stamp):
                     'breaches': breaches, 'observed_breaches': observed_breaches,
                     'all_outcomes_retained': True}
     if breaches:
-        setf(2, 'gap', 'A retained dependency path exceeds 600 seconds. Optimize without weakening protection or deferring checks.')
+        setf(2, 'gap', 'A retained dependency path exceeds 600 seconds. Optimize without weakening protection or deferring checks.',
+             sorted({ref for r in breaches for ref in r['evidence']}))
     elif runs and len(values) == len(runs):
         setf(2, 'meets', 'All sampled capacity-adjusted estimates meet 600 seconds; these are estimates, not measured available-capacity runs.')
     elif findings[1]['state'] != 'gap':
         setf(2, 'unknown', 'Incomplete timing dependencies or ready/start metadata prevent a complete capacity-adjusted claim.')
-    attempts = [c for c in evidence.get('checks', []) if supported(c)] if valid else []
+    attempts = list(evidence.get('checks', [])) if valid else []
     keys = set()
     counts = dict(first_attempt_passes=0, retry_passes=0, failures=0, skipped=0,
                   quarantined=0, incomplete=0)
@@ -332,45 +445,49 @@ def analyze(evidence, snapshot, stamp):
     intermittent = []
     completed = []
     incomplete_attempt_history = []
+    def successful(c):
+        return (c.get('outcome') == 'pass' and c.get('report_complete') is True and
+                c.get('discovered', 0) > 0 and not c.get('quarantined') and not c.get('skipped_tests') and
+                all(t.get('outcome') == 'pass' for t in c.get('tests', [])))
     for key, cs in grouped.items():
         cs.sort(key=lambda c: c['attempt'])
         first, last = cs[0], cs[-1]
         complete_attempts = len(cs) == last['attempt'] and first['attempt'] == 1
         if not complete_attempts:
             incomplete_attempt_history.append(':'.join(key))
-        clean_tests = all(t.get('outcome') == 'pass' for t in last.get('tests', []))
-        if (last.get('outcome') == 'pass' and last.get('report_complete') is True and
-                last.get('discovered', 0) > 0 and not last.get('quarantined') and not last.get('skipped_tests') and
-                complete_attempts and clean_tests):
+        if successful(last) and complete_attempts and supported(last):
             completed.append(':'.join(key))
-        if any(c.get('outcome') == 'fail' for c in cs[:-1]) and last.get('outcome') == 'pass':
+        if any(not successful(c) for c in cs[:-1]) and successful(last):
             intermittent.append({'check': key[0], 'shard': key[1], 'attempts': cs,
-                                 'disposition': last.get('disposition', 'open')})
-        if first.get('outcome') == 'pass' and first['attempt'] == 1:
+                                 'disposition': last.get('disposition', 'open'),
+                                 'support_current': all(supported(c) for c in cs)})
+        if successful(first) and first['attempt'] == 1:
             counts['first_attempt_passes'] += 1
-        elif last.get('outcome') == 'pass':
+        elif successful(last):
             counts['retry_passes'] += 1
         for c in cs:
-            if c.get('outcome') == 'fail': counts['failures'] += 1
+            if not successful(c) and c.get('outcome') != 'skipped': counts['failures'] += 1
             if c.get('outcome') == 'skipped': counts['skipped'] += 1
             if c.get('quarantined'): counts['quarantined'] += 1
-            if c.get('outcome') not in ('pass', 'fail', 'skipped'): counts['incomplete'] += 1
+            if c.get('outcome') not in ('pass', 'fail', 'skipped') or (c.get('outcome') == 'pass' and not successful(c)):
+                counts['incomplete'] += 1
     def repaired(item):
         repair = item['attempts'][-1].get('repair_evidence', [])
         return (item['disposition'] == 'fixed' and isinstance(repair, list) and bool(repair) and
                 all(ref in usable_refs for ref in repair))
     open_failures = [x for x in intermittent if not repaired(x)]
-    if open_failures or any(c.get('outcome') == 'fail' for c in attempts):
-        setf(3, 'gap' if open_failures or any(cs[-1].get('outcome') == 'fail' for cs in grouped.values()) else 'unknown',
-             'Original failures and all attempts retained. Cause labels and retry success do not establish a repair.')
+    if open_failures or any(not successful(c) for c in attempts):
+        setf(3, 'gap' if open_failures or any(not successful(cs[-1]) for cs in grouped.values()) else 'unknown',
+             'Original failures and all attempts retained. Cause labels and retry success do not establish a repair.',
+             sorted({ref for c in attempts if not successful(c) for ref in c.get('evidence', [])}))
     elif attempts:
-        setf(3, 'unknown', 'No failure in this sample establishes neither zero nondeterminism nor complete history.')
+        setf(3, 'unknown', 'A passing sample does not establish zero nondeterminism or complete history.')
     expected = evidence.get('expected_checks')
     collected = sorted(':'.join(k) for k in grouped)
     missing = sorted(set(expected or []) - set(completed))
     if expected is not None and (not isinstance(expected, list) or len(expected) != len(set(expected))):
         raise ValueError('expected check identities must be a unique list')
-    integrity_gap = expected == [] or bool(missing) or bool(incomplete_attempt_history) or bool(expected is not None and set(collected) - set(expected)) or any(
+    integrity_gap = bool(open_failures) or expected == [] or bool(missing) or bool(incomplete_attempt_history) or bool(expected is not None and set(collected) - set(expected)) or any(
         c.get('discovered', 0) == 0 or c.get('outcome') != 'pass' or c.get('quarantined') or
         c.get('skipped_tests', 0) or not c.get('report_complete') or
         any(t.get('outcome') != 'pass' for t in c.get('tests', [])) for c in [cs[-1] for cs in grouped.values()])
@@ -393,6 +510,8 @@ def analyze(evidence, snapshot, stamp):
         verdict = 'complete'
     elif findings[11]['state'] != 'gap':
         setf(12, 'unknown', 'Current complete assurance-set discovery and all retained shard outcomes are required.')
+    if findings[11]['state'] == 'gap':
+        verdict = 'incomplete'
     coverage = evidence.get('coverage', {}) if valid else {}
     if coverage and not supported(coverage):
         coverage = {}
@@ -417,14 +536,19 @@ def analyze(evidence, snapshot, stamp):
     for row in recs:
         comparison = row.get('comparison', {})
         if ((row['assessment_state'] == 'supported' and row['id'] not in evidence.get('inspected_groups', []))
-                or not supported(row) or not supported(comparison)):
+                or not supported(row) or not supported(comparison) or not supported(row.get('tradeoff', {}))
+                or not source_supported(row) or not supported(row.get('measurement', {}))):
             row.update(assessment_state='needs_evidence', action=None,
                        unresolved_claim='Group not inspected or supporting evidence unavailable; detection claim requires revalidation.',
                        next_experiment='Inspect this group and collect current evidence for its named failure cases and independent oracle.')
-    lost = [r for r in recs if r['protection_lost']]
+            if row['protection_lost'] and row.get('tradeoff') and not supported(row['tradeoff']):
+                row['protection_issue'] = 'Named protection loss acceptance is unavailable; revalidation required.'
+    lost = [r for r in recs if r.get('protection_issue')]
     if lost:
         for i in (5, 10):
-            setf(i, 'gap', 'Proposed smaller suite loses or cannot establish named protection; replacement unsupported.')
+            setf(i, 'gap' if any(r.get('protection_issue_state', 'gap') == 'gap' for r in lost) else 'unknown',
+                 ' '.join(dict.fromkeys(r['protection_issue'] for r in lost)),
+                 sorted({ref for r in lost for ref in r['evidence']}))
             findings[i - 1]['comparison_evidence'] = lost
     history = {'run_window_days': 30, 'incident_window_days': 90, 'other_fix_limit': 10,
                'selection_rule': 'severe/repeated incidents and up to ten other recent fixes; inaccessible history stays unknown',
@@ -433,10 +557,17 @@ def analyze(evidence, snapshot, stamp):
         setf(6, 'unknown', 'No accessible incident/fix history. This is not evidence of no escaped bugs.')
     if not history.get('runs_complete'):
         limitations.append('Run/job/attempt history incomplete; no complete-history reliability or timing claim.')
+    limitations.extend('History collection error: ' + str(e) for e in history.get('errors', []))
     if snapshot['limitations']:
         limitations.append('Source inventory incomplete; affected conclusions require revalidation.')
         for f in findings:
-            if f['state'] == 'meets': f.update(state='unknown', reason='Incomplete inspected source inventory. ' + f['reason'])
+            if f['state'] in ('meets', 'not_applicable') and not source_supported(f):
+                f.update(state='unknown', reason='Incomplete inspected source inventory. ' + f['reason'])
+    findings = current_findings(findings, expired)
+    if expired:
+        limitations.append('Compensating exceptions expired: ' + ', '.join(sorted({e['finding'] for e in expired})))
+    if verdict == 'complete' and findings[11]['state'] != 'meets':
+        verdict = 'incomplete' if findings[11]['state'] == 'gap' else 'unknown'
     for f in findings:
         f['run_attempts'] = [{'run': r.get('id'), 'attempt': r.get('attempt')} for r in evidence.get('runs', [])]
     affected = {x['check'] for x in intermittent}
@@ -445,9 +576,14 @@ def analyze(evidence, snapshot, stamp):
     sampling['omitted'] = sorted(set(sampling['selected']) - set(sampling['inspected']))
     if sampling['omitted']:
         limitations.append('Selected test-value sample not inspected: ' + ', '.join(sampling['omitted']))
+    support_items = [item for key in ('findings', 'runs', 'checks', 'groups', 'comparisons') for item in evidence.get(key, [])]
+    support_items.append(evidence.get('coverage', {}))
+    current_support = all(supported(item) and all(supported(x) for x in item.get('exceptions', [])) and
+                          all(supported(item.get(k, {})) for k in ('tradeoff', 'measurement', 'comparison'))
+                          for item in support_items)
     return {'findings': findings, 'timing': time_summary, 'recommendations': recs,
             'validation_verdict': verdict, 'counts': counts,
-            'count_units': 'unique check:shard first/retry passes; failure/skip/incomplete/quarantine attempts; quarantine is a subset',
+            'count_units': 'unique check:shard first/retry passes; unsuccessful non-skipped attempts are failures, including infrastructure/report/per-test failures; skip/incomplete/quarantine are overlapping attempt subsets',
             'per_test_attempts': [{**v, 'check': k[0][0], 'shard': k[0][1], 'test': k[0][2], 'attempt': k[1]}
                                   for k, v in per_test.items()],
             'intermittent': intermittent, 'expected_checks': expected, 'collected_checks': collected,
@@ -455,4 +591,7 @@ def analyze(evidence, snapshot, stamp):
             'completed_checks': sorted(completed), 'missing_checks': missing,
             'coverage': coverage, 'limitations': limitations,
             'sample': sampling,
-            'history': history, 'evidence_current': valid, 'evidence_rejections': rejected}
+            'history': history, 'expired_exceptions': expired,
+            'binding_consistent': valid,
+            'evidence_current': valid and not snapshot.get('limitations') and not expired and current_support,
+            'evidence_rejections': rejected}

@@ -231,7 +231,11 @@ class EvidenceTests(unittest.TestCase):
         data['runs'][0]['evidence'] = ['old']
         result = self.analyze(data, snap)
         self.assertIsNone(result['recommendations'][0]['action'])
-        self.assertEqual(result['timing']['runs'], [])
+        # Expiry removes diagnostic support, not the compact observation. It
+        # cannot turn a surviving fast subset into a clean timing result.
+        self.assertEqual(len(result['timing']['runs']), 1)
+        self.assertFalse(result['timing']['runs'][0]['support_current'])
+        self.assertIsNone(result['timing']['runs'][0]['available_seconds'])
 
     def test_all_uninspected_supported_actions_become_unresolved(self):
         for action in ('keep', 'simplify', 'delete', 'replace'):
@@ -364,7 +368,8 @@ class EvidenceTests(unittest.TestCase):
         snap['limitations'] = ['Source inventory file/time/32MiB budget exhausted.']
         result = self.analyze(data, snap)
         self.assertFalse(result['evidence_current'])
-        self.assertEqual(result['recommendations'], [])
+        self.assertEqual(result['recommendations'][0]['assessment_state'], 'needs_evidence')
+        self.assertIsNone(result['recommendations'][0]['action'])
         self.assertFalse(any(f['state'] == 'meets' for f in result['findings']))
 
     def test_missing_timing_and_assurance_set_override_authored_clean_claims(self):
