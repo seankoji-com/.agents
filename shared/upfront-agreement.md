@@ -31,17 +31,25 @@ rounds, one decision at a time. It performs no investigation.
 Show one concise agreement: observable target; repository/base and bounded paths;
 destinations and documented procedures; exact work/review roles, options and finite
 ordered replacement chains; sharing and action authority sources; checks, external
-approvals and finite repair/launch/cost limits. Recommend suitable preferred models
+approvals and finite repair/launch limits. Recommend suitable preferred models
 from the complete live catalog, searching custom names when necessary. The
 `selection recommend` action resolves supplied preference labels against live
 identities and sourced suitability profiles, returning missing/ambiguous names and
 role gaps. Neither names nor price prove quality. Never change coordinator settings.
 
+Do not ask for a monetary budget merely to admit or continue a workflow. Model
+selection does not establish a new charge. Omit `max_cost` unless the owner supplied
+a cost limit; never invent a dollar estimate or insert a zero placeholder. Retain
+any supplied limit as agreement data. These helpers do not meter model spend or
+enforce a billing cap. Babysitter's scan `--max-cost` separately bounds GitHub API
+rate-limit points, never dollars.
+
 Freeze the agreement with `freeze` input `{data, selection}` before freezing the
 model selection. `data` has `invocation_id`, `scope_id`, `operations`, `inspected`,
 `scope:{repository,base,paths}`, `target:{label}`, `destinations`,
 `verification:{local_checks,ci_checks,review_required}`,
-`limits:{max_repair_cycles,max_launch_retries,max_cost}`, `authority` grants with
+`limits:{max_repair_cycles,max_launch_retries}` with optional owner-supplied
+`max_cost`, `authority` grants with
 `actions` and actual quoted `source`, `external_gates`, and
 `model_contract_sha256` from the displayed chains/options/sharing. Sources use the
 existing model-selection answer/reference/hash contract. Put the result in the

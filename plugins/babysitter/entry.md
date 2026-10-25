@@ -116,7 +116,8 @@ Never bypass the supported workflow.
 Ask new authority, material product choices or human-only blockers through the
 native question picker, recommended option first; record `job_cli.py decision`.
 Model choices/replacements follow the shared short rounds, retaining answers;
-maintenance authority does not select models. Fan-out, repair rounds, branch rewrites, and a
+maintenance authority does not select models. Do not ask for a dollar budget or
+invent a money gate. Scan cost limits are GitHub API points. Fan-out, repair rounds, branch rewrites, and a
 roster PR's tests/regressions/setup are decided: never ask, always yes.
 New matching PRs, moving heads and recoverable CI setup need no question.
 Exhaust authorized alternatives first; silence is not approval.
