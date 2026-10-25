@@ -184,7 +184,12 @@ def source_snapshot(desc, inputs, package):
     if desc['kind'] == 'initial-plan' and not desc.get('document') and desc.get('planning_review'):
         planning.current_file(desc['planning_review'])
         meta = strict_load(_regular(Path(desc['planning_review']['path'])))
-        desc['document'] = meta['snapshot']['imps_descriptor']['document']
+        frozen = meta['snapshot']['imps_descriptor']
+        desc['document'] = frozen['document']
+        # Native gate initialization reconstructs the plan from reviewed metadata.
+        # Whole-job plan bodies also bind their authored job contract there.
+        if 'job_contract' in frozen:
+            desc.setdefault('job_contract', deepcopy(frozen['job_contract']))
     admission = desc['admission']; continuation(admission, invocation_id=admission['invocation_id'])
     kind = desc['kind']; descriptor(admission, kind)
     planning.current_file(desc['document'])
