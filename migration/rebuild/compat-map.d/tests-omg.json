@@ -86,6 +86,31 @@
             "survives": true
           }
         ]
+      },
+      {
+        "disposition": "keep",
+        "stage": 5,
+        "reason": "Preserve late evidence regressions for finding provenance, retry history, source identity, snapshot limits and exact saved-report acceptance.",
+        "path": "tests/test_tests_omg_late.py",
+        "assertions": [
+          {
+            "selector": "test_tests_omg_late.LateEvidenceTests",
+            "coverage": [
+              "REQ-EVIDENCE",
+              "REQ-BOUNDARIES"
+            ],
+            "survives": true
+          },
+          {
+            "selector": "test_tests_omg_late.LateCommandTests",
+            "coverage": [
+              "REQ-EVIDENCE",
+              "REQ-BOUNDARIES",
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
       }
     ],
     "persisted_formats": [
@@ -163,6 +188,12 @@
       "stage": 6,
       "kind": "test",
       "reason": "Issue #95 advisory tests-omg workflow; no remote actions or model runtime."
+    },
+    {
+      "path": "tests/test_tests_omg_late.py",
+      "stage": 6,
+      "kind": "test",
+      "reason": "Late evidence regressions preserve adverse observations and verify source isolation, bounded snapshots, expiry and relocated saved-report acceptance."
     },
     {
       "path": "plugins/tests-omg/agents/reviewer.md",
