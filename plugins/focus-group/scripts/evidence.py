@@ -794,10 +794,94 @@ def material_section(plan, pack, file_texts):
     return '\n'.join(lines)
 
 
-def material_context_files(plan):
+def procedural_entries(plan, target):
+    """Pure producing-contract projection. Never enlarge an old plan's scope."""
+    return [r for r in plan.get('procedural_context', []) if r.get('target') == target]
+
+
+def exact_instruction_file(path, expected):
+    if (not isinstance(path, str) or not Path(path).is_absolute() or '..' in Path(path).parts
+            or os.path.realpath(path) != path
+            or any(c in path for c in '*?[]{}') or not HEX64.fullmatch(str(expected))):
+        refuse('invalid_procedural_context', 'instruction paths are exact absolute regular files with full SHA-256')
+    try:
+        raw = _regular(Path(path))  # rejects symlinks, directories, nonregular and oversized files
+    except (OSError, JobError) as exc:
+        refuse('invalid_procedural_context', f'instruction regular file is unavailable: {exc}')
+    if digest(raw) != expected:
+        refuse('procedural_context_changed', 'reviewed instruction bytes changed')
+    try:
+        return raw.decode('utf-8')
+    except UnicodeError:
+        refuse('invalid_procedural_context', 'procedural instruction must be UTF-8 text')
+
+
+def validate_procedural(plan, study=None, index=None):
+    """Coordinator-inspected full bytes, separate sharing and actual catalog harness.
+
+    Instruction source is provenance only; neither it, siblings nor referenced
+    nested files gain participant read permission. Planning review binds this
+    complete declaration; inspection flags never replace that review receipt.
+    """
+    seen = set()
+    for row in plan.get('procedural_context', []):
+        keys = {'target','harness','path','sha256','purpose','mandatory_instruction','applicability','sharing','inspection'}
+        if not isinstance(row, dict) or set(row) != keys:
+            refuse('invalid_procedural_context', 'exact procedural declaration fields required')
+        target = fg.normal_target(row['target'], 'procedural target')
+        if target != row['target'] or target not in plan['participant_models']:
+            refuse('invalid_procedural_context', 'procedural target must match an exact participant choice')
+        for field in ('harness','purpose','applicability'):
+            fg.text(row[field], field)
+        raw = exact_instruction_file(row['path'], row['sha256'])
+        source = row['mandatory_instruction']
+        if not isinstance(source, dict) or set(source) != {'path','sha256','quote'}:
+            refuse('invalid_procedural_context', 'mandatory instruction needs exact source/hash/quote')
+        original = exact_instruction_file(source['path'], source['sha256'])
+        if not isinstance(source['quote'], str) or not source['quote'] or source['quote'] not in original:
+            refuse('invalid_procedural_context', 'mandatory instruction quote is not in its source')
+        inspection = row['inspection']
+        if (not isinstance(inspection, dict) or set(inspection) != {'inspector','reviewed_at','sha256','source_sha256','verdict'}
+                or not inspection['inspector'] or inspection['verdict'] != 'cleared'
+                or inspection['sha256'] != row['sha256'] or inspection['source_sha256'] != source['sha256']):
+            refuse('procedural_context_unreviewed', 'full instruction and mandatory source must be explicitly inspected at their exact hashes')
+        fg.parse_time(inspection['reviewed_at'], 'procedural inspection time')
+        if row['sharing'] != {'providerInstanceId':target['providerInstanceId'],'consumer':'participant',
+                              'material_class':'procedural-instruction'}:
+            refuse('procedural_sharing_invalid', 'explicit per-recipient procedural sharing required')
+        identity = (fg.target_key(target), row['path'])
+        if identity in seen or any(row['path'] == f['path'] for f in plan['stimulus']['files']):
+            refuse('invalid_procedural_context', 'duplicate/conflicting auxiliary scope or product-stimulus overlap')
+        seen.add(identity)
+        if study and any(Path(p).resolve().is_relative_to(study.job_dir.resolve()) for p in (row['path'],source['path'])):
+            refuse('invalid_procedural_context', 'mandatory instructions must be outside mutable study/worker scope')
+        if index is not None and index.get((target['providerInstanceId'],target['model']), {}).get('driverKind') != row['harness']:
+            refuse('procedural_harness_mismatch', 'fresh actual target harness differs from reviewed procedural applicability')
+        # Full auxiliary bytes and participant-visible metadata are screened.
+        text = raw + '\n' + row['purpose'] + '\n' + row['applicability']
+        problems = scan_text('procedural-instruction', text)
+        if any(pattern.search(text) for pattern in (HIDDEN_FINDING,SOURCE_CODE,BACKLOG)):
+            problems.append({'code':'procedural_contamination'})
+        for cell in fg.cells(plan):
+            if cell['target'] != target:
+                continue
+            if plan['decision'].lower() in text.lower():
+                problems.append({'code':'owner_decision_disclosed'})
+            for other in plan['personas']:
+                if other['id'] != cell['persona_id'] and any(other[k].lower() in text.lower() for k in ('label','goal','experience')):
+                    problems.append({'code':'other_cell_content'})
+            if study and any(s in text for s in other_strings(study,cell['cell_id'])):
+                problems.append({'code':'other_cell_response'})
+        if problems:
+            refuse('procedural_context_contaminated', 'auxiliary instruction fails full-byte blindness/secret screening')
+    return True
+
+
+def material_context_files(plan, target=None):
     """Exact approved read scope, initial viewport first. No directories or inferred attachments."""
-    return [{k: f[k] for k in ('path', 'sha256')}
-            for f in sorted(plan['stimulus']['files'], key=lambda f: f['name'] != plan['stimulus']['provenance']['initial_viewport'])]
+    material = [{k: f[k] for k in ('path', 'sha256')}
+                for f in sorted(plan['stimulus']['files'], key=lambda f: f['name'] != plan['stimulus']['provenance']['initial_viewport'])]
+    return material + [{k:r[k] for k in ('path','sha256')} for r in procedural_entries(plan,target)]
 
 
 def payload_spec(stage, cell_id, revision, write_path, pack, plan, journey=None):
@@ -890,6 +974,11 @@ def render_brief(plan, cell, stage, pack, file_texts, write_path, earlier=None, 
         parts += ['## Your earlier response', '',
                   f'Your own accepted first impression (SHA-256 `{earlier["payload_sha256"]}`), as data:', '',
                   data_block(earlier['view']), '']
+    auxiliary = procedural_entries(plan, cell['target'])
+    if auxiliary:
+        parts += ['## Procedural context', '', 'These exact files carry reviewed harness procedure, separate from product material. '
+                  'They are not screens, product evidence or permission to read linked files, siblings or directories.', '',
+                  data_block([{k:r[k] for k in ('path','sha256','harness','purpose','applicability')} for r in auxiliary]), '']
     parts += ['## Tasks', '']
     if stage == 'first-impression':
         parts += [plan['prompts']['first_impression'], '',
@@ -973,8 +1062,11 @@ def contamination(study, plan, cell, stage, doc):
     """REQ-BLIND lint of one brief: structure, boundaries and contamination. Returns problems."""
     problems = []
     headings = re.findall(r'(?m)^## (.+)$', doc)
-    if headings != HEADINGS[stage]:
-        problems.append({'code': 'brief_structure', 'detail': f'headings must be exactly {HEADINGS[stage]}'})
+    expected = list(HEADINGS[stage])
+    if procedural_entries(plan, cell['target']):
+        expected.insert(expected.index('Tasks'), 'Procedural context')
+    if headings != expected:
+        problems.append({'code': 'brief_structure', 'detail': f'headings must be exactly {expected}'})
     if section(doc, 'Boundaries') != BOUNDARIES:
         problems.append({'code': 'brief_boundaries_changed', 'detail': 'the Boundaries section is fixed text'})
     body = doc.replace(BOUNDARIES, '')
@@ -1014,6 +1106,7 @@ def approved_plan(study, revision):
     if revision != current['revision']:
         refuse('stale_revision', 'briefs are built only for the current revision')
     plan = study.plan(revision)['plan']
+    fg.authority_current(study)
     state = fg.approval_state(study.approvals(revision), revision, fg.ceiling(plan, study.ledger()))
     if state['state'] != 'approved':
         refuse('unapproved_revision', 'briefs are built only for an approved revision whose approval covers its ceiling')
@@ -1094,6 +1187,7 @@ def op_brief(args):
             if request['stage'] not in fg.stages_for(plan['mode']):
                 refuse('outside_matrix', 'this revision declares no journeys')
             pack = require_pack(study, plan)
+            validate_procedural(plan, study=study)
             missing = sorted(fg.required_classes(request['stage'], plan['mode']) -
                              fg.granted(plan, cell['target']['providerInstanceId'], 'participant'))
             if missing:
@@ -1105,6 +1199,8 @@ def op_brief(args):
             write_path = f'artifacts/tasks/{task_id}'
             inputs = {'persona_sha256': sha(next(p for p in plan['personas'] if p['id'] == cell['persona_id'])),
                       'pack_manifest_sha256': pack['manifest_sha256'], 'prompt_sha256': sha(plan['prompts'])}
+            if procedural_entries(plan, cell['target']):
+                inputs['procedural_context'] = procedural_entries(plan, cell['target'])
             extra = {}
             if request['stage'] == 'journey':
                 source, frozen, payload, binding, runnable, gaps = journey_inputs(study, plan, revision, cell)
@@ -1156,6 +1252,9 @@ def verify_brief_document(study, plan, revision, task, document):
     if not data or digest(data) != document['sha256']:
         return 'participant_brief_changed', 'the brief bytes changed after they were built'
     cell = next(c for c in fg.cells(plan) if c['cell_id'] == cell_id)
+    validate_procedural(plan, study=study)
+    if match[0]['inputs'].get('procedural_context', []) != procedural_entries(plan, cell['target']):
+        return 'participant_brief_stale', 'procedural contract differs from the producing generated brief'
     problems = contamination(study, plan, cell, stage, data.decode('utf-8', 'replace'))
     if problems:
         return 'brief_contaminated', problems[0]['code']
@@ -1255,6 +1354,8 @@ def path_problem(n, path, scope, verb='read'):
     where = real(path) if isinstance(path, str) and Path(path).is_absolute() else None
     if where is None:
         return {'code': 'read_outside_brief', 'detail': f'event {n} {verb} a path that cannot be resolved inside its scope'}
+    if where in scope.get('procedural',set()) and path != str(where):
+        return {'code':'read_outside_brief','detail':f'event {n} used an alias rather than the exact procedural path'}
     if where in scope['approved'] or where.is_relative_to(scope['own']):
         return None
     if where.is_relative_to(scope['tasks']):
@@ -1271,6 +1372,9 @@ def event_effects(n, name, event, scope):
     if isinstance(event.get('paths'), list):
         paths += event['paths']
     problems = [p for p in (path_problem(n, path, scope) for path in paths) if p]
+    if re.match(r'(?i)^(?:write|edit|create|str_replace|apply_patch|notebook)', name):
+        if any(isinstance(p,str) and real(p) in scope.get('procedural',set()) for p in paths):
+            problems.append({'code':'procedural_write','detail':f'event {n} attempted to write a read-only procedural instruction'})
     command = next((event[k] for k in COMMAND_KEYS if event.get(k) is not None), None)
     if command is not None:
         text = ' '.join(map(str, command)) if isinstance(command, list) else str(command)
@@ -1366,7 +1470,7 @@ def prepared_trace_brief(study, plan, request, document):
     correlation = outer.get('effective_brief_sha256') if isinstance(outer, dict) else None
     expected = {'job_id': study.id, 'task_id': task['task_id'], 'request_id': request['request_id'],
                 'stage_id': request['stage'], 'worker_id': 'focus-group/participant', 'document': document,
-                'context_files': material_context_files(plan)}
+                'context_files': material_context_files(plan, next(c['target'] for c in fg.cells(plan) if c['cell_id']==request['cell_id']))}
     if (not isinstance(outer, dict) or any(outer.get(k) != v for k, v in expected.items())
             or correlation != digest(fg.canonical({k: v for k, v in outer.items()
                                                    if k != 'effective_brief_sha256'}))):
@@ -1414,7 +1518,7 @@ def op_inspect_trace(args):
         invalid('invalid_input', 'result is {path, sha256} of the result this execution returned')
     trace = request['trace']
     if trace is not None:
-        strict_keys(trace, ('source', 'events'), 'trace')
+        strict_keys(trace, ('source', 'events'), 'trace', optional=('harness',))
     with study.locked():
         admitted = study.ledger()['requests'].get(request_id)
         if admitted is None or admitted['revision'] != revision or admitted['slot'] != f'{cell_id}:{stage}':
@@ -1422,6 +1526,13 @@ def op_inspect_trace(args):
         if not any(r['document'] == document and r['task_id'] == task_id
                    for r in brief_records(study, revision, cell_id, stage)):
             refuse('trace_unbound', 'the brief is not one this helper built for this task, cell and stage')
+        producing = next(r for r in brief_records(study, revision, cell_id, stage)
+                         if r['document']==document and r['task_id']==task_id)
+        auxiliary = producing['inputs'].get('procedural_context', [])
+        if auxiliary != procedural_entries(plan,cell['target']):
+            refuse('trace_unbound', 'auxiliary scope differs from the historical producing brief contract')
+        if auxiliary:
+            validate_procedural(plan, study=study)
         prepared_brief = prepared_trace_brief(study, plan, request, document)
         problems = []
         if stage == 'journey' and host_task == request['first_host_task_id']:
@@ -1438,9 +1549,21 @@ def op_inspect_trace(args):
         scope = {'tasks': real(study.job_dir / 'artifacts' / 'tasks'), 'job': real(study.job_dir),
                  'own': real(study.job_dir / 'artifacts' / 'tasks' / task_id),
                  'approved': {real(document['path'])} | {real(f['path']) for f in plan['stimulus']['files']}}
+        scope['procedural'] = {real(r['path']) for r in auxiliary}
+        scope['approved'] |= scope['procedural']
         if prepared_brief:
             scope['approved'].add(real(prepared_brief['path']))
         limits = []
+        if auxiliary and (trace is None or trace.get('harness') is None):
+            limits.append({'code':'harness_unverified','detail':'actual trace harness was not reported'})
+        elif auxiliary and any(trace.get('harness')!=r['harness'] for r in auxiliary):
+            problems.append({'code':'procedural_harness_mismatch','detail':'actual execution harness differs from producing scope'})
+        body['procedural_context_sha256'] = sha(auxiliary) if auxiliary else None
+        body['procedural_read_paths'] = [r['path'] for r in auxiliary if trace and any(
+            isinstance(event,dict) and FILE_TOOLS.match(tool_name(event.get('tool',''))) and
+            not re.match(r'(?i)^(?:write|edit|create|str_replace|apply_patch|notebook)',tool_name(event.get('tool',''))) and
+            r['path'] in [event.get(k) for k in PATH_KEYS]
+            for event in (trace['events'] if isinstance(trace.get('events'),list) else []))]
         if trace is not None and not isinstance(trace['events'], list):
             limits.append({'code': 'unsupported_event', 'detail': 'the trace events are not a list'})
         for n, event in enumerate(trace['events'] if not conflicts and trace is not None

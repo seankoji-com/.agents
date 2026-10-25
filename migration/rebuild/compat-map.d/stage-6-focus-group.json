@@ -72,6 +72,11 @@
     ]
   },
   "added": [
+    {"path": "plugins/focus-group/scripts/authority.py", "stage": 6, "kind": "helper", "reason": "Stage1 bounded owner delegation and exact candidate guard, registered during required installed compatibility integration."},
+    {"path": "tests/test_focus_group_authority.py", "stage": 6, "kind": "test", "reason": "Retained Stage1 authority, generic commit boundary and lock-order regression controls, registered for required compatibility coverage."},
+    {"path": "tests/test_focus_group_install_authority.py", "stage": 6, "kind": "test", "reason": "Installed relocated exact procedural context and existing-direct-job delegated enablement, synthetic owners and audited runtime imports only."},
+    {"path": "tests/test_focus_group_install_recovery.py", "stage": 6, "kind": "test", "reason": "Installed owner-bound package upgrade and full capture-only carry with twelve cells, four records, sixteen retained charges and guarded final acceptance; offline fixtures only."},
+    {"path": "tests/test_focus_group_procedural_context.py", "stage": 6, "kind": "test", "reason": "Exact per-target procedural scope, pre-charge refusals, producing-contract traces and unchanged carry; offline synthetic fixtures only."},
     {"path": "plugins/focus-group/entry.md", "stage": 6, "kind": "plugin-entry", "reason": "focus-group routing entry (issue #75, FG-1)."},
     {"path": "plugins/focus-group/playbooks/plan.md", "stage": 6, "kind": "playbook", "reason": "Study planning, panel editing and per-revision approval."},
     {"path": "plugins/focus-group/playbooks/run.md", "stage": 6, "kind": "playbook", "reason": "Admission-gated run, resume and cancel procedure."},

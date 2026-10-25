@@ -513,6 +513,7 @@ def op_analysis_inputs(args):
         invalid('job_missing', 'create the job first')
     if lifecycle.job_revision_problem(job, revision):
         refuse('job_revision_stale', 'the job prepares an earlier study revision; run lifecycle.py job-revision first')
+    fg.authority_current(study, fg.stamp(now))
     approval = fg.approval_state(study.approvals(revision), revision, fg.ceiling(plan, study.ledger()))
     if approval['state'] != 'approved':
         refuse('unapproved_revision', 'analysis inputs are frozen only under an approval in force for this revision')
@@ -2008,6 +2009,10 @@ def validate_observation(path):
         problems.append({'code': 'revision_stale', 'detail': 'the observation, stage or study names another revision'})
     if any(observation.get(k) != v for k, v in contract.items()):
         problems.append({'code': 'contract_mismatch', 'detail': 'the observation differs from the declared stage contract'})
+    try:
+        fg.authority_current(study)
+    except fg.StudyError as exc:
+        problems.append({'code': exc.code, 'detail': str(exc)})
     approval = fg.approval_state(study.approvals(revision), revision, fg.ceiling(plan, study.ledger()))
     if approval['state'] != 'approved':
         problems.append({'code': 'unapproved_revision'})

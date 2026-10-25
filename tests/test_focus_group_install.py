@@ -404,8 +404,9 @@ class ArchitectureTest(unittest.TestCase):
         for forbidden in ('playwright', 'selenium', 'puppeteer', 'chromedriver', 'node_modules', 'anthropic', 'openai',
                           'requirements.txt', 'package.json'):
             self.assertFalse(any(forbidden in n for n in names), forbidden)
-        self.assertEqual(sorted(p.suffix for p in (self.package / 'scripts').iterdir() if p.is_file()),
-                         ['.py'] * 6)
+        self.assertEqual(sorted(p.name for p in (self.package / 'scripts').iterdir() if p.is_file()),
+                         ['authority.py', 'evidence.py', 'lifecycle.py', 'plan_review.py',
+                          'report.py', 'study.py', 'validate_study.py'])
 
 
 

@@ -78,7 +78,103 @@ example after work charged under another revision, the approval is `insufficient
 `run`, `resume` and `admit` refuse until the owner approves an amendment that names
 the new ceiling. Earlier records and charged counters are never changed.
 
+### Explicit bounded delegation
+
+`python3 PKG/scripts/authority.py grant|status|revoke|approve-delegated|revision-inputs
+--state-root ROOT --study ID [--input FILE]` provides a separate explicit route.
+It never interprets contextual prose as a literal per-revision approval.
+Only a genuinely owner-authorized coordinator records a grant. Keep the complete
+owner context, verbatim granting quote, message reference, and exact external
+source/native-observation descriptors (`path`, `sha256`, `bytes`). Native message
+IDs and creationSource must occur in that observation. These are retained host
+provenance under the existing source trust boundary, not human authentication by
+hash or cryptography.
+
+The grant input names `id`, `owner` (`id`, `message_ref`, `context`, `quote`,
+`source`, `native_observation`, `native_messages`), `delegate` (`id`, exact generic
+`caller`), `package` (dependency_key, installation_id, package_digest, bundle_digest),
+`review` (exact owner-selected independent target/options/runtimeMode), `expires_at`
+and `constraints` (max_tasks, max_concurrency, max_attempts_per_slot,
+max_repair_cycles, deadline, modes and product_writes:false). The recorded grant
+freezes panel, sharing, material and protocol; only its explicitly permitted mode
+and bounded limits may vary. No model is hardcoded. Grant and revocation chains in
+`authority/grants/` and `authority/revocations/` are append-only. Status retains all
+history, including revoked authority.
+
+`approve-delegated` takes revision, grant_id and exact delegate. It requires the
+real accepted independent planning receipt with observed identity/options and
+current scope. It appends a visibly derived approval retaining full original owner
+provenance, grant and receipt references. `revision-inputs` takes revision, kind and
+new_plan; it freezes an exact candidate/generation proof and returns generic
+decision and plan-revision inputs. The decision source under
+`ROOT/delegated-decisions/<study>/` is explicitly derived. Never substitute it for
+the native owner's answer. Apply only through the existing public decision and
+guarded plan-revision route. It records no generic job mutation itself.
+Owner `amendments` retain each later genuine source/context/quote, including a
+changed reviewer choice. Grant `review_source` names that exact original or amended
+source; every amendment is reopened at use. No later source retrospectively relabels
+old reviews. If charges under another revision raise this revision's ceiling, a
+fresh bounded delegated amendment is required before applying or executing it.
+
+The pinned adapter requires the typed authorization marker and all four generic
+transaction guard operations; stripping either fails closed. Application checks
+the original canonical candidate, actual normalized authored fields, current job
+generation, study revision, package/adoption identity, native source, grant,
+revocation, accepted review, charge/attempt/concurrency bounds and expiry under
+job.lock then study.lock, holding both through persistence. Direct approvals keep
+their exact literal grammar. A genuine new direct approval can replace delegated
+mode through the guarded route; the guard policy remains enabled.
+
+Adopt a supported reviewed package while the job is still direct/unmarked, before
+enabling delegation. Afterwards unguarded upgrade-package refuses before adoption,
+backup or registry changes. Later recovery revisions use guarded job_cli. A future
+guarded upgrade needs separate reviewed scope. Preparation/admission and acceptance
+recheck live authority; revoke during a final validator prevents accepted success.
+No local lock can atomically bind a remote host launch: the coordinator rechecks
+immediately before dispatch and retains/reconciles any already accepted or uncertain
+execution and its charges. Raw ingestion, cancellation and reconciliation remain
+usable after revocation.
+
 ## Pre-dispatch observation
+
+### Exact procedural context
+
+The optional plan field `procedural_context` is a list of exact per-participant
+target declarations. Each entry has `target` (full provider/model/options/runtime
+choice), `harness` (the actual catalog driverKind), absolute regular-file `path`,
+full `sha256`, `purpose`, `mandatory_instruction` (`path`, full `sha256`, verbatim
+`quote`), `applicability`, `sharing` and `inspection`. Sharing is exactly the target
+provider, consumer `participant`, material_class `procedural-instruction`.
+Inspection records `inspector`, UTC `reviewed_at`, the full instruction `sha256`,
+mandatory `source_sha256` and verdict `cleared`. These are explicit coordinator
+observations of the complete bytes; the existing independent planning receipt
+must also cover the declaration and both exact review paths. The plan-review CLI
+adds those paths to its explicit evidence index. Callers of the shared prepare
+API must supply them explicitly; missing review paths block readiness.
+
+No procedural text is added to product stimulus. Full instruction bytes and
+participant-visible purpose/applicability are screened for secrets, other personas
+or responses, preferred findings, code and backlog. The mandatory source is
+provenance, not a participant read grant. No glob, directory, symlink, traversal,
+sibling or nested-reference permission is created. Missing, changed, unreviewed,
+conflicting, contaminated or harness-mismatched input fails before an admission
+charge or catalog ledger update. The fresh actual target catalog must still name
+the declared harness. Exact sharing and applicability are part of plan approval.
+
+Only matching cells include `procedural_context_sha256` in their input/attempt
+bindings. Cells without applicable entries retain their previous binding shape
+and normal carry eligibility. The generated document has a separate Procedural
+context section; its immutable metadata and outer `context_files` bind just that
+target's auxiliary path/hash list after the normal product files. The product
+viewport and report-stimulus inputs stay unchanged.
+
+Trace inspection uses the execution's historical plan, generated metadata and
+immutable outer scope. Exact auxiliary reads are classified separately as
+procedural reads; writes and broader paths are refused. For procedural execution
+the coordinator reports the actual `trace.harness`; a mismatch contaminates and
+an absent observation leaves compliance unverified. Shell opacity, missing traces
+and image-delivery uncertainty retain their existing meanings. Later clean traces
+or expanded scope never clear historical contamination or refund old charges.
 
 `check-run`, `admit` and `job-spec` require `--capabilities` with a fresh host
 observation:
