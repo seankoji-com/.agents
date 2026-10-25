@@ -7,7 +7,7 @@ Public admission: `PKG/scripts/plan_review.py`; contract: `PKG/shared/adopter-pl
 criteria: `PKG/references/adopter-review-rubric.md`.
 Read `PKG/shared/learnings.md` and load lessons.
 
-Each PR ends merged or as a named `needs human:` blocker.
+Each PR ends merged or as a `needs human:` blocker.
 Read `PKG/shared/t3-runtime.md`.
 Multi-PR and repair work follows `PKG/shared/job-coordination.md`; delegation follows
 `PKG/shared/delegation.md`. Load the operation.
@@ -54,7 +54,7 @@ is observed.
 ## Auto-merge posture
 
 Default through-merge requests to **enable auto-merge on all PRs**, without a
-question. Honor explicit **leave auto-merge as set** or **ignore PRs with auto-merge**.
+question or picker. Honor explicit **leave auto-merge as set** or **ignore PRs with auto-merge**.
 Record with `job_cli.py decision`, citing the original request and this default;
 never invent a picker answer. Inspect-only runs arm nothing.
 An armed request never withholds a fixer

@@ -12,7 +12,8 @@ use event-only without scheduler authority.
 1. Apply the entry's auto-merge default or explicit override without a question;
    record it with `job_cli.py decision`; under **ignore**, exclude PRs with an
    armed request. Inspect the roster with
-   `bash PKG/scripts/list-prs.sh --all-authors --repo <owner/name>` / `--org <owner>`.
+   `bash PKG/scripts/list-prs.sh --all-authors --repo <owner/name>`;
+   org mode uses `org_scan.py` per `PKG/references/org-scan.md`.
    Warnings: a partial page is not the whole roster. Follow
    `PKG/references/scope.md`: include all authors and bots; exclude drafts and forks
    unless included by the operator. Run the sibling-work check in
@@ -119,5 +120,3 @@ use event-only without scheduler authority.
     validate-final` per job with fresh observations, unwatch PRs, confirm every child
     stopped through `task_status`, and remove only clean, task-owned worktrees. Post the
     table. Do not run `pr-events.sh` in T3.
-
-Written strategies require `PKG/shared/adopter-planning.md`.

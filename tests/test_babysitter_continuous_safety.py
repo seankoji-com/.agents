@@ -17,9 +17,15 @@ from tests.test_babysitter_continuous import (
     ContinuousCase, FakeHost, H1, H2, HELPER, observation, pr, continuous_sweep,
 )
 from tests.test_rebuild_installed import Sandbox, tree_digest, worker_result
+from tests.module_partition import partition
 
 URL = 'https://github.com/fixture/widgets/pull/12'
 NOW = '2026-10-22T14:05:00Z'
+
+
+def load_tests(loader, tests, pattern):
+    # Keep the original classes importable; complementary modules collect the rest.
+    return partition(loader, WakeIdentityTest, 0, count=1)
 
 
 class WakeIdentityTest(ContinuousCase):

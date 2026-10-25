@@ -9,6 +9,24 @@ rejects duplicate keys, nonfinite numbers and symlink leaf files. Inspect and sa
 input before use. Common token/header/query credentials are redacted defensively;
 this is not a personal-data detector or permission to publish.
 
+Source snapshots default to 4,000 files, 32 MiB total, 8 MiB per file and 30 seconds
+(or the shorter audit ceiling). `--snapshot-files`, `--snapshot-bytes`,
+`--snapshot-file-bytes` and `--snapshot-seconds` provide bounded overrides, capped
+at 100,000 files, 512 MiB total, 64 MiB per file and 120 seconds. Snapshot time also
+cannot exceed `--seconds`. Git inventory output remains capped at 8 MiB. Limits
+apply to `--snapshot` and the audit; use identical options for both. The saved scope
+retains them for resume, status/report and pinned acceptance. Partial snapshots
+bind inspected bytes and the inventory-name digest. Revalidation reinspects the
+saved partial selection and cannot turn it into full coverage. Independent bound
+gaps, failed attempts and timing observations survive partial inventory. Clean
+findings/actions require complete inventory or explicit `source_paths` listing
+only inspected paths; a scoped claim never establishes fleet/source completeness.
+`--snapshot-summary` with `--snapshot` omits file rows from transport while retaining
+the same full digest. Pinned review uses this summary and the saved limits within
+its existing 30-second/1-MiB helper ceiling. A scope that cannot be rechecked there
+remains unavailable to that acceptance path; increasing collection limits never
+increases shared acceptance deadlines or certifies an incomplete collection.
+
 ## Input sections
 
 - `audit_effort: {incremental_seconds}` optionally records the coordinator's actual
@@ -59,6 +77,15 @@ this is not a personal-data detector or permission to publish.
   diagnostics and original failures. `disposition: fixed` requires repair evidence;
   a cause label alone never repairs anything. Counts explicitly identify check-
   shard versus per-test units, with quarantine a subset, not an extra test total.
+  All unsuccessful outcomes, including infrastructure/report failures and failed
+  per-test results hidden by a passing wrapper, contribute to reliability gaps.
+  `failures` counts unsuccessful non-skipped attempts; incomplete/quarantine counts
+  overlap. `completed_checks` describes eventual execution. An unrepaired failed
+  attempt followed by pass still prevents a clean TEST-12 validation verdict.
+  A current `fixed` disposition with available `repair_evidence` can resolve that
+  retry integrity constraint, while retaining both attempts and historical failure.
+  Expired logs do not remove compact run/attempt observations or budget breaches;
+  support becomes explicitly unavailable and cannot establish a fresh clean claim.
 - `coverage`: tool, version, denominator unit, source_inventory, exclusions,
   generated_vendored, uninstrumented, per-file/line/branch identity_policy, counts,
   revision, instrumentation, and `baseline: {base_sha, policy, instrumentation,
@@ -71,11 +98,22 @@ this is not a personal-data detector or permission to publish.
   and permission failures. State severity and recurrence rules and any unexamined
   predecessor interval. Default recommendations are sampling rules, not a fabricated
   history collection. Unknown access remains unknown.
+  `errors` records failed requested collection, making single-repo scope partial.
+  `requested: ["runs", "incidents"]` explicitly requests those histories; missing
+  completion/access then also makes scope partial. An omitted or deliberately
+  unmeasured history alone leaves the allowed complete advisory with unknowns.
 - `findings`: coordinator judgments for TEST-01 through TEST-12. Every supplied
   judgment needs state (`meets|gap|unknown|not_applicable`), reason, evidence IDs,
   confidence, consequence, owner and next_action. Exceptions add owner, reason,
   compensating evidence IDs and expiry without erasing the observation. Automatic
   identity/completeness/timing guards take precedence over supplied clean claims.
+  Guards preserve observed gaps and their original reasons/evidence across all
+  dimensions, and cannot promote authored unknowns from identity metadata alone.
+  Additional constraints remain in `guards`; `observations` retains the authored
+  judgment. Exception expiry must be timezone-aware ISO datetime. Expired exceptions
+  remain in history but cannot support clean current claims. Status/report returns
+  a separate `current_findings` view without rewriting saved HTML/JSON; expiry also
+  blocks pinned acceptance, even when the exception was valid at save time.
 - `groups`: coherent check groups with id, tags, explicit priority, evidence IDs,
   failure, consequence, boundary, oracle, distinct_protection, maintenance, rationale,
   owner, cost/savings with measured/estimated distinction, protection_retained and
@@ -87,6 +125,20 @@ this is not a personal-data detector or permission to publish.
   evidence to remain available. Otherwise the action becomes null with a next
   experiment. Omitting any selected group leaves sample assessment incomplete.
   Null actions are neither retention nor deletion conclusions.
+  Naming `protection_lost` is not itself an unsupported replacement. A simplify
+  with real losses needs `tradeoff: {state: accepted|unaccepted, owner, reason,
+  evidence: [IDs]}`. An unaccepted/unavailable disposition leaves the action null
+  and a protection-loss gap; acceptance does not erase an independently observed
+  gap. Inspected dead-feature/tautology deletions can name obsolete protection
+  without a fabricated gap. Replacements still require their same-corpus comparison.
+  Optional `execution_policy` is `before_merge` for retained checks or `removed`
+  for deletion. Text checks reject common deferral and invented-value formulations;
+  they are bounded checks, not universal semantic enforcement. The coordinator and
+  independent review must distinguish protected background/nightly workloads from
+  deferred assurance. Measured detection percentages need `measurement: {scope,
+  evidence: [IDs], detected, total, runtime_ratio}` and a scoped corpus statement;
+  they never mean a fraction of all future safety. Wallclock percentages need no
+  detection-value claim.
 - `comparisons`: `{group, same_corpus, same_environment, cases, existing_seconds,
   candidate_seconds, existing_runner_minutes, candidate_runner_minutes}`.
   Cases have named id, risk category and existing/candidate outcome
@@ -133,6 +185,12 @@ its real source; observed missing repos are a gap. `repositories` maps each repo
 name to `{snapshot, evidence}` collected under the same finite coordinator-wide
 budget. Lower numeric priority selects high-consequence/expensive triage first after the
 complete cheap inventory. Per-repo findings live in scope.results, not an aggregate fleet score.
+These snapshots and inspection claims are coordinator assertions. The helper
+checks internal bindings, not Git existence or source truth in remote repositories.
+Each analysis reports `asserted_binding_consistent` and `source_verification`;
+`evidence_current` remains false without independent local source inspection.
+`fleet_wide` describes reconciliation of inventory and submitted assessments only,
+with `fleet_wide_basis` explaining that boundary. It does not certify arbitrary SHAs.
 Missing test-value evidence is explicitly incomplete triage. Organization execution
 is refused; authorize each local repository invocation separately.
 Inaccessible incident/fix history or omitted selected groups also makes scope
@@ -173,7 +231,11 @@ checkpoint, without HTML. Invalid input is retained as blocked evidence.
 Private `runs/ID/` holds input.json, audit.json, report.html and manifest.json.
 The manifest hashes all three and binds generator/benchmark, snapshot and creation
 identity. index.json tracks repo/revision, config/benchmark, history, predecessor and
-supersession. Files use atomic replacement under a nonblocking process lock, mode
+supersession using a separate local source identity derived from the canonical
+checkout path. Display labels never join repositories. Different clones or moved
+checkouts start separate lineages; ambiguous legacy basename entries stay unjoined.
+Revision or working-snapshot changes supersede observations from that same source.
+Files use atomic replacement under a nonblocking process lock, mode
 0600, directories 0700. Symlink state paths are refused. Records may contain private
 source names; do not commit them. Ordinary bulky attachments are external references
 with expires_at (30 days); no automatic attachment fetch/copy or deletion runs.
@@ -191,6 +253,9 @@ recomputing findings or changing the record. A complete unmeasured advisory or
 ordinary repository gap still exits 0. An organization record's absent local
 source locator alone does not reject its per-repository evidence. An unrelated
 expired reference does not erase independently supported findings or measurements.
+Organization status explains that freshness is unknown and current_evidence false
+because submitted remote source assertions are not independently rechecked. Exit 0
+can still describe a complete saved advisory, never verified remote source.
 
 Resume creates a successor while retaining original source/scope/limits/profiles,
 authorization, cumulative elapsed effort, counters and owned handles. Source drift
