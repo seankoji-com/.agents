@@ -114,12 +114,12 @@ def snapshot(repo, max_files=4000, seconds=30, max_bytes=32 * 1024 * 1024,
         path = repo / name
         if Path(name).is_absolute() or '..' in Path(name).parts:
             raise ValueError('unsafe source inventory path')
-        if path.is_symlink():
-            files[name] = {'symlink_sha256': digest(os.fsencode(os.readlink(path)))}
-        elif not path.exists():
-            files[name] = {'deleted': True}
-        elif path.is_file() and path.resolve().is_relative_to(repo):
-            try:
+        try:
+            if path.is_symlink():
+                files[name] = {'symlink_sha256': digest(os.fsencode(os.readlink(path)))}
+            elif not path.exists():
+                files[name] = {'deleted': True}
+            elif path.is_file() and path.resolve().is_relative_to(repo):
                 allowance = min(max_file_bytes, max_bytes - total)
                 if path.stat().st_size > allowance:
                     limitations.append('Source bytes unavailable: ' + name)
@@ -127,10 +127,10 @@ def snapshot(repo, max_files=4000, seconds=30, max_bytes=32 * 1024 * 1024,
                 raw = read(path, allowance)
                 total += len(raw)
                 files[name] = {'sha256': digest(raw), 'mode': stat.S_IMODE(path.stat().st_mode)}
-            except (OSError, ValueError):
-                limitations.append('Source bytes unavailable: ' + name)
-        else:
-            limitations.append('Uninspected source directory/submodule: ' + name)
+            else:
+                limitations.append('Uninspected source directory/submodule: ' + name)
+        except (OSError, ValueError):
+            limitations.append('Source bytes unavailable: ' + name)
     binding = {'head_sha': head, 'files': files}
     if inventory_binding:
         binding['inventory_sha256'] = digest(canonical(names))
