@@ -292,6 +292,36 @@ def continuous_command(config, command, **values):
         argparse.Namespace(state=config['continuous_state'], now=org_scan.utc_now(), **values))
 
 
+def reject_unlaunched_fixer(config, row, prepared, reason):
+    return continuous_command(config, 'receipt', pr=row['url'], request_id=prepared['request_id'],
+        kind='fixer', head=row['head_sha'], status='rejected', host_task_id=None, result=None, reason=reason)
+
+
+def validate_reserved_fixer(config, row, prepared, action):
+    """Recheck local authority after the remote read without counting our hold twice."""
+    source = Path(config['authorization_source']).read_bytes()
+    require(hashlib.sha256(source).hexdigest() == config['authorization_sha256'], 'authorization-source-changed')
+    state = continuous.read_state(config['continuous_state'])
+    require(state['run_id'] == config['run_id'] and not state.get('cancelled'), 'run-cancelled-or-replaced')
+    require(config.get('wake_kind') != 'schedule' or (state['scheduler']['mode'] == 'scheduled'
+            and not state['scheduler'].get('stopped')), 'scheduled-continuation-revoked')
+    pr = copy.deepcopy(state['prs'][row['url']])
+    require(pr['state'] == 'open' and not pr.get('excluded'), 'pr-no-longer-eligible')
+    require(continuous.scope_matches(state['scope'], pr) and not continuous.excluded(
+            state['scope'], {**pr, **pr['observation']}), 'pr-outside-saved-scope')
+    hold = next((d for d in pr['dispatches'] if d['request_id'] == prepared['request_id']), None)
+    require(hold and hold['kind'] == 'fixer' and hold['status'] == 'reserved'
+            and not hold.get('host_task_id') and pr['fixer']['request_id'] == prepared['request_id'],
+            'fixer-reservation-changed')
+    pr['dispatches'].remove(hold)
+    pr['fixer'] = {'in_flight': False}
+    current = continuous.reconcile_pr(pr, state, continuous.parse_time(org_scan.utc_now()), state['discovery'])[0]
+    require(current['kind'] == 'dispatch-fixer' and current['request_id'] == action['request_id']
+            and current['head'] == row['head_sha'] and current['attempt'] == action['attempt']
+            and bool(current.get('review_triage')) == bool(action.get('review_triage')),
+            'fixer-decision-changed-before-launch: ' + current['kind'])
+
+
 def exclude_current_draft(config, row):
     """Record the targeted draft read without replacing other PR observations."""
     path = continuous.state_path(config['continuous_state'])
@@ -454,32 +484,44 @@ def execute(report, api, host, jobs, config):
                       'The host checkout belongs to the coordinator project; do not edit it. '
                       'Use only the prepared PR checkout and recorded PR-branch push authority. '
                       'Return the exact worker-result JSON or artifact envelope required by the brief.')
-            # Even an already-armed PR may have merged, closed or become a draft
-            # while the org scan or local workspace preparation was running.
-            fresh = read_current_pr(api, row, 'fixer')
-            if fresh['state'] in {'MERGED', 'CLOSED'}:
-                lifecycle = fresh['state'].lower()
-                continuous_command(config, 'resolve', pr=row['url'], state_value=lifecycle, head=row['head_sha'])
-                outcome.update(status=lifecycle + '-observed', auto_merge='not-applicable')
-                continue
-            if fresh['isDraft']:
-                exclude_current_draft(config, row)
-                outcome.update(status='excluded-by-current-lifecycle', reason='pr-became-draft')
-                continue
+            request_args = {'task': prompt, 'target': {
+                k: target[k] for k in ('providerInstanceId', 'model', 'options') if k in target},
+                'clientRequestId': prepared['request_id'], 'isolation': 'worktree',
+                'mode': 'async', 'role': 'implementation', 'title': 'Fix ' + row['repo'] + '#' + str(row['number'])}
+            if target.get('runtimeMode'):
+                request_args['runtimeMode'] = target['runtimeMode']
+            elif providers[0].get('driverKind') in ('opencode', 'muse'):
+                request_args['runtimeMode'] = 'full-access'
             reserved = continuous_command(config, 'dispatch', pr=row['url'], request_id=prepared['request_id'],
                 kind='fixer', head=row['head_sha'], reserve=True, host_task_id=None,
                 attempt=action['attempt'], review_triage=bool(action.get('review_triage')),
                 reconciliation_request_id=action['request_id'])
             require(reserved['status'] == 'recorded', 'fixer-reservation-held')
+            outcome['request_id'] = prepared['request_id']
+            # The writer hold precedes the last remote read. A failed validation
+            # proves no delegate call occurred, so its reservation can be rejected.
             try:
-                request_args = {'task': prompt, 'target': {
-                    k: target[k] for k in ('providerInstanceId', 'model', 'options') if k in target},
-                    'clientRequestId': prepared['request_id'], 'isolation': 'worktree',
-                    'mode': 'async', 'role': 'implementation', 'title': 'Fix ' + row['repo'] + '#' + str(row['number'])}
-                if target.get('runtimeMode'):
-                    request_args['runtimeMode'] = target['runtimeMode']
-                elif providers[0].get('driverKind') in ('opencode', 'muse'):
-                    request_args['runtimeMode'] = 'full-access'
+                fresh = read_current_pr(api, row, 'fixer')
+            except (ExecutionError, org_scan.ScanError, OSError, KeyError, TypeError, ValueError):
+                reject_unlaunched_fixer(config, row, prepared, 'Final validation failed before delegate_task.')
+                raise
+            if fresh['state'] in {'MERGED', 'CLOSED'}:
+                lifecycle = fresh['state'].lower()
+                reject_unlaunched_fixer(config, row, prepared, 'PR became ' + lifecycle + ' before delegate_task.')
+                continuous_command(config, 'resolve', pr=row['url'], state_value=lifecycle, head=row['head_sha'])
+                outcome.update(status=lifecycle + '-observed', auto_merge='not-applicable')
+                continue
+            if fresh['isDraft']:
+                reject_unlaunched_fixer(config, row, prepared, 'PR became a draft before delegate_task.')
+                exclude_current_draft(config, row)
+                outcome.update(status='excluded-by-current-lifecycle', reason='pr-became-draft')
+                continue
+            try:
+                validate_reserved_fixer(config, row, prepared, action)
+            except (ExecutionError, continuous.ContinuousError, OSError, KeyError, TypeError, ValueError):
+                reject_unlaunched_fixer(config, row, prepared, 'Local admission changed before delegate_task.')
+                raise
+            try:
                 receipt = host.call('delegate_task', request_args)
                 require(receipt.get('taskId'), 'missing-host-handle')
             except Exception:

@@ -66,3 +66,11 @@ armed PRs skipped a current lifecycle read before fixer launch. The follow-up sh
 the budgeted read across arming and fixing, and independently verifies draft, closed,
 merged, changed-head and unavailable reads after workspace preparation. Draft
 exclusion preserves any racing writer reservation and handle attachment.
+
+Round 7 approved `406467e` with all three major findings fixed. A subsequent hosted
+comment requested reserve-before-validation ordering. The follow-up records the
+writer hold before the last remote read, rejects confirmed unlaunched reservations
+on validation failure, and rechecks local authority/scope/repair admission afterwards.
+Cross-service atomicity is not claimed. Tests cover changes during reservation and
+authority/scope revocation during the remote read. Other hosted tests-omg findings
+are retained as unchanged-base reports outside this PR's 17-file feature scope.

@@ -464,15 +464,10 @@ class ExecutionTest(unittest.TestCase):
 
     def test_draft_read_preserves_a_racing_reservation_and_handle_attachment(self):
         report = self.report(autoMergeRequest={'enabledAt': 'observed'})
-        query = self.api.query
-        def racing(text, variables, **kwargs):
-            runner.continuous_command(self.config, 'dispatch', pr=pr()['url'], request_id='racing-fixer',
-                kind='fixer', head=HEAD, reserve=True, host_task_id=None, attempt=1, review_triage=False)
-            self.api.draft = True
-            return query(text, variables, **kwargs)
-        with patch.object(self.api, 'query', side_effect=racing):
-            result = self.execute(report)
-        self.assertEqual(result['outcomes'][0]['status'], 'excluded-by-current-lifecycle')
+        self.observe(report)
+        runner.continuous_command(self.config, 'dispatch', pr=pr()['url'], request_id='racing-fixer',
+            kind='fixer', head=HEAD, reserve=True, host_task_id=None, attempt=1, review_triage=False)
+        runner.exclude_current_draft(self.config, report['prs'][0])
         attached = runner.continuous_command(self.config, 'dispatch', pr=pr()['url'], request_id='racing-fixer',
             kind='fixer', head=HEAD, reserve=False, host_task_id='retained-host', attempt=1, review_triage=False)
         self.assertTrue(attached['attached'])
@@ -481,6 +476,55 @@ class ExecutionTest(unittest.TestCase):
         self.assertTrue(saved['fixer']['in_flight'])
         self.assertEqual(saved['fixer']['host_task_id'], 'retained-host')
         self.assertEqual(saved['next_action']['kind'], 'wait-fixer')
+        self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+
+    def test_head_change_during_reservation_is_read_before_launch_and_rejected(self):
+        report = self.report(autoMergeRequest={'enabledAt': 'observed'})
+        command = runner.continuous_command
+        def changed(config, operation, **values):
+            result = command(config, operation, **values)
+            if operation == 'dispatch' and values.get('reserve') and values['kind'] == 'fixer':
+                self.api.move_head = True
+            return result
+        with patch.object(runner, 'continuous_command', side_effect=changed):
+            result = self.execute(report)
+        self.assertEqual(result['outcomes'][0]['status'], 'held', result)
+        self.assertEqual(result['outcomes'][0]['reason'], 'head-changed-before-fixer')
+        saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+        self.assertEqual(saved['dispatches'][-1]['status'], 'rejected')
+        self.assertFalse(saved['fixer']['in_flight'])
+        self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+
+    def test_authority_revoked_during_final_remote_read_rejects_unlaunched_reservation(self):
+        report = self.report(autoMergeRequest={'enabledAt': 'observed'})
+        query = self.api.query
+        def revoked(text, variables, **kwargs):
+            self.observe(report, blocker={'kind': 'missing-authorization', 'detail': 'Owner revoked writes.'})
+            return query(text, variables, **kwargs)
+        with patch.object(self.api, 'query', side_effect=revoked):
+            result = self.execute(report)
+        self.assertEqual(result['outcomes'][0]['status'], 'held', result)
+        saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+        self.assertEqual(saved['dispatches'][-1]['status'], 'rejected')
+        self.assertEqual(saved['observation']['human_blocker']['kind'], 'missing-authorization')
+        self.assertFalse(saved['fixer']['in_flight'])
+        self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+
+    def test_scope_revoked_during_final_remote_read_rejects_unlaunched_reservation(self):
+        report = self.report(autoMergeRequest={'enabledAt': 'observed'})
+        query = self.api.query
+        def revoked(text, variables, **kwargs):
+            path = runner.continuous.state_path(self.config['continuous_state'])
+            with runner.continuous.locked_state(path) as state:
+                state['scope']['exclusions'].append(pr()['url'])
+                runner.continuous.save_json(path, state)
+            return query(text, variables, **kwargs)
+        with patch.object(self.api, 'query', side_effect=revoked):
+            result = self.execute(report)
+        self.assertEqual(result['outcomes'][0]['reason'], 'pr-outside-saved-scope')
+        saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+        self.assertEqual(saved['dispatches'][-1]['status'], 'rejected')
+        self.assertFalse(saved['fixer']['in_flight'])
         self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
 
     def test_workspace_failure_keeps_unlaunched_request_retryable(self):

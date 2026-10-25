@@ -113,8 +113,8 @@ documents output, limits and routing. Fixture tests cover installed preparation 
 the deterministic launch path. Live fixer execution and scheduled delivery remain
 separate checks.
 
-For a 15-minute sweep, request that cadence explicitly; the host schedule uses
-`continuous.py start --cadence-seconds 900`. The scan runs once per wake and exits.
+For a 15-minute sweep, add `--cadence-seconds 900` to the existing
+`PKG/scripts/continuous.py start` invocation. The scan runs once per wake and exits.
 
 A native PR watch wakes for linked PR changes only. It does not discover a newly
 opened matching PR, and an unchanged queued CI job emits no event. When you

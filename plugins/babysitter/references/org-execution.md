@@ -117,11 +117,17 @@ are retained even if they differ from the requested target.
    the child from the coordinator checkout; the prompt explicitly names the PR
    workspace as the only writable source checkout. The worker fetches current review
    comments itself and follows its pinned definition.
-   After workspace preparation, one additional budgeted lifecycle/head read guards
-   every new fixer reservation, even when auto-merge was already enabled. A current
+   After workspace preparation and reservation, one additional budgeted lifecycle/head
+   read guards every new fixer launch, even when auto-merge was already enabled. A current
    draft is excluded in the ledger; closed or merged PRs are reconciled. Head drift
    or unavailable validation holds the launch. Existing reservations and accepted
    handles remain retained through exclusion.
+   Failed final validation rejects the unlaunched reservation; the coordinator must
+   prepare a fresh request for retry rather than reuse that settled ID. Rejections
+   retain repair-attempt accounting. The remote read and T3 launch are separate API
+   operations, not an atomic GitHub head lock.
+   After that read, local authorization, scope, repair identity and ownership are
+   checked again against the retained reservation before calling T3.
 5. Persist the host receipt, record the actual task handle in the job, then attach it
    to the writer reservation. On later passes, read retained handles with
    `task_status`; active or result-awaiting work prevents another launch. A lost
