@@ -35,6 +35,12 @@ Defaults are a **10-minute sweep** and a **15-minute queued-job threshold**. Pas
 stall. `schedule-plan` returns the structured `schedule_task` arguments, a stable
 `clientRequestId`, and the stop tool. Create it once, then record the host receipt:
 
+For deterministic advancement, first bind the admitted run configuration with
+`python3 PKG/scripts/org_execute.py --advance --run-config RUN.json --bridge` through
+the native bridge described in `references/org-execution.md`. Generated schedule
+prompts contain one pinned advance invocation, not a bookkeeping checklist. A
+missing configuration or requested schedule receipt remains an explicit coverage gap.
+
 ```sh
 python3 PKG/scripts/continuous.py schedule-record --state <state.json> --now <RFC3339> \
   --schedule-id <returned ID> --next-run-at <returned nextRunAt>

@@ -126,6 +126,10 @@ class PushPolicyTest(unittest.TestCase):
             git(worktree, 'config', 'commit.gpgsign', 'false')
             git(worktree, 'branch', '--set-upstream-to=origin/master')
             git(worktree, 'commit', '--allow-empty', '-m', 'feature change')
+            unpushed = git(worktree, 'rev-parse', 'HEAD').stdout
+            initialize()
+            self.assertEqual(git(worktree, 'rev-parse', 'HEAD').stdout, unpushed,
+                             'workspace reuse discarded an unpushed local commit')
             self.assertNotEqual(git(worktree, 'push', check=False).returncode, 0)
             self.assertEqual(git(remote, 'rev-parse', 'master').stdout.strip(), master)
             git(worktree, 'push', 'origin', 'HEAD:refs/heads/feature')
@@ -247,6 +251,22 @@ class PushPolicyTest(unittest.TestCase):
             self.assertEqual(caught.exception.returncode, 3)
             self.assertFalse(helper_marker.exists())
             git(root, 'config', '--global', '--unset', 'remote.origin.vcs')
+            env.pop('CLONE_ATTEMPT_MARKER')
+
+            # Conditional host configuration must use the future clone's exact
+            # .git path on a cold cache too, before any network transport.
+            conditional = root / 'conditional.gitconfig'
+            conditional.write_text('[remote "origin"]\n\tvcs = PRIVATE_TOKEN\n')
+            cold_git = (root / 'conditional-cache/repos/test__repo/.git').resolve()
+            include_key = 'includeIf.gitdir:' + str(cold_git) + '.path'
+            git(root, 'config', '--global', include_key, str(conditional))
+            env['CLONE_ATTEMPT_MARKER'] = str(helper_marker)
+            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                initialize('conditional-cache')
+            self.assertIn('custom origin transport helper', caught.exception.stderr)
+            self.assertFalse(helper_marker.exists())
+            self.assertFalse(cold_git.parent.exists(), 'owned empty inspection directory was leaked')
+            git(root, 'config', '--global', '--unset', include_key)
             env.pop('CLONE_ATTEMPT_MARKER')
 
             # Existing collisions and failed partial clones must never be deleted.

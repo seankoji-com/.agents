@@ -250,6 +250,7 @@ class ExecutionTest(unittest.TestCase):
             self.config['wake_id'] = 'repair-' + str(index)
             prepared = prepare(self.report()['prs'][0])
             prepared['request_id'] = 'job-request-' + str(index)
+            prepared['retry_usage']['attempts'] = [{'request_id': 'prior-' + str(n)} for n in range(index)]
             with patch.object(self.jobs, 'prepare', return_value=prepared):
                 result = self.execute()
             self.assertEqual(result['outcomes'][0]['status'], 'dispatched', result)
@@ -331,7 +332,7 @@ class ExecutionTest(unittest.TestCase):
         launch = next(args for tool, args in self.host.calls if tool == 'delegate_task')
         self.assertEqual(launch['target'], {'providerInstanceId': 'fixture', 'model': 'selected-model', 'options': {}})
         self.assertEqual(launch['clientRequestId'], 'fix-request')
-        self.assertEqual(launch['isolation'], 'worktree')
+        self.assertEqual(launch['isolation'], 'shared')
         self.assertIn('pr-worktree', launch['task'])
         snapshot, = self.directory.glob('fix-request-*-dispatch.json')
         self.assertEqual(json.loads(snapshot.read_text())['reasons'], ['failing-checks'])
@@ -694,6 +695,359 @@ const tools = {
         self.assertEqual(out['result']['exit_code'], 0, out)
         self.assertTrue(any(c['kind'] == 'stdin' for c in out['calls']))
         self.assertFalse(any(c.get('cmd', '').startswith('kill ') for c in out['calls']))
+
+
+from test_rebuild_installed import Sandbox, worker_result
+from babysitter_continuous_fixtures import plan
+from model_selection_fixtures import attach_selection
+
+
+class AdvanceHost(Host):
+    def __init__(self):
+        super().__init__()
+        self.statuses = {}
+
+    def call(self, tool, arguments):
+        if tool == 'orchestrator_capabilities':
+            return {'parentThreadId': 'parent', 'providers': [{'providerInstanceId': 'fixture-provider',
+                'canRunChildTask': True, 'models': [{'id': 'fixture-worker', 'options': []}]}]}
+        if tool == 'delegate_task':
+            self.calls.append((tool, arguments))
+            host_id = 'host-' + str(len(self.statuses))
+            receipt = {'taskId': host_id, 'childThreadId': 'child-' + host_id,
+                'childRunId': 'run-' + host_id, 'status': 'running', 'workState': 'working',
+                'hasPendingChildRuns': False, 'providerInstanceId': 'fixture-provider',
+                'model': 'fixture-worker', 'options': [], 'summary': None}
+            self.statuses[host_id] = receipt
+            if self.lose_response:
+                raise runner.ExecutionError('lost-response')
+            return dict(receipt)
+        if tool == 'task_status':
+            self.calls.append((tool, arguments))
+            return dict(self.statuses[arguments['taskId']])
+        return super().call(tool, arguments)
+
+
+class AdvanceTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name).resolve()
+        self.box = Sandbox(self.root / 'installation')
+        # A relocated source copy is removed after installation. Every subprocess
+        # below uses packaged contracts, never the repository's shared/core imports.
+        source = self.box.source_copy('babysitter')
+        self.package, manifest = self.box.install('babysitter', source=source)
+        shutil.rmtree(source)
+        template = plan(manifest, 'template')
+        template['workflow'] = 'babysitter/org'
+        template['authorization']['actions'] = ['read', 'push', 'communicate', 'merge']
+        template['stages'][0]['validator_contract'] = {
+            'pr': pr()['url'], 'head_sha': HEAD, 'required_contexts': ['ci'], 'optional_contexts': [],
+            'allow_empty_required_contexts': False,
+            'authorized_endstate': {'requested': 'merged', 'observed': 'open', 'authorization_ref': 'owner'}}
+        attach_selection(template)
+        owner = self.root / 'owner.txt'
+        owner.write_text('Maintain fixture PRs through merge.')
+        self.config = {'org': 'fixture', 'thread_id': 'parent', 'continuous_state': str(self.root / 'continuous.json'),
+            'authorization_source': str(owner), 'authorization_sha256': hashlib.sha256(owner.read_bytes()).hexdigest(),
+            'package': str(self.package), 'jobs_root': str(self.box.jobs), 'prefix': str(self.box.prefix),
+            'agents_root': str(self.box.agents), 'job_template': template,
+            'caller': self.box.caller(manifest, 'babysitter/org')}
+        args = runner.continuous.build_parser().parse_args(['start', '--state', self.config['continuous_state'],
+            '--now', runner.org_scan.utc_now(), '--scope-kind', 'org', '--scope-value', 'fixture',
+            '--thread-id', 'parent', '--authorization-source', str(owner)])
+        args.func(args)
+        self.config['run_id'] = runner.continuous.read_state(self.config['continuous_state'])['run_id']
+        self.host, self.api = AdvanceHost(), API()
+        self.jobs = runner.Jobs(self.config, self.root / 'executor')
+        # Workspace transport and the guarded shell have separate real-Git/curl
+        # fixture suites. This fixture exercises their coordinator boundary.
+        self.workspace = patch.object(self.jobs, 'workspace', return_value=str(self.root / 'prepared-pr'))
+        self.workspace.start()
+        self.addCleanup(self.workspace.stop)
+        self.guard = patch.object(self.jobs, 'guard', return_value={'path': str(self.root / 'prepared-pr')})
+        self.guard.start()
+        self.addCleanup(self.guard.stop)
+        self.env = patch.dict(os.environ, self.box.env, clear=True)
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.wake = 0
+
+    def report(self, *nodes):
+        return runner.org_scan.scan(FixtureAPI([{'id': 'r', 'nameWithOwner': 'fixture/repo'}], {'r': list(nodes)}), 'fixture')
+
+    def node(self, number=1, state='FAILURE', **changes):
+        node = pr(number=number, contexts=[check(state)], autoMergeRequest={'enabledAt': 'observed'}, **changes)
+        node['commits']['nodes'][0]['commit']['oid'] = node['headRefOid']
+        return node
+
+    def advance(self, *nodes):
+        self.wake += 1
+        self.config['wake_id'] = 'wake-' + str(self.wake)
+        return runner.execute(self.report(*nodes), self.api, self.host, self.jobs, self.config)
+
+    def stored(self, number=1):
+        row = self.report(self.node(number))['prs'][0]
+        return self.jobs.context(row)['job']
+
+    def finish(self, number=1, status='ready-for-acceptance', findings=None, summary=None, pending=False):
+        task = self.stored(number)['tasks'][0]
+        brief = json.loads(Path(task['brief']['path']).read_text())
+        result = json.loads(worker_result(brief, status=status))
+        result['findings'] = findings or []
+        host_id = task['handles'][-1]['task_id']
+        self.host.statuses[host_id].update(status='completed', workState='result_available',
+            hasPendingChildRuns=pending, summary=json.dumps(result) if summary is None else summary)
+        return host_id
+
+    def test_concurrent_completion_retry_and_duplicate_result_converge(self):
+        first = self.advance(self.node(1), self.node(2))
+        self.assertEqual([o['status'] for o in first['outcomes']], ['dispatched', 'dispatched'])
+        host = self.finish(1, status='failed')
+        second = self.advance(self.node(1), self.node(2))
+        by_url = {o['url']: o for o in second['outcomes']}
+        self.assertEqual(by_url[pr()['url']]['status'], 'dispatched', second)
+        self.assertEqual(by_url[pr(number=2)['url']]['status'], 'active-fixer')
+        job = self.stored()
+        task = job['tasks'][0]
+        self.assertEqual(len(task['execution_history']), 1)
+        self.assertEqual(job['stages'][0]['attempts']['primary'], 1)
+        self.assertNotEqual(task['request_id'], task['execution_history'][0]['request_id'])
+        self.advance(self.node(1), self.node(2))
+        self.assertEqual(len(self.stored()['tasks'][0]['execution_history']), 1)
+        calls = [a['taskId'] for t, a in self.host.calls if t == 'task_status']
+        self.assertIn(host, calls)
+        self.assertFalse(any(c.startswith('org-') for c in calls))
+        self.assertEqual(len([1 for t, _ in self.host.calls if t == 'delegate_task']), 3)
+
+    def test_terminal_pending_runs_and_missing_result_keep_writer(self):
+        self.advance(self.node())
+        host_id = self.finish(pending=True)
+        self.assertEqual(self.advance(self.node())['outcomes'][0]['status'], 'active-fixer')
+        self.host.statuses[host_id].update(hasPendingChildRuns=False, summary=None)
+        held = self.advance(self.node())
+        self.assertIn('missing-terminal-result', held['outcomes'][0]['reason'])
+        self.assertEqual(len([1 for t, _ in self.host.calls if t == 'delegate_task']), 1)
+        self.assertTrue(runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]['fixer']['in_flight'])
+
+    def test_malformed_result_ingests_failure_and_refills_within_budget(self):
+        self.advance(self.node())
+        self.finish(summary='not JSON')
+        second = self.advance(self.node())
+        self.assertEqual(second['outcomes'][0]['status'], 'dispatched', second)
+        self.assertTrue(self.stored()['tasks'][0]['execution_history'][0]['malformed'])
+
+    def test_head_drift_retires_unlaunched_request_without_losing_work_or_budget(self):
+        self.api.move_head = True
+        rejected = self.advance(self.node())
+        self.assertEqual(rejected['outcomes'][0]['reason'], 'head-changed-before-fixer')
+        before = self.stored()['tasks'][0]['request_id']
+        refreshed = self.advance(self.node(headRefOid='b' * 40))
+        self.assertEqual(refreshed['outcomes'][0]['status'], 'dispatched', refreshed)
+        job = self.stored()
+        self.assertNotEqual(job['tasks'][0]['request_id'], before)
+        self.assertEqual(job['stages'][0]['attempts']['primary'], 1)
+        self.assertEqual(sum(t == 'delegate_task' for t, _ in self.host.calls), 1)
+
+    def test_uncertain_request_cannot_be_retired_as_not_submitted(self):
+        self.host.lose_response = True
+        self.advance(self.node())
+        ctx = self.jobs.context(self.report(self.node())['prs'][0])
+        task = ctx['job']['tasks'][0]
+        proof = self.root / 'not-submitted.json'
+        proof.write_text(json.dumps({'request_id': task['request_id'], 'submitted': False, 'reason': 'untrusted absence'}))
+        with self.assertRaisesRegex(runner.ExecutionError, 'job-gate:task-observation'):
+            self.jobs.record(ctx, {'kind': 'not-submitted', 'request_id': task['request_id'],
+                'reference': {'path': str(proof), 'sha256': hashlib.sha256(proof.read_bytes()).hexdigest(), 'bytes': proof.stat().st_size}})
+        self.assertEqual(self.stored()['tasks'][0]['uncertain_calls'], 1)
+
+    def test_external_dependency_and_policy_changes_leave_other_pr_runnable(self):
+        self.config['external_blockers'] = {pr()['url']: [{'name': 'runner unavailable',
+            'dependency': 'shared-linux-runner', 'detail': 'Fixture runner is offline.',
+            'next_check_at': '2026-10-27T00:00:00Z', 'reopen_when': 'Runner accepts the queued canary.'}]}
+        held = self.advance(self.node(), self.node(2))
+        by_url = {o['url']: o for o in held['outcomes']}
+        self.assertIn('runner unavailable', by_url[pr()['url']]['reason'])
+        self.assertEqual(by_url[pr(number=2)['url']]['status'], 'dispatched')
+        saved = runner.continuous.read_state(self.config['continuous_state'])
+        self.assertEqual(saved['prs'][pr()['url']]['blocked']['dependencies'][0]['dependency'], 'shared-linux-runner')
+        self.config['external_blockers'] = {}
+        reopened = self.advance(self.node(), self.node(2))
+        self.assertEqual(next(o for o in reopened['outcomes'] if o['url'] == pr()['url'])['status'], 'dispatched')
+
+    def test_omitted_known_draft_exclusion_can_be_removed(self):
+        self.advance(self.node())
+        self.finish(status='failed')
+        terminal = self.node()
+        terminal['isDraft'] = True
+        query = self.api.query
+        def targeted(text, variables, **kwargs):
+            if 'pullRequest(number:$number)' in text:
+                return {'repository': {'pullRequest': terminal}}
+            return query(text, variables, **kwargs)
+        with patch.object(self.api, 'query', side_effect=targeted):
+            excluded = self.advance()
+        self.assertEqual(excluded['outcomes'][0]['status'], 'excluded-by-saved-scope', excluded)
+        path = runner.continuous.state_path(self.config['continuous_state'])
+        with runner.continuous.locked_state(path) as state:
+            state['scope']['include_drafts'] = True
+            runner.continuous.save_json(path, state)
+        with patch.object(self.api, 'query', side_effect=targeted):
+            reopened = self.advance()
+        # Draft auto-merge is forbidden, but the policy change is reconciled and
+        # the existing result/history survives instead of being dropped.
+        self.assertEqual(runner.continuous.read_state(path)['prs'][pr()['url']]['state'], 'open')
+        self.assertEqual(len(self.stored()['tasks'][0]['execution_history']), 1)
+
+    def test_unknown_launch_holds_checkout_and_allows_other_pr(self):
+        self.host.lose_response = True
+        self.advance(self.node())
+        self.host.lose_response = False
+        second = self.advance(self.node(), self.node(2))
+        by_url = {o['url']: o for o in second['outcomes']}
+        self.assertEqual(by_url[pr()['url']]['status'], 'held')
+        self.assertEqual(by_url[pr(number=2)['url']]['status'], 'dispatched')
+        self.assertEqual(self.jobs.workspace.call_count, 2)
+
+    def test_worker_claim_requires_head_bound_coordinator_disposition_before_resolution(self):
+        thread = {'id': 'review-1', 'isResolved': False, 'isOutdated': False}
+        node = self.node(threads=[thread])
+        self.advance(node)
+        finding = {'id': 'thread:review-1', 'severity': 'note', 'scenario': 'Fixed synthetic concern.',
+                   'source_evidence': ['synthetic test and diff'], 'disposition': 'fixed', 'reply': 'Verified fix.'}
+        self.finish(findings=[finding])
+        request = self.advance(node)['outcomes'][0]
+        self.assertEqual(request['status'], 'needs-semantic-verification', request)
+        retained = self.stored()['tasks'][0]['finding_dispositions'][0]
+        self.assertIsNone(retained['disposition'], 'the worker cannot dispose its own finding')
+        row = self.report(node)['prs'][0]
+        proof = {'pr': row['url'], 'head_sha': HEAD, 'subject_sha256': runner.semantic_subject(row),
+            'request_id': self.stored()['tasks'][0]['execution_history'][-1]['request_id'],
+            'verification': ['Coordinator inspected the synthetic diff and reproduction at this head.'],
+            'findings': [{'finding_id': retained['finding_id'], 'finding_sha256': retained['finding_sha256'], 'disposition': 'fixed'}],
+            'threads': [{'id': 'review-1', 'reply': 'Verified fix at ' + HEAD}]}
+        path = self.root / 'semantic.json'
+        path.write_text(json.dumps(proof))
+        self.config['semantic_verifications'] = {row['url']: {'path': str(path),
+            'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'bytes': path.stat().st_size}}
+        self.assertIsNone(self.jobs.semantic({**row, 'head_sha': 'b' * 40}))
+        self.assertIsNone(self.jobs.semantic({**row, 'base_sha': 'c' * 40}))
+        proof['findings'][0]['disposition'] = 'deferred'
+        path.write_text(json.dumps(proof))
+        self.config['semantic_verifications'][row['url']].update(
+            sha256=hashlib.sha256(path.read_bytes()).hexdigest(), bytes=path.stat().st_size)
+        with self.assertRaisesRegex(runner.ExecutionError, 'semantic-disposition-must-fix-or-reject'):
+            self.jobs.semantic(row)
+        proof['findings'][0]['disposition'] = 'fixed'
+        path.write_text(json.dumps(proof))
+        self.config['semantic_verifications'][row['url']].update(
+            sha256=hashlib.sha256(path.read_bytes()).hexdigest(), bytes=path.stat().st_size)
+        original = subprocess.run
+        def helper(argv, **kwargs):
+            if 'merge-pr.sh' in str(argv[1]):
+                if '--resolve-thread' in argv:
+                    self.assertIn('--verified-head', argv)
+                    return subprocess.CompletedProcess(argv, 0, 'RESOLVED fixture/repo#1 thread=review-1 head=' + HEAD + ' replied=1\n', '')
+                return subprocess.CompletedProcess(argv, 0, 'MERGED fixture/repo#1 via squash\n', '')
+            return original(argv, **kwargs)
+        with patch.object(subprocess, 'run', side_effect=helper):
+            resolved = self.advance(node)
+        self.assertEqual(resolved['outcomes'][0]['status'], 'resolution-executed', resolved)
+        self.assertEqual(self.stored()['tasks'][0]['finding_dispositions'][0]['disposition'], 'fixed')
+        pending = self.advance(self.node(state='IN_PROGRESS'))
+        self.assertEqual(pending['outcomes'][0]['status'], 'waiting', pending)
+        with patch.object(subprocess, 'run', side_effect=helper):
+            green = self.advance(self.node(state='SUCCESS'))
+        self.assertEqual(green['outcomes'][0]['status'], 'merge-executed', green)
+        terminal = self.node(state='SUCCESS')
+        terminal['state'] = 'MERGED'
+        with patch.object(runner.org_scan, 'targeted', return_value=runner.org_scan.classify(terminal, self.api)):
+            observed = self.advance()
+        self.assertEqual(observed['outcomes'][0]['status'], 'merged-observed', observed)
+        self.assertEqual(len(self.stored()['tasks'][0]['execution_history']), 1)
+
+    def test_last_permitted_repair_can_still_request_semantic_verification(self):
+        thread = {'id': 'review-1', 'isResolved': False, 'isOutdated': False}
+        node = self.node(threads=[thread])
+        self.advance(node)
+        for attempt in range(2):
+            self.finish(status='failed')
+            result = self.advance(node)
+            self.assertEqual(result['outcomes'][0]['status'], 'dispatched', result)
+        self.finish()
+        terminal = self.advance(node)
+        self.assertEqual(terminal['outcomes'][0]['status'], 'needs-semantic-verification', terminal)
+        self.assertEqual(sum(t == 'delegate_task' for t, _ in self.host.calls), 3)
+
+    def test_update_refresh_green_gates_merge_and_targeted_omission(self):
+        original = subprocess.run
+        def helper(argv, **kwargs):
+            if 'merge-pr.sh' in str(argv[1]):
+                if '--update-only' in argv:
+                    return subprocess.CompletedProcess(argv, 0, 'UPDATED fixture/repo#1 previous_head=' + HEAD + ' head=' + 'b' * 40 + ' refresh_gates=required\n', '')
+                self.assertIn('--expected-head', argv)
+                self.assertIn('b' * 40, argv)
+                return subprocess.CompletedProcess(argv, 0, 'MERGED fixture/repo#1 via squash\n', '')
+            return original(argv, **kwargs)
+        with patch.object(subprocess, 'run', side_effect=helper):
+            updated = self.advance(self.node(state='SUCCESS', mergeStateStatus='BEHIND'))
+            self.assertEqual(updated['outcomes'][0]['status'], 'update-branch-executed', updated)
+            merged = self.advance(self.node(state='SUCCESS', headRefOid='b' * 40))
+        self.assertEqual(merged['outcomes'][0]['status'], 'merge-executed', merged)
+        self.assertNotEqual(runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]['state'], 'merged')
+        terminal = self.node(state='SUCCESS', headRefOid='b' * 40)
+        terminal['state'] = 'MERGED'
+        query = self.api.query
+        def targeted(text, variables, **kwargs):
+            if 'pullRequest(number:$number)' in text:
+                return {'repository': {'pullRequest': terminal}}
+            return query(text, variables, **kwargs)
+        with patch.object(self.api, 'query', side_effect=targeted):
+            observed = self.advance()
+        self.assertEqual(observed['outcomes'][0]['status'], 'merged-observed', observed)
+        self.assertEqual(runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]['resolved_head'], 'b' * 40)
+
+    def test_installed_helper_imports_without_source_and_schedule_uses_one_advance(self):
+        run = self.box.run([sys.executable, self.package / 'scripts/org_execute.py', '--probe', '--bridge'], check=False)
+        self.assertIn('T3_CALL', run.stdout)
+        self.assertNotIn('ModuleNotFoundError', run.stderr)
+        state = runner.continuous.read_state(self.config['continuous_state'])
+        prompt = runner.continuous.schedule_request(state, self.config['continuous_state'])['arguments']['prompt']
+        self.assertEqual(prompt.count('--advance'), 1)
+        self.assertIn('--continuous-state', prompt)
+        self.assertIn('--wake-kind schedule --bridge', prompt)
+
+    def test_periodic_coverage_requested_without_receipt_is_explicitly_incomplete(self):
+        path = runner.continuous.state_path(self.config['continuous_state'])
+        with runner.continuous.locked_state(path) as state:
+            state['scheduler'].update(mode='scheduled', authorization={'state': 'authorized',
+                'source': self.config['authorization_source'], 'sha256': self.config['authorization_sha256']})
+            runner.continuous.save_json(path, state)
+        result = self.advance(self.node())
+        self.assertEqual(result['outcomes'][0]['status'], 'dispatched', result)
+        self.assertEqual(result['coverage']['coverage'], 'scheduled-unverified')
+        self.assertFalse(result['complete'])
+
+    def test_workspace_identity_checks_real_repository_before_launch(self):
+        self.guard.stop()
+        worktree = self.root / 'wrong-repo'
+        worktree.mkdir()
+        def git(*args):
+            return subprocess.run(['git', '-C', str(worktree), *args], check=True,
+                                  capture_output=True, text=True).stdout.strip()
+        git('init')
+        git('remote', 'add', 'origin', 'https://github.com/other/repo.git')
+        row = self.report(self.node())['prs'][0]
+        with self.assertRaisesRegex(runner.ExecutionError, 'pr-workspace-repository'):
+            self.jobs.guard(row, {}, str(worktree))
+        git('config', 'user.name', 'Fixture')
+        git('config', 'user.email', 'fixture@example.invalid')
+        git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'fixture')
+        git('remote', 'set-url', 'origin', 'https://github.com/fixture/repo.git')
+        row['head_sha'] = git('rev-parse', 'HEAD')
+        guard = self.jobs.guard(row, {}, str(worktree))
+        self.assertEqual(guard['observed_head'], guard['local_head'])
 
 
 if __name__ == '__main__':

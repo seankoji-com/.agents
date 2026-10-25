@@ -20,6 +20,8 @@
 #
 # --remove refuses to delete a worktree with uncommitted or untracked changes (exit
 # 4, left untouched). --force discards them; nothing else does.
+# --preserve returns an existing dirty checkout unchanged for its repair worker.
+# Clean unpushed commits are always retained; integration belongs to that worker.
 #
 # On success the worktree path is the only thing written to stdout; progress goes to
 # stderr. Callers can therefore do: WT="$(pr-workspace.sh ...)"
@@ -45,6 +47,7 @@ PR_NUMBER=""
 BRANCH=""
 REMOVE=0
 FORCE=0
+PRESERVE=0
 # Left empty rather than defaulted to "${HOME}/..." directly: under `set -u` an unset
 # HOME aborts with a raw "unbound variable", and defaulting HOME to "" would silently
 # produce the absolute-looking /.local/state/t3-plugins/babysitter. Empty here, validated below.
@@ -125,6 +128,10 @@ while [ $# -gt 0 ]; do
     ;;
   --force)
     FORCE=1
+    shift
+    ;;
+  --preserve)
+    PRESERVE=1
     shift
     ;;
   -h | --help)
@@ -216,8 +223,6 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
 else
   note "HTTPS-only cache: run gh auth login or configure a working HTTPS credential helper; SSH keys alone cannot authenticate this cache"
 fi
-verify_origin_transport "$CLONE"
-
 if [ ! -d "$CLONE/.git" ]; then
   if [ -e "$CLONE" ] || [ -L "$CLONE" ]; then
     die "cache path exists without a Git clone; preserve it and choose another root or reconcile it privately" 3
@@ -233,11 +238,27 @@ if [ ! -d "$CLONE/.git" ]; then
   # or a remaining partial clone; preserve it for private inspection.
   clone_diagnostics=$(mktemp "${TMPDIR:-/tmp}/babysitter-clone-error.XXXXXX") ||
     die "cannot create private clone diagnostics" 3
-  trap 'rm -f "$clone_diagnostics"' EXIT
+  inspection_owned=0
+  cleanup_inspection() {
+    if [ "$inspection_owned" = 1 ]; then
+      # This Git directory was created exclusively below, with no templates or
+      # transport. Only our probe is removed; a nonempty destination survives.
+      rm -rf "$CLONE/.git"
+      rmdir "$CLONE" 2>/dev/null || true
+    fi
+  }
+  trap 'rm -f "$clone_diagnostics"; cleanup_inspection' EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM
   # ls-remote --get-url performs no transport. Use the future clone Git directory
   # and the same exact identity maps that clone --config installs before fetching.
+  # Git resolves the git-dir's parent even for config-only reads. Use an owned
+  # empty destination so the future .git path, includeIf rules and inherited
+  # system/global/command configuration are identical to the actual clone.
+  mkdir "$CLONE" || die "cannot prepare clone configuration inspection" 3
+  inspection_owned=1
+  git init --quiet --bare --template= "$CLONE/.git" || die "cannot initialize configuration inspection" 3
+  verify_origin_transport "$CLONE"
   initial_transport=$(git --git-dir="$CLONE/.git" \
     -c "url.https://github.com/${REPO}.git.insteadOf=https://github.com/${REPO}.git" \
     -c "url.https://github.com/${REPO}.git.pushInsteadOf=https://github.com/${REPO}.git" \
@@ -245,6 +266,9 @@ if [ ! -d "$CLONE/.git" ]; then
     die "cannot inspect initial clone transport; inspect inherited Git configuration privately" 3
   [ "$initial_transport" = "https://github.com/${REPO}.git" ] ||
     die "initial clone transport differs from required HTTPS repository; inspect inherited URL rewrites privately" 3
+  cleanup_inspection
+  [ ! -e "$CLONE" ] || die "inspection destination changed; preserved for private inspection" 3
+  inspection_owned=0
   report_clone_failure() {
     local category=unclassified
     if grep -Eiq 'Authentication failed|could not read Username|Permission denied.*publickey|publickey' "$clone_diagnostics"; then
@@ -431,11 +455,19 @@ if [ -d "$WORKTREE/.git" ] || [ -f "$WORKTREE/.git" ]; then
   # let the caller decide rather than resetting over them.
   if [ -n "$(git -C "$WORKTREE" status --porcelain 2>/dev/null)" ]; then
     echo "$WORKTREE"
+    if [ "$PRESERVE" = 1 ]; then
+      note "preserved unfinished work in ${WORKTREE}; worker must integrate current head"
+      exit 0
+    fi
     die "worktree ${WORKTREE} has uncommitted changes — inspect it before reusing" 4
   fi
   git -C "$WORKTREE" fetch --quiet origin -- "$BRANCH" || die "fetch failed in worktree" 3
-  git -C "$WORKTREE" checkout --quiet -B "$LOCAL_BRANCH" "origin/${BRANCH}" ||
-    die "could not point ${LOCAL_BRANCH} at origin/${BRANCH}" 3
+  if git -C "$WORKTREE" merge-base --is-ancestor HEAD "origin/${BRANCH}"; then
+    git -C "$WORKTREE" merge --quiet --ff-only "origin/${BRANCH}" ||
+      die "could not advance ${LOCAL_BRANCH} to origin/${BRANCH}" 3
+  else
+    note "preserved local commits in ${WORKTREE}; worker must integrate current head"
+  fi
   note "reused ${WORKTREE}"
 else
   rm -rf "$WORKTREE"
