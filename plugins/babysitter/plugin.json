@@ -1,6 +1,6 @@
 {
   "name": "babysitter",
-  "version": "1.2.14",
+  "version": "1.4.0",
   "description": "Maintain pull requests through review, CI, and authorized merge.",
   "argument_hint": "doctor | pr <URL> | repo <owner/name> | org <owner>",
   "entry": "entry.md",
@@ -13,6 +13,16 @@
   ],
   "kind": "workflow",
   "compatibility": "experimental",
+  "continuous": {
+    "policy_version": "continuous-1",
+    "default_cadence_seconds": 600,
+    "default_queue_threshold_seconds": 900,
+    "default_stall_threshold_seconds": 1800,
+    "state_helper": "scripts/continuous.py",
+    "sweep_adapter": "scripts/continuous_sweep.py",
+    "max_repair_attempts": 3,
+    "max_merge_attempts": 3
+  },
   "origin": {
     "repository": "seankoji-com/claude-plugins",
     "plugin": "babysitter",

@@ -8,7 +8,8 @@ restrictions, including inspect-only mode and exclusions.
 ## Discovery and admission
 
 - Discover at entry, every wake or child completion, and before yielding or final
-  handoff. Reuse the same scope and filters. Repo/org runs pass `--all-authors` to
+  handoff. Reuse the same scope and filters. Org runs use `org_scan.py` per
+  `PKG/references/org-scan.md`; repo runs pass `--all-authors` to
   `list-prs.sh`: human and bot PRs qualify. Drafts and forks stay excluded unless
   explicitly included; do not treat an author's identity as an extra exclusion.
   Admission uses the helper's eligibility filters. Add `--include-drafts` or
@@ -44,7 +45,20 @@ Native PR watches wake for linked PR changes, not new PR discovery. Refresh befo
 arming them and on each wake; do not invent an org watch, shell event loop or second
 scheduler. If discovery cannot run while idle, state that gap. Persistent discovery
 after handoff needs an explicitly requested host schedule, bounded in scope and
-cadence. Active-run discovery never needs that extra authorization.
+cadence; record the authorisation source, schedule ID and stop operation through
+`PKG/scripts/continuous.py`. Active-run discovery never needs that extra
+authorization. A partial page or rate limit is a gap, never evidence of completion.
+
+## Queue age and stalled work
+
+Track each pending check from its creation clock, not from the last wake. The default
+diagnosis threshold is 15 minutes and the sweep cadence 10 minutes; both are recorded
+in continuous state. Distinguish a queued job with no runner from one that is running,
+missing required contexts, a stale head and an aggregate gate that stays blocked
+after its required checks pass. Crossing a threshold produces a concrete blocker, a
+next check and a diagnosis within existing authority. Never raise a timeout, weaken a
+check, restart infrastructure or rerun an unchanged failure to look busy. A fixer in
+flight blocks merge and branch-update actions until its result is ingested.
 
 ## Retry limits
 

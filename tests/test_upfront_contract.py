@@ -69,7 +69,7 @@ class PublicAgreementTests(unittest.TestCase):
             self.assertEqual(inherited['agreement_sha256'], selected['agreement']['agreement_sha256'])
         self.assertNotEqual(self.cli('inherit', {'selection': chosen(), 'operation': 'ralph/resume'}).returncode, 0)
 
-    def test_inspection_infers_supplied_choices_and_batches_only_material_gaps(self):
+    def test_inspection_infers_supplied_choices_and_rounds_only_material_gaps(self):
         data = {'operation': 'imps/run', 'inspected': {k: 'fixture:' + k for k in agreements.INSPECTIONS},
             'context': {'base': 'trunk', 'checks': ['unit'], 'destination': 'fixture-production'},
             'supplied': {'endpoint': 'Verified in Prod'},
@@ -81,6 +81,16 @@ class PublicAgreementTests(unittest.TestCase):
         self.assertEqual([q['field'] for q in out['questions']], ['approval'])
         data['supplied']['approval'] = 'fixture:existing-scoped-answer'
         self.assertEqual(json.loads(self.cli('inspect', data).stdout)['questions'], [])
+        data['required'] += ['workhorse', 'reviewer']
+        out = json.loads(self.cli('inspect', data).stdout)
+        self.assertEqual(out['question_batches'], 2)
+        self.assertEqual([q['field'] for q in out['questions']], ['workhorse', 'reviewer'])
+        data['supplied']['workhorse'] = 'fixture:chosen-workhorse'
+        out = json.loads(self.cli('inspect', data).stdout)
+        self.assertEqual(out['question_batches'], 1)
+        self.assertEqual([q['field'] for q in out['questions']], ['reviewer'])
+        self.assertEqual(out['facts']['workhorse'], 'fixture:chosen-workhorse')
+        self.assertEqual(out['facts']['approval'], 'fixture:existing-scoped-answer')
         data['inspected'].pop('state')
         self.assertNotEqual(self.cli('inspect', data).returncode, 0)
 

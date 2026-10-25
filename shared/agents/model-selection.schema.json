@@ -114,6 +114,13 @@
     },
     "review_replacements": {
       "type": "array"
+    },
+    "routing_scope": {
+      "enum": [
+        "invocation-only",
+        "global"
+      ],
+      "description": "Required when freezing new workhorse choices. Older sealed records validate with an invocation-only default. Separate from invocation/scope IDs; the helper never persists routing."
     }
   },
   "additionalProperties": true

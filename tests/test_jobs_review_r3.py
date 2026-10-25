@@ -164,6 +164,26 @@ class Stage3Repair5Tests(unittest.TestCase):
                     try: os.killpg(owned['group'], signal.SIGKILL)
                     except (ProcessLookupError, PermissionError): pass  # macOS answers EPERM for a reaped group
 
+    def test_r3_05_output_limit_cleans_owned_process_group(self):
+        with tempfile.TemporaryDirectory() as td:
+            marker = Path(td) / "child.pid"
+            command = [sys.executable, "-c",
+                "import subprocess,sys,os; p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(20)']); open(sys.argv[1],'w').write(str(p.pid)); sys.stderr.write('x'*2000000)", str(marker)]
+            with self.assertRaisesRegex(AcceptanceError, "output limit"):
+                _bounded_run(command, td, {"timeout_seconds": 2, "max_output_bytes": 1024})
+            if marker.exists():
+                pid = int(marker.read_text())
+                deadline = time.monotonic() + 1
+                def proc_state():
+                    try:
+                        return (Path("/proc") / str(pid) / "stat").read_text().split()[2]
+                    except (FileNotFoundError, ProcessLookupError):
+                        return None
+                while proc_state() not in (None, 'Z', 'X') and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertIn(proc_state(), (None, 'Z', 'X'),
+                              'owned child remained alive after output-limit cleanup')
+
     def test_r3_06_execution_mode_change_stales_prior_acceptance(self):
         with tempfile.TemporaryDirectory() as td:
             store = self.store(td); state = store.load()

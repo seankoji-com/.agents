@@ -158,7 +158,7 @@ def main(argv=None):
     setup.add_argument('--grant-learnings', action='store_true',
                        help='apply the printed subtree grants after backing up provider configs')
     setup.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
-    resolve = sub.add_parser('resolve', help='list available routing candidates for a role, in tier order')
+    resolve = sub.add_parser('resolve', help='list available routing candidates, preferred workhorse then tier order')
     resolve.add_argument('role')
     resolve.add_argument('--capabilities', metavar='FILE', required=True,
                          help='saved orchestrator_capabilities response')

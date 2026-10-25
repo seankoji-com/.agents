@@ -44,6 +44,7 @@ ADAPTERS = {
     'plan': 'validate_document.py',
     'agent-tuneup': 'validate_audit.py',
     'focus-group': 'validate_study.py',
+    'tests-omg': 'validate_audit.py',
 }
 
 def _caller(job, caller):
@@ -524,6 +525,17 @@ def _adapter(job, stage, argv, input_file):
             delivery.engineering(selected, data.get('delivery', {}), current['head'],
                                  author_lineages=actual_author_lineages(job))
     contract = stage.get('validator_contract', {})
+    if dep['plugin'] == 'tests-omg':
+        required = {'state_root', 'run_id', 'audit_sha256', 'input_sha256', 'snapshot_sha256', 'head_sha'}
+        if job['workflow'] != 'tests-omg/audit' or set(contract) != required or data != contract:
+            raise AcceptanceError('audit descriptor differs from the exact declared report')
+        from shared.tests_omg_review import report_binding
+        try:
+            audit_inputs = report_binding(job, stage, contract, Path(pin['package_dir']))
+        except (OSError, subprocess.SubprocessError) as exc:
+            # This adapter check runs before accept_stage's guarded validator
+            # execution. Do not leak private paths or raw OS/process errors.
+            raise AcceptanceError('audit source pre-check failed') from exc
     if dep['plugin'] == 'ape':
         from shared.ape_planning import validate_job
         validate_job(job)
@@ -584,7 +596,7 @@ def _adapter(job, stage, argv, input_file):
         raise AcceptanceError('validator options must be unique flag/value pairs')
     flags = dict(zip(args[::2], args[1::2]))
     extra = {}
-    if dep['plugin'] in ('ape', 'babysitter', 'agent-tuneup', 'focus-group'):
+    if dep['plugin'] in ('ape', 'babysitter', 'agent-tuneup', 'focus-group', 'tests-omg'):
         if flags != {'--input': str(inp)}:
             raise AcceptanceError('validator input differs from the pre-check input')
     elif dep['plugin'] == 'imps':
@@ -640,6 +652,8 @@ def _adapter(job, stage, argv, input_file):
                 raise AcceptanceError('observation input differs from the pre-check input')
         else:
             raise AcceptanceError('unsupported document validator mode')
+    if dep['plugin'] == 'tests-omg':
+        extra.update(audit_inputs)
     if dep['plugin'] == 'ape':
         for source in contract['sources']:
             path = Path(source['path'])
@@ -671,6 +685,8 @@ def _adapter(job, stage, argv, input_file):
     elif dep['plugin'] == 'focus-group':
         # The study validator reports one outcome per requirement the stage declares.
         expected = [str(row) for row in stage.get('requirements', [])]
+    elif dep['plugin'] == 'tests-omg':
+        expected = ['audit-report-integrity', 'audit-source-current', 'audit-scope-complete']
     elif dep['plugin'] == 'imps':
         if '--final-plan' in flags:
             expected = ['imps-stage-' + sid for sid in final_plan['required_stages']]
@@ -742,7 +758,12 @@ def accept_stage(store, caller, stage_id, validator_argv, input_file, expected_r
     for dependency in stage.get('depends_on', []):
         if not validate_stage(store, dependency).get('accepted'):
             raise AcceptanceError('dependency_stale: stage dependency lacks current authoritative acceptance')
-    program, pin, actual = _adapter(job, stage, validator_argv, input_file)
+    try:
+        program, pin, actual = _adapter(job, stage, validator_argv, input_file)
+    except AcceptanceError:
+        raise
+    except (OSError, subprocess.SubprocessError, JobError, ValueError, KeyError, TypeError) as exc:
+        raise AcceptanceError('validator pre-check failed') from exc
     binding = {**actual, 'revision': expected_revision,
                'semantic_sha256': _semantic_binding(job, stage), 'pin_sha256': digest(canonical(pin))}
     generation = digest(canonical(job))

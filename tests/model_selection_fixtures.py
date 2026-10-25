@@ -23,7 +23,7 @@ def selection_input():
                             'lineage': family, 'lineage_source': 'fixture:catalog-family'}
                            for t, family in [(work, 'alpha'), (review, 'beta'), (spare, 'gamma')]]}
     return {'invocation_id': 'fixture-invocation', 'scope_id': 'fixture-output', 'operation': 'fixture/plan',
-            'project_id': 'fixture-project', 'source': answer(),
+            'project_id': 'fixture-project', 'source': answer(), 'routing_scope': 'invocation-only',
             'coordinator': {**work, 'lineage': 'alpha', 'observed_options': {'reasoningEffort': 'high'}},
             'capabilities': {'inheritedProviderInstanceId': 'fixture-work', 'inheritedModel': 'alpha-work',
                              'runtimeMode': 'auto', 'providers': [
@@ -34,6 +34,17 @@ def selection_input():
             'review_panel': [{'slot_id': 'review', 'role': 'reviewer', 'coverage': ['REQ-ONE'],
                               'required': True, 'target': review}],
             'work_replacements': [], 'review_replacements': []}
+
+
+def canonical_selection_input():
+    """Synthetic model IDs with authoritative single-lineage driver metadata."""
+    data = selection_input()
+    data['capabilities']['providers'][0]['driverKind'] = 'codex'
+    data['capabilities']['providers'][1]['driverKind'] = 'claudeAgent'
+    data['coordinator']['lineage'] = 'openai'
+    data['profiles']['models'][0]['lineage'] = 'openai'
+    data['profiles']['models'][1]['lineage'] = 'anthropic'
+    return data
 
 
 def replacement(data, target, review=False):

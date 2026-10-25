@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "stage": 4,
+  "added": [
+    {"path":"plugins/babysitter/scripts/org_bridge.js","stage":4,"kind":"helper","coverage":["G-BS-SCOPE"],"reason":"Allowlisted deterministic Codex code-mode bridge to native T3 tools, with an owned helper PID and bounded lifetime."},
+    {"path":"plugins/babysitter/scripts/org_scan.py","stage":4,"kind":"helper","coverage":["G-BS-SCOPE","G-BS-EXACT-HEAD"],"reason":"Paginated, serial, budgeted org triage with explicit incomplete evidence."},
+    {"path":"plugins/babysitter/scripts/org_execute.py","stage":4,"kind":"helper","coverage":["G-BS-SCOPE","G-BS-EXACT-HEAD"],"reason":"Admitted per-PR job preparation, native auto-merge and T3 task launch through durable writer reservations."},
+    {"path":"plugins/babysitter/references/org-scan.md","stage":4,"kind":"instruction","coverage":["G-BS-SCOPE"],"reason":"Deterministic report meanings, pagination, API budgets and host wake contract."},
+    {"path":"plugins/babysitter/references/org-execution.md","stage":4,"kind":"instruction","coverage":["G-BS-SCOPE","G-BS-EXACT-HEAD"],"reason":"Frozen execution configuration, host transport, ownership and dispatch/arming guards."},
+    {"path":"tests/test_babysitter_org_scan.py","stage":4,"kind":"test","coverage":["G-BS-SCOPE","G-BS-EXACT-HEAD"],"reason":"Offline pagination, state classification, transport budgets and relocated installed helper."},
+    {"path":"tests/test_babysitter_org_execute.py","stage":4,"kind":"test","coverage":["G-BS-SCOPE","G-BS-EXACT-HEAD"],"reason":"Causal default arming and launch fixtures with real continuous reservations and installed job gates."}
+  ]
+}

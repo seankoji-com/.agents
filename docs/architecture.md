@@ -121,7 +121,8 @@ every underlying record.
   (default 20). Primary, support and review failures share that budget. Resume,
   escalation and replacement never reset it. An exhausted budget blocks for an owner
   decision.
-- **Routing.** The coordinator recommends the lowest suitable configured tier with
+- **Routing.** The coordinator recommends an eligible saved workhorse preference,
+  otherwise the lowest suitable configured tier, with
   [`t3-plugins resolve`](getting-started.md#model-routing) and records the reason and
   escalation order. The user's upfront work/panel choices control dispatch and exact
   supported options. Reviewers need a reviewer or judgement tier; planning fallback

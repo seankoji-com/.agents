@@ -158,6 +158,7 @@ def policy_selection(ws, draft, caps=None, operation='plan'):
     data = {'project_id':'focus-fixture-'+sha(str(ws.base).encode())[:16], 'operation':'focus-group/'+operation,
         'invocation_id':'focus-'+draft['study_id']+'-'+operation, 'scope_id':planning.logical_output_id(reference,output),
         'source':answer('Use these exact invented per-cell, analyst and fidelity targets for this invocation.'),
+        'routing_scope':'invocation-only',
         'coordinator':dict(planner,lineage=family(planner),observed_options={}), 'capabilities':catalog,
         'routing':None,'profiles':profiles,'work':work,
         'review_panel':[{'slot_id':'fidelity','role':'reviewer','coverage':['FG-PLAN','FG-AUTHORITY','FG-REVIEW'],

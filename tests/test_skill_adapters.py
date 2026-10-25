@@ -197,7 +197,7 @@ class SkillAdapters(unittest.TestCase):
     def test_all_catalog_adapters_and_invalid_receipt(self):
         self.call('install')
         result = self.call('skills', 'install', '--root', str(self.skills))
-        self.assertEqual(len(result.stdout.splitlines()), 8)
+        self.assertEqual(len(result.stdout.splitlines()), 9)
         marker = self.skills / 't3-imps/.t3-plugins-skill.json'
         marker.write_text('[]')
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
@@ -391,6 +391,7 @@ class SkillAdapters(unittest.TestCase):
             'focus-group': ['plan', 'run', 'status', 'doctor'],
             'bug-report': ['run'],
             'plan': ['plan'],
+            'tests-omg': ['audit', 'status', 'report', 'doctor'],
         }
         for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
             meta = json.loads(manifest.read_text())

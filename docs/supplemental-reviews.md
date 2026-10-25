@@ -7,7 +7,7 @@ and a data scope. An empty option map explicitly permits catalog defaults, whose
 actual execution settings may remain unreported. Without consent, extras are skipped.
 General delegation or sharing permission alone does not enable them.
 
-The coordinator asks for work and review models together before substantive work
+The coordinator asks for work and review models in short rounds before substantive work
 on a delegating or planning command. Explicit choices already in the request count;
 deterministic helpers stay direct. Primary reviewer slots, permitted replacements
 and optional extras are separate choices. Selecting a review preference does not
