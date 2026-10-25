@@ -213,8 +213,12 @@ class WakeIdentityTest(ContinuousCase):
                 self.assertTrue(self.cli('dispatch', '--now', NOW, '--pr', url, '--kind', kind,
                     '--request-id', request_id, '--host-task-id', host, helper=helper)['attached'])
             result = self.accepted_result(request, 'fixer-host')
-            self.cli('fixer-done', '--now', NOW, '--pr', fixer_url, '--request-id', request,
-                     '--host-task-id', 'fixer-host', '--result', str(result), helper=helper)
+            before = self.state.read_bytes()
+            refused = self.cli('fixer-done', '--now', NOW, '--pr', fixer_url,
+                '--request-id', request, '--host-task-id', 'fixer-host',
+                '--result', str(result), helper=helper, ok=False)
+            self.assertIn('migration required (policy-version)', refused.stderr)
+            self.assertEqual(self.state.read_bytes(), before)
             self.cli('receipt', '--now', NOW, '--pr', URL, '--kind', 'merge',
                      '--request-id', 'late-merge', '--host-task-id', 'merge-host',
                      '--status', 'cancelled', helper=helper)
@@ -229,7 +233,7 @@ class WakeIdentityTest(ContinuousCase):
             final = json.loads(before)
             self.assertEqual(final['policy_version'], 'continuous-0')
             self.assertEqual(final['prs'][URL]['state'], 'closed')
-            self.assertFalse(final['prs'][fixer_url]['fixer']['in_flight'])
+            self.assertTrue(final['prs'][fixer_url]['fixer']['in_flight'])
             self.assertTrue(final['prs'][URL.replace('/12', '/13')]['fixer']['in_flight'])
             self.assertTrue(final['cancelled'])
             self.assertIsNone(final['scheduler']['schedule_id'])
