@@ -26,10 +26,11 @@ jobs:
             python: '3.14'
           - os: macos-latest
             python: '3.12'
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
     name: test (${{ matrix.runtime.os }}, ${{ matrix.runtime.python }}, shard ${{ matrix.shard }})
     runs-on: ${{ matrix.runtime.os }}
-    # Run the complete suite across four disjoint shards for each runtime.
+    # Size 24 complete shards from measured module durations, with setup headroom.
+    # Run 40184849090 had successful four-shard jobs lasting up to 1,282 seconds.
     # Keep the job budget and per-module 600-second failure limit unchanged.
     timeout-minutes: 30
     # Disposable hosted runners also test fork contributions without secrets.
@@ -55,7 +56,7 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: '1'
           TEST_SHARD_INDEX: ${{ matrix.shard }}
-        run: python3 scripts/run_tests.py --shard-index "$TEST_SHARD_INDEX" --shard-count 4
+        run: python3 scripts/run_tests.py --shard-index "$TEST_SHARD_INDEX" --shard-count 24
 
       - name: Documentation contracts
         run: python3 scripts/check_docs.py
