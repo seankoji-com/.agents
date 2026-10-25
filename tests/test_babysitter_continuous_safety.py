@@ -1264,15 +1264,6 @@ class UnpinnedMigrationTest(ContinuousCase):
                  '--next-run-at', '2026-10-22T14:15:00Z', helper=old / 'scripts/continuous.py')
         before = json.loads(self.state.read_text())
         decision = self.decision(current / 'scripts/continuous.py')
-        manifest = old / 'install-manifest.json'
-        original = manifest.read_bytes()
-        unchanged = self.state.read_bytes()
-        try:
-            manifest.unlink()
-            self.migrate(current / 'scripts/continuous.py', old, decision, ok=False)
-            self.assertEqual(self.state.read_bytes(), unchanged)
-        finally:
-            manifest.write_bytes(original)
         self.migrate(current / 'scripts/continuous.py', old, decision)
         after = json.loads(self.state.read_text())
         self.assertEqual(after['run_id'], before['run_id'])
@@ -1298,55 +1289,11 @@ class SourceIdentityTest(ContinuousCase):
         self.assertEqual(before['package']['installed_digest'],
                          continuous_sweep.continuous.package_digest(old))
         self.assertNotIn('fingerprint_scheme', before['package'])
-        # Historical helpers pinned only this tree. No shared/core may be needed to
-        # inspect retained source evidence, and no old contract may execute.
-        old = shutil.copytree(old, self.base / 'retained/plugins/babysitter')
-        shutil.rmtree(old_root)
         preserved = self.state.read_bytes()
         self.cli('observe', '--now', NOW, '--wake-id', 'blocked', helper=helper,
                  payload=observation(pr()), ok=False)
         self.assertEqual(self.state.read_bytes(), preserved)
         decision = UnpinnedMigrationTest.decision(self, helper)
-        for damage in ('bytes', 'version', 'plugin', 'decision-source', 'decision-target',
-                       'current-scheme', 'null-scheme'):
-            with self.subTest(damage=damage):
-                metadata = old / 'plugin.json'
-                original = metadata.read_bytes()
-                owner = json.loads(decision.read_text())
-                source = Path(owner['source'])
-                owner_bytes = source.read_bytes()
-                decision_bytes = decision.read_bytes()
-                try:
-                    if damage in ('bytes', 'version', 'plugin'):
-                        meta = json.loads(original)
-                        meta['version' if damage == 'version' else 'name' if damage == 'plugin'
-                             else 'description'] = 'changed'
-                        metadata.write_text(json.dumps(meta))
-                    elif damage == 'decision-source':
-                        source.write_text('Unrelated owner source')
-                    elif damage == 'decision-target':
-                        owner['scope'] = 'continuous-package:' + '0' * 64
-                        decision.write_text(json.dumps(owner))
-                    else:
-                        state = json.loads(preserved)
-                        state['package']['fingerprint_scheme'] = (
-                            'source-contracts-1' if damage == 'current-scheme' else None)
-                        self.state.write_text(json.dumps(state))
-                    unchanged = self.state.read_bytes()
-                    UnpinnedMigrationTest.migrate(self, helper, old, decision, ok=False)
-                    self.assertEqual(self.state.read_bytes(), unchanged)
-                finally:
-                    metadata.write_bytes(original)
-                    source.write_bytes(owner_bytes)
-                    decision.write_bytes(decision_bytes)
-                    self.state.write_bytes(preserved)
-        # The compatibility route is evidence-only. A new run cannot use a bare tree.
-        with self.assertRaises(continuous_sweep.continuous.ContinuousError):
-            continuous_sweep.continuous.source_identity(old / 'scripts/continuous.py')
-        fresh = self.base / 'new/state.json'
-        self.cli('start', '--now', NOW, '--scope-kind', 'org', '--scope-value', 'fixture',
-                 '--script', str(old / 'scripts/continuous.py'), helper=helper, state=fresh, ok=False)
-        self.assertFalse(fresh.exists())
         UnpinnedMigrationTest.migrate(self, helper, old, decision)
         migrated = json.loads(self.state.read_text())
         self.assertEqual(migrated['package']['fingerprint_scheme'], 'source-contracts-1')

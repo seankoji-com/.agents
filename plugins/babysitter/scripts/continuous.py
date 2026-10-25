@@ -371,18 +371,13 @@ def integrity_error(exc, module=None):
     return ContinuousError(prefix + detail)
 
 
-def package_metadata(package):
+def package_identity(script):
+    package = Path(script).resolve().parents[1]
     meta = json.loads(read_package_file(package / 'plugin.json'))
     require(isinstance(meta, dict), 'package plugin.json must be an object')
     require(meta.get('name') == 'babysitter' and isinstance(meta.get('version'), str)
             and meta['version'], 'package plugin identity is malformed')
     require(isinstance(meta.get('continuous', {}), dict), 'package continuous policy is malformed')
-    return meta
-
-
-def package_identity(script):
-    package = Path(script).resolve().parents[1]
-    meta = package_metadata(package)
     manifest_path = package / 'install-manifest.json'
     if manifest_path.exists() or manifest_path.is_symlink():
         version, fingerprint = verify_installed_identity(package, meta)
@@ -2390,29 +2385,12 @@ def validate_unpinned_migration(args, state, path, installed):
     require(package.get('installed_digest') and package.get('pinned_version')
             and state.get('run_id'), 'unpinned migration requires the recorded package identity '
             'and run ID; missing legacy identity needs a genuine pinned-job upgrade receipt')
-    previous = Path(args.previous_package).expanduser().resolve()
-    manifest = previous / 'install-manifest.json'
-    legacy = 'fingerprint_scheme' not in package
-    if legacy and not manifest.exists() and not manifest.is_symlink():
-        # Historical source pins covered only the plugin. Inspect retained bytes
-        # without importing old contracts or admitting this tree as current source.
-        try:
-            meta = package_metadata(previous)
-            require(not (previous / 'shared').exists() and not (previous / 'core').exists(),
-                    'legacy source evidence cannot be an installed package missing its manifest')
-            require(not any(item.is_symlink() for item in package_paths(previous)),
-                    'legacy source evidence contains a symlink')
-            old = {'plugin': meta['name'], 'version': meta['version'],
-                   'installed_version': meta['version'], 'policy_version': policy_identity(meta),
-                   'package_dir': str(previous), 'digest': package_digest(previous)}
-        except (ContinuousError, OSError, ValueError) as exc:
-            raise integrity_error(exc) from exc
-    else:
-        old = source_identity(previous / 'scripts' / 'continuous.py', validate_contracts=False)
+    old = source_identity(Path(args.previous_package).expanduser() / 'scripts' / 'continuous.py',
+                          validate_contracts=False)
     require(old['plugin'] == installed['plugin'] == 'babysitter',
             'migration packages must both be babysitter')
     accepted_digests = [old['digest']]
-    if legacy:
+    if not package.get('fingerprint_scheme'):
         # Legacy helpers hashed only package files, including installed metadata.
         # Retain that explicit migration path without downgrading a new source pin.
         accepted_digests.append(package_digest(old['package_dir']))

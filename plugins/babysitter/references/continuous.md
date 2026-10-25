@@ -273,12 +273,10 @@ Reporting uses unchanged evidence instead of regenerating a handoff round:
 `continuous.py version` reports the running package version, policy version and the
 installer manifest's package digest, after verifying its listed files. Source checkouts
 use `source-contracts-1`: the plugin plus the complete `shared/` and `core/` trees
-resolved by the helper's job imports. Retain all three trees for current source
-migration. Historical source states without `fingerprint_scheme` recorded only the plugin
-digest: a retained plugin-only tree remains read-only migration evidence when its
-plugin, version and digest match that state and the owner approves the exact target.
-It cannot start a new run or satisfy a current source fingerprint. Source symlinks
-are refused. Installed legacy fingerprints retain their supported upgrade path.
+resolved by the helper's job imports. Retain all three trees for source migration;
+copying the plugin alone is unsupported. Source symlinks are refused. Older source
+fingerprints remain an explicit owner-authorized migration input, never an automatic
+continuation. Installed legacy fingerprints retain their supported upgrade path.
 `start` records the identity automatically
 and defaults the pin to the installed version, so `resume` detects a swapped running
 package without relying on `--package-version`. A state without the fingerprint is a
