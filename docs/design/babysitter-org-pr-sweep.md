@@ -59,3 +59,10 @@ for review. Round 4 approved `9bb635d` and verified both original major findings
 fixed. Hosted bot feedback prompted null-rollup, CLI mapping, execution-status,
 fixture and documentation follow-ups. The unchecked final-review item applies to
 these new changes; the PR body records subsequent review and current-head CI.
+
+Round 6 at merged head `dee4964` verified the original two major repairs and the
+hosted feedback dispositions, but reproduced major `F-ARMED-LIFECYCLE`: already
+armed PRs skipped a current lifecycle read before fixer launch. The follow-up shares
+the budgeted read across arming and fixing, and independently verifies draft, closed,
+merged, changed-head and unavailable reads after workspace preparation. Draft
+exclusion preserves any racing writer reservation and handle attachment.

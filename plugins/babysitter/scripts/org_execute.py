@@ -246,15 +246,22 @@ def ownership(host, thread_id, rows):
     return owners
 
 
-def enable_auto_merge(api, row):
-    try:
-        data = api.query('''query($id:ID!) { node(id:$id) { ... on PullRequest {
+def read_current_pr(api, row, purpose):
+    data = api.query('''query($id:ID!) { node(id:$id) { ... on PullRequest {
           id state isDraft headRefOid autoMergeRequest { enabledAt }
           repository { squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed }
         } } %s }''' % org_scan.RATE, {'id': row['node_id']})
-        pr = data.get('node')
-        require(pr, 'pr-inaccessible')
-        require(pr['headRefOid'] == row['head_sha'], 'head-changed-before-auto-merge')
+    pr = data.get('node')
+    require(pr, 'pr-inaccessible')
+    require(pr['headRefOid'] == row['head_sha'], 'head-changed-before-' + purpose)
+    require(pr['state'] in {'OPEN', 'MERGED', 'CLOSED'} and type(pr['isDraft']) is bool,
+            'pr-lifecycle-unknown')
+    return pr
+
+
+def enable_auto_merge(api, row):
+    try:
+        pr = read_current_pr(api, row, 'auto-merge')
         if pr['state'] in {'MERGED', 'CLOSED'}:
             return pr['state'].lower()
         require(pr['state'] == 'OPEN' and pr['isDraft'] is False, 'pr-no-longer-non-draft')
@@ -283,6 +290,27 @@ def enable_auto_merge(api, row):
 def continuous_command(config, command, **values):
     return getattr(continuous, 'cmd_' + command.replace('-', '_'))(
         argparse.Namespace(state=config['continuous_state'], now=org_scan.utc_now(), **values))
+
+
+def exclude_current_draft(config, row):
+    """Record the targeted draft read without replacing other PR observations."""
+    path = continuous.state_path(config['continuous_state'])
+    now = continuous.parse_time(org_scan.utc_now())
+    with continuous.locked_state(path) as state:
+        pr = state['prs'][row['url']]
+        require(pr['observation']['head_sha'] == row['head_sha'], 'head-changed-in-ledger')
+        pr['observation']['draft'] = True
+        pr.update(state='excluded', excluded='draft observed before fixer dispatch',
+                  excluded_at=continuous.now_iso(now))
+        # Exclusion cannot erase a reservation or a handle that raced this read.
+        if (continuous.pending_write(pr, state, now) or (pr.get('fixer') or {}).get('in_flight')
+                or continuous.live_merge_dispatch(pr)):
+            action, queue, blocked, _ = continuous.reconcile_pr(pr, state, now, state['discovery'])
+            pr.update(next_action=action, queue=queue, blocked=blocked)
+        else:
+            pr.update(next_action=None, queue=None, blocked=None)
+        continuous.audit(state, now, 'draft-observed', pr=row['url'], head=row['head_sha'])
+        continuous.save_json(path, state)
 
 
 def execute(report, api, host, jobs, config):
@@ -426,6 +454,18 @@ def execute(report, api, host, jobs, config):
                       'The host checkout belongs to the coordinator project; do not edit it. '
                       'Use only the prepared PR checkout and recorded PR-branch push authority. '
                       'Return the exact worker-result JSON or artifact envelope required by the brief.')
+            # Even an already-armed PR may have merged, closed or become a draft
+            # while the org scan or local workspace preparation was running.
+            fresh = read_current_pr(api, row, 'fixer')
+            if fresh['state'] in {'MERGED', 'CLOSED'}:
+                lifecycle = fresh['state'].lower()
+                continuous_command(config, 'resolve', pr=row['url'], state_value=lifecycle, head=row['head_sha'])
+                outcome.update(status=lifecycle + '-observed', auto_merge='not-applicable')
+                continue
+            if fresh['isDraft']:
+                exclude_current_draft(config, row)
+                outcome.update(status='excluded-by-current-lifecycle', reason='pr-became-draft')
+                continue
             reserved = continuous_command(config, 'dispatch', pr=row['url'], request_id=prepared['request_id'],
                 kind='fixer', head=row['head_sha'], reserve=True, host_task_id=None,
                 attempt=action['attempt'], review_triage=bool(action.get('review_triage')),

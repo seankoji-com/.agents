@@ -83,13 +83,14 @@ class API:
         self.draft = False
         self.move_head = False
         self.merge_on_arm = False
+        self.state = 'OPEN'
 
     def query(self, query, variables, **kwargs):
         self.calls.append((query, variables, kwargs))
         if query.startswith('mutation'):
             return {'enablePullRequestAutoMerge': {'pullRequest': {
                 'state': 'MERGED' if self.merge_on_arm else 'OPEN', 'autoMergeRequest': {'enabledAt': 'observed'}}}}
-        return {'node': {'id': variables['id'], 'state': 'OPEN', 'isDraft': self.draft,
+        return {'node': {'id': variables['id'], 'state': self.state, 'isDraft': self.draft,
                         'headRefOid': 'b' * 40 if self.move_head else HEAD,
                         'autoMergeRequest': None,
                         'repository': {'squashMergeAllowed': True, 'mergeCommitAllowed': True}}}
@@ -117,7 +118,7 @@ class ExecutionTest(unittest.TestCase):
         self.host, self.jobs, self.api = Host(), Jobs(self.directory), API()
 
     def report(self, **changes):
-        node = pr(contexts=[check('FAILURE')], autoMergeRequest=None, **changes)
+        node = pr(contexts=[check('FAILURE')], autoMergeRequest=changes.pop('autoMergeRequest', None), **changes)
         node['commits']['nodes'][0]['commit']['oid'] = node['headRefOid']
         return runner.org_scan.scan(FixtureAPI([{'id': 'r', 'nameWithOwner': 'fixture/repo'}], {'r': [node]}), 'fixture')
 
@@ -419,6 +420,68 @@ class ExecutionTest(unittest.TestCase):
                     if flag == 'draft' else 'head-changed-before-auto-merge')
                 self.assertFalse(any(q.startswith('mutation') for q, _, _ in self.api.calls))
                 self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+
+    def assert_armed_lifecycle_stops_launch(self, state='OPEN', draft=False):
+        report = self.report(autoMergeRequest={'enabledAt': 'observed'})
+        workspace = self.jobs.workspace
+        def changed(row, prepared):
+            path = workspace(row, prepared)
+            self.api.state, self.api.draft = state, draft
+            return path
+        with patch.object(self.jobs, 'workspace', side_effect=changed):
+            result = self.execute(report)
+        expected = 'excluded-by-current-lifecycle' if draft else state.lower() + '-observed'
+        self.assertEqual(result['outcomes'][0]['status'], expected, result)
+        self.assertTrue(self.api.calls, 'already-armed PRs need a current lifecycle read')
+        self.assertFalse(any(q.startswith('mutation') for q, _, _ in self.api.calls))
+        self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+        saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+        self.assertEqual(saved['state'], 'excluded' if draft else state.lower())
+        self.assertFalse(saved['fixer']['in_flight'])
+
+    def test_already_armed_draft_after_workspace_is_excluded(self):
+        self.assert_armed_lifecycle_stops_launch(draft=True)
+
+    def test_already_armed_closed_after_workspace_is_reconciled(self):
+        self.assert_armed_lifecycle_stops_launch(state='CLOSED')
+
+    def test_already_armed_merged_after_workspace_is_reconciled(self):
+        self.assert_armed_lifecycle_stops_launch(state='MERGED')
+
+    def test_already_armed_head_change_holds_launch(self):
+        report = self.report(autoMergeRequest={'enabledAt': 'observed'})
+        self.api.move_head = True
+        result = self.execute(report)
+        self.assertEqual(result['outcomes'][0]['reason'], 'head-changed-before-fixer')
+        self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+
+    def test_already_armed_unavailable_lifecycle_holds_launch(self):
+        report = self.report(autoMergeRequest={'enabledAt': 'observed'})
+        with patch.object(self.api, 'query', side_effect=runner.org_scan.ScanError('request-budget')):
+            result = self.execute(report)
+        self.assertEqual(result['outcomes'][0]['status'], 'held', result)
+        self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
+
+    def test_draft_read_preserves_a_racing_reservation_and_handle_attachment(self):
+        report = self.report(autoMergeRequest={'enabledAt': 'observed'})
+        query = self.api.query
+        def racing(text, variables, **kwargs):
+            runner.continuous_command(self.config, 'dispatch', pr=pr()['url'], request_id='racing-fixer',
+                kind='fixer', head=HEAD, reserve=True, host_task_id=None, attempt=1, review_triage=False)
+            self.api.draft = True
+            return query(text, variables, **kwargs)
+        with patch.object(self.api, 'query', side_effect=racing):
+            result = self.execute(report)
+        self.assertEqual(result['outcomes'][0]['status'], 'excluded-by-current-lifecycle')
+        attached = runner.continuous_command(self.config, 'dispatch', pr=pr()['url'], request_id='racing-fixer',
+            kind='fixer', head=HEAD, reserve=False, host_task_id='retained-host', attempt=1, review_triage=False)
+        self.assertTrue(attached['attached'])
+        saved = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+        self.assertEqual(saved['state'], 'excluded')
+        self.assertTrue(saved['fixer']['in_flight'])
+        self.assertEqual(saved['fixer']['host_task_id'], 'retained-host')
+        self.assertEqual(saved['next_action']['kind'], 'wait-fixer')
+        self.assertFalse(any(t == 'delegate_task' for t, _ in self.host.calls))
 
     def test_workspace_failure_keeps_unlaunched_request_retryable(self):
         self.jobs.bad_workspace = True

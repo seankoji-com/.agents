@@ -117,6 +117,11 @@ are retained even if they differ from the requested target.
    the child from the coordinator checkout; the prompt explicitly names the PR
    workspace as the only writable source checkout. The worker fetches current review
    comments itself and follows its pinned definition.
+   After workspace preparation, one additional budgeted lifecycle/head read guards
+   every new fixer reservation, even when auto-merge was already enabled. A current
+   draft is excluded in the ledger; closed or merged PRs are reconciled. Head drift
+   or unavailable validation holds the launch. Existing reservations and accepted
+   handles remain retained through exclusion.
 5. Persist the host receipt, record the actual task handle in the job, then attach it
    to the writer reservation. On later passes, read retained handles with
    `task_status`; active or result-awaiting work prevents another launch. A lost
