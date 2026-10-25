@@ -17,6 +17,9 @@ before acting. On a mismatch or an unreadable brief, return `blocked`; never loo
 another copy or installation. The brief and task text name the PR URL, worktree,
 head SHA at dispatch, the complete `blockers=` list, every unresolved review thread
 with its ID, earlier rounds' findings, constraints, and recorded actions.
+For deterministic org launches, `resources.org_triage` binds a snapshot with thread
+IDs rather than comment bodies. Verify its hash, then fetch every current unresolved
+thread and all its comments before editing. Reconcile newly arrived findings too.
 The task text supplies coordinator-owned `retry_usage` for unchanged failures:
 attempts used, first attempt time, and remaining attempts/time.
 

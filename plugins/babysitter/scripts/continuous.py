@@ -80,6 +80,7 @@ KIND_RECEIPT_STATUSES = {
     'merge': MERGE_RECEIPT_STATUSES,
     'resolution': RESOLUTION_RECEIPT_STATUSES,
     'update-branch': RESOLUTION_RECEIPT_STATUSES.copy(),
+    'auto-merge': RESOLUTION_RECEIPT_STATUSES.copy(),
 }
 for _statuses in KIND_RECEIPT_STATUSES.values():
     _statuses.add('uncertain')
@@ -761,9 +762,9 @@ def live_dispatch(pr, kind):
 def pending_write(pr, state, now):
     """Keep coordinator writes visible until their matching terminal receipts."""
     dispatches = [dict(row) for row in pr.get('dispatches', [])
-                  if row.get('kind') in ('resolution', 'update-branch')
+                  if row.get('kind') in ('resolution', 'update-branch', 'auto-merge')
                   and dispatch_status(row) in OPEN_DISPATCH]
-    for kind in ('resolution', 'update-branch'):
+    for kind in ('resolution', 'update-branch', 'auto-merge'):
         row = live_dispatch(pr, kind)
         if row:
             status = dispatch_status(row)
@@ -782,7 +783,8 @@ def merge_attempts(pr, head):
 
 
 def settlement_attempts(pr, prefix):
-    return [row for row in pr.get('dispatches', []) if row.get('request_id', '').startswith(prefix)]
+    return [row for row in pr.get('dispatches', []) if
+            row.get('reconciliation_request_id', row.get('request_id', '')).startswith(prefix)]
 
 
 def mark_stale_merges(pr, head):
@@ -1241,6 +1243,18 @@ def reconcile_observation(state, observation, now, wake_id, wake_kind):
             pr['title'] = row['title'] or pr.get('title')
             if row['owner'] is not None:
                 pr['owner'] = merge_owner(pr.get('owner'), row['owner'])
+            if observation.get('preserve_human_blockers') is True:
+                # A GitHub-only sweep has no authority to resolve a coordinator
+                # hold. Read the latest value under the state lock, not from a
+                # snapshot captured before this observation was submitted.
+                row['observation']['human_blocker'] = pr['observation'].get('human_blocker')
+            if (observation.get('preserve_reconciliation_detail') is True
+                    and not row['changes_requested_by_observed']
+                    and row['observation']['head_sha'] == pr['observation'].get('head_sha')):
+                # Reviewer names participate in repair identity but are absent
+                # from the org reader. Omission cannot prove they were cleared.
+                row['observation']['changes_requested_by'] = list(
+                    pr['observation'].get('changes_requested_by') or [])
             pr['observation'] = row['observation']
             pr['discovery_gap'] = None
             if is_excluded:
@@ -1744,6 +1758,7 @@ def normalise_pr(raw, now):
         'fixer_in_flight': bool((raw.get('owner') or {}).get('fixer_in_flight')),
     }
     return {'url': url, 'repo': repo, 'number': number, 'title': raw.get('title'),
+            'changes_requested_by_observed': 'changes_requested_by' in raw,
             'observation': observation, 'owner': owner_state(raw)}
 
 
@@ -1819,6 +1834,8 @@ def cmd_dispatch(args):
         require(pr.get('state') == 'open' and not pr.get('excluded'),
                 'this PR is no longer eligible: lifecycle or scope exclusion changed')
         observation = pr.get('observation') or {}
+        require(not observation.get('human_blocker'),
+                'this PR has an unresolved human or authorization blocker')
         require(scope_matches(state['scope'], pr) and not excluded(
             state['scope'], {**pr, **observation}), 'this PR is outside the authorized scope')
         require(not owned_elsewhere(pr, state.get('thread_id')),
@@ -1842,6 +1859,25 @@ def cmd_dispatch(args):
         if update:
             raise ContinuousError(
                 f"update-branch {update['request_id']} is pending; another write may not race it")
+        arming = live_dispatch(pr, 'auto-merge')
+        require(not arming, 'auto-merge write is pending; reconcile it before another write')
+        reconciliation_id = getattr(args, 'reconciliation_request_id', None)
+        if args.kind == 'auto-merge' or reconciliation_id:
+            action = reconcile_pr(pr, state, now, state.get('discovery') or {})[0]
+            require(action['kind'] not in ('blocked', 'needs-human', 'wait-review'),
+                    'continuous action holds writes: ' + action['reason'])
+            if reconciliation_id:
+                require(args.kind == 'fixer' and action['kind'] == 'dispatch-fixer'
+                        and reconciliation_id == action['request_id']
+                        and args.attempt == action['attempt']
+                        and bool(args.review_triage) == bool(action.get('review_triage')),
+                        'fixer no longer matches the reconciled repair decision')
+        if args.kind == 'auto-merge':
+            require(not observation.get('draft'), 'draft PRs cannot enable auto-merge')
+            require(bool(args.head) and re.fullmatch(r'[0-9a-f]{40}', args.head) is not None,
+                    'auto-merge requires the full observed head')
+            require(not fixer.get('in_flight') and not merge,
+                    'auto-merge may not race a live fixer or merge')
         if args.kind == 'resolution' and merge:
             raise ContinuousError(
                 f"merge {merge['request_id']} is pending; resolution may not race it")
@@ -1858,6 +1894,8 @@ def cmd_dispatch(args):
                    'attempt': int(args.attempt or 1),
                    'review_triage': bool(args.review_triage),
                    'created_at': now_iso(now)}
+            if reconciliation_id:
+                row['reconciliation_request_id'] = reconciliation_id
             pr['dispatches'].append(row)
             pr['fixer'] = {'in_flight': True, 'request_id': args.request_id,
                            'started_at': now_iso(now),
@@ -1950,7 +1988,7 @@ def cmd_receipt(args):
         if args.head and row.get('head') and args.head != row['head']:
             raise ContinuousError(
                 f"receipt head {args.head} differs from dispatch head {row['head']}")
-        if row['kind'] in ('merge', 'resolution', 'update-branch') and args.status in TERMINAL_DISPATCH \
+        if row['kind'] in ('merge', 'resolution', 'update-branch', 'auto-merge') and args.status in TERMINAL_DISPATCH \
                 and row.get('host_task_id'):
             require(args.host_task_id == row['host_task_id'],
                     f"a terminal {row['kind']} receipt must name the recorded host handle")
@@ -2026,7 +2064,7 @@ def cmd_receipt(args):
                 pr['last_meaningful_progress_at'] = now_iso(now)
         audit(state, now, 'receipt', pr=args.pr, request_id=args.request_id,
               status=args.status, stale=stale)
-        if row['kind'] in ('resolution', 'update-branch'):
+        if row['kind'] in ('resolution', 'update-branch', 'auto-merge'):
             pending = pending_write(pr, state, now)
             if state.get('cancelled') and not pending:
                 pr.update(next_action=None, blocked=None, queue=None)
@@ -2507,6 +2545,8 @@ def build_parser():
     dispatch.add_argument('--now', required=True)
     dispatch.add_argument('--pr', required=True)
     dispatch.add_argument('--request-id', required=True)
+    dispatch.add_argument('--reconciliation-request-id',
+                          help='bind a job-owned fixer request to the current repair decision')
     dispatch.add_argument('--kind', choices=tuple(KIND_RECEIPT_STATUSES), required=True)
     dispatch.add_argument('--host-task-id')
     dispatch.add_argument('--head')
