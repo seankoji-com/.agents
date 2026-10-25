@@ -8,7 +8,55 @@ ownership of independent review of an implementation.
 Run `python3 PKG/shared/planning_review_cli.py COMMAND --input FILE`, or
 `t3-plugins planning-review COMMAND --input FILE`. Job operations also need
 `--state-root ROOT --job ID`; `create` needs `--prefix PREFIX --agents-root ROOT`.
-Each command returns one JSON value and exits 0, or exits 2 with a refusal.
+Successful commands return one JSON value and exit 0. Refusals exit 2 on stderr;
+`check-draft` also uses exit 2 with a JSON diagnostic on stdout for invalid drafts.
+
+## Draft diagnostics before completion
+
+An active planning reviewer can check a saved draft before returning it, when its
+brief permits these procedural reads. The checker reads the exact brief, its
+declared inputs and assigned task artifacts. It never opens live job/subject
+stores, charges a round, records a result or launches work:
+
+```sh
+python3 PKG/shared/planning_review_cli.py check-draft --input draft-input.json
+```
+
+`begin` puts the pinned helper descriptor and one-correction bound in
+`resources.draft_check`; preparation binds them into the immutable brief.
+The descriptor grants no new reads. Before capture, the coordinator must declare
+the helper and any needed procedural reads in the permitted pre-review scope.
+Keep the input frame as well as the draft in the assigned artifact directory.
+The one-correction bound is procedural; this stateless checker cannot count
+invocations. The reviewer verifies the helper's descriptor hash before running it.
+At capture, include separately opened helper/source files in `evidence_paths`.
+The assigned brief and own task-subtree input frames, drafts and diagnostics are
+contract/outputs, not additional `inspected_paths`; their hash and artifact
+bindings still apply. Do not use this distinction to hide separately read content.
+
+`draft-input.json` contains `brief_file` (the absolute file under `briefs/`),
+`brief_sha256` (the dispatch descriptor's byte hash) and `result_file` (a saved
+draft under that task's `artifacts/tasks/<task-id>/` subtree). No caller, state
+root or job argument is needed. The output has kind `planning-draft-diagnostic`,
+`valid`, `errors`, completed `checks` and `deferred_checks`. Exit 0 means the
+available draft checks passed, including a valid adverse assessment. Invalid
+drafts exit 2. `acceptance` is always false.
+
+The checker reuses strict transport, correlation, finding, coverage, actual-read,
+artifact and available response-transition checks on copied data. Artifact reads
+are capped at 16 MiB; ingestion still enforces its pinned limit. A legacy carry
+whose proof lives only in retained rounds is explicitly deferred. Current pins,
+job/subject freshness, host identity/options, fresh execution, authoritative
+finding history and remaining budgets are not certified by this diagnostic.
+Changing declared evidence makes a draft invalid; an unexpected read must remain
+disclosed, never removed to satisfy validation.
+
+Allow at most one draft correction cycle before terminal completion. Retain saved
+drafts and diagnostics under the existing evidence scope; do not suppress findings.
+If correction needs new evidence or authority, return the truthful assessment and
+gap. Returned results remain immutable and counted. No post-terminal reviewer
+follow-up, refund, automatic replacement or acceptance follows from draft checking.
+Document-only/cold-read slots cannot use this planning checker.
 
 ## Admission and snapshot
 
@@ -74,6 +122,14 @@ and independence policy. They cannot be imported or waived into this runtime.
   leaves the subject unchanged. If saving the charge is interrupted, no brief is
   returned. Re-present that same request to recover its charge exactly once
   before dispatch; replacement and release remain blocked meanwhile.
+  Recovery validates the immutable brief, original named slot, frozen selection,
+  target/options/runtime, lineage, snapshot and pins. It never selects another
+  candidate for an old request. Accounting recovery precedes the current sharing
+  and capacity checks. If either now denies dispatch, `launch` raises (the CLI
+  exits 2) without returning a brief, but keeps the recovered charge. Replaying
+  that refusal does not charge again. Reconcile the original reservation through
+  `unavailable` with correlated failure evidence before release or replacement; an error is not
+  dispatch permission and does not imply that accounting stayed unchanged.
   First launch and replay share `path`, `sha256`, `target`, `task_id`,
   `request_id` and `mode`; other descriptor fields can differ. Replay requires
   current prepare authorization and pins, and refuses cancelled/discarded jobs.
@@ -82,11 +138,63 @@ and independence policy. They cannot be imported or waived into this runtime.
   observed identity. Uncertain launches have the existing original-plus-two retry
   bound and must reconcile under their original request before replacement.
   Events receive local receipt timestamps; caller-supplied `recorded_at` is refused.
-- `unavailable(store, caller, task_id, failure)` requires correlated tool,
-  `call_id`, `request_id`, actual `receipt`, and `host_task_id` when created.
-  A no-handle failure needs `prelaunch: true`. It cannot reclassify substantive,
-  incomplete or adverse output as technical unavailability. Terminal executor
-  failure is recorded as a host failure, explicitly not a fabricated worker result.
+- `unavailable(store, caller, task_id, failure)` settles a failed host call or a
+  local prelaunch refusal. `failure.kind` must be `technical`, `capacity` or
+  `permission`; `tool`, `call_id` and `receipt` must be nonempty, and `request_id`
+  must match the original task. An attempt with owned handles requires its actual
+  `host_task_id`; one without handles requires `prelaunch: true`.
+  Unknown/active work must first reconcile through the host lifecycle. Pending,
+  uncertain or blocked host work is refused, as is any retained execution history.
+  Substantive, incomplete or adverse output cannot become technical unavailability.
+  Terminal executor failure is a host failure, never a fabricated worker result.
+
+  After an interrupted charge, first replay `launch` with the original `slot_id`
+  and `request_id`. If charge recovery succeeds but current sharing or capacity
+  refuses dispatch, retain a caller-supplied `call_id` correlation token for that
+  actual local CLI invocation and its refusal receipt. For example, generate a
+  unique token before the call and retain it alongside the real argv, request ID,
+  actual stderr and exit code. The CLI neither accepts nor emits `call_id`; the
+  helper only requires it to be nonempty and imposes no token format. It is not a
+  host-issued call ID.
+  With no host handle or pending/uncertain dispatch, settle the original prepared
+  `task_id` using the public command:
+
+  ```sh
+  python3 PKG/shared/planning_review_cli.py unavailable --input refusal.json --state-root ROOT --job ID
+  # Equivalent: t3-plugins planning-review unavailable --input refusal.json --state-root ROOT --job ID
+  ```
+
+  `refusal.json` has this shape. Copy the returned `create.caller` object unchanged
+  and substitute the original task/request IDs and actual local refusal evidence:
+
+  ```json
+  {
+    "caller": {
+      "actor": "coordinator",
+      "workflow": "<create.caller.workflow>",
+      "installation_id": "<create.caller.installation_id>",
+      "package_digest": "<create.caller.package_digest>"
+    },
+    "task_id": "<original prepared task_id>",
+    "failure": {
+      "kind": "permission",
+      "tool": "planning-review launch",
+      "call_id": "<caller-supplied token for the actual local launch invocation>",
+      "request_id": "<original request_id>",
+      "receipt": {"error": "<actual launch stderr>", "exit_code": 2},
+      "prelaunch": true
+    }
+  }
+  ```
+
+  Use `capacity` for a capacity refusal. The receipt object above preserves the
+  actual CLI error; the helper requires a nonempty receipt rather than this exact
+  receipt schema. A local refusal is not a failed host call. Do not invent a
+  `host-event` or `host_task_id`. This command records the original attempt's
+  unavailability without dispatch, another charge or a changed target/brief/selection.
+  It refuses an unreconciled missing charge. Subsequent `next` or `release` uses
+  the existing rules; another dispatch still needs current sharing, capacity and
+  explicit authorization. Settlement grants no new permission.
 - `ingest(store, caller, task_id, raw, completion_id)` uses the strict existing
   worker-result parser and the actual immutable brief, owned terminal execution,
   verified host identity, requested options and canonical lineage. Delegated
@@ -135,7 +243,20 @@ One active job owns an output. Jobs/revisions, frozen bytes, technical attempts,
 content rounds, findings, dispositions, owner decisions and receipts persist.
 Adopter metadata stores `subject_file` plus the validated receipt descriptor.
 
-The initial limit is three substantive rounds. A finite technical allowance is
+New subjects start with five substantive rounds. Existing subjects keep their
+recorded limit and counters. Batch supported repairs before verification, following
+the shared reviewer's convergence rule. Limits are ceilings, not target pass counts;
+changed relevant inputs still require their applicable review. Before dispatch,
+check the subject has testable acceptance, a feasible dependency order and a bounded evidence set. Supply
+the current immutable brief's correlation fields, all coverage IDs and exact retained
+finding keys; historical examples are not current result templates. Bind needed
+job/ledger evidence through stable projections or explicit immutable copies.
+Do not hash live records that review ingestion itself rewrites, or the receipt
+being produced, as source inputs. Use compact status and narrow field extraction;
+keep full history on disk, all required findings and coverage in the brief.
+Mark the planned last assessment and the last
+available round as final under `shared/agents/reviewer-standard.md`: only blocking
+issues require repair; safe deferrals become repository issues. A finite technical allowance is
 frozen for the candidate chain and retained across replacement jobs. Existing
 host idempotent retry bounds apply separately. `release` refuses live/uncertain or
 unfinished substantive work; a technical-only stopped round can release without
@@ -152,6 +273,14 @@ severity, scenario, source evidence and `smallest_correction`. `disposition` can
 record an evidenced rejection, open item or minor deferral with impact/owner/next
 action. Rejected/deferred major/blocker findings remain adverse. A counted fresh
 child of the original lineage can accept a rebuttal; main-context review cannot.
+An already agreed rebuttal can be acknowledged by another fresh child of that
+lineage on unchanged authored content. The original clearing execution and lineage
+remain intact; the new evidence appends to history. Legacy clearing content is
+recovered only from its retained complete pass. Missing proof, changed content,
+unknown/wrong lineage or an open account cannot use this carry path.
+Agreement provenance is retained for every severity, including minor/note accounts.
+For legacy accounts without a clearing record, recover it only from the current
+uninterrupted agreement history and its complete retained pass.
 A changed source plan can be reviewed as an actual repair through the normal
 fallback chain. A scoped `finding-decision` or explicitly labelled
 `finding-waiver` needs genuine owner source evidence; requirements remain intact.

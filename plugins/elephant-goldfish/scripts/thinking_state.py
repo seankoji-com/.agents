@@ -57,7 +57,7 @@ SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 # a bare `$ARGUMENTS` that is either the word `list` or a topic slug, and a topic actually
 # named `list` makes that undecidable. Reserve the subcommand names so the collision cannot
 # be created in the first place.
-RESERVED_SLUGS = frozenset({"list", "resolve", "init", "set", "gate", "review", "author", "plan-review"})
+RESERVED_SLUGS = frozenset({"list", "resolve", "init", "set", "gate", "review", "author", "plan-review", "delivery"})
 DRAFT_MARKER = "<!-- thinking:draft -->"
 DRAFT_LABEL = "DRAFT. Non-executable."
 REVIEW_SCOPE = "finalise-brief"
@@ -307,7 +307,19 @@ def phase_state(tdir: Path, meta: dict, artifacts: dict) -> dict:
         reason = handoff_problem(tdir, meta, check_review=True)
         if reason:
             phase = "handoff"
+    delivered = False
+    selected = meta.get('model_admission', {}).get('selection', {})
+    if phase == 'complete' and selected.get('agreement'):
+        try:
+            from shared import delivery
+            ledger = meta.get('delivery')
+            revision = (ledger or {}).get('observations', {}).get('delivery', {}).get('revision')
+            delivery.thinking(selected, ledger, artifacts['handoff.md']['sha256'], source_ready=True, revision=revision)
+            delivered = True
+        except (ValueError, KeyError, TypeError) as exc:
+            phase, reason = 'delivery', 'selected delivery incomplete: ' + str(exc)
     return {"next_phase": phase, "hold_reason": reason, "review": review, 'plan_review': planning,
+            'endpoint_complete': delivered,
             "workflow": "thinking", "execution_authorized": False,
             "has_execution_request": "execution_request" in meta}
 
@@ -464,7 +476,7 @@ def set_dotted(meta: dict, key: str, value):
     if key == "review" or key.startswith("review."):
         raise StateError("use `review` to record operator evidence; `set` cannot grant review")
     if any(key == prefix or key.startswith(prefix + '.') for prefix in
-           ('plan_review', 'plan_review_policy', 'plan_review_inputs', 'model_admission')):
+           ('plan_review', 'plan_review_policy', 'plan_review_inputs', 'model_admission', 'delivery')):
         raise StateError('use `plan-review` to bind source inputs and actual planning receipt evidence')
     parts = key.split(".")
     cursor = meta
@@ -586,7 +598,10 @@ def cmd_gate(args) -> dict:
     if not required:
         raise StateError('at least one known artifact is required')
     wants_plan_review = 'plan_review' in required
-    names = [req if req.endswith('.md') else f'{req}.md' for req in required if req != 'plan_review']
+    wants_delivery = 'delivery' in required
+    names = [req if req.endswith('.md') else f'{req}.md' for req in required if req not in ('plan_review', 'delivery')]
+    if wants_delivery:
+        names = list(dict.fromkeys([*names, 'discovery.md', 'spec.md', 'handoff.md']))
     if any(name not in ARTIFACTS for name in names):
         raise StateError('required artifacts must be discovery, spec, plan_review, or handoff')
     missing, empty = [], []
@@ -631,11 +646,62 @@ def cmd_gate(args) -> dict:
             problem = handoff_problem(tdir, meta, check_review=True)
             if problem:
                 raise StateError(problem)
+    delivered = None
+    if wants_delivery:
+        if args.draft:
+            raise StateError('draft source cannot complete selected delivery')
+        try:
+            from shared import delivery
+            selected = meta['model_admission']['selection']
+            delivered = delivery.thinking(selected, meta.get('delivery'), sha256_of(tdir / 'handoff.md'),
+                                          source_ready=gate_status == 'pass', revision=getattr(args, 'revision', None))
+        except (ValueError, KeyError, TypeError) as exc:
+            raise StateError('selected delivery incomplete: ' + str(exc)) from exc
     return {"slug": args.slug, "gate": gate_status, "required": required, 'plan_review': planning,
+            'delivery': delivered, 'endpoint_complete': bool(delivered),
             "review": review_state(meta, artifacts),
             "review_sha256": review_digest(meta),
             "input_hashes": {name: state.get("sha256") for name, state in artifacts.items()},
             "execution_authorized": False}
+
+
+def cmd_delivery(args):
+    from thinking_plan_review import check_admission
+    tdir = topic_dir(Path(args.root), args.slug)
+    meta = read_meta(tdir)
+    admitted = check_admission(meta, args.slug)
+    from shared import delivery
+    selected = admitted['selection']
+    data = json.loads(Path(args.input).read_text()) if args.input else {}
+    try:
+        if args.action in ('start', 'complete'):
+            gate = cmd_gate(argparse.Namespace(root=args.root, slug=args.slug,
+                require='discovery,spec,handoff', draft=False, template_dir=None))
+            if gate['gate'] != 'pass':
+                raise ValueError('legacy/draft source cannot gain new publication authority; restart an admitted topic')
+        if args.action == 'start':
+            candidate = delivery.start(selected, sha256_of(tdir / 'handoff.md'), data.get('subissues', []))
+            if meta.get('delivery'):
+                delivery.check_state(selected, meta['delivery'])
+                if any(candidate[k] != meta['delivery'][k] for k in ('content_sha256', 'subissues', 'agreement_sha256')):
+                    raise ValueError('existing delivery content changed; retain partial IDs and resolve a scoped revision')
+            else:
+                meta['delivery'] = candidate
+            result = meta['delivery']
+        elif args.action == 'observe':
+            result = delivery.reconcile(selected, meta.get('delivery'), **data)
+            meta['delivery'] = result['state']
+        elif args.action == 'complete':
+            result = delivery.thinking(selected, meta.get('delivery'), sha256_of(tdir / 'handoff.md'),
+                                       source_ready=True, revision=data.get('revision'))
+        else:
+            delivery.check_state(selected, meta.get('delivery'))
+            return meta['delivery']
+        if args.action != 'complete':
+            write_meta(tdir, meta)
+        return result
+    except (ValueError, KeyError, TypeError) as exc:
+        raise StateError('delivery: ' + str(exc)) from exc
 
 
 def cmd_plan_review(args) -> dict:
@@ -711,6 +777,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_gate.add_argument("slug")
     p_gate.add_argument("--require", required=True, help="comma-separated artifact names")
     p_gate.add_argument("--draft", action="store_true", help="check draft inputs without final readiness")
+    p_gate.add_argument('--revision', help='observed current Markdown PR head for delivery gate')
+    p_delivery = sub.add_parser('delivery', help='retain/reconcile and verify selected remote delivery')
+    p_delivery.add_argument('slug')
+    p_delivery.add_argument('action', choices=('start', 'observe', 'status', 'complete'))
+    p_delivery.add_argument('--input')
 
     return parser
 
@@ -724,6 +795,7 @@ HANDLERS = {
     "review": cmd_review,
     "author": cmd_author,
     'plan-review': cmd_plan_review,
+    'delivery': cmd_delivery,
 }
 
 

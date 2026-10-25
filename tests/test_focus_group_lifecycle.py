@@ -165,7 +165,7 @@ class Host(Workspace):
         if identity == 'default':
             identity = self.target_of(n)
         if identity is not None:
-            event['status_identity'] = identity
+            event['status_identity'] = {**identity, 'options': identity.get('options', {})}
         code, out = self.observe(task_id, **event)
         assert code == 0, out
         return host

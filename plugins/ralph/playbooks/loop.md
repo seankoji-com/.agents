@@ -28,17 +28,30 @@ thread on the same worktree or branch needs an owner decision before dispatch.
 Discover T3's live schemas and call `orchestrator_capabilities`. If tools are absent,
 try bounded discovery and the host's documented ACP transport before declaring
 unavailable. Use only `delegate_task`, `task_status` and `task_cancel` for children,
-plus the queued `t3_thread_send` follow-up the helper issues for delta reviews.
+with a fresh `delegate_task` for every agreement-bound review round.
+Do not use `t3_thread_send` to continue a new agreement-bound review.
 
-Ask interactively for BOTH exact provider-instance/model choices on every new run.
-Show available choices from this catalog, their options, and lineage evidence.
-Accept custom models when the catalog advertises them. A provider name is not a
-lineage. Use explicit catalog lineage metadata or owner-confirmed routing labels;
-unknown or inferred labels require owner confirmation. Never accept `unknown` as
-independence. Reject a same-lineage pair and ask for an independent evaluator.
-Record the lineage source in both targets. Ask about optional model settings in the
-same interaction and pin the chosen options. Do not silently replace, escalate or
-rotate either target, even following adverse feedback or provider errors.
+Use `PKG/shared/upfront-agreement.md` to inspect context and recommend exact work
+and independent reviewer chains/options in one scoped agreement. Supplied choices
+are answers. Preserve separate finite work/reviewer backups and all actual authors.
+Only reconciled unavailability permits replacement; adverse feedback requires repair.
+Ralph never degrades its different-lineage full evaluator requirement.
+
+Collect the agreement's exact provider-instance/model choices before work, following
+`PKG/shared/model-selection.md`'s short rounds. Explicit choices already supplied
+count; retain them and ask only for missing decisions. Ask for the implementer,
+then routing scope only if ambiguous (this invocation recommended, or global),
+then the evaluator, then each still-missing option or backup decision in separate
+questions. Show a short relevant catalog list, including custom matches, rather
+than the full catalog, lineage, sharing and runtime mechanics in one picker. A
+provider name is not a lineage. Use verified canonical lineage evidence or
+owner-confirmed routing labels; unknown labels need a separate confirmation only
+when independence cannot otherwise be established. Never accept `unknown` as
+independence. A same-lineage pair needs an eligible evaluator correction; keep the
+implementer answer. Record the lineage source in both targets. Pin the chosen options.
+Never silently replace, escalate or rotate a target. Only the agreement's separately
+approved finite chains permit replacement after reconciled unavailability;
+adverse feedback requires repair.
 Show each target's resolved runtime mode during this interaction. The helper
 validates advertised modes and records the broadest supported mode within the
 parent boundary, or uses T3's `inherit` when supported modes are unadvertised.
@@ -58,8 +71,8 @@ the design and identify every finding, including blocker/major findings, against
 that base and the full task diff. A mandatory repository review route still applies.
 Check its constraints before the model-choice interaction. The selected evaluator
 must satisfy both Ralph's independence rule and that route. If the chosen pair
-cannot meet the repository gate, explain the conflict and ask for an eligible pair
-before dispatch. If the gate requires a route Ralph cannot track with this pair,
+cannot meet the repository gate, explain the conflict and ask only for the affected
+target's correction, retaining other answers, before dispatch. If the gate requires a route Ralph cannot track with this pair,
 report it as blocked.
 
 Choose a writable checkpoint directory OUTSIDE the worktree, for example an
@@ -98,15 +111,9 @@ existing worktree, the latest implementation summary and evaluator report, every
 failed task's summary, every recovery reason, and EVERY prior verdict, evaluation
 gap and invalidation without truncation. Older completed reports stay in the
 checkpoint, so the brief does not grow by a full report each round.
-Every implementation and full review uses a NEW `delegate_task`. A delta review
-may instead be a `t3_thread_send` dispatch: `mode: queue` to the `childThreadId`
-of the review that rejected, so the reviewer keeps its reading of the code. T3 then
-creates a new tracked task in that thread. Send exactly that dispatch; never steer,
-restart or send to any other thread, and never use a native subagent or a top-level
-thread. This departs from T3's guidance that each review round is a new
-`delegate_task`, by owner decision on 14 October 2026. It is limited to delta
-reviews because they cannot accept: anchoring on an earlier verdict can cost a
-repair round, never a false pass. Acceptance always comes from a fresh full review.
+Every implementation and review round in a new agreement-bound run uses a fresh
+`delegate_task`, including delta review. Delta passes still require full review.
+Older pinned packages retain their historical continuation contract.
 
 Retain the returned `taskId` immediately: `attach --state FILE --input FILE`, where
 the JSON contains `clientRequestId` and the unmodified T3 response, including
@@ -141,16 +148,18 @@ receipt exists. Reconcile the host/status response before proceeding. `attach`
 can retain a task handle from a partial receipt so the parent can query or cancel
 it; that partial receipt does not waive the status provider requirement.
 
-For explicit resume, show the pinned pair/options and ask retain-or-stop. Run
-`resume --state FILE --input FILE` with `{admission, retain: true}` before further
-work; decline stops without rotating targets or resetting feedback/budgets. Automatic
-wakes reuse the active record. After addressing a result/provider failure, resume calls
-`recover --state FILE --input FILE` with `{"reason":"Describe the resolved cause"}`.
-Recovery requires verified identities and no pending work, retains the original
-pair and contract, and issues a fresh task through the next `next` call. Repeating
-an implementation counts as another attempt; evaluation recovery retains the
-attempt. An exhausted implementation budget still prevents more implementation.
-Never retry a provider failure until its cause is addressed or substitute models.
+Unchanged resume uses `resume --state FILE` with the saved agreement, without a
+chooser or retain-or-stop. Reconcile owned tasks before work. A resolved failure
+uses `recover` with a reason; it preserves identities, findings and attempt limits.
+A confirmed outage may use `replace --input FILE` with role (`implementer` or
+`evaluator`), exact approved `target` and original `unavailable.reconciled` evidence.
+The checkpoint verifies original request/host IDs and terminal/no-pending state.
+Replacement consumes the retained attempt budget. If an implementor replacement
+invalidates the unlaunched reviewer, use an approved independent reviewer backup
+or report a blocker. A healthy adverse review never permits replacement.
+Keep legacy state pinned; a new endpoint or chain needs a separately admitted
+restart after reconciliation, carrying prior findings and remaining limits.
+
 Record observed delegation failures through `PKG/shared/learnings.md` when the
 active harness permits that write; otherwise include the proposed lesson in the
 handoff. Learning storage errors do not block engineering work.
@@ -201,59 +210,73 @@ Before dispatching again, inspect the changed files and identify the cause of
 drift, including possible evaluator edits during its read-only task. Preserve the
 evidence and resolve unexpected writes before issuing another evaluation.
 
-`goalAchieved: true` AND `feedback: []` from a full review makes the loop
-`evaluated`. Any feedback, or `goalAchieved: false`, from either scope means the
-next fresh implementer task uses the original pinned target and existing worktree.
-Even informational feedback triggers repair. If false has no feedback, the fresh
-brief still includes that verdict and asks the implementer to find the unmet goal.
+Immediately after each returned review, output the shared main-context summary of
+at most three sentences before taking another action. A full review is a final
+acceptance assessment under `PKG/shared/agents/reviewer-standard.md`, including
+when attempts remain. Only issues that must be fixed before merge/launch block.
+
+`goalAchieved: true` AND no open feedback from a full review makes the loop
+`evaluated`. Blocker/major feedback and `goalAchieved: false` require repair with
+the original pinned target and existing worktree. Minor/info feedback enters
+`triage` without charging another attempt. Search the target repository for a
+matching issue; reuse it or create a redacted issue under the operator's authority.
+`next` returns `issueRequirements` with a marker for each minor/info finding, bound
+to that review's task, revision, index and original finding. Include its exact marker
+on its own line in the issue body. When reusing an issue, preserve its existing body
+and append the marker through an authorised issue update, then fetch the issue.
+Keep the actual GitHub create/fetch/update response; never reconstruct or invent it
+from a URL or a worker's claim. An open issue snapshot must contain the marker,
+matching URL/number and a title. The receipt is a coordinator observation, not
+cryptographic proof of remote state; the helper never calls GitHub itself.
+Use `python3 PKG/cli.py triage --state STATE --input FILE` with:
+
+```json
+{"taskId":"returned-review-task","dispositions":[{"feedbackIndex":0,
+  "disposition":"deferred","issueUrl":"https://github.com/OWNER/REPO/issues/123",
+  "reason":"Why waiting until after merge/launch is safe","impact":"User impact",
+  "owner":"Responsible owner","nextAction":"Fix and acceptance criteria",
+  "evidence":"Observed issue-create/fetch receipt and finding reproduction",
+  "issueReceipt":{"source":"github","operation":"create-issue","issue":{
+    "url":"https://github.com/OWNER/REPO/issues/123","issue_number":123,
+    "state":"open","title":"Deferred fix","body":"Finding and acceptance criteria\n<!-- ralph-finding:EXACT_KEY_FROM_NEXT -->"}}}]}
+```
+
+Indices address the original, unchanged feedback array. Every minor/info item
+needs a disposition. A concrete issue that must be fixed now uses `repair` with
+a reason instead. Blocker/major entries cannot be deferred. The helper checks the
+issue URL belongs to the worktree's GitHub `origin` and requires the returned API
+snapshot to match the issue and finding marker. It retains a SHA-256 of the receipt
+and rechecks the receipt and binding for publication and checkpoint reads. The
+coordinator must verify the API response is real; URL shape or free text alone
+cannot clear the filing gap. A receipt for another finding/revision or a later
+edit of a saved receipt is refused.
+An unavailable issue service leaves the run in triage with explicit unfiled drafts
+and a filing gap, not a product defect or a claim that issues were filed.
+Triage refuses live/unverified tasks and invalidates changed-tree evidence. It
+preserves raw review results and dispositions. Safe deferrals from a full pass
+need no extra implementation or evaluation, even at the attempt limit; a delta
+pass still needs the fresh full review. Required verification and unmet goals
+cannot be cleared by deferral. If false has no feedback, the fresh brief still
+includes that verdict and asks the implementer to find the unmet goal.
 At the limit, report `exhausted`, all outstanding feedback and the checkpoint path.
 Never claim success or publish a success PR merely because the limit was reached.
 
-## PR and handoff
+## Selected endpoint and handoff
 
-After `evaluated`, independently confirm evidence and no pending runs for EVERY
-recorded task. Recheck the saved evaluated revision with `status` before publishing.
-Any changed bytes require fresh evaluation; never use a verdict for an older tree.
-Complete repository-required checks before the final evaluation. The evaluator
-must satisfy the repository's pre-PR review gate at the refreshed intended base.
-If it cannot, report the failed gate; never silently add or substitute a model.
-Do not publish with unresolved feedback or blocker/major findings.
+After the fresh full evaluation, follow `PKG/shared/upfront-agreement.md` for
+the exact selected Open PR, Tagged Version or Verified in Prod endpoint.
+The target repository owns release/distribution/deployment procedures.
+Use authorised CI repair and native notification-driven waiting.
+`complete --state FILE --input FILE` records actual endpoint observations
+only at the clean current evaluated head. `readyForPublication` is source
+readiness; `endpointComplete` is separate. Missing or stale evidence keeps
+the chosen target incomplete. Report no-change honestly and resolve an
+incompatible endpoint without inventing an empty PR or tag.
 
-`status` exposes `changedPaths` and `hasChanges` against the initial HEAD and dirty
-bytes, including index entries. An older baseline without index provenance reports
-staged candidates conservatively. These are candidate paths, including concurrent edits; inspect ownership
-and whether the goal produced code changes before deciding to open a PR.
-For code changes, inspect the staged diff, commit only owned paths, push explicitly
-to the task branch, then open a NORMAL PR at the discovered base. Never commit
-checkpoints, private logs or unrelated edits. Commit-created revision changes also
-need fresh evaluation: arrange the final implementation commit before the final
-evaluation, and make no edits or commits after it. Link the PR with T3 immediately.
-Verify the PR's head and URL, report current-head CI separately, and do not merge.
-If the run has no code changes, report the evaluated outcome without an empty PR.
-If publication fails, say the goal was evaluated but PR delivery is blocked, with
-the exact failure and retained branch. Never relaunch implementation just to hide it.
-
-For cancellation, call `stop --state FILE` BEFORE requesting T3 cancellation.
-The helper archives an existing blocker as `stoppedBlocker` for evidence; stopping
-and cancelled runs no longer advertise it as a current recovery blocker.
-Cancel every recorded task with live/pending work. After `task_cancel`, re-read `task_status`
-and pass that response to the helper's `observe`; `cancel_requested` from cancellation
-is neither terminal nor an observable status. The saved stop flag prevents a late success notification from launching
-another round. Unattached uncertain dispatch must be reconciled and stopped too.
-Never cancel unrelated tasks. Stop task-owned services at handoff.
-
-Checkpoint format 2 adds per-target modes, recovery and a content baseline.
-Format 3 adds each review's `scope` and delta `reviewBaseline`. The helper reads
-a format 2 checkpoint as format 3 with every review marked full, and saves it as
-format 3 on its next write. Earlier helpers refuse format 3, so they cannot accept
-a delta review. Older checkpoints require their original installed snapshot; do
-not rewrite their state.
-
-## Written strategies
-
-Ordinary maintenance/iterations add no artificial planning artifact or duplicate
-evaluator. If you actually write a substantial repair, landing or implementation
-strategy, use `PKG/shared/adopter-planning.md`: review it in a separate pinned job
-before dependent actions. Retain the producing selection, source request, actual
-author lineages, domain criteria and persistent subject. Changed content reopens
-review with retained findings/budget. Planning acceptance grants no action authority.
+Do not publish with undisposed feedback or blocker/major findings. Complete
+repository-required checks and review before final acceptance. Reconcile all
+recorded tasks and recheck the evaluated revision before delivery; source drift
+requires fresh evaluation. Include deferred-fix issue links, impact, owners and
+next actions in the operator handoff, and capture the observed build/test lesson
+under the harness learning policy. Preserve cancellation and written-strategy
+requirements in the shared runtime and planning contracts.

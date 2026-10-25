@@ -1,6 +1,7 @@
 """User-local routing config: setup writes it from a saved capabilities file, resolve
 returns available candidates in tier order. Every call runs with an isolated HOME and
 XDG_CONFIG_HOME; the provider and model names are synthetic."""
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -70,6 +71,41 @@ class RoutingCli(unittest.TestCase):
         path = path or self.config
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(config))
+
+    def test_resolve_rejects_nonobject_role_options_with_exact_config_field(self):
+        profiles = self.base / 'profiles.json'
+        profiles.write_text(json.dumps({'roles': {}, 'models': []}))
+        for role in ('workhorse', 'reviewer'):
+            for options in (None, 'high', [], [['effort', 'high']], 1, 1.5, True, False):
+                with self.subTest(role=role, options=options):
+                    self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                                'roles': {role: [entry('codex', 'model-x1', 'low', 'openai'),
+                                    {**entry('codex', 'model-x2', 'low', 'openai'), 'options': options}]}})
+                    before = self.config.read_bytes()
+                    for extra in ((), ('--profiles', str(profiles))):
+                        result = self.cli('resolve', role, '--capabilities', str(self.caps), *extra, code=2)
+                        self.assertIn(f'configuration gap: roles.{role}[1].options must be an object', result.stderr)
+                        self.assertEqual(result.stdout, '')
+                        self.assertEqual(self.config.read_bytes(), before)
+
+    def test_profiled_resolve_rejects_present_nonobject_role_policy_even_without_models(self):
+        profiles = self.base / 'profiles.json'
+        for role in ('workhorse', 'reviewer'):
+            self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                        'roles': {role: [entry('codex', 'model-x1', 'low', 'openai')]}})
+            before = self.config.read_bytes()
+            for value in (None, [], 'strict', 1, 1.5, True, False):
+                profiles.write_text(json.dumps({'roles': {role: value}, 'models': []}))
+                for capabilities in (CAPABILITIES, {**CAPABILITIES, 'providers': []}):
+                    with self.subTest(role=role, value=value, empty=not capabilities['providers']):
+                        self.caps.write_text(json.dumps(capabilities))
+                        result = self.cli('resolve', role, '--capabilities', str(self.caps),
+                                          '--profiles', str(profiles), code=2)
+                        self.assertIn(f'configuration gap: profiles.roles.{role} must be an object; '
+                                      f'provide profiles.roles.{role} as an object containing the role policy.',
+                                      result.stderr)
+                        self.assertEqual(result.stdout, '')
+                        self.assertEqual(self.config.read_bytes(), before)
 
     def test_setup_writes_a_new_config_from_saved_capabilities(self):
         receipts = [json.loads(l) for l in self.cli('setup', 'imps', '--root', str(self.base / 'skills'),
@@ -218,6 +254,121 @@ class RoutingCli(unittest.TestCase):
                     'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai')]}})
         result = self.cli('resolve', 'reviewer', '--capabilities', str(self.caps), code=2)
         self.assertIn("role 'reviewer' is not configured", result.stderr)
+
+    def test_persistent_workhorse_preference_survives_later_cli_resolution(self):
+        config = {'schema_version': 1, 'tiers': ['low', 'high'], 'providers': {},
+                  'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai'),
+                                           entry('claudeAgent', 'model-c2', 'high', 'anthropic')],
+                            'reviewer': [entry('codex', 'model-x1', 'low', 'openai')]}}
+        self.write(config)
+        self.assertEqual(self.resolve('workhorse')['candidates'][0]['model'], 'model-x1')
+        config['preferred_workhorse'] = {'providerInstanceId': 'claudeAgent', 'model': 'model-c2'}
+        self.write(config)  # Emulate the authorized coordinator write, not setup.
+        before = self.config.read_bytes()
+        for _ in range(2):
+            result = self.resolve('workhorse')  # Separate later CLI invocations.
+            self.assertEqual([c['model'] for c in result['candidates']], ['model-c2', 'model-x1'])
+            self.assertTrue(result['candidates'][0]['preferred'])
+            self.assertEqual(result['preference_status'], 'available')
+            self.assertEqual(result['preferred_workhorse'], config['preferred_workhorse'])
+        self.assertNotIn('preferred_workhorse', self.resolve('reviewer'))
+        self.assertEqual(self.config.read_bytes(), before)
+        caps = deepcopy(CAPABILITIES)
+        caps['providers'][1]['canRunChildTask'] = False
+        self.caps.write_text(json.dumps(caps))
+        blocked = self.resolve('workhorse')
+        self.assertEqual(blocked['preference_status'], 'unavailable')
+        self.assertEqual(blocked['preferred_workhorse'], config['preferred_workhorse'])
+        self.assertEqual(blocked['unavailable'][0]['model'], 'model-c2')
+        self.assertFalse(any(c.get('preferred') for c in blocked['candidates']))
+        self.assertEqual(self.config.read_bytes(), before)
+
+    def test_repository_preference_precedence_preserves_unrelated_settings(self):
+        config = {'schema_version': 1, 'tiers': ['low', 'high'],
+                  'providers': {'codex': {'runtimeMode': 'auto'}},
+                  'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai'),
+                                           entry('claudeAgent', 'model-c2', 'high', 'anthropic')],
+                            'reviewer': [entry('codex', 'model-x1', 'low', 'openai')]},
+                  'preferred_workhorse': {'providerInstanceId': 'claudeAgent', 'model': 'model-c2'}}
+        self.write(config)
+        policy_path = self.repo / '.t3-plugins/routing.json'
+        self.write({'providers': {'claudeAgent': {'runtimeMode': 'full-access'}}}, policy_path)
+        effective, _ = routing.effective_config(self.config, self.repo)
+        self.assertEqual(effective['preferred_workhorse'], config['preferred_workhorse'])
+        self.assertEqual(effective['roles'], config['roles'])
+        self.assertEqual(effective['providers']['codex'], config['providers']['codex'])
+        self.write({'roles': {'workhorse': [entry('codex', 'model-x2', 'high', 'openai')]}}, policy_path)
+        effective, _ = routing.effective_config(self.config, self.repo)
+        self.assertNotIn('preferred_workhorse', effective)
+        self.assertEqual(self.resolve('workhorse')['candidates'][0]['model'], 'model-x2')
+        self.assertEqual(effective['roles']['reviewer'], config['roles']['reviewer'])
+        self.write({'preferred_workhorse': {'providerInstanceId': 'codex', 'model': 'model-x1'}}, policy_path)
+        self.assertEqual(self.resolve('workhorse')['candidates'][0]['model'], 'model-x1')
+        self.assertEqual(json.loads(self.config.read_text()), config)
+
+    def test_workhorse_preference_stays_within_its_independence_group(self):
+        pool = [entry('codex', 'model-x1', 'low', 'openai'),
+                entry('opencode', 'gateway/kimi-9', 'low', 'unknown'),
+                entry('claudeAgent', 'model-c1', 'low', 'anthropic'),
+                entry('gemini-box', 'model-a2', 'high', 'google'),
+                entry('codex', 'model-x2', 'high', 'openai')]
+        config = {'schema_version': 1, 'tiers': ['low', 'high'], 'providers': {},
+                  'roles': {'workhorse': pool, 'reviewer': deepcopy(pool)}}
+        for preferred, expected in (
+                (pool[-1], ['model-c1', 'model-a2', 'gateway/kimi-9', 'model-x2', 'model-x1']),
+                (pool[1], ['model-c1', 'model-a2', 'gateway/kimi-9', 'model-x1', 'model-x2']),
+                (pool[3], ['model-a2', 'model-c1', 'gateway/kimi-9', 'model-x1', 'model-x2'])):
+            config['preferred_workhorse'] = {k: preferred[k] for k in ('providerInstanceId', 'model')}
+            self.write(config)
+            before = self.config.read_bytes()
+            source = routing.resolve('workhorse', CAPABILITIES, config, implementer_lineage='openai')
+            result = json.loads(self.cli('resolve', 'workhorse', '--capabilities', str(self.caps),
+                                        '--implementer-lineage', 'openai').stdout)
+            for resolved in (source, result):
+                self.assertEqual([c['model'] for c in resolved['candidates']], expected)
+                self.assertEqual([c['independent'] for c in resolved['candidates']], [True, True, None, False, False])
+                self.assertEqual([c['model'] for c in resolved['candidates'] if c.get('preferred')], [preferred['model']])
+            reviewer = routing.resolve('reviewer', CAPABILITIES, config, implementer_lineage='openai')
+            self.assertEqual([c['model'] for c in reviewer['candidates']],
+                             ['model-c1', 'model-a2', 'gateway/kimi-9', 'model-x1', 'model-x2'])
+            self.assertTrue(all('preferred' not in c for c in reviewer['candidates']))
+            self.assertEqual(self.resolve('workhorse')['candidates'][0]['model'], preferred['model'])
+            self.assertEqual(self.config.read_bytes(), before)
+
+    def test_repository_policy_errors_name_both_sources_without_mutation(self):
+        config = {'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                  'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai')]},
+                  'preferred_workhorse': {'providerInstanceId': 'codex', 'model': 'model-x1'}}
+        self.write(config)
+        policy_path = self.repo / '.t3-plugins/routing.json'
+        for policy, detail in (({'roles': {'workhorse': None}}, 'role workhorse must be a list'),
+                               ({'preferred_workhorse': {'providerInstanceId': 'codex', 'model': 'absent'}},
+                                'preferred_workhorse must match exactly one')):
+            self.write(policy, policy_path)
+            before = (self.config.read_bytes(), policy_path.read_bytes())
+            with self.assertRaises(routing.RoutingError) as caught:
+                routing.effective_config(self.config, self.repo)
+            self.assertEqual(caught.exception.code, 'config_invalid')
+            result = self.cli('resolve', 'workhorse', '--capabilities', str(self.caps), code=2)
+            for message in (str(caught.exception), result.stderr):
+                self.assertIn(str(policy_path), message)
+                self.assertIn(str(self.config), message)
+                self.assertIn(detail, message)
+            self.assertEqual((self.config.read_bytes(), policy_path.read_bytes()), before)
+
+    def test_invalid_or_ambiguous_preferred_workhorse_is_refused(self):
+        config = {'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                  'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai')]}}
+        for value in (None, 'first', {}, {'providerInstanceId': 'codex', 'model': 'absent'},
+                      {'providerInstanceId': 'codex', 'model': 'model-x1', 'options': {}}):
+            with self.subTest(value=value):
+                self.write({**config, 'preferred_workhorse': value})
+                self.assertIn('preferred_workhorse', self.cli(
+                    'resolve', 'workhorse', '--capabilities', str(self.caps), code=2).stderr)
+        config['roles']['workhorse'] *= 2
+        config['preferred_workhorse'] = {'providerInstanceId': 'codex', 'model': 'model-x1'}
+        with self.assertRaisesRegex(routing.RoutingError, 'exactly one'):
+            routing.validate(config)
 
     def test_malformed_configs_are_rejected(self):
         bad = [

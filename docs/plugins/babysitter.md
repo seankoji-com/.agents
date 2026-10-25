@@ -36,10 +36,12 @@ A run keeps going until every targeted PR has merged or needs a person:
    threads and requested changes. The brief lists every blocker the merge helper
    found, not only the first. The child fixes the branch and pushes. It may rebase
    and publish with `--force-with-lease` pinned to the head it fetched. It never
-   merges. The model comes from the `workhorse` role in your
-   [routing config](../getting-started.md#model-routing), cheapest tier first. Without
-   a config the thread picks a cheap model itself. A child that gets stuck hands off
-   to the next candidate, with no cap on rounds.
+   merges. Your explicit configured workhorse choice controls the requested scope.
+   Otherwise babysitter recommends candidates from your
+   [routing config](../getting-started.md#model-routing) and asks for the missing
+   choice. Without routing it offers suitable live-catalog choices. A stuck child
+   retries the same target within `max_repair_cycles`. Changing models needs an
+   approved replacement chain or a new owner answer.
 3. **Threads.** Before another merge attempt or watch, the coordinator inspects every
    unresolved thread at the current head, including outdated ones. It verifies the
    fix, posts an evidence-based reply and resolves the thread. Findings that need no
@@ -62,6 +64,89 @@ discovery on every wake or child completion and before yielding or handing back.
 New matching PRs join automatically under your original authorization, with their
 own action records and jobs. The initial list is never a frozen roster. Partial
 discovery is reported as a gap; it cannot support an "all done" claim.
+
+## Continuous coverage
+
+Org mode starts with a deterministic, read-only scan:
+
+```sh
+python3 PKG/scripts/org_scan.py --org OWNER
+```
+
+Resolve `PKG` with `t3-plugins path babysitter` (use `--job JOB` for a pinned job).
+The JSON lists every accessible repository's open, non-draft PRs, including forks
+and all authors, with exact heads and stable action/reason fields. `dispatch`
+contains PRs with failed checks, unresolved review threads, conflicts or requested
+changes. Missing auto-merge goes to the coordinator; queued/running checks alone
+wait. Fork admission and write authority still follow your saved scope.
+Review-thread resolution includes outdated threads; ordinary conversation comments
+have no resolved flag. The scanner reads all check/thread pages without comment
+bodies or per-job queue-clock calls. It uses serial batched GraphQL requests,
+request/point/deadline limits, a remaining-rate reserve and an overlap lock.
+Incomplete evidence stays explicit, so an empty repair list cannot mask a failed
+scan. This read-only form never enables auto-merge or launches agents.
+
+For a writable admitted run, the same scan can execute its decisions:
+
+```sh
+python3 PKG/scripts/org_scan.py --org OWNER --execute --run-config RUN.json --bridge
+```
+
+The coordinator prepares `RUN.json` once from the saved authorization and model
+selection. Each pass enables native auto-merge on admitted non-draft PRs without a
+question, creates the per-PR jobs and launches fixers through T3. Stable request IDs,
+writer reservations and retained task handles prevent repeated sweeps from starting
+duplicate agents. An ambiguous launch stays held for reconciliation. The executor
+uses native T3 MCP tools; it never starts a provider CLI. Run that argv through the
+bundled deterministic tool bridge in Codex code mode, so a small coordinator can
+execute the flow without an external CLI transport.
+[Execution setup and limits](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/babysitter/references/org-execution.md)
+describe the configuration and host adapter. GitHub's branch rules control native
+auto-merge; without a conversation-resolution rule, it can merge with open threads.
+
+A small coordinator can read `complete`, `summary`, `dispatch` and each selected
+row's reasons, then use the existing per-PR jobs and writer reservations. Repeated
+sweeps retain active tasks rather than launching duplicates. Fetch detailed comments,
+queue clocks and current-head evidence only when the maintenance workflow needs
+them. [The scan contract](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/babysitter/references/org-scan.md)
+documents output, limits and routing. Fixture tests cover installed preparation and
+the deterministic launch path. Live fixer execution and scheduled delivery remain
+separate checks.
+
+For a 15-minute sweep, add `--cadence-seconds 900` to the existing
+`PKG/scripts/continuous.py start` invocation. The scan runs once per wake and exits.
+
+A native PR watch wakes for linked PR changes only. It does not discover a newly
+opened matching PR, and an unchanged queued CI job emits no event. When you
+explicitly ask for coverage that continues while idle, babysitter uses T3's own
+scheduler: one recurring wake on this thread, a 10-minute cadence by default, and a
+15-minute queued-job threshold. The run records the authorised scope, the schedule
+ID, the cadence and the stop operation, and shows them in its status. Creating that
+schedule requires your authorization; there is no second scheduler, shell poller or
+org-wide watch.
+
+On each scheduled wake the thread refreshes the whole scope, diagnoses queue age and
+stalled work, and acts under the authorization already given. It tracks the creation
+clock of each pending check (read through the GitHub Actions job API, because the
+GraphQL check-run type has no creation time), the last meaningful progress (a head,
+check, thread or review change; not merely another read) and the next action or check
+deadline. A queue that sits past the threshold becomes a named blocker with a next
+check, not a claim that monitoring is working. If a check has no trustworthy clock,
+its age stays unknown and the reader's per-check reason is retained. Unchanged checks
+still trigger a stall diagnosis after the meaningful-progress threshold, with a next
+check. A failed check, unresolved thread or
+conflict is repaired even when another job on the same PR is queued. Babysitter does not raise timeouts, rerun an
+unchanged failure, restart infrastructure or weaken a check to look busy. Repeated
+wakes reuse stable keys, so they do not create duplicate schedules, dispatches,
+replies or writers, and a live fixer blocks a merge or branch update.
+
+Coverage is reported as `scheduled` only after a host receipt is recorded. Until then
+the run says `scheduled-unverified`, and a stopped or delivered schedule is reported
+as `stopped` or `awaiting receipt` rather than given an invented next wake. If the
+scheduler is unavailable or you have not authorised it, the run reports event-only
+coverage and its gap plainly: discovery and queue-age diagnosis stop while the thread
+is idle. A schedule receipt or a simulated test is not live proof; the run reports the
+host schedule and observed wakes separately.
 
 The thread keeps one table of the targeted PRs and posts it at the end of every turn.
 Its shape, with made-up PRs:
@@ -139,18 +224,55 @@ integrity remain gates.
 
 ## Limits
 
-T3's native watches cover linked PRs, so they cannot discover new PRs while the
-thread is idle. Discovery runs again on the next wake and before handoff. Persistent
-discovery after handoff needs an explicitly requested host schedule; the thread
-reports any idle discovery gap. Unit tests don't show how a given model behaves;
+T3's native watches cover linked PRs, so they cannot discover new PRs or diagnose an
+unchanged queued job while the thread is idle. Discovery runs again on the next wake
+and before handoff. Without an authorised host schedule the thread reports that idle
+gap. A resumed run compares its installed package digest and continuous-policy
+version automatically. A pinned job's package drift needs the supported upgrade receipt,
+verified against its retained state, owner decision and new pin. A scope run started
+without a job can migrate with its retained old package and an owner decision bound
+to that run, current state and new package. Both paths preserve the existing schedule,
+roster, progress and live writer guards. See the installed package's
+`references/continuous.md` for the start/resume commands. Revoking scheduler
+authority blocks late timer wakes and retains an unverified-stop warning until the
+owned schedule is confirmed stopped. A job pinned before continuous mode is detected by a read-only
+preflight of the current package and moves to a newer package only through the
+supported `job_cli.py upgrade-package` path with a recorded owner decision and its
+receipt, never by silently swapping the installed snapshot. Unit tests don't show how
+a given model behaves;
 see [compatibility](../compatibility.md).
 
 Jobs created through the shared CLI carry `policy.identity: observed`. Required reviewer executions, their subjects, and slots marked `independent_of_author` need verified host identity at acceptance. Authoring jobs enforce author-lineage checks from `policy.author_independence`, even if a slot omits its flag. Legacy jobs without the identity marker retain target-only acceptance semantics. A first author record cannot identify earlier authors of an unrecorded document. Direct cold-read stages cannot fall back to the coordinator.
 
 ## Choices and written strategies
 
-Delegating maintenance asks for work/review choices upfront and reuses them on
-automatic wakes. Ordinary maintenance adds no planning artifact or evaluator. An
+Delegating maintenance asks one short question at a time and reuses your answers
+on automatic wakes and across PRs in the run. An explicit workhorse answer skips
+that question. The next round asks only for a missing scope, reviewer or option.
+The final summary records each role, exact model and scope before dispatch.
+
+"Use this workhorse for this run" leaves global routing unchanged. "Use it globally"
+records `routing_scope: global` and, under settings-write authority, sets
+`preferred_workhorse` in the user `routing.json` to the exact `providerInstanceId`
+and `model`, matching one configured workhorse entry and preserving other settings.
+Babysitter reads back that file, the effective repository override and both routing
+readers. Later `resolve` and selection discovery offer the eligible preference
+first, even above a cheaper tier, and mark it `preferred: true`. An unavailable
+preference stays visible with its blocker; it does not authorize a replacement.
+It remains a recommendation when a new invocation needs an owner answer.
+Repository workhorse overrides replace the user preference;
+a repository override or missing settings authority is explained without narrowing
+your choice silently. Dispatch scope and persistent routing scope are separate.
+An available reviewer you name is checked against reviewer policy and independence,
+separately from workhorse routing.
+
+Existing suitability evidence is reused. For ordinary configured workhorse work,
+your explicit endorsement supplies ordinary quality 1 and its suitability reason
+when that model evidence is missing. You do not need to supply another score.
+Higher floors, judgement requirements and a named stricter policy still apply.
+If one needs a separate profile, babysitter names the policy,
+exact model, required fields and accepted source once, with one next step. It keeps
+your answer while blocked. Ordinary maintenance adds no planning artifact or evaluator. An
 actual written repair or landing strategy receives planning review before dependent
 actions. Merge authority, requested final-head review and the coordinator's native
 PR watch remain separate requirements.

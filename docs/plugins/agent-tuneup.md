@@ -8,35 +8,26 @@ file for broad allow rules without a model.
 
 ## Try it
 
-Audit the complete wiring across every provider in T3's live catalog:
-
 ```text
-$t3-agent-tuneup audit
+$t3-agent-tuneup
 ```
 
-Prepare changes for the same complete coverage:
+The command checks readiness, inventories every provider, audits shared wiring and
+worktree setup, scans supported readable local usage, compares native configuration,
+and prepares reviewed changes. There is no subcommand menu. It shows the concrete
+changes and backup paths before asking to apply them, then verifies approved changes
+in the same workflow. A declined proposal ends with the report and no writes.
+
+Narrow the scope in ordinary language when needed:
 
 ```text
-$t3-agent-tuneup align
+$t3-agent-tuneup inspect only .claude/settings.json; do not propose changes
 ```
 
-To inspect one settings file instead, narrow the request explicitly:
-
-```text
-$t3-agent-tuneup audit --provider claude --settings .claude/settings.json
-```
-
-Single-file and `--t3-projects` audits keep their explicit narrower scope.
-
-Check that new T3 worktrees install dependencies before the agent starts:
-
-```text
-$t3-agent-tuneup audit --t3-projects
-```
-
-The provider running the workflow doesn't have to be the one you audit. Send
-`$t3-agent-tuneup doctor` first on a new machine or provider. To see the audit helper
-work without a model, [run it locally](#run-without-a-model).
+The provider running the workflow need not be the one being inspected. Missing
+providers, unreadable transcripts and unsupported formats remain coverage gaps.
+Usage scan input and output remain private; tool frequency never justifies a broad
+allow rule. To inspect one file without a model, [run the helper locally](#run-without-a-model).
 
 ## What you get
 
@@ -45,8 +36,8 @@ An audit returns finding codes and locations, such as `broad_execution_allow` at
 a known pattern worth a look; it doesn't prove a tool is allowed after every policy
 layer applies.
 
-`align` returns a private inventory, a comparison matrix and proposed native changes.
-`apply` then writes one approved settings file at a time. It checks the original and
+The comparison stage returns a private inventory, a comparison matrix and proposed native changes.
+After concrete approval, the apply stage writes one approved settings file at a time. It checks the original and
 candidate hashes, keeps a private backup, and refuses stale plans or newly added broad
 permission patterns.
 
@@ -54,7 +45,7 @@ permission patterns.
 
 A T3 thread in worktree mode starts in a fresh checkout. Without a setup script,
 `node_modules`, `.venv` and module caches are missing, and the agent's first test run
-fails. `audit --t3-projects` reads your projects through T3's own tools
+fails. The worktree inspection reads your projects through T3's own tools
 (`t3_environment_read`, `t3_project_list`, `t3_project_read`) and flags
 `worktree-bootstrap-missing` when all three hold:
 
@@ -114,11 +105,6 @@ It exits `1` with findings, `0` with none and `2` for an unreadable snapshot. Fi
 name projects by index and T3 id, never by path. Projects whose checkout is missing
 or isn't a readable git repository appear under `unchecked`.
 
-## Operations
-
-`doctor`, `audit`, `align`, `apply`, `scan`. The
-[entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/agent-tuneup/entry.md)
-names the file the agent loads for each one.
 
 ## Jobs and workers
 
@@ -138,10 +124,10 @@ recorded approval, an exact backup and passing parse and load observations.
 ## Align all T3 providers
 
 ```sh
-t3-plugins prompt agent-tuneup align
+t3-plugins prompt agent-tuneup
 ```
 
-Paste the output into a T3 thread, or invoke **t3-agent-tuneup** with `align`.
+Paste the output into a T3 thread, or invoke `$t3-agent-tuneup`.
 The workflow discovers every provider instance in the live catalog and identifies
 its global, project, local, managed and host settings layers. Disabled and unknown
 providers stay visible. Choose which capabilities should be shared and which should

@@ -1,5 +1,7 @@
 # Architecture
 
+Substantive public commands use a scoped upfront agreement after inspecting context. It binds the completion target, destinations, exact work/review chains and options, authority and limits to the existing selection and immutable briefs. The manifest operation inventory distinguishes substantive, continuation and direct controls. Endpoint observations remain separate from source readiness and live compatibility. See the [runtime agreement](https://github.com/seankoji-com/t3-plugins/blob/master/shared/upfront-agreement.md).
+
 t3-plugins has three execution paths. Instructions guide the current agent. Local
 helpers do deterministic work. T3 owns delegated tasks and browser/PR interactions.
 The repository does not implement another model client, task scheduler or dispatch loop.
@@ -37,7 +39,7 @@ as readable files, and all deterministic decisions have local source and tests.
 
 ## Whole jobs
 
-imps, ape, elephant-goldfish, babysitter and agent-tuneup run substantive multi-stage
+imps, ape, plan, babysitter and agent-tuneup run substantive multi-stage
 work as one job. The main agent is the coordinator. It plans the whole job, keeps the
 requirements and decisions, dispatches each stage to a fresh T3 task, reads the
 result and decides acceptance. A worker completes one slot and returns one structured
@@ -128,7 +130,7 @@ and runs the pinned validator:
 | --- | --- |
 | imps | The stage gate run's `validate`; adapters cannot replace it |
 | ape | `scripts/validate_report.py` |
-| elephant-goldfish | `thinking_state.py gate`, `render_handoff.py --check`, `scripts/validate_document.py` (factual and cold-read stay separate) |
+| plan | `plan_state.py gate`, `render_handoff.py --check`, `scripts/validate_document.py` (source-plan readiness and handoff provenance) |
 | babysitter | `scripts/validate_pr.py` at the observed current head |
 | agent-tuneup | `scripts/validate_audit.py` |
 | focus-group | `scripts/validate_study.py` |
@@ -146,7 +148,8 @@ every underlying record.
   (default 20). Primary, support and review failures share that budget. Resume,
   escalation and replacement never reset it. An exhausted budget blocks for an owner
   decision.
-- **Routing.** The coordinator recommends the lowest suitable configured tier with
+- **Routing.** The coordinator recommends an eligible saved workhorse preference,
+  otherwise the lowest suitable configured tier, with
   [`t3-plugins resolve`](getting-started.md#model-routing) and records the reason and
   escalation order. The user's upfront work/panel choices control dispatch and exact
   supported options. Reviewers need a reviewer or judgement tier; planning fallback
@@ -183,10 +186,8 @@ plugin's own commands load them.
 | `imps/reviewer` | Independent review of an exact change snapshot |
 | `ape/source-researcher` | Pinned source comparison and transferable proposals |
 | `ape/synthesizer` | Compare accepted reports and propose bounded experiments |
-| `elephant-goldfish/factual-checker` | Verify repository and command claims |
-| `elephant-goldfish/plan-reviewer` | Challenge source plans and repaired designs before dependent work |
+| `plan/plan-reviewer` | Challenge the exact discovery, spec and declared evidence before handoff |
 | `ralph/strategy-reviewer` | Assess an actually written strategy; final evaluation stays separate |
-| `elephant-goldfish/cold-reader` | Judge one document's usability with no other context |
 | `babysitter/pr-maintainer` | Authorized triage or repair of one PR at an exact head |
 | `babysitter/pr-reviewer` | Independent review of the final combined PR change, when the operator asks for one |
 | `agent-tuneup/config-researcher` | Provider format, scope and precedence with sources |
@@ -323,3 +324,7 @@ Focus-group planning binds the product protocol and every declared evidence file
 by content, with an explicit evidence-root path. Git HEAD is not a dependency of
 this product study. Receipt consumption and local report export rehash those
 inputs without launching Git or a publication command.
+
+Deprecated elephant-goldfish snapshots and worker contracts remain available for
+old pinned jobs. Default catalog/setup and the field guide use plan; deprecation
+does not rewrite stored state or claim new acceptance for old receipts.

@@ -41,8 +41,10 @@ ADAPTERS = {
     'ape': 'validate_report.py',
     'babysitter': 'validate_pr.py',
     'elephant-goldfish': 'validate_document.py',
+    'plan': 'validate_document.py',
     'agent-tuneup': 'validate_audit.py',
     'focus-group': 'validate_study.py',
+    'tests-omg': 'validate_audit.py',
 }
 
 def _caller(job, caller):
@@ -70,7 +72,8 @@ def _semantic_binding(job, stage):
                 raise AcceptanceError('producing model selection invalid: ' + str(exc)) from exc
     contract = {key: job.get(key) for key in (
         'installation_id', 'workflow', 'objective', 'requirements', 'authorization',
-        'constraints', 'snapshot', 'dependencies', 'pins', 'policy')}
+        'constraints', 'snapshot', 'dependencies', 'pins', 'policy', 'repo')}
+    contract['repository_worktree'] = job.get('resources', {}).get('worktree')
     contract['dependencies'] = sorted(job['dependencies'], key=lambda row: row['key'])
     contract['stage'] = {key: value for key, value in stage.items()
                          if key not in ('status', 'attempts', 'acceptance', 'acceptance_history', 'acceptance_runs', 'validated_cycle', 'cycle')}
@@ -167,6 +170,22 @@ def _check_slots(store, job, stage, task_ids=None, require_reviews=True):
         if task.get('inputs_stale'):
             raise AcceptanceError('task inputs changed while its owned handle remained live; charged repair required')
         owned = task.get('handles', []) + task.get('followups', [])
+        producing = (task.get('selection_binding') or {}).get('selection_sha256')
+        selected = (job.get('model_selection_history') or {}).get(producing, job.get('model_selection', {}))
+        if selected.get('agreement'):
+            from shared.job_coordinator import selection_for_task
+            selection_for_task(job, task)  # Recompute independence against replacement/coordinator authors.
+            from shared.model_selection import observed_options
+            for handle in owned:
+                if handle['request_id'] != task['request_id']:
+                    continue  # Retired attempts remain evidence, not the current acceptance candidate.
+                observations = [event[name] for event in task.get('dispatch_history', [])
+                    if event.get('request_id') == handle['request_id'] for name in
+                    ('status_identity', 'receipt_identity', 'configuration_identity', 'observed_identity')
+                    if isinstance(event.get(name), dict) and 'options' in event[name]]
+                expected_options = (handle.get('target') or task.get('target', {})).get('options', {})
+                if not observations or any(observed_options(o['options']) != expected_options for o in observations):
+                    raise AcceptanceError('actual task options unreported/mismatched; reconcile retained handle')
         if task.get('blocked_reason') or task.get('uncertain_calls') and not any(h.get('request_id') == task['request_id'] for h in owned):
             raise AcceptanceError('uncertain_dispatch: uncertain dispatch lacks an authoritative host observation for the current request')
         if _open_dispatch(task):
@@ -491,7 +510,36 @@ def _adapter(job, stage, argv, input_file):
     if digest(raw) != reference.get('sha256') or len(raw) != reference.get('bytes'):
         raise AcceptanceError('published coordinator observation bytes changed')
     data = strict_load(raw)
+    selected = job.get('model_selection', {})
+    if selected.get('agreement') and not any(stage['id'] in s.get('depends_on', []) for s in job['stages']):
+        from shared import delivery
+        label = selected['agreement']['target']['label']
+        if label in delivery.agreements.ENGINEERING:
+            from core import snapshot
+            root = job.get('resources', {}).get('worktree') or job.get('repo', {}).get('worktree')
+            if not root:
+                raise AcceptanceError('engineering job requires declared repository worktree')
+            current = snapshot.take(root)
+            if current['dirty_paths']:
+                raise AcceptanceError('selected endpoint requires a clean current head')
+            base = job.get('repo', {}).get('base_sha')
+            if not base or not snapshot.git(root, 'diff', '--name-only', base, current['head']).strip():
+                raise AcceptanceError('selected endpoint requires declared base_sha and nonempty accepted change')
+            from shared.job_coordinator import actual_author_lineages
+            delivery.engineering(selected, data.get('delivery', {}), current['head'],
+                                 author_lineages=actual_author_lineages(job))
     contract = stage.get('validator_contract', {})
+    if dep['plugin'] == 'tests-omg':
+        required = {'state_root', 'run_id', 'audit_sha256', 'input_sha256', 'snapshot_sha256', 'head_sha'}
+        if job['workflow'] != 'tests-omg/audit' or set(contract) != required or data != contract:
+            raise AcceptanceError('audit descriptor differs from the exact declared report')
+        from shared.tests_omg_review import report_binding
+        try:
+            audit_inputs = report_binding(job, stage, contract, Path(pin['package_dir']))
+        except (OSError, subprocess.SubprocessError) as exc:
+            # This adapter check runs before accept_stage's guarded validator
+            # execution. Do not leak private paths or raw OS/process errors.
+            raise AcceptanceError('audit source pre-check failed') from exc
     if dep['plugin'] == 'ape':
         from shared.ape_planning import validate_job
         validate_job(job)
@@ -530,7 +578,10 @@ def _adapter(job, stage, argv, input_file):
     if dep['plugin'] == 'agent-tuneup':
         # The last integrated audit/proposal always reviews even no-change output.
         successors = [s for s in job['stages'] if stage['id'] in s['depends_on']]
-        if not successors and job['workflow'] in ('agent-tuneup/align', 'agent-tuneup/audit'):
+        integrated_audit = (job['workflow'] in ('agent-tuneup/align', 'agent-tuneup/audit') or
+                            (job['workflow'] == 'agent-tuneup/tuneup' and
+                             contract.get('criteria', {}).get('operation') == 'audit'))
+        if not successors and integrated_audit:
             desc = data.get('adopter_output')
             if not isinstance(desc, dict) or desc.get('admission') != job.get('adopter_admission'):
                 raise AcceptanceError('integrated tuneup conclusions require the producing planning descriptor')
@@ -549,7 +600,7 @@ def _adapter(job, stage, argv, input_file):
         raise AcceptanceError('validator options must be unique flag/value pairs')
     flags = dict(zip(args[::2], args[1::2]))
     extra = {}
-    if dep['plugin'] in ('ape', 'babysitter', 'agent-tuneup', 'focus-group'):
+    if dep['plugin'] in ('ape', 'babysitter', 'agent-tuneup', 'focus-group', 'tests-omg'):
         if flags != {'--input': str(inp)}:
             raise AcceptanceError('validator input differs from the pre-check input')
     elif dep['plugin'] == 'imps':
@@ -605,6 +656,8 @@ def _adapter(job, stage, argv, input_file):
                 raise AcceptanceError('observation input differs from the pre-check input')
         else:
             raise AcceptanceError('unsupported document validator mode')
+    if dep['plugin'] == 'tests-omg':
+        extra.update(audit_inputs)
     if dep['plugin'] == 'ape':
         for source in contract['sources']:
             path = Path(source['path'])
@@ -629,12 +682,15 @@ def _adapter(job, stage, argv, input_file):
                     raise AcceptanceError('settings backup evidence must be outside worker/job state')
                 extra[str(path)] = digest(_regular(path, max_bytes=job['policy']['max_artifact_bytes']))
     expected = {'babysitter': ['exact-head-required-checks'], 'agent-tuneup': ['audit-criteria'],
-                'elephant-goldfish': ['workflow-observation']}.get(dep['plugin'])
+                'elephant-goldfish': ['workflow-observation'],
+                'plan': ['workflow-observation']}.get(dep['plugin'])
     if dep['plugin'] == 'ape':
         expected = [row['id'] for row in stage['criteria']]
     elif dep['plugin'] == 'focus-group':
         # The study validator reports one outcome per requirement the stage declares.
         expected = [str(row) for row in stage.get('requirements', [])]
+    elif dep['plugin'] == 'tests-omg':
+        expected = ['audit-report-integrity', 'audit-source-current', 'audit-scope-complete']
     elif dep['plugin'] == 'imps':
         if '--final-plan' in flags:
             expected = ['imps-stage-' + sid for sid in final_plan['required_stages']]
@@ -706,7 +762,12 @@ def accept_stage(store, caller, stage_id, validator_argv, input_file, expected_r
     for dependency in stage.get('depends_on', []):
         if not validate_stage(store, dependency).get('accepted'):
             raise AcceptanceError('dependency_stale: stage dependency lacks current authoritative acceptance')
-    program, pin, actual = _adapter(job, stage, validator_argv, input_file)
+    try:
+        program, pin, actual = _adapter(job, stage, validator_argv, input_file)
+    except AcceptanceError:
+        raise
+    except (OSError, subprocess.SubprocessError, JobError, ValueError, KeyError, TypeError) as exc:
+        raise AcceptanceError('validator pre-check failed') from exc
     binding = {**actual, 'revision': expected_revision,
                'semantic_sha256': _semantic_binding(job, stage), 'pin_sha256': digest(canonical(pin))}
     generation = digest(canonical(job))

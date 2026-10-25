@@ -69,6 +69,7 @@ class PlanningReviewTests(unittest.TestCase):
             {'start': 0, 'end': len(path.read_text()), 'requirement': requirement}]}
 
     def cli(self, command, data=None, ok=True, installed=False, job_id=None):
+        installed = installed or getattr(self, 'installed_only', False)
         self.sequence += 1
         data = dict(data or {})
         if command not in ('capture', 'create', 'validate'):
@@ -117,11 +118,13 @@ class PlanningReviewTests(unittest.TestCase):
         return {'coverage': [{'id': r, 'outcome': 'supported', 'evidence': 'fixture:read-and-counterexample'} for r in ('R1', 'R2', 'D1')],
                 'inspected_paths': [str(self.source)], 'responses': list(responses)}
 
-    def result(self, attempt, *, findings=(), verdict='approve', edit=None, identity=True, observe=True):
-        if observe:
-            self.event(attempt, identity=identity)
-        from shared.compact_briefs import deserialize
-        brief = deserialize(Path(attempt['path']).read_bytes())
+    def draft_result(self, attempt, *, findings=(), verdict='approve', edit=None):
+        raw = Path(attempt['path']).read_bytes()
+        try:
+            from shared.compact_briefs import deserialize
+            brief = deserialize(raw)
+        except Exception:
+            brief = json.loads(raw.decode('utf-8'))
         result = {k: brief[k] for k in ('schema_version', 'job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256', 'revision')}
         result.update(status='ready-for-acceptance', conclusion='Fixture evidence supports the declared plan.',
             requirements=[{'id': r['id'], 'status': 'passed', 'evidence': 'fixture:observed'} for r in brief['requirements']],
@@ -130,6 +133,12 @@ class PlanningReviewTests(unittest.TestCase):
         result['schema_version'] = 1  # result protocol is independent of brief transport
         if edit:
             edit(result)
+        return result
+
+    def result(self, attempt, *, findings=(), verdict='approve', edit=None, identity=True, observe=True):
+        if observe:
+            self.event(attempt, identity=identity)
+        result = self.draft_result(attempt, findings=findings, verdict=verdict, edit=edit)
         path = self.write('result-' + str(self.sequence) + '.json', json.dumps(result))
         return self.cli('result', {'task_id': attempt['task_id'], 'result_file': str(path), 'completion_id': 'done-' + attempt['request_id']})
 
@@ -250,6 +259,198 @@ class PlanningReviewTests(unittest.TestCase):
         self.assertIn('target binding differs', self.cli('launch', {
             'slot_id': 'review', 'request_id': attempt['request_id']}, ok=False))
         self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+
+    def interrupted_preparation(self, request='recover-bound'):
+        store = planning.pinned_store(self.box.jobs, self.job_id)
+        with patch.object(planning.Subject, 'save', side_effect=OSError('fixture interrupted charge')):
+            with self.assertRaisesRegex(OSError, 'fixture interrupted charge'):
+                planning.launch(store, self.caller, 'review', request, environ=self.box.env)
+        task = store.load()['tasks'][-1]
+        return store, {'slot_id': 'review', 'request_id': request}, dict(task['brief'], target=task['target'])
+
+    def test_revoked_preparation_recovers_charge_without_dispatch_permission(self):
+        target = self.selection_data['review_panel'][0]['target']
+        self.selection_data['sharing'] = [{'target': target, 'data_classes': ['private-settings'],
+            'source': answer('Share this fixture private-settings input with the selected reviewer.')}]
+        self.snapshot_data['documents'] = [{'path': str(self.plan), 'data_class': 'private-settings'}]
+        self.create()
+        store, payload, attempt = self.interrupted_preparation()
+        brief_bytes = Path(attempt['path']).read_bytes()
+        revocation = self.write('revocation.txt', 'Revoke this fixture private-settings recipient grant.')
+        self.cli('revoke-sharing', {'grants': self.selection['sharing'],
+            'source': answer(revocation.read_text()), 'source_file': str(revocation)})
+        prepared = store.file.read_bytes()
+        subject = Path(self.created['subject_file'])
+        self.assertIn('same-request launch reconciliation', self.cli('unavailable', {
+            'task_id': attempt['task_id'], 'failure': {'kind': 'permission', 'tool': 'fixture-policy',
+            'call_id': 'fixture-refusal', 'request_id': payload['request_id'],
+            'receipt': {'error': 'fixture sharing revoked'}, 'prelaunch': True}}, ok=False))
+        error = self.cli('launch', payload, ok=False)
+        state = json.loads(subject.read_bytes())
+        self.assertEqual(state['technical_used'], 1)
+        self.assertIn('sharing', error)
+        self.assertEqual(state['rounds'][-1]['attempts'], store.load()['planning']['attempts'])
+        charged = subject.read_bytes()
+        self.assertIn('sharing', self.cli('launch', payload, ok=False))
+        self.assertEqual((store.file.read_bytes(), subject.read_bytes(), Path(attempt['path']).read_bytes()),
+                         (prepared, charged, brief_bytes))
+        self.assertEqual(store.load()['tasks'][0]['handles'], [])
+        self.assertIn('same-request', self.cli('launch', dict(payload, request_id='new-request'), ok=False))
+        self.assertIn('same-request', self.cli('release', ok=False))
+        self.cli('unavailable', {'task_id': attempt['task_id'], 'failure': {
+            'kind': 'permission', 'tool': 'fixture-policy', 'call_id': 'fixture-refusal',
+            'request_id': payload['request_id'], 'receipt': {'error': 'fixture sharing revoked'}, 'prelaunch': True}})
+        self.assertIn('finished attempt', self.cli('launch', payload, ok=False))
+        self.assertIsNone(self.cli('next', {'slot_id': 'review'}))
+        self.assertEqual(self.cli('release')['released'], self.job_id)
+
+    def test_occupied_preparation_recovers_charge_before_current_admission_refusal(self):
+        from shared.job_coordination import occupancy, task_admission
+        for limit in ('provider', 'global'):
+            with self.subTest(limit=limit):
+                if self.caller:
+                    self.setUp()
+                config = self.box.config / 't3-plugins/workers.json'
+                old = config.read_bytes() if config.exists() else None
+                config.parent.mkdir(parents=True, exist_ok=True)
+                target = self.selection_data['review_panel'][0]['target']
+                config.write_text(json.dumps({'schema_version': 1, 'max_live_workers': 1 if limit == 'global' else None,
+                    'max_live_workers_by_provider': {target['providerInstanceId']: 1} if limit == 'provider' else {},
+                    'max_repair_cycles': 20, 'overrides': []}))
+                try:
+                    first_slot = deepcopy(self.selection_data['review_panel'][0])
+                    first_slot['slot_id'] = 'first'
+                    self.selection_data['review_panel'].append(first_slot)
+                    self.create()
+                    first = self.attempt('first')
+                    self.result(first)
+                    store, payload, attempt = self.interrupted_preparation()
+                    # A later owned observation reports children still pending.
+                    # This is the public lifecycle boundary, not signed-state editing.
+                    event = {'kind': 'reconciled', 'request_id': first['request_id'],
+                        'host_task_id': 'host-' + first['request_id'], 'status': 'completed',
+                        'work_state': 'waiting_for_children', 'has_pending_child_runs': True}
+                    self.cli('host-event', {'task_id': first['task_id'], 'event': event})
+                    task = store.load()['tasks'][-1]
+                    reason = limit + '_worker_limit'
+                    self.assertEqual(len(occupancy(store.load())), 2)
+                    self.assertEqual(task_admission(store.load(), task)['reason'], reason)
+                    subject = Path(self.created['subject_file'])
+                    before_job, brief_bytes = store.file.read_bytes(), Path(attempt['path']).read_bytes()
+                    self.assertIn(reason, self.cli('launch', payload, ok=False))
+                    self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 2)
+                    charged = subject.read_bytes()
+                    self.assertIn(reason, self.cli('launch', payload, ok=False))
+                    self.assertEqual((store.file.read_bytes(), subject.read_bytes(), Path(attempt['path']).read_bytes()),
+                                     (before_job, charged, brief_bytes))
+                    self.assertEqual(task['handles'], [])
+                    self.assertIn('pending or uncertain owned review', self.cli('launch', dict(payload, request_id='new-request'), ok=False))
+                    self.assertEqual((store.file.read_bytes(), subject.read_bytes()), (before_job, charged))
+                    event.update(work_state='result_available', has_pending_child_runs=False)
+                    self.cli('host-event', {'task_id': first['task_id'], 'event': event})
+                    self.assertIn('same-request', self.cli('launch', dict(payload, request_id='new-request'), ok=False))
+                    replay = self.cli('launch', payload)
+                    self.assertEqual(replay['path'], attempt['path'])
+                    self.assertEqual(replay['target'], attempt['target'])
+                    self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 2)
+                    self.result(replay)
+                    self.finish()
+                finally:
+                    config.write_bytes(old) if old is not None else config.unlink()
+
+    def test_retained_replay_validates_original_brief_and_slot_before_charge(self):
+        for drift in ('target', 'options', 'runtime', 'mode', 'lineage', 'slot', 'foreign-brief', 'snapshot', 'selection', 'pin'):
+            with self.subTest(drift=drift):
+                if self.caller:
+                    self.setUp()
+                slot = deepcopy(self.selection_data['review_panel'][0]); slot['slot_id'] = 'second'
+                self.selection_data['review_panel'].append(slot)
+                spare = {'providerInstanceId': 'fixture-spare', 'model': 'gemini-fixture', 'options': {'effort': 'high'}}
+                self.selection_data['review_replacements'].append(replacement(self.selection_data, spare, review=True))
+                self.create()
+                store, payload, attempt = self.interrupted_preparation()
+                foreign = None
+                if drift == 'foreign-brief':
+                    # Another legitimate prepared brief has valid hashes, but another request/slot.
+                    self.cli('launch', payload)
+                    self.result(dict(attempt, mode='cross-lineage'))
+                    foreign = self.attempt('second')
+                def change(job):
+                    task, retained = job['tasks'][0], job['planning']['attempts'][0]
+                    if drift == 'target':
+                        task['target'] = deepcopy(spare); retained['target'] = deepcopy(spare)
+                        retained['lineage'] = 'google'
+                    elif drift in ('options', 'runtime'):
+                        for row in (task, retained):
+                            if drift == 'options': row['target']['options']['effort'] = 'low'
+                            else: row['target']['runtimeMode'] = 'full-access'
+                    elif drift in ('mode', 'lineage'): retained[drift] = 'same-lineage' if drift == 'mode' else 'google'
+                    elif drift == 'slot': retained['slot_id'] = 'second'; payload['slot_id'] = 'second'
+                    elif drift == 'foreign-brief':
+                        retained['outcome'] = None
+                        task['brief'] = deepcopy(next(t for t in job['tasks'] if t['task_id'] == foreign['task_id'])['brief'])
+                    elif drift == 'snapshot': job['planning']['snapshot']['repository_head'] = 'different-head'
+                    elif drift == 'selection': job['model_selection']['review_panel'][0]['target'] = deepcopy(spare)
+                    elif drift == 'pin': job['pins']['workflow']['bundle_digest'] = '0' * 64
+                store.mutate(self.caller, change)
+                subject = Path(self.created['subject_file'])
+                before = (store.file.read_bytes(), subject.read_bytes())
+                self.cli('launch', payload, ok=False)
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+
+    def test_retained_replay_refuses_non_object_brief_before_charge(self):
+        for value in ([], 'text', 1, True, None):
+            with self.subTest(value=value):
+                if self.caller:
+                    self.setUp()
+                self.create()
+                store, payload, attempt = self.interrupted_preparation()
+                subject = Path(self.created['subject_file'])
+                self.assertEqual(json.loads(subject.read_bytes())['technical_used'], 0)
+                raw = json.dumps(value).encode()
+                Path(attempt['path']).write_bytes(raw)
+                before = (store.file.read_bytes(), subject.read_bytes())
+                with self.assertRaisesRegex(planning.PlanningError, 'immutable planning brief tampered'):
+                    planning._expected(store.load(), store.load()['tasks'][0])
+                self.assertIn('immutable planning brief tampered', self.cli('launch', payload, ok=False))
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+                # Corrupt fixture metadata explicitly to reach the root-shape guard.
+                # Real immutable brief replacements still fail the byte hash above.
+                store.mutate(self.caller, lambda job: job['tasks'][0]['brief'].update(sha256=digest(raw)))
+                before = (store.file.read_bytes(), subject.read_bytes())
+                with self.subTest(interface='helper'):
+                    with self.assertRaisesRegex(planning.PlanningError, 'planning brief must be a JSON object'):
+                        planning._expected(store.load(), store.load()['tasks'][0])
+                with self.subTest(interface='cli'):
+                    error = self.cli('launch', payload, ok=False)
+                    self.assertIn('planning_review_error: planning brief must be a JSON object', error)
+                    self.assertNotIn('Traceback', error)
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
+
+    def test_retained_replay_refuses_changed_authority_bytes_and_observed_identity(self):
+        from core.jobs import cancel, discard
+        for drift in ('observed-target', 'observed-options', 'worker', 'owner', 'cancel', 'discard', 'brief-bytes'):
+            with self.subTest(drift=drift):
+                if self.caller:
+                    self.setUp()
+                self.create()
+                attempt = self.attempt()
+                store = planning.pinned_store(self.box.jobs, self.job_id)
+                payload = {'slot_id': 'review', 'request_id': attempt['request_id']}
+                if drift.startswith('observed-'):
+                    observed = deepcopy(attempt['target'])
+                    if drift == 'observed-target': observed['model'] = 'different-model'
+                    else: observed['options']['effort'] = 'low'
+                    self.event(attempt, status='running', event_extra={'status_identity': observed})
+                elif drift == 'worker': payload['caller'] = dict(self.caller, actor='worker')
+                elif drift == 'owner': payload['caller'] = dict(self.caller, installation_id='foreign-installation')
+                elif drift == 'cancel': cancel(store, self.caller, 'fixture owner cancellation')
+                elif drift == 'discard': discard(store, self.caller, 'fixture owner discard')
+                else: Path(attempt['path']).write_bytes(Path(attempt['path']).read_bytes() + b' ')
+                subject = Path(self.created['subject_file'])
+                before = (store.file.read_bytes(), subject.read_bytes())
+                self.cli('launch', payload, ok=False)
+                self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
 
     def test_uncharged_attempt_refuses_outcomes_without_writes(self):
         self.create()
@@ -552,7 +753,7 @@ class PlanningReviewTests(unittest.TestCase):
 
     def test_persistent_budget_new_jobs_and_explicit_owner_limit(self):
         self.create()
-        for number in range(3):
+        for number in range(5):
             if number:self.cli('begin', {'requested_rereview': True})
             self.result(self.attempt(), findings=[self.finding()], verdict='adverse')
             self.finish(accepted=False)
@@ -562,7 +763,23 @@ class PlanningReviewTests(unittest.TestCase):
         self.assertRaises(AssertionError, self.create, snapshot=self.snapshot, begin=False)
         # The failed reset cannot alter the retained subject history.
         state = json.loads(Path(self.created['subject_file']).read_text())
-        self.assertEqual(state['rounds_used'], 3);self.assertIn('anthropic:F1', state['findings'])
+        self.assertEqual(state['rounds_used'], 5);self.assertIn('anthropic:F1', state['findings'])
+
+    def test_new_subject_gets_five_rounds_but_legacy_subject_keeps_recorded_three(self):
+        self.create()
+        subject_file = Path(self.created['subject_file'])
+        state = json.loads(subject_file.read_text())
+        self.assertEqual(state['round_limit'], 5)
+        self.result(self.attempt()); self.finish(); self.cli('release')
+        # Seed a historical subject; replacement jobs must not adopt today's default.
+        state = json.loads(subject_file.read_text())
+        state['round_limit'] = 3
+        subject_file.write_text(json.dumps(planning.seal(state)))
+        self.job_id += '-legacy'
+        self.create(snapshot=self.snapshot, begin=False)
+        retained = json.loads(subject_file.read_text())
+        self.assertEqual(retained['round_limit'], 3)
+        self.assertEqual(retained['rounds_used'], 1)
 
     def test_same_output_concurrent_job_refused_across_adopter_labels(self):
         self.create()
@@ -593,6 +810,46 @@ class PlanningReviewTests(unittest.TestCase):
         self.cli('begin', {'requested_rereview':True});self.unavailable(self.attempt())
         out = self.direct()
         self.assertEqual(out['outcome'],'adverse');self.finish(accepted=False)
+
+    def test_repeated_agreement_keeps_original_clearing_on_unchanged_content(self):
+        relocated = self.box.private / ('relocated-carry-' + self.job_id)
+        shutil.copytree(self.package, relocated)
+        self.package, self.installed_only = relocated, True
+        for index, severity in enumerate(('major', 'minor', 'note')):
+            with self.subTest(severity=severity):
+                if index:
+                    self.setUp()
+                self.create()
+                self.result(self.attempt(), findings=[self.finding(severity)], verdict='adverse')
+                self.finish(accepted=False)
+                evidence = self.write('rebuttal.txt', 'The caller already owns interrupted-read recovery.')
+                self.cli('disposition', {'finding_key': 'anthropic:F1', 'status': 'rejected',
+                    'evidence': {'reason': 'Caller owns restart', 'source': str(evidence)}})
+                response = {'finding_key': 'anthropic:F1', 'status': 'rebuttal-agreed', 'evidence': 'fixture:caller-recovery'}
+                self.cli('begin', {'requested_rereview': True})
+                self.result(self.attempt(), edit=lambda r: r['planning_review'].update(responses=[response]))
+                original = self.cli('validate', {'reference': self.finish()})
+                clearing = deepcopy(original['findings']['anthropic:F1']['clearing'])
+                self.cli('begin', {'requested_rereview': True})
+                out = self.result(self.attempt(), edit=lambda r: r['planning_review'].update(responses=[response]))
+                self.assertEqual(out['outcome'], 'approved', out.get('error'))
+                current = self.cli('validate', {'reference': self.finish()})
+                row = current['findings']['anthropic:F1']
+                self.assertEqual(row['clearing'], clearing)
+                self.assertEqual(row['finding']['severity'], severity)
+                self.assertGreater(len(row['history']), len(original['findings']['anthropic:F1']['history']))
+                self.assertEqual(current['rounds_used'], 3)
+                self.plan.write_text(self.plan.read_text() + 'Changed authored recovery assumptions.\n')
+                self.snapshot = self.cli('capture', self.snapshot_data)
+                self.cli('begin', {'snapshot': self.snapshot})
+                out = self.result(self.attempt(), edit=lambda r: r['planning_review'].update(responses=[response]))
+                self.assertEqual(out['outcome'], 'incomplete')
+                self.assertIn('unchanged content', out['error'])
+                self.finish(accepted=False)
+                state = json.loads(Path(self.created['subject_file']).read_text())
+                self.assertEqual(state['findings']['anthropic:F1']['clearing'], clearing)
+                self.assertEqual(state['findings']['anthropic:F1']['finding']['severity'], severity)
+                self.assertEqual(state['rounds_used'], 4)
 
     def test_repaired_content_and_minor_deferral_are_reviewed(self):
         self.create();self.result(self.attempt(), findings=[self.finding(), self.finding('minor','F2')], verdict='adverse');self.finish(accepted=False)
@@ -881,12 +1138,12 @@ class PlanningReviewTests(unittest.TestCase):
 
     def test_owner_scoped_finding_decision_and_limit_increase(self):
         self.create();self.result(self.attempt(), findings=[self.finding()], verdict='adverse');self.finish(accepted=False)
-        owner = self.write('owner-answer.txt','Accept this scoped finding risk and permit four content rounds.')
+        owner = self.write('owner-answer.txt','Accept this scoped finding risk and permit six content rounds.')
         base = {'source':answer(owner.read_text()),'source_file':str(owner),'logical_output_id':self.snapshot['logical_output_id']}
         self.cli('owner-decision', {'decision':dict(base,kind='finding-decision',finding_key='anthropic:F1')})
-        self.cli('owner-decision', {'decision':dict(base,kind='limit-increase',round_limit=4)})
+        self.cli('owner-decision', {'decision':dict(base,kind='limit-increase',round_limit=6)})
         self.cli('begin', {'requested_rereview':True});self.result(self.attempt());ref=self.finish()
-        receipt=self.cli('validate', {'reference':ref});self.assertEqual(receipt['round_limit'],4)
+        receipt=self.cli('validate', {'reference':ref});self.assertEqual(receipt['round_limit'],6)
         owner.write_text('Revoked decision.')
         self.cli('validate', {'reference':ref}, ok=False)
 
@@ -948,7 +1205,7 @@ class PlanningReviewTests(unittest.TestCase):
         self.job_id+='-new';self.create(snapshot=self.snapshot)
         state=json.loads(Path(self.created['subject_file']).read_text())
         self.assertEqual(state['rounds_used'],0);self.assertEqual(state['technical_used'],1)
-        self.assertEqual(state['technical_limit'],6)
+        self.assertEqual(state['technical_limit'],10)
 
     def test_forged_privacy_exclusion_does_not_hide_available_ordinary_reviewer(self):
         self.create()

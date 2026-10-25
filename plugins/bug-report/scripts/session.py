@@ -20,6 +20,9 @@ import time
 from urllib.parse import urlparse
 import uuid
 
+ROOT = next(p for p in Path(__file__).resolve().parents if (p / 'shared/execution_agreement.py').is_file())
+sys.path.insert(0, str(ROOT))
+
 if sys.version_info < (3, 10):
     raise SystemExit('bug-report requires Python 3.10+')
 try:
@@ -28,7 +31,7 @@ except ImportError:
     raise SystemExit('bug-report requires POSIX advisory file locks')
 
 ID = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$')
-OUTCOMES = {'t3-defect', 'unconfirmed', 't3-improvement', 'external', 'explained'}
+OUTCOMES = {'upstream-defect', 't3-defect', 'unconfirmed', 't3-improvement', 'external', 'explained'}
 FIELDS = ('symptom', 'expected', 'actual', 'impact', 'version', 'channel',
           'provider', 'platform', 'procedure', 'results', 'references')
 PUBLIC = {'issue', 'comment', 'idea', 'reply'}
@@ -76,12 +79,53 @@ def redact(value, private=()):
     return value
 
 
-def target(url, kind=None):
+def reporting_route(problem):
+    """Bind each verified upstream to its documented intake, not a model-picked host."""
+    if problem.get('outcome') != 'upstream-defect':
+        return {'method': 'github', 'destination': 'https://github.com/pingdotgg/t3code'}
+    route = problem.get('reporting_route')
+    require(isinstance(route, dict) and isinstance(problem.get('upstream_name'), str)
+            and problem['upstream_name'].strip(), 'upstream and documented reporting route required')
+    require(set(route) == {'method', 'destination', 'documentation', 'ownership_evidence'}
+            and all(isinstance(v, str) and v.strip() for v in route.values())
+            and route['method'] in {'github', 'web', 'email'}
+            and route['ownership_evidence'], 'documented reporting method and ownership evidence required')
+    docs = urlparse(route['documentation'])
+    require(docs.scheme == 'https' and docs.netloc and not docs.username and not docs.password,
+            'reporting method needs an authoritative HTTPS documentation reference')
+    u = urlparse(route['destination'])
+    require(not any(c in route['destination'] for c in '\r\n') and not u.fragment,
+            'invalid reporting destination')
+    if route['method'] == 'email':
+        require(u.scheme == 'mailto' and not u.netloc and not u.query
+                and re.fullmatch(r'[A-Za-z0-9.!#$%&\x27*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', u.path),
+                'reporting email must name one documented recipient')
+    else:
+        require(u.scheme == 'https' and u.netloc and not u.username and not u.password,
+                'reporting destination must be HTTPS without credentials')
+        if route['method'] == 'github':
+            require(u.netloc == 'github.com' and not u.query
+                    and re.fullmatch(r'/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', u.path)
+                    and not any(part in {'.', '..'} for part in u.path.split('/')),
+                    'GitHub reporting destination must name one canonical repository')
+    return dict(route)
+
+
+def target(url, kind=None, route=None):
+    route = route or reporting_route({})
     u = urlparse(url or '')
+    if route['method'] == 'email':
+        require(url == route['destination'], 'email receipt must retain the documented recipient')
+        return url
+    if route['method'] == 'web':
+        destination = urlparse(route['destination'])
+        require(u.scheme == 'https' and u.netloc == destination.netloc and not u.username and not u.password,
+                'report receipt must belong to the documented tracker')
+        return url
     require(u.scheme == 'https' and u.netloc == 'github.com' and not u.query,
-            'destination must be a canonical T3 GitHub URL')
-    match = re.fullmatch(r'/pingdotgg/t3code/(issues|discussions)/([1-9][0-9]*)', u.path)
-    require(match, 'destination must be a canonical T3 GitHub URL')
+            'destination must be a canonical upstream GitHub URL')
+    match = re.fullmatch(re.escape(urlparse(route['destination']).path) + r'/(issues|discussions)/([1-9][0-9]*)', u.path)
+    require(match, 'destination must belong to the verified upstream repository')
     if kind == 'idea':
         require(match[1] == 'discussions', 'Ideas requires a Discussion destination')
     if kind == 'issue':
@@ -212,6 +256,11 @@ class Store:
                         self.write(fd, existing + '.json', other)
                     return {'existing_session': existing, **summary(other)}
                 require(s is None, 'session ID already belongs to another incident')
+                selected = data.get('selection')
+                if data.get('require_agreement') or selected:
+                    from shared import execution_agreement, model_selection
+                    model_selection.validate(selected, data.get('selection_sha256'))
+                    execution_agreement.admit(selected, operation='bug-report/run')
                 s = {'schema': 1, 'id': sid, 'incident_hash': key, 'owner_thread': data['owner_thread'],
                      'reporting_thread': None, 'created_at': now, 'last_clock': now,
                      'private_values': list(dict.fromkeys(private)), 'problems': {}, 'searches': {},
@@ -219,6 +268,9 @@ class Store:
                      'operations': {}, 'comments': {}, 'requests': [], 'coverage_gaps': [],
                      'monitor_started_at': None, 'deadline': None, 'schedule': None,
                      'cleanup': 'not-needed', 'cancelled': False, 'blockers': [], 'failures': {}}
+                if selected:
+                    s['selection'] = selected
+                    s['agreement_sha256'] = selected['agreement']['agreement_sha256']
                 # Reserve ownership first. A crash before the session write leaves a
                 # recoverable hold, never an unindexed session that can dispatch twice.
                 index[key] = sid
@@ -250,7 +302,8 @@ def budget(s, now):
 
 def problem_ready(s, pid):
     p = s['problems'].get(pid)
-    require(p and p['outcome'] in {'t3-defect', 't3-improvement'}, 'problem is not reportable')
+    require(p and p['outcome'] in {'upstream-defect', 't3-defect', 't3-improvement'}, 'problem is not reportable')
+    route = reporting_route(p)
     evidence = p['evidence']
     require(all(k in evidence for k in FIELDS), 'evidence fields must retain unknowns explicitly')
     require(all(evidence[k] for k in ('symptom', 'expected', 'actual', 'impact', 'references')),
@@ -263,12 +316,22 @@ def problem_ready(s, pid):
         if claim.get('fixes_affected_environment') is True:
             require(p.get('environment') and claim.get('tested_environment') == p['environment']
                     and claim.get('fix_observation'), 'fix claim lacks matching affected-environment observation')
-    if p['outcome'] == 't3-defect':
+    if p['outcome'] in {'t3-defect', 'upstream-defect'}:
         require(evidence['procedure'] and evidence['results'] and p.get('observation'),
                 'verified defect needs observed reproduction')
     search = s['searches'].get(pid)
-    require(search and search.get('issues_complete') is True and search.get('discussions_complete') is True
-            and search.get('queries') and search.get('reason'), 'complete duplicate search required')
+    query_required = True
+    if route['method'] == 'github':
+        complete = search and search.get('issues_complete') is True and search.get('discussions_complete') is True
+    else:
+        channels = (search or {}).get('channels', [])
+        complete = (search and search.get('channels_complete') is True
+                    and isinstance(channels, list) and channels
+                    and all(isinstance(c, dict) and c.get('channel') and c.get('status') in {'searched', 'not-applicable'}
+                            and c.get('evidence') for c in channels))
+        query_required = not complete or any(c['status'] == 'searched' for c in channels)
+    require(complete and (search.get('queries') or not query_required) and search.get('reason'),
+            'complete duplicate search required')
     require(all(all(k in c for k in ('url', 'content', 'comments', 'versions', 'resolution', 'reason'))
                 for c in search.get('candidates', [])), 'candidate inspection incomplete')
     return p, search
@@ -277,6 +340,9 @@ def problem_ready(s, pid):
 def render(p, search=None):
     e = p['evidence']
     lines = ['# ' + e['symptom'], '', 'Outcome: ' + p['outcome']]
+    if p.get('upstream_name'):
+        lines += ['', 'Upstream: ' + p['upstream_name'],
+                  'Reporting method: ' + json.dumps(p['reporting_route'], ensure_ascii=False)]
     for k in FIELDS[1:]:
         lines += ['', k.replace('_', ' ').capitalize() + ':',
                   json.dumps(e.get(k), ensure_ascii=False) if e.get(k) is not None else 'Unknown']
@@ -297,7 +363,7 @@ def render(p, search=None):
     return '\n'.join(lines)
 
 
-def public_request(kind, payload, canonical, observation, transport):
+def public_request(kind, payload, canonical, observation, transport, route=None):
     """Generate the actual destination-bearing request; never pass through arguments.
 
     Repository/category/object identity observations still require a current fetch.
@@ -305,20 +371,33 @@ def public_request(kind, payload, canonical, observation, transport):
     """
     require(set(payload) <= {'body', 'title'} and isinstance(payload.get('body'), str),
             'public payload accepts only body and title')
-    require(observation.get('repository_url') == 'https://github.com/pingdotgg/t3code',
-            'current T3 repository identity observation required')
+    route = route or reporting_route({})
+    if route['method'] != 'github':
+        require((kind == 'issue' and bool(payload.get('title'))) or
+                (kind in {'comment', 'reply'} and set(payload) == {'body'}),
+                'report needs a title; replies accept only body')
+        require(transport == 'documented' and observation.get('reporting_destination') == route['destination']
+                and observation.get('method_documentation') == route['documentation'],
+                'current documented intake observation required')
+        if canonical:
+            target(canonical, route=route)
+        return {'transport': 'documented', 'method': route['method'], 'destination': route['destination'],
+                'target': canonical, 'arguments': payload}
+    repository = urlparse(route['destination']).path.lstrip('/')
+    require(observation.get('repository_url') == route['destination'],
+            'current upstream repository identity observation required')
     if kind == 'issue':
         require(payload.get('title'), 'issue title required')
         if transport == 'github-create-issue':
-            return {'transport': transport, 'arguments': {'repository_full_name': 'pingdotgg/t3code', **payload}}
+            return {'transport': transport, 'arguments': {'repository_full_name': repository, **payload}}
         require(transport == 'github-rest', 'unsupported issue transport')
-        return {'transport': transport, 'method': 'POST', 'endpoint': 'repos/pingdotgg/t3code/issues', 'input': payload}
+        return {'transport': transport, 'method': 'POST', 'endpoint': f'repos/{repository}/issues', 'input': payload}
     if kind in {'comment', 'reply'} and '/issues/' in canonical:
         require(transport == 'github-rest', 'unsupported issue-comment transport')
         require(set(payload) == {'body'}, 'comment accepts only body')
         n = urlparse(canonical).path.split('/')[-1]
         return {'transport': transport, 'method': 'POST',
-                'endpoint': f'repos/pingdotgg/t3code/issues/{n}/comments', 'input': payload}
+                'endpoint': f'repos/{repository}/issues/{n}/comments', 'input': payload}
     require(transport == 'github-graphql', 'Ideas requires supported Discussion transport')
     if kind == 'idea':
         require(payload.get('title') and observation.get('repository_id') and observation.get('ideas_category_id'),
@@ -337,6 +416,9 @@ def public_request(kind, payload, canonical, observation, transport):
 
 
 def transition(s, action, d, now):
+    if s.get('selection') and action not in ('cancel', 'finish', 'reconcile', 'wake', 'gap', 'block'):
+        from shared import execution_agreement
+        execution_agreement.admit(s['selection'], operation='bug-report/run', expected=s['agreement_sha256'])
     if action == 'problem':
         alive(s, now)
         pid = d.get('id', '')
@@ -346,6 +428,8 @@ def transition(s, action, d, now):
             require(d.get('missing'), 'unconfirmed problem needs a targeted question')
         if d['outcome'] == 'external':
             require(d.get('destination') and d.get('ownership_evidence'), 'external attribution and suggestion required')
+        if d['outcome'] == 'upstream-defect':
+            reporting_route(d)
         old = s['problems'].get(pid, {})
         history = old.get('history', []) + ([{k:v for k,v in old.items() if k != 'history'}] if old else [])
         s['problems'][pid] = {**d, 'recorded_at': now, 'history': history}
@@ -388,6 +472,11 @@ def transition(s, action, d, now):
                 'unfinished operation requires reconciliation')
         if kind != 'cleanup':
             alive(s, now)
+        if s.get('selection') and kind in ('issue', 'idea', 'comment', 'reply'):
+            from shared import execution_agreement
+            execution_agreement.admit(s['selection'], operation='bug-report/run',
+                action='publish-discussion' if kind in ('idea', 'reply') else 'publish-issues',
+                expected=s['agreement_sha256'])
         if kind == 'diagnostic' or (kind == 'read' and s['deadline'] is None):
             require(s['budget']['active_since'] is not None and budget(s, now) < s['budget']['seconds'],
                     'start active budget before investigation')
@@ -423,13 +512,13 @@ def transition(s, action, d, now):
                         'current destination access and template observation required')
                 selected = search.get('selected')
                 if kind == 'issue':
-                    require(p['outcome'] == 't3-defect' and selected is None,
-                            'new issue requires verified distinct T3 defect')
+                    require(p['outcome'] in {'t3-defect', 'upstream-defect'} and selected is None,
+                            'new issue requires verified distinct upstream defect')
                 elif kind == 'idea':
                     require(p['outcome'] == 't3-improvement' and caps.get('ideas_category_id') and selected is None,
                             'new Ideas requires established distinct improvement and current category')
                 else:
-                    target(d.get('target'))
+                    target(d.get('target'), route=reporting_route(p))
                     require('#' not in d['target'], 'canonical target must name the report rather than a comment fragment')
                     require(selected == d.get('target'), 'comment target must match inspected canonical report')
                 require(payload.get('body'), 'public body required')
@@ -448,7 +537,7 @@ def transition(s, action, d, now):
                     expected = 'Evidence is already recorded here: ' + prior['observation']['url'] + '.'
                     require(payload == {'body': expected}, 'reference reply must link existing evidence without repeating it')
                     evidence_key = digest(['reference', d['comment_version'], d['reference_operation']])
-                request = public_request(kind, payload, d.get('target'), caps, d.get('transport'))
+                request = public_request(kind, payload, d.get('target'), caps, d.get('transport'), reporting_route(p))
         if kind == 'schedule':
             require(s['reporting_thread'] and d.get('actor_thread') == s['reporting_thread'],
                     'schedule must belong to reporting thread')
@@ -465,7 +554,7 @@ def transition(s, action, d, now):
         safe = redact(payload, s['private_values'])
         if request is not None:
             # Rebuild from sanitized content. No unredacted body survives in a host request.
-            request = public_request(kind, safe, d.get('target'), caps, d.get('transport'))
+            request = public_request(kind, safe, d.get('target'), caps, d.get('transport'), reporting_route(p))
         elif kind == 'launch':
             request = {'transport': 't3-thread-launch', 'arguments': safe}
         elif kind == 'schedule':
@@ -488,6 +577,7 @@ def transition(s, action, d, now):
                                 'reconciliation_for': reconciliation, 'reference_operation': d.get('reference_operation'),
                                 'budgeted': kind == 'diagnostic' or (kind == 'read' and s['deadline'] is None),
                                 'comment_version': d.get('comment_version'),
+                                'reporting_route': reporting_route(p) if kind in PUBLIC else None,
                                 'problem_generation': digest(s['problems'][pid]) if kind in PUBLIC | {'launch'} else None,
                                 'search_generation': digest(s['searches'][pid]) if kind in PUBLIC | {'launch'} else None}
         if kind == 'diagnostic':
@@ -544,9 +634,12 @@ def transition(s, action, d, now):
         if op['kind'] in {'diagnostic', 'read'}:
             require(obs.get('request_terminal') is True, 'observe investigative request completion before confirming')
         if op['kind'] in PUBLIC:
-            target(obs.get('url'), op['kind'])
+            route = op.get('reporting_route') or reporting_route({})
+            target(obs.get('url'), op['kind'], route)
             observed = urlparse(obs['url'])
-            if op['kind'] in {'comment', 'reply'}:
+            if route['method'] != 'github':
+                require(obs.get('receipt_reference'), 'documented submission needs a fetched ticket or sent-message receipt')
+            elif op['kind'] in {'comment', 'reply'}:
                 prefix = 'issuecomment-' if '/issues/' in observed.path else 'discussioncomment-'
                 require(re.fullmatch(prefix + r'[1-9][0-9]*', observed.fragment),
                         'fetch the specific published comment URL before confirming')
@@ -581,7 +674,17 @@ def transition(s, action, d, now):
     if action == 'comments':
         alive(s, now)
         require(d.get('pages_complete') is True, 'fetch every page before processing replies')
-        target(d.get('target'))
+        routes = [o.get('reporting_route') or reporting_route({}) for o in s['operations'].values()
+                  if o.get('status') == 'confirmed' and o.get('canonical_destination') == d.get('target')]
+        routes.extend(reporting_route(s['problems'][pid]) for pid, search in s['searches'].items()
+                      if search.get('selected') == d.get('target'))
+        require(routes, 'follow-up target is not owned or verified canonical')
+        target(d.get('target'), route=routes[0])
+        if routes[0]['method'] == 'email':
+            references = {o['observation'].get('receipt_reference') for o in s['operations'].values()
+                          if o.get('status') == 'confirmed' and o.get('canonical_destination') == d['target']}
+            require(d.get('receipt_reference') and d['receipt_reference'] in references,
+                    'email follow-up must bind an actual owned sent-message receipt')
         require('#' not in d['target'], 'comment collection must name the canonical report')
         known = {o['observation']['url'].split('#')[0] for o in s['operations'].values()
                  if o['status'] == 'confirmed' and 'url' in o.get('observation', {})}
@@ -643,6 +746,10 @@ def summary(s):
                                     'destination': v.get('destination')} for k,v in s['problems'].items()},
                    'urls': [o['observation']['url'] for o in s['operations'].values()
                             if o['status'] == 'confirmed' and 'url' in o.get('observation', {})],
+                   'receipts': [{'url': o['observation']['url'],
+                                 'reference': o['observation'].get('receipt_reference')}
+                                for o in s['operations'].values()
+                                if o['status'] == 'confirmed' and o['kind'] in PUBLIC],
                    'actions': [{'operation': o['id'], 'kind': o['kind'], 'status': o['status'],
                                 **{k: o[k] for k in ('scope', 'safe_procedure_reviewed',
                                                     'failure_class', 'failure_evidence') if k in o}}
@@ -667,6 +774,10 @@ def main(argv=None):
     try:
         data = json.loads(a.input.read_text()) if a.input else {}
         require(isinstance(data, dict), 'JSON input must be an object')
+        if a.action == 'init':
+            root = next(p for p in Path(__file__).resolve().parents if (p / 'shared/execution_agreement.py').is_file())
+            sys.path.insert(0, str(root))
+            data['require_agreement'] = True
         store = Store(a.state_root)
         out = store.status(a.session) if a.action == 'status' else store.apply(a.session, a.action, data)
         print(json.dumps({'ok': True, 'data': out}, allow_nan=False))

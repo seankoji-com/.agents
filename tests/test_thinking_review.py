@@ -109,7 +109,7 @@ class ReviewCommands:
         self.render()
         self.render("--check")
         self.state("gate", "topic", "--require", "discovery,spec,handoff")
-        self.assertEqual(self.state("resolve", "topic")["next_phase"], "complete")
+        self.assertEqual(self.state("resolve", "topic")["next_phase"], "delivery")
         self.write("discovery.md", self.discovery + "Use the official API.\n")
         self.assert_held("changed")
         self.render("--check", ok=False)
@@ -190,7 +190,7 @@ class ReviewCommands:
                 self.render()
                 self.state("gate", "topic", "--require", "discovery,spec,handoff")
                 self.assertIn(f"Review status: {decision}.", (self.topic / "handoff.md").read_text())
-                self.assertEqual(self.state("resolve", "topic")["next_phase"], "complete")
+                self.assertEqual(self.state("resolve", "topic")["next_phase"], "delivery")
 
     def test_provenance_is_independent_of_current_review_readiness(self):
         self.accept()
@@ -242,7 +242,7 @@ class ReviewCommands:
         self.write("spec.md", "# Rubric\nThe draft marker is `<!-- thinking:draft -->`; [REQ-ONCE] remains final.")
         self.accept()
         self.render()
-        self.assertEqual(self.state("resolve", "topic")["next_phase"], "complete")
+        self.assertEqual(self.state("resolve", "topic")["next_phase"], "delivery")
 
     def test_standalone_draft_status_after_heading_or_bom_holds_final_output(self):
         self.accept()
@@ -268,7 +268,7 @@ class ReviewCommands:
             with self.subTest(example=example):
                 self.write("spec.md", "# Rubric\nExample only:\n" + example + "\n[REQ-ONCE] Final criterion.")
                 self.render()
-                self.assertEqual(self.state("resolve", "topic")["next_phase"], "complete")
+                self.assertEqual(self.state("resolve", "topic")["next_phase"], "delivery")
 
     def test_malformed_topic_does_not_hide_healthy_topics(self):
         self.state("init", "bad", "--output-type", "research")

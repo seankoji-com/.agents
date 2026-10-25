@@ -21,6 +21,28 @@ HANGING = 'import time, unittest\nclass T(unittest.TestCase):\n    def test_a(se
 
 
 class RunTestsTest(unittest.TestCase):
+    def test_identity_report_partitions_preserve_every_original_scenario_once(self):
+        from tests import test_focus_group_report_identity as original
+        from tests import test_focus_group_report_identity_remaining as remaining
+
+        def ids(suite):
+            for child in suite:
+                if isinstance(child, unittest.TestSuite):
+                    yield from ids(child)
+                else:
+                    yield child.id()
+
+        # Collect directly from the class, independently of either module's load_tests.
+        loader = unittest.TestLoader()
+        expected = [test.id() for test in loader.loadTestsFromTestCase(original.IdentityProjectionTest)]
+        actual = []
+        for module in (original, remaining):
+            suite = loader.loadTestsFromModule(module)
+            actual.extend(ids(suite))
+        self.assertEqual(len(expected), 5)
+        self.assertCountEqual(actual, expected)
+        self.assertEqual(len(actual), len(set(actual)))
+
     def suite(self, **modules):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -162,8 +184,7 @@ class RunTestsTest(unittest.TestCase):
                 run.assert_not_called()
 
     def test_ci_matrix_covers_every_shard_consumed_by_the_test_command(self):
-        workflow = (ROOT / '.github' / 'workflows' / 'test.yml').read_text()
-
+        tests = self.suite(test_contract=PASSING)
         def check(text):
             matrix = re.search(r'(?m)^        shard: (\[[^\n]+\])$', text)
             command = re.search(r'(?m)^        run: python3 scripts/run_tests.py '
@@ -172,13 +193,25 @@ class RunTestsTest(unittest.TestCase):
             self.assertIsNotNone(command, 'CI must run the full shard without test filters')
             self.assertIn('TEST_SHARD_INDEX: ${{ matrix.shard }}', text)
             self.assertEqual(sorted(json.loads(matrix.group(1))), list(range(int(command.group(1)))))
+            # The exact workflow command has no timeout override. Verify the real
+            # runner passes its promised default deadline to the selected module.
+            with patch.object(runner, 'run', return_value=(tests / 'test_contract.py', 0,
+                              'Ran 1 test in 0s\nOK\n', 0, 1)) as run:
+                code, out, _ = self.run_main('--shard-index', '0', '--shard-count', command.group(1))
+            self.assertEqual(code, 0, out)
+            self.assertEqual([call.args[1] for call in run.call_args_list], [600])
 
-        check(workflow)
-        # Removing the highest shard leaves every remaining index valid to the
-        # runner, but silently omits tests unless the workflow contract catches it.
-        indices = re.search(r'(?m)^        shard: (\[[^\n]+\])$', workflow).group(1)
-        with self.assertRaises(AssertionError):
-            check(workflow.replace(indices, json.dumps(json.loads(indices)[:-1])))
+        for name in ('test.yml', 'release.yml'):
+            with self.subTest(workflow=name):
+                workflow = (ROOT / '.github' / 'workflows' / name).read_text()
+                check(workflow)
+                # Removing the highest shard leaves every remaining index valid to the
+                # runner, but silently omits tests unless the workflow contract catches it.
+                indices = re.search(r'(?m)^        shard: (\[[^\n]+\])$', workflow).group(1)
+                with self.assertRaises(AssertionError):
+                    check(workflow.replace(indices, json.dumps(json.loads(indices)[:-1])))
+                with self.assertRaises(AssertionError):
+                    check(workflow.replace('run: python3 scripts/run_tests.py', 'run: python scripts/run_tests.py'))
 
 
 if __name__ == '__main__':

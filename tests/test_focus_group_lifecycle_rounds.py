@@ -1010,3 +1010,8 @@ class ReviewRoundTest(Case):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def load_tests(loader, tests, pattern):
+    from tests.module_partition import partition
+    return partition(loader, ReviewRoundTest, 0)

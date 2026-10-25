@@ -6,6 +6,7 @@ import sys
 
 from core.jobs.store import digest
 from shared import model_selection as models, planning_review as planning
+from tests.upfront_fixtures import approved_selection
 from tests.ape_plan_review_fixtures import ApePlanFixture
 from tests.model_selection_fixtures import selection_input, replacement, answer
 from tests.test_rebuild_installed import ROOT
@@ -39,7 +40,7 @@ class AdopterFixture(ApePlanFixture):
         if direct:
             row=replacement(d,d['coordinator'],review=True);row.pop('target');row['execution']='self-review'
             row['authority']['data_classes'].append('private-settings');d['review_replacements'].append(row)
-        self.selection_data=d;self.selection=models.freeze(d)
+        self.selection_data=d;self.selection=approved_selection(d)
         self.admission_input={'operation':op,'request_reference':self.reference,'output_name':self.output_name,
             'invocation_id':self.id,'selection':self.selection,'selection_sha256':self.selection['selection_sha256']}
         self.admission=self.ape('admit',self.admission_input)
@@ -59,7 +60,8 @@ class AdopterFixture(ApePlanFixture):
 
     def record_author(self, document):
         caps=deepcopy(self.selection['capabilities']);caps.update(parentThreadId='fixture-parent',
-            inheritedProviderInstanceId=self.selection['coordinator']['providerInstanceId'],inheritedModel=self.selection['coordinator']['model'])
+            inheritedProviderInstanceId=self.selection['coordinator']['providerInstanceId'],inheritedModel=self.selection['coordinator']['model'],
+            inheritedOptions=self.selection['coordinator']['observed_options'])
         script=self.runtime/'shared/document_authors.py'
         from shared.document_authors import append_author, locked_author_records
         with locked_author_records(document.parent) as (records, save):
@@ -111,7 +113,7 @@ class AdopterFixture(ApePlanFixture):
 
     def apply_context(self,approval):
         d=deepcopy(self.selection_data);d['operation']='agent-tuneup/apply';d['invocation_id']=self.id+'-apply'
-        s=models.freeze(d)
+        s=approved_selection(d)
         a=self.ape('admit',{**self.admission_input,'operation':'apply','invocation_id':d['invocation_id'],
             'selection':s,'selection_sha256':s['selection_sha256']})
         return {'admission':a,'approval':approval}
@@ -121,7 +123,7 @@ class AdopterFixture(ApePlanFixture):
         # Both specialised reviewers remain different from the actual document author.
         d=deepcopy(self.selection_data);d['work']['factual']=deepcopy(d['review_panel'][0]['target'])
         d['profiles']['roles']['factual']={'minimum':2,'judgement':True}
-        self.selection=models.freeze(d);self.admission_input.update(selection=self.selection,
+        self.selection=approved_selection(d);self.admission_input.update(selection=self.selection,
             selection_sha256=self.selection['selection_sha256']);self.admission=self.ape('admit',self.admission_input)
         self.descriptor['admission']=self.admission
         self.job_id=self.id+'-documents';self.job_file=self.box.jobs/self.job_id/'job.json'
@@ -211,7 +213,7 @@ class AdopterFixture(ApePlanFixture):
         """Existing direct domain stage; no invented planning stage in its parent."""
         d=deepcopy(self.selection_data);d['work']['workhorse']['execution']='current-context'
         d['work']['workhorse']['accept_actual_settings']=True
-        self.selection=models.freeze(d);self.admission_input.update(selection=self.selection,
+        self.selection=approved_selection(d);self.admission_input.update(selection=self.selection,
             selection_sha256=self.selection['selection_sha256']);self.admission=self.ape('admit',self.admission_input)
         self.descriptor['admission']=self.admission
         self.job_id=self.id+'-parent';self.job_file=self.box.jobs/self.job_id/'job.json'
@@ -244,7 +246,8 @@ class AdopterFixture(ApePlanFixture):
             'model_selection_sha256':self.selection['selection_sha256'],'invocation_id':self.id,'scope_id':self.scope}
         self.box.create(self.package,self.job);self.caller=self.box.caller(self.manifest,self.job['workflow'])
         caps=deepcopy(self.selection['capabilities']);caps.update(parentThreadId='fixture-parent',
-            inheritedProviderInstanceId=self.selection['coordinator']['providerInstanceId'],inheritedModel=self.selection['coordinator']['model'])
+            inheritedProviderInstanceId=self.selection['coordinator']['providerInstanceId'],inheritedModel=self.selection['coordinator']['model'],
+            inheritedOptions=self.selection['coordinator']['observed_options'])
         self.box.job(self.package,'direct-execution',self.job_id,{'caller':self.caller,'stage_id':'integrated'},
             extra=('--capabilities',self.box.payload(caps)))
         if self.plugin_name=='agent-tuneup':self.descriptor['job_file']=str(self.job_file)
@@ -285,16 +288,16 @@ def ralph_admission(data):
     for provider in caps['providers']:provider.setdefault('canRunCrossProviderChildTask',True)
     from shared.lineage import lineage
     family=lambda t:lineage(next(p.get('driverKind','') for p in caps['providers'] if p['providerInstanceId']==t['providerInstanceId']),t['model'])
-    d['coordinator']={**work,'lineage':family(work),'observed_options':work['options']}
+    d['coordinator']={**work,'lineage':data['implementer']['lineage'],'observed_options':work['options']}
     d['profiles']={'roles':{'workhorse':{'minimum':1},'reviewer':{'minimum':2,'judgement':True}},
-        'models':[{'target':target,'quality':2,'judgement':True,'lineage':family(target),
+        'models':[{'target':target,'quality':2,'judgement':True,'lineage':data[key]['lineage'],
             'lineage_source':'fixture:explicit-owner-confirmed-family','reason':'Synthetic lifecycle fixture suitability.',
             'fixed_effort_reason':'Synthetic fixed-effort evaluator is suitable for the fixture.'}
             for target,key in ((work,'implementer'),(review,'evaluator'))]}
     d['work']={'workhorse':work};d['review_panel']=[{'slot_id':'evaluation','role':'reviewer',
         'coverage':['fixture-goal'],'required':True,'independent':True,'target':review}]
     d['source']=answer('Use this exact fixture pair: '+json.dumps({'work':work,'review':review},sort_keys=True))
-    s=models.freeze(d)
+    s=approved_selection(d)
     from shared.adopter_planning import admit
     return admit('ralph',{'operation':'run','request_reference':'fixture:ralph-request','output_name':'fixture-ralph-output',
         'invocation_id':s['invocation_id'],'selection':s,'selection_sha256':s['selection_sha256']})
@@ -393,7 +396,7 @@ def ensure_legacy_elephant_design(case,job_id):
     f.begin_review()
     if job_id.startswith('rounds-') and generation:
         subject=json.loads(Path(json.loads((box.jobs/f.review_id/'job.json').read_text())['planning']['subject_file']).read_text())
-        if subject['round_limit']==3:
+        if subject['round_limit']<30:
             text='Permit 30 planning assessments for this isolated cold-read budget fixture.'
             source=box.private/'budget-answer.txt';source.write_text(text)
             f.review('owner-decision',{'decision':{'kind':'limit-increase','logical_output_id':f.scope,

@@ -32,7 +32,7 @@ from shared.worker_registry import SHARED_REQUIRED, package_digest, verify_bundl
 
 BIN = ROOT / 'bin' / 't3-plugins'
 INSTALL = ROOT / 'scripts' / 'install.py'
-FIVE = ('imps', 'ape', 'elephant-goldfish', 'babysitter', 'agent-tuneup')
+FIVE = ('imps', 'ape', 'plan', 'babysitter', 'agent-tuneup')
 # Plugins whose Stage 4 coordinator entry is merged. ape joins when its rebuild names the
 # contract; until then its entry is checked for routing only.
 COORDINATED = set(FIVE)
@@ -182,21 +182,26 @@ class Sandbox:
                                                      'target_reason': 'lowest suitable configured tier'})
         raw = Path(prepared['path']).read_bytes()
         assert (sha(raw), len(raw)) == (prepared['sha256'], prepared['bytes']), 'brief locator differs from bytes'
-        from shared.compact_briefs import deserialize
-        brief = deserialize(raw)
+        try:
+            from shared.compact_briefs import deserialize
+            brief = deserialize(raw)
+        except Exception:
+            brief = json.loads(raw.decode('utf-8'))
+        observed_target = brief.get('target') or brief.get('model_selection', {}).get('dispatch', {}).get('target', {})
         self.job(pkg, 'task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
             'kind': 'accepted', 'request_id': brief['request_id'], 'host_task_id': host,
             'child_thread_id': 'child-' + host, 'status': 'running', 'work_state': 'working',
-            'status_identity': brief.get('target'),
+            'status_identity': {**observed_target, 'options': observed_target.get('options', {})},
             'has_pending_child_runs': False}})
         return brief
 
     def complete(self, pkg, job_id, caller, task_id, brief, host, result_text):
         done = host + '-done'
+        observed_target = brief.get('target') or brief.get('model_selection', {}).get('dispatch', {}).get('target', {})
         self.job(pkg, 'task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
             'kind': 'completion', 'request_id': brief['request_id'], 'host_task_id': host,
             'child_thread_id': 'child-' + host, 'completion_id': done, 'status': 'completed',
-            'status_identity': brief.get('target'),
+            'status_identity': {**observed_target, 'options': observed_target.get('options', {})},
             'work_state': 'result_available', 'has_pending_child_runs': False}})
         return self.job(pkg, 'result', job_id, {'caller': caller, 'task_id': task_id,
                                                 'request_id': brief['request_id'], 'completion_id': done,
@@ -294,8 +299,12 @@ class InstalledArtifactTest(unittest.TestCase):
                     self.assertEqual((receipt['entry'], receipt['sha256']), (str(entry_path), sha(skill.read_bytes())))
                     text = skill.read_text()
                     self.assertIn('Read the installed entry file at ' + json.dumps(str(entry_path)), text)
-                    listed = re.search(r'Operations: (.+)\.\n', text).group(1)
-                    self.assertEqual(re.findall(r'`([^`]+)`', listed), declared['operations'])
+                    if declared.get('default_operation'):
+                        self.assertIn('Default workflow: `' + declared['default_operation'] + '`.', text)
+                        self.assertNotIn('Options:', text)
+                    else:
+                        listed = re.search(r'Operations: (.+)\.\n', text).group(1)
+                        self.assertEqual(re.findall(r'`([^`]+)`', listed), declared['operations'])
                     self.assertIn('This adapter grants no additional authorization.', text)
             for op in declared['operations']:
                 with self.subTest(plugin=plugin, op=op):
@@ -313,10 +322,10 @@ class InstalledArtifactTest(unittest.TestCase):
     def test_agents_list_and_show_inspect_installed_bundles_read_only(self):
         before = tree_digest(self.box.prefix, self.box.agents, self.box.base / 'config')
         rows = json_lines(self.box.t3('agents', 'list').stdout)
-        expected = {w['id']: (p, w['role']) for p in (*FIVE, 'ralph', 'focus-group') for w in meta(p)['workers']}
+        expected = {w['id']: (p, w['role']) for p in (*FIVE, 'ralph', 'focus-group', 'tests-omg') for w in meta(p)['workers']}
         self.assertEqual({r['id'] for r in rows}, set(expected))
-        self.assertEqual(len(expected), 18)
-        self.assertEqual(len([w for w in expected if w.split('/')[0] in FIVE]), 13)
+        self.assertEqual(len(expected), 17)
+        self.assertEqual(len([w for w in expected if w.split('/')[0] in FIVE]), 11)
         for row in rows:
             plugin, role = expected[row['id']]
             version, manifest = self.package(plugin)

@@ -1,5 +1,9 @@
 # focus-group
 
+Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
+asking; direct controls stay prompt-free. Substantive work records the scoped
+agreement; nested calls and unchanged continuations reuse its binding and budgets.
+
 Plan and run a small, editable panel of invented personas across several models to
 test a product or prototype. The result is a set of synthetic product-use
 hypotheses: first impressions from shared captures, goal-based journeys where
@@ -8,7 +12,7 @@ build/fix backlog. They are never evidence of human demand or prevalence.
 
 Read `PKG/shared/t3-runtime.md` once. Delegation follows `PKG/shared/delegation.md`.
 Apply `PKG/shared/model-selection.md` before substantive plan/run work. Collect
-planner, per-model participant, analyst and review choices together from the live
+planner, per-model participant, analyst and review choices in short rounds from the live
 catalog, preserving exact options and role floors. Deterministic helpers never
 open a nested chooser. Whole studies follow `PKG/shared/job-coordination.md`; this entry adds only
 focus-group policy. Load only the selected operation's playbook:

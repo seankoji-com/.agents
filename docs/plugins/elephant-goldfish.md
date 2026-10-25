@@ -1,4 +1,16 @@
-# elephant-goldfish
+# elephant-goldfish (deprecated)
+
+Use [`$t3-plan <topic>`](plan.md) for new planning work. The old package is excluded
+from default installation and the workflow catalog. Setup removes only its owned,
+unmodified skill adapters; edited adapters, installed snapshots, documents and
+pinned job state remain intact. An explicit old-package request reports deprecation
+and remains available for compatibility. There is no automatic state migration.
+
+The elephant/goldfish premise and its durable `elephant.md` workflow are retired
+from the normal interface. The former documentation follows for old jobs only.
+
+
+Thinking delivery selects Issue with subissues, Discussion post or Markdown PR upfront unless supplied. Local artifacts remain intermediate. Native subissue relationships/dependencies, a published Discussion in the intended category, or a linked current-head reviewed/green Markdown PR supply endpoint evidence. Delivery state preserves partial IDs and reconciles unknown requests before retry. Artifact gates establish source readiness; add `delivery` to the final gate. Publishing the brief never authorises implementation.
 
 You know something should change, but you can't yet hand an agent a clear task.
 elephant-goldfish interviews you, writes down what you decided, turns it into
@@ -141,7 +153,8 @@ question picker.
 
 ## Limits
 
-Thinking stops at the handoff. A cold reader's pass means the brief is readable and
+Thinking finishes at the selected delivery and grants no implementation authority.
+A cold reader's pass means the brief is readable and
 complete, not that its facts are right. The helpers check receipt structure, content
 hashes and provenance. They can't judge the quality of the interview, authenticate
 who accepted a review, or prevent every unauthorised agent action. Unit tests don't

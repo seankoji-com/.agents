@@ -23,7 +23,7 @@ def selection_input():
                             'lineage': family, 'lineage_source': 'fixture:catalog-family'}
                            for t, family in [(work, 'alpha'), (review, 'beta'), (spare, 'gamma')]]}
     return {'invocation_id': 'fixture-invocation', 'scope_id': 'fixture-output', 'operation': 'fixture/plan',
-            'project_id': 'fixture-project', 'source': answer(),
+            'project_id': 'fixture-project', 'source': answer(), 'routing_scope': 'invocation-only',
             'coordinator': {**work, 'lineage': 'alpha', 'observed_options': {'reasoningEffort': 'high'}},
             'capabilities': {'inheritedProviderInstanceId': 'fixture-work', 'inheritedModel': 'alpha-work',
                              'runtimeMode': 'auto', 'providers': [
@@ -34,6 +34,17 @@ def selection_input():
             'review_panel': [{'slot_id': 'review', 'role': 'reviewer', 'coverage': ['REQ-ONE'],
                               'required': True, 'target': review}],
             'work_replacements': [], 'review_replacements': []}
+
+
+def canonical_selection_input():
+    """Synthetic model IDs with authoritative single-lineage driver metadata."""
+    data = selection_input()
+    data['capabilities']['providers'][0]['driverKind'] = 'codex'
+    data['capabilities']['providers'][1]['driverKind'] = 'claudeAgent'
+    data['coordinator']['lineage'] = 'openai'
+    data['profiles']['models'][0]['lineage'] = 'openai'
+    data['profiles']['models'][1]['lineage'] = 'anthropic'
+    return data
 
 
 def replacement(data, target, review=False):
@@ -92,6 +103,7 @@ def attach_selection(job, coordinator=None):
     for task in job['tasks']:
         if not task.get('target'):
             task['target'] = dict(deepcopy(fallback), lineage='fixture')
+        task['target'].setdefault('options', {})  # Explicit synthetic host echo, including no overrides.
         target = {k: deepcopy(v) for k, v in task['target'].items()
                   if k in ('providerInstanceId', 'model', 'options', 'runtimeMode')}
         target.setdefault('options', {})
@@ -140,7 +152,8 @@ def attach_selection(job, coordinator=None):
     data['capabilities'] = {'providers': list(catalog.values()), 'runtimeMode': 'full-access',
                             'inheritedProviderInstanceId': 'fixture-provider'}
     data['source'] = answer('Explicit synthetic targets for domain fixture: ' + models.digest(data['work']))
-    selected = models.freeze(data)
+    from tests.upfront_fixtures import approved_selection
+    selected = approved_selection(data)
     job.update(model_selection=selected, model_selection_sha256=selected['selection_sha256'],
                invocation_id=selected['invocation_id'], scope_id=selected['scope_id'])
     for task in job['tasks']:
@@ -173,7 +186,8 @@ def attach_revision(payload, current):
     attach_selection(candidate, current.get('model_selection', {}).get('coordinator'))
     chosen = candidate['model_selection']
     chosen.update(scope_id=current['scope_id'], invocation_id=current['invocation_id'])
-    chosen = models.freeze(chosen)
+    from tests.upfront_fixtures import approved_selection
+    chosen = approved_selection(chosen)
     candidate.update(model_selection=chosen, model_selection_sha256=chosen['selection_sha256'])
     for task in candidate['tasks']:
         task['selection_binding']['selection_sha256'] = chosen['selection_sha256']

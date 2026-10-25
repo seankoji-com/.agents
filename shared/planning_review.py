@@ -274,7 +274,7 @@ def create(data, state_root, prefix, agents_root, environ=None):
         else:
             state = {'schema_version': 1, 'project_id': data['project_id'], 'logical_output_id': snapshot['logical_output_id'],
                      'request_reference': snapshot['requests'][0]['reference'], 'output_name': snapshot['output_name'],
-                     'round_limit': 3, 'rounds_used': 0, 'technical_used': 0, 'active_job': None,
+                     'round_limit': 5, 'rounds_used': 0, 'technical_used': 0, 'active_job': None,
                      'requirements': snapshot['requirements'],
                      'sharing_revocations': [],
                      'jobs': [], 'revisions': {}, 'rounds': [], 'findings': {}, 'decisions': [], 'receipts': []}
@@ -373,7 +373,11 @@ def begin(store, caller, snapshot=None, requested_rereview=False, environ=None):
             j['planning'].update(snapshot=snapshot, round=round_['number'], passes=[], attempts=[],
                                  data_classes=classes)
             j['stages'][0].update(revision=snapshot['sha256'], status='running',
-                                  resources={'planning_snapshot': snapshot, 'prior_findings': state['findings']})
+                resources={'planning_snapshot': snapshot, 'prior_findings': state['findings'],
+                    'draft_check': {'helper': file_descriptor(Path(job['pins']['workflow']['package_dir']) /
+                                                            'shared/planning_review_cli.py'),
+                                    'command': 'check-draft', 'maximum_correction_cycles': 1,
+                                    'requires_declared_procedural_reads': True, 'acceptance': False}})
             j['requirements'] = snapshot['requirements']
             j['stages'][0]['requirements'] = list(snapshot['requirements'])
         # Reserve the round before the replaceable job. Technical failures do not
@@ -531,6 +535,12 @@ def _subject_attempt(state, task):
     return old
 
 
+def _attempt_selection(job, attempt):
+    """Immutable preparation binding, separate from current dispatch permission."""
+    return {'selection_sha256': job['model_selection_sha256'], 'round': job['planning']['round'],
+            **{k: deepcopy(attempt[k]) for k in ('slot_id', 'target', 'mode', 'lineage')}}
+
+
 def compact_selection(job, task):
     """Bind the existing planning candidate/mode, without invoking another chooser."""
     record = models.validate(job['model_selection'], job['model_selection_sha256'])
@@ -546,8 +556,6 @@ def compact_selection(job, task):
                          'selection_sha256': record['selection_sha256'], 'target': task['target'],
                          'substituted': not candidate.get('primary', False),
                          'planning_mode': attempt['mode'], 'lineage': attempt['lineage']}}
-
-
 def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
     """Reserve one finite technical attempt and prepare an existing immutable brief.
 
@@ -556,21 +564,41 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
     job = verify_all_pins(store, caller)
     policy = manifest_policy(job)
     need(job['planning']['round'] is not None, 'begin a counted content round first')
-    def retained_brief(expected):
+    def retained_brief():
         def check(current):
             manifest_policy(current)
             attempt = next(a for a in current['planning']['attempts'] if a['request_id'] == request_id)
             need(attempt['slot_id'] == slot_id and attempt['outcome'] is None,
                  'request ID is already retained by a finished attempt')
+            # Recover the original frozen choice, never today's next available one.
+            expected = next((c for c in candidates(current, slot_id) if c['target'] == attempt['target']), None)
             need(expected is not None and all(attempt[k] == expected[k] for k in ('target', 'mode', 'lineage')),
                  'request ID target binding differs')
             task = next(t for t in current['tasks'] if t['task_id'] == attempt['task_id'])
             need(task['target'] == expected['target'] and task['request_id'] == request_id,
                  'prepared task binding differs')
             need('brief' in task, 'incomplete launch reservation requires reconciliation')
-            if not any(h.get('request_id') == request_id for h in
-                       task.get('handles', []) + task.get('followups', []) + task.get('execution_history', [])):
-                require_admission(current, task)
+            brief = task['brief']
+            need(brief['path'] == str(store.path / 'briefs' / (task['task_id'] + '-' + digest(request_id.encode()) + '.json')),
+                 'prepared brief path binding differs')
+            _expected(current, task)  # Rehash immutable bytes and their planning snapshot.
+            assigned = strict_load(_regular(Path(brief['path'])))
+            selection = _attempt_selection(current, attempt)
+            need(assigned.get('model_selection') == task.get('model_selection') == selection,
+                 'prepared planning selection/slot binding differs')
+            need(all(assigned[k] == task[k] == brief[k] for k in
+                     ('task_id', 'request_id', 'stage_id', 'logical_slot_id', 'worker_id')) and
+                 assigned['job_id'] == brief['job_id'] == current['job_id'] and
+                 assigned['target'] == task['target'] and assigned['role'] == task['role'] == 'review' and
+                 assigned['revision'] == brief['revision'] == current['planning']['snapshot']['sha256'] and
+                 assigned['snapshot'] == brief['snapshot'] == current.get('snapshot') and
+                 assigned['dependency_pins'] == current['pins'] and
+                 assigned['effective_definition'] == current['pins'][task['dependency_key']]['effective_workers'][task['worker_id']] and
+                 assigned['authorization'] == current['authorization'] and assigned['constraints'] == current['constraints'] and
+                 assigned['write_scope'] == task['write_scope'] and
+                 assigned['requirements'] == [{'id': r, 'statement': current['requirements'][r]}
+                                              for r in current['stages'][0]['requirements']],
+                 'immutable prepared task contract differs')
             return (dict(task['brief'], target=attempt['target'], task_id=task['task_id'],
                          request_id=request_id, mode=attempt['mode']), deepcopy(attempt))
         return store.transact(caller, check, 'prepare')
@@ -582,8 +610,25 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
         need(not state['rounds'][-1]['closed'], 'round is closed')
         old = next((a for a in job['planning']['attempts'] if a['request_id'] == request_id), None)
         if old:
-            brief, attempt = retained_brief(_available_candidate(job, slot_id, sharing))
+            brief, attempt = retained_brief()
             _charge_prepared_attempt(subject, state, job, attempt)
+            def dispatch_permission(current):
+                # Accounting survives revoked sharing or moved occupancy. Returning
+                # a brief still grants dispatch instructions, so recheck separately.
+                need(canonical(current) == canonical(job), 'planning job changed during charge recovery; retry with current state')
+                candidate = next(c for c in exclusions(current, slot_id, sharing) if c['target'] == attempt['target'])
+                need(not candidate['exclusion'], 'current sharing denies prepared dispatch: ' + str(candidate['exclusion']))
+                task = next(t for t in current['tasks'] if t['task_id'] == attempt['task_id'])
+                handles = task.get('handles', []) + task.get('followups', [])
+                need(not any(b.get('kind') == 'identity-mismatch' and b.get('task_id') == task['task_id'] and
+                             not b.get('reconciled') for b in current.get('blockers', [])), 'sticky host identity mismatch')
+                for event in task.get('dispatch_history', []):
+                    for name in ('status_identity', 'receipt_identity', 'configuration_identity'):
+                        if isinstance(event.get(name), dict):
+                            models.correlate({'target': task['target']}, event[name])
+                if not any(h.get('request_id') == request_id for h in handles + task.get('execution_history', [])):
+                    require_admission(current, task)
+            store.transact(caller, dispatch_permission, 'prepare')
             return brief
         need(job['planning']['round'] and not any(p['slot_id'] == slot_id for p in job['planning']['passes']),
              'slot already reviewed or no round')
@@ -601,6 +646,7 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
             j['tasks'].append({'task_id': task_id, 'stage_id': 'planning', 'logical_slot_id': task_id,
                 'request_id': request_id, 'worker_id': policy['worker_id'], 'dependency_key': 'workflow',
                 'role': 'review', 'target': candidate['target'], 'status': 'pending',
+                'model_selection': _attempt_selection(j, attempt),
                 'attempt': 0, 'handles': [], 'followups': [], 'dispatch_retries': 0,
                 'write_scope': {'mode': 'worker-evidence', 'path': 'artifacts/tasks/' + task_id}})
             require_admission(j, j['tasks'][-1])
@@ -630,8 +676,16 @@ def host_event(store, caller, task_id, event):
 
 
 def unavailable(store, caller, task_id, failure, environ=None):
-    """Record a real failed host call, including no-handle prelaunch rejection.
+    """Settle a failed host call or an evidenced local prelaunch refusal.
 
+    A no-handle refusal needs prelaunch=True, a matching original request_id and
+    nonempty tool, call_id and receipt; kind is technical, capacity or permission.
+    For a local CLI refusal, call_id is a caller-supplied correlation token for
+    that actual invocation; the CLI neither accepts nor emits it.
+    After an interrupted charge, replay the original launch first. Charge recovery
+    may succeed while current sharing/capacity refuses dispatch. Record that real
+    local refusal without inventing a host event or handle. Settlement neither
+    dispatches nor adds a charge, changes the binding or grants permission.
     Unknown/possibly active work must first reconcile through the existing host
     lifecycle. A complete substantive response is never a technical failure.
     """
@@ -677,6 +731,7 @@ def _expected(store, job, task):
     need(digest(raw) == brief['sha256'], 'immutable planning brief tampered')
     from shared.compact_briefs import verify_transmitted
     assigned = verify_transmitted(store, job, task, task['request_id'], raw, brief)
+    need(isinstance(assigned, dict), 'planning brief must be a JSON object')
     claimed = assigned.pop('effective_brief_sha256')
     need(digest(canonical(assigned)) == claimed == brief['effective_brief_sha256'], 'planning brief content hash differs')
     if assigned['schema_version'] == 2:
@@ -762,6 +817,7 @@ def _retain_findings(state, job, findings, execution_id, family):
 
 
 def _coverage(job, assessment):
+    need(isinstance(assessment, dict), 'planning assessment must be an object')
     snapshot = job['planning']['snapshot']
     expected = set(job['requirements']) | set(snapshot.get('load_bearing_decisions', []))
     coverage = assessment.get('coverage')
@@ -774,13 +830,54 @@ def _coverage(job, assessment):
     return all(c['outcome'] == 'supported' for c in coverage)
 
 
-def _result_artifacts(store, job, task, result):
+def _check_result_artifacts(job_dir, task_id, result, max_bytes):
     for artifact in result['artifacts']:
         rel = Path(artifact['path'])
         need(rel.as_posix() == artifact['path'] and not rel.is_absolute() and '..' not in rel.parts and
-             rel.parts[:3] == ('artifacts', 'tasks', task['task_id']), 'worker evidence escapes assigned task subtree')
-        raw = _regular(store.path / rel, max_bytes=job['policy']['max_artifact_bytes'])
+             rel.parts[:3] == ('artifacts', 'tasks', task_id), 'worker evidence escapes assigned task subtree')
+        raw = _regular(job_dir / rel, max_bytes=max_bytes)
         need(digest(raw) == artifact['sha256'] and len(raw) == artifact['bytes'], 'worker evidence artifact changed')
+
+
+def _result_artifacts(store, job, task, result):
+    _check_result_artifacts(store.path, task['task_id'], result, job['policy']['max_artifact_bytes'])
+
+
+def _agreement_content(state, row):
+    """Recover legacy agreement binding only from its retained complete pass."""
+    clearing = row.get('clearing') or {}
+    if clearing.get('content_sha256'):
+        return clearing['content_sha256']
+    contents = {r['snapshot']['content_sha256'] for r in state.get('rounds', [])
+                for p in r.get('passes', []) if p.get('execution_id') == clearing.get('execution_id')
+                and p.get('lineage') == clearing.get('lineage')
+                and p.get('outcome') in ('approved', 'adverse')
+                and p.get('snapshot_sha256') == r['snapshot']['sha256']}
+    return next(iter(contents)) if len(contents) == 1 else None
+
+
+def _agreement_record(state, row):
+    if row.get('clearing'):
+        return deepcopy(row['clearing'])
+    if row['finding']['severity'] not in ('minor', 'note'):
+        return {}
+    # Old minor/note accounts recorded agreements only in response history.
+    # Recover the first agreement in the current uninterrupted agreement chain.
+    entries = []
+    for entry in reversed(row.get('history', [])):
+        if entry.get('status') not in (None, 'rebuttal-agreed') or 'owner_decision' in entry:
+            break
+        if entry.get('status') == 'rebuttal-agreed':
+            entries.append(entry)
+    if not entries:
+        return {}
+    first = entries[-1]
+    prior = {k: first.get(k) for k in ('mode', 'lineage', 'execution_id')}
+    prior['disposition'] = 'rebuttal-agreed-by-' + str(prior['mode'])
+    content = _agreement_content(state, {'clearing': prior})
+    if content:
+        prior['content_sha256'] = content
+    return prior
 
 
 def _responses(state, job, assessment, execution_id, family, child, mode):
@@ -793,24 +890,109 @@ def _responses(state, job, assessment, execution_id, family, child, mode):
         need(key in findings, 'response refers to unknown retained finding')
         row = findings[key]
         status = response.get('status')
+        carry = status == 'rebuttal-agreed' and row['status'] == 'rebuttal-agreed'
         need(status in ('fixed', 'rebuttal-agreed', 'rejected', 'deferred', 'open') and response.get('evidence'), 'finding response needs disposition and evidence')
         if status == 'fixed':
             need(row['content_sha256'] != job['planning']['snapshot']['content_sha256'], 'unchanged content cannot claim a repair')
         if status == 'rebuttal-agreed':
-            need(child and family == row['lineage'] and execution_id != row['execution_id'], 'rebuttal needs counted fresh child from original reviewer lineage')
-            need(row['status'] == 'rejected', 'no recorded coordinator rebuttal to accept')
+            need(child and family not in ('unknown', '', None) and family == row['lineage'] and
+                 execution_id != row['execution_id'], 'rebuttal needs counted fresh child from original reviewer lineage')
+            if carry:
+                previous = _agreement_record(state, row)
+                need(previous.get('lineage') == family and previous.get('mode') != 'self-review' and
+                     previous.get('disposition') == 'rebuttal-agreed-by-' + str(previous.get('mode')) and
+                     previous.get('execution_id') and previous['execution_id'] != execution_id,
+                     'carried rebuttal lacks original independent clearing')
+                need(_agreement_content(state, {'clearing': previous}) == job['planning']['snapshot']['content_sha256'],
+                     'carried rebuttal needs unchanged content and retained agreement binding')
+                if not row.get('clearing'):
+                    row['clearing'] = previous
+            else:
+                need(row['status'] == 'rejected', 'no recorded coordinator rebuttal to accept')
         if status == 'deferred':
             need(all(response.get(k) for k in ('impact', 'owner', 'next_action')), 'deferral needs impact, owner and next action')
         clearing = {'mode': mode, 'lineage': family, 'execution_id': execution_id,
-                    'disposition': status + '-by-' + mode}
+                    'disposition': status + '-by-' + mode,
+                    'content_sha256': job['planning']['snapshot']['content_sha256']}
         row['history'].append(dict(response, execution_id=execution_id, mode=mode, lineage=family))
-        if row['finding']['severity'] in ('blocker', 'major'):
-            if status in ('fixed', 'rebuttal-agreed'):
+        if status in ('fixed', 'rebuttal-agreed'):
+            if not carry:
                 row['clearing'] = clearing
-            else:
-                row.pop('clearing', None)
+        else:
+            row.pop('clearing', None)
         row['status'] = status
     state['findings'] = findings
+
+
+def check_draft(brief_file, brief_sha256, result_file):
+    """Task-scoped diagnostics only. Never opens a job/subject store or accepts work."""
+    brief_path = Path(brief_file)
+    need(brief_path.is_absolute() and '..' not in brief_path.parts and brief_path.parent.name == 'briefs',
+         'draft check requires an absolute immutable job brief path')
+    raw_brief = _regular(brief_path)
+    need(digest(raw_brief) == brief_sha256, 'immutable draft brief hash differs')
+    brief = strict_load(raw_brief)
+    need(isinstance(brief, dict), 'draft brief must be an object')
+    claimed = brief.pop('effective_brief_sha256')
+    need(digest(canonical(brief)) == claimed, 'immutable draft brief content hash differs')
+    resources = brief.get('resources')
+    need(isinstance(resources, dict), 'draft brief resources must be an object')
+    snapshot = resources.get('planning_snapshot')
+    need(brief.get('role') == 'review' and not brief.get('document') and isinstance(snapshot, dict),
+         'draft checks require a planning review, never a document-only/cold-read slot')
+    task_id = component(brief['task_id'])
+    need(brief.get('write_scope') == {'mode': 'worker-evidence', 'path': 'artifacts/tasks/' + task_id},
+         'draft check lacks an assigned evidence subtree')
+    job_dir = brief_path.parent.parent
+    draft_path = Path(result_file)
+    need(draft_path.is_absolute() and '..' not in draft_path.parts and
+         draft_path.is_relative_to(job_dir / 'artifacts' / 'tasks' / task_id),
+         'draft file escapes assigned task subtree')
+    expected = {k: brief[k] for k in ('job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id')}
+    expected.update(effective_brief_sha256=claimed, role='review', revision=brief['revision'],
+                    binding=brief['snapshot'], task_id=task_id,
+                    requirements=[r['id'] for r in brief['requirements']])
+    job = {'requirements': snapshot['requirements'], 'planning': {'snapshot': snapshot}}
+    state = {'findings': deepcopy(brief['resources'].get('prior_findings', {}))}
+    selection = brief.get('model_selection')
+    need(isinstance(selection, dict) and selection.get('lineage') and selection.get('mode'),
+         'draft brief lacks frozen reviewer lineage/mode')
+    family, mode = selection['lineage'], selection['mode']
+    deferred = ['current_job_subject_and_pins', 'host_identity_options_and_fresh_execution',
+                'authoritative_finding_history', 'acceptance_and_remaining_budgets']
+    checks, errors = ['brief_hash_and_task_scope'], []
+    try:
+        result = parse_result(_regular(draft_path, max_bytes=32768), expected, job_dir)['result']
+        checks.append('result_contract_and_correlation')
+        problems, _ = _retain_findings(state, job, result['findings'], 'draft:' + task_id, family)
+        need(not problems, '; '.join(problems))
+        checks.append('planning_finding_fields')
+        _coverage(job, result.get('planning_review') or {})
+        checks.append('coverage_and_declared_reads')
+        _check_result_artifacts(job_dir, task_id, result, 16 * 1024 * 1024)
+        checks.append('assigned_artifacts')
+        assessment = deepcopy(result['planning_review'])
+        responses = assessment.get('responses', [])
+        need(len({r['finding_key'] for r in responses}) == len(responses), 'duplicate finding response')
+        for response in responses:
+            try:
+                _responses(state, job, dict(assessment, responses=[response]), 'draft:' + task_id,
+                           family, True, mode)
+            except PlanningError as exc:
+                row = state['findings'].get(response['finding_key'], {})
+                # No full legacy ledger in the brief. Check other guards, but do
+                # not invent its missing content proof or request a fake response.
+                if (str(exc) == 'carried rebuttal needs unchanged content and retained agreement binding' and
+                        not (row.get('clearing') or {}).get('content_sha256')):
+                    deferred.append('legacy_carry_provenance:' + response['finding_key'])
+                else:
+                    raise
+        checks.append('available_finding_response_transitions')
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        errors.append(str(exc))
+    return {'kind': 'planning-draft-diagnostic', 'valid': not errors, 'errors': errors,
+            'brief_sha256': brief_sha256, 'checks': checks, 'deferred_checks': deferred,
+            'acceptance': False, 'artifact_byte_limit': 16 * 1024 * 1024}
 
 
 def _adverse(state):

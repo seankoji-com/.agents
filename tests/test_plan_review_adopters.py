@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from shared import model_selection as models, planning_review as planning
+from tests.upfront_fixtures import approved_selection
 from tests.adopter_plan_review_fixtures import AdopterFixture
 from tests.test_rebuild_installed import Sandbox,ROOT
 
@@ -26,7 +27,7 @@ class AdoptersTest(unittest.TestCase):
 
     def test_source_installed_no_change_conclusions_bootstrap_and_written_strategies(self):
         for installed in (False,True):
-            for plugin,op,kind in [('agent-tuneup','align','conclusions'),('agent-tuneup','audit','conclusions'),
+            for plugin,op,kind in [('agent-tuneup','tuneup','conclusions'),('agent-tuneup','align','conclusions'),('agent-tuneup','audit','conclusions'),
                 ('agent-tuneup','audit','bootstrap'),('babysitter','pr','strategy'),('babysitter','repo','strategy'),
                 ('babysitter','org','strategy'),('ralph','run','strategy')]:
                 with self.subTest(installed=installed,plugin=plugin,op=op,kind=kind):
@@ -38,7 +39,7 @@ class AdoptersTest(unittest.TestCase):
                     state=json.loads(Path(r['subject_file']).read_text());self.assertEqual(state['rounds_used'],1)
 
     def test_selection_admission_dispatch_exact_options_missing_answers_and_direct_helpers(self):
-        for plugin,op in [('agent-tuneup','align'),('agent-tuneup','audit'),('agent-tuneup','apply'),
+        for plugin,op in [('agent-tuneup','tuneup'),('agent-tuneup','align'),('agent-tuneup','audit'),('agent-tuneup','apply'),
             ('elephant-goldfish','check'),('elephant-goldfish','elephant'),('ralph','run'),
             ('babysitter','pr'),('babysitter','repo'),('babysitter','org')]:
             for installed in (False,True):
@@ -101,6 +102,26 @@ class AdoptersTest(unittest.TestCase):
         # No permitted confidential recipient and no authorised self-review.
         f.review('direct',{'observation':{}},ok=False);f.ape('validate',{'descriptor':f.descriptor},ok=False)
 
+    def test_default_tuneup_applies_approved_proposal_with_the_original_admission(self):
+        f = self.fixture(op='tuneup', installed=True)
+        f.proposal()
+        before = f.target.read_bytes()
+        f.owner_approve(ok=False)
+        f.approve()
+        approval = f.owner_approve()
+        context = {'admission': f.admission, 'approval': approval}
+        self.assertTrue(f.ape('apply-ready', {'context': context, 'document': f.plan})['ready'])
+        other = self.fixture(op='tuneup', installed=True)
+        f.ape('apply-ready', {'context': {**context, 'admission': other.admission},
+                             'document': f.plan}, ok=False)
+        backup = f.base / 'default-workflow-backup'
+        result = self.box.run([sys.executable, f.plugin / 'scripts/align.py', 'apply',
+            '--plan', f.plan_file, '--approval', f.plan['approval_digest'], '--backup', backup,
+            '--context', self.box.payload(context)])
+        self.assertEqual(json.loads(result.stdout)['writes'], 1)
+        self.assertEqual(backup.read_bytes(), before)
+        self.assertEqual(f.target.read_bytes(), f.candidate.read_bytes())
+
     def test_alias_wakes_new_invocations_and_pinned_resume(self):
         for plugin,op in [('agent-tuneup','align'),('elephant-goldfish','check'),('babysitter','pr'),('ralph','run')]:
             f=self.fixture(plugin,op=op)
@@ -111,7 +132,7 @@ class AdoptersTest(unittest.TestCase):
             f.ape('continue',{'admission':f.admission,'invocation_id':'new-invocation'},ok=False)
             if plugin=='ralph':
                 for retain in (None,False):
-                    f.ape('continue',{'admission':f.admission,'invocation_id':f.id,'event':'resume','retain':retain},ok=False)
+                    self.assertEqual(f.ape('continue',{'admission':f.admission,'invocation_id':f.id,'event':'resume','retain':retain}),f.admission)
                 self.assertEqual(f.ape('continue',{'admission':f.admission,'invocation_id':f.id,'event':'resume','retain':True}),f.admission)
 
     def test_elephant_factual_truth_then_design_adequacy_then_readability(self):
@@ -158,11 +179,11 @@ class AdoptersTest(unittest.TestCase):
                 return json.loads(p.stdout)
             run('init',data,ok=False);self.assertFalse(state.exists())
             d=deepcopy(f.selection_data);d['work']['workhorse']['execution']='current-context'
-            selected=models.freeze(d)
+            selected=approved_selection(d)
             direct_admission=f.ape('admit',{**f.admission_input,'selection':selected,'selection_sha256':selected['selection_sha256']})
             run('init',{**data,'admission':direct_admission},ok=False);self.assertFalse(state.exists())
             data['admission']=f.admission;run('init',data)
-            run('resume',{'admission':f.admission,'retain':False},ok=False)
+            run('resume',{'admission':f.admission,'retain':False})
             run('resume',{'admission':f.admission,'retain':True})
             run('strategy',{'descriptor':f.descriptor},ok=False);f.approve()
             run('strategy',{'descriptor':f.descriptor})
@@ -189,9 +210,10 @@ class AdoptersTest(unittest.TestCase):
 
     def test_published_tuneup_conclusions_must_equal_reviewed_findings_and_changes(self):
         for installed in (False, True):
-            for op in ('audit', 'align'):
+            for op in ('tuneup', 'audit', 'align'):
                 f = self.fixture(op=op, installed=installed)
-                f.integrated_job(); f.approve(); f.accept_integrated()
+                f.integrated_job(); f.accept_integrated(ok=False)
+                f.approve(); f.accept_integrated()
                 original = deepcopy(f.domain_data)
                 for field, value in (('findings', [{'code': 'NEW', 'location': 'fixture:unreviewed'}]),
                                      ('changes', [{'id': 'unreviewed'}])):
@@ -204,7 +226,7 @@ class AdoptersTest(unittest.TestCase):
         f=self.fixture('babysitter',op='repo')
         from tests.model_selection_fixtures import answer
         d=deepcopy(f.selection_data);d['schedule']={'schedule_id':'fixture-schedule','source':answer('Reuse these choices for this schedule.')}
-        selected=models.freeze(d)
+        selected=approved_selection(d)
         admission=f.ape('admit',{**f.admission_input,'selection':selected,'selection_sha256':selected['selection_sha256']})
         args={'admission':admission,'invocation_id':f.id,'event':'schedule','schedule_id':'fixture-schedule',
             'capabilities':selected['capabilities'],'policy_digests':{k:selected[k] for k in ('routing_sha256','profiles_sha256')}}
@@ -238,6 +260,6 @@ class AdoptersTest(unittest.TestCase):
             m=load_manifest(p);self.assertEqual(set(matrix[m['name']]),set(m['operations']))
             self.assertTrue(all(r['reason'] for r in matrix[m['name']].values()))
         def mutate(p):
-            path=p/'plugin.json';m=json.loads(path.read_text());m['operation_review'].pop('apply');path.write_text(json.dumps(m))
+            path=p/'plugin.json';m=json.loads(path.read_text());m['operation_review'].pop('tuneup');path.write_text(json.dumps(m))
         copied=self.box.source_copy('agent-tuneup',mutate=mutate)
         with self.assertRaises(RegistryError):load_manifest(copied/'plugins/agent-tuneup')

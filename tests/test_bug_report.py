@@ -538,7 +538,10 @@ class Installed(unittest.TestCase):
                 self.assertEqual(next(x['operation'] for x in manifest['routes'] if re.fullmatch(x['pattern'],text)),expected)
             moved=root/'moved'; prefix.rename(moved)
             script=moved/'bug-report/current/scripts/session.py'
-            inp=root/'input.json'; inp.write_text(json.dumps({'incident_key':'installed-fixture','owner_thread':'fixture'}))
+            from tests.upfront_fixtures import chosen
+            selected = chosen('bug-report/run', 'Verified incident report')
+            inp=root/'input.json'; inp.write_text(json.dumps({'incident_key':'installed-fixture','owner_thread':'fixture',
+                'selection': selected, 'selection_sha256': selected['selection_sha256']}))
             p=subprocess.run([sys.executable,str(script),'init','--session','fixture','--input',str(inp)],
                              capture_output=True,text=True,env=env,timeout=10)
             self.assertEqual(p.returncode,0,p.stdout+p.stderr)

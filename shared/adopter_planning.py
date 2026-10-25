@@ -13,7 +13,7 @@ from shared.imps_planning import _identity
 from shared.document_authors import import_subject_authors
 from shared.lineage import lineage
 
-OPS = {'agent-tuneup': {'align', 'audit', 'apply'},
+OPS = {'agent-tuneup': {'tuneup', 'align', 'audit', 'apply'},
        'elephant-goldfish': {'elephant', 'check'},
        'babysitter': {'pr', 'repo', 'org'}, 'ralph': {'run', 'resume'}, 'focus-group': {'plan', 'run', 'resume'}}
 DIRECT = {'doctor', 'status', 'list', 'resolve', 'cancel', 'clean', 'scan',
@@ -40,9 +40,12 @@ def admit(plugin, data):
     scope = planning.logical_output_id(data['request_reference'], data['output_name'])
     planning.need(data.get('selection_sha256'), 'producing selection digest required')
     selected = models.validate(data.get('selection'), data['selection_sha256'])
+    from shared.execution_agreement import admit as agreement_admit
+    agreement_admit(selected, operation=plugin + '/' + op)
     models.gate(selected, invocation_id=data['invocation_id'], scope_id=scope, event=data.get('event', 'new'),
                 action='investigate', expected=data['selection_sha256'], pinned=plugin in ('ralph', 'focus-group'), retain=data.get('retain'))
-    planning.need(selected['operation'] in (op, plugin + '/' + op), 'selection operation differs')
+    planning.need(selected['operation'] in (op, plugin + '/' + op) or
+                  plugin + '/' + op in selected.get('agreement', {}).get('operations', []), 'selection operation differs')
     models.dispatch(selected, role='workhorse')
     # Required panel obligation is checked at the actual planning transition. A
     # factual-only check/ordinary loop may honestly retain an unused preference.
@@ -335,8 +338,11 @@ def approve(desc, owner, package):
 def apply_ready(context, document, package):
     """Revalidate the reviewed proposal AND concrete owner approval before writes."""
     admission = context['admission']; continuation(admission, invocation_id=admission['invocation_id'])
-    planning.need(admission['plugin'] == 'agent-tuneup' and admission['operation'] == 'apply', 'apply choices required')
+    planning.need(admission['plugin'] == 'agent-tuneup' and admission['operation'] in ('apply', 'tuneup'), 'apply choices required')
     approval = context['approval']; planning.unseal(approval)
+    if admission['operation'] == 'tuneup':
+        planning.need(approval['proposal']['admission'] == admission,
+                      'tuneup apply must retain the reviewed proposal admission')
     planning.need(document == strict_load(_regular(Path(approval['proposal']['plan_file']))),
                   'applied plan differs from the concrete reviewed proposal')
     planning.current_file(approval['owner_file'])

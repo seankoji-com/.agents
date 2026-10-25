@@ -13,7 +13,7 @@ from its recorded artifacts and child task handles.
 
 ## "What did we decide last session?"
 
-[elephant-goldfish](plugins/elephant-goldfish.md) interviews you and writes the
+[plan](plugins/plan.md) interviews you and writes the
 decisions, constraints, unknowns and acceptance criteria to files. The handoff copies
 those files verbatim and records their hashes, so a fresh thread gets exactly the
 brief you accepted. It stops there. You decide when implementation starts.

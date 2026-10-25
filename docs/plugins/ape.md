@@ -10,16 +10,20 @@ other project's code and never edits yours.
 Study one repository you already have in mind:
 
 ```text
-$t3-ape study https://github.com/python/cpython How are parser error cases tested? Compare with this project and propose a small experiment.
+$t3-ape https://github.com/python/cpython How are parser error cases tested? Compare with this project and propose a small experiment.
 ```
 
-Or let it find candidates: `$t3-ape forage` followed by the gap you want to close.
+Or name the gap directly: `$t3-ape find simpler approaches to retry handling`.
+Without a URL it automatically searches for candidates; with a URL anywhere in the
+request it studies that repository. There is no operation picker. Bare invocation
+uses relevant project context and asks only if the gap is unclear.
 `study` reads one named GitHub repository; `forage` searches GitHub and compares up to
-five. Send `$t3-ape doctor` first on a new machine or provider.
+five. Only GitHub repository URLs are supported by the current study helper. Other hosts
+and ambiguous multiple targets are reported rather than silently foraging.
 
 ## What you get
 
-Before research, choose work and review models together. A URL alias reuses that
+Before research, choose work and review models in short rounds. A URL alias reuses that
 answer once. Final study reports and forage synthesis receive planning review by
 default, including no-adoption recommendations. The report records the actual
 review mode, coverage, feedback, remaining findings and rounds used. A permitted
@@ -37,17 +41,18 @@ Research happens in a workspace of cloned repositories outside your project. To
 reclaim the disk space, name that workspace:
 
 ```text
-$t3-ape clean WORKSPACE
+$t3-ape --clean WORKSPACE
 ```
 
-That deletes the clones and keeps the reports. `$t3-ape clean WORKSPACE --all` also
+That deletes the clones and keeps the reports. `$t3-ape --clean WORKSPACE --all` also
 deletes the reports and the workspace itself. Either way the agent first lists what
 it would remove and asks you to confirm; a `study` or `forage` request never counts as
 permission to delete.
 
-## Operations
+## Advanced maintenance
 
-`doctor`, `forage`, `study`, `clean`. The
+`--doctor` and `--clean WORKSPACE` remain explicit maintenance flags. Research chooses its
+internal `forage` or `study` route automatically. The
 [entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/ape/entry.md)
 names the file the agent loads for each one.
 

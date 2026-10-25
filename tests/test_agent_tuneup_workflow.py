@@ -21,7 +21,7 @@ from core.jobs.store import canonical  # noqa: E402
 from tests.test_model_ids import MODEL_ID  # noqa: E402
 
 PLUGIN = ROOT / 'plugins' / 'agent-tuneup'
-OPERATIONS = ['doctor', 'audit', 'align', 'apply', 'scan']
+OPERATIONS = ['tuneup']
 WORKERS = ('agent-tuneup/config-researcher', 'agent-tuneup/config-verifier')
 # Synthetic routing records; the coordinator's record, not proof of the model that ran.
 RESEARCH_TARGET = {'providerInstanceId': 'fixture-a', 'model': 'fixture-model-a', 'lineage': 'lineage-a'}
@@ -89,7 +89,8 @@ class Installed:
         if command == 'create' and proc.returncode == 0:
             selected=data['model_selection']
             caps=dict(selected['capabilities'], parentThreadId='fixture-parent',
-                inheritedProviderInstanceId=selected['coordinator']['providerInstanceId'],inheritedModel=selected['coordinator']['model'])
+                inheritedProviderInstanceId=selected['coordinator']['providerInstanceId'],inheritedModel=selected['coordinator']['model'],
+                inheritedOptions=selected['coordinator'].get('observed_options') or {})
             for stage in data['stages']:
                 if stage.get('execution_mode')=='direct' and not any(t['stage_id']==stage['id'] for t in data['tasks']):
                     self.job('direct-execution',job_id,{'caller':self.caller(data['workflow']),'stage_id':stage['id']},
@@ -110,21 +111,16 @@ class RoutingAndBoundaryTest(unittest.TestCase):
         self.entry = (PLUGIN / 'entry.md').read_text()
         self.meta = json.loads((PLUGIN / 'plugin.json').read_text())
 
-    def test_every_operation_routes_with_its_preserved_meaning(self):
+    def test_one_workflow_includes_every_stage_and_concrete_approval(self):
         self.assertEqual(self.meta['operations'], OPERATIONS)
-        issue = (ROOT / 'migration/rebuild/issue-28.md').read_text()
-        row = re.search(r'^\| agent-tuneup \| (.+) \|$', issue, re.M).group(1)
-        self.assertLessEqual({op.strip() for op in row.split(',')}, set(OPERATIONS))
-        for hint in ('doctor', 'audit --provider <name> --settings <path>', 'align', 'apply --plan <path>',
-                     'scan --provider claude'):
-            self.assertIn(f'- `{hint}`', self.entry)
-        self.assertIn('`0` clean, `1` findings present, `2` unreadable or invalid settings', self.entry)
-        self.assertIn('Approval is for the concrete changes, not the operation name', folded(self.entry))
+        self.assertEqual(self.meta['default_operation'], 'tuneup')
+        for stage in ('readiness', 'Inventory every provider', 'usage-frequency scan',
+                      'prepare reviewed changes', 'private backup', 'If approved', 'verification'):
+            self.assertIn(stage, self.entry)
+        self.assertIn('Invocation alone does not approve unseen settings changes', folded(self.entry))
+        self.assertIn('Do not offer audit, align, apply, scan or doctor as public', self.entry)
         self.assertIn('`python3 PKG/scripts/scan_perms.py --json`', self.entry)
         self.assertIn('`python3 PKG/scripts/audit.py --list-adapters`', self.entry)
-        # Each operation loads only its own playbook.
-        self.assertIn('`PKG/playbooks/audit.md` for `audit`', folded(self.entry))
-        self.assertIn('`PKG/playbooks/align.md` for `align` or `apply`', folded(self.entry))
 
     def test_entry_names_only_existing_files_and_every_playbook_and_reference(self):
         named = set(re.findall(r'`PKG/([\w./-]+)`', self.entry))
@@ -141,7 +137,8 @@ class RoutingAndBoundaryTest(unittest.TestCase):
 
     def test_cheap_operations_are_direct(self):
         text = folded(self.entry)
-        self.assertIn('`doctor` and `scan` are direct. They never create a job or launch a worker.', text)
+        self.assertIn('Check local readiness directly', text)
+        self.assertIn('local usage-frequency scan', text)
         with tempfile.TemporaryDirectory() as td:
             inst = Installed(Path(td))
             doctor = inst.run('scripts/audit.py', '--list-adapters')
@@ -160,7 +157,7 @@ class RoutingAndBoundaryTest(unittest.TestCase):
 
     def test_guarantees_and_boundaries_are_stated(self):
         text = folded(self.entry)
-        for heading in ('Deterministic format checks.', 'Optional transcript scan.', 'Report first.',
+        for heading in ('Deterministic format checks.', 'Local usage scan.', 'Report first.',
                         'Authorized, backed-up settings edits only.', 'No permission expansion.',
                         'Distinct observations.'):
             self.assertIn(f'**{heading}**', text)

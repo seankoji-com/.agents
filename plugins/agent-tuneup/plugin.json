@@ -1,16 +1,12 @@
 {
   "name": "agent-tuneup",
-  "version": "1.1.22",
+  "version": "1.1.31",
   "description": "Audit and align centralized T3 provider wiring, shared rules, skills, permissions and MCPs with approved native changes.",
   "short_description": "Audit and align centralized T3 provider wiring",
-  "argument_hint": "doctor | audit | audit --provider NAME --settings PATH | audit --t3-projects | align | apply --plan PATH | scan --provider claude",
+  "argument_hint": "[scope or desired outcome]",
   "entry": "entry.md",
   "operations": [
-    "doctor",
-    "audit",
-    "align",
-    "apply",
-    "scan"
+    "tuneup"
   ],
   "kind": "workflow",
   "compatibility": "experimental",
@@ -24,8 +20,7 @@
       "id": "agent-tuneup/config-researcher",
       "path": "agents/config-researcher.md",
       "operations": [
-        "audit",
-        "align"
+        "tuneup"
       ],
       "role": "workhorse",
       "responsibility": "Research exact provider configuration format and scope semantics with authoritative source citations.",
@@ -36,9 +31,7 @@
       "id": "agent-tuneup/config-verifier",
       "path": "agents/config-verifier.md",
       "operations": [
-        "audit",
-        "align",
-        "apply"
+        "tuneup"
       ],
       "role": "reviewer",
       "responsibility": "Verify only explicitly authorized proposed or applied changes. Separate parse, load, and live enforcement evidence.",
@@ -67,12 +60,14 @@
     "planning-direct.schema.json"
   ],
   "picker": [
-    "audit",
-    "align",
-    "scan",
-    "doctor"
+    "tuneup"
   ],
-  "routes": [],
+  "routes": [
+    {
+      "pattern": "^[\\s\\S]*$",
+      "operation": "tuneup"
+    }
+  ],
   "planning_review": {
     "schema_version": 1,
     "purpose": "planning-review",
@@ -84,30 +79,15 @@
     "worker_id": "agent-tuneup/config-verifier"
   },
   "operation_review": {
-    "doctor": {
-      "selection": "direct",
-      "planning": "none",
-      "reason": "Local adapter readiness has no synthesis."
-    },
-    "scan": {
-      "selection": "direct",
-      "planning": "none",
-      "reason": "Requested transcript frequencies are diagnostics, never permission recommendations."
-    },
-    "audit": {
-      "selection": "on-synthesis-or-delegation",
-      "planning": "integrated-conclusions",
-      "reason": "Review cross-scope conclusions and substantive bootstrap recommendations including no-change; raw single-file diagnostic and mechanical template stay direct."
-    },
-    "align": {
+    "tuneup": {
       "selection": "upfront",
       "planning": "proposal",
-      "reason": "Review integrated conclusions and private proposals before concrete owner approval, including no-change."
-    },
-    "apply": {
-      "selection": "upfront",
-      "planning": "unchanged-proposal",
-      "reason": "Consume reviewed unchanged proposal and concrete approval; candidate changes reopen both. No duplicate planning assessment for unchanged approved input."
+      "reason": "Inventory, audit, inspect available usage, compare and review proposals in one workflow. Concrete owner approval still gates settings changes.",
+      "classification": "substantive",
+      "entry": "entry.md",
+      "route": "playbooks/align.md",
+      "completion_evidence": "reviewed audit/proposal; concrete owner approval and independent verification for settings application"
     }
-  }
+  },
+  "default_operation": "tuneup"
 }

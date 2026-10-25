@@ -1,5 +1,9 @@
 # ape
 
+Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
+asking; direct controls stay prompt-free. Substantive work records the scoped
+agreement; nested calls and unchanged continuations reuse its binding and budgets.
+
 Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
 Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
 
@@ -7,6 +11,19 @@ Find transferable ideas in open-source code. Read `PKG/shared/t3-runtime.md` fir
 Substantive research runs as one coordinated job under `PKG/shared/job-coordination.md`;
 model choice and child briefs follow `PKG/shared/delegation.md`. This entry adds only
 ape policy. Load the row for the requested operation and nothing else.
+
+## Invocation
+
+Use `$t3-ape [focus or repository URL]`. With no URL, automatically forage for
+repositories addressing the requested gap. With a URL anywhere in the request,
+study that repository and use the remaining text as focus. Extract the URL as data;
+never pass surrounding prose as a URL or shell code. The study helper currently
+accepts GitHub repository URLs only. Explain unsupported hosts or ambiguous
+multiple targets instead of silently switching to forage. With no text, infer the
+gap from relevant project/conversation context and ask only if it is missing.
+Never ask the owner to choose forage versus study. The operation names below are
+internal workflow routes; `--doctor` and `--clean <workspace>` remain explicit maintenance flags.
+Ordinary phrases such as "clean architecture" always remain research input.
 
 | Request | Meaning | Load |
 | --- | --- | --- |

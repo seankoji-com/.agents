@@ -1,6 +1,6 @@
 # t3-plugins
 
-**Eight workflows for coding agents in [T3 Code](https://github.com/pingdotgg/t3code).
+**Nine workflows for coding agents in [T3 Code](https://github.com/pingdotgg/t3code).
 Each one ends in something you can check.**
 
 [![Tests](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml/badge.svg)](https://github.com/seankoji-com/t3-plugins/actions/workflows/test.yml)
@@ -10,7 +10,7 @@ Each one ends in something you can check.**
 Ask an agent to "fix the bug" and you usually get a confident summary. With imps you
 get a run ID and a report showing which checks passed on the exact files you were
 handed; edit a file afterwards and the report says the evidence is stale. The other
-six workflows leave similar records for briefs, research, pull requests, provider
+eight workflows leave similar records for briefs, research, pull requests, provider
 settings, implement-then-grade loops and synthetic product research.
 
 ## Install (macOS or Linux)
@@ -56,23 +56,25 @@ python3 bin/t3-plugins setup && python3 bin/t3-plugins doctor
 | When you want to… | Send in T3 | You get back |
 | --- | --- | --- |
 | Fix a bug you can describe | `$t3-imps run fix the date parser: reject 31 April` | The diff, a run ID, and checks and review tied to that revision |
-| Turn a vague idea into a task | `$t3-elephant-goldfish thinking retry-policy` | `discovery.md`, `spec.md` with acceptance criteria, and `handoff.md` |
-| See how another repo solved it | `$t3-ape study https://github.com/python/cpython how are parser errors tested?` | A report pinned to a commit, with line citations and one small experiment |
+| Turn a vague idea into a task | `$t3-plan retry-policy` | `discovery.md`, `spec.md` with acceptance criteria, and `handoff.md` |
+| See how another repo solved it | `$t3-ape https://github.com/python/cpython how are parser errors tested?` | A report pinned to a commit, with line citations and one small experiment |
 | Get a PR through review and CI | `$t3-babysitter pr https://github.com/OWNER/REPO/pull/12` | Fixes pushed to the PR branch, an independent review at the final head, then a merge, plus a table of what still blocks each PR |
-| Check provider permissions and MCPs | `$t3-agent-tuneup audit --provider claude --settings .claude/settings.json` | Finding codes and locations, never the setting values |
+| Check and align all agent wiring | `$t3-agent-tuneup` | A complete audit, private usage analysis, reviewed proposals and verification of approved changes |
 | Have one model build and another grade | `$t3-ralph fix the parser and add regression coverage` | Fresh attempts until the grader has no feedback (five by default), then a PR |
 | Try a product on invented personas | `$t3-focus-group plan https://staging.example/welcome first-run experience for busy parents` | A reviewed report of synthetic hypotheses, a ranked backlog and local issue drafts; nothing is posted |
-| Report a suspected T3 problem | `$t3-bug-report investigate the error above` | Evidence, routing, a separate reporting thread and a fixed 30-minute follow-up window; uncertain cases stay private |
+| Inspect test protection and validation cost | `$t3-tests-omg audit` | Twelve findings, ranked recommendations and private HTML/JSON; unknown evidence stays visible |
+| Report a suspected upstream defect | `$t3-bug-report investigate the error above` | Evidence, routing, a separate reporting thread and a fixed 30-minute follow-up window; uncertain cases stay private |
 
 Each workflow has a guide with a full example:
 [imps](docs/plugins/imps.md) ·
-[elephant-goldfish](docs/plugins/elephant-goldfish.md) ·
+[plan](docs/plugins/plan.md) ·
 [ape](docs/plugins/ape.md) ·
 [babysitter](docs/plugins/babysitter.md) ·
 [agent-tuneup](docs/plugins/agent-tuneup.md) ·
 [ralph](docs/plugins/ralph.md) ·
 [focus-group](docs/plugins/focus-group.md) ·
-[bug-report](docs/plugins/bug-report.md).
+[bug-report](docs/plugins/bug-report.md) ·
+[tests-omg](docs/plugins/tests-omg.md).
 For a one-line edit, skip all of this and ask the agent directly.
 
 ## Try one without a model

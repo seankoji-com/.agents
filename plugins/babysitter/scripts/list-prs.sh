@@ -3,7 +3,9 @@
 # list-prs.sh — emit a full state snapshot, one compact JSON object per line, for
 # every open pull request the babysitter is allowed to touch.
 #
-# This is the plugin's ONLY GitHub reader. Both the initial sweep and the event
+# This is the detailed PR reader. Org discovery uses org_scan.py, a smaller,
+# fully paginated read without comment bodies or per-job queue-clock lookups.
+# Both the legacy initial sweep and the event
 # monitor call it: the sweep uses the identity fields, pr-events.sh polls it on an
 # interval and diffs consecutive snapshots to derive events. One reader means the
 # eligibility rules can never disagree between "which PRs we picked up" and "which
@@ -41,6 +43,20 @@
 # remaining pages before treating it as clear. review_decision is GitHub's
 # reviewDecision; changes_requested_by lists the latest reviews in CHANGES_REQUESTED
 # (bots suffixed [bot]).
+#
+# Pending queue state per PR: pending_checks lists each queued or running check with
+# its name, status, startedAt and the creation clock. A queued GitHub Actions job has
+# no startedAt, and GraphQL's CheckRun has no createdAt field, so the creation clock
+# is read from the supported Actions job API (REST) using the job id in detailsUrl.
+# Every pending entry names its clock in queue_clock; queue_clock_gaps lists jobs whose
+# clock could not be obtained. This reader sets no age threshold; the coordinator does.
+#
+# Check-context completeness per PR: checks_complete is false when the rollup has more
+# contexts than this query fetched (contexts first:100). failing and pending_checks are
+# lower bounds in that case. A single-PR read also binds isRequired on the CheckRun and
+# StatusContext nodes it saw (required_contexts / required_contexts_observed); that is
+# an observed subset, so required_contexts_known is false and a search page leaves all
+# three null/false.
 #
 # Query cost: GitHub prices a GraphQL call by the connection requests it could need,
 # from the first/last arguments, not the rows actually returned. The thread comments
@@ -179,6 +195,93 @@ curl_graphql_retry() {
   done
 }
 
+# GraphQL's CheckRun has startedAt and completedAt but no createdAt. A queued
+# Actions job therefore has no creation clock in the GraphQL response; its
+# detailsUrl carries the job id, and the supported Actions job API returns
+# created_at. One bounded REST read per pending job that needs it keeps the queue
+# clock honest. Lookups are capped so a large page cannot spend the REST budget.
+MAX_QUEUE_CLOCK_LOOKUPS="${BABYSITTER_MAX_QUEUE_CLOCK_LOOKUPS:-25}"
+case "$MAX_QUEUE_CLOCK_LOOKUPS" in
+'' | *[!0-9]*) MAX_QUEUE_CLOCK_LOOKUPS=25 ;;
+esac
+QUEUE_CLOCK_LOOKUPS=0
+
+gh_rest_job_created_at() {
+  local owner_repo="$1" job_id="$2" token tmp errfile attempt=1 code created
+  token="$(gh_token)" || return 1
+  tmp="$(mktemp "${TMPDIR:-/tmp}/babysitter-job.XXXXXX")" || return 1
+  errfile="${tmp}.err"
+  while :; do
+    code="$(curl -sS -o "$tmp" -w '%{http_code}' -H @- \
+      -H 'Accept: application/vnd.github+json' \
+      "https://api.github.com/repos/${owner_repo}/actions/jobs/${job_id}" \
+      <<<"Authorization: bearer ${token}" 2>"$errfile")" || code="000"
+    if [ "$code" = "200" ]; then
+      created="$(jq -r '.created_at // empty' "$tmp" 2>/dev/null || true)"
+      rm -f "$tmp" "$errfile"
+      [ -n "$created" ] && printf '%s' "$created"
+      return 0
+    fi
+    if [ "$attempt" -ge 2 ]; then
+      rm -f "$tmp" "$errfile"
+      return 1
+    fi
+    attempt=$((attempt + 1))
+    sleep "$RETRY_BASE_SECS"
+  done
+}
+
+# Adds creation clocks to one emitted PR row. A job whose clock cannot be obtained
+# stays pending with a named queue_clock_gap, so the coordinator reports unknown age
+# rather than inventing a fresh one.
+enrich_queue_clocks() {
+  local row="$1" manifest updates='{}' gaps='[]' _index name url pair owner_repo job_id created why
+  manifest="$(printf '%s' "$row" | jq -r '
+    .pending_checks
+    | to_entries[]
+    | select(.value.created_at == null and .value.started_at == null)
+    | [.key, .value.name, (.value.details_url // "")] | @tsv' 2>/dev/null || true)"
+  if [ -z "$manifest" ]; then
+    printf '%s\n' "$row"
+    return 0
+  fi
+  while IFS=$'\t' read -r _index name url; do
+    [ -n "${name:-}" ] || continue
+    created=""
+    pair="$(printf '%s' "$url" | sed -nE 's#^https?://[^/]+/([^/]+/[^/]+)/actions/runs/[0-9]+/job/([0-9]+).*$#\1 \2#p')"
+    owner_repo="${pair%% *}"
+    job_id="${pair##* }"
+    why=""
+    if [ -z "$pair" ] || [ "$owner_repo" = "$pair" ] || [ -z "$job_id" ]; then
+      why="detailsUrl does not identify an Actions job"
+    elif [ "$QUEUE_CLOCK_LOOKUPS" -ge "$MAX_QUEUE_CLOCK_LOOKUPS" ]; then
+      why="queue-clock lookup budget exhausted"
+    else
+      QUEUE_CLOCK_LOOKUPS=$((QUEUE_CLOCK_LOOKUPS + 1))
+      if ! created="$(gh_rest_job_created_at "$owner_repo" "$job_id")"; then
+        why="Actions job API read failed"
+        created=""
+      fi
+      [ -n "$created" ] || why="${why:-Actions job API returned no created_at}"
+    fi
+    if [ -n "$created" ]; then
+      updates="$(jq -cn --argjson u "$updates" --arg name "$name" --arg created "$created" '$u + {($name): $created}')"
+    else
+      gaps="$(jq -cn --argjson g "$gaps" --arg name "$name" --arg why "$why" '$g + [{name: $name, reason: $why}]')"
+    fi
+  done <<<"$manifest"
+  printf '%s' "$row" | jq -c --argjson updates "$updates" --argjson gaps "$gaps" '
+    .pending_checks = [ .pending_checks[]
+      | if (.created_at == null and .started_at == null and ($updates[.name] // null) != null)
+        then (.created_at = $updates[.name] | .queue_clock = "actions-job-api")
+        else . end ]
+    | .queue_clock_gaps = $gaps
+    | .oldest_pending_check = (
+        [ .pending_checks[]
+          | select((.created_at // null) != null or (.started_at // null) != null) ]
+        | sort_by(.created_at // .started_at) | first // null)'
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
   --org)
@@ -258,9 +361,22 @@ elif [ -z "$ORG" ]; then
   die "one of --org or --repo is required"
 fi
 
+# CheckRun.isRequired and StatusContext.isRequired take the pull request number, which
+# is only known when this reader was asked for one PR. A search page cannot bind them,
+# so required_contexts stays null there and the coordinator classifies from the rollup
+# and merge state instead.
+CHECK_REQUIRED_FIELD=""
+STATUS_REQUIRED_FIELD=""
+if [ -n "$PR_NUMBER" ]; then
+  CHECK_REQUIRED_FIELD="isRequired(pullRequestNumber: ${PR_NUMBER})"
+  STATUS_REQUIRED_FIELD="isRequired(pullRequestNumber: ${PR_NUMBER})"
+fi
+
 # The PullRequest selection is written once and reused by both query shapes, so a
-# field added for the monitor is automatically present in the initial sweep.
-read -r -d '' PR_FRAGMENT <<'GRAPHQL' || true
+# field added for the monitor is automatically present in the initial sweep. The
+# heredoc is deliberately unquoted so ${CHECK_REQUIRED_FIELD} expands; the fragment
+# must therefore contain no shell metacharacters, backticks or dollar signs.
+read -r -d '' PR_FRAGMENT <<GRAPHQL || true
 fragment PRState on PullRequest {
   number
   title
@@ -298,11 +414,13 @@ fragment PRState on PullRequest {
         oid
         statusCheckRollup {
           state
-          contexts(first: 30) {
+          contexts(first: 100) {
+            totalCount
+            pageInfo { hasNextPage }
             nodes {
               __typename
-              ... on CheckRun { name conclusion }
-              ... on StatusContext { context state }
+              ... on CheckRun { name status conclusion startedAt detailsUrl ${CHECK_REQUIRED_FIELD} }
+              ... on StatusContext { context state createdAt ${STATUS_REQUIRED_FIELD} }
             }
           }
         }
@@ -380,10 +498,13 @@ if [ -n "$PR_NUMBER" ] && printf '%s' "$RAW" | jq -e '.data.repository.pullReque
   die "pull request ${REPO}#${PR_NUMBER} not found or not accessible with the current credentials" 3
 fi
 
+if [ -n "$PR_NUMBER" ]; then PR_MODE=1; else PR_MODE=0; fi
+
 printf '%s' "$RAW" | jq -c \
   --argjson include_drafts "$INCLUDE_DRAFTS" \
   --argjson include_forks "$INCLUDE_FORKS" \
   --argjson all_authors "$ALL_AUTHORS" \
+  --argjson pr_mode "$PR_MODE" \
   --arg nodes_path "$NODES_PATH" '
   # The plugin marks every comment it posts with a [babysitter] prefix. Comments
   # carrying it are excluded from the "newest comment" ids below, so an agent
@@ -437,6 +558,27 @@ printf '%s' "$RAW" | jq -c \
         end
     ] | unique;
 
+  # A pending queue entry carries the only clock that can prove a job is stuck.
+  # A GraphQL CheckRun exposes startedAt but no createdAt, so a queued Actions job
+  # leaves created_at null here and the shell resolves it from the Actions job API
+  # using detailsUrl. Callers compute age against their own observation time; this
+  # script never invents a threshold.
+  def pending_checks:
+    [ .[]?
+      | if .__typename == "CheckRun" then
+          select(.conclusion == null
+            and (.status != null and (.status | IN("QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"))))
+          | {name: .name, status: .status, conclusion: null,
+             created_at: null, started_at: .startedAt, details_url: (.detailsUrl // null),
+             queue_clock: (if .startedAt then "check-run-started-at" else null end)}
+        else
+          select(.state != null and (.state | IN("PENDING", "EXPECTED")))
+          | {name: .context, status: .state, conclusion: null,
+             created_at: .createdAt, started_at: null, details_url: null,
+             queue_clock: "status-context-created-at"}
+        end
+    ] | unique_by(.name);
+
   . as $root
   | (.data.viewer.login) as $viewer
   | (if $nodes_path == "[.data.repository.pullRequest]"
@@ -473,7 +615,58 @@ printf '%s' "$RAW" | jq -c \
           # merge` reject it for reasons this snapshot said nothing about.
           merge_state_status: .mergeStateStatus,
           checks_state: ($head.statusCheckRollup.state // null),
+          # A false here means failing and pending_checks are lower bounds: the
+          # rollup had more contexts than this query fetched.
+          checks_complete: (
+            (($head.statusCheckRollup.contexts.pageInfo.hasNextPage // false) == false)
+          ),
+          checks_total: ($head.statusCheckRollup.contexts.totalCount // null),
           failing: ($head.statusCheckRollup.contexts.nodes // [] | failing_contexts),
+          pending_checks: ($head.statusCheckRollup.contexts.nodes // [] | pending_checks),
+          # Only a single-PR read can bind isRequired on the contexts it saw. That is
+          # an observed subset: a required context that is absent from this page cannot
+          # be enumerated here, so required_contexts_known stays false. Null elsewhere so
+          # the coordinator treats required-context evidence as unknown, not empty.
+          required_contexts: (
+            if $pr_mode == 1 then
+              ([ $head.statusCheckRollup.contexts.nodes[]?
+                 | if .__typename == "CheckRun" then
+                     select(.isRequired == true) | .name
+                   elif .__typename == "StatusContext" then
+                     select(.isRequired == true) | .context
+                   else empty end ] | unique)
+            else null end
+          ),
+          # Present required contexts (a safe subset), not the complete configured set.
+          required_contexts_observed: (
+            if $pr_mode == 1 then
+              ([ $head.statusCheckRollup.contexts.nodes[]?
+                 | if .__typename == "CheckRun" then
+                     select(.isRequired == true) | .name
+                   elif .__typename == "StatusContext" then
+                     select(.isRequired == true) | .context
+                   else empty end ] | unique)
+            else null end
+          ),
+          required_contexts_known: false,
+          optional_contexts_observed: (
+            if $pr_mode == 1 then
+              ([ $head.statusCheckRollup.contexts.nodes[]?
+                 | select(.isRequired == false)
+                 | if .__typename == "CheckRun" then .name
+                   elif .__typename == "StatusContext" then .context
+                   else empty end ] | unique)
+            else null end
+          ),
+          # The oldest pending job drives queue-age diagnosis at the coordinator
+          # observation time. Null when every observed check has finished.
+          oldest_pending_check: (
+            ($head.statusCheckRollup.contexts.nodes // [] | pending_checks)
+            | sort_by(.created_at // .started_at // "") | first // null
+          ),
+          # Filled by the shell after the Actions job API lookup for any pending job
+          # that had neither a creation clock nor a startedAt.
+          queue_clock_gaps: [],
           # Counts every thread that the required_review_thread_resolution
           # branch-protection rule blocks a merge on. That rule keys on
           # `isResolved` alone — an `isOutdated` thread (its diff line moved under
@@ -522,4 +715,6 @@ printf '%s' "$RAW" | jq -c \
   | map(select($include_forks == 1 or (.fork | not)))
   | sort_by(.repo, .number)
   | .[]
-'
+' | while IFS= read -r row; do
+  enrich_queue_clocks "$row"
+done

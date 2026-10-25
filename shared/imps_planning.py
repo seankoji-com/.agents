@@ -30,9 +30,12 @@ def admit(data):
     scope = planning.logical_output_id(data['request_reference'], data['output_name'])
     planning.need(bool(data.get('selection_sha256')), 'producing selection digest required')
     selected = models.validate(data.get('selection'), data['selection_sha256'])
+    from shared.execution_agreement import admit as agreement_admit
+    agreement_admit(selected, operation='imps/' + op)
     models.gate(selected, invocation_id=data['invocation_id'], scope_id=scope,
                 expected=data['selection_sha256'], action='investigate')
-    planning.need(operation(selected['operation']) == op, 'selection operation differs')
+    planning.need('imps/' + op in selected.get('agreement', {}).get('operations', []) or
+                  operation(selected['operation']) == op, 'selection operation differs')
     role = 'judgement' if op in FINAL else 'workhorse'
     models.dispatch(selected, role=role)
     if op in FINAL | {'verification-init'}:
@@ -183,7 +186,12 @@ def source_snapshot(desc, inputs, package):
     if desc['kind'] == 'initial-plan' and not desc.get('document') and desc.get('planning_review'):
         planning.current_file(desc['planning_review'])
         meta = strict_load(_regular(Path(desc['planning_review']['path'])))
-        desc['document'] = meta['snapshot']['imps_descriptor']['document']
+        frozen = meta['snapshot']['imps_descriptor']
+        desc['document'] = frozen['document']
+        # Native gate initialization reconstructs the plan from reviewed metadata.
+        # Whole-job plan bodies also bind their authored job contract there.
+        if 'job_contract' in frozen:
+            desc.setdefault('job_contract', deepcopy(frozen['job_contract']))
     admission = desc['admission']; continuation(admission, invocation_id=admission['invocation_id'])
     kind = desc['kind']; descriptor(admission, kind)
     planning.current_file(desc['document'])
@@ -376,6 +384,9 @@ def validate_run(state, package, *, final=True):
     record = run_record(state)
     context = record['context']; admission = context['admission']
     continuation(admission, invocation_id=admission['invocation_id'])
+    if admission['selection'].get('agreement'):
+        planning.need(state['policy'].get('model_preferences', {}).get('agreement_sha256') ==
+                      admission['selection']['agreement']['agreement_sha256'], 'run producing agreement binding changed')
     # Initial review proves the plan before execution. Planned source edits do not
     # erase that historical gate; the original receipt bytes and contract stay pinned.
     if admission['operation'] in PLANS and trigger(record['plan'], context['stages']):
@@ -495,6 +506,8 @@ def validate_job(job, job_file=None, *, before_execution=False):
 def job_contract(job):
     """Authored initial semantics, excluding lifecycle, gate IDs and observations."""
     return {k: deepcopy(job[k]) for k in ('workflow', 'requirements', 'authorization', 'constraints')} | {
+        'repo': deepcopy(job.get('repo', {})),
+        'repository_worktree': job.get('resources', {}).get('worktree'),
         'stages': [{k: deepcopy(v) for k, v in s.items() if k in
             ('id', 'depends_on', 'requirements', 'criteria', 'outputs', 'stop_conditions', 'execution_mode')}
                    for s in job['stages']],

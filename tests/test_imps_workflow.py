@@ -302,6 +302,8 @@ class ImpsWholeJobTest(CoreTestCase):
                            'has_pending_child_runs': False},
                           {**handle, 'kind': 'completion', 'completion_id': f'done-{n}', 'status': 'completed',
                            'work_state': 'result_available', 'has_pending_child_runs': False}):
+                target = brief['model_selection']['dispatch']['target']
+                event['status_identity'] = {**target, 'options': target.get('options', {})}
                 observed = jobs_call('task-observation', {'caller': caller, 'task_id': 'impl-exec', 'event': event})
                 self.assertEqual(observed.returncode, 0, observed.stderr)
 
@@ -385,12 +387,16 @@ class ImpsWholeJobTest(CoreTestCase):
         final_input = json.loads(frozen_final.stdout)['path']
         final = accept('accept-stage', {'caller': caller, 'stage_id': 'final', 'revision': 'final-r1',
                                         'input_file': final_input, 'validator_argv': final_argv})
-        self.assertEqual(final.returncode, 0, final.stdout + final.stderr)
+        # Source readiness cannot certify the agreed Open PR endpoint from a
+        # local-only fixture without a declared repository/delivery observation.
+        self.assertNotEqual(final.returncode, 0, final.stdout + final.stderr)
+        self.assertIn('declared repository worktree', final.stdout + final.stderr)
         overview = jobs_call('overview')
         self.assertEqual(overview.returncode, 0, overview.stderr)
         self.assertNotIn('Traceback', overview.stdout)
         stages = {s['id']: s['status'] for s in json.loads(job_file.read_text())['stages']}
-        self.assertEqual(stages, {'impl': 'accepted-at-snapshot', 'final': 'accepted-at-snapshot'})
+        self.assertEqual(stages['impl'], 'accepted-at-snapshot')
+        self.assertNotEqual(stages['final'], 'accepted-at-snapshot')
 
         # A regression injected after acceptance fails the fresh final gate.
         (repo / 'wordstat.py').write_text((repo / 'wordstat.py').read_text() + '\n# injected regression\n')

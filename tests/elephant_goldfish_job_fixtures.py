@@ -66,6 +66,7 @@ class InstalledJobFixture(unittest.TestCase):
         self.counter = 0
         self.capabilities = self.base / 'capabilities.json'
         caps = json.loads((ROOT / 'tests/fixtures/t3/capabilities.json').read_text())
+        caps['inheritedOptions'] = {}  # Explicit synthetic host observation, not inferred production settings.
         self.capabilities.write_text(json.dumps(caps))
         self.plan_fixture = ThinkingPlanFixture(self.base / 'plan-fixture')
         self.plan_fixture.box.env = dict(self.env)
@@ -172,7 +173,8 @@ class InstalledJobFixture(unittest.TestCase):
                  'has_pending_child_runs': False}
         target = next(t for t in self.job_state(job_id)['tasks'] if t['task_id'] == task_id)['target']
         if report_identity:
-            event['status_identity'] = {'providerInstanceId': target['providerInstanceId'], 'model': target['model']}
+            event['status_identity'] = {'providerInstanceId': target['providerInstanceId'], 'model': target['model'],
+                                        'options': target.get('options', {})}
         self.ok(self.run_helper('job_cli.py', 'task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': event}))
         result = {'schema_version': 1, 'status': status, 'conclusion': conclusion,
                   'requirements': [{'id': r['id'], 'status': requirement, 'evidence': ['synthetic fixture evidence']}

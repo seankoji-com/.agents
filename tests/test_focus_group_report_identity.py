@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tests.test_focus_group_lifecycle import setUpModule, tearDownModule  # noqa: E402
+from tests.module_partition import partition  # noqa: E402
 from tests.test_focus_group_report import (BEFORE, CLAUDE, GPT, PASS_SPENT, STICKY, ReportHost,  # noqa: E402
                                             delivered_inputs, ident, load_report_module, sha, sources)
 
@@ -527,6 +528,10 @@ class IdentityProjectionTest(unittest.TestCase):
 
     def refused_code(self, outcome, code):
         self.assertEqual((outcome[0], outcome[1]['error']['code']), (1, code), outcome[1])
+
+
+def load_tests(loader, tests, pattern):
+    return partition(loader, IdentityProjectionTest, 0)
 
 
 if __name__ == '__main__':

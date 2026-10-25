@@ -33,7 +33,7 @@ def default_skill_roots():
         home / '.gemini/config/skills', home / '.gemini/skills', config / 'muse/skills')))
 
 
-def catalog():
+def catalog(include_deprecated=False):
     plugins = []
     for path in sorted((ROOT / 'plugins').glob('*/plugin.json')):
         meta = json.loads(path.read_text())
@@ -41,7 +41,8 @@ def catalog():
         if meta['name'] != path.parent.name:
             raise ValueError(f'catalog name does not match folder: {path.parent.name}')
         skills.validate_picker(meta)
-        plugins.append(meta)
+        if include_deprecated or not meta.get('deprecated'):
+            plugins.append(meta)
     return plugins
 
 
@@ -133,6 +134,8 @@ def main(argv=None):
     sub.add_parser('list', help='list bundled plugins')
     selection = sub.add_parser('selection', help='validate frozen upfront model choices; no dispatch')
     selection.add_argument('selection_args', nargs=argparse.REMAINDER)
+    agreement = sub.add_parser('agreement', help='inspect/admit scoped agreements and observed delivery')
+    agreement.add_argument('agreement_args', nargs=argparse.REMAINDER)
     planning = sub.add_parser('planning-review', help='pinned planning review jobs and receipts; no dispatch')
     planning.add_argument('planning_args', nargs=argparse.REMAINDER)
     adoption = sub.add_parser('adopt', help='verify and adopt a relocated installation receipt')
@@ -156,7 +159,7 @@ def main(argv=None):
     setup.add_argument('--grant-learnings', action='store_true',
                        help='apply the printed subtree grants after backing up provider configs')
     setup.add_argument('--agents-root', dest='agents_root_command', default=argparse.SUPPRESS)
-    resolve = sub.add_parser('resolve', help='list available routing candidates for a role, in tier order')
+    resolve = sub.add_parser('resolve', help='list available routing candidates, preferred workhorse then tier order')
     resolve.add_argument('role')
     resolve.add_argument('--capabilities', metavar='FILE', required=True,
                          help='saved orchestrator_capabilities response')
@@ -199,6 +202,9 @@ def main(argv=None):
     if args.command == 'selection':
         from shared.model_selection_cli import main as selection_main
         return selection_main(args.selection_args)
+    if args.command == 'agreement':
+        from shared.execution_agreement_cli import main as agreement_main
+        return agreement_main(args.agreement_args)
     if args.command == 'planning-review':
         from shared.planning_review_cli import main as planning_main
         return planning_main(args.planning_args)
@@ -240,7 +246,7 @@ def main(argv=None):
                         raise ValueError('override base digest is stale; inspect agents show and use the active bundle digest')
                 print(json.dumps(registry.set_override(agents_root, args.worker_id, args.base_digest, enabled)))
             return 0
-        plugins = catalog()
+        plugins = catalog(include_deprecated=getattr(args, 'plugin', None) is not None)
         if getattr(args, 'plugin', None) is not None:
             installer.validate_name(args.plugin)
             if args.plugin not in {p['name'] for p in plugins}:
@@ -257,6 +263,10 @@ def main(argv=None):
             for meta in plugins:
                 print(f"{meta['name']:20} {meta['description']}")
             return 0
+        for meta in plugins:
+            if meta.get('deprecated'):
+                print(f"t3-plugins: {meta['name']} is deprecated; use {meta['replacement']} for new work. "
+                      'Existing packages and state are preserved.', file=sys.stderr)
         if args.command == 'setup':
             roots = args.root or default_skill_roots()
             for meta in plugins:
@@ -266,7 +276,8 @@ def main(argv=None):
                 for root in roots:
                     print(json.dumps(skills.install(root, prefix, meta)))
             for root in roots:
-                for name in RETIRED:
+                for name in (*RETIRED, *(p['name'] for p in catalog(include_deprecated=True)
+                                         if p.get('deprecated') and p['name'] not in {m['name'] for m in plugins})):
                     receipt = skills.remove_retired(root, name)
                     if receipt:
                         print(json.dumps(receipt))
@@ -379,6 +390,9 @@ def main(argv=None):
                     request = ' '.join(args.request).strip()
                     if request:
                         print(f'Read {entry} and run: {request}')
+                    elif meta.get('default_operation'):
+                        print(f'Read {entry} and start the default workflow using relevant current conversation context. '
+                              'Ask only for missing facts; never ask which operation to run.')
                     elif meta.get('context_on_empty'):
                         print(f'Read {entry} and use relevant current conversation context. '
                               'Ask only for missing facts; do not invent a symptom.')

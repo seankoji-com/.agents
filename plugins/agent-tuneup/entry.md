@@ -1,118 +1,63 @@
 # agent-tuneup
 
+Apply `PKG/shared/upfront-agreement.md`.
+
 Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
-Use `PKG/shared/adopter-planning.md` and `PKG/references/adopter-review-rubric.md`
-for public admission and receipt gates through `PKG/scripts/plan_review.py`.
-Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
+Public admission: `PKG/scripts/plan_review.py`; contract: `PKG/shared/adopter-planning.md`;
+criteria: `PKG/references/adopter-review-rubric.md`.
+Read `PKG/shared/learnings.md` and load lessons.
 
 Audit and align agent configuration without weakening permissions. Read
 `PKG/shared/t3-runtime.md` once. Delegation follows `PKG/shared/delegation.md`.
 Multi-stage jobs follow `PKG/shared/job-coordination.md`; this entry adds only
-tuneup policy. Load only the selected operation's files: `PKG/playbooks/audit.md`
-for `audit`, `PKG/playbooks/align.md` for `align` or `apply`, and
+tuneup policy. Load `PKG/playbooks/audit.md` for inspection,
+`PKG/playbooks/align.md` for comparison, proposals and approved changes, and
 `PKG/references/job-plan.md` when you create or resume a job.
 
-## Operations
+## One workflow
 
-`doctor` and `scan` are direct. They never create a job or launch a worker.
+Invoke `$t3-agent-tuneup [scope or desired outcome]`. A bare invocation runs the
+complete workflow. Do not offer audit, align, apply, scan or doctor as public
+subcommands, and do not ask the owner to choose a mode. Natural-language narrowing
+such as "only inspect this settings file" limits the work and its authority.
 
-- `doctor`: check Python and list supported adapters with
-  `python3 PKG/scripts/audit.py --list-adapters`. When the `t3-plugins` command is
-  available, add `t3-plugins agents list agent-tuneup` for local bundle integrity.
-  Doctor checks local files, not live provider behaviour.
-- `scan --provider claude`: only on explicit request, read recent Claude transcript
-  tool-call frequencies with `python3 PKG/scripts/scan_perms.py --json`. This is usage
-  evidence, not a permission recommendation. Never publish transcripts.
-- `audit --provider <name> --settings <path>`: inspect explicitly supplied settings.
-  Exit codes: `0` clean, `1` findings present, `2` unreadable or invalid settings.
-  One file with no open syntax, scope or precedence question is direct: run the
-  helper and report. When findings need provider semantics, several files or
-  scopes need comparing, or the owner wants changes proposed, coordinate a job.
-- `audit --t3-projects`: check that worktree-mode T3 projects with a tracked
-  root lockfile run a `runOnWorktreeCreate` setup script. Follow "T3 project
-  bootstrap" in `PKG/playbooks/audit.md`. It is direct, reports
-  `worktree-bootstrap-missing` with a draft `t3.json` or
-  `worktree-bootstrap-not-imported`, and writes nothing: no `t3.json`, no
-  `t3_project_update`.
-- `audit`: with no narrowing flags, audit the complete default coverage in
-  `PKG/references/central-wiring.md`, including permission sync and worktree setup.
-  Wiring v2 adds explicit native-agent/portable-role discovery and a private
-  normalization proposal through the existing `align.py audit` entrypoint. V1
-  retains its earlier coverage with detailed inventory marked unavailable.
-  No agent or role migration writer is provided.
-- `align`: inventory every provider in T3's live catalog using that same default,
-  compare centralized wiring and prepare native changes for review.
-  Inventory and proposals write no settings. Alignment across several providers is a
-  job with research and proposal stages.
-- `apply --plan <path>`: apply an unchanged, explicitly approved plan with its digest
-  and a new private backup path. Approval is for the concrete changes, not the
-  operation name. Every apply is a job with an `apply` stage, so its backup, parse,
-  load and enforcement evidence pass the validator.
+1. Check local readiness directly with `python3 PKG/scripts/audit.py --list-adapters`
+   and `t3-plugins agents list agent-tuneup` when available. Report missing tools;
+   never install a provider to make readiness pass.
+2. Inventory every provider instance in T3's current catalog and all default
+   coverage in `PKG/references/central-wiring.md`: shared instructions, skills,
+   permissions, MCPs, runtime modes, roles, duplicate orchestration and worktree setup.
+   Wiring v2 adds explicit native-agent/portable-role discovery and a private
+   normalization proposal through the existing `align.py audit` entrypoint. V1
+   retains its earlier coverage with detailed inventory marked unavailable.
+   Follow `PKG/playbooks/audit.md` for format checks and T3 bootstrap inspection.
+3. Include a local usage-frequency scan when readable Claude transcripts exist:
+   `python3 PKG/scripts/scan_perms.py --json`. Keep input and aggregate output private.
+   Report unsupported providers, absent transcripts and unreadable paths as coverage
+   gaps; do not install tools or acquire credentials. Tool frequency is diagnostic
+   evidence and never justifies broad permission rules.
+4. Follow `PKG/playbooks/align.md` to compare actual native layers, resolve scope and
+   precedence questions, and prepare reviewed changes. Collect model choices once
+   under operation `agent-tuneup/tuneup`; internal audit/align stages consume that
+   same admission without presenting another mode or chooser.
+5. Present the concrete redacted changes, access effects and private backup paths.
+   Ask for approval of those exact changes through the native question picker.
+   If declined, deliver the audit and proposals. If approved, continue within this
+   workflow through the existing backed-up apply and independent verification steps.
+   Invocation alone does not approve unseen settings changes.
+6. Report applied changes and backups, parse results, observed native loading,
+   required live enforcement and every remaining coverage gap separately.
+
+The deterministic helper commands remain internal implementation details. Their
+`audit`, `align`, `apply` and `scan` names are not additional user workflows. A
+single-file inspection can stay direct; full inventory, proposals and approved apply
+use `PKG/references/job-plan.md`. Use the `tuneup` admission for the whole job;
+concrete approval still gates adding and executing its settings-apply stage.
 
 Any T3 provider can run this audit. The target settings format is separate from the
 calling provider. Supported structured audits: Claude JSON, OpenCode JSON/JSONC,
-Codex TOML (Python 3.11+) and Muse JSON (named permission profiles under
-`permissions.profiles`). The alignment helper also supports Antigravity MCP JSON/JSONC.
-Other settings get manual inspection only. Alignment uses explicit capability
-mappings, never translates permission syntax by analogy, and retains unsupported or
-intentional differences.
+Codex TOML, Gemini JSON, Cursor JSON. Target settings are never executed.
 
-## Workers
-
-Only the coordinator dispatches, through the routing and lifecycle rules in the
-coordination contract.
-
-- `agent-tuneup/config-researcher`: exact provider format, scope, precedence and
-  version semantics with primary-source citations. Route at the lowest suitable
-  workhorse tier. Read-only.
-- `agent-tuneup/config-verifier`: checks only listed proposed or applied changes and
-  returns parse, load and live-enforcement outcomes separately. Route at reviewer
-  tier, on a different known lineage from the researcher when one is configured;
-  otherwise report independence as unverified.
-
-Worker definitions grant no settings-edit, push, merge or message authority, and task
-briefs narrow them further. Workers never run `align.py apply`, restore a backup, edit
-settings, dispatch children or accept their own results. An extra-work request that
-does not fit a declared slot and its authority is refused or needs an owner decision.
-
-## Boundaries
-
-- **Deterministic format checks.** `audit.py` and `align.py` decide format, changed
-  keys, risk counts and write safety. A worker or model claim never overrides a
-  helper exit code or refusal.
-- **Optional transcript scan.** `scan` runs only when requested. Frequency never
-  justifies an allow rule, and transcripts stay private.
-- **Report first.** `doctor`, `scan`, `audit` and `align` write no settings. Their
-  findings, matrix and candidates are the deliverable.
-- **Authorized, backed-up settings edits only.** Only the coordinator edits settings,
-  only through `apply`, and only for a concrete plan the owner approved through the
-  native question picker with the recommended option first. Record the answer with
-  the job `decision` command scoped `settings-change:<change-id>` before applying.
-  Keep a before-edit snapshot and a new private backup outside job state and every
-  checkout. Stop on a denied write; never reroute it through another tool.
-- **No permission expansion.** Never broadly allow shells, interpreters, installers,
-  arbitrary MCP tools or remote commands. Never disable sandboxing or approvals,
-  copy permission expressions between providers, or remove deny or ask rules to
-  reduce prompts. An audit or alignment request is not permission to widen access.
-- **Distinct observations.** Parse, load and live enforcement are separate
-  observations. A parseable file is not loaded, and a loaded file is not enforced.
-  Unknown enforcement stays `unverified`; it blocks acceptance only when the task
-  requires live enforcement.
-- **Privacy.** Never print credentials, headers, private URLs, hostnames or settings
-  values. Inventories, plans, candidates and backups stay private and out of commits.
-
-## Acceptance
-
-The authority is the pinned `PKG/scripts/validate_audit.py`, run through
-`PKG/shared/job_acceptance_cli.py` from the job's pinned package. It accepts a published
-coordinator observation that matches the stage's declared criteria. An audit with
-correctly reported findings and exit `1` completes when the criteria allow findings;
-exit `2` is a blocker. A report-only audit with settings changes is rejected. An apply
-needs each change's recorded owner authorization, an exact backup of the before-edit
-bytes, and passed parse and load observations. Required live enforcement must pass.
-A worker's `ready-for-acceptance` or a terminal task is never acceptance.
-
-Report findings, proposals, owner approvals, files applied, backups, parse, load and
-live-enforcement results separately. Never claim aligned effective permissions from
-file equality, fixture tests or a running process. Do not commit, push or persist
-personal learnings unless separately requested.
+Apply creates a private backup before any write; report the backup path.
+Apply is backed by a verified plan with an unchanged digest. When a settings
+format is not supported, report the gap; do not guess an unstructured write.

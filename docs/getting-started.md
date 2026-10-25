@@ -141,10 +141,10 @@ Pick the row that matches something you need today. Each starts from a T3 thread
 | Workflow | Send | What comes back |
 | --- | --- | --- |
 | [imps](plugins/imps.md) | `$t3-imps run fix the date parser: reject 31 April with a clear error, add a regression test, do not commit` | The change, a run ID, and a report mapping each requirement to the check that covered it at this revision. Anything unverified is listed as blocked. |
-| [elephant-goldfish](plugins/elephant-goldfish.md) | `$t3-elephant-goldfish thinking retry-policy` | An interview, then `thinking/retry-policy/discovery.md`, `spec.md` with numbered acceptance criteria, and `handoff.md` for a fresh thread. |
-| [ape](plugins/ape.md) | `$t3-ape study https://github.com/python/cpython how are parser error cases tested?` | A report pinned to the commit it read, with Adopt, Adapt and Reject sections, line citations, and one small experiment for your repository. |
+| [plan](plugins/plan.md) | `$t3-plan retry-policy` | An interview, then `plans/retry-policy/discovery.md`, `spec.md` with numbered acceptance criteria, and `handoff.md` for a fresh thread. |
+| [ape](plugins/ape.md) | `$t3-ape https://github.com/python/cpython how are parser error cases tested?` | A report pinned to the commit it read, with Adopt, Adapt and Reject sections, line citations, and one small experiment for your repository. |
 | [babysitter](plugins/babysitter.md) | `$t3-babysitter pr https://github.com/OWNER/REPO/pull/12 inspect reviews and CI only` | Read-only: the blocking reviews and checks at the current head. Drop "inspect only" to let it fix, push, resolve threads and merge once GitHub's own checks and reviews allow it. |
-| [agent-tuneup](plugins/agent-tuneup.md) | `$t3-agent-tuneup audit --provider claude --settings .claude/settings.json` | Finding codes and locations in that file. Setting values never appear. |
+| [agent-tuneup](plugins/agent-tuneup.md) | `$t3-agent-tuneup` | Complete wiring audit, private usage analysis, reviewed changes and verification after concrete approval. |
 | [ralph](plugins/ralph.md) | `$t3-ralph fix the parser and add regression coverage` | It asks you to choose an implementer and a grader from different model lineages, retries until the grader has no feedback, then opens a PR. |
 
 imps and agent-tuneup are the quickest to try on a repository you already have. For
@@ -283,7 +283,13 @@ instance, a model, its tier and its `lineage`. Setup guesses the tiers: every
 cheap-family model it recognises (a haiku-, flash-, mini-, nano-, lite-, small- or
 luna-class name) goes to `low`, and those become the `workhorse` candidates, cheapest
 first, with the session model last as the fallback. A delegating workflow's children
-therefore start on a cheap model without you editing anything. The session model judges
+therefore have cheap recommendations available. An explicit owner choice controls dispatch;
+tiers never answer the model picker or prove suitability. For an explicitly chosen
+configured workhorse, the frozen owner answer supplies ordinary quality 1 and its
+reason if those fields or the model row are missing. No extra numeric endorsement
+is needed. Higher role floors and a role policy's named `source` still require their
+own evidence; reviewer judgement, fixed-effort and lineage gates remain separate.
+The session model judges
 at `high`. Both the tiers and the lineage labels are guesses: edit them. Providers
 default to `auto`, except OpenCode, which defaults to
 `full-access` with `"requireRuntimeMode": true` because its children otherwise stall
@@ -310,7 +316,19 @@ on permission prompts.
 }
 ```
 
-`resolve` prints the role's candidates that the capabilities file can run, in tier
+An authorized global workhorse choice is stored as the optional top-level
+`preferred_workhorse: {"providerInstanceId": "<exact provider>", "model": "<exact model>"}`,
+matching exactly one `roles.workhorse` entry. Keep its selected options on that
+entry. Both `resolve` and selection discovery offer the eligible preference first,
+subject to the order of independence groups for `resolve --implementer-lineage`,
+and mark it `preferred: true`. The preference moves ahead of cheaper candidates
+only within its group. They report `preference_status: unavailable` if it cannot
+be used. Retain that choice and resolve its blocker; other candidates do not
+authorize a replacement. A saved preference remains a recommendation for a new
+invocation. Run-only choices never write this field. Without it, existing ordering
+is unchanged.
+
+`resolve` otherwise prints the role's candidates that the capabilities file can run, in tier
 order, and lists each configured entry it could not use with the reason. It never
 substitutes a different model. When a child's mode is broader than the parent
 thread's, T3 refuses it, so `resolve` lowers the mode to the parent's and adds an
@@ -318,8 +336,11 @@ thread's, T3 refuses it, so `resolve` lowers the mode to the parent's and adds a
 `requireRuntimeMode` (OpenCode, unless set to `false`) is listed as unavailable instead. With `--implementer-lineage
 LINEAGE`, each candidate is marked `independent`: `true` for another known lineage,
 `null` when either lineage is `unknown`, `false` for the same lineage. They print in
-that order. A repository can override
+that order; a saved workhorse preference moves first only within its independence
+group. A repository can override
 roles, providers or tiers in `.t3-plugins/routing.json`; repository policy wins.
+A repository workhorse pool replaces the user's preference as well. A repository
+`preferred_workhorse` must match exactly one effective workhorse entry.
 
 ## Uninstall
 
