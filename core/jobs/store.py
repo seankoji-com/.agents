@@ -12,7 +12,17 @@ def strict_load(data):
  def bad(x,why='non-finite number'): raise JobError(f'{why}: {x}')
  try:v=json.loads(t:=data.decode('utf-8') if isinstance(data,(bytes,bytearray)) else data,object_pairs_hook=_pairs,parse_constant=bad,parse_float=lambda x:float(x) if math.isfinite(float(x)) else bad(x))
  except (UnicodeError,json.JSONDecodeError,RecursionError) as e:raise JobError(f'invalid JSON: {e}') from e
- return v if json_depth(t)<=MAX_JSON_DEPTH else bad(MAX_JSON_DEPTH,'invalid JSON: nesting exceeds maximum depth')
+ return v if _within_json_depth(v) else bad(MAX_JSON_DEPTH,'invalid JSON: nesting exceeds maximum depth')
+def _within_json_depth(value):
+ """Count only containers, retaining at most one iterator per nesting level."""
+ stack=[iter((value,))]
+ while stack:
+  for child in stack[-1]:
+   if isinstance(child,(dict,list)):
+    if len(stack)>MAX_JSON_DEPTH:return False
+    stack.append(iter(child.values() if isinstance(child,dict) else child));break
+  else:stack.pop()
+ return True
 def json_depth(text):return max(itertools.accumulate(1 if c in '[{' else -1 for c in re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"|[^\][{}"]+','',text)),default=0)  # valid JSON only: strings are stripped, so quoted brackets never count
 def digest(data):return hashlib.sha256(data).hexdigest()
 def canonical(value):return (json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)+'\n').encode()
@@ -104,7 +114,6 @@ def _authorize(job,caller,operation):
  if caller.get('installation_id')!=job['installation_id'] or caller.get('workflow')!=job['workflow'] or caller.get('package_digest') not in {p['package_digest'] for p in job['pins'].values()}:raise JobError('ownership_mismatch: wrong-package/installation/workflow caller')
  if caller.get('actor') not in ('coordinator','worker'):raise JobError('explicit caller actor is required')
  if caller['actor']!='coordinator' and operation!='worker-evidence':raise JobError('coordinator-only operation')
-
 GUARDED_OPERATIONS=frozenset(('create','plan-revision','prepare','acceptance'))
 def guard_operations(job):
  value=(job or {}).get('policy',{}).get('transaction_guard_required',[])

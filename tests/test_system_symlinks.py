@@ -10,6 +10,7 @@ import contextlib
 import importlib.util
 import json
 import os
+import random
 import stat
 import sys
 import tempfile
@@ -234,6 +235,28 @@ class JsonDepthTests(unittest.TestCase):
 
     def nested(self, depth):
         return '[' * depth + ']' * depth
+
+    def test_strict_load_uses_parsed_containers_instead_of_rescanning_evidence_strings(self):
+        value = {'evidence': ['quoted \\" { [ ] } ' * 10000, {'nested': [[]]}]}
+        raw = json.dumps(value)
+        with mock.patch('core.jobs.store.json_depth', side_effect=AssertionError('second text scan')):
+            self.assertEqual(strict_load(raw), value)
+
+    def test_decoded_depth_matches_text_depth_for_mixed_containers_and_escaped_strings(self):
+        rng = random.Random(91)
+        scalars = [None, True, False, 0, -2.5, '', 'quotes " and \\ and [{]}', '\u96ea\U0001f600']
+        for _ in range(250):
+            value = rng.choice(scalars)
+            for level in range(rng.randrange(40)):
+                value = rng.choice(([value, [], {}], {f'level{level}':value, 'quoted { key':rng.choice(scalars)}))
+            raw = json.dumps(value, ensure_ascii=rng.choice([True, False]))
+            depth = json_depth(raw)
+            with self.subTest(depth=depth), mock.patch('core.jobs.store.MAX_JSON_DEPTH', depth):
+                self.assertEqual(strict_load(raw), value)
+            if depth:
+                with self.subTest(rejected_depth=depth), mock.patch('core.jobs.store.MAX_JSON_DEPTH', depth - 1):
+                    with self.assertRaisesRegex(JobError, 'nesting exceeds maximum depth'):
+                        strict_load(raw)
 
     def test_strict_load_limit_is_explicit_and_strings_cannot_hide_or_fake_depth(self):
         self.assertEqual(len(json.dumps(strict_load(self.nested(MAX_JSON_DEPTH)))), 2 * MAX_JSON_DEPTH)
