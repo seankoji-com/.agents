@@ -875,7 +875,7 @@ def _mapping_for(study, target_revision):
         native[(cell_id, 'first-impression')] = (native[(cell_id, 'first-impression')][0], found)
     lifecycle = lifecycle_module()
     job = resolver.job
-    entries, carried = [], {key: record for key, (record, _) in native.items()}
+    entries, carried = [], {key: {**record, 'problem': found} for key, (record, found) in native.items()}
     for record in sorted(records, key=lambda r: (STAGES.index(r['stage']), r['cell_id'], r['revision'])):
         entry = {'cell_id': record['cell_id'], 'stage': record['stage'], 'from_revision': record['revision'],
                  'result_sha256': record['result']['sha256'], 'record_sha256': record['record_sha256'], 'reasons': []}
