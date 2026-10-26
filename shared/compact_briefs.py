@@ -16,18 +16,18 @@ from core.schema import errors
 
 LEGACY = 'worker-brief-v1'
 COMPACT = 'worker-brief-compact-v2'
-MAP_HASH = '73477489eb616f4f2b098228361c785162fddfd1f89254a5b6b224b31b6c45f6'
+MAP_HASH = '2b39b761de80b34dcce93de117980b05bd7184cebcc4be1640e4bde07e9b2596'
 MAP_SCHEMA_HASH = 'e317cf397ab51acef93d39469280370e1f5676bcf2dcfe08d0c32e4db635f29f'
 MANIFEST_HASHES = {
-    'agent-tuneup': 'e175a4d44bf4ee15dbd5166e2a9a0541419d2f53c9ba7e2391fde62179f8a20c',
-    'ape': 'ce696fbd067a2868ba6044f1e80139b4dbf0ab94bdcf15a25c3ca904500f5262',
-    'babysitter': 'd5906a008d0bb52713d802baf752cf46d327135172e92a50d1210d9005f11917',
-    'elephant-goldfish': 'e3917954681519423db918742f24b92ffee0a659ae5aefc4f978404d1ac3b344',
-    'focus-group': 'b0d60410667d1154abd7ab208b36e6f08600916eb6f12ad51f511d9c58d51592',
-    'imps': '14db320a8ea20da01df5ca317611876a7c2ccba18bbf15b10f13fe0376b28dfd',
-    'ralph': '083bed25b96894bd2c6a508af44f76f09cf3d77c6836b3526f7e6f26cb7ea071',
-    'plan': '237df36bbe0817bc88a8b61e86375e85580422044c862d72fb1da279936fcd94',
-    'tests-omg': '1d9439c675ca4b1ce21842600565ad688d2bdb79e43a61d8097624dccd4dffff',
+    'agent-tuneup': '651a4d80743bd15bc1ce649e32c72fd54c88ab3588f7cb57defba50c3ba11761',
+    'ape': 'b48a686f3d13755303330398c721bae08412f322128526ca6e2df3db97a608b2',
+    'babysitter': '7cada9f4ee7a5ee0e7d786ce2978e0b7fd86e59d53c23b4ce750de8d1af58b5d',
+    'elephant-goldfish': '145f0236fd0caf15089f9517deb9c33305008434f80ef64ea45aeb8972736cb4',
+    'focus-group': 'd2b6e1ba87c8cf2dc43ef23c646429455ced80d592594d62f716ba84c0e90884',
+    'imps': 'a432204e790b7acc18900414e854a5995e75380a3e4282efd799e257050219e9',
+    'ralph': 'f2406d1acd1a3c5f0f93c4048a9ea6853d2d56a6988ae9cf8adf27a5505ea36c',
+    'plan': '5bb213d2564a4ae7afafac93bbf3215463c11b921c8bc9ffaf1c18acb2f06d7a',
+    'tests-omg': '068402e9a02ddf68947e4044ce08af8dc0e5c322f656f510b5efd2bfd93c0a53',
 }
 RUBRICS = {
     'agent-tuneup/config-verifier': ['references/adopter-review-rubric.md'],

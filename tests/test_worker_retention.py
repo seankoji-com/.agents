@@ -26,6 +26,7 @@ from shared import worker_registry as registry
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / 'tests/fixtures/worker-retention-baseline.json'
 EXTENSION = ROOT / 'tests/fixtures/worker-retention-extension.json'
+EXTENSION_V2 = ROOT / 'tests/fixtures/worker-retention-extension-v2.json'
 MANIFEST = ROOT / 'shared/agents/worker-retention.json'
 SCHEMA = ROOT / 'shared/agents/worker-retention.schema.json'
 BASELINE_HASH = '0115949c68616695abfd48302d3463510c6b25ebc4322670353f057fb641f9d5'
@@ -45,6 +46,11 @@ EXTENSION_PACKAGE_PATHS = {
     'shared/legacy_author_provenance.py', 'shared/execution_agreement_cli.py',
     'shared/delivery.py', 'shared/upfront-agreement.md',
 }
+EXTENSION_V2_HASH = '02ec743cba8b153f2a64e3fc7041b8b0e771df80130b71cba0e2a75f776faddc'
+EXTENSION_V2_REVISION = '32bf69d9d5a2db7cb87be3e196110ead32214835'
+EXTENSION_V2_PARENT = '1bc352ec059a80799bc9881dcb2f222d910fffe3'
+EXTENSION_V2_SOURCE_PATHS = {'shared/agents/reviewer-standard.md'}
+EXTENSION_V2_PACKAGE_PATHS = {'shared/workflow-recovery.md'}
 SCHEMA_HASH = 'e317cf397ab51acef93d39469280370e1f5676bcf2dcfe08d0c32e4db635f29f'
 PACKAGE_ADDITIONS = {'shared/agents/worker-retention.json',
                      'shared/agents/worker-retention.schema.json',
@@ -119,6 +125,17 @@ def extension():
     return value
 
 
+def extension_v2():
+    raw = EXTENSION_V2.read_bytes()
+    if sha(raw) != EXTENSION_V2_HASH:
+        raise ValueError('second retention extension changed; reassess the exact base revision')
+    value = json.loads(raw)
+    if (value.get('source_revision') != EXTENSION_V2_REVISION
+            or value.get('parent_source_revision') != EXTENSION_V2_PARENT):
+        raise ValueError('second retention extension revision chain changed')
+    return value
+
+
 def git_source(revision, row):
     raw = git_blob(revision, row['path'])
     if row['kind'] == 'composer-framing':
@@ -141,21 +158,31 @@ def changed_paths(before, after):
 
 
 def current_generation():
-    frozen, addendum = baseline(), extension()
-    if ({row['path'] for row in addendum['sources']} != EXTENSION_SOURCE_PATHS
-            or {row['path'] for row in addendum['package_additions']} != EXTENSION_PACKAGE_PATHS):
-        raise ValueError('retention extension scope changed')
-    for row in addendum['package_additions']:
-        committed = git_blob(addendum['source_revision'], row['path'])
-        if sha(committed) != row['sha256'] or len(committed) != row['bytes']:
-            raise ValueError('package extension source changed: ' + row['path'])
+    frozen = baseline()
+    addenda = [extension(), extension_v2()]
+    source_paths = [EXTENSION_SOURCE_PATHS, EXTENSION_V2_SOURCE_PATHS]
+    package_paths = [EXTENSION_PACKAGE_PATHS, EXTENSION_V2_PACKAGE_PATHS]
     source_map = {row['source_id']: row for row in frozen['sources']}
-    for row in addendum['sources']:
-        committed = git_source(addendum['source_revision'], row)
-        if sha(committed) != row['sha256'] or len(committed) != row['bytes']:
-            raise ValueError('extension source differs from pinned base: ' + row['source_id'])
-        source_map[row['source_id']] = row
-    changed = {row['path']: row['sha256'] for row in addendum['manifests']}
+    changed = {}
+    covered = set()
+    parent_revision = frozen['source_revision']
+    for addendum, expected_sources, expected_packages in zip(addenda, source_paths, package_paths):
+        if (addendum.get('parent_source_revision') != parent_revision
+                or {row['path'] for row in addendum['sources']} != expected_sources
+                or {row['path'] for row in addendum['package_additions']} != expected_packages):
+            raise ValueError('retention extension scope or revision chain changed')
+        for row in addendum['package_additions']:
+            committed = git_blob(addendum['source_revision'], row['path'])
+            if sha(committed) != row['sha256'] or len(committed) != row['bytes']:
+                raise ValueError('package extension source changed: ' + row['path'])
+        for row in addendum['sources']:
+            committed = git_source(addendum['source_revision'], row)
+            if sha(committed) != row['sha256'] or len(committed) != row['bytes']:
+                raise ValueError('extension source differs from pinned base: ' + row['source_id'])
+            source_map[row['source_id']] = row
+            covered.add(row['path'])
+        changed.update({row['path']: row['sha256'] for row in addendum['manifests']})
+        parent_revision = addendum['source_revision']
     old_manifests = {row['path']: row for row in frozen['manifests']}
     manifests, workers, shared_assets = [], [], set()
     plugin_paths = sorted((ROOT / 'plugins').glob('*/plugin.json'))
@@ -166,7 +193,7 @@ def current_generation():
         expected = changed.get(relative, old['sha256'] if old else None)
         if expected is None:
             continue
-        committed = git_blob(addendum['source_revision'], relative)
+        committed = git_blob(parent_revision, relative)
         if sha(raw) != expected or raw != committed:
             raise ValueError('manifest differs from pinned base: ' + relative)
         meta = json.loads(raw)
@@ -184,14 +211,13 @@ def current_generation():
                             'worker_shared': shared, 'role': worker['role'],
                             'allowed_scope': worker['allowed_scope'],
                             'output_contract': worker['output_contract']})
-    changed_source_paths = changed_paths(frozen['source_revision'], addendum['source_revision'])
-    covered = {row['path'] for row in addendum['sources']}
+    changed_source_paths = changed_paths(frozen['source_revision'], parent_revision)
     for row in frozen['sources']:
         if row['path'] not in changed_source_paths or row['path'] in covered:
             continue
         if git_source(frozen['source_revision'], row) != git_source(addendum['source_revision'], row):
             raise ValueError('base source drift lacks an explicit extension: ' + row['source_id'])
-    return {'source_revision': addendum['source_revision'],
+    return {'source_revision': parent_revision,
             'sources': [source_map[key] for key in sorted(source_map)],
             'manifests': sorted(manifests, key=lambda row: row['path']),
             'workers': sorted(workers, key=lambda row: row['worker_id']),
@@ -397,7 +423,7 @@ def job_spans(worker, number):
     return WORKER_SLICES.get(number, [])
 
 
-def reviewer_extension(worker, text):
+def reviewer_extension(worker, text, include_recovery=False):
     if worker['worker_id'] not in {
             'babysitter/pr-reviewer', 'elephant-goldfish/plan-reviewer',
             'focus-group/plan-reviewer', 'imps/reviewer', 'ralph/strategy-reviewer',
@@ -409,6 +435,8 @@ def reviewer_extension(worker, text):
              excerpt(text, [('Record safely deferrable improvements as minor/note',
                              'Preserve every original')]),
              excerpt(text, [('Re-review keeps full required coverage', 'Reuse unchanged evidence')])]
+    if include_recovery:
+        parts.append(excerpt(text, [('Apply [workflow recovery]', 'The coordinator batches supported repairs')]))
     return '\n'.join(parts)
 
 
@@ -427,6 +455,11 @@ def rule_justification(worker, row, clause, retained, source=None):
             return (wid + ': ' + clause['id'] + ' source=' + row['sha256'] +
                     '; upstream author-provenance and commit-guard operations are coordinator-owned; worker authority is unchanged.')
         if name == 'reviewer-standard.md':
+            if clause['id'] == 'extension-v2':
+                return (wid + ': extension-v2 source=' + row['sha256'] +
+                        ('; preserve workflow recovery checkpoints and the task-artifact/stage boundary when reviewing PR maintenance.'
+                         if wid == 'babysitter/pr-reviewer' else
+                         '; recovery counters, state and dispatch are coordinator-owned; this reviewer role does not operate the workflow.'))
             return (wid + ': ' + clause['id'] + ' source=' + row['sha256'] +
                     '; retain only the source-bound reviewer triage excerpt applicable to this role; coordinator retry, filing and operator procedures stay coordinator-only.')
     number = int(clause['id'].split('-')[-1])
@@ -504,6 +537,9 @@ def allowed_rule(worker, row, clause, source=None):
         if not applies:
             return None
         if clause['id'].startswith('extension-'):
+            if clause['id'] == 'extension-v2':
+                return (excerpt(text, [('Apply [workflow recovery]', None)])
+                        if wid == 'babysitter/pr-reviewer' else None)
             return reviewer_extension(worker, text)
         if not cold:
             if number == 5:
@@ -700,12 +736,33 @@ class WorkerRetentionTest(unittest.TestCase):
         self.assertEqual(sum(len(s['clauses']) for s in historical['sources']), 295)
         self.assertEqual(len(frozen['workers']), 20)
         self.assertEqual(len(frozen['sources']), 39)
-        self.assertEqual(sum(len(s['clauses']) for s in frozen['sources']), 260)
+        self.assertEqual(sum(len(s['clauses']) for s in frozen['sources']), 261)
         self.assertEqual(len(frozen['shared_assets']), 18)
         self.assertEqual(sum(s['kind'] == 'shared-schema' for s in frozen['sources']), 15)
+        prior = git_blob(extension()['source_revision'], 'shared/agents/reviewer-standard.md')
+        current = git_blob(extension_v2()['source_revision'], 'shared/agents/reviewer-standard.md')
+        row = next(s for s in frozen['sources'] if s['source_id'] == 'shared/agents/reviewer-standard.md')
+        added = next(c for c in row['clauses'] if c['id'] == 'extension-v2')
+        self.assertEqual(current[:added['start_byte']] + current[added['end_byte']:], prior)
+        self.assertEqual(sha(current[added['start_byte']:added['end_byte']]), added['sha256'])
+        retained_profiles = {profile['id']: profile for profile in self.candidate['profiles']}
+        reviewers = [profile for profile in retained_profiles.values()
+                     if any(rule['source_id'] == row['source_id']
+                            and rule['clause_id'] == 'extension-v2'
+                            for rule in profile['rules'])]
+        self.assertTrue(reviewers)
+        for profile in reviewers:
+            rule = next(rule for rule in profile['rules']
+                        if rule['source_id'] == row['source_id']
+                        and rule['clause_id'] == 'extension-v2')
+            self.assertEqual(rule['disposition'],
+                             'inline' if profile['id'] == 'babysitter/pr-reviewer'
+                             else 'coordinator-only')
+            self.assertEqual('Apply [workflow recovery]' in profile['procedure']['text'],
+                             profile['id'] == 'babysitter/pr-reviewer')
         self.assertTrue({w['worker_id'] for w in historical['workers']}.issubset(
             {w['worker_id'] for w in frozen['workers']}))
-        for path in (BASELINE, EXTENSION, MANIFEST, SCHEMA):
+        for path in (BASELINE, EXTENSION, EXTENSION_V2, MANIFEST, SCHEMA):
             self.assertNotIn('/' + 'home/', path.read_text())
             self.assertNotIn('/scratch/', path.read_text())
 

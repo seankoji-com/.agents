@@ -729,8 +729,9 @@ def _expected(store, job, task):
     brief = task['brief']
     raw = _regular(Path(brief['path']))
     need(digest(raw) == brief['sha256'], 'immutable planning brief tampered')
-    need(isinstance(strict_load(raw), dict), 'planning brief must be a JSON object')
-    from shared.compact_briefs import verify_transmitted
+    from shared.compact_briefs import MAGIC, verify_transmitted
+    if not raw.startswith(MAGIC):
+        need(isinstance(strict_load(raw), dict), 'planning brief must be a JSON object')
     assigned = verify_transmitted(store, job, task, task['request_id'], raw, brief)
     need(isinstance(assigned, dict), 'planning brief must be a JSON object')
     claimed = assigned.pop('effective_brief_sha256')
