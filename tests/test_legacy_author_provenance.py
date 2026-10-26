@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 from core.jobs.store import canonical, digest
 from shared.job_coordinator import actual_author_lineages
@@ -72,6 +73,27 @@ def native_proof(job, task, path):
     decision = {'id': 'original-anchor', 'scope': provenance_scope(job['job_id'], task['task_id'], handle['request_id']),
                 'source': str(proof_path), 'source_sha256': digest(proof_path.read_bytes()), 'quote': quote}
     return decision, proof_path, native, owner
+
+
+def modern_fixture(root, *, participant=False):
+    job, task, path = legacy_fixture(root, bound=True, target_present=True)
+    data = canonical_selection_input()
+    if participant:
+        data['operation'] = 'focus-group/run'
+        data['work']['participant-01'] = data['work'].pop('workhorse')
+        data['profiles']['roles']['participant-01'] = data['profiles']['roles']['workhorse']
+    record = models.freeze(data); job['model_selection'] = record
+    role = 'participant-01' if participant else 'workhorse'
+    task['selection_binding'] = {'role': role, 'selection_sha256': record['selection_sha256']}
+    task['target'] = deepcopy(record['work'][role])
+    brief = json.loads(path.read_bytes()); brief.pop('effective_brief_sha256')
+    brief['target'] = deepcopy(task['target'])
+    brief['model_selection'] = {'selection_sha256': record['selection_sha256'], 'binding': deepcopy(task['selection_binding'])}
+    brief['effective_brief_sha256'] = digest(canonical(brief))
+    path.write_bytes(canonical(brief)); task['brief']['sha256'] = digest(path.read_bytes())
+    task['handles'][0]['target'] = deepcopy(task['target'])
+    task['handles'][0]['observed_identity'].update(providerInstanceId=task['target']['providerInstanceId'], model=task['target']['model'])
+    return job, task, path
 
 
 class LegacyAuthorTests(unittest.TestCase):
@@ -285,6 +307,38 @@ class LegacyAuthorTests(unittest.TestCase):
         task['selection_binding']['selection_sha256'] = current['selection_sha256']
         job['history'] = [{'tasks': [old]}]
         self.assertEqual(actual_author_lineages(job), {'openai'})
+
+    def test_modern_retry_without_any_remaining_descriptor_keeps_modern_policy(self):
+        job, task, path = modern_fixture(self.root, participant=True)
+        task.pop('brief'); task['request_id'] = 'charged-retry'
+        before = deepcopy(job)
+        self.assertEqual(actual_author_lineages(job), {'openai'})
+        self.assertEqual(job, before)
+
+    def test_modern_forbidden_followup_and_unreadable_brief_keep_modern_policy(self):
+        job, task, path = modern_fixture(self.root, participant=True)
+        task['followups'] = [dict(deepcopy(task['handles'][0]), request_id='unexpected',
+            task_id='unexpected-host', parent_task_id='fixture-host', forbidden_followup=True)]
+        self.assertEqual(actual_author_lineages(job), {'openai'})
+        path.unlink()
+        self.assertEqual(actual_author_lineages(job), {'openai'})
+
+    def test_unrelated_bad_descriptor_does_not_reclassify_modern_execution(self):
+        job, task, path = modern_fixture(self.root)
+        other = deepcopy(task); other['task_id'] = 'other'; other['handles'] = []
+        other['brief']['path'] = str(self.root/'unrelated'/'briefs'/'wrong.json')
+        job['tasks'].append(other)
+        self.assertEqual(actual_author_lineages(job), {'openai'})
+
+    def test_superseded_copies_do_not_repeat_provenance_io(self):
+        from shared import legacy_author_provenance as provenance
+        job, task, path = legacy_fixture(self.root, bound=True)
+        job['history'] = [{'tasks': [deepcopy(task)]} for _ in range(30)]
+        before = deepcopy(job)
+        with mock.patch.object(provenance, '_regular', wraps=provenance._regular) as opened:
+            self.assertEqual(actual_author_lineages(job), {'openai', 'deepseek'})
+        self.assertLessEqual(opened.call_count, 4, 'repeated snapshots must not multiply request-file I/O')
+        self.assertEqual(job, before)
 
 
 if __name__ == '__main__':

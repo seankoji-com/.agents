@@ -99,7 +99,8 @@ brief, with bounded canonical regular-file reads and exact request/host identity
 Original hash output is worker-initiated and coordinator-inspected; text matching
 does not prove command semantics or authenticate a human. Missing original anchors
 stay unknown. A retried modern execution keeps its producing binding; unreadable
-or ambiguous original provenance fails closed. New dispatch always needs its
+or ambiguous legacy provenance fails closed. Missing modern descriptors or
+forbidden-follow-up briefs alone do not create legacy authors. New dispatch needs its
 valid producing binding, including when a revision first enables selection.
 Normal briefs carry only decisions scoped to their task waivers. Document-only
 briefs retain their isolated context. Plan revisions

@@ -109,6 +109,23 @@ def public_recovery(package, prefix, agents, state, private):
     assert prepared['model_selection']['dispatch']['target'] == record['review_panel'][0]['target']
     assert all(Path(p).read_bytes() == raw for p, raw in retained.items())
     assert authors_file.read_bytes() == b'{"authors":["invented-original"]}\n'
+    # A real modern dispatch on the carried cell must coexist with both old
+    # malformed executions. This is another charged fixture attempt, not a refund.
+    status, out, err = cli('retry', {'caller': caller, 'task_id': 'cell', 'reason': 'fresh bound execution'})
+    assert status == 0, err
+    status, out, err = cli('prepare', {'caller': caller, 'task_id': 'cell'})
+    assert status == 0, err
+    modern = json.loads(Path(json.loads(out)['path']).read_bytes())
+    modern_target = modern['model_selection']['dispatch']['target']
+    request = modern['request_id']
+    record_dispatch(store, caller, 'cell', {'kind': 'accepted', 'request_id': request,
+        'host_task_id': 'modern-host', 'child_thread_id': 'modern-child', 'status_identity': modern_target})
+    record_dispatch(store, caller, 'cell', {'kind': 'completion', 'request_id': request,
+        'host_task_id': 'modern-host', 'status': 'completed', 'work_state': 'result_available',
+        'has_pending_child_runs': False, 'status_identity': modern_target, 'completion_id': 'modern-done'})
+    record_result(store, caller, 'cell', {'request_id': request, 'completion_id': 'modern-done', 'result': b'not-json'})
+    assert actual_author_lineages(store.load()) == {'openai', 'deepseek'}
+    assert all(Path(p).read_bytes() == raw for p, raw in retained.items())
     # Reopen owner/native/proof at the actual public prepare gate; no failed call writes state.
     for p in proof_info[1:]:
         raw = p.read_bytes(); p.write_bytes(raw + b' ')
@@ -122,8 +139,12 @@ def public_recovery(package, prefix, agents, state, private):
     assert len(archived) == 1 and 'selection_binding' not in archived[0]
     assert archived[0]['handles'] == old['handles'] and archived[0]['execution_history'] == old['execution_history']
     print(json.dumps({'public_revision_and_prepare': True, 'retained_charges': old['attempt'],
+                      'total_fixture_charges': store.load()['tasks'][0]['attempt'],
                       'author_lineages': sorted(actual_author_lineages(store.load())),
-                      'historical_files': len(retained), 'guard_and_author_records_unchanged': True}))
+                      'historical_files': len(retained), 'auxiliary_file_unchanged': True,
+                      'guard_fixture_enabled': False,
+                      'guard_policy_before': original['policy'].get('transaction_guard_required'),
+                      'guard_policy_after': store.load()['policy'].get('transaction_guard_required')}))
 
 
 class InstalledLegacyAuthorTests(unittest.TestCase):
@@ -183,8 +204,11 @@ assert out.wasSuccessful()
         proof = json.loads(result.stdout)
         self.assertTrue(proof['public_revision_and_prepare'])
         self.assertEqual(proof['retained_charges'], 2)
+        self.assertEqual(proof['total_fixture_charges'], 3)
         self.assertEqual(proof['author_lineages'], ['deepseek', 'openai'])
-        self.assertTrue(proof['guard_and_author_records_unchanged'])
+        self.assertTrue(proof['auxiliary_file_unchanged'])
+        self.assertFalse(proof['guard_fixture_enabled'])
+        self.assertEqual(proof['guard_policy_before'], proof['guard_policy_after'])
 
 
 if __name__ == '__main__':

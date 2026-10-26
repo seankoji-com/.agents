@@ -5,6 +5,7 @@ boundary. A native hash observation is worker-initiated host output inspected by
 that coordinator, not cryptographic proof of the command or the human source.
 """
 from pathlib import Path
+from copy import deepcopy
 import re
 
 from core.jobs import _owner_current
@@ -35,29 +36,87 @@ class LegacyAuthors:
         self.job = job
         self.records = list(tasks(job))
         self.limit = job.get('policy', {}).get('max_artifact_bytes', 16 * 1024 * 1024)
-
-    def descriptors(self):
+        self._descriptors = {}
+        self._by_request = {}
+        self._by_execution = {}
         for task in self.records:
             for key in ('brief', 'prepared_followup'):
                 desc = task.get(key)
                 if isinstance(desc, dict):
-                    yield desc
+                    encoded = canonical(desc)
+                    self._descriptors[encoded] = desc
+                    if desc.get('task_id') == task.get('task_id') and isinstance(desc.get('request_id'), str):
+                        key = (task.get('task_id'), desc.get('request_id'))
+                        self._by_request.setdefault(key, {})[encoded] = desc
+            for handle in task.get('handles', []) + task.get('followups', []):
+                key = (task.get('task_id'), handle.get('request_id'), handle.get('task_id'))
+                if all(isinstance(value, str) for value in key):
+                    self._by_execution.setdefault(key, []).append(task)
+        self._by_request = {key: list(value.values()) for key, value in self._by_request.items()}
+        # Only this immutable author-set calculation reuses work. A subsequent
+        # invocation reopens all files, so changed owner/native/brief bytes refuse.
+        self._locations, self._reads, self._classifications = {}, {}, {}
+        self._validated = set()
+        self._root = None
 
-    def root(self):
-        roots = set()
-        for desc in self.descriptors():
+    def descriptors(self):
+        return iter(self._descriptors.values())
+
+    def location(self, desc):
+        key = canonical(desc)
+        if key not in self._locations:
             p = _path(desc['path'])
             parent = p.parent.parent if p.parent.name == 'followup' else p.parent
             _require(parent.name == 'briefs' and parent.parent.name == self.job['job_id'])
             _require(p.name == desc['task_id'] + '-' + digest(desc['request_id'].encode()) + '.json')
-            roots.add(parent)
+            self._locations[key] = (p, parent)
+        return self._locations[key]
+
+    def root(self):
+        if self._root is not None:
+            return self._root
+        roots = set()
+        for desc in self.descriptors():
+            roots.add(self.location(desc)[1])
         _require(len(roots) == 1)
-        return roots.pop()
+        self._root = roots.pop()
+        return self._root
 
     def matching_records(self, task, handle):
-        return [row for row in self.records if row['task_id'] == task['task_id'] and any(
-            h.get('request_id') == handle['request_id'] and h.get('task_id') == handle.get('task_id')
-            for h in row.get('handles', []) + row.get('followups', []))]
+        return self._by_execution.get((task['task_id'], handle['request_id'], handle.get('task_id')), [])
+
+    def read_brief(self, path):
+        if path not in self._reads:
+            raw = _regular(_path(str(path)), max_bytes=self.limit)
+            brief = strict_load(raw)
+            _require(isinstance(brief, dict))
+            self._reads[path] = (raw, brief)
+        return self._reads[path]
+
+    def validate_binding(self, binding):
+        _require(isinstance(binding, dict) and bool(binding.get('selection_sha256')))
+        sha = binding['selection_sha256']
+        producing = (self.job.get('model_selection_history') or {}).get(sha, self.job.get('model_selection'))
+        if sha not in self._validated:
+            from shared.model_selection import validate
+            validate(producing, sha)
+            self._validated.add(sha)
+        _require(binding.get('role') in producing['work'] or any(
+            s['role'] == binding.get('role') and s['slot_id'] == binding.get('slot_id') for s in producing['review_panel']))
+
+    def candidate_paths(self, task, handle, followup):
+        own = self._by_request.get((task['task_id'], handle['request_id']), [])
+        paths = set()
+        for desc in own or self.descriptors():
+            try:
+                p, root = self.location(desc)
+                paths.add(p if own else root / ('followup' if followup else '') /
+                          (task['task_id'] + '-' + digest(handle['request_id'].encode()) + '.json'))
+            except (JobError, OSError, ValueError, KeyError, TypeError):
+                # Bad unrelated descriptors are not evidence of a legacy author.
+                # Once legacy candidacy is shown, root() still rejects them.
+                continue
+        return sorted(paths)
 
     def outside(self, value, root):
         p = _path(value)
@@ -129,10 +188,9 @@ class LegacyAuthors:
 
     def anchor(self, task, handle, path, root):
         found = set()
-        for desc in self.descriptors():
-            if desc.get('task_id') == task['task_id'] and desc.get('request_id') == handle['request_id']:
-                _require(desc['path'] == str(path))
-                found.add(desc['sha256'])
+        for desc in self._by_request.get((task['task_id'], handle['request_id']), []):
+            _require(desc['path'] == str(path))
+            found.add(desc['sha256'])
         _require(len(found) <= 1)
         if found:
             return found.pop(), None
@@ -169,6 +227,13 @@ class LegacyAuthors:
 
         None retains the old path for partial format-neutral import fixtures.
         """
+        key = canonical({'task_id': task.get('task_id'), 'binding_present': 'selection_binding' in task,
+                         'binding': task.get('selection_binding'), 'handle': handle})
+        if key not in self._classifications:
+            self._classifications[key] = self._classify(task, handle)
+        return deepcopy(self._classifications[key])
+
+    def _classify(self, task, handle):
         binding = task.get('selection_binding')
         if 'selection_binding' in task and not isinstance(binding, dict):
             return 'unknown'
@@ -179,12 +244,31 @@ class LegacyAuthors:
         try:
             records = self.matching_records(task, handle)
             unbound = [r for r in records if 'selection_binding' not in r]
-            root = self.root()
             followup = any(h.get('request_id') == handle['request_id'] for r in records for h in r.get('followups', []))
-            path = root / ('followup' if followup else '') / (task['task_id'] + '-' + digest(handle['request_id'].encode()) + '.json')
-            raw = _regular(_path(str(path)), max_bytes=self.limit)
-            brief = strict_load(raw)
-            _require(isinstance(brief, dict))
+            known_legacy = bool(unbound) or 'selection_binding' not in task
+            if known_legacy:
+                root = self.root()
+                paths = [root / ('followup' if followup else '') / (task['task_id'] + '-' + digest(handle['request_id'].encode()) + '.json')]
+            else:
+                paths = self.candidate_paths(task, handle, followup)
+            available = []
+            for path in paths:
+                try:
+                    raw, brief = self.read_brief(path)
+                    available.append((path, raw, brief))
+                except (JobError, OSError, ValueError, KeyError, TypeError):
+                    if known_legacy:
+                        raise
+            if not available:
+                # A missing modern descriptor (retry) or brief (forbidden
+                # follow-up) cannot turn an excluded participant into an author.
+                # Positive legacy evidence still takes the strict route above.
+                _require(records and not known_legacy)
+                for row in records:
+                    self.validate_binding(row.get('selection_binding'))
+                return None
+            _require(len(available) == 1)
+            path, raw, brief = available[0]
             if 'model_selection' in brief:
                 # A stripped modern task/binding cannot acquire legacy status.
                 selected = brief['model_selection']
@@ -193,16 +277,16 @@ class LegacyAuthors:
                          selected.get('selection_sha256') == selected['binding'].get('selection_sha256'))
                 producing_binding = selected['binding']
                 _require(any(r.get('selection_binding') == producing_binding for r in records))
-                from shared.model_selection import validate
-                producing = (self.job.get('model_selection_history') or {}).get(
-                    selected['selection_sha256'], self.job.get('model_selection'))
-                validate(producing, selected['selection_sha256'])
-                for desc in self.descriptors():
-                    if desc.get('task_id') == task['task_id'] and desc.get('request_id') == handle['request_id']:
-                        _require(desc['path'] == str(path) and digest(raw) == desc['sha256'])
-                content = dict(brief); effective = content.pop('effective_brief_sha256')
-                _require(digest(canonical(content)) == effective)
+                self.validate_binding(producing_binding)
+                for desc in self._by_request.get((task['task_id'], handle['request_id']), []):
+                    _require(desc['path'] == str(path) and digest(raw) == desc['sha256'])
+                # Modern eligibility already has a producing binding. Do not
+                # re-canonicalize large modern briefs for each copied history;
+                # original external hashes above still detect changed bytes.
                 return producing_binding
+            root = self.root()  # Readable absence of selection proves candidacy.
+            _require(path == root / ('followup' if followup else '') /
+                     (task['task_id'] + '-' + digest(handle['request_id'].encode()) + '.json'))
             original = unbound or records
             _require(bool(original))
             # Require one original contract, not a choice made after execution.

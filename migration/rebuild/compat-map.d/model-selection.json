@@ -110,7 +110,7 @@
         "assertions": [
           {
             "selector": "test_legacy_author_provenance.LegacyAuthorTests",
-            "tests": 15,
+            "tests": 19,
             "coverage": [
               "REQ-DISPATCH",
               "REQ-LIFECYCLE",
