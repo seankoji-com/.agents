@@ -142,6 +142,21 @@ class PushPolicyTest(unittest.TestCase):
             self.assertEqual(git(remote, 'rev-parse', 'feature').stdout,
                              git(worktree, 'rev-parse', 'HEAD').stdout)
             self.assertEqual(git(remote, 'rev-parse', 'master').stdout.strip(), master)
+            # An author replaces the already-published PR history. The helper must
+            # follow that head instead of reintroducing the superseded commits.
+            git(seed, 'checkout', '-b', 'replacement', master)
+            git(seed, 'commit', '--allow-empty', '-m', 'rebased PR history')
+            replacement = git(seed, 'rev-parse', 'HEAD').stdout
+            git(seed, 'push', '--force', 'origin', 'HEAD:refs/heads/feature')
+            initialize()
+            self.assertEqual(git(worktree, 'rev-parse', 'HEAD').stdout, replacement)
+            # Divergent unpublished work still survives a later author rewrite.
+            git(worktree, 'commit', '--allow-empty', '-m', 'unpublished after rebase')
+            unpublished = git(worktree, 'rev-parse', 'HEAD').stdout
+            git(seed, 'commit', '--allow-empty', '-m', 'author advances')
+            git(seed, 'push', 'origin', 'HEAD:refs/heads/feature')
+            initialize()
+            self.assertEqual(git(worktree, 'rev-parse', 'HEAD').stdout, unpublished)
             git(clone, 'config', 'extensions.worktreeConfig', 'true')
             for key, value in [('push.default', 'current'), ('remote.pushDefault', 'publish')]:
                 git(clone, 'config', '--worktree', key, value)

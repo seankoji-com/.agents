@@ -1089,7 +1089,7 @@ def reconcile_pr(pr, state, now, discovery):
 
     # Independently repairable work comes before queue diagnosis, so a queued job
     # never starves a failed check, an unresolved thread or a conflict on this PR.
-    semantic = bool(observation.get('semantic_repair')) and not (conflict or failing or threads > 0)
+    semantic = bool(observation.get('semantic_repair') or pr.get('semantic_repair_hold')) and not (conflict or failing or threads > 0)
     if conflict or failing or threads > 0 or semantic:
         fingerprint = digest({
             'head': head, 'failing': sorted(failing), 'threads': threads,
@@ -1733,6 +1733,24 @@ def schedule_request(state, state_file):
     key = (f"babysitter-{scope['kind']}-{scope['value'].replace('/', '-')}"
            f"-{POLICY_VERSION}-{state.get('run_id') or 'norun'}-g{generation}")
     package = state.get('package') or {}
+    if not state.get('execution_config'):
+        # Older/unbound scope runs still reconcile through the continuous helper.
+        # Never schedule an advance command that cannot load its run configuration.
+        prompt = (
+            f"Continue the authorised babysitter {scope['kind']} sweep for {scope['value']} "
+            f"(run {state.get('run_id')}, policy {state.get('policy_version')}, "
+            f"package {package.get('pinned_version')}). Resume the pinned continuous helper "
+            f"{shlex.quote(package['helper'])} with --state {shlex.quote(str(state_file))}: "
+            "refresh discovery, reconcile the whole scope, dispatch receipts and queue age, "
+            "and continue only authorised actions. Report missing-execution-config as a "
+            "deterministic advancement coverage gap until one advance binds --run-config. "
+            "Do not create a second schedule.")
+        return {'key': key, 'clientRequestId': key, 'tool': 'schedule_task',
+                'gap': 'missing-execution-config', 'arguments': {
+                    'schedule': {'type': 'interval', 'everyMs': state['policy']['cadence_seconds'] * 1000},
+                    'bindToCurrentThread': bool(state.get('thread_id')), 'prompt': prompt,
+                    'title': f"babysitter {scope['kind']} {scope['value']} continuous sweep",
+                    'clientRequestId': key}}
     helper = str(Path(package['helper']).with_name('org_execute.py'))
     advance = shlex.join(['python3', helper, '--advance', '--continuous-state', str(state_file),
                           '--wake-kind', 'schedule', '--bridge'])
@@ -1740,7 +1758,9 @@ def schedule_request(state, state_file):
         f"Continue the authorised babysitter {scope['kind']} sweep for {scope['value']} "
         f"(run {state.get('run_id')}, policy {state.get('policy_version')}, "
         f"package {package.get('pinned_version')}). Run exactly one pinned advancement through "
-        f"the native tool bridge: {advance}. Read its compact semantic requests and verify "
+        f"the native tool bridge: {advance}. When the host supplies a wake ID, append "
+        "--wake-id '<host wake ID>', replacing the placeholder with that actual ID; "
+        "otherwise omit --wake-id. Read its compact semantic requests and verify "
         "only those concerns at the named head; deterministic code owns task IDs, ingestion, "
         "reservations and retries. Report concrete blockers, coverage and next checks. "
         "A missing execution config is a named setup gap. Do not create a second schedule.")
@@ -1782,7 +1802,7 @@ def cmd_schedule_plan(args):
             return {'status': 'event-only', 'request': None,
                     'gap': scheduler.get('gap'),
                     'instruction': 'schedule only with explicit owner authorization'}
-        return {'status': 'plan', 'request': request,
+        return {'status': 'plan', 'request': request, 'gap': request.get('gap'),
                 'generation': scheduler.get('generation', 1),
                 'stop_after_create': {'tool': 'delete_scheduled_task',
                                       'arguments': {'scheduledTaskId': '<returned schedule id>'}}}

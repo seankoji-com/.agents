@@ -332,7 +332,7 @@ class ExecutionTest(unittest.TestCase):
         launch = next(args for tool, args in self.host.calls if tool == 'delegate_task')
         self.assertEqual(launch['target'], {'providerInstanceId': 'fixture', 'model': 'selected-model', 'options': {}})
         self.assertEqual(launch['clientRequestId'], 'fix-request')
-        self.assertEqual(launch['isolation'], 'shared')
+        self.assertEqual(launch['isolation'], 'worktree')
         self.assertIn('pr-worktree', launch['task'])
         snapshot, = self.directory.glob('fix-request-*-dispatch.json')
         self.assertEqual(json.loads(snapshot.read_text())['reasons'], ['failing-checks'])
@@ -838,6 +838,34 @@ class AdvanceTest(unittest.TestCase):
         self.assertEqual(second['outcomes'][0]['status'], 'dispatched', second)
         self.assertTrue(self.stored()['tasks'][0]['execution_history'][0]['malformed'])
 
+    def test_settled_receipt_is_not_replayed_but_later_pending_runs_still_exclude_writes(self):
+        self.advance(self.node())
+        host_id = self.finish()
+        pending = self.node(state='IN_PROGRESS')
+        self.advance(pending)
+        with patch.object(runner, 'continuous_command', wraps=runner.continuous_command) as command:
+            self.assertEqual(self.advance(pending)['outcomes'][0]['status'], 'waiting')
+        self.assertNotIn('receipt', [call.args[1] for call in command.call_args_list])
+        self.host.statuses[host_id]['hasPendingChildRuns'] = True
+        self.assertEqual(self.advance(self.node(state='SUCCESS'))['outcomes'][0]['status'], 'active-fixer')
+        self.assertIn(('task_status', {'taskId': host_id}), self.host.calls)
+
+    def test_forbidden_followup_reconciles_status_without_a_dispatch_receipt(self):
+        handle = {'task_id': 'forbidden-host', 'request_id': 'forbidden-request', 'forbidden_followup': True}
+        ctx = {'job': {'tasks': [{'followups': [handle]}]}}
+        self.host.statuses['forbidden-host'] = {'taskId': 'forbidden-host', 'status': 'completed',
+            'workState': 'result_available', 'hasPendingChildRuns': False, 'summary': 'Untrusted forbidden result.'}
+        row = self.report(self.node())['prs'][0]
+        with patch.object(self.jobs, 'context', return_value=ctx), patch.object(self.jobs, 'record') as record, \
+                patch.object(self.jobs, 'call') as call, patch.object(runner, 'continuous_command') as command:
+            result = self.jobs.reconcile(row, self.host)
+            self.assertEqual(result, {'active': False, 'ingested': []})
+            self.assertEqual(record.call_args.args[1]['kind'], 'reconciled')
+            self.host.statuses['forbidden-host']['hasPendingChildRuns'] = True
+            self.assertTrue(self.jobs.reconcile(row, self.host)['active'])
+        call.assert_not_called()
+        command.assert_not_called()
+
     def test_head_drift_retires_unlaunched_request_without_losing_work_or_budget(self):
         self.api.move_head = True
         rejected = self.advance(self.node())
@@ -980,6 +1008,51 @@ class AdvanceTest(unittest.TestCase):
         self.assertEqual(terminal['outcomes'][0]['status'], 'needs-semantic-verification', terminal)
         self.assertEqual(sum(t == 'delegate_task' for t, _ in self.host.calls), 3)
 
+    def test_semantic_repair_required_alone_blocks_landing(self):
+        self.check_semantic_repair_hold(False)
+
+    def test_semantic_repair_with_threads_blocks_resolution_and_landing(self):
+        self.check_semantic_repair_hold(True)
+
+    def check_semantic_repair_hold(self, with_threads):
+        number = 1
+        threads = [{'id': 'review-1', 'isResolved': False, 'isOutdated': False}] if with_threads else []
+        self.advance(self.node(number))
+        self.finish(number)
+        node = self.node(number, state='SUCCESS', threads=threads)
+        row = self.report(node)['prs'][0]
+        proof = {'pr': row['url'], 'head_sha': HEAD, 'subject_sha256': runner.semantic_subject(row),
+            'request_id': self.stored(number)['tasks'][0]['request_id'], 'repair_required': True,
+            'verification': ['Coordinator reproduced an outstanding semantic defect.'],
+            'threads': [{'id': 'review-1', 'reply': 'Verified separate concern.'}] if with_threads else []}
+        path = self.root / 'semantic-repair.json'
+        path.write_text(json.dumps(proof))
+        self.config['semantic_verifications'] = {row['url']: {'path': str(path),
+            'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'bytes': path.stat().st_size}}
+        with patch.object(self.jobs, 'workspace', side_effect=runner.ExecutionError('pr-workspace-unavailable')), \
+                patch.object(runner, 'coordinator_action') as action:
+            failed = self.advance(node)
+        self.assertEqual(failed['outcomes'][0]['status'], 'held', failed)
+        action.assert_not_called()
+        self.assertIn('semantic_repair_hold', runner.continuous.read_state(self.config['continuous_state'])['prs'][row['url']])
+        # Another actor resolves threads. The proof subject is now stale,
+        # but the retained repair requirement must still dispatch, not land.
+        green = self.node(number, state='SUCCESS')
+        with patch.object(runner, 'coordinator_action') as action:
+            resumed = self.advance(green)
+            self.assertEqual(resumed['outcomes'][0]['status'], 'dispatched', resumed)
+            action.assert_not_called()
+            self.assertEqual(self.advance(green)['outcomes'][0]['status'], 'active-fixer')
+            self.finish(number, status='failed')
+            self.assertEqual(self.advance(green)['outcomes'][0]['status'], 'dispatched')
+            action.assert_not_called()
+        self.finish(number)
+        with patch.object(runner, 'coordinator_action', return_value={'status': 'merge-executed'}) as action:
+            completed = self.advance(green)
+        self.assertEqual(completed['outcomes'][0]['status'], 'merge-executed', completed)
+        self.assertEqual(action.call_args.args[1]['kind'], 'merge')
+        self.assertNotIn('semantic_repair_hold', runner.continuous.read_state(self.config['continuous_state'])['prs'][row['url']])
+
     def test_update_refresh_green_gates_merge_and_targeted_omission(self):
         original = subprocess.run
         def helper(argv, **kwargs):
@@ -1013,10 +1086,32 @@ class AdvanceTest(unittest.TestCase):
         self.assertIn('T3_CALL', run.stdout)
         self.assertNotIn('ModuleNotFoundError', run.stderr)
         state = runner.continuous.read_state(self.config['continuous_state'])
+        unbound = runner.continuous.schedule_request(state, self.config['continuous_state'])
+        self.assertEqual(unbound['gap'], 'missing-execution-config')
+        self.assertNotIn('--advance', unbound['arguments']['prompt'])
+        self.assertIn('continuous helper', unbound['arguments']['prompt'])
+        state['execution_config'] = {'path': str(self.root / 'run.json'), 'sha256': 'a' * 64}
         prompt = runner.continuous.schedule_request(state, self.config['continuous_state'])['arguments']['prompt']
         self.assertEqual(prompt.count('--advance'), 1)
         self.assertIn('--continuous-state', prompt)
         self.assertIn('--wake-kind schedule --bridge', prompt)
+        self.assertIn("--wake-id '<host wake ID>'", prompt)
+        self.assertIn('otherwise omit --wake-id', prompt)
+
+    def test_unbound_repo_schedule_keeps_continuous_reconciliation(self):
+        path = self.root / 'repo-continuous.json'
+        args = runner.continuous.build_parser().parse_args(['start', '--state', str(path),
+            '--now', runner.org_scan.utc_now(), '--scope-kind', 'repo', '--scope-value', 'fixture/repo',
+            '--thread-id', 'parent', '--scheduler', 'scheduled',
+            '--authorization-source', self.config['authorization_source']])
+        args.func(args)
+        plan = runner.continuous.cmd_schedule_plan(argparse.Namespace(state=str(path)))
+        self.assertEqual(plan['gap'], 'missing-execution-config')
+        prompt = plan['request']['arguments']['prompt']
+        self.assertIn('repo sweep for fixture/repo', prompt)
+        self.assertIn('continuous.py', prompt)
+        self.assertIn('--state ' + str(path), prompt)
+        self.assertNotIn('--advance', prompt)
 
     def test_periodic_coverage_requested_without_receipt_is_explicitly_incomplete(self):
         path = runner.continuous.state_path(self.config['continuous_state'])

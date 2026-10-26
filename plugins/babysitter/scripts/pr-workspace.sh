@@ -427,6 +427,14 @@ git -C "$CLONE" config --local remote.pushDefault origin ||
   die "cannot configure push remote in ${CLONE}" 3
 verify_common_push_policy "$CLONE"
 
+# Capture unpublished local commits before fetch can replace the remote refs.
+# A clean old head already reachable from origin was published and may have been
+# superseded by an author rebase. Only unpublished commits need preservation.
+UNPUBLISHED=""
+if [ -e "$WORKTREE/.git" ]; then
+  UNPUBLISHED=$(git -C "$WORKTREE" rev-list HEAD --not --remotes=origin) ||
+    die "cannot inspect unpublished work in ${WORKTREE}" 3
+fi
 git -C "$CLONE" fetch --prune --quiet origin ||
   die "fetch failed in ${CLONE}" 3
 
@@ -465,8 +473,11 @@ if [ -d "$WORKTREE/.git" ] || [ -f "$WORKTREE/.git" ]; then
   if git -C "$WORKTREE" merge-base --is-ancestor HEAD "origin/${BRANCH}"; then
     git -C "$WORKTREE" merge --quiet --ff-only "origin/${BRANCH}" ||
       die "could not advance ${LOCAL_BRANCH} to origin/${BRANCH}" 3
-  else
+  elif [ -n "$UNPUBLISHED" ]; then
     note "preserved local commits in ${WORKTREE}; worker must integrate current head"
+  else
+    git -C "$WORKTREE" checkout --quiet -B "$LOCAL_BRANCH" "origin/${BRANCH}" ||
+      die "could not refresh ${LOCAL_BRANCH} to origin/${BRANCH}" 3
   fi
   note "reused ${WORKTREE}"
 else

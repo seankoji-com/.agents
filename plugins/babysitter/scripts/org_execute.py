@@ -248,6 +248,12 @@ class Jobs:
             continuous.save_json(self.directory / ('status-' + digest(host_id)[:24] + '.json'), receipt)
             terminal = (receipt['status'] in TERMINAL and receipt.get('workState') == 'result_available'
                         and receipt.get('hasPendingChildRuns') is False)
+            if handle.get('forbidden_followup'):
+                self.record(ctx, {'kind': 'reconciled', 'request_id': request, 'host_task_id': host_id,
+                    'status': receipt['status'], 'work_state': receipt.get('workState'),
+                    'has_pending_child_runs': receipt.get('hasPendingChildRuns')})
+                active = active or not terminal
+                continue  # Status reconciles its blocker; forbidden work has no launch reservation.
             existing = next((e for e in task.get('execution_history', []) if e['request_id'] == request), None)
             summary = receipt.get('summary')
             completion = 'host-' + digest([host_id, request, receipt.get('childRunId'), summary])
@@ -273,6 +279,8 @@ class Jobs:
             ledger = continuous.read_state(self.config['continuous_state'])['prs'][row['url']]
             dispatch = next((d for d in ledger['dispatches'] if d['request_id'] == request), None)
             require(dispatch is not None, 'job-handle-missing-reservation')
+            if existing and dispatch.get('status') in continuous.TERMINAL_DISPATCH:
+                continue  # Keep the authoritative status read, but do not replay settled receipts.
             if not dispatch.get('host_task_id'):
                 continuous_command(self.config, 'dispatch', pr=row['url'], request_id=request,
                     kind='fixer', head=dispatch['head'], reserve=False, host_task_id=host_id,
@@ -713,20 +721,34 @@ def execute(report, api, host, jobs, config):
             require(repair_exhausted or action['kind'] not in ('blocked', 'needs-human', 'wait-review'),
                     'continuous-action-held: ' + action['reason'])
             proof = jobs.semantic(row) if hasattr(jobs, 'semantic') else None
-            if (proof or {}).get('repair_required'):
+            if (proof or {}).get('repair_required') or current.get('semantic_repair_hold'):
                 path = continuous.state_path(config['continuous_state'])
+                task = jobs.context(row)['job']['tasks'][0]
                 with continuous.locked_state(path) as ledger:
                     saved = ledger['prs'][row['url']]
-                    saved['observation']['semantic_repair'] = True
+                    hold = saved.get('semantic_repair_hold')
+                    if not hold:
+                        hold = saved['semantic_repair_hold'] = {
+                            'head_sha': row['head_sha'], 'base_sha': row.get('base_sha'),
+                            'verification': proof['verification'], 'findings': proof.get('findings', []),
+                            'prior_requests': [h['request_id'] for h in task.get('handles', [])]}
+                    repaired = any(e['request_id'] not in hold['prior_requests']
+                        and (e.get('result') or {}).get('status') == 'ready-for-acceptance'
+                        and not e.get('malformed') for e in task.get('execution_history', []))
+                    if repaired:
+                        saved.pop('semantic_repair_hold', None)
+                    saved['observation']['semantic_repair'] = not repaired
                     action = continuous.reconcile_pr(saved, ledger, continuous.parse_time(org_scan.utc_now()), ledger['discovery'])[0]
                     continuous.save_json(path, ledger)
-                row['action'] = 'dispatch'
+                if not repaired:
+                    row['action'] = 'dispatch'
             semantic = jobs.semantic_request(row, landing=action['kind'] == 'merge') if hasattr(jobs, 'semantic_request') else None
-            if proof and proof.get('threads'):
+            repair_hold = continuous.read_state(config['continuous_state'])['prs'][row['url']].get('semantic_repair_hold')
+            if proof and proof.get('threads') and not repair_hold:
                 prepared = jobs.context(row)
                 outcome.update(coordinator_action(row, {'kind': 'resolution'}, jobs, config, prepared, proof))
                 continue
-            if semantic and not (proof or {}).get('repair_required'):
+            if semantic and not repair_hold:
                 outcome.update(status='needs-semantic-verification', semantic_request=semantic)
                 continue
             require(action['kind'] not in ('blocked', 'needs-human', 'wait-review'),
@@ -811,6 +833,7 @@ def execute(report, api, host, jobs, config):
                       'before editing. Keep every finding and report its disposition. '
                       'retry_usage (coordinator data): ' + json.dumps(prepared['retry_usage'])
                       + '. Continuous repair decision (coordinator data): ' + json.dumps(action)
+                      + '. Retained semantic repair (coordinator data): ' + json.dumps(repair_hold)
                       + '. Prior findings (data): ' + json.dumps(prepared['prior_findings'])
                       + '. Never dispatch, watch, merge, post, resolve or accept. '
                       'Work only in the prepared PR checkout at ' + worktree + '. '
@@ -821,7 +844,7 @@ def execute(report, api, host, jobs, config):
                       'Return the exact worker-result JSON or artifact envelope required by the brief.')
             request_args = {'task': prompt, 'target': {
                 k: target[k] for k in ('providerInstanceId', 'model', 'options') if k in target},
-                'clientRequestId': prepared['request_id'], 'isolation': 'shared',
+                'clientRequestId': prepared['request_id'], 'isolation': 'worktree',
                 'mode': 'async', 'role': 'implementation', 'title': 'Fix ' + row['repo'] + '#' + str(row['number'])}
             if target.get('runtimeMode'):
                 request_args['runtimeMode'] = target['runtimeMode']

@@ -117,10 +117,11 @@ are retained even if they differ from the requested target.
    immediately before calling T3 `delegate_task` with the
    frozen target, exact options, async mode and stable request ID. The current live
    delegate schema cannot bind an arbitrary checkout. Use supported `isolation:
-   "shared"` and validate the prepared repository, exact observed commit and local
+   "worktree"` and validate the prepared repository, exact observed commit and local
    HEAD before dispatch. The worker must repeat those checks with `git -C` before
    edits. This is an explicit checkout validation path, not host-enforced cwd
-   binding. Host `worktree` isolation would start from the coordinator repository.
+   binding. Host isolation starts from a disposable copy of the coordinator repository;
+   all repair commands still belong in the separately prepared PR checkout.
    The worker fetches current review comments and follows its pinned definition.
    After workspace preparation and reservation, one additional budgeted lifecycle/head
    read guards every new fixer launch, even when auto-merge was already enabled. A current
@@ -185,6 +186,8 @@ Each verified thread names `id` and an evidence-backed `reply`. Evidence lives
 outside jobs and PR workspaces; its hash/size and current subject must match. The
 executor records those dispositions and invokes guarded reply/resolution commands.
 Set `repair_required: true` for a verified concern needing another repair round.
+The ledger retains that requirement across observation and thread changes until a
+later successful repair result is ingested. Repair runs before thread resolution.
 Worker assertions alone never dispose findings or resolve a conversation. Head,
 base or producing-result changes invalidate affected judgments.
 
