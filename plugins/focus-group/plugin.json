@@ -1,6 +1,6 @@
 {
   "name": "focus-group",
-  "version": "0.1.21",
+  "version": "0.1.23",
   "description": "Plan and run an editable multi-model persona panel that tests a product and returns synthetic findings and a build/fix backlog.",
   "short_description": "Multi-model persona panels for product research",
   "argument_hint": "plan <product-or-brief> | plan <study> | run <study> | resume <study> | status <study> | cancel <study> | doctor",

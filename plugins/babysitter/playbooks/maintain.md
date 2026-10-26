@@ -24,7 +24,7 @@ use event-only without scheduler authority.
    may plan `read` only maintainer slots, whose `blocked` results answer triage but
    never an acceptance.
 2. Quick pass, in this thread, before any child: refresh with `continuous.py observe`;
-   reserve current `merge` or `update-branch` with
+   reserve current `merge` or `update-branch` only when the returned action matches, with
    `continuous.py dispatch --kind <kind> --reserve --head <head>` before
    `bash PKG/scripts/merge-pr.sh --repo <owner/name> --pr <N>`.
    For `update-branch`, add `--update-only --expected-head <head>`; record `UPDATED`,
@@ -36,6 +36,7 @@ use event-only without scheduler authority.
    merged. If the operator asked for review before landing, every PR is review-gated:
    skip this helper, read state with `list-prs.sh`, and give every unmerged PR a job
    (step 4) even without repair work.
+   `dispatch-fixer` skips this helper for step 4; resolution goes to step 7.
 3. Post it after the quick pass and at the end of every turn:
 
    | PR | Description | Not merged because |
@@ -43,7 +44,8 @@ use event-only without scheduler authority.
    | [owner/repo#12](https://github.com/owner/repo/pull/12) | PR title | 3 unresolved threads; failing check `lint`; fixer round 2 (candidate 1) |
 
    Emit each job's compact overview checklist; never stream raw logs.
-4. Classify each unmerged PR from `blockers=`. Child work: conflicts, an
+4. Classify each unmerged PR from `blockers=` or the complete observation when
+   step 2 skipped the helper. Child work: conflicts, an
    unupdatable branch, failing checks, unresolved threads needing code, requested
    changes. Coordinator work: threads needing only an answer (step 7).
    Waiting only: checks running at the current head. A required human review with

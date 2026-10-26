@@ -234,6 +234,15 @@ mutations. File descriptors contain `path`, SHA-256 and integer `bytes`.
 
 ## Findings, persistence and bounds
 
+Use [workflow recovery](workflow-recovery.md) before another workflow-only repair,
+on a stalled milestone or when a bound is reached. The read-only `progress`
+command (same `caller`, `--state-root` and `--job`) and the diagnostic returned by
+`finish` expose retained counters and loop warnings. Two incomplete rounds warn
+even when validator messages or metadata differ; unchanged authored content and
+repeated technical unavailability have separate signals. A warning does not change
+admission, findings, receipts or counters. Resolve live/uncertain work first, then
+diagnose before dispatch; do not default to another review or budget increase.
+
 Authoritative state is
 `$XDG_STATE_HOME/t3-plugins/review-subjects/PROJECT/LOGICAL-ID/review.json`
 (default `~/.local/state`). The stable logical ID uses the source request reference

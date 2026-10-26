@@ -1,6 +1,6 @@
 {
   "name": "agent-tuneup",
-  "version": "1.1.35",
+  "version": "1.1.37",
   "description": "Audit and align centralized T3 provider wiring, shared rules, skills, permissions and MCPs with approved native changes.",
   "short_description": "Audit and align centralized T3 provider wiring",
   "argument_hint": "[scope or desired outcome]",
