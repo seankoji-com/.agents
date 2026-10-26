@@ -31,6 +31,11 @@
       "path": "shared/agents/reviewer-standard.md",
       "stage": 4,
       "reason": "Shared upfront model choice, exact target/options, scoped authority and reviewer contract for dependency-ordered adoption."
+    },
+    {
+      "path": "shared/legacy_author_provenance.py",
+      "stage": 4,
+      "reason": "Request-specific conservative legacy author provenance with retained external anchors; no retrospective selection."
     }
   ],
   "inventory": {
@@ -90,7 +95,45 @@
             "selector": "test_routing.RoutingCli",
             "replace": true,
             "tests": 29,
-            "coverage": ["REQ-ROUTING"],
+            "coverage": [
+              "REQ-ROUTING"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_legacy_author_provenance.py",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "Source and relocated installed legacy author refusals and public revision/prepare preservation.",
+        "assertions": [
+          {
+            "selector": "test_legacy_author_provenance.LegacyAuthorTests",
+            "tests": 15,
+            "coverage": [
+              "REQ-DISPATCH",
+              "REQ-LIFECYCLE",
+              "REQ-DELIVERY"
+            ],
+            "survives": true
+          }
+        ]
+      },
+      {
+        "path": "tests/test_legacy_author_installed.py",
+        "stage": 4,
+        "disposition": "change",
+        "reason": "Source and relocated installed legacy author refusals and public revision/prepare preservation.",
+        "assertions": [
+          {
+            "selector": "test_legacy_author_installed.InstalledLegacyAuthorTests",
+            "tests": 2,
+            "coverage": [
+              "REQ-DISPATCH",
+              "REQ-LIFECYCLE",
+              "REQ-DELIVERY"
+            ],
             "survives": true
           }
         ]
