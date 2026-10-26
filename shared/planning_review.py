@@ -970,6 +970,90 @@ def _adverse(state):
             and row['status'] not in ('fixed', 'rebuttal-agreed', 'owner-decided', 'waived')]
 
 
+def _progress(store, job, state):
+    """A derived warning, never acceptance, dispatch permission or a budget grant."""
+    rounds = state['rounds']
+    charged = [r for r in rounds if r.get('charged')]
+    latest = rounds[-1] if rounds else None
+    incomplete = unchanged = technical = 0
+    content = charged[-1]['snapshot']['content_sha256'] if charged else None
+    for round_ in reversed(charged):
+        passes = round_['passes']
+        if not passes or not any(p['outcome'] == 'incomplete' for p in passes):
+            break
+        incomplete += 1
+    for round_ in reversed(charged):
+        if (round_['snapshot']['content_sha256'] != content or not round_['passes'] or
+                all(p['outcome'] == 'approved' for p in round_['passes'])):
+            break
+        unchanged += 1
+    trailing_attempts = []
+    for round_ in reversed(rounds):
+        if round_['passes']:
+            break  # A substantive pass, including direct fallback, ends a technical streak.
+        trailing_attempts.extend(reversed(round_['attempts']))
+    for attempt in trailing_attempts:
+        if attempt['outcome'] != 'unavailable':
+            break
+        technical += 1
+    budgets = {name: {'used': state[used], 'limit': state[limit],
+                      'remaining': max(0, state[limit] - state[used])}
+               for name, used, limit in (('content', 'rounds_used', 'round_limit'),
+                                         ('technical', 'technical_used', 'technical_limit'))}
+    signals = []
+    if any(not budget['remaining'] for budget in budgets.values()):
+        signals.append('budget_exhausted')
+    if incomplete >= 2:
+        signals.append('consecutive_incomplete_rounds')
+    if unchanged >= 2:
+        signals.append('unchanged_content_without_complete_approval')
+    if technical >= 2:
+        signals.append('consecutive_unavailable_attempts')
+    owns_subject = state['active_job'] == {'job_id': job['job_id'], 'state_root': str(store.root)}
+    prepared = {a['task_id'] for a in job['planning']['attempts'] if a['outcome'] is None}
+    unsettled = [t['task_id'] for t in job['tasks'] if t['task_id'] in prepared or _unsettled(job, t)]
+    if not owns_subject:
+        action = 'inspect_active_job' if state['active_job'] else 'subject_released'
+    elif unsettled:
+        action = 'reconcile_owned_work'
+    elif latest and not latest['closed'] and latest['passes']:
+        action = 'finish_current_round'
+    elif latest and latest.get('result') and all(p['outcome'] == 'approved' for p in latest['passes']):
+        action = 'inspect_existing_receipt'
+    elif signals:
+        action = 'diagnose_before_dispatch'
+    elif latest and latest.get('result'):
+        action = 'repair_then_begin'
+    else:
+        action = 'continue_within_existing_authority'
+    return {'kind': 'planning-progress-diagnostic', 'acceptance': False,
+            'job_id': job['job_id'], 'logical_output_id': state['logical_output_id'],
+            'subject_sha256': state['sha256'], 'active_job': deepcopy(state['active_job']),
+            'budgets': budgets, 'stop_recommended': bool(signals), 'signals': signals,
+            'consecutive_incomplete_rounds': incomplete,
+            'unchanged_content_rounds_without_complete_approval': unchanged,
+            'consecutive_unavailable_attempts': technical, 'unsettled_tasks': unsettled,
+            'next_action': action, 'open_adverse_findings': len(_adverse(state)),
+            'latest_round': None if latest is None else {
+                'number': latest['number'], 'charged': latest['charged'], 'closed': latest['closed'],
+                'receipt': deepcopy(latest.get('result')),
+                'passes': [{k: p.get(k) for k in ('task_id', 'slot_id', 'outcome', 'error')}
+                           for p in latest['passes']]},
+            'delivery_and_spend': {'value': None,
+                'reason': 'Planning records do not measure implementation, deployment, tokens or monetary cost.'}}
+
+
+def progress(store, caller, environ=None):
+    """Inspect the persistent subject without writing job, findings or counters."""
+    job = verify_all_pins(store, caller)
+    manifest_policy(job)
+    subject = _subject(job, environ)
+    with subject.transaction() as state:
+        _unchanged(store, job)
+        need(state is not None, 'planning subject is missing')
+        return _progress(store, job, state)
+
+
 def ingest(store, caller, task_id, raw, completion_id, environ=None):
     """Strict generic ingestion plus persistent partial findings and domain coverage.
 
@@ -1261,7 +1345,7 @@ def finish_round(store, caller, environ=None):
         round_.update(closed=True, result=reference)
         state['receipts'].append(reference)
         subject.save(state)
-        return {'reference': reference, 'accepted': accepted}
+        return {'reference': reference, 'accepted': accepted, 'progress': _progress(store, job, seal(state))}
 
 
 def validate_receipt(reference, *, expected_snapshot=None, environ=None):
