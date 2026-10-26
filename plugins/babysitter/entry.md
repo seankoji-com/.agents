@@ -80,7 +80,7 @@ the event-only discovery/queue-age gap. See `PKG/references/continuous.md`.
 
 ## Landing gate
 
-Thread resolution, latest reviews, required checks and mergeability are separate
+Thread resolution, latest review state, required checks and mergeability are separate
 gates. Inspect every unresolved thread at the current head regardless of branch
 rules. Never dismiss reviews. Babysitter adds no review
 unless the operator asks for review before landing; then follow

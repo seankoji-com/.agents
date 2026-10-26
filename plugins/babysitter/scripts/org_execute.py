@@ -426,18 +426,21 @@ class Jobs:
         if len(handles) == 1 and dispatch and dispatch.get('host_task_id') == handles[0].get(
                 'task_id', handles[0].get('host_task_id')):
             return None  # A durable handle pair belongs to ordinary reconciliation, even when settled.
-        stage = next((s for s in ctx['job']['stages'] if s['id'] == task['stage_id']), {})
-        contract = stage.get('validator_contract', {})
-        # A live fixer may already have pushed a new head. Recover ownership at
-        # its reserved stage head; the fresh head still needs ordinary validation.
         require(dispatch is not None and dispatch.get('kind') == 'fixer'
-                and contract.get('pr') == row['url']
-                and dispatch.get('head') == contract.get('head_sha')
                 and dispatch.get('status') in continuous.OPEN_DISPATCH,
                 'host-receipt-reservation-mismatch')
         require(pr.get('fixer', {}).get('request_id') == request
                 and pr.get('fixer', {}).get('in_flight'), 'host-receipt-reservation-mismatch')
-        receipt = json.loads(path.read_text())
+        stage = next((s for s in ctx['job']['stages'] if s['id'] == task['stage_id']), {})
+        require(stage.get('validator_contract', {}).get('pr') == row['url'],
+                'host-receipt-pr-binding')
+        envelope = json.loads(path.read_text())
+        require(isinstance(envelope, dict) and envelope.get('schema') == 'babysitter-returned-receipt'
+                and envelope.get('version') == 1, 'host-receipt-envelope')
+        require(envelope.get('job_id') == ctx['job_id'] and envelope.get('task_id') == ctx['task_id']
+                and envelope.get('request_id') == request and envelope.get('pr_url') == row['url'],
+                'host-receipt-envelope-binding')
+        receipt = envelope.get('receipt')
         require(isinstance(receipt, dict) and isinstance(receipt.get('taskId'), str)
                 and bool(receipt['taskId']), 'host-receipt-shape')
         brief_ref = task.get('brief')
@@ -446,14 +449,23 @@ class Jobs:
         raw = Path(brief_ref['path']).read_bytes()
         require(hashlib.sha256(raw).hexdigest() == brief_ref['sha256'], 'brief-digest')
         brief = json.loads(raw)
-        require(brief.get('request_id') == request and brief.get('task_id') == ctx['task_id'],
+        require(brief.get('job_id') == ctx['job_id'] and brief.get('request_id') == request
+                and brief.get('task_id') == ctx['task_id']
+                and envelope.get('brief_sha256') == brief_ref['sha256'],
                 'host-receipt-brief-binding')
-        require(dispatch.get('attempt') == brief.get('attempt', 0) + 1,
-                'host-receipt-reservation-mismatch')
         target = (brief.get('model_selection') or {}).get('dispatch', {}).get('target') or brief.get('target')
         require(isinstance(target, dict) and target.get('model') and target.get('providerInstanceId'),
                 'host-receipt-unpinned-target')
         require(isinstance(target.get('options', {}), dict), 'host-receipt-unpinned-target')
+        reservation = envelope.get('reservation')
+        require(isinstance(reservation, dict) and reservation == {
+            'request_id': dispatch.get('request_id'), 'kind': dispatch.get('kind'),
+            'head': dispatch.get('head'), 'attempt': dispatch.get('attempt'),
+            'reconciliation_request_id': dispatch.get('reconciliation_request_id')},
+            'host-receipt-reservation-mismatch')
+        require(envelope.get('target') == {'providerInstanceId': target.get('providerInstanceId'),
+                'model': target.get('model'), 'options': target.get('options', {})},
+                'host-receipt-target-mismatch')
         observed_options = receipt.get('options')
         if isinstance(observed_options, list):
             require(all(isinstance(option, dict) and isinstance(option.get('id'), str)
@@ -993,8 +1005,18 @@ def execute(report, api, host, jobs, config):
                 raise
             # Retain the actual host handle before identity checks. A mismatch is
             # still owned work and must never disappear or trigger replacement.
-            continuous.save_json(jobs.directory / (prepared['request_id'] + '-receipt.json'), receipt)
             outcome.update(task_id=receipt['taskId'], request_id=prepared['request_id'])
+            reservation = reserved['dispatch']
+            continuous.save_json(jobs.directory / (prepared['request_id'] + '-receipt.json'), {
+                'schema': 'babysitter-returned-receipt', 'version': 1,
+                'job_id': prepared['job_id'], 'task_id': prepared['task_id'],
+                'request_id': prepared['request_id'], 'pr_url': row['url'],
+                'brief_sha256': prepared['brief']['sha256'],
+                'reservation': {k: reservation.get(k) for k in (
+                    'request_id', 'kind', 'head', 'attempt', 'reconciliation_request_id')},
+                'target': {'providerInstanceId': target.get('providerInstanceId'),
+                    'model': target.get('model'), 'options': target.get('options', {})},
+                'receipt': receipt})
             jobs.record(prepared, {'kind': 'accepted', 'request_id': prepared['request_id'],
                 'host_task_id': receipt['taskId'], 'child_thread_id': receipt.get('childThreadId'),
                 'status': receipt.get('status', 'running'), 'work_state': receipt.get('workState', 'working'),

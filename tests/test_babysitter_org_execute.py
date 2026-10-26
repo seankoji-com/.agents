@@ -921,6 +921,96 @@ class AdvanceTest(unittest.TestCase):
         self.assertEqual(sum(tool == 'delegate_task' for tool, _ in self.host.calls), 1)
         self.assertTrue(receipt_path.exists())
 
+    def test_second_cycle_receipt_recovers_against_its_exact_reservation(self):
+        initial = self.advance(self.node())
+        self.assertEqual(initial['outcomes'][0]['status'], 'dispatched', initial)
+        self.finish(status='failed')
+        moved_head = 'b' * 40
+        self.api.move_head = True
+        original_record = self.jobs.record
+        fail_once = True
+
+        def record(prepared, event):
+            nonlocal fail_once
+            if event.get('kind') == 'accepted' and fail_once:
+                fail_once = False
+                raise runner.ExecutionError('fixture-record-failure')
+            return original_record(prepared, event)
+
+        with patch.object(self.jobs, 'record', side_effect=record):
+            first = self.advance(self.node(headRefOid=moved_head))
+        self.assertEqual(first['outcomes'][0]['status'], 'held')
+        job = self.stored()['tasks'][0]
+        brief = json.loads(Path(job['brief']['path']).read_text())
+        ledger = runner.continuous.read_state(self.config['continuous_state'])['prs'][pr()['url']]
+        dispatch = ledger['dispatches'][-1]
+        self.assertEqual(job['attempt'], brief['attempt'])
+        self.assertEqual(brief['attempt'], 1)
+        self.assertEqual(dispatch['attempt'], 1)
+        self.assertNotEqual(dispatch['attempt'], brief['attempt'] + 1)
+        self.assertNotEqual(dispatch['head'], self.config['job_template']['stages'][0]['validator_contract']['head_sha'])
+        self.assertEqual(dispatch['request_id'], job['request_id'])
+        host_id = self.host.statuses.keys() - {job['handles'][0]['task_id']}
+        self.assertEqual(len(host_id), 1)
+        host_id = next(iter(host_id))
+
+        with patch.object(self.jobs, 'record', side_effect=record):
+            recovered = self.advance(self.node(headRefOid=moved_head))
+        self.assertEqual(recovered['outcomes'][0]['status'], 'active-fixer', recovered)
+        self.assertTrue(any(tool == 'task_status' and args['taskId'] == host_id for tool, args in self.host.calls))
+        self.assertEqual(sum(tool == 'delegate_task' for tool, _ in self.host.calls), 2)
+
+    def test_unbound_returned_receipt_holds_without_adopting_handle(self):
+        original_record = self.jobs.record
+
+        def fail_record(prepared, event):
+            if event.get('kind') == 'accepted':
+                raise runner.ExecutionError('fixture-record-failure')
+            return original_record(prepared, event)
+
+        with patch.object(self.jobs, 'record', side_effect=fail_record):
+            self.assertEqual(self.advance(self.node())['outcomes'][0]['status'], 'held')
+        receipt_path = next(self.jobs.directory.glob('*-receipt.json'))
+        envelope = json.loads(receipt_path.read_text())
+        receipt_path.write_text(json.dumps(envelope['receipt']))
+        with patch.object(self.jobs, 'record', side_effect=fail_record):
+            held = self.advance(self.node())
+        self.assertEqual(held['outcomes'][0]['status'], 'held')
+        self.assertIn('host-receipt-envelope', held['outcomes'][0]['reason'])
+        self.assertEqual(sum(tool == 'delegate_task' for tool, _ in self.host.calls), 1)
+        self.assertFalse(any(tool == 'task_status' for tool, _ in self.host.calls))
+
+    def test_foreign_bound_request_receipt_holds_without_adopting_handle(self):
+        original_record = self.jobs.record
+
+        def fail_record(prepared, event):
+            if event.get('kind') == 'accepted':
+                raise runner.ExecutionError('fixture-record-failure')
+            return original_record(prepared, event)
+
+        with patch.object(self.jobs, 'record', side_effect=fail_record):
+            self.assertEqual(self.advance(self.node())['outcomes'][0]['status'], 'held')
+        receipt_path = next(self.jobs.directory.glob('*-receipt.json'))
+        envelope = json.loads(receipt_path.read_text())
+        request_id = envelope['request_id']
+        envelope['request_id'] = 'another-bound-request'
+        receipt_path.write_text(json.dumps(envelope))
+        with patch.object(self.jobs, 'record', side_effect=fail_record):
+            held = self.advance(self.node())
+        self.assertEqual(held['outcomes'][0]['status'], 'held')
+        self.assertIn('host-receipt-envelope-binding', held['outcomes'][0]['reason'])
+        self.assertEqual(sum(tool == 'delegate_task' for tool, _ in self.host.calls), 1)
+        self.assertFalse(any(tool == 'task_status' for tool, _ in self.host.calls))
+        envelope['request_id'] = request_id
+        envelope['pr_url'] = 'https://github.com/another/repo/pull/1'
+        receipt_path.write_text(json.dumps(envelope))
+        with patch.object(self.jobs, 'record', side_effect=fail_record):
+            foreign_pr = self.advance(self.node())
+        self.assertEqual(foreign_pr['outcomes'][0]['status'], 'held')
+        self.assertIn('host-receipt-envelope-binding', foreign_pr['outcomes'][0]['reason'])
+        self.assertEqual(sum(tool == 'delegate_task' for tool, _ in self.host.calls), 1)
+        self.assertFalse(any(tool == 'task_status' for tool, _ in self.host.calls))
+
     def test_returned_receipt_recovers_when_continuous_attach_failed(self):
         original = runner.continuous_command
         fail_once = True
@@ -970,16 +1060,16 @@ class AdvanceTest(unittest.TestCase):
         with patch.object(self.jobs, 'record', side_effect=fail_record):
             self.assertEqual(self.advance(self.node())['outcomes'][0]['status'], 'held')
         receipt_path = next(self.jobs.directory.glob('*-receipt.json'))
-        receipt = json.loads(receipt_path.read_text())
-        receipt['taskId'] = ''
-        receipt_path.write_text(json.dumps(receipt))
+        envelope = json.loads(receipt_path.read_text())
+        envelope['receipt']['taskId'] = ''
+        receipt_path.write_text(json.dumps(envelope))
         with patch.object(self.jobs, 'record', side_effect=fail_record):
             malformed = self.advance(self.node())
         self.assertEqual(malformed['outcomes'][0]['status'], 'held')
         self.assertIn('host-receipt-shape', malformed['outcomes'][0]['reason'])
-        receipt['taskId'] = next(iter(self.host.statuses))
-        receipt['providerInstanceId'] = 'foreign-provider'
-        receipt_path.write_text(json.dumps(receipt))
+        envelope['receipt']['taskId'] = next(iter(self.host.statuses))
+        envelope['receipt']['providerInstanceId'] = 'foreign-provider'
+        receipt_path.write_text(json.dumps(envelope))
         with patch.object(self.jobs, 'record', side_effect=fail_record):
             held = self.advance(self.node())
         self.assertEqual(held['outcomes'][0]['status'], 'held')
