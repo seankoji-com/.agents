@@ -1089,7 +1089,14 @@ def reconcile_pr(pr, state, now, discovery):
 
     # Independently repairable work comes before queue diagnosis, so a queued job
     # never starves a failed check, an unresolved thread or a conflict on this PR.
-    semantic = bool(observation.get('semantic_repair') or pr.get('semantic_repair_hold')) and not (conflict or failing or threads > 0)
+    hold = pr.get('semantic_repair_hold') or {}
+    if hold.get('state') == 'needs-verification':
+        return ({'pr': pr['url'], 'kind': 'verify-semantic',
+                 'reason': 'the retained coordinator concern needs current semantic verification',
+                 'next_check_at': deadline(now, cadence)}, queue,
+                {'kind': 'semantic-verification', 'detail': hold['verification']}, progress)
+    semantic = bool(observation.get('semantic_repair') or
+                    (hold and hold.get('state', 'needs-repair') == 'needs-repair')) and not (conflict or failing or threads > 0)
     if conflict or failing or threads > 0 or semantic:
         fingerprint = digest({
             'head': head, 'failing': sorted(failing), 'threads': threads,
@@ -2108,6 +2115,8 @@ def cmd_dispatch(args):
                 f"update-branch {update['request_id']} is pending; another write may not race it")
         arming = live_dispatch(pr, 'auto-merge')
         require(not arming, 'auto-merge write is pending; reconcile it before another write')
+        require((pr.get('semantic_repair_hold') or {}).get('state') != 'needs-verification',
+                'semantic verification required before another write')
         reconciliation_id = getattr(args, 'reconciliation_request_id', None)
         if args.kind == 'auto-merge' or reconciliation_id:
             action = reconcile_pr(pr, state, now, state.get('discovery') or {})[0]

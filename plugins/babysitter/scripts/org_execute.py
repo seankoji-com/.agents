@@ -350,6 +350,7 @@ class Jobs:
             return None
         require(bool(proof.get('verification')) and isinstance(proof.get('findings', []), list)
                 and isinstance(proof.get('threads', []), list), 'semantic-verification-required')
+        require(isinstance(proof.get('repair_required', False), bool), 'semantic-repair-required-must-be-boolean')
         findings = ctx['job']['tasks'][0].get('finding_dispositions', [])
         for disposition in proof.get('findings', []):
             require(disposition.get('disposition') in {'fixed', 'rejected'}, 'semantic-disposition-must-fix-or-reject')
@@ -362,7 +363,7 @@ class Jobs:
                 'task_id': ctx['task_id'], **disposition, 'evidence': reference})
         return proof
 
-    def semantic_request(self, row, *, landing=False):
+    def semantic_request(self, row, *, landing=False, repair_hold=None):
         ctx = self.context(row)
         if not ctx:
             return None
@@ -372,7 +373,7 @@ class Jobs:
             return None
         latest = executions[-1]
         result = latest.get('result') or {}
-        # A successful repair needs judgment only for the remaining findings or
+        # Coordinator concerns survive worker success, even without findings or
         # threads. Failed or malformed work can retry under the retained budget.
         findings = []
         for finding in task.get('finding_dispositions', []):
@@ -389,12 +390,13 @@ class Jobs:
                            and recorded.get('base_sha') == row.get('base_sha'))
             if finding.get('disposition') not in {'fixed', 'rejected'} or not current:
                 findings.append(finding)
-        if (result.get('status') != 'ready-for-acceptance' and not landing) or not (findings or row['unresolved_thread_ids']):
+        if (result.get('status') != 'ready-for-acceptance' and not landing) or not (findings or row['unresolved_thread_ids'] or repair_hold):
             return None
         return {'pr': row['url'], 'head_sha': row['head_sha'], 'base_sha': row.get('base_sha'),
                 'request_id': latest['request_id'],
                 'subject_sha256': semantic_subject(row),
                 'findings': findings, 'thread_ids': row['unresolved_thread_ids'],
+                **({'semantic_repair': copy.deepcopy(repair_hold)} if repair_hold else {}),
                 'result_transport': latest['transport_ref'],
                 'instruction': 'Verify the concern at this head; supply coordinator evidence, finding dispositions and thread replies.'}
 
@@ -727,28 +729,41 @@ def execute(report, api, host, jobs, config):
                 with continuous.locked_state(path) as ledger:
                     saved = ledger['prs'][row['url']]
                     hold = saved.get('semantic_repair_hold')
-                    if not hold:
+                    if proof and proof.get('repair_required') is False:
+                        saved.pop('semantic_repair_hold', None)
+                        hold = None
+                    # Replaying a proof must not reset the repair's producing IDs.
+                    elif proof and proof.get('repair_required') is True and (
+                            not hold or hold.get('proof_sha256') != digest(proof)):
                         hold = saved['semantic_repair_hold'] = {
                             'head_sha': row['head_sha'], 'base_sha': row.get('base_sha'),
+                            'state': 'needs-repair', 'proof_sha256': digest(proof),
                             'verification': proof['verification'], 'findings': proof.get('findings', []),
                             'prior_requests': [h['request_id'] for h in task.get('handles', [])]}
-                    repaired = any(e['request_id'] not in hold['prior_requests']
-                        and (e.get('result') or {}).get('status') == 'ready-for-acceptance'
-                        and not e.get('malformed') for e in task.get('execution_history', []))
-                    if repaired:
-                        saved.pop('semantic_repair_hold', None)
-                    saved['observation']['semantic_repair'] = not repaired
+                    if hold:
+                        repaired = next((e for e in reversed(task.get('execution_history', []))
+                            if e['request_id'] not in hold['prior_requests']
+                            and (e.get('result') or {}).get('status') == 'ready-for-acceptance'
+                            and not e.get('malformed')), None)
+                        if repaired:
+                            hold.update(state='needs-verification', repairing_request_id=repaired['request_id'])
+                        if hold['head_sha'] != row['head_sha'] or hold.get('base_sha') != row.get('base_sha'):
+                            hold['state'] = 'needs-verification'
+                    needs_repair = bool(hold and hold.get('state', 'needs-repair') == 'needs-repair')
+                    saved['observation']['semantic_repair'] = needs_repair
                     action = continuous.reconcile_pr(saved, ledger, continuous.parse_time(org_scan.utc_now()), ledger['discovery'])[0]
                     continuous.save_json(path, ledger)
-                if not repaired:
+                if needs_repair:
                     row['action'] = 'dispatch'
-            semantic = jobs.semantic_request(row, landing=action['kind'] == 'merge') if hasattr(jobs, 'semantic_request') else None
             repair_hold = continuous.read_state(config['continuous_state'])['prs'][row['url']].get('semantic_repair_hold')
+            verifying = repair_hold and repair_hold.get('state') == 'needs-verification'
+            semantic = jobs.semantic_request(row, landing=bool(verifying) or action['kind'] == 'merge',
+                repair_hold=repair_hold if verifying else None) if hasattr(jobs, 'semantic_request') else None
             if proof and proof.get('threads') and not repair_hold:
                 prepared = jobs.context(row)
                 outcome.update(coordinator_action(row, {'kind': 'resolution'}, jobs, config, prepared, proof))
                 continue
-            if semantic and not repair_hold:
+            if semantic and (not repair_hold or verifying):
                 outcome.update(status='needs-semantic-verification', semantic_request=semantic)
                 continue
             require(action['kind'] not in ('blocked', 'needs-human', 'wait-review'),

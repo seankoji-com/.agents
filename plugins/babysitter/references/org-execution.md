@@ -186,8 +186,11 @@ Each verified thread names `id` and an evidence-backed `reply`. Evidence lives
 outside jobs and PR workspaces; its hash/size and current subject must match. The
 executor records those dispositions and invokes guarded reply/resolution commands.
 Set `repair_required: true` for a verified concern needing another repair round.
-The ledger retains that requirement across observation and thread changes until a
-later successful repair result is ingested. Repair runs before thread resolution.
+The ledger retains that concern across observation and thread changes. A successful
+repair result or head/base movement requests fresh semantic verification, preserving
+the concern and repairing request ID. Only a current-head/base/subject/latest-request
+coordinator proof with `repair_required: false` clears it, including author-pushed
+fixes that need no worker. Repair and verification run before thread resolution.
 Worker assertions alone never dispose findings or resolve a conversation. Head,
 base or producing-result changes invalidate affected judgments.
 

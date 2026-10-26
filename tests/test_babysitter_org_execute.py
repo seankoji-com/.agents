@@ -1014,7 +1014,10 @@ class AdvanceTest(unittest.TestCase):
     def test_semantic_repair_with_threads_blocks_resolution_and_landing(self):
         self.check_semantic_repair_hold(True)
 
-    def check_semantic_repair_hold(self, with_threads):
+    def test_author_pushed_fix_requires_current_proof_without_another_worker(self):
+        self.check_semantic_repair_hold(False, author_fix=True)
+
+    def check_semantic_repair_hold(self, with_threads, author_fix=False):
         number = 1
         threads = [{'id': 'review-1', 'isResolved': False, 'isOutdated': False}] if with_threads else []
         self.advance(self.node(number))
@@ -1026,9 +1029,11 @@ class AdvanceTest(unittest.TestCase):
             'verification': ['Coordinator reproduced an outstanding semantic defect.'],
             'threads': [{'id': 'review-1', 'reply': 'Verified separate concern.'}] if with_threads else []}
         path = self.root / 'semantic-repair.json'
-        path.write_text(json.dumps(proof))
-        self.config['semantic_verifications'] = {row['url']: {'path': str(path),
-            'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'bytes': path.stat().st_size}}
+        def publish(value):
+            path.write_text(json.dumps(value))
+            self.config['semantic_verifications'] = {row['url']: {'path': str(path),
+                'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'bytes': path.stat().st_size}}
+        publish(proof)
         with patch.object(self.jobs, 'workspace', side_effect=runner.ExecutionError('pr-workspace-unavailable')), \
                 patch.object(runner, 'coordinator_action') as action:
             failed = self.advance(node)
@@ -1037,21 +1042,58 @@ class AdvanceTest(unittest.TestCase):
         self.assertIn('semantic_repair_hold', runner.continuous.read_state(self.config['continuous_state'])['prs'][row['url']])
         # Another actor resolves threads. The proof subject is now stale,
         # but the retained repair requirement must still dispatch, not land.
-        green = self.node(number, state='SUCCESS')
+        green = self.node(number, state='SUCCESS', **({'headRefOid': 'b' * 40} if author_fix else {}))
         with patch.object(runner, 'coordinator_action') as action:
-            resumed = self.advance(green)
-            self.assertEqual(resumed['outcomes'][0]['status'], 'dispatched', resumed)
+            if not author_fix:
+                resumed = self.advance(green)
+                self.assertEqual(resumed['outcomes'][0]['status'], 'dispatched', resumed)
+                action.assert_not_called()
+                self.assertEqual(self.advance(green)['outcomes'][0]['status'], 'active-fixer')
+                self.finish(number, status='failed')
+                self.assertEqual(self.advance(green)['outcomes'][0]['status'], 'dispatched')
+                self.finish(number)
+            completed = self.advance(green)
+            self.assertEqual(completed['outcomes'][0]['status'], 'needs-semantic-verification', completed)
             action.assert_not_called()
-            self.assertEqual(self.advance(green)['outcomes'][0]['status'], 'active-fixer')
-            self.finish(number, status='failed')
-            self.assertEqual(self.advance(green)['outcomes'][0]['status'], 'dispatched')
+            request = completed['outcomes'][0]['semantic_request']
+            self.assertEqual(request['semantic_repair']['state'], 'needs-verification')
+            self.assertEqual(request['semantic_repair']['verification'], proof['verification'])
+            saved = runner.continuous.read_state(self.config['continuous_state'])
+            self.assertEqual(runner.continuous.reconcile_pr(saved['prs'][row['url']], saved,
+                runner.continuous.parse_time(runner.org_scan.utc_now()), saved['discovery'])[0]['kind'], 'verify-semantic')
+            for kind in ['merge', 'resolution', 'auto-merge', 'fixer', 'update-branch']:
+                with self.assertRaisesRegex(runner.continuous.ContinuousError, 'semantic verification required'):
+                    runner.continuous_command(self.config, 'dispatch', pr=row['url'], request_id='blocked-' + kind,
+                        kind=kind, head=request['head_sha'], reserve=True, host_task_id=None,
+                        attempt=1, review_triage=False)
+            latest = self.stored(number)['tasks'][0]['execution_history'][-1]['request_id']
+            if not author_fix:
+                self.assertEqual(request['semantic_repair']['repairing_request_id'], latest)
+            self.config['semantic_verifications'] = {}
+            self.assertEqual(self.advance(green)['outcomes'][0]['status'], 'needs-semantic-verification')
+            clean = {**proof, 'head_sha': request['head_sha'], 'base_sha': request['base_sha'],
+                'subject_sha256': request['subject_sha256'], 'request_id': latest,
+                'repair_required': False, 'threads': [],
+                'verification': ['Coordinator verified the retained defect is fixed at the current head.']}
+            for key, wrong in [('head_sha', 'c' * 40), ('base_sha', 'c' * 40),
+                               ('subject_sha256', 'c' * 64), ('request_id', 'stale-request')]:
+                publish({**clean, key: wrong})
+                held = self.advance(green)
+                self.assertEqual(held['outcomes'][0]['status'], 'needs-semantic-verification', (key, held))
+            # A proof without an explicit clean verdict cannot clear the concern.
+            publish({k: v for k, v in clean.items() if k != 'repair_required'})
+            self.assertEqual(self.advance(green)['outcomes'][0]['status'], 'needs-semantic-verification')
             action.assert_not_called()
-        self.finish(number)
+        publish(clean)
+        launches = sum(t == 'delegate_task' for t, _ in self.host.calls)
         with patch.object(runner, 'coordinator_action', return_value={'status': 'merge-executed'}) as action:
             completed = self.advance(green)
         self.assertEqual(completed['outcomes'][0]['status'], 'merge-executed', completed)
         self.assertEqual(action.call_args.args[1]['kind'], 'merge')
         self.assertNotIn('semantic_repair_hold', runner.continuous.read_state(self.config['continuous_state'])['prs'][row['url']])
+        self.assertEqual(sum(t == 'delegate_task' for t, _ in self.host.calls), launches)
+        if author_fix:
+            self.assertEqual(launches, 1)
 
     def test_update_refresh_green_gates_merge_and_targeted_omission(self):
         original = subprocess.run
