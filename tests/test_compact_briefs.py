@@ -9,7 +9,6 @@ import copy
 import io
 import itertools
 import json
-import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -19,9 +18,10 @@ import tempfile
 import unittest
 from unittest import mock
 
-from core.jobs.store import canonical, digest
+from core.jobs.store import JobError, canonical, digest
 from core.schema import errors
-from shared.compact_briefs import COMPACT, LEGACY, MAP_HASH, MAGIC, BODY, deserialize, serialize
+from shared.compact_briefs import COMPACT, LEGACY, MAGIC, BODY, deserialize, serialize
+import shared.compact_briefs as compact_briefs
 from tests.test_rebuild_installed import Sandbox, worker_result
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +68,18 @@ class CompactInstalledTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
+
+    def test_compact_invalid_utf8_is_a_controlled_job_error(self):
+        body = b'\xff'
+        header = {'schema_version': 2, 'transport': COMPACT,
+                  'definition': {'encoding': 'inline-utf-8', 'sha256': digest(body), 'bytes': len(body)}}
+        with self.assertRaisesRegex(JobError, 'compact_inline_definition_invalid_utf8'):
+            deserialize(MAGIC + canonical(header) + BODY + body)
+
+    def test_schema_valid_retention_rule_without_inline_text_is_refused(self):
+        with self.assertRaisesRegex(JobError, 'retention_rule_invalid'):
+            compact_briefs.validate_retention_rules({'rules': [
+                {'disposition': 'inline', 'source_id': 'fixture'}]})
 
     def make(self, worker='imps/investigator', *, compact=True, task_changes=None, job_changes=None,
              source=None, dependencies=None):
@@ -256,8 +268,7 @@ class CompactInstalledTest(unittest.TestCase):
         self.assert_refusal(self.ingest(case, check=False), 'compact_projection_authority_mismatch')
 
     def test_required_task_rubrics_are_inline_and_drift_refuses_public_admission(self):
-        rubric = self.box.private / 'assigned-rubric.md'
-        rubric.write_text('Inspect the exact task-specific recovery and rollback obligations.\n')
+        rubric = self.packages['imps'][0] / 'references/plan-review-rubric.md'
         case = self.make('imps/reviewer')
         descriptor = {'path': str(rubric), 'sha256': digest(rubric.read_bytes()), 'bytes': rubric.stat().st_size}
         self.edit_state(case, lambda state: state['stages'][0]['resources'].update(planning_snapshot={'rubrics': [descriptor]}))
@@ -266,8 +277,31 @@ class CompactInstalledTest(unittest.TestCase):
         self.assertEqual(supplied['text'], rubric.read_text())
         self.assertNotIn('path', supplied)
         self.assertLessEqual(len(procedural_bytes(case['brief'])), 24576)
-        rubric.write_text('Changed required procedure.\n')
+        original = rubric.read_bytes()
+        rubric.write_bytes(original + b'Changed required procedure.\n')
         self.assert_refusal(self.ingest(case, check=False), 'compact_required_rubric_bytes_changed')
+
+    def test_unfrozen_rubric_path_is_refused_before_reading(self):
+        rubric = self.box.private / 'unfrozen-rubric.md'
+        rubric.write_text('Do not read arbitrary coordinator files.\n')
+        descriptor = {'path': str(rubric), 'sha256': digest(rubric.read_bytes()), 'bytes': rubric.stat().st_size}
+        with self.assertRaisesRegex(JobError, 'compact_required_rubric_not_frozen'):
+            compact_briefs.read_required_rubric(descriptor, set())
+
+    def test_frozen_rubric_hash_is_admitted(self):
+        rubric = self.packages['imps'][0] / 'references/plan-review-rubric.md'
+        raw = rubric.read_bytes()
+        descriptor = {'path': str(rubric), 'sha256': digest(raw), 'bytes': len(raw)}
+        self.assertEqual(compact_briefs.read_required_rubric(descriptor, {digest(raw)}), raw)
+
+    def test_required_task_rubric_symlink_alias_is_refused(self):
+        rubric = self.box.private / 'rubric-target.md'
+        rubric.write_text('Synthetic authorized rubric text.\n')
+        alias = self.box.private / 'rubric-alias.md'
+        alias.symlink_to(rubric)
+        descriptor = {'path': str(alias), 'sha256': digest(rubric.read_bytes()), 'bytes': rubric.stat().st_size}
+        with self.assertRaisesRegex(JobError, 'compact_required_rubric_descriptor_invalid'):
+            compact_briefs.read_required_rubric(descriptor, set())
 
     def test_required_rubric_already_inline_is_not_transmitted_twice(self):
         rubric = self.packages['imps'][0] / 'references/plan-review-rubric.md'

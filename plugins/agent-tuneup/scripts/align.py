@@ -52,6 +52,7 @@ SAFE_ERRORS = {
     'changed_keys_do_not_match', 'stale_or_unapproved_plan', 'stale_plan',
     'invalid_backup', 'protective_setting_weakened', 'reviewed_proposal_and_owner_approval_required',
     'invalid_batch', 'overlapping_batch', 'destination_not_writable', 'destination_readiness_unknown',
+    'private_plan_too_large',
 }
 
 
@@ -510,18 +511,12 @@ def prepare(adapter, target, candidate, allowed):
 
 
 def write_private(path, raw):
+    if len(raw) > wiring.agent_inventory.MAX_BYTES:
+        raise ValueError('private_plan_too_large')
     path = checked_path(path)
-    parent = open_parent(path)
-    try:
-        fd = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                     0o600, dir_fd=parent)
-        with os.fdopen(fd, 'wb') as stream:
-            stream.write(raw)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.fsync(parent)
-    finally:
-        os.close(parent)
+    if _store is None:
+        raise ValueError('atomic_private_plan_writer_unavailable')
+    _core_store._atomic(path, raw, exclusive=True)
 
 
 def preflight_batch(batch):

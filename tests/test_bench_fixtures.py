@@ -151,6 +151,28 @@ class SidecarRestTest(unittest.TestCase):
         _, headers, only = self.sidecar.request('GET', '/api/v3/repos/bench-org/bench-repo/pulls')
         self.assertEqual(([p['number'] for p in only], headers.get('Link')), ([1], None))
 
+    def test_actions_job_urls_resolve_to_the_pull_that_created_them(self):
+        scenario = github_sidecar.scenario_from_fixture(BABYSITTER)
+        base = scenario['pulls'][0]
+        scenario['pulls'] = [
+            dict(base, number=n, head_ref=f'bench/change-{n}', head_sha=sha,
+                 checks=[dict(base['checks'][0], name=f'unit-{n}', sha=sha)])
+            for n, sha in ((1, 'a' * 40), (2, 'b' * 40))]
+        sidecar = Sidecar(scenario)
+        self.addCleanup(sidecar.close)
+        job_ids = []
+        for number, sha in ((1, 'a' * 40), (2, 'b' * 40)):
+            query = ('query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) '
+                     '{ pullRequest(number: $number) { ...PRState } } } ' + list_prs_fragment(pr_number=number))
+            response = sidecar.graphql(query, {'owner': 'bench-org', 'name': 'bench-repo', 'number': number})
+            check = response['data']['repository']['pullRequest']['commits']['nodes'][0]['commit'][
+                'statusCheckRollup']['contexts']['nodes'][0]
+            job_id = int(check['detailsUrl'].rsplit('/', 1)[1])
+            job_ids.append(job_id)
+            status, _, job = sidecar.request('GET', f'/repos/bench-org/bench-repo/actions/jobs/{job_id}')
+            self.assertEqual(status, 200)
+            self.assertEqual((job['name'], job['head_sha']), (f'unit-{number}', sha))
+        self.assertEqual(job_ids, [30000, 30001])
     def test_writes_are_refused_and_logged_without_bodies(self):
         secret_body = {'body': 'agent text that must not be logged'}
         status, _, _ = self.sidecar.request('POST', '/api/v3/repos/bench-org/bench-repo/issues/1/comments', secret_body)

@@ -101,6 +101,33 @@ class AgentInventoryTest(unittest.TestCase):
         self.assertEqual(report['loading'], 'unverified')
         self.assertEqual(report['exercise'], 'not-run')
 
+    def test_v2_provider_identity_is_required_and_unique(self):
+        malformed = copy.deepcopy(self.inventory['wiring'])
+        malformed['providers'][0].pop('provider_instance_id')
+        with self.assertRaisesRegex(ValueError, 'invalid_provider_instance_id'):
+            agents.inspect(self.catalog, malformed)
+        malformed = copy.deepcopy(self.inventory['wiring'])
+        duplicate = copy.deepcopy(malformed['providers'][0])
+        malformed['providers'].append(duplicate)
+        with self.assertRaisesRegex(ValueError, 'duplicate_provider_instance_id'):
+            agents.inspect(self.catalog, malformed)
+
+    def test_empty_yaml_block_scalar_is_scoped_as_an_empty_value(self):
+        data, body = agents.markdown(b'---\nsystem: |\n  \n---\nBody')
+        self.assertEqual(data['system'], '')
+        self.assertEqual(body, 'Body')
+
+    def test_private_plan_writer_bounds_and_cleans_up_failed_atomic_write(self):
+        destination = self.root / 'private-plan.json'
+        with self.assertRaisesRegex(ValueError, 'private_plan_too_large'):
+            align.write_private(destination, b'x' * (agents.MAX_BYTES + 1))
+        self.assertFalse(destination.exists())
+        with patch.object(align._core_store.os, 'fsync', side_effect=OSError('fixture write failure')):
+            with self.assertRaisesRegex(OSError, 'fixture write failure'):
+                align.write_private(destination, b'{}')
+        self.assertFalse(destination.exists())
+        self.assertEqual(list(self.root.glob('.private-plan.json.*')), [])
+
     def test_live_and_broken_aliases_preserve_link_metadata(self):
         target = self.agent('target')
         live = self.native / 'live.md'; live.symlink_to('target.md')

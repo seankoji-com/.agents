@@ -213,6 +213,7 @@ def markdown(raw):
                     if child.strip() and len(child) - len(child.lstrip()) < content_indent:
                         raise ValueError('invalid_frontmatter')
                     content.append(child); i += 1
+                content_indent = content_indent if content_indent is not None else indent + 1
                 content = [c[content_indent:] if c.strip() else '' for c in content]
                 value, previous = '', ''
                 for n, child in enumerate(content):
@@ -345,13 +346,16 @@ def profiles():
     return data['profiles']
 
 
-def validate(provider):
+def validate(provider, *, require_identity=True):
     """Validate all v2 fields even when discovery is unsupported or unavailable."""
     keys = {'provider_instance_id', 'runtime_version', 'surfaces', 'skill_roots',
             'reads_shared_skills', 'adapter', 'agent_roots', 'agent_configs',
             'read_paths', 'ownership_receipts', 'caller_references', 'assessments'}
     if set(provider) - keys:
         raise ValueError('invalid_agent_provider')
+    if require_identity and (not isinstance(provider.get('provider_instance_id'), str)
+                             or not provider['provider_instance_id'].strip()):
+        raise ValueError('invalid_provider_instance_id')
     if not isinstance(provider.get('adapter'), str):
         raise ValueError('invalid_agent_adapter')
     for field in ('agent_roots', 'agent_configs'):
@@ -764,6 +768,9 @@ def inspect(catalog, inventory):
         if not isinstance(spec, dict):
             raise ValueError('invalid_agent_provider')
         validate(spec)
+    identities = [spec['provider_instance_id'] for spec in specs]
+    if len(identities) != len(set(identities)):
+        raise ValueError('duplicate_provider_instance_id')
     role_roots = records(inventory.get('role_roots', []), {'path', 'scope'}, {'path', 'scope'})
     for root in role_roots:
         absolute(root['path'])
@@ -830,7 +837,7 @@ def inspect(catalog, inventory):
         raise ValueError('invalid_role_evidence')
     role_spec = dict(role_evidence, adapter='portable',
                      agent_roots=[dict(r, format='markdown') for r in role_roots])
-    validate(role_spec)
+    validate(role_spec, require_identity=False)
     role_spec['agent_roots'] = [dict(r, role=True) for r in role_spec['agent_roots']]
     roles, role_surfaces, _ = discover(role_spec, None, None)
     assess(roles, role_surfaces, [], role_spec, None)

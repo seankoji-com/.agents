@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import ast
 import copy
-import json
 from pathlib import Path
+import re
 
 from core.jobs.store import JobError, _regular, _retain, canonical, digest, strict_load
 from core.schema import errors
@@ -19,13 +19,13 @@ COMPACT = 'worker-brief-compact-v2'
 MAP_HASH = 'f0d9010b5622211d9d45ff026966eede9e0b622a8cc47a39fd9b755d66e6b07d'
 MAP_SCHEMA_HASH = 'e317cf397ab51acef93d39469280370e1f5676bcf2dcfe08d0c32e4db635f29f'
 MANIFEST_HASHES = {
-    'agent-tuneup': 'd35ddcf32a778571506ba03d9009453685a547d717dfc4a62e579fd208b2ef76',
-    'ape': 'd7a40bd5e4298461d53ee5f3e34e487940e3a99fbad89a81d70d7461abec4769',
-    'babysitter': '14e59ab221d41d04b6c4a3fbd3d450349497b1cd6eba0174a2a6cc1a88b28ed2',
-    'elephant-goldfish': 'e3e185fdfb1fe9c2957f01b443745dd07b335829eeb865d6230cf25bd93cc358',
-    'focus-group': '1ce864652111abb81825717ad99b0e2b6e6d7770e06d7fb0cdf8800febd49688',
-    'imps': '22119a8f5db00316bd1bb0e953422f356c180942f09857c818a0e8c707b5ffd1',
-    'ralph': '79258b369e80cc2723f18a28693860a64f38ef18c7167463631d5af369643f8e',
+    'agent-tuneup': '0f742cd582d22a1b0da95a94fe30b79cbc5d82b0e3084750bccd8d045dcb0978',
+    'ape': '5ed5090f0dff7d7f2d9d0e8aee076c4a3a47302244c4367969f0d0924b8bff9a',
+    'babysitter': 'cbf44cb7e0a5bbc7a46a645f8e09b34a3f00b6885518043c46e2733e50173472',
+    'elephant-goldfish': '58500aa3dc290de2a25d645aed434ac051af1cb97660359a41d2bda49a7972e8',
+    'focus-group': '9cf0ce9b71822457b678fd3dd4896c4320922357d433ee75894a3be123e33612',
+    'imps': '7570be925ec64fcfa43062e62883958f34a0e66ef4ccc8f5d8e0efaead3868b9',
+    'ralph': '2dd2b38ba0b61ec5782bc48bd7d2d0536a7b00481fb4f026fb3d8f2ed6aa73ce',
 }
 RUBRICS = {
     'agent-tuneup/config-verifier': ['references/adopter-review-rubric.md'],
@@ -74,7 +74,10 @@ def deserialize(raw):
     body = rest[len(BODY):]
     if value.get('definition') != {'encoding': 'inline-utf-8', 'sha256': digest(body), 'bytes': len(body)}:
         raise JobError('compact_inline_definition_bytes_changed')
-    value['definition'] = body.decode('utf-8')
+    try:
+        value['definition'] = body.decode('utf-8')
+    except UnicodeDecodeError as exc:
+        raise JobError('compact_inline_definition_invalid_utf8') from exc
     return value
 
 
@@ -88,6 +91,37 @@ def transport(job):
 def _read(package, relative):
     from shared.worker_registry import package_file
     return _regular(package_file(package, relative))
+
+
+def validate_retention_rules(profile):
+    for rule in profile.get('rules', []):
+        disposition = rule.get('disposition')
+        if ((disposition == 'inline' and (not isinstance(rule.get('inline_text'), str)
+                                          or not rule['inline_text']))
+                or (disposition != 'inline' and 'inline_text' in rule)):
+            raise JobError('retention_rule_invalid')
+
+
+def read_required_rubric(descriptor, allowed_hashes):
+    if not isinstance(descriptor, dict) or not isinstance(descriptor.get('path'), str):
+        raise JobError('compact_required_rubric_descriptor_invalid')
+    path = Path(descriptor['path'])
+    try:
+        canonical_path = path.resolve(strict=True)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise JobError('compact_required_rubric_descriptor_invalid') from exc
+    if (not path.is_absolute() or str(path) != str(canonical_path)
+            or isinstance(descriptor.get('bytes'), bool)
+            or not isinstance(descriptor.get('bytes'), int) or descriptor['bytes'] < 0
+            or not isinstance(descriptor.get('sha256'), str)
+            or not re.fullmatch(r'[0-9a-f]{64}', descriptor['sha256'])):
+        raise JobError('compact_required_rubric_descriptor_invalid')
+    if descriptor['sha256'] not in allowed_hashes:
+        raise JobError('compact_required_rubric_not_frozen')
+    raw = _regular(path)
+    if digest(raw) != descriptor['sha256'] or len(raw) != descriptor['bytes']:
+        raise JobError('compact_required_rubric_bytes_changed')
+    return raw
 
 
 def retained_definition(pin, worker_id):
@@ -124,6 +158,7 @@ def retained_definition(pin, worker_id):
             if digest(source) != row['sha256'] or len(source) != row['bytes']:
                 raise JobError('retention_source_changed: ' + row['source_id'])
     checked = set()
+    validate_retention_rules(profile)
     for rule in profile['rules']:
         source_id = rule['source_id']
         if source_id in checked:
@@ -252,12 +287,9 @@ def project(full, job, task):
     snapshot = view.get('resources', {}).get('planning_snapshot')
     if isinstance(snapshot, dict) and snapshot.get('rubrics'):
         inline = []
+        allowed_rubric_hashes = set(bindings['rubrics'].values())
         for descriptor in snapshot['rubrics']:
-            if not isinstance(descriptor, dict) or not isinstance(descriptor.get('path'), str):
-                raise JobError('compact_required_rubric_descriptor_invalid')
-            raw = _regular(Path(descriptor['path']))
-            if digest(raw) != descriptor.get('sha256') or len(raw) != descriptor.get('bytes'):
-                raise JobError('compact_required_rubric_bytes_changed')
+            raw = read_required_rubric(descriptor, allowed_rubric_hashes)
             text = raw.decode('utf-8')
             inline.append({'sha256': digest(raw), 'bytes': len(raw),
                            **({'inline_definition': True} if text in view['definition'] else {'text': text})})

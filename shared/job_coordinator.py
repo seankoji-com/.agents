@@ -56,7 +56,16 @@ def selection_plan_revision(current, proposed, revision=None):
     if current.get('model_selection', {}).get('agreement'):
         limit = current['model_selection']['agreement']['limits']['max_repair_cycles']
         if proposed.get('policy', {}).get('max_repair_cycles', current['policy']['max_repair_cycles']) > limit:
-            raise JobError('new cost/retry boundary needs a scoped owner decision; retained budget cannot reset')
+            from core.jobs import _owner_current
+            revision_id = revision.get('id') if isinstance(revision, dict) else None
+            decision_id = revision.get('owner_decision_id') if isinstance(revision, dict) else None
+            decision = next((row for row in current.get('decisions', [])
+                             if isinstance(revision_id, str) and revision_id
+                             and isinstance(row, dict) and row.get('id') == decision_id
+                             and row.get('scope') == 'plan:' + revision_id
+                             and _owner_current(row, current['policy']['max_artifact_bytes'])), None)
+            if decision is None:
+                raise JobError('new cost/retry boundary needs a scoped owner decision; retained budget cannot reset')
     if not current.get('policy', {}).get('model_selection_required'):
         return
     from shared.model_selection import validate, prospective
