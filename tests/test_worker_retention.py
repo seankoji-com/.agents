@@ -147,7 +147,10 @@ def git_source(revision, row):
 
 
 def version_neutral_manifest(raw):
-    meta = json.loads(raw)
+    try:
+        meta = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError('plugin manifest JSON is invalid') from exc
     version = meta.get('version')
     if (not isinstance(version, str) or
             not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version)):
@@ -155,7 +158,8 @@ def version_neutral_manifest(raw):
     field = f'"version": "{version}"'.encode()
     if raw.count(field) != 1:
         raise ValueError('plugin manifest version field is ambiguous')
-    return raw.replace(field, b'"version": "<version>"', 1)
+    major_minor = '.'.join(version.split('.')[:2]).encode()
+    return raw.replace(field, b'"version": "' + major_minor + b'.<patch>"', 1)
 
 
 @lru_cache(maxsize=None)
@@ -743,6 +747,13 @@ class WorkerRetentionTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.candidate = json.loads(MANIFEST.read_text())
+
+    def test_manifest_version_normalization_preserves_major_minor_and_reports_bad_json(self):
+        raw = b'{"name": "fixture", "version": "2.7.14", "description": "kept"}'
+        self.assertEqual(version_neutral_manifest(raw),
+                         b'{"name": "fixture", "version": "2.7.<patch>", "description": "kept"}')
+        with self.assertRaisesRegex(ValueError, 'plugin manifest JSON is invalid'):
+            version_neutral_manifest(b'{')
 
     def test_complete_public_source_and_procedure_mapping(self):
         frozen = validate_manifest(self.candidate)

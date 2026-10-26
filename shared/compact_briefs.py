@@ -21,15 +21,15 @@ MAP_SCHEMA_HASH = 'e317cf397ab51acef93d39469280370e1f5676bcf2dcfe08d0c32e4db635f
 MANIFEST_CONTRACT_HASHES = {
     # Automated releases may change only this validated metadata value. Hashing
     # exact bytes around it keeps every other manifest byte pinned.
-    'agent-tuneup': '01d1ca99efa060fcde923da7c27a4e9a6ad7933f5d80e6e6a4c86b12864ca234',
-    'ape': 'adf47aa0ac66942a449d1536adef6fa84dfd5acb97e2b5fe248afa8b5e693d95',
-    'babysitter': '6150f3c6ac7ae924e244efa2ce3093630e38c050f21495deabd959d3eff0bf20',
-    'elephant-goldfish': '1c9b2c6b5e9179f3f5c021fbed0da81835a5f65bb61105d1f22948d2b61e1165',
-    'focus-group': 'b3bccbb5dbf511de3d1def7df167226fbeba2fc446a8d2d8f90cb09e56220e47',
-    'imps': '95db61bb81f55b018d40bb311f34524b9bf5f456d0674e3ed5128d1418de8d90',
-    'ralph': '70807510ec3f3b94498e7973598ac89a6cbf96bd18be4da305b4defa3d192691',
-    'plan': '37bcf0a0db9cae713e04fff8fa90ade653512e632723bd9f303565c338124615',
-    'tests-omg': '169363897ff0ef74a83e24e90373b758a36bb9b964fdd777c19f72fb74655d97',
+    'agent-tuneup': '5ae9bc712f93aa2d8e45ca2b5bb5782ab3610b10dc3e308678580f2ef2690244',
+    'ape': '636a5a04b9fcf2935882109da716098450bffca7c0e62a9d77a5d5653c88fcab',
+    'babysitter': '583be3a411e535a7caff59afca7fcfc69f6972dbda457ad153c5e531b57b656d',
+    'elephant-goldfish': '23f3094a7b81ef8810e9485e53ea7bcf43bd408fb370d29c30173b7781ce028b',
+    'focus-group': '0b37f21dd5957110c6dabc767e0a4b953a035d5ced96f7e7151c4741ac28f87e',
+    'imps': 'a3b6727aad6e1d71d27fd9304317498cee999b389eb36e6d9963981fb679912f',
+    'ralph': '9fa48ebf654ee2c0024c267aba65e5368fef27a5bea9a6f08fb7a72c49969b60',
+    'plan': '847f34f77676037f40f52cd7c3bb505b946a16c38430272d4cad4039a9413e80',
+    'tests-omg': 'a1fb7b45dc1ebec77de2fad9996b29255737a717db14bad16b2c9766a0673135',
 }
 MANIFEST_VERSION = re.compile(
     rb'(?m)^(  "version"[ \t]*:[ \t]*)("[0-9]+\.[0-9]+\.[0-9]+")(?=[ \t]*,?[ \t]*\r?$)')
@@ -136,10 +136,7 @@ def read_required_rubric(descriptor, allowed_hashes, allowed_descriptors=None):
 
 def _manifest_contract_hash(raw, plugin):
     """Pin plugin.json byte-for-byte except for its validated release version."""
-    try:
-        meta = strict_load(raw)
-    except (UnicodeDecodeError, ValueError) as exc:
-        raise JobError('retention_manifest_source_changed') from exc
+    meta = strict_load(raw)
     matches = list(MANIFEST_VERSION.finditer(raw))
     if (not isinstance(meta, dict) or meta.get('name') != plugin or
             not isinstance(meta.get('version'), str) or
@@ -147,7 +144,8 @@ def _manifest_contract_hash(raw, plugin):
             len(matches) != 1 or matches[0].group(2)[1:-1].decode() != meta['version']):
         raise JobError('retention_manifest_source_changed')
     match = matches[0]
-    normalized = raw[:match.start(2)] + b'"<version>"' + raw[match.end(2):]
+    major_minor = '.'.join(meta['version'].split('.')[:2]).encode()
+    normalized = raw[:match.start(2)] + b'"' + major_minor + b'.<patch>"' + raw[match.end(2):]
     return digest(normalized)
 
 

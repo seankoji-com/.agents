@@ -68,8 +68,8 @@ Codex TOML, Gemini JSON, Cursor JSON. Target settings are never executed.
   transcripts stay private.
 - **Report first.** `doctor`, `scan`, `audit` and `align` write no settings. Their
   findings, matrix and candidates are the deliverable.
-  correctly reported findings and exit `1` completes when the criteria allow findings;
-  exit `2` is a blocker.
+  A run that exits `1` with correctly reported findings completes when the criteria
+  allow findings; exit `2` is a blocker.
 - **Authorized, backed-up settings edits only.** Only the coordinator edits settings
   through `apply`, after the owner approves the concrete plan using the native
   question picker with the recommended option first. Record the answer with the

@@ -101,12 +101,26 @@ class CompactInstalledTest(unittest.TestCase):
         changed_source = self.box.source_copy('imps')
         changed_path = changed_source / 'plugins/imps/plugin.json'
         changed = changed_path.read_bytes()
-        original_description = b'Bounded engineering work on any T3 provider: implement, investigate, audit, and review with revision-bound evidence.'
+        original_description = json.loads(changed)['description'].encode()
         self.assertEqual(changed.count(original_description), 1)
         changed_path.write_bytes(changed.replace(original_description,
                                                  original_description + b' Tampered contract.'))
         rejected = self.make('imps/reviewer', source=changed_source)
         self.assert_refusal(self.prepare(rejected, check=False), 'retention_manifest_source_changed')
+
+    def test_manifest_major_version_change_needs_a_new_retention_assessment(self):
+        source = self.box.source_copy('imps')
+        manifest_path = source / 'plugins/imps/plugin.json'
+        manifest = json.loads(manifest_path.read_text())
+        version = manifest['version'].split('.')
+        bumped = '.'.join((str(int(version[0]) + 1), version[1], version[2]))
+        old_field = f'"version": "{manifest["version"]}"'.encode()
+        new_field = f'"version": "{bumped}"'.encode()
+        original = manifest_path.read_bytes()
+        self.assertEqual(original.count(old_field), 1)
+        manifest_path.write_bytes(original.replace(old_field, new_field))
+        case = self.make('imps/reviewer', source=source)
+        self.assert_refusal(self.prepare(case, check=False), 'retention_manifest_source_changed')
 
     def make(self, worker='imps/investigator', *, compact=True, task_changes=None, job_changes=None,
              source=None, dependencies=None):
