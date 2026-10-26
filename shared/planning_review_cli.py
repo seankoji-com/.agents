@@ -16,7 +16,7 @@ from core.errors import CoreError
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=('capture', 'check-draft', 'create', 'begin', 'next', 'launch', 'host-event',
-        'unavailable', 'result', 'direct', 'disposition', 'owner-decision', 'revoke-sharing', 'finish', 'validate', 'release'))
+        'unavailable', 'result', 'direct', 'disposition', 'owner-decision', 'revoke-sharing', 'finish', 'validate', 'progress', 'release'))
     parser.add_argument('--input', required=True)
     parser.add_argument('--state-root')
     parser.add_argument('--job')
@@ -66,6 +66,8 @@ def main(argv=None):
                 out = planning.revoke_sharing(store, caller, data['grants'], data['source'], data['source_file'])
             elif args.command == 'finish':
                 out = planning.finish_round(store, caller)
+            elif args.command == 'progress':
+                out = planning.progress(store, caller)
             else:
                 out = planning.release(store, caller)
         print(json.dumps(out, sort_keys=True, ensure_ascii=False))
