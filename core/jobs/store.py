@@ -14,21 +14,13 @@ def strict_load(data):
  except (UnicodeError,json.JSONDecodeError,RecursionError) as e:raise JobError(f'invalid JSON: {e}') from e
  return v if _within_json_depth(v) else bad(MAX_JSON_DEPTH,'invalid JSON: nesting exceeds maximum depth')
 def _within_json_depth(value):
- """Check decoded containers without rescanning long evidence strings.
-
- JSON decoding already checked syntax and the hooks checked duplicate keys and
- numbers. Only arrays/objects contribute to nesting. Iterator frames keep this
- walk iterative and its auxiliary space bounded by the nesting limit.
- """
+ """Count only containers, retaining at most one iterator per nesting level."""
  stack=[iter((value,))]
  while stack:
   for child in stack[-1]:
-   if isinstance(child,dict):children=iter(child.values())
-   elif isinstance(child,list):children=iter(child)
-   else:continue
-   if len(stack)>MAX_JSON_DEPTH:return False
-   stack.append(children)
-   break
+   if isinstance(child,(dict,list)):
+    if len(stack)>MAX_JSON_DEPTH:return False
+    stack.append(iter(child.values() if isinstance(child,dict) else child));break
   else:stack.pop()
  return True
 def json_depth(text):return max(itertools.accumulate(1 if c in '[{' else -1 for c in re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"|[^\][{}"]+','',text)),default=0)  # valid JSON only: strings are stripped, so quoted brackets never count
@@ -122,7 +114,6 @@ def _authorize(job,caller,operation):
  if caller.get('installation_id')!=job['installation_id'] or caller.get('workflow')!=job['workflow'] or caller.get('package_digest') not in {p['package_digest'] for p in job['pins'].values()}:raise JobError('ownership_mismatch: wrong-package/installation/workflow caller')
  if caller.get('actor') not in ('coordinator','worker'):raise JobError('explicit caller actor is required')
  if caller['actor']!='coordinator' and operation!='worker-evidence':raise JobError('coordinator-only operation')
-
 GUARDED_OPERATIONS=frozenset(('create','plan-revision','prepare','acceptance'))
 def guard_operations(job):
  value=(job or {}).get('policy',{}).get('transaction_guard_required',[])

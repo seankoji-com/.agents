@@ -32,7 +32,6 @@ _TYPES = {
     'null': lambda v: v is None,
 }
 
-
 def check_keywords(node, where='#'):
     if isinstance(node, dict):
         unknown = set(node) - SUPPORTED
@@ -47,28 +46,23 @@ def check_keywords(node, where='#'):
         for key in ('anyOf', 'oneOf'):
             for index, sub in enumerate(node.get(key, [])): check_keywords(sub, f'{where}/{key}/{index}')
 
-
 def load_schema_file(path: Path) -> dict:
     schema = json.loads(Path(path).read_text())
     check_keywords(schema)
     return schema
 
-
 @lru_cache(maxsize=None)
 def load_schema(name: str) -> dict:
     return load_schema_file(SCHEMA_DIR / f'{name}.schema.json')
-
 
 def _resolve(root, ref):
     if not ref.startswith('#/'):
         raise InvalidInput('schema_ref', f'only local $ref supported: {ref}')
     return reduce(getitem, ref[2:].split('/'), root)
 
-
 def _bounds(value, schema, path, low, high, messages):
     tests = ((low, value < schema.get(low, value), messages[0]), (high, value > schema.get(high, value), messages[1]))
     return [f'{path}: {text.format(schema[key])}' for key, failed, text in tests if key in schema and failed]
-
 
 def errors(instance, schema, root=None, path='$'):
     """Return a list of human-readable violations (empty when valid)."""
@@ -113,7 +107,6 @@ def errors(instance, schema, root=None, path='$'):
     if 'oneOf' in schema and (matches := sum(1 for sub in schema['oneOf'] if not errors(instance, sub, root, path))) != 1:
         found.append(f'{path}: must match exactly one of oneOf (matched {matches})')
     return found
-
 
 def validate(instance, name: str, code: str = 'schema_invalid'):
     problems = errors(instance, load_schema(name))
