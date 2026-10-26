@@ -1032,6 +1032,37 @@ class AdvanceTest(unittest.TestCase):
         self.assertTrue(any(tool == 'task_status' and args['taskId'] == host_id for tool, args in self.host.calls))
         self.assertEqual(sum(tool == 'delegate_task' for tool, _ in self.host.calls), 1)
 
+    def test_tampered_receipt_bindings_hold_before_status_or_relaunch(self):
+        original_record = self.jobs.record
+
+        def fail_record(prepared, event):
+            if event.get('kind') == 'accepted':
+                raise runner.ExecutionError('fixture-record-failure')
+            return original_record(prepared, event)
+
+        with patch.object(self.jobs, 'record', side_effect=fail_record):
+            self.assertEqual(self.advance(self.node())['outcomes'][0]['status'], 'held')
+        receipt_path = next(self.jobs.directory.glob('*-receipt.json'))
+        original = json.loads(receipt_path.read_text())
+        for field, reason in (
+                ('reservation', 'host-receipt-reservation-mismatch'),
+                ('target', 'host-receipt-target-mismatch'),
+                ('brief_sha256', 'host-receipt-brief-binding')):
+            with self.subTest(field=field):
+                envelope = json.loads(json.dumps(original))
+                if field == 'reservation':
+                    envelope[field]['attempt'] += 1
+                elif field == 'target':
+                    envelope[field]['model'] = 'another-model'
+                else:
+                    envelope[field] = '0' * 64
+                receipt_path.write_text(json.dumps(envelope))
+                held = self.advance(self.node())
+                self.assertEqual(held['outcomes'][0]['status'], 'held', held)
+                self.assertIn(reason, held['outcomes'][0]['reason'])
+                self.assertFalse(any(tool == 'task_status' for tool, _ in self.host.calls))
+                self.assertEqual(sum(tool == 'delegate_task' for tool, _ in self.host.calls), 1)
+
     def test_returned_receipt_recovers_after_the_live_fixer_moves_the_head(self):
         original_record = self.jobs.record
 
