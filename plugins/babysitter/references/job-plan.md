@@ -57,9 +57,20 @@ or an armed auto-merge request never substitutes for an available action.
 
 ## Before `create`
 
+- Reuse supplied model answers; collect only missing choices through the shared
+  short rounds. Roster tables, per-PR plans and retry notes are operational state,
+  not a written strategy requiring another evaluator.
 - Save the operator's request verbatim to an owner-source file outside the job
   directory and every PR worktree, for example
   `$XDG_STATE_HOME/t3-plugins/babysitter/requests/<run-id>.txt`. Decisions quote it.
+- Run `python3 PKG/scripts/plan_review.py admit --input <admission-input.json>`
+  after freezing the model choices. The input contains `operation` (`pr`, `repo`
+  or `org`), `request_reference`, `output_name`, `invocation_id`, `selection` and
+  its separately retained `selection_sha256`. Put the returned record in each
+  job's `adopter_admission`, or in the org executor's `job_template.adopter_admission`.
+  Its operation must match the job's `babysitter/<operation>` workflow. Reuse it
+  for jobs admitted under that same run; ordinary maintenance does not call
+  planning `prepare`/`attach` or create strategy metadata.
 - Admit the PR under the recorded scope (step 1) and run its quick pass (step 2)
   first, so the stage is declared at the head this thread actually observed.
   New matching PRs get separate jobs; never replace an existing job's PR identity.
@@ -68,11 +79,18 @@ or an armed auto-merge request never substitutes for an available action.
   saved request and the entry's default, or its explicit override, so the quick pass,
   each wake, and the merge share one mode. Do not fabricate a picker answer.
 
+PR-specific preparation, ledger, workspace or permission failures hold that PR's
+writes; continue independent rows. Before yielding, retain each accepted T3 task
+ID. A prepared brief or `dispatch-fixer` action is not a launched agent. Never
+reserve a merge merely to discover blockers; use the observation when a fixer or
+resolution action skips the quick-pass helper.
+
 ## Job fields
 
 - `job_id`: unique per PR and run, such as `<run-id>-<repo>-<number>`.
 - `workflow`: `babysitter/pr`, `babysitter/repo` or `babysitter/org`, matching the
   operation.
+- `adopter_admission`: the matching operation's returned `admit` record above.
 - `requirements`: `PR-12`: "<owner/repo>#12 reaches <endstate> at an observed head
   with every required check". Requirements are never dropped to make a run finish;
   an unreachable PR stays a named blocker.

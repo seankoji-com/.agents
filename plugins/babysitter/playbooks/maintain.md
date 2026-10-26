@@ -8,9 +8,6 @@ The coordinator owns discovery, watches, merges, resolutions and acceptance; chi
 repair one PR. Follow `PKG/references/job-plan.md`'s repair cycle and health stop rule.
 Writable runs initialise `continuous.py` state per `PKG/references/continuous.md`;
 use event-only without scheduler authority.
-Ordinary maintenance needs no written strategy or planning-review job. Retain
-upfront model admission and per-PR jobs; review an actual supplied/requested
-strategy and an operator-requested final head through their existing gates.
 
 1. Apply the entry's auto-merge default or explicit override without a question;
    record it with `job_cli.py decision`; under **ignore**, exclude PRs with an
@@ -26,9 +23,8 @@ strategy and an operator-requested final head through their existing gates.
    inspect-only run skips step 2's helper, posts step 3's table, and stops; deep triage
    may plan `read` only maintainer slots, whose `blocked` results answer triage but
    never an acceptance.
-2. Quick pass, in this thread: refresh with `continuous.py observe` and read each
-   PR's returned action before reserving a write. Only a current `merge` or
-   `update-branch` action runs the merge helper. Reserve that action with
+2. Quick pass, in this thread, before any child: refresh with `continuous.py observe`;
+   reserve current `merge` or `update-branch` only when the returned action matches, with
    `continuous.py dispatch --kind <kind> --reserve --head <head>` before
    `bash PKG/scripts/merge-pr.sh --repo <owner/name> --pr <N>`.
    For `update-branch`, add `--update-only --expected-head <head>`; record `UPDATED`,
@@ -40,10 +36,7 @@ strategy and an operator-requested final head through their existing gates.
    merged. If the operator asked for review before landing, every PR is review-gated:
    skip this helper, read state with `list-prs.sh`, and give every unmerged PR a job
    (step 4) even without repair work.
-   A `dispatch-fixer` action skips merge/update reservation and goes straight to
-   step 4; a resolution action goes to step 7. Use the complete observed blockers
-   for skipped rows. Never reserve a merge merely to discover blockers: the ledger
-   correctly refuses it when a fixer or resolution must run first.
+   `dispatch-fixer` skips this helper for step 4; resolution goes to step 7.
 3. Post it after the quick pass and at the end of every turn:
 
    | PR | Description | Not merged because |
@@ -59,10 +52,6 @@ strategy and an operator-requested final head through their existing gates.
    nothing left to fix is `needs human:`. Every PR with child work gets a
    fixer now, no concurrency cap and no question, one job each with
    `PKG/references/job-plan.md`.
-   A PR-specific preparation, ledger, workspace or permission failure holds only
-   that PR. Record its exact blocker and continue the remaining eligible PRs.
-   A prepared brief or `dispatch-fixer` action is not a launched agent: retain the
-   actual accepted `delegate_task` ID for every launch before yielding.
 5. Prepare with `bash PKG/scripts/pr-workspace.sh`. Honor upfront selected work target/options;
    explicit configured workhorse is the selection. Follow short rounds.
    Prefer eligible `preferred_workhorse`; otherwise recommend cheapest suitable tier from the configured role pool.
@@ -115,10 +104,6 @@ strategy and an operator-requested final head through their existing gates.
    count armed watches as progress. Anything else is acted on now. Health/ledger failures stop
    writes as `needs human:`. Never end a turn on "auto-merge armed" alone.
    Then post the table and end the turn.
-   Read every executor outcome even when its exit code is nonzero or
-   `complete: false`: other rows may already have launched fixers. Preserve and
-   reconcile their task IDs; do not treat a partial sweep as zero dispatches or
-   relaunch accepted work.
 10. Accept merged jobs from fresh observations: rebind and publish per
     `PKG/references/job-plan.md`, then `job_acceptance_cli.py accept-stage` with the
     pinned `validate_pr.py`; update the table and `unwatch_pull_request`.

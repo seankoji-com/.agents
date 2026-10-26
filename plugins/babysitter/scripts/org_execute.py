@@ -404,6 +404,93 @@ class Jobs:
         return self.call(prepared['package'], 'task-observation', prepared['job_id'],
                          {'caller': prepared['caller'], 'task_id': prepared['task_id'], 'event': event})
 
+    def recover_receipt(self, row):
+        """Replay a returned handle only into its exact pinned job and reservation."""
+        ctx = self.context(row)
+        if not ctx:
+            return None
+        task = ctx['job']['tasks'][0]
+        request = task.get('request_id')
+        require(isinstance(request, str) and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', request),
+                'host-receipt-request-id')
+        path = self.directory / ((request or '') + '-receipt.json')
+        if not request or not path.exists():
+            return None
+        require(not path.is_symlink() and path.is_file(), 'host-receipt-path')
+        ledger = continuous.read_state(self.config['continuous_state'])
+        require(ledger.get('run_id') == self.config['run_id'] and row['url'] in ledger['prs'],
+                'host-receipt-run-mismatch')
+        pr = ledger['prs'][row['url']]
+        dispatch = next((d for d in pr.get('dispatches', []) if d.get('request_id') == request), None)
+        handles = [h for h in task.get('handles', []) if h.get('request_id') == request]
+        if len(handles) == 1 and dispatch and dispatch.get('host_task_id') == handles[0].get(
+                'task_id', handles[0].get('host_task_id')):
+            return None  # A durable handle pair belongs to ordinary reconciliation, even when settled.
+        stage = next((s for s in ctx['job']['stages'] if s['id'] == task['stage_id']), {})
+        contract = stage.get('validator_contract', {})
+        # A live fixer may already have pushed a new head. Recover ownership at
+        # its reserved stage head; the fresh head still needs ordinary validation.
+        require(dispatch is not None and dispatch.get('kind') == 'fixer'
+                and contract.get('pr') == row['url']
+                and dispatch.get('head') == contract.get('head_sha')
+                and dispatch.get('status') in continuous.OPEN_DISPATCH,
+                'host-receipt-reservation-mismatch')
+        require(pr.get('fixer', {}).get('request_id') == request
+                and pr.get('fixer', {}).get('in_flight'), 'host-receipt-reservation-mismatch')
+        receipt = json.loads(path.read_text())
+        require(isinstance(receipt, dict) and isinstance(receipt.get('taskId'), str)
+                and bool(receipt['taskId']), 'host-receipt-shape')
+        brief_ref = task.get('brief')
+        require(isinstance(brief_ref, dict) and isinstance(brief_ref.get('path'), str)
+                and isinstance(brief_ref.get('sha256'), str), 'host-receipt-unpinned-brief')
+        raw = Path(brief_ref['path']).read_bytes()
+        require(hashlib.sha256(raw).hexdigest() == brief_ref['sha256'], 'brief-digest')
+        brief = json.loads(raw)
+        require(brief.get('request_id') == request and brief.get('task_id') == ctx['task_id'],
+                'host-receipt-brief-binding')
+        require(dispatch.get('attempt') == brief.get('attempt', 0) + 1,
+                'host-receipt-reservation-mismatch')
+        target = (brief.get('model_selection') or {}).get('dispatch', {}).get('target') or brief.get('target')
+        require(isinstance(target, dict) and target.get('model') and target.get('providerInstanceId'),
+                'host-receipt-unpinned-target')
+        require(isinstance(target.get('options', {}), dict), 'host-receipt-unpinned-target')
+        observed_options = receipt.get('options')
+        if isinstance(observed_options, list):
+            require(all(isinstance(option, dict) and isinstance(option.get('id'), str)
+                        and 'value' in option for option in observed_options), 'host-receipt-options-shape')
+            observed_options = {option['id']: option['value'] for option in observed_options}
+        require(receipt.get('providerInstanceId') == target['providerInstanceId']
+                and receipt.get('model') == target['model']
+                and observed_options == target.get('options', {}), 'host-receipt-identity-mismatch')
+        require(not task.get('uncertain_calls') or handles, 'job-uncertain-launch')
+        if handles:
+            require(len(handles) == 1 and handles[0].get('task_id', handles[0].get('host_task_id'))
+                    == receipt['taskId'], 'host-receipt-handle-mismatch')
+        else:
+            if dispatch.get('host_task_id'):
+                require(dispatch['host_task_id'] == receipt['taskId'], 'host-receipt-handle-mismatch')
+            prepared = {'package': ctx['package'], 'job_id': ctx['job_id'], 'task_id': ctx['task_id'],
+                        'caller': ctx['caller'], 'request_id': request}
+            self.record(prepared, {'kind': 'accepted', 'request_id': request,
+                'host_task_id': receipt['taskId'], 'child_thread_id': receipt.get('childThreadId'),
+                'status': receipt.get('status', 'running'), 'work_state': receipt.get('workState', 'working'),
+                'has_pending_child_runs': receipt.get('hasPendingChildRuns', False),
+                'receipt_identity': {k: receipt[k] for k in ('providerInstanceId', 'model', 'options')
+                                     if k in receipt}})
+            refreshed = self.context(row)['job']['tasks'][0]
+            restored = [h for h in refreshed.get('handles', []) if h.get('request_id') == request]
+            require(len(restored) == 1 and restored[0].get('task_id', restored[0].get('host_task_id'))
+                    == receipt['taskId'], 'host-receipt-not-recorded')
+        if dispatch.get('host_task_id'):
+            require(dispatch['host_task_id'] == receipt['taskId'], 'host-receipt-handle-mismatch')
+        if not dispatch.get('host_task_id'):
+            attached = continuous_command(self.config, 'dispatch', pr=row['url'], request_id=request,
+                kind='fixer', head=dispatch['head'], reserve=False, host_task_id=receipt['taskId'],
+                attempt=dispatch['attempt'], review_triage=dispatch.get('review_triage', False))
+            require(attached.get('attached') or attached.get('dispatch', {}).get('host_task_id')
+                    == receipt['taskId'], 'host-receipt-not-attached')
+        return receipt['taskId']
+
 
 def semantic_subject(row):
     return digest({k: row.get(k) for k in ('url', 'head_sha', 'base_sha', 'unresolved_thread_ids')})
@@ -676,6 +763,10 @@ def execute(report, api, host, jobs, config):
         outcomes.append(outcome)
         try:
             reconcile_synchronous(row, config)
+            # A returned host receipt can outlive either durable job recording or
+            # writer attachment. Recover that exact handle before normal status reads.
+            if hasattr(jobs, 'recover_receipt'):
+                jobs.recover_receipt(row)
             # Reconcile already-owned work even if scope, draft or ownership has
             # changed. These reads cannot authorize another source writer.
             if hasattr(jobs, 'reconcile'):

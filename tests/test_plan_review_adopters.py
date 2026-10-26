@@ -218,7 +218,15 @@ class AdoptersTest(unittest.TestCase):
                 self.assertNotIn('planning_review',f.descriptor)
                 self.assertFalse(any(task.get('role')=='review' for task in job['tasks']))
                 self.assertFalse((self.box.jobs/f.review_id).exists())
-            # Missing chooser blocks an ordinary babysitter job even though it has no plan artifact.
+                for field in ('adopter_admission','model_selection'):
+                    missing=deepcopy(f.job);missing['job_id']+='-missing-'+field.replace('_','-')
+                    missing.pop(field)
+                    rejected=self.box.job(f.package,'create',missing['job_id'],missing,check=False,
+                        extra=('--prefix',self.box.prefix,'--agents-root',self.box.agents))
+                    self.assertNotEqual(rejected.returncode,0,(op,field,rejected.stdout,rejected.stderr))
+                    if field=='adopter_admission':
+                        self.assertIn('adopter admission missing',rejected.stderr)
+            # Direct maintenance acceptance also needs admission without a strategy artifact.
             f=self.fixture('babysitter',op='pr',installed=installed);f.integrated_job()
             f.accept_integrated();self.assertFalse(f.metadata.exists())
             job=deepcopy(f.job);job['job_id']+='-missing';job.pop('adopter_admission')
