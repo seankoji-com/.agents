@@ -528,6 +528,36 @@ def record_observation(store, caller, task_id, event):
     if isinstance(event, dict) and 'recorded_at' in event:
         raise JobError('recorded_at is local receipt time and cannot be supplied')
     if isinstance(event, dict): event = {**event, 'recorded_at': observed_now()}
+    if isinstance(event, dict) and event.get('kind') == 'not-submitted':
+        # A coordinator may retire a prepared request that demonstrably never
+        # reached the host. This cannot clear uncertainty or accepted work.
+        def not_submitted(job):
+            from core.jobs.store import _regular, _retain, strict_load, digest
+            from core.jobs import _live_handles
+            task = next((t for t in job['tasks'] if t['task_id'] == task_id), None)
+            if (task is None or event.get('request_id') != task['request_id'] or task.get('uncertain_calls')
+                    or _live_handles(task) or any(h.get('request_id') == task['request_id'] for h in
+                        task.get('handles', []) + task.get('followups', []) + task.get('execution_history', []))
+                    or task.get('status') not in ('pending', 'failed')):
+                raise JobError('not-submitted requires an unlaunched, certain prepared request')
+            reference = event.get('reference') or {}
+            if not isinstance(reference, dict):
+                raise JobError('not-submitted requires a coordinator evidence reference')
+            source = _coordinator_input(store, job, reference.get('path', ''))
+            raw = _regular(source, max_bytes=32768)
+            proof = strict_load(raw)
+            if (not isinstance(proof, dict) or digest(raw) != reference.get('sha256') or len(raw) != reference.get('bytes')
+                    or proof.get('request_id') != task['request_id'] or proof.get('submitted') is not False
+                    or not proof.get('reason')):
+                raise JobError('not-submitted evidence must bind the exact unlaunched request')
+            retained = store.path / 'observations' / ('unlaunched-' + digest(task['request_id'].encode()) + '.json')
+            _retain(retained, raw, 'not-submitted evidence changed')
+            stored_event = {**event, 'reference': {**reference, 'path': str(retained)}}
+            if not any(e.get('kind') == 'not-submitted' and e.get('request_id') == task['request_id']
+                       for e in task.setdefault('dispatch_history', [])):
+                task['dispatch_history'].append(stored_event)
+            task['status'] = 'failed'
+        return store.transact(caller, not_submitted, 'task-observation')
     if isinstance(event, dict) and event.get('kind') == 'capacity-deferred' and event.get('reason', 'capacity') not in ('capacity', 'rate-limit'):
         raise JobError('capacity deferral reason must be capacity or rate-limit')
     if isinstance(event, dict) and event.get('kind') in ('uncertain', 'reconciled'):

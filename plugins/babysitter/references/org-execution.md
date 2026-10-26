@@ -3,7 +3,7 @@
 After the org run's authorization and model selection are frozen, run:
 
 ```sh
-python3 PKG/scripts/org_scan.py --org OWNER --execute --run-config RUN.json --bridge
+python3 PKG/scripts/org_execute.py --advance --run-config RUN.json --bridge
 ```
 
 Execution enables native auto-merge on every admitted non-draft PR that lacks it.
@@ -33,6 +33,8 @@ executor. The configuration contains:
 | `execution_dir` | Absolute private directory for snapshots, receipts, lock and PR workspaces |
 | `caller` | Existing coordinator identity: actor, installation ID, workflow `babysitter/org`, package digest |
 | `job_template` | Fresh, unlaunched org job plan with the frozen selection, one stage and one `babysitter/pr-maintainer` slot |
+| `semantic_verifications` | Optional PR URL to coordinator-owned evidence reference: absolute `path`, `sha256`, `bytes` |
+| `external_blockers` | Optional PR URL to named dependency holds, each with `name`, `dependency`, `detail`, `next_check_at`, `reopen_when`; remove explicitly when reopened |
 
 The template is the ordinary plan from `references/job-plan.md`, including its
 selection/admission records and constraints. It must authorize `read`, `push`,
@@ -71,8 +73,8 @@ if (source.exit_code !== 0 || source.original_token_count > 5000)
   throw new Error("Read the complete bridge source before evaluating it.");
 const invoke = new Function("tools", "options", source.output);
 text(await invoke(tools, {
-  argv: ["python3", packagePath + "/scripts/org_scan.py", "--org", org,
-    "--execute", "--run-config", runConfig, "--bridge"],
+  argv: ["python3", packagePath + "/scripts/org_execute.py", "--advance",
+    "--run-config", runConfig, "--bridge"],
   workdir
 }));
 ```
@@ -113,24 +115,33 @@ are retained even if they differ from the requested target.
 4. For repair candidates, prepare the correct repository's isolated PR workspace
    through `pr-workspace.sh` and persist the dispatch inputs, then reserve `fixer`
    immediately before calling T3 `delegate_task` with the
-   frozen target, exact options, async mode and stable request ID. T3 also isolates
-   the child from the coordinator checkout; the prompt explicitly names the PR
-   workspace as the only writable source checkout. The worker fetches current review
-   comments itself and follows its pinned definition.
+   frozen target, exact options, async mode and stable request ID. The current live
+   delegate schema cannot bind an arbitrary checkout. Use supported `isolation:
+   "worktree"` and validate the prepared repository, exact observed commit and local
+   HEAD before dispatch. The worker must repeat those checks with `git -C` before
+   edits. This is an explicit checkout validation path, not host-enforced cwd
+   binding. Host isolation starts from a disposable copy of the coordinator repository;
+   all repair commands still belong in the separately prepared PR checkout.
+   The worker fetches current review comments and follows its pinned definition.
    After workspace preparation and reservation, one additional budgeted lifecycle/head
    read guards every new fixer launch, even when auto-merge was already enabled. A current
    draft is excluded in the ledger; closed or merged PRs are reconciled. Head drift
    or unavailable validation holds the launch. Existing reservations and accepted
    handles remain retained through exclusion.
-   Failed final validation rejects the unlaunched reservation; the coordinator must
-   prepare a fresh request for retry rather than reuse that settled ID. Rejections
-   retain repair-attempt accounting. The remote read and T3 launch are separate API
+   Failed final validation rejects the unlaunched reservation. The next advance
+   records byte-bound `not-submitted` evidence and charges an ordinary fresh retry.
+   Accepted or uncertain work can never use that recovery. Rejections retain
+   repair-attempt accounting. The remote read and T3 launch are separate API
    operations, not an atomic GitHub head lock.
    After that read, local authorization, scope, repair identity and ownership are
    checked again against the retained reservation before calling T3.
 5. Persist the host receipt, record the actual task handle in the job, then attach it
    to the writer reservation. On later passes, read retained handles with
-   `task_status`; active or result-awaiting work prevents another launch. A lost
+   `task_status` using host task IDs, never job/request IDs. Terminal original tasks
+   with pending later runs retain their writer exclusion. Ingest each terminal
+   `summary` exactly once through the pinned job parser, bind its completion to the
+   owned request, then settle that reservation with the retained transport. Missing
+   results hold; malformed results are retained as failed executions. A lost
    response holds the reservation and records an uncertain job launch. It never
    starts a replacement to recover output.
 6. Arm the coordinator's native PR watches and return JSON. The caller ends its turn;
@@ -154,34 +165,59 @@ partial row stays in scan JSON but cannot replace the continuous ledger's last
 observation: an explicit discovery gap preserves its failure identity and blocks
 writers until a complete read returns. Other fully observed PRs can still proceed.
 
-The executor launches prepared work, not acceptance or semantic finding disposition.
-Execution `complete` means the sweep finished without held PRs or terminal tasks
-awaiting result reconciliation. It does not mean the org is healthy or merged:
-active fixers, queued checks, external ownership and scope exclusions remain explicit
-outcomes. Held or result-awaiting work returns exit 3; a completed sweep returns 0.
-The existing coordinator ingests terminal results, replies/resolves verified threads,
-handles human decisions and charges any retry. It can then use the runner for a new
-prepared request. For a retry, retain the PR's coordinator-owned `retry_usage` and
-`prior_findings` in the run configuration maps keyed by PR URL; missing records hold
-the retry instead of resetting counters. An unknown-only observation never launches
-a code fixer.
+Every advance reconciles known PRs omitted by open-only discovery with targeted
+lifecycle reads. Draft, scope and ownership changes keep existing task/result history.
+PRs rotate at the start of each wake, so bounded API exhaustion cannot always starve
+the last repository. A failed PR does not stop reconciliation/refill for other PRs.
+
+Retries derive counters and findings from the existing job and continuous ledger;
+no model-maintained maps are needed. Preserved local commits and dirty worktrees
+are handed back to the worker for fetch/integrate/revalidate, never reset to recover
+from ordinary head movement. Update and merge actions execute `merge-pr.sh` under
+the same reservations. An update requires fresh gates; a merge command still needs
+an authoritative later lifecycle read. Unknown helper writes retain their holds.
+
+`needs-semantic-verification` returns the exact head, base, subject digest, request
+ID, findings and result transport. The coordinator inspects those concerns and
+supplies a referenced JSON object with `pr`, `head_sha`, `base_sha`,
+`subject_sha256`, `request_id`, nonempty `verification`, `findings` and `threads`.
+Each finding disposition names `finding_id`, `finding_sha256`, and `disposition`.
+Each verified thread names `id` and an evidence-backed `reply`. Evidence lives
+outside jobs and PR workspaces; its hash/size and current subject must match. The
+executor records those dispositions and invokes guarded reply/resolution commands.
+Set `repair_required: true` for a verified concern needing another repair round.
+The ledger retains that concern across observation and thread changes. A successful
+repair result or head/base movement requests fresh semantic verification, preserving
+the concern and repairing request ID. Only a current-head/base/subject/latest-request
+coordinator proof with `repair_required: false` clears it, including author-pushed
+fixes that need no worker. Repair and verification run before thread resolution.
+Worker assertions alone never dispose findings or resolve a conversation. Head,
+base or producing-result changes invalidate affected judgments.
+
+Execution `complete` means a bounded advancement finished without holds, outstanding
+semantic requests or a missing requested schedule receipt. Active fixers, queued
+checks, scope exclusions and event-only gaps remain explicit. This is neither stage
+acceptance nor proof that the scope merged. Final acceptance still uses `validate_pr.py`.
 
 ## Fifteen-minute coverage
 
-Keep the timer in T3 using `continuous.py` and the host scheduler. Use a 900-second
-cadence and include this exact execution command in the scheduled prompt:
+Keep the timer in T3 using `continuous.py` and the host scheduler. After one explicit
+`--run-config` advance binds the configuration path and digest, `schedule-plan`
+generates exactly one pinned command:
 
 ```sh
-python3 PKG/scripts/org_scan.py --org OWNER --execute --run-config RUN.json --bridge --wake-kind schedule --wake-id HOST_WAKE_ID
+python3 PKG/scripts/org_execute.py --advance --continuous-state STATE.json --wake-kind schedule --bridge
 ```
 
-Run that argv through the native bridge above, using the actual wake ID. Record the schedule receipt, next run time and stop operation
+Run that argv through the native bridge above; append the actual host wake ID when
+available. A changed configuration needs one explicit `--run-config` advance.
+Record the schedule receipt, next run time and stop operation
 through the existing contract. Late scheduled execution after cancellation or
 schedule revocation is rejected. A manual command is a manual continuation, not
 proof of scheduled coverage. Keep configured queue-age/stall diagnoses in the
 coordinator; this smaller scanner supplies no queued-job creation clock.
 
-Offline fixtures cover reservations, default arming, expected-head/draft guards,
-duplicate suppression, lost responses, identity retention, and new-PR creation and
-preparation through an installed package. They do not prove a live paid-provider
-dispatch, isolation permissions, a successful fixer push, or scheduled delivery.
+Offline fixtures cover multi-wake dispatch, completion, ingestion, verified
+disposition, current-head CI and observed merge, concurrent PRs, duplicates, drift,
+unknown outcomes, missing results and a relocated installed package. They do not
+prove live paid-provider execution, checkout permissions, fixer pushes or scheduled delivery.

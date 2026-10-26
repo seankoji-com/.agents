@@ -17,6 +17,12 @@ before acting. On a mismatch or an unreadable brief, return `blocked`; never loo
 another copy or installation. The brief and task text name the PR URL, worktree,
 head SHA at dispatch, the complete `blockers=` list, every unresolved review thread
 with its ID, earlier rounds' findings, constraints, and recorded actions.
+Before source edits, use `git -C <prepared checkout>` to verify its top level,
+origin repository, local HEAD and the observed remote commit against the dispatch
+workspace identity. Use that explicit directory on every repository command. The
+host may still be bound to the coordinator project; never edit its checkout.
+An identity mismatch is a named workspace blocker. Dirty work and unpushed commits
+in the prepared checkout must survive head/base integration.
 For deterministic org launches, `resources.org_triage` binds a snapshot with thread
 IDs rather than comment bodies. Verify its hash, then fetch every current unresolved
 thread and all its comments before editing. Reconcile newly arrived findings too.

@@ -99,7 +99,13 @@ writer reservations and retained task handles prevent repeated sweeps from start
 duplicate agents. An ambiguous launch stays held for reconciliation. The executor
 uses native T3 MCP tools; it never starts a provider CLI. Run that argv through the
 bundled deterministic tool bridge in Codex code mode, so a small coordinator can
-execute the flow without an external CLI transport.
+execute the flow without an external CLI transport. Each wake also ingests exact
+terminal results, settles reservations and prepares bounded retries. Known PRs
+missing from the open roster get targeted lifecycle reads. Guarded branch updates,
+verified thread resolutions and landing commands execute in the coordinator.
+Worker claims still need explicit verification at the current head; those compact
+judgment requests keep findings and evidence visible. Requested periodic coverage
+without a host schedule receipt is reported as a gap.
 [Execution setup and limits](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/babysitter/references/org-execution.md)
 describe the configuration and host adapter. GitHub's branch rules control native
 auto-merge; without a conversation-resolution rule, it can merge with open threads.
@@ -110,7 +116,7 @@ sweeps retain active tasks rather than launching duplicates. Fetch detailed comm
 queue clocks and current-head evidence only when the maintenance workflow needs
 them. [The scan contract](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/babysitter/references/org-scan.md)
 documents output, limits and routing. Fixture tests cover installed preparation and
-the deterministic launch path. Live fixer execution and scheduled delivery remain
+the complete offline convergence path. Live fixer execution and scheduled delivery remain
 separate checks.
 
 For a 15-minute sweep, add `--cadence-seconds 900` to the existing
