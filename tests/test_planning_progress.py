@@ -23,6 +23,7 @@ class ProgressTests(unittest.TestCase):
                      if p['target']['providerInstanceId'] == 'fixture-spare')
         self.f.selection_data['review_replacements'].append(
             fixtures.replacement(self.f.selection_data, spare, review=True))
+        self.f.add_self()
         self.f.create(installed=True)
 
     def progress(self, installed=False):
@@ -42,6 +43,7 @@ class ProgressTests(unittest.TestCase):
         first = self.incomplete(lambda r: r['planning_review'].update(coverage=[]))
         self.assertFalse(first['accepted'])
         self.assertFalse(first['progress']['stop_recommended'])
+        self.assertEqual(first['progress']['next_action'], 'repair_then_begin')
         # Metadata churn must not look like a repair of the authored plan.
         data = dict(self.f.snapshot_data, repository_head='fixture-head-after')
         snapshot = self.f.cli('capture', data)
@@ -85,6 +87,26 @@ class ProgressTests(unittest.TestCase):
         self.assertEqual(out['next_action'], 'inspect_existing_receipt')
         self.assertEqual(out['latest_round']['receipt'], reference)
         self.f.cli('validate', {'reference': reference})
+
+    def test_successful_direct_fallback_ends_the_technical_failure_streak(self):
+        for _ in range(2):
+            self.f.unavailable(self.f.attempt())
+        self.assertTrue(self.progress()['stop_recommended'])
+        self.f.direct()
+        finished = self.f.cli('finish')
+        self.assertTrue(finished['accepted'])
+        self.assertFalse(finished['progress']['stop_recommended'])
+        self.assertEqual(finished['progress']['consecutive_unavailable_attempts'], 0)
+        self.f.plan.write_text('# Plan\nChanged authored content with explicit recovery.\n')
+        snapshot = self.f.cli('capture', self.f.snapshot_data)
+        self.f.cli('begin', {'snapshot': snapshot})
+        self.assertFalse(self.progress(installed=True)['stop_recommended'])
+
+    def test_one_adverse_round_recommends_repair_instead_of_receipt_reuse(self):
+        self.f.result(self.f.attempt(), findings=[self.f.finding()], verdict='adverse')
+        finished = self.f.cli('finish')
+        self.assertFalse(finished['accepted'])
+        self.assertEqual(finished['progress']['next_action'], 'repair_then_begin')
 
     def test_stale_inputs_do_not_hide_diagnostic_or_gain_acceptance(self):
         self.f.result(self.f.attempt())

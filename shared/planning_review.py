@@ -987,7 +987,12 @@ def _progress(store, job, state):
                 all(p['outcome'] == 'approved' for p in round_['passes'])):
             break
         unchanged += 1
-    for attempt in reversed([a for r in rounds for a in r['attempts']]):
+    trailing_attempts = []
+    for round_ in reversed(rounds):
+        if round_['passes']:
+            break  # A substantive pass, including direct fallback, ends a technical streak.
+        trailing_attempts.extend(reversed(round_['attempts']))
+    for attempt in trailing_attempts:
         if attempt['outcome'] != 'unavailable':
             break
         technical += 1
@@ -1018,7 +1023,7 @@ def _progress(store, job, state):
     elif signals:
         action = 'diagnose_before_dispatch'
     elif latest and latest.get('result'):
-        action = 'inspect_existing_receipt'
+        action = 'repair_then_begin'
     else:
         action = 'continue_within_existing_authority'
     return {'kind': 'planning-progress-diagnostic', 'acceptance': False,

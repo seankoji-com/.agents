@@ -33,13 +33,17 @@ For a planning job, run the pinned helper (same package and state roots):
 python3 PKG/shared/planning_review_cli.py progress --input caller.json --state-root ROOT --job ID
 ```
 
-`caller.json` contains the original `caller` object. The read-only projection shows
+`caller.json` has the shape `{"caller": {...}}`, wrapping the original caller.
+The read-only projection shows
 the persistent content/technical counters, consecutive incomplete rounds (including
 different errors), unchanged authored content without complete approval, consecutive
 unavailable attempts, latest errors and outstanding owned work. `finish` returns
 the same diagnostic. It is always `acceptance: false`; warnings grant no retry,
 release, scope change or extra round. The ledger has no delivery or spend telemetry.
 Use normal receipt validation even when it recommends inspecting an existing pass.
+Jobs pinned before this command shipped must keep their original helper: use the
+retained receipt's `round_history`, counters and these checkpoint rules manually.
+Do not run a newer acceptance helper against old pins or rewrite the pinned job.
 
 ## Prevent the format failure before it spends another round
 
