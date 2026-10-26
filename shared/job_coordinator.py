@@ -19,6 +19,8 @@ def selection_for_task(job, task):
         return None
     try:
         binding = task.get('selection_binding') or {}
+        if not isinstance(binding, dict):
+            raise SelectionError('task producing selection binding missing/mismatched')
         producing = binding.get('selection_sha256')
         record = validate((job.get('model_selection_history') or {}).get(producing, job.get('model_selection')), producing)
         if binding.get('selection_sha256') != record['selection_sha256']:
@@ -54,7 +56,8 @@ def selection_plan_revision(current, proposed, revision=None):
         limit = current['model_selection']['agreement']['limits']['max_repair_cycles']
         if proposed.get('policy', {}).get('max_repair_cycles', current['policy']['max_repair_cycles']) > limit:
             raise JobError('new cost/retry boundary needs a scoped owner decision; retained budget cannot reset')
-    if not current.get('policy', {}).get('model_selection_required'):
+    if not (current.get('policy', {}).get('model_selection_required') or
+            proposed.get('policy', {}).get('model_selection_required')):
         return
     from shared.model_selection import validate, prospective
     from core.jobs import _unsettled
@@ -73,9 +76,11 @@ def selection_plan_revision(current, proposed, revision=None):
                 if decision is None:
                     raise JobError('undeclared_expansion: changed agreement requires a scoped owner decision; retain prior evidence/budgets')
         live = [t['task_id'] for t in current['tasks'] if _unsettled(current, t)]
-        prospective(current['model_selection'], chosen, {'live_tasks': live})
+        if current.get('model_selection'):
+            prospective(current['model_selection'], chosen, {'live_tasks': live})
         archive = deepcopy(current.get('model_selection_history', {}))
-        archive[current['model_selection_sha256']] = current['model_selection']
+        if current.get('model_selection_sha256'):
+            archive[current['model_selection_sha256']] = current['model_selection']
         proposed['model_selection_history'] = archive
     merged = {**current, **proposed}
     if current.get('workflow') in ('focus-group/run', 'focus-group/resume'):
@@ -387,26 +392,33 @@ def actual_author_lineages(job):
     """Every dispatched author stays an author, including failed/replaced work."""
     from core.jobs.store import tasks
     from shared.model_selection import _eligible, SelectionError, _subject_author_role
+    from shared.legacy_author_provenance import LegacyAuthors
+    legacy = LegacyAuthors(job)
     selected = job.get('model_selection', {})
     result = {selected.get('coordinator', {}).get('lineage', 'unknown')}
     for task in tasks(job):
         if task.get('role') == 'review':
             continue
-        producing = (job.get('model_selection_history') or {}).get(
-            (task.get('selection_binding') or {}).get('selection_sha256'), selected)
-        if not _subject_author_role(producing, task.get('selection_binding', {}).get('role', '')):
-            continue
+        binding = task.get('selection_binding')
         for handle in task.get('handles', []) + task.get('followups', []):
+            family = legacy.classify(task, handle)
+            if isinstance(family, str):
+                result.add(family); continue
+            execution_binding = family if isinstance(family, dict) else binding
+            producing = (job.get('model_selection_history') or {}).get(
+                execution_binding.get('selection_sha256') if isinstance(execution_binding, dict) else None, selected)
+            if not _subject_author_role(producing, execution_binding.get('role', '') if isinstance(execution_binding, dict) else ''):
+                continue
             identity = handle.get('observed_identity', {})
-            if identity.get('status') != 'verified':
+            if not isinstance(identity, dict) or identity.get('status') != 'verified':
                 result.add('unknown'); continue
             try:
                 # Reuse the producing admission policy, including a legitimate
                 # configured-workhorse endorsement. Never borrow current choices.
                 _, family = _eligible(handle.get('target') or task['target'],
-                                      task['selection_binding']['role'], producing)
+                                      execution_binding['role'], producing)
                 result.add(family)
-            except (SelectionError, KeyError):
+            except (SelectionError, KeyError, TypeError):
                 result.add('unknown')
     for stage in job.get('stages', []) + [s for h in job.get('history', []) for s in h.get('stages', [])]:
         for row in stage.get('direct_execution_history', []):
