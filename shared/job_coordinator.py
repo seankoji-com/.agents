@@ -68,6 +68,10 @@ def selection_plan_revision(current, proposed, revision=None):
                              and _owner_current(row, current['policy']['max_artifact_bytes'])), None)
             if decision is None:
                 raise JobError('new cost/retry boundary needs a scoped owner decision; retained budget cannot reset')
+    selection_required = bool(proposed.get('policy', {}).get(
+        'model_selection_required', current.get('policy', {}).get('model_selection_required')))
+    if selection_required and not proposed.get('model_selection') and not current.get('model_selection'):
+        raise JobError('new model-selection policy requires a proposed model_selection and model_selection_sha256')
     if not (current.get('policy', {}).get('model_selection_required') or
             proposed.get('policy', {}).get('model_selection_required')):
         return

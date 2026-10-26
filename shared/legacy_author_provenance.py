@@ -107,11 +107,23 @@ class LegacyAuthors:
     def candidate_paths(self, task, handle, followup):
         own = self._by_request.get((task['task_id'], handle['request_id']), [])
         paths = set()
-        for desc in own or self.descriptors():
+        if not own:
+            roots = set()
+            for desc in self.descriptors():
+                try:
+                    roots.add(self.location(desc)[1])
+                except (JobError, OSError, ValueError, KeyError, TypeError):
+                    continue
+            _require(len(roots) <= 1)
+            if not roots:
+                return []
+            root = roots.pop()
+            return [root / ('followup' if followup else '') /
+                    (task['task_id'] + '-' + digest(handle['request_id'].encode()) + '.json')]
+        for desc in own:
             try:
                 p, root = self.location(desc)
-                paths.add(p if own else root / ('followup' if followup else '') /
-                          (task['task_id'] + '-' + digest(handle['request_id'].encode()) + '.json'))
+                paths.add(p)
             except (JobError, OSError, ValueError, KeyError, TypeError):
                 # Bad unrelated descriptors are not evidence of a legacy author.
                 # Once legacy candidacy is shown, root() still rejects them.
@@ -250,6 +262,8 @@ class LegacyAuthors:
                 root = self.root()
                 paths = [root / ('followup' if followup else '') / (task['task_id'] + '-' + digest(handle['request_id'].encode()) + '.json')]
             else:
+                # Modern descriptors must identify one immutable request root;
+                # never synthesize a request path under each unrelated root.
                 paths = self.candidate_paths(task, handle, followup)
             available = []
             for path in paths:

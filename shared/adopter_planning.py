@@ -398,8 +398,10 @@ def transaction_guard(job, operation, *, proposed=None, caller=None, job_file=No
         if required or typed:
             raise JobError('required pinned transaction adapter unavailable')
         return None
-    dependency = next((d for d in job['dependencies'] if d['plugin'] == 'focus-group'), None)
-    pin = job.get('pins', {}).get(dependency['key']) if dependency else None
+    transition = next((j for j in (proposed, job) if j and
+                       j.get('workflow') in ('focus-group/run', 'focus-group/resume')), job)
+    dependency = next((d for d in transition.get('dependencies', []) if d['plugin'] == 'focus-group'), None)
+    pin = transition.get('pins', {}).get(dependency['key']) if dependency else None
     if not pin:
         if required or typed:
             raise JobError('transaction adapter requires verified dependency pins')
@@ -413,7 +415,7 @@ def transaction_guard(job, operation, *, proposed=None, caller=None, job_file=No
         if required or typed:
             raise JobError('pinned transaction adapter capability missing')
         return None
-    guard = factory(job, operation, proposed=proposed, caller=caller, job_file=job_file)
+    guard = factory(transition, operation, proposed=proposed, caller=caller, job_file=job_file)
     if (required or typed) and not callable(guard):
         raise JobError('required transaction adapter returned no guard')
     return guard

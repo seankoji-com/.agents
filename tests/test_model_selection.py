@@ -896,6 +896,13 @@ class SelectionTests(unittest.TestCase):
                 selection_plan_revision(current, proposed,
                                         {'id': 'limit-one', 'owner_decision_id': 'owner-limit'})
 
+    def test_revision_cannot_enable_selection_without_proposed_choice(self):
+        from shared.job_coordinator import selection_plan_revision
+        current = {'policy': {'model_selection_required': False}, 'tasks': []}
+        proposed = {'policy': {'model_selection_required': True}}
+        with self.assertRaisesRegex(JobError, 'requires a proposed model_selection'):
+            selection_plan_revision(current, proposed)
+
     def test_real_routing_cli_no_config_uses_profiles_and_keeps_recommendations_separate(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

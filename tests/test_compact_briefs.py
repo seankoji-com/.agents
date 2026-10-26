@@ -322,6 +322,16 @@ class CompactInstalledTest(unittest.TestCase):
         with self.assertRaisesRegex(JobError, 'compact_required_rubric_not_frozen'):
             compact_briefs.read_required_rubric(descriptor, set())
 
+    def test_project_rejects_self_hashed_arbitrary_rubric(self):
+        rubric = self.box.private / 'arbitrary-project-rubric.md'
+        rubric.write_text('Private coordinator content must not reach the worker.\n')
+        raw = rubric.read_bytes()
+        case = self.make('imps/reviewer')
+        descriptor = {'path': str(rubric), 'sha256': digest(raw), 'bytes': len(raw)}
+        self.edit_state(case, lambda state: state['stages'][0]['resources'].update(
+            planning_snapshot={'rubrics': [descriptor]}))
+        self.assert_refusal(self.prepare(case, check=False), 'compact_required_rubric_not_frozen')
+
     def test_frozen_rubric_hash_is_admitted(self):
         rubric = self.packages['imps'][0] / 'references/plan-review-rubric.md'
         raw = rubric.read_bytes()

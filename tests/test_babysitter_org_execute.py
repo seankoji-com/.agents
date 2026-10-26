@@ -538,12 +538,16 @@ class ExecutionTest(unittest.TestCase):
         self.jobs.bad_workspace = False
         self.assertEqual(self.execute()['outcomes'][0]['status'], 'dispatched')
 
-    def test_identity_mismatch_retains_actual_owned_handle(self):
+    def test_identity_mismatch_is_evidence_but_never_an_owned_handle(self):
         self.host.identity = 'different-model'
         result = self.execute()
         self.assertEqual(result['outcomes'][0]['reason'], 'host-identity-mismatch')
-        self.assertEqual(result['outcomes'][0]['task_id'], 'host-task')
-        self.assertEqual(self.execute()['outcomes'][0]['status'], 'active-fixer')
+        self.assertNotIn('task_id', result['outcomes'][0])
+        receipts = list(self.jobs.directory.glob('*-receipt.json'))
+        self.assertEqual(len(receipts), 1)
+        self.assertEqual(json.loads(receipts[0].read_text())['receipt']['taskId'], 'host-task')
+        self.assertEqual(self.jobs.handles, {})
+        self.assertFalse(any(event.get('kind') == 'accepted' for event in self.jobs.events))
         self.assertEqual(sum(t == 'delegate_task' for t, _ in self.host.calls), 1)
 
     def test_missing_machine_transport_does_not_run_provider_cli(self):
@@ -1474,6 +1478,17 @@ class AdvanceTest(unittest.TestCase):
         row['head_sha'] = git('rev-parse', 'HEAD')
         guard = self.jobs.guard(row, {}, str(worktree))
         self.assertEqual(guard['observed_head'], guard['local_head'])
+        current_head = row['head_sha']
+        git('config', 'user.name', 'Fixture')
+        git('config', 'user.email', 'fixture@example.invalid')
+        git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'unpublished worker commit')
+        with self.assertRaisesRegex(runner.ExecutionError, 'pr-workspace-head-mismatch'):
+            self.jobs.guard(row, {}, str(worktree))
+        row['head_sha'] = git('rev-parse', 'HEAD')
+        (worktree / 'dirty.txt').write_text('uncommitted')
+        with self.assertRaisesRegex(runner.ExecutionError, 'pr-workspace-dirty'):
+            self.jobs.guard(row, {}, str(worktree))
+        row['head_sha'] = current_head
 
 
 if __name__ == '__main__':

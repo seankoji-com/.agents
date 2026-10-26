@@ -174,7 +174,31 @@ class SidecarRestTest(unittest.TestCase):
             self.assertEqual((job['name'], job['head_sha']), (f'unit-{number}', sha))
         self.assertEqual(job_ids, [30000, 30001])
 
+    def test_run_job_pair_url_is_not_a_supported_sidecar_route(self):
+        status, _, body = self.sidecar.request(
+            'GET', '/repos/bench-org/bench-repo/actions/runs/1/job/30000')
+        self.assertEqual(status, 404, body)
 
+    def test_focus_fixture_cleanup_does_not_wait_on_a_detached_descendant_pipe(self):
+        import signal
+        import time
+        from tests.focus_group_install_fixtures import stop_fixture_process
+        proc = subprocess.Popen([sys.executable, '-c',
+            'import subprocess,sys; child=subprocess.Popen([sys.executable,"-c",'
+            '"import time; time.sleep(30)"]); print(child.pid,flush=True)'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        child_pid = int(proc.stdout.readline())
+        try:
+            with self.assertRaises(subprocess.TimeoutExpired):
+                proc.communicate(timeout=0.05)
+            started = time.monotonic()
+            stop_fixture_process(proc, timeout=0.1)
+            self.assertLess(time.monotonic() - started, 2)
+        finally:
+            try:
+                os.kill(child_pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
     def test_writes_are_refused_and_logged_without_bodies(self):
         secret_body = {'body': 'agent text that must not be logged'}

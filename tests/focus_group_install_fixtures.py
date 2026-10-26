@@ -162,12 +162,12 @@ def audit_fidelity_probe(base):
     probe=Path(base)/'audit-control';probe.mkdir()
     env=audited(clean_env(probe),probe)
     target=ROOT/'tests/focus_group_install_fixtures.py'
-    script=('from pathlib import Path\nimport os,sys,sitecustomize\n'
+    script=('from pathlib import Path\nimport fcntl,os,sys,sitecustomize\n'
             'target=Path(sys.argv[1]);allowed=Path("allowed");allowed.write_text("Invented audit control.")\n'
             'alias=Path("alias");alias.symlink_to(allowed);assert alias.read_text()==allowed.read_text()\n'
             'original=os.path.realpath\n'
             'def no_component_walk(*args,**kwargs):raise AssertionError("descriptor path fell back to component traversal")\n'
-            'if hasattr(os,"O_PATH") or sys.platform=="darwin":os.path.realpath=no_component_walk\n'
+            'if hasattr(os,"O_PATH") or (sys.platform=="darwin" and hasattr(os,"O_EVTONLY") and hasattr(fcntl,"F_GETPATH")):os.path.realpath=no_component_walk\n'
             'try:\n'
             ' alias.unlink();alias.symlink_to(target);assert alias.read_bytes()\n'
             ' alias.unlink();alias.symlink_to(target.parent);list(alias.iterdir())\n'
@@ -180,6 +180,20 @@ def audit_fidelity_probe(base):
     assert str(target.resolve()) in hits and str(target.parent.resolve()) in hits,rows
     return {'exit':p.returncode,'symlink_retarget_source_detected':True,'directory_source_detected':True,
             'no_path_cache':True,'rows':rows}
+
+
+def stop_fixture_process(proc, timeout=5):
+    """Bound cleanup when descendants outside the process group retain pipes."""
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    try:
+        return proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.stdout.close(); proc.stderr.close()
+        proc.wait(timeout=timeout)
+        return '', ''
 
 
 class PristineFixture:
@@ -609,7 +623,7 @@ class RecoveryInstallation:
         except BaseException as exc:
             # This process group was created here and its leader PID captured
             # before any scenario code. Never find or stop processes by name.
-            os.killpg(p.pid,signal.SIGKILL);stdout,stderr=p.communicate()
+            stdout,stderr=stop_fixture_process(p)
             self.proofs.append({'function':function,'pid':p.pid,'exit':p.returncode,'stdout':stdout,
                                 'stderr':stderr,'interruption':type(exc).__name__+': '+str(exc),
                                 'elapsed':time.perf_counter()-phase_started,'diagnostic_limit':diagnostic_limit,

@@ -121,10 +121,11 @@ are retained even if they differ from the requested target.
    through `pr-workspace.sh` and persist the dispatch inputs, then reserve `fixer`
    immediately before calling T3 `delegate_task` with the
    frozen target, exact options, async mode and stable request ID. The current live
-   delegate schema cannot bind an arbitrary checkout. Use supported `isolation:
-   "worktree"` and validate the prepared repository, exact observed commit and local
-   HEAD before dispatch. The worker must repeat those checks with `git -C` before
-   edits. This is an explicit checkout validation path, not host-enforced cwd
+   delegate schema cannot bind an arbitrary checkout. `isolation: "worktree"` is
+   only the supported host isolation mode; it does not bind the child to the prepared
+   PR checkout. The executor validates the prepared repository, exact observed commit
+   and clean local HEAD before dispatch. The worker must repeat those checks with `git -C` before
+   edits. These checks are the checkout safety gate, not host-enforced cwd
    binding. Host isolation starts from a disposable copy of the coordinator repository;
    all repair commands still belong in the separately prepared PR checkout.
    The worker fetches current review comments and follows its pinned definition.

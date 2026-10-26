@@ -551,6 +551,19 @@ def op_analysis_inputs(args):
                        for key, (name, _) in sorted(material.items())]
     record['record_sha256'] = sha(record)
     with study.locked():
+        # Revalidate delegated authority and approval under the same lock that
+        # protects the immutable inputs write.
+        locked_current = study.require()
+        if locked_current.get('revision') != revision:
+            refuse('study_revision_changed', 'the approved revision changed before analysis inputs were retained')
+        locked_job = lifecycle.load_job(study)
+        if locked_job is None or lifecycle.job_revision_problem(locked_job, revision):
+            refuse('job_revision_stale', 'the job no longer prepares the approved study revision')
+        fg.authority_current(study, fg.stamp(fg.utc_now(args.now)))
+        locked_approval = fg.approval_state(study.approvals(revision), revision,
+                                            fg.ceiling(plan, study.ledger()))
+        if locked_approval['state'] != 'approved':
+            refuse('unapproved_revision', 'approval changed before analysis inputs were retained')
         (report_dir(study) / 'inputs').mkdir(parents=True, exist_ok=True, mode=0o700)
         files_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         try:
