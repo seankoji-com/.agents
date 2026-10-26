@@ -12,6 +12,7 @@ from functools import lru_cache
 import hashlib
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 import subprocess
@@ -145,6 +146,18 @@ def git_source(revision, row):
     return raw
 
 
+def version_neutral_manifest(raw):
+    meta = json.loads(raw)
+    version = meta.get('version')
+    if (not isinstance(version, str) or
+            not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version)):
+        raise ValueError('plugin manifest version is invalid')
+    field = f'"version": "{version}"'.encode()
+    if raw.count(field) != 1:
+        raise ValueError('plugin manifest version field is ambiguous')
+    return raw.replace(field, b'"version": "<version>"', 1)
+
+
 @lru_cache(maxsize=None)
 def git_blob(revision, path):
     return subprocess.run(['git', 'show', revision + ':' + path], cwd=ROOT,
@@ -194,7 +207,7 @@ def current_generation():
         if expected is None:
             continue
         committed = git_blob(parent_revision, relative)
-        if sha(raw) != expected or raw != committed:
+        if sha(committed) != expected or version_neutral_manifest(raw) != version_neutral_manifest(committed):
             raise ValueError('manifest differs from pinned base: ' + relative)
         meta = json.loads(raw)
         shared_names = list(meta.get('worker_shared', []))
@@ -646,7 +659,10 @@ def validate_manifest(candidate):
             raise ValueError('immutable historical manifest changed: ' + row['path'])
     for row in frozen['manifests']:
         raw = (ROOT / row['path']).read_bytes()
-        if sha(raw) != row['sha256'] or json.loads(raw)['worker_shared'] != row['worker_shared']:
+        pinned = git_blob(frozen['source_revision'], row['path'])
+        if (sha(pinned) != row['sha256'] or
+                version_neutral_manifest(raw) != version_neutral_manifest(pinned) or
+                json.loads(raw)['worker_shared'] != row['worker_shared']):
             raise ValueError('base manifest/worker_shared changed')
     original_sources = {}
     for row in historical['sources']:

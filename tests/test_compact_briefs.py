@@ -82,6 +82,32 @@ class CompactInstalledTest(unittest.TestCase):
             compact_briefs.validate_retention_rules({'rules': [
                 {'disposition': 'inline', 'source_id': 'fixture'}]})
 
+    def test_release_version_bump_is_allowed_but_other_manifest_changes_refuse(self):
+        source = self.box.source_copy('imps')
+        manifest_path = source / 'plugins/imps/plugin.json'
+        manifest = json.loads(manifest_path.read_text())
+        version = manifest['version'].split('.')
+        bumped = '.'.join((version[0], version[1], str(int(version[2]) + 1)))
+        old_field = f'"version": "{manifest["version"]}"'.encode()
+        new_field = f'"version": "{bumped}"'.encode()
+        original = manifest_path.read_bytes()
+        self.assertEqual(original.count(old_field), 1)
+        manifest_path.write_bytes(original.replace(old_field, new_field))
+        case = self.make('imps/reviewer', source=source)
+        self.assertIn(bumped, case['package'].name)
+        self.prepare(case)
+        self.assertEqual(self.ingest(case)['status'], 'awaiting-acceptance')
+
+        changed_source = self.box.source_copy('imps')
+        changed_path = changed_source / 'plugins/imps/plugin.json'
+        changed = changed_path.read_bytes()
+        original_description = b'Bounded engineering work on any T3 provider: implement, investigate, audit, and review with revision-bound evidence.'
+        self.assertEqual(changed.count(original_description), 1)
+        changed_path.write_bytes(changed.replace(original_description,
+                                                 original_description + b' Tampered contract.'))
+        rejected = self.make('imps/reviewer', source=changed_source)
+        self.assert_refusal(self.prepare(rejected, check=False), 'retention_manifest_source_changed')
+
     def make(self, worker='imps/investigator', *, compact=True, task_changes=None, job_changes=None,
              source=None, dependencies=None):
         plugin = worker.partition('/')[0]

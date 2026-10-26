@@ -58,6 +58,33 @@ Any T3 provider can run this audit. The target settings format is separate from 
 calling provider. Supported structured audits: Claude JSON, OpenCode JSON/JSONC,
 Codex TOML, Gemini JSON, Cursor JSON. Target settings are never executed.
 
+## Boundaries
+
+- **Deterministic format checks.** `audit.py` and `align.py` decide format, changed
+  keys, risk counts and write safety. A worker or model claim never overrides a
+  helper exit code or refusal.
+- **Local usage scan.** Scan readable local transcripts when available; narrower
+  requests may exclude the scan. Frequency never justifies an allow rule, and
+  transcripts stay private.
+- **Report first.** `doctor`, `scan`, `audit` and `align` write no settings. Their
+  findings, matrix and candidates are the deliverable.
+  correctly reported findings and exit `1` completes when the criteria allow findings;
+  exit `2` is a blocker.
+- **Authorized, backed-up settings edits only.** Only the coordinator edits settings
+  through `apply`, after the owner approves the concrete plan using the native
+  question picker with the recommended option first. Record the answer with the
+  job decision scoped `settings-change:<change-id>` before applying.
+- **No permission expansion.** Never broadly allow shells, interpreters, installers,
+  arbitrary MCP tools or remote commands. Never disable sandboxing or approvals.
+  An audit or alignment request is not permission to widen access.
+- **Distinct observations.** Parse, load and live enforcement are separate. Unknown
+  enforcement stays `unverified`; it blocks acceptance only when the task requires
+  live enforcement.
+
+Worker definitions grant no settings-edit, push, merge or message authority.
+`PKG/scripts/validate_audit.py` is the pinned acceptance authority. Never reroute
+a denied write through another tool.
+
 Apply creates a private backup before any write; report the backup path.
 Apply is backed by a verified plan with an unchanged digest. When a settings
 format is not supported, report the gap; do not guess an unstructured write.

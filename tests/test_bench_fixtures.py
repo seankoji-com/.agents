@@ -175,6 +175,7 @@ class SidecarRestTest(unittest.TestCase):
         self.assertEqual(job_ids, [30000, 30001])
 
 
+
     def test_writes_are_refused_and_logged_without_bodies(self):
         secret_body = {'body': 'agent text that must not be logged'}
         status, _, _ = self.sidecar.request('POST', '/api/v3/repos/bench-org/bench-repo/issues/1/comments', secret_body)

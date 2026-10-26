@@ -18,17 +18,21 @@ LEGACY = 'worker-brief-v1'
 COMPACT = 'worker-brief-compact-v2'
 MAP_HASH = '2b39b761de80b34dcce93de117980b05bd7184cebcc4be1640e4bde07e9b2596'
 MAP_SCHEMA_HASH = 'e317cf397ab51acef93d39469280370e1f5676bcf2dcfe08d0c32e4db635f29f'
-MANIFEST_HASHES = {
-    'agent-tuneup': '651a4d80743bd15bc1ce649e32c72fd54c88ab3588f7cb57defba50c3ba11761',
-    'ape': 'b48a686f3d13755303330398c721bae08412f322128526ca6e2df3db97a608b2',
-    'babysitter': '7cada9f4ee7a5ee0e7d786ce2978e0b7fd86e59d53c23b4ce750de8d1af58b5d',
-    'elephant-goldfish': '145f0236fd0caf15089f9517deb9c33305008434f80ef64ea45aeb8972736cb4',
-    'focus-group': 'd2b6e1ba87c8cf2dc43ef23c646429455ced80d592594d62f716ba84c0e90884',
-    'imps': 'a432204e790b7acc18900414e854a5995e75380a3e4282efd799e257050219e9',
-    'ralph': 'f2406d1acd1a3c5f0f93c4048a9ea6853d2d56a6988ae9cf8adf27a5505ea36c',
-    'plan': '5bb213d2564a4ae7afafac93bbf3215463c11b921c8bc9ffaf1c18acb2f06d7a',
-    'tests-omg': '068402e9a02ddf68947e4044ce08af8dc0e5c322f656f510b5efd2bfd93c0a53',
+MANIFEST_CONTRACT_HASHES = {
+    # Automated releases may change only this validated metadata value. Hashing
+    # exact bytes around it keeps every other manifest byte pinned.
+    'agent-tuneup': '01d1ca99efa060fcde923da7c27a4e9a6ad7933f5d80e6e6a4c86b12864ca234',
+    'ape': 'adf47aa0ac66942a449d1536adef6fa84dfd5acb97e2b5fe248afa8b5e693d95',
+    'babysitter': '6150f3c6ac7ae924e244efa2ce3093630e38c050f21495deabd959d3eff0bf20',
+    'elephant-goldfish': '1c9b2c6b5e9179f3f5c021fbed0da81835a5f65bb61105d1f22948d2b61e1165',
+    'focus-group': 'b3bccbb5dbf511de3d1def7df167226fbeba2fc446a8d2d8f90cb09e56220e47',
+    'imps': '95db61bb81f55b018d40bb311f34524b9bf5f456d0674e3ed5128d1418de8d90',
+    'ralph': '70807510ec3f3b94498e7973598ac89a6cbf96bd18be4da305b4defa3d192691',
+    'plan': '37bcf0a0db9cae713e04fff8fa90ade653512e632723bd9f303565c338124615',
+    'tests-omg': '169363897ff0ef74a83e24e90373b758a36bb9b964fdd777c19f72fb74655d97',
 }
+MANIFEST_VERSION = re.compile(
+    rb'(?m)^(  "version"[ \t]*:[ \t]*)("[0-9]+\.[0-9]+\.[0-9]+")(?=[ \t]*,?[ \t]*\r?$)')
 RUBRICS = {
     'agent-tuneup/config-verifier': ['references/adopter-review-rubric.md'],
     'ape/synthesizer': ['references/plan-review-rubric.md'],
@@ -127,6 +131,23 @@ def read_required_rubric(descriptor, allowed_hashes):
     return raw
 
 
+def _manifest_contract_hash(raw, plugin):
+    """Pin plugin.json byte-for-byte except for its validated release version."""
+    try:
+        meta = strict_load(raw)
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise JobError('retention_manifest_source_changed') from exc
+    matches = list(MANIFEST_VERSION.finditer(raw))
+    if (not isinstance(meta, dict) or meta.get('name') != plugin or
+            not isinstance(meta.get('version'), str) or
+            not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', meta['version']) or
+            len(matches) != 1 or matches[0].group(2)[1:-1].decode() != meta['version']):
+        raise JobError('retention_manifest_source_changed')
+    match = matches[0]
+    normalized = raw[:match.start(2)] + b'"<version>"' + raw[match.end(2):]
+    return digest(normalized)
+
+
 def retained_definition(pin, worker_id):
     """Verify approved source/procedure/schema bytes on every installed call.
 
@@ -150,7 +171,7 @@ def retained_definition(pin, worker_id):
     sources = {row['source_id']: row for row in manifest['sources']}
     plugin = worker_id.partition('/')[0]
     meta_raw = _read(package, 'plugin.json')
-    if digest(meta_raw) != MANIFEST_HASHES[plugin]:
+    if _manifest_contract_hash(meta_raw, plugin) != MANIFEST_CONTRACT_HASHES[plugin]:
         raise JobError('retention_manifest_source_changed')
     # Approval binds the original source set, including unselected ORIGINAL
     # workers in this package. New unrelated files are not normative sources.
