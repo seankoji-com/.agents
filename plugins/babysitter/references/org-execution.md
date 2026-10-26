@@ -6,6 +6,11 @@ After the org run's authorization and model selection are frozen, run:
 python3 PKG/scripts/org_execute.py --advance --run-config RUN.json --bridge
 ```
 
+First confirm the native adapter with `org_execute.py --bridge --probe` as below.
+If the bridge is unavailable but native `delegate_task` works, use the maintenance
+playbook's per-PR coordinator loop with the same admission, jobs and frozen choices.
+Transport availability does not authorize another model or a provider CLI.
+
 Execution enables native auto-merge on every admitted non-draft PR that lacks it.
 There is no auto-merge question or preference picker. Drafts and saved scope
 exclusions stay excluded. The read-only command without `--execute` changes nothing.
@@ -146,6 +151,11 @@ are retained even if they differ from the requested target.
    starts a replacement to recover output.
 6. Arm the coordinator's native PR watches and return JSON. The caller ends its turn;
    T3 owns notifications. No script watches in a loop.
+
+Read every outcome even after a nonzero exit or `complete: false`: other rows may
+already have launched fixers. Preserve and reconcile those task IDs; never treat a
+partial sweep as zero dispatches or relaunch accepted work. A PR-specific failure
+does not stop the remaining eligible rows.
 
 Auto-merge writes, branch updates, resolutions and fixers exclude competing writes
 through the same continuous ledger. An active fixer can temporarily defer re-arming
