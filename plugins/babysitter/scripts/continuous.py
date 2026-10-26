@@ -37,6 +37,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import stat
 import sys
 import tempfile
@@ -1079,13 +1080,29 @@ def reconcile_pr(pr, state, now, discovery):
                  'next_check_at': deadline(now, cadence)}, queue,
                 {'kind': human['kind'], 'detail': human.get('detail')}, progress)
 
+    external = observation.get('external_blockers') or []
+    if external:
+        return ({'pr': pr['url'], 'kind': 'blocked',
+                 'reason': '; '.join(b['name'] + ': ' + b['detail'] for b in external),
+                 'next_check_at': min(b['next_check_at'] for b in external)}, queue,
+                {'kind': 'external-dependency', 'dependencies': external}, progress)
+
     # Independently repairable work comes before queue diagnosis, so a queued job
     # never starves a failed check, an unresolved thread or a conflict on this PR.
-    if conflict or failing or threads > 0:
+    hold = pr.get('semantic_repair_hold') or {}
+    if hold.get('state') == 'needs-verification':
+        return ({'pr': pr['url'], 'kind': 'verify-semantic',
+                 'reason': 'the retained coordinator concern needs current semantic verification',
+                 'next_check_at': deadline(now, cadence)}, queue,
+                {'kind': 'semantic-verification', 'detail': hold['verification']}, progress)
+    semantic = bool(observation.get('semantic_repair') or
+                    (hold and hold.get('state', 'needs-repair') == 'needs-repair')) and not (conflict or failing or threads > 0)
+    if conflict or failing or threads > 0 or semantic:
         fingerprint = digest({
             'head': head, 'failing': sorted(failing), 'threads': threads,
             'conflict': conflict,
             'review': review, 'changes': sorted(changes),
+            **({'semantic_repair': semantic} if semantic else {}),
         })[:12]
         prefix = f"{pr['number']}-maintain-{fingerprint}"
         attempts = settlement_attempts(pr, prefix)
@@ -1104,7 +1121,7 @@ def reconcile_pr(pr, state, now, discovery):
                             'attempts': len(attempts)}, progress)
         reason = ('merge conflict' if conflict else
                   ('failing required checks ' + ', '.join(sorted(failing)) if failing else
-                   f'{threads} unresolved thread(s)'))
+                   f'{threads} unresolved thread(s)' if threads else 'verified semantic repair requested'))
         request_id = f'{prefix}-a{len(attempts) + 1}'
         return ({'pr': pr['url'], 'kind': 'dispatch-fixer', 'request_id': request_id,
                  'head': head, 'reason': reason,
@@ -1188,6 +1205,11 @@ def reconcile_pr(pr, state, now, discovery):
                  'reason': detail + '; read the remaining conversations before landing',
                  'next_check_at': deadline(now, cadence)}, queue,
                 {'kind': 'incomplete-threads', 'detail': detail}, progress)
+
+    if observation.get('draft'):
+        return ({'pr': pr['url'], 'kind': 'wait-draft', 'reason': 'draft repairs are permitted; landing waits for ready-for-review',
+                 'next_check_at': deadline(now, cadence)}, queue,
+                {'kind': 'draft', 'detail': 'mark ready for review before landing'}, progress)
 
     checks_state = str(observation.get('checks_state') or '').upper()
     if review == 'REVIEW_REQUIRED':
@@ -1718,15 +1740,37 @@ def schedule_request(state, state_file):
     key = (f"babysitter-{scope['kind']}-{scope['value'].replace('/', '-')}"
            f"-{POLICY_VERSION}-{state.get('run_id') or 'norun'}-g{generation}")
     package = state.get('package') or {}
+    if not state.get('execution_config'):
+        # Older/unbound scope runs still reconcile through the continuous helper.
+        # Never schedule an advance command that cannot load its run configuration.
+        prompt = (
+            f"Continue the authorised babysitter {scope['kind']} sweep for {scope['value']} "
+            f"(run {state.get('run_id')}, policy {state.get('policy_version')}, "
+            f"package {package.get('pinned_version')}). Resume the pinned continuous helper "
+            f"{shlex.quote(package['helper'])} with --state {shlex.quote(str(state_file))}: "
+            "refresh discovery, reconcile the whole scope, dispatch receipts and queue age, "
+            "and continue only authorised actions. Report missing-execution-config as a "
+            "deterministic advancement coverage gap until one advance binds --run-config. "
+            "Do not create a second schedule.")
+        return {'key': key, 'clientRequestId': key, 'tool': 'schedule_task',
+                'gap': 'missing-execution-config', 'arguments': {
+                    'schedule': {'type': 'interval', 'everyMs': state['policy']['cadence_seconds'] * 1000},
+                    'bindToCurrentThread': bool(state.get('thread_id')), 'prompt': prompt,
+                    'title': f"babysitter {scope['kind']} {scope['value']} continuous sweep",
+                    'clientRequestId': key}}
+    helper = str(Path(package['helper']).with_name('org_execute.py'))
+    advance = shlex.join(['python3', helper, '--advance', '--continuous-state', str(state_file),
+                          '--wake-kind', 'schedule', '--bridge'])
     prompt = (
         f"Continue the authorised babysitter {scope['kind']} sweep for {scope['value']} "
         f"(run {state.get('run_id')}, policy {state.get('policy_version')}, "
-        f"package {package.get('pinned_version')}). Resume the pinned package with its "
-        f"continuous helper and --state {state_file}: refresh discovery, reconcile the whole "
-        "scope, diagnose queue age and stalled work, admit new matching PRs, reconcile "
-        "dispatch receipts, and continue only actions already authorised by the owner's "
-        "request. Report concrete blockers, the next action and the next wake. Do not "
-        "create a second schedule; this scheduled wake is the continuation.")
+        f"package {package.get('pinned_version')}). Run exactly one pinned advancement through "
+        f"the native tool bridge: {advance}. When the host supplies a wake ID, append "
+        "--wake-id '<host wake ID>', replacing the placeholder with that actual ID; "
+        "otherwise omit --wake-id. Read its compact semantic requests and verify "
+        "only those concerns at the named head; deterministic code owns task IDs, ingestion, "
+        "reservations and retries. Report concrete blockers, coverage and next checks. "
+        "A missing execution config is a named setup gap. Do not create a second schedule.")
     return {
         'key': key,
         'clientRequestId': key,
@@ -1765,7 +1809,7 @@ def cmd_schedule_plan(args):
             return {'status': 'event-only', 'request': None,
                     'gap': scheduler.get('gap'),
                     'instruction': 'schedule only with explicit owner authorization'}
-        return {'status': 'plan', 'request': request,
+        return {'status': 'plan', 'request': request, 'gap': request.get('gap'),
                 'generation': scheduler.get('generation', 1),
                 'stop_after_create': {'tool': 'delete_scheduled_task',
                                       'arguments': {'scheduledTaskId': '<returned schedule id>'}}}
@@ -1924,9 +1968,17 @@ def normalise_pr(raw, now):
         for check in checks:
             if not check['head_sha']:
                 check['head_sha'] = default_check_head
+    external = raw.get('external_blockers') or []
+    require(isinstance(external, list) and all(isinstance(b, dict) and all(
+        isinstance(b.get(k), str) and b[k] for k in
+        ('name', 'dependency', 'detail', 'next_check_at', 'reopen_when')) for b in external),
+        'external blockers need name, dependency, detail, next_check_at and reopen_when')
+    for blocker in external:
+        parse_time(blocker['next_check_at'], 'external blocker next_check_at')
     observation = {
         'state': str(raw.get('state') or 'OPEN').upper(),
         'head_sha': raw.get('head_sha') or raw.get('head_oid'),
+        'base_sha': raw.get('base_sha'),
         'checks': checks,
         'checks_complete': checks_complete,
         'checks_source': checks_source,
@@ -1947,6 +1999,8 @@ def normalise_pr(raw, now):
         'draft': bool(raw.get('draft')),
         'fork': bool(raw.get('fork')),
         'human_blocker': raw.get('human_blocker'),
+        'external_blockers': external,
+        'semantic_repair': raw.get('semantic_repair'),
         'fixer_in_flight': bool((raw.get('owner') or {}).get('fixer_in_flight')),
     }
     return {'url': url, 'repo': repo, 'number': number, 'title': raw.get('title'),
@@ -2061,6 +2115,8 @@ def cmd_dispatch(args):
                 f"update-branch {update['request_id']} is pending; another write may not race it")
         arming = live_dispatch(pr, 'auto-merge')
         require(not arming, 'auto-merge write is pending; reconcile it before another write')
+        require((pr.get('semantic_repair_hold') or {}).get('state') != 'needs-verification',
+                'semantic verification required before another write')
         reconciliation_id = getattr(args, 'reconciliation_request_id', None)
         if args.kind == 'auto-merge' or reconciliation_id:
             action = reconcile_pr(pr, state, now, state.get('discovery') or {})[0]
@@ -2264,7 +2320,7 @@ def cmd_receipt(args):
                 pr['last_meaningful_progress_at'] = now_iso(now)
         audit(state, now, 'receipt', pr=args.pr, request_id=args.request_id,
               status=args.status, stale=stale)
-        if row['kind'] in ('resolution', 'update-branch', 'auto-merge'):
+        if row['kind'] in ('fixer', 'merge', 'resolution', 'update-branch', 'auto-merge'):
             pending = pending_write(pr, state, now)
             if state.get('cancelled') and not pending:
                 pr.update(next_action=None, blocked=None, queue=None)

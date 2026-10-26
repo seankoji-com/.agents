@@ -77,6 +77,31 @@ source SHA-256 and scope. The quote must occur in the actual UTF-8 source bytes.
 Its source must lie outside this job directory and all declared worker write scopes.
 The host supplies and verifies owner intent; a matching source file records
 provenance and cannot cryptographically authenticate the same OS user.
+Pre-selection author executions stay authors, including legacy participant work.
+Their own hash-anchored immutable brief and correlated verified host identity may
+establish a recognised model family. A later task binding, current catalog or
+worker label cannot supply their past selection. Read-only review tasks remain
+excluded. Unknown, conflicting or tampered provenance still blocks independence.
+
+If retry discarded an original descriptor, the existing coordinator `decision`
+route can retain a version-1 `legacy-author-provenance` proof outside job and worker
+scope. Its scope is `legacy-author:` plus SHA-256 of canonical
+`[job_id,task_id,request_id]`. The proof carries those identifiers plus
+`stage_id,logical_slot_id,worker_id,host_task_id,target`, an original
+`brief:{path,sha256,bytes}`, `owner_source:{path,sha256,bytes}`, `owner_quote`, and
+`native_observation:{path,sha256,bytes,item_id,thread_id,run_id}`; it also has
+`schema_version:1` and `kind:"legacy-author-provenance"`. The decision's source/hash
+binds the entire proof and its quote is the owner's exact contextual permission.
+Prepare the exact tuples/proof hashes for owner approval before real reconciliation.
+This is an append-only observation, never a waiver or retrofitted selection.
+Every use reopens the proof, owner source, original native command output and
+brief, with bounded canonical regular-file reads and exact request/host identity.
+Original hash output is worker-initiated and coordinator-inspected; text matching
+does not prove command semantics or authenticate a human. Missing original anchors
+stay unknown. A retried modern execution keeps its producing binding; unreadable
+or ambiguous legacy provenance fails closed. Missing modern descriptors or
+forbidden-follow-up briefs alone do not create legacy authors. New dispatch needs its
+valid producing binding, including when a revision first enables selection.
 Normal briefs carry only decisions scoped to their task waivers. Document-only
 briefs retain their isolated context. Plan revisions
 retain prior requirements/history and performed counters. Added slots/dependencies,
@@ -409,3 +434,35 @@ actual backup and before-edit bytes and cite the adopted owner decision scoped
 as `settings-change:<change-id>`. Adoption history remains immutable. Host actor
 and filesystem enforcement are integration prerequisites, not claims supplied
 by a worker or established by hashing its assertions.
+
+## Optional commit boundary
+
+`Store.create(..., commit_guard=None)` and `Store.transact(...,
+commit_guard=None, commit_context=None)` accept a trusted pinned Python context
+factory. Core create/prepare/revise entry points forward it. The factory receives
+copies of the before-state, operation and context under job.lock, acquires its
+single domain lock, and yields a callable. That final callable receives copies of
+before/proposed/context after normalization/schema checks and immediately before
+atomic job replacement. It runs even for a no-op. The context remains open through
+persistence, including failure cleanup. Context for plan revision binds the exact
+canonical requested JSON digest, revision/caller and previous full generation.
+Generic owner source/quote/hash is reopened inside this transaction as well.
+
+`policy.transaction_guard_required` can name create, plan-revision, prepare and
+acceptance. Previous and proposed requirements are checked; introduction without
+a guard and later removal fail closed. Required-hook refusal at revision entry
+precedes dependency adoption side effects. Unmarked workflows retain the optional
+API. Marked jobs cannot use Store.mutate or relabel an authored plan edit as result
+intake. Cancellation, status and raw result/host reconciliation stay usable.
+
+The shared boundary resolves the already verified pinned adapter, never a module
+path from job JSON. Domain code owns its lock. Lock order is job then domain; an
+operation holding only the domain lock may read the atomic job snapshot but must
+not take job.lock. Validators run outside the domain lock. Acceptance guards every
+reservation/commit/failure-record and its final generation-bound success check,
+without adding another task or final-pass charge.
+
+This trusts the installed Python adapter/coordinator. It does not authenticate a
+human cryptographically or protect against arbitrary same-OS state rewriting or a
+privileged caller inventing a no-op hook. Atomic replacement may succeed before a
+later overview write fails; retain that error and inspect current job bytes.

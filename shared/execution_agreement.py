@@ -131,9 +131,10 @@ def freeze(data, selection):
         require(record['destinations'].get('category_id'), 'intended existing Discussion category required')
     limits = record.get('limits', {})
     require(type(limits.get('max_repair_cycles')) is int and limits['max_repair_cycles'] >= 0 and
-            type(limits.get('max_launch_retries')) is int and 0 <= limits['max_launch_retries'] <= 2 and
-            type(limits.get('max_cost')) in (int, float) and 0 <= limits['max_cost'] < float('inf'),
-            'finite retry/cost limits required')
+            type(limits.get('max_launch_retries')) is int and 0 <= limits['max_launch_retries'] <= 2,
+            'finite retry limits required')
+    require('max_cost' not in limits or (type(limits['max_cost']) in (int, float) and
+            0 <= limits['max_cost'] < float('inf')), 'owner-supplied cost limit must be finite and nonnegative')
     for grant in record.get('authority', []):
         source(grant.get('source'))
         require(isinstance(grant.get('actions'), list) and grant['actions'], 'scoped action grant required')

@@ -108,6 +108,30 @@ class PublicAgreementTests(unittest.TestCase):
         raw['agreement']['source'] = None
         with self.assertRaises(ValueError): agreements.freeze(raw['agreement'], raw)
 
+    def test_babysitter_admission_needs_no_monetary_budget(self):
+        raw = selection_input(); raw['operation'] = 'babysitter/org'; agree(raw)
+        raw['agreement']['limits'].pop('max_cost')
+        result = self.cli('freeze', {'data': raw['agreement'], 'selection': raw})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        raw['agreement'] = json.loads(result.stdout)
+        self.assertNotIn('max_cost', raw['agreement']['limits'])
+        record = models.freeze(raw)
+        admitted = self.cli('admit', {'selection': record, 'action': 'dispatch'})
+        self.assertEqual(admitted.returncode, 0, admitted.stderr)
+        self.assertFalse(json.loads(admitted.stdout)['chooser'])
+
+    def test_owner_supplied_cost_limits_remain_bound_and_validated(self):
+        raw = selection_input(); raw['operation'] = 'babysitter/org'; agree(raw)
+        for value in (0, 12.5):
+            raw['agreement']['limits']['max_cost'] = value
+            frozen = agreements.freeze(raw['agreement'], raw)
+            self.assertEqual(frozen['limits']['max_cost'], value)
+        for value in (None, True, -1, '100', float('inf'), float('nan')):
+            with self.subTest(value=value):
+                raw['agreement']['limits']['max_cost'] = value
+                with self.assertRaisesRegex(models.SelectionError, 'cost limit'):
+                    agreements.freeze(raw['agreement'], raw)
+
     def test_all_direct_controls_are_question_free_and_nested_calls_inherit(self):
         for row in agreements.inventory(ROOT):
             self.assertTrue((ROOT / row['entry']).is_file())

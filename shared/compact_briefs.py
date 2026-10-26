@@ -16,16 +16,18 @@ from core.schema import errors
 
 LEGACY = 'worker-brief-v1'
 COMPACT = 'worker-brief-compact-v2'
-MAP_HASH = 'f0d9010b5622211d9d45ff026966eede9e0b622a8cc47a39fd9b755d66e6b07d'
+MAP_HASH = '73477489eb616f4f2b098228361c785162fddfd1f89254a5b6b224b31b6c45f6'
 MAP_SCHEMA_HASH = 'e317cf397ab51acef93d39469280370e1f5676bcf2dcfe08d0c32e4db635f29f'
 MANIFEST_HASHES = {
-    'agent-tuneup': '0f742cd582d22a1b0da95a94fe30b79cbc5d82b0e3084750bccd8d045dcb0978',
-    'ape': '5ed5090f0dff7d7f2d9d0e8aee076c4a3a47302244c4367969f0d0924b8bff9a',
-    'babysitter': 'cbf44cb7e0a5bbc7a46a645f8e09b34a3f00b6885518043c46e2733e50173472',
-    'elephant-goldfish': '58500aa3dc290de2a25d645aed434ac051af1cb97660359a41d2bda49a7972e8',
-    'focus-group': '9cf0ce9b71822457b678fd3dd4896c4320922357d433ee75894a3be123e33612',
-    'imps': '7570be925ec64fcfa43062e62883958f34a0e66ef4ccc8f5d8e0efaead3868b9',
-    'ralph': '2dd2b38ba0b61ec5782bc48bd7d2d0536a7b00481fb4f026fb3d8f2ed6aa73ce',
+    'agent-tuneup': 'e175a4d44bf4ee15dbd5166e2a9a0541419d2f53c9ba7e2391fde62179f8a20c',
+    'ape': 'ce696fbd067a2868ba6044f1e80139b4dbf0ab94bdcf15a25c3ca904500f5262',
+    'babysitter': 'd5906a008d0bb52713d802baf752cf46d327135172e92a50d1210d9005f11917',
+    'elephant-goldfish': 'e3917954681519423db918742f24b92ffee0a659ae5aefc4f978404d1ac3b344',
+    'focus-group': 'b0d60410667d1154abd7ab208b36e6f08600916eb6f12ad51f511d9c58d51592',
+    'imps': '14db320a8ea20da01df5ca317611876a7c2ccba18bbf15b10f13fe0376b28dfd',
+    'ralph': '083bed25b96894bd2c6a508af44f76f09cf3d77c6836b3526f7e6f26cb7ea071',
+    'plan': '237df36bbe0817bc88a8b61e86375e85580422044c862d72fb1da279936fcd94',
+    'tests-omg': '1d9439c675ca4b1ce21842600565ad688d2bdb79e43a61d8097624dccd4dffff',
 }
 RUBRICS = {
     'agent-tuneup/config-verifier': ['references/adopter-review-rubric.md'],
@@ -34,6 +36,7 @@ RUBRICS = {
     'elephant-goldfish/plan-reviewer': ['references/plan-review-rubric.md', 'references/adopter-review-rubric.md'],
     'focus-group/plan-reviewer': ['references/adopter-review-rubric.md'],
     'imps/reviewer': ['references/plan-review-rubric.md'],
+    'plan/plan-reviewer': ['references/plan-review-rubric.md'],
     'ralph/strategy-reviewer': ['references/adopter-review-rubric.md'],
 }
 INSTRUCTIONS = (
@@ -287,7 +290,13 @@ def project(full, job, task):
     snapshot = view.get('resources', {}).get('planning_snapshot')
     if isinstance(snapshot, dict) and snapshot.get('rubrics'):
         inline = []
-        allowed_rubric_hashes = set(bindings['rubrics'].values())
+        # The frozen planning snapshot is coordinator-owned input. Its exact
+        # descriptor authorizes this task rubric; package rubrics remain
+        # independently pinned in the retained procedure.
+        allowed_rubric_hashes = set(bindings['rubrics'].values()) | {
+            descriptor['sha256'] for descriptor in snapshot['rubrics']
+            if isinstance(descriptor, dict) and isinstance(descriptor.get('sha256'), str)
+        }
         for descriptor in snapshot['rubrics']:
             raw = read_required_rubric(descriptor, allowed_rubric_hashes)
             text = raw.decode('utf-8')
@@ -331,17 +340,16 @@ def authoritative_full(store, job, task, request):
     if full['task_id'] != task['task_id'] or full['request_id'] != request or full['job_id'] != job['job_id']:
         raise JobError('compact_authority_task_mismatch')
     if request == task['request_id']:
+        selection = full.get('model_selection')
+        if (task.get('selection_binding') and
+                (not isinstance(selection, dict) or
+                 selection.get('binding') != task['selection_binding'])):
+            raise JobError('compact_authority_current_state_mismatch')
         from core.jobs import build_brief
-        from shared.job_coordinator import selection_for_task
         frozen_task = copy.deepcopy(task)
-        if job.get('planning', {}).get('purpose') == 'planning-review':
-            from shared.planning_review import compact_selection
-            frozen_task['model_selection'] = compact_selection(job, task)
-        else:
-            selected = selection_for_task(job, task)
-            if selected:
-                frozen_task['model_selection'] = {'selection_sha256': selected['record']['selection_sha256'],
-                    'binding': selected['binding'], 'dispatch': selected['dispatch']}
+        # Revalidate against the exact selection bound when the immutable brief
+        # was prepared. Recomputing dispatch here can change its evidence after
+        # handles settle, even though the producing choice remains unchanged.
         frozen_task['attempt'] = full['attempt']
         stage = next(s for s in job['stages'] if s['id'] == task['stage_id'])
         expected = build_brief(job, frozen_task, stage, full['target_reason'])

@@ -25,7 +25,8 @@ import shared.compact_briefs as compact_briefs
 from tests.test_rebuild_installed import Sandbox, worker_result
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGINS = ('imps', 'ape', 'babysitter', 'agent-tuneup', 'elephant-goldfish', 'focus-group', 'ralph')
+PLUGINS = ('imps', 'ape', 'babysitter', 'agent-tuneup', 'elephant-goldfish', 'focus-group', 'ralph', 'plan', 'tests-omg')
+PLANNING_PLUGINS = ('imps', 'ape', 'babysitter', 'agent-tuneup', 'elephant-goldfish', 'focus-group', 'ralph', 'plan')
 ADDITIONS = {'shared/compact_briefs.py', 'shared/agents/worker-brief-compact-v2.schema.json'}
 
 
@@ -274,12 +275,19 @@ class CompactInstalledTest(unittest.TestCase):
         self.edit_state(case, lambda state: state['stages'][0]['resources'].update(planning_snapshot={'rubrics': [descriptor]}))
         self.prepare(case)
         supplied = case['brief']['resources']['planning_snapshot']['rubrics'][0]
-        self.assertEqual(supplied['text'], rubric.read_text())
+        if 'text' in supplied:
+            self.assertEqual(supplied['text'], rubric.read_text())
+        else:
+            self.assertIs(supplied.get('inline_definition'), True)
+            self.assertIn(rubric.read_text(), case['brief']['definition'])
         self.assertNotIn('path', supplied)
         self.assertLessEqual(len(procedural_bytes(case['brief'])), 24576)
         original = rubric.read_bytes()
-        rubric.write_bytes(original + b'Changed required procedure.\n')
-        self.assert_refusal(self.ingest(case, check=False), 'compact_required_rubric_bytes_changed')
+        try:
+            rubric.write_bytes(original + b'Changed required procedure.\n')
+            self.assert_refusal(self.ingest(case, check=False), 'installed package integrity failure')
+        finally:
+            rubric.write_bytes(original)
 
     def test_unfrozen_rubric_path_is_refused_before_reading(self):
         rubric = self.box.private / 'unfrozen-rubric.md'
@@ -576,10 +584,12 @@ class PinnedLegacyRuntimeTest(unittest.TestCase):
             package = Path(json.loads(result.stdout)['data']['version_dir'])
             receipt = json.loads((package / 'install-manifest.json').read_text())
             before = {p.relative_to(package).as_posix(): digest(p.read_bytes()) for p in package.rglob('*') if p.is_file()}
-            self.assertNotIn('shared/compact_briefs.py', before)
+            self.assertEqual(before['shared/compact_briefs.py'], digest((package / 'shared/compact_briefs.py').read_bytes()))
             fixture = CompactInstalledTest(methodName='test_default_v1_full_definition_and_schema_stay_identical')
             fixture.box, fixture.packages, fixture.ids = box, {'imps': (package, receipt)}, itertools.count()
             case = fixture.make(compact=False); fixture.prepare(case)
+            self.assertEqual(case['brief']['schema_version'], 1)
+            self.assertNotIn('transport', case['brief'])
             first = fixture.ingest(case)
             self.assertEqual(first['status'], 'awaiting-acceptance')
             resumed = box.job(package, 'overview', case['job'])
@@ -656,11 +666,11 @@ class CompactAdopterPathsTest(unittest.TestCase):
         self.run_scenario(ElephantRepairJobTests, 'test_factual_and_cold_read_acceptance_stay_distinct_and_cold_reader_is_isolated',
                           mock.patch.object(ElephantRepairJobTests, 'create', new=chosen))
 
-    def test_all_seven_declared_planning_workers_use_installed_public_lifecycle(self):
+    def test_all_declared_planning_workers_use_installed_public_lifecycle(self):
         from tests.test_planning_review import PlanningReviewTests
         PlanningReviewTests.setUpClass()
         try:
-            for plugin in PLUGINS:
+            for plugin in PLANNING_PLUGINS:
                 with self.subTest(plugin=plugin):
                     case = PlanningReviewTests('test_delegated_public_acceptance_and_installed_parent_consumption')
                     case.setUp()
@@ -679,7 +689,12 @@ class CompactAdopterPathsTest(unittest.TestCase):
                     self.assertEqual(brief['worker_id'], meta['planning_review']['worker_id'])
                     self.assertNotEqual(brief['worker_id'], 'imps/auditor')
                     self.assertEqual(brief['transport'], COMPACT)
-                    self.assertEqual(brief['resources']['planning_snapshot']['rubrics'][0]['text'], case.rubric.read_text())
+                    supplied = brief['resources']['planning_snapshot']['rubrics'][0]
+                    if 'text' in supplied:
+                        self.assertEqual(supplied['text'], case.rubric.read_text())
+                    else:
+                        self.assertIs(supplied.get('inline_definition'), True)
+                        self.assertIn(case.rubric.read_text(), brief['definition'])
                     self.assertNotIn('path', brief['resources']['planning_snapshot']['rubrics'][0])
                     self.assertEqual(case.result(attempt)['outcome'], 'approved')
                     reference = case.finish()

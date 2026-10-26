@@ -298,11 +298,12 @@ class ImpsWholeJobTest(CoreTestCase):
 
         def observe(brief, n):
             handle = {'request_id': brief['request_id'], 'host_task_id': f'host-task-{n}', 'child_thread_id': f'child-{n}'}
+            selection = brief['model_selection']
+            target = selection.get('dispatch', {}).get('target', selection.get('target'))
             for event in ({**handle, 'kind': 'accepted', 'status': 'running', 'work_state': 'working',
                            'has_pending_child_runs': False},
                           {**handle, 'kind': 'completion', 'completion_id': f'done-{n}', 'status': 'completed',
                            'work_state': 'result_available', 'has_pending_child_runs': False}):
-                target = brief['model_selection']['dispatch']['target']
                 event['status_identity'] = {**target, 'options': target.get('options', {})}
                 observed = jobs_call('task-observation', {'caller': caller, 'task_id': 'impl-exec', 'event': event})
                 self.assertEqual(observed.returncode, 0, observed.stderr)

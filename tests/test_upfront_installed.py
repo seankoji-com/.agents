@@ -18,6 +18,25 @@ ralph = importlib.util.module_from_spec(spec); spec.loader.exec_module(ralph)
 
 
 class InstalledAgreementTests(unittest.TestCase):
+    def test_relocated_babysitter_admits_without_money_or_placeholder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            box = Sandbox(Path(tmp)); package, _ = box.install('babysitter')
+            moved = box.base / 'relocated-babysitter'
+            shutil.copytree(package, moved)
+            cli = moved / 'shared/execution_agreement_cli.py'
+            raw = selection_input(); raw['operation'] = 'babysitter/org'; agree(raw)
+            raw['agreement']['limits'].pop('max_cost')
+            frozen = box.run([sys.executable, cli, 'freeze', '--input', box.payload({
+                'data': raw['agreement'], 'selection': raw})], check=False)
+            self.assertEqual(frozen.returncode, 0, frozen.stderr)
+            raw['agreement'] = json.loads(frozen.stdout)
+            self.assertNotIn('max_cost', raw['agreement']['limits'])
+            selected = models.freeze(raw)
+            admitted = box.run([sys.executable, cli, 'admit', '--input', box.payload({
+                'selection': selected, 'action': 'dispatch'})], check=False)
+            self.assertEqual(admitted.returncode, 0, admitted.stderr)
+            self.assertFalse(json.loads(admitted.stdout)['chooser'])
+
     def test_relocated_imps_source_gate_requires_actual_current_endpoint_observations(self):
         from tests.imps_plan_review_fixtures import ImpsPlanFixture
         with tempfile.TemporaryDirectory() as tmp:

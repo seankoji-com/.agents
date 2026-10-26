@@ -245,6 +245,12 @@
           "minimum": 0,
           "default": 20
         },
+        "transaction_guard_required": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"enum": ["create", "plan-revision", "prepare", "acceptance"]},
+          "description": "Monotonic opt-in operations requiring a pinned in-process commit guard; cannot be removed once enabled."
+        },
         "max_artifact_bytes": {
           "type": "integer",
           "minimum": 1

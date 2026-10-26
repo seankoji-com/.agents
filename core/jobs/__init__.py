@@ -1,8 +1,8 @@
 """Generic job planning, storage, immutable brief preparation and lifecycle records."""
 from __future__ import annotations
-import copy, json, os, shlex
+import contextlib, copy, json, os, shlex
 from pathlib import Path
-from .store import Store, JobError, canonical, digest, validate, requests, tasks as _tasks, _atomic, _authorize, _regular, _retain, strict_load
+from .store import Store, JobError, canonical, digest, validate, requests, tasks as _tasks, _atomic, _authorize, _regular, _retain, strict_load, require_guard, guarded
 def _completion_taken(j,cid,request):return any(n.get('completion_id')==cid and n.get('request_id')!=request for n in j.get('notifications',[])+[x for t in _tasks(j) for x in t.get('execution_history',[])])  # completion IDs bind one request across current and superseded tasks
 def _slot_followups(j,t):return {f['request_id'] for x in _tasks(j) if (x['stage_id'],x['logical_slot_id'])==(t['stage_id'],t['logical_slot_id']) for f in x.get('followups',[])}  # follow-up budget is per logical slot, like attempts
 def _open_findings(t):return any(d.get('finding',{}).get('severity') in ('blocker','major') and (d.get('disposition') not in ('fixed','rejected') or not d.get('evidence')) for d in t.get('finding_dispositions',[]))
@@ -12,8 +12,7 @@ def _owner_current(d,limit):  # Re-read owner decision bytes at each use; change
 _RESULT_STATUS={'ready-for-acceptance':'awaiting-acceptance','needs-followup':'awaiting-followup','blocked':'blocked','failed':'failed','malformed-result':'failed'}
 def _result_status(t):return ('stale' if t.get('inputs_stale') else _RESULT_STATUS.get(t.get('last_execution_status'),'failed')) if any(x.get('request_id')==t['request_id'] for x in t.get('execution_history',[])) else None  # only the ingested current result sets acceptance status
 def _spent(s):return s.get('validated_cycle')==s.get('cycle',0)  # this pass was already validated; new executions need a charged pass
-def _live_handles(task):
-    return any(h.get('status') not in ('completed','failed','cancelled','interrupted') or h.get('has_pending_child_runs') or h.get('work_state')!='result_available' for h in task.get('handles',[])+task.get('followups',[]))
+def _live_handles(task):return any(h.get('status') not in ('completed','failed','cancelled','interrupted') or h.get('has_pending_child_runs') or h.get('work_state')!='result_available' for h in task.get('handles',[])+task.get('followups',[]))
 def _uningested(task): return any(h.get('status') in ('completed','failed','cancelled','interrupted') and not h.get('has_pending_child_runs') and h.get('work_state')=='result_available' and not any(x.get('request_id')==h.get('request_id') for x in task.get('execution_history',[])) for h in task.get('handles',[])+task.get('followups',[]))  # terminal work whose result was never ingested is still an obligation
 def _record_identity(j,t,h,e):
     previous=h.get('observed_identity',{});s=copy.deepcopy(previous.get('sources',{}));observed=e.get('observed_identity',e.get('observed'));names={'status':'status','receipt':'receipt','configuration':'configuration','thread-configuration':'configuration'};inputs={k:e.get(k+'_identity',(observed or {}).get(k) if isinstance(observed,dict) else None) for k in ('status','receipt','configuration')}
@@ -36,7 +35,7 @@ def _retain_forbidden(j,t,e,parent):
 def _open_dispatch(t):  # Unreconciled conflicting host IDs or forbidden work blocks replacement and acceptance.
     f=t.get('followup_dispatch') or {};return 'a conflicting host handle remains unreconciled' if any(not c.get('reconciled') for c in t.get('host_conflicts',[])) else 'a forbidden follow-up remains unreconciled' if any(not c.get('reconciled') for c in t.get('forbidden_followups',[])) else 'uncertain follow-up dispatch lacks an authoritative host observation' if f.get('uncertain_calls') and not any(h.get('request_id')==f.get('request_id') for h in t.get('handles',[])+t.get('followups',[])) else ''
 def _unsettled(j,t):return _open_dispatch(t) or ('uncertain or blocked dispatch lacks an authoritative host observation' if t.get('blocked_reason') or t.get('uncertain_calls') and not any(h.get('request_id')==t['request_id'] for h in t.get('handles',[])+t.get('followups',[])) else 'a conflicting host handle remains unreconciled in job blockers' if any(b.get('kind')=='conflicting-host-handle' and b.get('task_id')==t['task_id'] and not b.get('reconciled') for b in j.get('blockers',[])) else 'owned host work is not terminal with result_available' if _live_handles(t) else 'owned terminal work has no ingested result' if _uningested(t) else '')  # A plan decision never proves termination, absence or that a claimed result was read.
-def create_job(payload,state_root,pins):
+def create_job(payload,state_root,pins,*,commit_guard=None):
     """Persist a fully formed plan and externally verified immutable pin snapshot.""";j=copy.deepcopy(payload);j.setdefault('schema_version',1);j['pins']=copy.deepcopy(pins)
     for key in ('max_repair_cycles','max_live_workers','max_live_workers_by_provider'):
         if key not in j.get('policy',{}) and len({canonical(pin.get('limits',{}).get(key,{} if key=='max_live_workers_by_provider' else None)) for pin in pins.values()})>1:raise JobError('conflicting pin limits require explicit job policy')
@@ -47,7 +46,7 @@ def create_job(payload,state_root,pins):
         s.setdefault('attempts',{'primary':0,'support':0,'review':0,'final':0});s.setdefault('acceptance',None)
     for t in j['tasks']:
         t.setdefault('status','pending');t.setdefault('attempt',0);t.setdefault('handles',[]);t.setdefault('followups',[]);t.setdefault('dispatch_retries',0)
-    store=Store(state_root,j['job_id']);store.create(j);return {'job':str(store.file),'overview':str(store.path/'overview.json')}
+    store=Store(state_root,j['job_id']);store.create(j,commit_guard=commit_guard,commit_context={'request_sha256':digest(canonical(payload))});return {'job':str(store.file),'overview':str(store.path/'overview.json')}
 def build_brief(j, task, stage, target_reason):
     task_id=task['task_id'];pin=j['pins'][task['dependency_key']];effective=pin['effective_workers'].get(task['worker_id'])
     if not effective or task.get('context_files') is not None and task.get('context_policy')!='document-only':raise JobError('context files belong only to a document-only task' if effective else 'worker missing from pinned dependency')
@@ -59,7 +58,7 @@ def build_brief(j, task, stage, target_reason):
         for key in ('objective','consumed_outputs','resources','target_reason','target','revision','owner_decisions'):brief.pop(key,None)
         brief.update(result_contract={'schema_version':1,'transport':'worker-result-v1'},stop_conditions=['Stop if the supplied document '+('or a declared context file ' if files else '')+'is unreadable or its hash differs.'],revision=None);brief.update(document=document,requirements=[{'id':r} for r in req],authorization={'read':[document['path']]+[f['path'] for f in files],'write':task.get('write_scope',{})},constraints=['Read only the supplied document'+(', its declared context files' if files else '')+' and procedural definition; no other job context or child work.'],snapshot={'sha256':digest(canonical(j.get('snapshot')))},dependency_pins={task['dependency_key']:{k:pin[k] for k in ('package_digest','bundle_digest')}},target_reason='declared document-only scope',**({'context_files':files} if files else {}))
     return brief
-def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason='configured worker', *, bind_inputs=None, project_brief=None, serialize_brief=None):
+def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason='configured worker', *, bind_inputs=None, project_brief=None, serialize_brief=None, commit_guard=None):
     if not callable(verify_pin):raise JobError('pinned dependency verifier is required')
     def check(job):
         for dep in job['dependencies']:
@@ -81,7 +80,7 @@ def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason
         _retain(path,raw,'immutable brief changed; an explicit new attempt is required');task['brief']={key:brief[key] for key in ('job_id','stage_id','logical_slot_id','task_id','request_id','worker_id','effective_brief_sha256','revision','snapshot')}
         task['brief'].update(path=str(path),sha256=digest(raw));task['cycle']=stage.get('cycle',0);task.pop('inputs_stale',None)  # the execution belongs to this pass under the current contract
         return {'path':str(path),'sha256':digest(raw),'bytes':len(raw),'provenance':{key:brief[key] for key in ('job_id','stage_id','task_id','request_id')}}
-    store.verify_pins=check;return store.transact(caller,apply,'prepare')
+    store.verify_pins=check;return store.transact(caller,apply,'prepare',**({'commit_guard':commit_guard,'commit_context':{'task_id':task_id}} if commit_guard is not None else {}))
 def record_result(store,caller,task_id,result,result_parser=None):
     from .results import parse_result;parser=result_parser or parse_result
     def apply(j):
@@ -180,24 +179,19 @@ def record_dispatch(store,caller,task_id,event):
             for field in ('status','work_state','has_pending_child_runs'):
                 if field not in event:raise JobError('authoritative observation missing '+field)
                 handle[field]=event[field]
-            if kind == 'completion':
-                _record_identity(j,t,handle,event)
-            if kind == 'reconciled':
-                _record_identity(j,t,handle,event)
-                if terminal and not event.get('has_pending_child_runs') and event.get('work_state') not in ('working','waiting_for_children'):
-                    for b in j.get('blockers',[]):
-                        if b.get('task_id')==task_id and b.get('request_id')==request and b.get('host_task_id')==host_id and b.get('kind') in ('identity-mismatch','forbidden-followup'):b['reconciled']={key:event[key] for key in ('status','work_state','has_pending_child_runs')};[x.update(reconciled=b['reconciled']) for x in t.get('forbidden_followups',[]) if x.get('request_id')==request and x.get('host_task_id')==host_id]
+            _record_identity(j,t,handle,event)
+            if kind=='reconciled' and terminal and not event.get('has_pending_child_runs') and event.get('work_state') not in ('working','waiting_for_children'):
+                for b in j.get('blockers',[]):
+                    if b.get('task_id')==task_id and b.get('request_id')==request and b.get('host_task_id')==host_id and b.get('kind') in ('identity-mismatch','forbidden-followup'):b['reconciled']={key:event[key] for key in ('status','work_state','has_pending_child_runs')};[x.update(reconciled=b['reconciled']) for x in t.get('forbidden_followups',[]) if x.get('request_id')==request and x.get('host_task_id')==host_id]
             if request==t['request_id']:
                 t['status']=(_result_status(t) or ('stale' if t.get('inputs_stale') else 'awaiting-acceptance')) if terminal and event['work_state']=='result_available' and not event['has_pending_child_runs'] else 'running'
             if kind=='completion':j['notifications'].append(event)
             t.setdefault('reconciliation',[]).append(event)
         elif kind=='followup':
-            parent=next((h for h in handles if h.get('task_id',h.get('host_task_id'))==event.get('parent_host_task_id')),None)
             if not parent or parent.get('status') not in ('completed','failed','cancelled','interrupted') or parent.get('has_pending_child_runs') or parent.get('work_state')!='result_available':raise JobError('followup parent is not confirmed terminal without pending runs')
             if not host_id or not request or request==parent['request_id'] or event.get('target')!=parent.get('target') or event.get('scope')!=parent.get('scope') or event.get('target')!=t.get('target') or event.get('scope')!=t.get('write_scope'):raise JobError('followup changed identity, model or authority')
             if any(h['request_id']==request and h.get('task_id')!=host_id for h in handles):raise JobError('request already has an accepted host handle')
             if any(h['request_id']==request for h in handles):return
-            staged=t.get('prepared_followup',{})
             if t.get('role') == 'review' or t.get('context_policy') == 'document-only':
                 _retain_forbidden(j,t,event,parent);return
             if not ((t.get('followup_dispatch') or {}).get('uncertain_calls') and (t.get('followup_dispatch') or {}).get('request_id')==request) and (t.get('attempt',0)>=1+j['policy']['max_repair_cycles'] or t.get('inputs_stale') or t.get('status')=='stale' or _spent(next(s for s in j['stages'] if s['id']==t['stage_id']))):raise JobError('stale, validated-pass or exhausted task requires a charged fresh preparation, not a follow-up')
@@ -249,14 +243,16 @@ def retry_task(store,caller,task_id,reason,category='primary'):
         if new in requests(j):raise JobError('retry request ID is retained by job history')
         t.setdefault('retired_request_ids',[]).append(t['request_id']);t['request_id']=new;t.pop('brief',None)
     return store.transact(caller,apply,'retry')
-def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
+def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None,*,commit_guard=None):
     """Apply declared plan edits, requiring recorded owner evidence for expansion/weakening."""
     if not isinstance(revision,dict) or not revision.get('id'):raise JobError('revision needs a stable ID')
     required_decision=False;why=[];j=store.verified_load();_authorize(j,caller,'plan-revision')
+    requested_sha256=digest(canonical(new_plan))
+    prospective={**j,**new_plan,'policy':{**j['policy'],**new_plan.get('policy',{})}}
+    require_guard(j,prospective,'plan-revision',commit_guard)  # Before adoption has any side effects.
     if any(r['revision']['id']==revision['id'] for r in j.get('plan_revisions',[])):raise JobError('plan revision ID already applied; use a new owner-bound revision')
-    new_plan=copy.deepcopy(new_plan)
-    for key in ('requirements','dependencies','stages','tasks','constraints','authorization','policy','model_selection','model_selection_sha256','model_selection_history','invocation_id','scope_id'):
-        if key not in new_plan and key in j:new_plan[key]=j[key]
+    fields=('requirements','dependencies','stages','tasks','constraints','authorization','policy','model_selection','model_selection_sha256','model_selection_history','invocation_id','scope_id')
+    new_plan={k:j[k] for k in fields if k in j}|copy.deepcopy(new_plan)
     new_plan['policy']={**j['policy'],**new_plan['policy']}
     task_contract={'task_id','stage_id','logical_slot_id','worker_id','dependency_key','target','write_scope','requirements','context_policy','document','context_files','max_followups','review_required','role','review_task_ids','reviewed_task_ids','reviewed_documents','independent_of_author','document_authors','selection_binding'};stage_contract={'id','depends_on','requirements','criteria','resources','validator_dependency','validator_contract','revision','outputs','stop_conditions','execution_mode','validator_limits','independent_of_author','lineage_waiver','document_authors','selection_binding'}
     for kind,contract in (('tasks',task_contract),('stages',stage_contract)):
@@ -336,7 +332,16 @@ def revise_plan(store,caller,revision,new_plan,adopt_dependencies=None):
                 task['inputs_stale']=True
                 if not _live_handles(task) and not task.get('uncertain_calls'):task['status']='stale'
         state.setdefault('plan_revisions',[]).append({'revision':revision,'plan_sha256':digest(canonical(new_plan)),'decision_id':decision_id if decision else None,'expanded':required_decision,'adopted_dependencies':sorted(added|replaced),'invalidated_acceptance':bool(affected)})
-    return store.transact(caller,apply,'plan-revision')
+    @contextlib.contextmanager
+    def revision_guard(before,operation,context):
+        with guarded(commit_guard,before,operation,context) as final:
+            def check(_before,proposed,_context):
+                if decision is not None and not _owner_current(decision,j['policy']['max_artifact_bytes']):raise JobError('owner decision source changed before plan persistence')
+                final(proposed)
+            yield check
+    return store.transact(caller,apply,'plan-revision',commit_guard=revision_guard,
+        commit_context={'revision':copy.deepcopy(revision),'requested_plan_sha256':requested_sha256,
+                        'generation':generation,'caller':copy.deepcopy(caller)})
 def _subset(candidate, ceiling):
     if isinstance(candidate,dict):return isinstance(ceiling,dict) and set(candidate)<=set(ceiling) and all(_subset(v,ceiling[k]) for k,v in candidate.items())
     if isinstance(candidate,list):return isinstance(ceiling,list) and all(v in ceiling for v in candidate)

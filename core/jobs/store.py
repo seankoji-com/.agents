@@ -1,6 +1,6 @@
 """Private, versioned generic job state. Stores evidence, not readiness."""
 from __future__ import annotations
-import fcntl, hashlib, itertools, json, math, os, re, stat, tempfile
+import contextlib, copy, fcntl, graphlib, hashlib, itertools, json, math, os, re, stat, tempfile
 from pathlib import Path
 VERSION=1
 MAX_STATE_BYTES=256*1024*1024;MAX_JSON_DEPTH=512  # finite state bound; input/artifact limits remain separate
@@ -74,25 +74,15 @@ def validate(j):
  except Exception as exc:raise JobError(f'schema_invalid: job does not match published job schema: {exc}') from exc
  if not j['owner'] or not j['requirements']:raise JobError('owner and requirements must be nonempty')
  if any(not isinstance(k,str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,127}',k) or not isinstance(v,str) or not v for k,v in j['requirements'].items()):raise JobError('requirements need safe IDs and nonempty statements')
- ids=set();deps={};slots=set();task_ids=set();request_ids=set()
- for s in j['stages']:
-  sid=s.get('id')
-  if sid in ids:raise JobError('duplicate stage id')
-  ids.add(sid);deps[sid]=s.get('depends_on',[])
-  if any(r not in j['requirements'] for r in s.get('requirements',[])):raise JobError('stage references undeclared requirement')
- visiting=set();done=set()
- def visit(n):
-  if n in visiting:raise JobError('cyclic stage dependency')
-  if n in done:return
-  if any(d not in ids for d in deps[n]):raise JobError('unknown stage dependency')
-  visiting.add(n);[visit(d) for d in deps[n]];visiting.remove(n);done.add(n)
- for n in ids:visit(n)
- for t in j['tasks']:
-  if t['task_id'] in task_ids or t['request_id'] in request_ids:raise JobError('duplicate task or request ID')
-  task_ids.add(t['task_id']);request_ids.add(t['request_id'])
-  slot=(t['stage_id'],t['logical_slot_id'])
-  if slot in slots:raise JobError('duplicate logical task slot')
-  slots.add(slot)
+ stages=j['stages'];current=j['tasks'];ids={s['id'] for s in stages};deps={s['id']:s.get('depends_on',[]) for s in stages}
+ if len(ids)!=len(stages):raise JobError('duplicate stage id')
+ if any(r not in j['requirements'] for s in stages for r in s.get('requirements',[])):raise JobError('stage references undeclared requirement')
+ if any(d not in ids for values in deps.values() for d in values):raise JobError('unknown stage dependency')
+ try:tuple(graphlib.TopologicalSorter(deps).static_order())
+ except graphlib.CycleError as exc:raise JobError('cyclic stage dependency') from exc
+ if len({t['task_id'] for t in current})!=len(current) or len({t['request_id'] for t in current})!=len(current):raise JobError('duplicate task or request ID')
+ if len({(t['stage_id'],t['logical_slot_id']) for t in current})!=len(current):raise JobError('duplicate logical task slot')
+ for t in current:
   if t['stage_id'] not in ids:raise JobError('task references unknown stage')
   if j['pins'] and t.get('dependency_key') not in j['pins']:raise JobError('task references undeclared dependency pin')
   scope=t.get('write_scope',{'mode':'coordinator-only'})
@@ -111,51 +101,71 @@ def _reject_symlink_components(path):
  if bad:=next((c for c in (Path(*Path(path).absolute().parts[:i]) for i in range(2,len(Path(path).absolute().parts)+1)) if c.is_symlink() and not trusted_link(c)),None):raise JobError(f'symlink in job state path: {bad}')
 def _authorize(job,caller,operation):
  if not isinstance(caller,dict):raise JobError('caller metadata is required')
- if caller.get('installation_id')!=job['installation_id'] or caller.get('workflow')!=job['workflow'] or caller.get('package_digest') not in {p['package_digest'] for p in job['pins'].values()}:
-  raise JobError('ownership_mismatch: wrong-package/installation/workflow caller')
+ if caller.get('installation_id')!=job['installation_id'] or caller.get('workflow')!=job['workflow'] or caller.get('package_digest') not in {p['package_digest'] for p in job['pins'].values()}:raise JobError('ownership_mismatch: wrong-package/installation/workflow caller')
  if caller.get('actor') not in ('coordinator','worker'):raise JobError('explicit caller actor is required')
- if caller['actor']!='coordinator' and operation!='worker-evidence':
-  raise JobError('coordinator-only operation')
+ if caller['actor']!='coordinator' and operation!='worker-evidence':raise JobError('coordinator-only operation')
+
+GUARDED_OPERATIONS=frozenset(('create','plan-revision','prepare','acceptance'))
+def guard_operations(job):
+ value=(job or {}).get('policy',{}).get('transaction_guard_required',[])
+ if not isinstance(value,list) or any(x not in GUARDED_OPERATIONS for x in value) or len(value)!=len(set(value)):raise JobError('invalid transaction_guard_required operations')
+ return set(value)
+def require_guard(before,proposed,operation,guard):
+ old,new=guard_operations(before),guard_operations(proposed)
+ if not old<=new:raise JobError('transaction guard policy cannot be removed')
+ if new-old and not callable(guard):raise JobError('required transaction guard missing for policy introduction')
+ if operation in old|new and not callable(guard):raise JobError('required transaction guard missing for '+operation)
+ if guard is not None and not callable(guard):raise JobError('transaction guard must be callable')
+@contextlib.contextmanager
+def guarded(guard,before,operation,context):
+ # Trusted Python callback from the pinned adapter, never executable job data.
+ if guard is None:yield lambda proposed:None;return
+ frozen=copy.deepcopy(context or {})
+ with guard(copy.deepcopy(before),operation,copy.deepcopy(frozen)) as final:
+  if not callable(final):raise JobError('transaction guard must yield a final check')
+  yield lambda proposed:final(copy.deepcopy(before),copy.deepcopy(proposed),copy.deepcopy(frozen))
 class Store:
  def __init__(self,state_root,job_id,verify_pins=None,verify_brief=None):
   if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',job_id):raise JobError('unsafe job id')
   self.root=Path(state_root).expanduser().absolute();self.path=self.root/job_id;self.file=self.path/'job.json';self.lock=self.path/'job.lock';self.verify_pins=verify_pins;self.verify_brief=verify_brief
  def locked(self):
-  _reject_symlink_components(self.root)
-  os.close(_directory_fd(self.root,create=True))
-  if stat.S_IMODE(self.root.stat().st_mode)&0o077:raise JobError('state root permissions must be private (0700)')
-  os.close(_directory_fd(self.path,create=True))
-  _reject_symlink_components(self.path)
-  if stat.S_IMODE(self.path.stat().st_mode)&0o077:raise JobError('job directory permissions must be private (0700)')
+  for path,label in ((self.root,'state root'),(self.path,'job directory')):
+   _reject_symlink_components(path);os.close(_directory_fd(path,create=True))
+   if stat.S_IMODE(path.stat().st_mode)&0o077:raise JobError(label+' permissions must be private (0700)')
   parent=_directory_fd(self.path)
   try:fd=os.open(self.lock.name,os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW|os.O_NONBLOCK,0o600,dir_fd=parent)
   finally:os.close(parent)
   if not stat.S_ISREG(os.fstat(fd).st_mode):os.close(fd);raise JobError('unsafe lock')
   fcntl.flock(fd,fcntl.LOCK_EX);return fd
  def load(self):return validate(strict_load(_regular(self.file,max_bytes=MAX_STATE_BYTES)))
- def create(self,j):
+ def create(self,j,*,commit_guard=None,commit_context=None):
   validate(j);fd=self.locked()
   try:
    if self.file.exists():raise JobError('job already exists')
-   _atomic(self.file,canonical(j));self.overview(j)
+   require_guard(None,j,'create',commit_guard)
+   with guarded(commit_guard,None,'create',commit_context) as final:
+    validate(j);final(j);_atomic(self.file,canonical(j));self.overview(j)
   finally:fcntl.flock(fd,fcntl.LOCK_UN);os.close(fd)
- def mutate(self,caller,fn):
+ def mutate(self,caller,fn):return self.transact(caller,fn,_replace=True)
+ def transact(self,caller,fn,operation='mutate',*,commit_guard=None,commit_context=None,_replace=False):
   fd=self.locked()
   try:
-   j=self.verified_load();_authorize(j,caller,'mutate')
-   if j.get('status')=='cancelled' or j.get('discard_requested'):raise JobError('job is cancelled or discarded')
-   old=canonical(j);out=fn(j) or j;validate(out)
-   if canonical(out)!=old:_atomic(self.file,canonical(out));self.overview(out)
-   return out
-  finally:fcntl.flock(fd,fcntl.LOCK_UN);os.close(fd)
- def transact(self,caller,fn,operation='mutate'):
-  fd=self.locked()
-  try:
-   j=self.verified_load();_authorize(j,caller,operation);old=canonical(j)
+   j=self.verified_load();_authorize(j,caller,operation);old=canonical(j);before=copy.deepcopy(j)
+   require_guard(before,before,operation,commit_guard)
+   if operation=='mutate' and guard_operations(before):raise JobError('guarded jobs require the explicit transaction operation')
    if (j.get('status')=='cancelled' or j.get('discard_requested')) and operation not in ('task-observation','cancel','discard'):raise JobError('job is cancelled or discarded')
-   result=fn(j);validate(j)
-   if canonical(j)!=old:_atomic(self.file,canonical(j));self.overview(j)
-   return result if result is not None else j
+   context={**copy.deepcopy(commit_context or {}),'caller':copy.deepcopy(caller)}
+   with guarded(commit_guard,before,operation,context) as final:
+    result=fn(j)
+    # A mutate replacement must not overwrite the callback's original object.
+    if _replace:j=result or j
+    validate(j);require_guard(before,j,operation,commit_guard)
+    if guard_operations(before) or guard_operations(j):
+     authored=('requirements','authorization','constraints','dependencies','pins','policy','model_selection','model_selection_sha256','invocation_id','scope_id')
+     if operation not in GUARDED_OPERATIONS and any(before.get(k)!=j.get(k) for k in authored):raise JobError('guarded plan changes require plan-revision')
+    final(j)  # Also runs for a no-op, including final acceptance authorization.
+    if canonical(j)!=old:_atomic(self.file,canonical(j));self.overview(j)
+    return j if _replace or result is None else result
   finally:fcntl.flock(fd,fcntl.LOCK_UN);os.close(fd)
  def verified_load(self):
   job=self.load()

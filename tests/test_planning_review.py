@@ -411,7 +411,7 @@ class PlanningReviewTests(unittest.TestCase):
                 Path(attempt['path']).write_bytes(raw)
                 before = (store.file.read_bytes(), subject.read_bytes())
                 with self.assertRaisesRegex(planning.PlanningError, 'immutable planning brief tampered'):
-                    planning._expected(store.load(), store.load()['tasks'][0])
+                    planning._expected(store, store.load(), store.load()['tasks'][0])
                 self.assertIn('immutable planning brief tampered', self.cli('launch', payload, ok=False))
                 self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
                 # Corrupt fixture metadata explicitly to reach the root-shape guard.
@@ -420,7 +420,7 @@ class PlanningReviewTests(unittest.TestCase):
                 before = (store.file.read_bytes(), subject.read_bytes())
                 with self.subTest(interface='helper'):
                     with self.assertRaisesRegex(planning.PlanningError, 'planning brief must be a JSON object'):
-                        planning._expected(store.load(), store.load()['tasks'][0])
+                        planning._expected(store, store.load(), store.load()['tasks'][0])
                 with self.subTest(interface='cli'):
                     error = self.cli('launch', payload, ok=False)
                     self.assertIn('planning_review_error: planning brief must be a JSON object', error)

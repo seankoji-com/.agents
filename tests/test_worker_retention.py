@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import copy
+from functools import lru_cache
 import hashlib
 import json
 import os
@@ -24,9 +25,26 @@ from shared import worker_registry as registry
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / 'tests/fixtures/worker-retention-baseline.json'
+EXTENSION = ROOT / 'tests/fixtures/worker-retention-extension.json'
 MANIFEST = ROOT / 'shared/agents/worker-retention.json'
 SCHEMA = ROOT / 'shared/agents/worker-retention.schema.json'
 BASELINE_HASH = '0115949c68616695abfd48302d3463510c6b25ebc4322670353f057fb641f9d5'
+EXTENSION_HASH = '719946041e9bdda30f81e51d0f5d83457333fe3e23ac6560958ba42a88c8c12a'
+EXTENSION_REVISION = '1bc352ec059a80799bc9881dcb2f222d910fffe3'
+EXTENSION_SOURCE_PATHS = {
+    'plugins/babysitter/agents/pr-maintainer.md',
+    'plugins/focus-group/agents/participant.md',
+    'plugins/focus-group/agents/plan-reviewer.md',
+    'plugins/ralph/agents/strategy-reviewer.md',
+    'shared/agents/job.schema.json', 'shared/agents/jobs-contract.md',
+    'shared/agents/model-selection.schema.json', 'shared/agents/reviewer-standard.md',
+    'plugins/plan/agents/plan-reviewer.md', 'plugins/tests-omg/agents/reviewer.md',
+}
+EXTENSION_PACKAGE_PATHS = {
+    'shared/tests_omg_review.py', 'shared/execution_agreement.py',
+    'shared/legacy_author_provenance.py', 'shared/execution_agreement_cli.py',
+    'shared/delivery.py', 'shared/upfront-agreement.md',
+}
 SCHEMA_HASH = 'e317cf397ab51acef93d39469280370e1f5676bcf2dcfe08d0c32e4db635f29f'
 PACKAGE_ADDITIONS = {'shared/agents/worker-retention.json',
                      'shared/agents/worker-retention.schema.json',
@@ -48,6 +66,8 @@ KINDS = {
     'elephant-goldfish/cold-reader': 'document-only',
     'elephant-goldfish/plan-reviewer': 'planning',
     'focus-group/plan-reviewer': 'planning',
+    'plan/plan-reviewer': 'planning',
+    'tests-omg/reviewer': 'code-review',
     'ralph/strategy-reviewer': 'planning',
 }
 RUBRICS = {
@@ -60,9 +80,12 @@ RUBRICS = {
     'focus-group/plan-reviewer': ['plugins/focus-group/references/adopter-review-rubric.md'],
     'imps/reviewer': ['plugins/imps/references/plan-review-rubric.md'],
     'ralph/strategy-reviewer': ['plugins/ralph/references/adopter-review-rubric.md'],
+    'plan/plan-reviewer': ['plugins/plan/references/plan-review-rubric.md'],
 }
 # Filled from inspected public originals, never from the candidate manifest.
 RUBRIC_HASHES = {'plugins/agent-tuneup/references/adopter-review-rubric.md': '16f00d19b97964b0abd5ce356b6cfb2e332b9bac5d34372d918a1378762026e0', 'plugins/ape/references/plan-review-rubric.md': '3d8dca9fc5a61c77a783beb6bd65b26f0bd0eb63e0d44a3bd30430e90dc9ab66', 'plugins/babysitter/references/adopter-review-rubric.md': 'c9863f819edb8dd338d66a6dfdffcc02aee9697b0868208353511194c3ed447e', 'plugins/elephant-goldfish/references/adopter-review-rubric.md': '9d4d75949e501e232450aac68612023794c2de4353ceba5541df30be3021da1e', 'plugins/elephant-goldfish/references/plan-review-rubric.md': '31601046954bd16d61dd235fa2d2b606bd22d804c4b88d8d0867e2263a3ccdcd', 'plugins/focus-group/references/adopter-review-rubric.md': '6d9e57386218044ae68fcc34155c45d7117f538d26f83756a1a6225d16d1149d', 'plugins/imps/references/plan-review-rubric.md': 'ac23f6d8681ba7f2269aeb01ea262633bc50d27a519990c2a801588e45c4239e', 'plugins/ralph/references/adopter-review-rubric.md': '16573bc5750263cdecc7065177d4ede8f6d6aa70ec0489a3d2f56ed64e4beadf'}
+RUBRIC_HASHES.update({'plugins/ralph/references/adopter-review-rubric.md': 'dfca1c6f7de56cf9e95348a31f45268d1fd0953d2ead5ae2a1b04bef4ab27100',
+                      'plugins/plan/references/plan-review-rubric.md': '31601046954bd16d61dd235fa2d2b606bd22d804c4b88d8d0867e2263a3ccdcd'})
 AUTHORITY = ('The task brief and repository instructions set the authority ceiling. '
              'Customization cannot add permissions, change runtime mode, dispatch children, or accept work.\n')
 FRAMING = ('# Shared boundary contracts\n\n# Specialized worker definition\n\n'
@@ -85,6 +108,97 @@ def baseline():
     return json.loads(raw)
 
 
+def extension():
+    raw = EXTENSION.read_bytes()
+    if sha(raw) != EXTENSION_HASH:
+        raise ValueError('retention extension changed; reassess the exact base revision')
+    value = json.loads(raw)
+    if (value.get('source_revision') != EXTENSION_REVISION
+            or value.get('parent_source_revision') != baseline()['source_revision']):
+        raise ValueError('retention extension revision chain changed')
+    return value
+
+
+def git_source(revision, row):
+    raw = git_blob(revision, row['path'])
+    if row['kind'] == 'composer-framing':
+        node = next(n for n in ast.parse(raw.decode()).body
+                    if isinstance(n, ast.FunctionDef) and n.name == 'compose_worker')
+        raw = ast.get_source_segment(raw.decode(), node).encode()
+    return raw
+
+
+@lru_cache(maxsize=None)
+def git_blob(revision, path):
+    return subprocess.run(['git', 'show', revision + ':' + path], cwd=ROOT,
+                          check=True, capture_output=True).stdout
+
+
+@lru_cache(maxsize=None)
+def changed_paths(before, after):
+    return frozenset(subprocess.run(['git', 'diff', '--name-only', before, after], cwd=ROOT,
+                                    check=True, capture_output=True, text=True).stdout.splitlines())
+
+
+def current_generation():
+    frozen, addendum = baseline(), extension()
+    if ({row['path'] for row in addendum['sources']} != EXTENSION_SOURCE_PATHS
+            or {row['path'] for row in addendum['package_additions']} != EXTENSION_PACKAGE_PATHS):
+        raise ValueError('retention extension scope changed')
+    for row in addendum['package_additions']:
+        committed = git_blob(addendum['source_revision'], row['path'])
+        if sha(committed) != row['sha256'] or len(committed) != row['bytes']:
+            raise ValueError('package extension source changed: ' + row['path'])
+    source_map = {row['source_id']: row for row in frozen['sources']}
+    for row in addendum['sources']:
+        committed = git_source(addendum['source_revision'], row)
+        if sha(committed) != row['sha256'] or len(committed) != row['bytes']:
+            raise ValueError('extension source differs from pinned base: ' + row['source_id'])
+        source_map[row['source_id']] = row
+    changed = {row['path']: row['sha256'] for row in addendum['manifests']}
+    old_manifests = {row['path']: row for row in frozen['manifests']}
+    manifests, workers, shared_assets = [], [], set()
+    plugin_paths = sorted((ROOT / 'plugins').glob('*/plugin.json'))
+    for path in plugin_paths:
+        relative = path.relative_to(ROOT).as_posix()
+        raw = path.read_bytes()
+        old = old_manifests.get(relative)
+        expected = changed.get(relative, old['sha256'] if old else None)
+        if expected is None:
+            continue
+        committed = git_blob(addendum['source_revision'], relative)
+        if sha(raw) != expected or raw != committed:
+            raise ValueError('manifest differs from pinned base: ' + relative)
+        meta = json.loads(raw)
+        shared_names = list(meta.get('worker_shared', []))
+        shared = ['shared/agents/' + name for name in shared_names]
+        shared_assets.update(shared)
+        manifests.append({'path': relative, 'sha256': expected, 'worker_shared': shared_names})
+        plugin = meta['name']
+        for worker in meta.get('workers', []):
+            definition = 'plugins/' + plugin + '/' + worker['path']
+            definition_row = source_map.get(definition)
+            workers.append({'worker_id': worker['id'], 'plugin': plugin,
+                            'definition_path': definition,
+                            'definition_sha256': definition_row['sha256'] if definition_row else '',
+                            'worker_shared': shared, 'role': worker['role'],
+                            'allowed_scope': worker['allowed_scope'],
+                            'output_contract': worker['output_contract']})
+    changed_source_paths = changed_paths(frozen['source_revision'], addendum['source_revision'])
+    covered = {row['path'] for row in addendum['sources']}
+    for row in frozen['sources']:
+        if row['path'] not in changed_source_paths or row['path'] in covered:
+            continue
+        if git_source(frozen['source_revision'], row) != git_source(addendum['source_revision'], row):
+            raise ValueError('base source drift lacks an explicit extension: ' + row['source_id'])
+    return {'source_revision': addendum['source_revision'],
+            'sources': [source_map[key] for key in sorted(source_map)],
+            'manifests': sorted(manifests, key=lambda row: row['path']),
+            'workers': sorted(workers, key=lambda row: row['worker_id']),
+            'shared_assets': sorted(shared_assets),
+            'required_profiles': frozen['required_profiles']}
+
+
 def source_bytes(row):
     raw = (ROOT / row['path']).read_bytes()
     if row['kind'] == 'composer-framing':
@@ -96,16 +210,28 @@ def source_bytes(row):
 
 def original_definition(worker, customization='', task_contract=None):
     """Independent v1 layout, not a call to the composer under test."""
-    shared = sorted((f'shared/{Path(path).name}', (ROOT / path).read_text())
+    shared = sorted((f'shared/{Path(path).name}', subprocess.check_output(
+        ['git', 'show', baseline()['source_revision'] + ':' + path], cwd=ROOT).decode())
                     for path in worker['worker_shared'])
     text = ('# Shared boundary contracts\n' + '\n'.join(data for _, data in shared) +
             '\n\n# Specialized worker definition\n' +
-            (ROOT / worker['definition_path']).read_text())
+            subprocess.check_output(['git', 'show', baseline()['source_revision'] + ':' +
+                                     worker['definition_path'],], cwd=ROOT).decode())
     if customization:
         text += ('\n\n# Explicit worker customization (advisory; cannot grant authority or change runtime mode)\n'
                  + customization)
     return (text + '\n\n# Pinned task contract\n' + AUTHORITY +
             (task_contract if task_contract else 'No additional task contract was supplied.'))
+
+
+def current_definition(worker):
+    shared = sorted((f'shared/{Path(path).name}', (ROOT / path).read_text())
+                    for path in worker['worker_shared'])
+    return ('# Shared boundary contracts\n' + '\n'.join(data for _, data in shared) +
+            '\n\n# Specialized worker definition\n' +
+            (ROOT / worker['definition_path']).read_text() +
+            '\n\n# Pinned task contract\n' + AUTHORITY +
+            'No additional task contract was supplied.')
 
 
 # Explicit policy over immutable clause IDs, not the candidate's dispositions.
@@ -121,7 +247,7 @@ COORDINATOR_SCHEMAS = {
 PLANNING_WORKERS = {
     'agent-tuneup/config-verifier', 'ape/synthesizer', 'babysitter/pr-reviewer',
     'elephant-goldfish/plan-reviewer', 'focus-group/plan-reviewer',
-    'imps/reviewer', 'ralph/strategy-reviewer',
+    'imps/reviewer', 'ralph/strategy-reviewer', 'plan/plan-reviewer',
 }
 WORKER_SLICES = {
     9: [('Mutation input includes', 'Shared library callers')],
@@ -271,6 +397,21 @@ def job_spans(worker, number):
     return WORKER_SLICES.get(number, [])
 
 
+def reviewer_extension(worker, text):
+    if worker['worker_id'] not in {
+            'babysitter/pr-reviewer', 'elephant-goldfish/plan-reviewer',
+            'focus-group/plan-reviewer', 'imps/reviewer', 'ralph/strategy-reviewer',
+            'plan/plan-reviewer', 'tests-omg/reviewer'}:
+        return None
+    parts = [excerpt(text, [('The coordinator marks a review `final`', 'Keep full required coverage'),
+                            ('Keep full required coverage', 'For each blocking finding'),
+                            ('Failed required checks', 'The final round does not begin')]),
+             excerpt(text, [('Record safely deferrable improvements as minor/note',
+                             'Preserve every original')]),
+             excerpt(text, [('Re-review keeps full required coverage', 'Reuse unchanged evidence')])]
+    return '\n'.join(parts)
+
+
 def rule_justification(worker, row, clause, retained, source=None):
     """Exact per-worker source policy, including every excluded byte interval."""
     wid = worker['worker_id']
@@ -279,11 +420,18 @@ def rule_justification(worker, row, clause, retained, source=None):
                       worker['worker_id'] != 'elephant-goldfish/cold-reader')
     if name != 'jobs-contract.md' and not review_excerpt:
         return None
+    raw = source_bytes(row) if source is None else source
+    text = raw[clause['start_byte']:clause['end_byte']].decode()
+    if clause['id'].startswith('extension-'):
+        if name == 'jobs-contract.md':
+            return (wid + ': ' + clause['id'] + ' source=' + row['sha256'] +
+                    '; upstream author-provenance and commit-guard operations are coordinator-owned; worker authority is unchanged.')
+        if name == 'reviewer-standard.md':
+            return (wid + ': ' + clause['id'] + ' source=' + row['sha256'] +
+                    '; retain only the source-bound reviewer triage excerpt applicable to this role; coordinator retry, filing and operator procedures stay coordinator-only.')
     number = int(clause['id'].split('-')[-1])
     if review_excerpt and number not in REVIEW_SLICES:
         return None
-    raw = source_bytes(row) if source is None else source
-    text = raw[clause['start_byte']:clause['end_byte']].decode()
     intervals = []
     spans = REVIEW_SLICES[number] if review_excerpt else job_spans(worker, number)
     for start, end in spans:
@@ -338,6 +486,8 @@ def allowed_rule(worker, row, clause, source=None):
             return compact_schema(json.loads(text))
         raise ValueError('unclassified schema')
     if name == 'jobs-contract.md':
+        if clause['id'].startswith('extension-'):
+            return None
         spans = job_spans(worker, number)
         if not spans:
             return None
@@ -353,6 +503,8 @@ def allowed_rule(worker, row, clause, source=None):
         applies = 'reviewer-standard.md' in definition or wid in PLANNING_WORKERS
         if not applies:
             return None
+        if clause['id'].startswith('extension-'):
+            return reviewer_extension(worker, text)
         if not cold:
             if number == 5:
                 # The frozen choice is consumed inline; model-selection.md is not
@@ -402,9 +554,9 @@ def procedure(worker, rules):
             continue
         seen.add(block)
         text += '\n\n' + block
-    text += ('\n\nUse only the actual assigned requirements, constraints, authority, owned paths, '
-             'stop conditions and allowed artifacts in the immutable brief. Stop blocked on '
-             'missing required input or binding mismatch. Never load omitted contracts. '
+    text += ('\n\nUse only assigned requirements, constraints, authority, paths, stop conditions and '
+             'artifacts in the immutable brief. Stop on missing input or binding mismatch. '
+             'Never load omitted contracts. '
              'Copy schema_version, job_id, stage_id, logical_slot_id, request_id, worker_id, '
              'effective_brief_sha256 and revision exactly; binding is the brief snapshot. '
              'Keep the exact model-selection digest/options and execution identity distinct '
@@ -435,7 +587,8 @@ def source_binding(frozen):
 
 def validate_manifest(candidate):
     """Fail closed against declarations, frozen source bytes and literal procedures."""
-    frozen = baseline()
+    historical = baseline()
+    frozen = current_generation()
     if sha(SCHEMA.read_bytes()) != SCHEMA_HASH:
         raise ValueError('reviewed schema changed')
     failures = errors(candidate, json.loads(SCHEMA.read_text()))
@@ -451,23 +604,32 @@ def validate_manifest(candidate):
         raise ValueError('declared worker set changed')
     if actual_assets != set(frozen['shared_assets']):
         raise ValueError('declared shared asset set changed')
+    for row in historical['manifests']:
+        raw = git_blob(historical['source_revision'], row['path'])
+        if sha(raw) != row['sha256'] or json.loads(raw)['worker_shared'] != row['worker_shared']:
+            raise ValueError('immutable historical manifest changed: ' + row['path'])
     for row in frozen['manifests']:
         raw = (ROOT / row['path']).read_bytes()
         if sha(raw) != row['sha256'] or json.loads(raw)['worker_shared'] != row['worker_shared']:
-            raise ValueError('original manifest/worker_shared changed')
+            raise ValueError('base manifest/worker_shared changed')
     original_sources = {}
+    for row in historical['sources']:
+        raw = git_source(historical['source_revision'], row)
+        if sha(raw) != row['sha256'] or len(raw) != row['bytes']:
+            raise ValueError('immutable historical source changed: ' + row['source_id'])
+        for clause in row['clauses']:
+            if sha(raw[clause['start_byte']:clause['end_byte']]) != clause['sha256']:
+                raise ValueError('immutable historical clause changed')
     for row in frozen['sources']:
         raw = source_bytes(row)
         if sha(raw) != row['sha256'] or len(raw) != row['bytes']:
-            raise ValueError('original source changed: ' + row['source_id'])
+            raise ValueError('current source changed: ' + row['source_id'])
         for clause in row['clauses']:
             if sha(raw[clause['start_byte']:clause['end_byte']]) != clause['sha256']:
-                raise ValueError('original source clause changed')
-        # Reuse only this call's verified bytes. A later validation reads and
-        # hashes every original again, so source-drift refusals stay effective.
+                raise ValueError('current source clause changed: ' + row['source_id'])
         original_sources[row['source_id']] = raw
     if candidate['sources'] != frozen['sources']:
-        raise ValueError('source or clause set/binding differs from immutable baseline')
+        raise ValueError('source or clause set/binding differs from reviewed source extension')
     if candidate['source_set_sha256'] != source_binding(frozen):
         raise ValueError('source set binding differs')
     profiles = candidate['profiles']
@@ -532,12 +694,18 @@ class WorkerRetentionTest(unittest.TestCase):
 
     def test_complete_public_source_and_procedure_mapping(self):
         frozen = validate_manifest(self.candidate)
-        self.assertEqual(len(frozen['workers']), 18)
-        self.assertEqual(len(frozen['sources']), 37)
-        self.assertEqual(sum(len(s['clauses']) for s in frozen['sources']), 295)
+        historical = baseline()
+        self.assertEqual(len(historical['workers']), 18)
+        self.assertEqual(len(historical['sources']), 37)
+        self.assertEqual(sum(len(s['clauses']) for s in historical['sources']), 295)
+        self.assertEqual(len(frozen['workers']), 20)
+        self.assertEqual(len(frozen['sources']), 39)
+        self.assertEqual(sum(len(s['clauses']) for s in frozen['sources']), 260)
         self.assertEqual(len(frozen['shared_assets']), 18)
         self.assertEqual(sum(s['kind'] == 'shared-schema' for s in frozen['sources']), 15)
-        for path in (BASELINE, MANIFEST, SCHEMA):
+        self.assertTrue({w['worker_id'] for w in historical['workers']}.issubset(
+            {w['worker_id'] for w in frozen['workers']}))
+        for path in (BASELINE, EXTENSION, MANIFEST, SCHEMA):
             self.assertNotIn('/' + 'home/', path.read_text())
             self.assertNotIn('/scratch/', path.read_text())
 
@@ -570,8 +738,9 @@ class WorkerRetentionTest(unittest.TestCase):
         self.reject(lambda c: c['profiles'][0]['rules'].append(copy.deepcopy(c['profiles'][0]['rules'][0])))
 
     def test_every_rule_requires_reviewed_disposition_and_content(self):
-        # Exercise each of the 295 original clauses in an applicable profile.
-        for source in baseline()['sources']:
+        # Exercise every current source clause while the immutable predecessor is
+        # checked separately against all 295 original source clauses above.
+        for source in current_generation()['sources']:
             for clause in source['clauses']:
                 def change(c):
                     rule = next(r for p in c['profiles'] for r in p['rules']
@@ -689,16 +858,17 @@ class WorkerRetentionTest(unittest.TestCase):
 
     def test_frozen_sources_schema_and_binding_tamper_refuse(self):
         original = source_bytes
-        for source in baseline()['sources']:
+        for source in current_generation()['sources']:
             def changed(row):
                 raw = original(row)
                 return raw + b'changed' if row['source_id'] == source['source_id'] else raw
             with mock.patch(__name__ + '.source_bytes', side_effect=changed):
-                with self.assertRaisesRegex(ValueError, 'original source changed'):
+                with self.assertRaisesRegex(ValueError, 'extension source differs from pinned base|current source changed'):
                     validate_manifest(self.candidate)
         reader = Path.read_bytes
         for target, diagnostic in ((SCHEMA, 'reviewed schema changed'),
-                                   (BASELINE, 'immutable baseline changed')):
+                                   (BASELINE, 'immutable baseline changed'),
+                                   (EXTENSION, 'retention extension changed')):
             with mock.patch.object(Path, 'read_bytes', lambda p: reader(p) + b' ' if p == target else reader(p)):
                 with self.assertRaisesRegex(ValueError, diagnostic):
                     validate_manifest(self.candidate)
@@ -725,7 +895,7 @@ class WorkerRetentionTest(unittest.TestCase):
 
     def test_declared_procedures_keep_full_definitions_rules_and_header_headroom(self):
         # Design-fitness metadata only. No serialized compact brief/A5 acceptance.
-        for worker in baseline()['workers']:
+        for worker in current_generation()['workers']:
             profile = next(p for p in self.candidate['profiles'] if p['id'] == worker['worker_id'])
             text = profile['procedure']['text']
             self.assertIn((ROOT / worker['definition_path']).read_text(), text)
@@ -736,9 +906,13 @@ class WorkerRetentionTest(unittest.TestCase):
 
     def test_original_composition_byte_identity_including_customization_and_contract(self):
         for worker in baseline()['workers']:
-            shared = [(f'shared/{Path(p).name}', (ROOT / p).read_bytes()) for p in worker['worker_shared']]
+            shared = [(f'shared/{Path(p).name}', subprocess.check_output(
+                ['git', 'show', baseline()['source_revision'] + ':' + p], cwd=ROOT))
+                      for p in worker['worker_shared']]
             for custom, contract in [('', None), ('Advisory expertise only.', 'Task authority is read-only.\n')]:
-                actual = registry.compose_worker(shared, (ROOT / worker['definition_path']).read_bytes(),
+                definition = subprocess.check_output(
+                    ['git', 'show', baseline()['source_revision'] + ':' + worker['definition_path']], cwd=ROOT)
+                actual = registry.compose_worker(shared, definition,
                                                  custom, contract.encode() if contract else None)
                 self.assertEqual(actual.encode(), original_definition(worker, custom, contract).encode())
                 self.assertFalse(any(name in actual for name in PACKAGE_ADDITIONS))
@@ -746,9 +920,12 @@ class WorkerRetentionTest(unittest.TestCase):
     def test_installed_public_v1_inspection_exact_package_delta_and_pins(self):
         # Original mapping derives from the frozen revision, never source_files or
         # the retention manifest under test. Delivery 1's four additions are explicit.
-        frozen = baseline()
-        tracked = subprocess.run(['git', 'ls-tree', '-r', '--name-only', frozen['source_revision']],
+        historical = baseline()
+        frozen = current_generation()
+        tracked = subprocess.run(['git', 'ls-tree', '-r', '--name-only', historical['source_revision']],
                                  cwd=ROOT, check=True, capture_output=True, text=True).stdout.splitlines()
+        current_tracked = subprocess.run(['git', 'ls-tree', '-r', '--name-only', frozen['source_revision']],
+                                         cwd=ROOT, check=True, capture_output=True, text=True).stdout.splitlines()
         with tempfile.TemporaryDirectory(prefix='worker-retention-') as td:
             temp = Path(td)
             foreign = temp / 'foreign'; foreign.mkdir()
@@ -763,8 +940,9 @@ class WorkerRetentionTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 package = Path(json.loads(result.stdout)['data']['version_dir'])
                 receipt = json.loads((package / 'install-manifest.json').read_text())
-                expected = {p for p in tracked if p.startswith(('core/', 'shared/'))}
-                expected.update(p[len('plugins/' + plugin + '/'):] for p in tracked
+                expected = {p for p in set(tracked) | set(current_tracked)
+                            if p.startswith(('core/', 'shared/'))}
+                expected.update(p[len('plugins/' + plugin + '/'):] for p in set(tracked) | set(current_tracked)
                                 if p.startswith('plugins/' + plugin + '/'))
                 if plugin == 'agent-tuneup':
                     expected.update(INVENTORY_ADDITIONS)
@@ -790,7 +968,7 @@ class WorkerRetentionTest(unittest.TestCase):
                         cwd=foreign, env=env, capture_output=True, text=True)
                     self.assertEqual(shown_result.returncode, 0, shown_result.stdout + shown_result.stderr)
                     shown = json.loads(shown_result.stdout)
-                    self.assertEqual(shown['definition'].encode(), original_definition(worker).encode())
+                    self.assertEqual(shown['definition'].encode(), current_definition(worker).encode())
                 # Public job pinning must not transmit coordinator-only additions.
                 job = temp / plugin / 'job.json'
                 job.write_text(json.dumps({'schema_version': 1, 'dependencies': [{'key': 'stage', 'plugin': plugin}]}))
@@ -798,7 +976,7 @@ class WorkerRetentionTest(unittest.TestCase):
                 self.assertEqual(set(pins['shared']), {Path(p).name for p in workers[0]['worker_shared']})
                 for worker in workers:
                     self.assertEqual(pins['effective_workers'][worker['worker_id']]['bytes'].encode(),
-                                     original_definition(worker).encode())
+                                     current_definition(worker).encode())
                 # Run a shipped helper from a foreign cwd; no source imports required.
                 moved = temp / plugin / 'relocated-package'
                 shutil.move(str(package), moved)

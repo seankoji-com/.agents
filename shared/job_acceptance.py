@@ -789,7 +789,9 @@ def accept_stage(store, caller, stage_id, validator_argv, input_file, expected_r
         current['acceptance_runs'] = current.get('acceptance_runs', 0) + 1
         current['status'] = 'running'
         return current['acceptance_runs'] - 1, digest(canonical(state))
-    sequence, reserved_generation = store.transact(caller, reserve, 'acceptance')
+    from shared.adopter_planning import transaction_guard
+    guard = transaction_guard(job, 'acceptance', caller=caller, job_file=store.file)
+    sequence, reserved_generation = store.transact(caller, reserve, 'acceptance', commit_guard=guard)
     try:
         proc, accepted, outcomes = _invoke(job, stage, validator_argv, input_file, binding)
         verify_all_pins(store)
@@ -837,7 +839,7 @@ def accept_stage(store, caller, stage_id, validator_argv, input_file, expected_r
         else:
             _stale(state, stage_id)
             current['status'] = 'failed'
-    committed = store.transact(caller, commit, 'acceptance')
+    committed = store.transact(caller, commit, 'acceptance', commit_guard=guard)
     if committed is False and receipt['accepted']:
         raise AcceptanceError(drift[0] if drift else 'acceptance commit lost its reserved state generation or evidence')
     return receipt
@@ -922,7 +924,9 @@ def validate_final(store, caller, argv_by_stage, input_by_stage):
         if not coverage:
             state['history'].append({'kind': 'final-failure', 'reason': 'stage coverage differs from complete job requirements', 'final_pass': runs + 1})
         return runs + 1, digest(canonical(state))
-    final_pass, reserved = store.transact(caller, reserve, 'acceptance')
+    from shared.adopter_planning import transaction_guard
+    guard = transaction_guard(job, 'acceptance', caller=caller, job_file=store.file)
+    final_pass, reserved = store.transact(caller, reserve, 'acceptance', commit_guard=guard)
     if not coverage:
         return {'accepted': False, 'reason': 'stage coverage differs from complete job requirements', 'receipts': []}
     results = []
@@ -945,21 +949,28 @@ def validate_final(store, caller, argv_by_stage, input_by_stage):
                 _stale(state, stage['id'])
                 state['history'].append({'kind': 'final-failure', 'stage_id': stage['id'], 'evidence': checked})
                 current['status'] = 'blocked' if current.get('cycle', 0) >= state['policy']['max_repair_cycles'] else 'failed'
-            store.transact(caller, reopen, 'acceptance')
+            store.transact(caller, reopen, 'acceptance', commit_guard=guard)
             return {'accepted': False, 'stage_id': stage['id'], 'receipts': results}
     try:
         # The reserved generation must survive every validator: no observation,
         # plan revision, approval wait or pin change may land during the pass.
-        current = _unchanged(store, reserved, [stage['id'] for stage in job['stages']])
-        if {r for stage in current['stages'] for r in stage['requirements']} != set(current['requirements']):
-            raise AcceptanceError('stage coverage differs from complete job requirements')
+        def success(state):
+            if digest(canonical(state)) != reserved or state.get('final_passes') != final_pass:
+                raise AcceptanceError('final success lost its reserved generation or pass')
+            current = _unchanged(store, reserved, [stage['id'] for stage in job['stages']])
+            if {r for stage in current['stages'] for r in stage['requirements']} != set(current['requirements']):
+                raise AcceptanceError('stage coverage differs from complete job requirements')
+            return True
+        # No-op authorization transaction. Validators have finished, both locks
+        # span the live final check, and reserve remains the sole pass charge.
+        store.transact(caller, success, 'acceptance', commit_guard=guard)
     except (OSError, ValueError, KeyError, TypeError, JobError, StopIteration) as exc:
         reason = str(exc)
         def record(state):
             state['history'].append({'kind': 'final-failure', 'reason': reason, 'final_pass': final_pass})
         try:
-            store.transact(caller, record, 'acceptance')
-        except JobError:
-            pass  # a cancelled/discarded job refuses history writes; the result still fails closed
+            store.transact(caller, record, 'acceptance', commit_guard=guard)
+        except (JobError, ValueError):
+            pass  # Revoked/cancelled jobs refuse history writes; this result remains non-success.
         return {'accepted': False, 'reason': reason, 'receipts': results}
     return {'accepted': True, 'receipts': results}

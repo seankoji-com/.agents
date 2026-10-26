@@ -942,6 +942,60 @@ class ContractTest(FixtureCase):
         self.assertEqual({v for (c, s), v in statuses.items() if s == 'journey'}, {'stale'})
         self.assertIs(mapping['combined_scope_complete'], False)
 
+    def test_carry_reopens_shared_evidence_once_and_refreshes_between_checks(self):
+        from unittest.mock import patch
+        sys.path.insert(0, str(PLUGIN / 'scripts'))
+        import study as fg
+        ev = fg.evidence_module()
+        view = self.ws.plan(self.ws.draft(mode='capture-only'))
+        self.ws.approve(view)
+        for n, cell in enumerate(view['cells'][:2]):
+            code, out = self.accept(view, cell['cell_id'], 'first-impression', f'old-{n}')
+            self.assertEqual(code, 0, out)
+        draft = self.ws.draft(mode='capture-only')
+        draft['limits']['max_concurrency'] = 1
+        revised = self.ws.plan(draft)
+        self.ws.approve(revised)
+        self.ws.ok('carry', '--state-root', self.ws.root, '--study', view['study_id'], '--write')
+        code, out = self.accept(revised, revised['cells'][2]['cell_id'], 'first-impression', 'native')
+        self.assertEqual(code, 0, out)
+        study = fg.Study(self.ws.root, view['study_id'])
+        kept = {p: p.read_bytes() for p in (study.dir/'accepted').glob('*.json')}
+        charged = copy.deepcopy(study.ledger()['charged'])
+        mapping = fg.mapping_for(study, revised['revision'])
+        self.assertEqual(len(mapping['filled_slots']), 2)
+        with patch.object(ev, 'records', wraps=ev.records) as reads:
+            errors, actual = fg.validate_mapping(study, mapping)
+        self.assertEqual((errors, actual), ([], mapping))
+        self.assertEqual(sum(call.args[1] == 'traces' for call in reads.call_args_list), 1)
+        old = next(r for r in study.accepted() if r['task_id'] == 'old-0')
+        path = study.job_dir/old['result']['path'] if not Path(old['result']['path']).is_absolute() else Path(old['result']['path'])
+        original = path.read_bytes()
+        path.write_bytes(original + b' ')
+        errors, _ = fg.validate_mapping(study, mapping)
+        self.assertTrue(any(e['code'] == 'ineligible_reuse' for e in errors), errors)
+        path.write_bytes(original)
+        self.assertEqual(fg.validate_mapping(study, mapping), ([], mapping))
+        # A later host identity snapshot must also be reread by the next check.
+        job_path = study.job_dir/'job.json'
+        self.assertFalse(job_path.exists())
+        wrong = {'providerInstanceId': 'fixture-other', 'model': 'wrong-model'}
+        job_path.write_text(json.dumps({'tasks': [{'task_id': old['task_id'],
+            'request_id': old['request_id'], 'handles': [{'task_id': 'invented-host',
+                'request_id': old['request_id'], 'observed_identity':
+                dict(wrong, status='mismatched', sources={'status': wrong})}]}]}))
+        errors, _ = fg.validate_mapping(study, mapping)
+        self.assertTrue(any(e['code'] == 'ineligible_reuse' for e in errors), errors)
+        job_path.unlink()
+        self.assertEqual(fg.validate_mapping(study, mapping), ([], mapping))
+        for state in ('contaminated', 'clean-in-trace'):
+            row = ev.sealed({'request_id': old['request_id'], 'compliance': state, 'limits': []})
+            study.retain(ev.ev(f'traces/{row["record_sha256"]}.json'), row, 'fixture trace')
+            errors, _ = fg.validate_mapping(study, mapping)
+            self.assertTrue(any(e['code'] == 'ineligible_reuse' for e in errors), errors)
+        self.assertEqual({p: p.read_bytes() for p in kept}, kept)
+        self.assertEqual(study.ledger()['charged'], charged)
+
     def test_changed_inputs_withdrawn_authority_and_unverified_identity_prevent_reuse(self):
         view = self.ws.approved()
         self.accept_all(view)

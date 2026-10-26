@@ -396,9 +396,10 @@ def _authority_target(value, target, record):
                 (r.get('model') == target['model'] or r.get('model_class') == 'suitable-live-catalog')
                 for r in recipients), 'replacement recipient outside authority')
     limits = value.get('limits', {})
-    require(type(limits.get('max_cost')) in (int, float) and limits['max_cost'] >= 0 and
-            isinstance(limits.get('options'), dict) and all(isinstance(v, list) for v in limits['options'].values()),
-            'record granted cost and effort limits')
+    require(isinstance(limits.get('options'), dict) and all(isinstance(v, list) for v in limits['options'].values()),
+            'record granted effort limits')
+    require('max_cost' not in limits or (type(limits['max_cost']) in (int, float) and
+            0 <= limits['max_cost'] < float('inf')), 'owner-supplied cost limit must be finite and nonnegative')
     require(all(k in limits['options'] and v in limits['options'][k] for k, v in target.get('options', {}).items()),
             'replacement option/effort exceeds authority')
 

@@ -581,7 +581,7 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
             brief = task['brief']
             need(brief['path'] == str(store.path / 'briefs' / (task['task_id'] + '-' + digest(request_id.encode()) + '.json')),
                  'prepared brief path binding differs')
-            _expected(current, task)  # Rehash immutable bytes and their planning snapshot.
+            _expected(store, current, task)  # Rehash immutable bytes and their planning snapshot.
             assigned = strict_load(_regular(Path(brief['path'])))
             selection = _attempt_selection(current, attempt)
             need(assigned.get('model_selection') == task.get('model_selection') == selection,
@@ -729,6 +729,7 @@ def _expected(store, job, task):
     brief = task['brief']
     raw = _regular(Path(brief['path']))
     need(digest(raw) == brief['sha256'], 'immutable planning brief tampered')
+    need(isinstance(strict_load(raw), dict), 'planning brief must be a JSON object')
     from shared.compact_briefs import verify_transmitted
     assigned = verify_transmitted(store, job, task, task['request_id'], raw, brief)
     need(isinstance(assigned, dict), 'planning brief must be a JSON object')

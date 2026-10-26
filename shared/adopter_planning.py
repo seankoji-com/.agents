@@ -383,6 +383,42 @@ def focus_group_adapter(package):
     return module
 
 
+def transaction_guard(job, operation, *, proposed=None, caller=None, job_file=None):
+    """Resolve only the already verified pinned domain adapter, including transitions.
+
+    No executable path comes from an authority marker. Ordinary adopters keep
+    the optional core API; marked jobs without a matching capability fail closed.
+    """
+    from core.jobs.store import JobError, guard_operations
+    candidates = [job, proposed or job]
+    required = any(operation in guard_operations(j) for j in candidates)
+    panel = any(j.get('workflow') in ('focus-group/run', 'focus-group/resume') for j in candidates)
+    typed = any(j.get('authorization', {}).get('delegated_authority') for j in candidates)
+    if not panel:
+        if required or typed:
+            raise JobError('required pinned transaction adapter unavailable')
+        return None
+    dependency = next((d for d in job['dependencies'] if d['plugin'] == 'focus-group'), None)
+    pin = job.get('pins', {}).get(dependency['key']) if dependency else None
+    if not pin:
+        if required or typed:
+            raise JobError('transaction adapter requires verified dependency pins')
+        return None
+    from shared.job_coordinator import verify_pinned_dependency
+    if verify_pinned_dependency(dependency, pin) is not True:
+        raise JobError('transaction adapter dependency pin verification failed')
+    adapter = focus_group_adapter(Path(pin['package_dir']))
+    factory = getattr(adapter, 'transaction_guard', None)
+    if not callable(factory):
+        if required or typed:
+            raise JobError('pinned transaction adapter capability missing')
+        return None
+    guard = factory(job, operation, proposed=proposed, caller=caller, job_file=job_file)
+    if (required or typed) and not callable(guard):
+        raise JobError('required transaction adapter returned no guard')
+    return guard
+
+
 def validate_job(job, stage_id=None, *, previous=None, creating=False):
     workflow = job.get('workflow',''); plugin, _, op = workflow.partition('/')
     if plugin == 'focus-group' and op in ('run', 'resume'):

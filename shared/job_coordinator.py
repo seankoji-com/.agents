@@ -19,6 +19,8 @@ def selection_for_task(job, task):
         return None
     try:
         binding = task.get('selection_binding') or {}
+        if not isinstance(binding, dict):
+            raise SelectionError('task producing selection binding missing/mismatched')
         producing = binding.get('selection_sha256')
         record = validate((job.get('model_selection_history') or {}).get(producing, job.get('model_selection')), producing)
         if binding.get('selection_sha256') != record['selection_sha256']:
@@ -66,7 +68,8 @@ def selection_plan_revision(current, proposed, revision=None):
                              and _owner_current(row, current['policy']['max_artifact_bytes'])), None)
             if decision is None:
                 raise JobError('new cost/retry boundary needs a scoped owner decision; retained budget cannot reset')
-    if not current.get('policy', {}).get('model_selection_required'):
+    if not (current.get('policy', {}).get('model_selection_required') or
+            proposed.get('policy', {}).get('model_selection_required')):
         return
     from shared.model_selection import validate, prospective
     from core.jobs import _unsettled
@@ -85,9 +88,11 @@ def selection_plan_revision(current, proposed, revision=None):
                 if decision is None:
                     raise JobError('undeclared_expansion: changed agreement requires a scoped owner decision; retain prior evidence/budgets')
         live = [t['task_id'] for t in current['tasks'] if _unsettled(current, t)]
-        prospective(current['model_selection'], chosen, {'live_tasks': live})
+        if current.get('model_selection'):
+            prospective(current['model_selection'], chosen, {'live_tasks': live})
         archive = deepcopy(current.get('model_selection_history', {}))
-        archive[current['model_selection_sha256']] = current['model_selection']
+        if current.get('model_selection_sha256'):
+            archive[current['model_selection_sha256']] = current['model_selection']
         proposed['model_selection_history'] = archive
     merged = {**current, **proposed}
     if current.get('workflow') in ('focus-group/run', 'focus-group/resume'):
@@ -263,7 +268,12 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
         from shared.job_coordination import freeze_provider_limits
         freeze_provider_limits(job,pins)
         added=record_job_root(job_agents_roots(pins),state_root,job['job_id'])
-    try:return create_job(job,state_root,pins)
+    try:
+        from shared.adopter_planning import transaction_guard
+        bound = dict(job, pins=pins)
+        guard = transaction_guard(bound, 'create', caller=None,
+            job_file=Path(state_root).absolute() / job['job_id'] / 'job.json')
+        return create_job(job,state_root,pins,commit_guard=guard)
     except BaseException:
         forget_job_root(added,state_root,job['job_id']);raise
 
@@ -376,8 +386,23 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
         validate_adopter_job(job, task.get('stage_id'))
     from shared.compact_briefs import prepare_projection, verify_transmitted, serialize
     store.verify_brief = verify_transmitted
+    from shared.adopter_planning import transaction_guard
+    job_file = getattr(store, 'file', None)
+    guard = transaction_guard(store.load(), 'prepare', caller=caller, job_file=job_file)
+    if guard is not None:
+        if job_file is None:
+            raise JobError('guarded preparation requires real job identity')
+        # Execute external predecessor validators before taking the domain lock.
+        # The transaction reopens the bound local chain without running them.
+        job = store.load()
+        stage = next(s for s in job['stages'] if s['id'] == next(t for t in job['tasks'] if t['task_id'] == task_id)['stage_id'])
+        for dependency in stage.get('depends_on', []):
+            if not callable(verify_acceptance) or verify_acceptance(dependency) is not True:
+                raise JobError('predecessor acceptance is not current')
+        from shared.job_acceptance import validate_stage
+        verify_acceptance = lambda sid: validate_stage(store, sid, run_validator=False).get('accepted') is True
     return prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason, bind_inputs=bind,
-                   project_brief=prepare_projection, serialize_brief=serialize)
+                   project_brief=prepare_projection, serialize_brief=serialize, commit_guard=guard)
 
 
 TERMINAL = ('completed', 'failed', 'cancelled', 'interrupted')
@@ -387,26 +412,33 @@ def actual_author_lineages(job):
     """Every dispatched author stays an author, including failed/replaced work."""
     from core.jobs.store import tasks
     from shared.model_selection import _eligible, SelectionError, _subject_author_role
+    from shared.legacy_author_provenance import LegacyAuthors
+    legacy = LegacyAuthors(job)
     selected = job.get('model_selection', {})
     result = {selected.get('coordinator', {}).get('lineage', 'unknown')}
     for task in tasks(job):
         if task.get('role') == 'review':
             continue
-        producing = (job.get('model_selection_history') or {}).get(
-            (task.get('selection_binding') or {}).get('selection_sha256'), selected)
-        if not _subject_author_role(producing, task.get('selection_binding', {}).get('role', '')):
-            continue
+        binding = task.get('selection_binding')
         for handle in task.get('handles', []) + task.get('followups', []):
+            family = legacy.classify(task, handle)
+            if isinstance(family, str):
+                result.add(family); continue
+            execution_binding = family if isinstance(family, dict) else binding
+            producing = (job.get('model_selection_history') or {}).get(
+                execution_binding.get('selection_sha256') if isinstance(execution_binding, dict) else None, selected)
+            if not _subject_author_role(producing, execution_binding.get('role', '') if isinstance(execution_binding, dict) else ''):
+                continue
             identity = handle.get('observed_identity', {})
-            if identity.get('status') != 'verified':
+            if not isinstance(identity, dict) or identity.get('status') != 'verified':
                 result.add('unknown'); continue
             try:
                 # Reuse the producing admission policy, including a legitimate
                 # configured-workhorse endorsement. Never borrow current choices.
                 _, family = _eligible(handle.get('target') or task['target'],
-                                      task['selection_binding']['role'], producing)
+                                      execution_binding['role'], producing)
                 result.add(family)
-            except (SelectionError, KeyError):
+            except (SelectionError, KeyError, TypeError):
                 result.add('unknown')
     for stage in job.get('stages', []) + [s for h in job.get('history', []) for s in h.get('stages', [])]:
         for row in stage.get('direct_execution_history', []):
@@ -516,6 +548,36 @@ def record_observation(store, caller, task_id, event):
     if isinstance(event, dict) and 'recorded_at' in event:
         raise JobError('recorded_at is local receipt time and cannot be supplied')
     if isinstance(event, dict): event = {**event, 'recorded_at': observed_now()}
+    if isinstance(event, dict) and event.get('kind') == 'not-submitted':
+        # A coordinator may retire a prepared request that demonstrably never
+        # reached the host. This cannot clear uncertainty or accepted work.
+        def not_submitted(job):
+            from core.jobs.store import _regular, _retain, strict_load, digest
+            from core.jobs import _live_handles
+            task = next((t for t in job['tasks'] if t['task_id'] == task_id), None)
+            if (task is None or event.get('request_id') != task['request_id'] or task.get('uncertain_calls')
+                    or _live_handles(task) or any(h.get('request_id') == task['request_id'] for h in
+                        task.get('handles', []) + task.get('followups', []) + task.get('execution_history', []))
+                    or task.get('status') not in ('pending', 'failed')):
+                raise JobError('not-submitted requires an unlaunched, certain prepared request')
+            reference = event.get('reference') or {}
+            if not isinstance(reference, dict):
+                raise JobError('not-submitted requires a coordinator evidence reference')
+            source = _coordinator_input(store, job, reference.get('path', ''))
+            raw = _regular(source, max_bytes=32768)
+            proof = strict_load(raw)
+            if (not isinstance(proof, dict) or digest(raw) != reference.get('sha256') or len(raw) != reference.get('bytes')
+                    or proof.get('request_id') != task['request_id'] or proof.get('submitted') is not False
+                    or not proof.get('reason')):
+                raise JobError('not-submitted evidence must bind the exact unlaunched request')
+            retained = store.path / 'observations' / ('unlaunched-' + digest(task['request_id'].encode()) + '.json')
+            _retain(retained, raw, 'not-submitted evidence changed')
+            stored_event = {**event, 'reference': {**reference, 'path': str(retained)}}
+            if not any(e.get('kind') == 'not-submitted' and e.get('request_id') == task['request_id']
+                       for e in task.setdefault('dispatch_history', [])):
+                task['dispatch_history'].append(stored_event)
+            task['status'] = 'failed'
+        return store.transact(caller, not_submitted, 'task-observation')
     if isinstance(event, dict) and event.get('kind') == 'capacity-deferred' and event.get('reason', 'capacity') not in ('capacity', 'rate-limit'):
         raise JobError('capacity deferral reason must be capacity or rate-limit')
     if isinstance(event, dict) and event.get('kind') in ('uncertain', 'reconciled'):
@@ -623,7 +685,9 @@ def prepare_followup(store, caller, task_id, request_id):
         reference.update(path=str(path), sha256=digest(raw))
         task['prepared_followup'] = reference
         return reference
-    return store.transact(caller, apply, 'prepare')
+    from shared.adopter_planning import transaction_guard
+    guard = transaction_guard(store.load(), 'prepare', caller=caller, job_file=store.file)
+    return store.transact(caller, apply, 'prepare', commit_guard=guard)
 
 
 def _coordinator_input(store, job, path):
