@@ -12,7 +12,25 @@ def strict_load(data):
  def bad(x,why='non-finite number'): raise JobError(f'{why}: {x}')
  try:v=json.loads(t:=data.decode('utf-8') if isinstance(data,(bytes,bytearray)) else data,object_pairs_hook=_pairs,parse_constant=bad,parse_float=lambda x:float(x) if math.isfinite(float(x)) else bad(x))
  except (UnicodeError,json.JSONDecodeError,RecursionError) as e:raise JobError(f'invalid JSON: {e}') from e
- return v if json_depth(t)<=MAX_JSON_DEPTH else bad(MAX_JSON_DEPTH,'invalid JSON: nesting exceeds maximum depth')
+ return v if _within_json_depth(v) else bad(MAX_JSON_DEPTH,'invalid JSON: nesting exceeds maximum depth')
+def _within_json_depth(value):
+ """Check decoded containers without rescanning long evidence strings.
+
+ JSON decoding already checked syntax and the hooks checked duplicate keys and
+ numbers. Only arrays/objects contribute to nesting. Iterator frames keep this
+ walk iterative and its auxiliary space bounded by the nesting limit.
+ """
+ stack=[iter((value,))]
+ while stack:
+  for child in stack[-1]:
+   if isinstance(child,dict):children=iter(child.values())
+   elif isinstance(child,list):children=iter(child)
+   else:continue
+   if len(stack)>MAX_JSON_DEPTH:return False
+   stack.append(children)
+   break
+  else:stack.pop()
+ return True
 def json_depth(text):return max(itertools.accumulate(1 if c in '[{' else -1 for c in re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"|[^\][{}"]+','',text)),default=0)  # valid JSON only: strings are stripped, so quoted brackets never count
 def digest(data):return hashlib.sha256(data).hexdigest()
 def canonical(value):return (json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)+'\n').encode()
