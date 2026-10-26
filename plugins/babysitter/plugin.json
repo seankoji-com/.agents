@@ -128,8 +128,8 @@
     },
     "pr": {
       "selection": "upfront",
-      "planning": "written-strategy",
-      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher.",
+      "planning": "written-strategy-only",
+      "reason": "Preserve upfront selection and admission. Review an explicitly supplied or requested repair/landing strategy before dependent actions, retain requested final-head review and merge guards, and do not invent strategy review for ordinary maintenance.",
       "classification": "substantive",
       "entry": "entry.md",
       "route": "entry.md",
@@ -137,8 +137,8 @@
     },
     "repo": {
       "selection": "upfront",
-      "planning": "written-strategy",
-      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher.",
+      "planning": "written-strategy-only",
+      "reason": "Preserve upfront selection and admission. Review an explicitly supplied or requested repair/landing strategy before dependent actions, retain requested final-head review and merge guards, and do not invent strategy review for ordinary maintenance.",
       "classification": "substantive",
       "entry": "entry.md",
       "route": "entry.md",
@@ -146,8 +146,8 @@
     },
     "org": {
       "selection": "upfront",
-      "planning": "written-strategy",
-      "reason": "Ordinary PR maintenance has no separate planning artifact; an actual repair/landing strategy reviews before dependent actions. Preserve requested final-head review, merge authority and sole native watcher.",
+      "planning": "written-strategy-only",
+      "reason": "Preserve upfront selection and admission. Review an explicitly supplied or requested repair/landing strategy before dependent actions, retain requested final-head review and merge guards, and do not invent strategy review for ordinary maintenance.",
       "classification": "substantive",
       "entry": "entry.md",
       "route": "entry.md",

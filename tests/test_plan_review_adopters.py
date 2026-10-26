@@ -200,9 +200,27 @@ class AdoptersTest(unittest.TestCase):
             f.approve()
             # A zero-slot retry is an existing charged domain acceptance, not a planning duplicate.
             f.accept_integrated();self.assertEqual(json.loads(Path(json.loads(f.metadata.read_text())['subject_file']).read_text())['rounds_used'],1)
-            f=self.fixture('babysitter',op='pr',installed=installed);f.integrated_job();f.accept_integrated()
-            self.assertFalse(f.metadata.exists())
+            for op in ('pr','repo','org'):
+                f=self.fixture('babysitter',op=op,installed=installed)
+                metadata=json.loads((f.plugin/'plugin.json').read_text())['operation_review'][op]
+                matrix=json.loads((f.runtime/'shared/operation-matrix.json').read_text())['plugins']['babysitter'][op]
+                self.assertEqual(metadata['planning'],'written-strategy-only')
+                self.assertEqual(metadata,matrix)
+                f.integrated_job(maintainer_slot=True)
+                prepared=self.box.job(f.package,'prepare',f.job_id,{'caller':f.caller,'task_id':'maintainer',
+                    'target_reason':'selected upfront for ordinary maintenance'})
+                brief=json.loads(Path(prepared['path']).read_text())
+                self.assertEqual(brief['target'],f.selection['work']['workhorse'])
+                job=self.box.state_of(f.job_id)
+                self.assertEqual([task['task_id'] for task in job['tasks']],['maintainer'])
+                self.assertEqual(job['tasks'][0]['target'],f.selection['work']['workhorse'])
+                self.assertFalse(f.metadata.exists())
+                self.assertNotIn('planning_review',f.descriptor)
+                self.assertFalse(any(task.get('role')=='review' for task in job['tasks']))
+                self.assertFalse((self.box.jobs/f.review_id).exists())
             # Missing chooser blocks an ordinary babysitter job even though it has no plan artifact.
+            f=self.fixture('babysitter',op='pr',installed=installed);f.integrated_job()
+            f.accept_integrated();self.assertFalse(f.metadata.exists())
             job=deepcopy(f.job);job['job_id']+='-missing';job.pop('adopter_admission')
             p=self.box.job(f.package,'create',job['job_id'],job,check=False,
                 extra=('--prefix',self.box.prefix,'--agents-root',self.box.agents))

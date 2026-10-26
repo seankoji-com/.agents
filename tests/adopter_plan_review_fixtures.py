@@ -209,10 +209,12 @@ class AdopterFixture(ApePlanFixture):
         return self.box.job(self.package,'plan-revision',self.job_id,{'caller':self.caller,'revision':revision,
             'new_plan':{'stages':job['stages']}})
 
-    def integrated_job(self):
+    def integrated_job(self, maintainer_slot=False):
         """Existing direct domain stage; no invented planning stage in its parent."""
-        d=deepcopy(self.selection_data);d['work']['workhorse']['execution']='current-context'
-        d['work']['workhorse']['accept_actual_settings']=True
+        d=deepcopy(self.selection_data)
+        if not maintainer_slot:
+            d['work']['workhorse']['execution']='current-context'
+            d['work']['workhorse']['accept_actual_settings']=True
         self.selection=approved_selection(d);self.admission_input.update(selection=self.selection,
             selection_sha256=self.selection['selection_sha256']);self.admission=self.ape('admit',self.admission_input)
         self.descriptor['admission']=self.admission
@@ -233,14 +235,25 @@ class AdopterFixture(ApePlanFixture):
         self.domain_data=data
         if self.plugin_name == "agent-tuneup":
             self.descriptor["observation_conclusions"] = {k: deepcopy(data[k]) for k in ("findings", "changes")}
+        tasks=[]
+        if maintainer_slot:
+            stage_execution='workers'
+            tasks=[{'task_id':'maintainer','stage_id':'integrated','logical_slot_id':'primary',
+                'request_id':self.id+'-maintainer','worker_id':'babysitter/pr-maintainer',
+                'dependency_key':'domain','status':'pending','role':'worker',
+                'target':deepcopy(self.selection['work']['workhorse']),
+                'write_scope':{'mode':'coordinator-only'},
+                'selection_binding':{'role':'workhorse','selection_sha256':self.selection['selection_sha256']}}]
+        else:
+            stage_execution='direct'
         self.job={'schema_version':1,'job_id':self.job_id,'installation_id':self.manifest['installation_id'],
             'workflow':self.plugin_name+'/'+self.op,'owner':'fixture-owner','objective':'Integrated requested outcome',
             'requirements':self.requirements,'authorization':{'actions':['read']},'constraints':['Offline only.'],
             'dependencies':[{'key':'domain','plugin':self.plugin_name}], 'pins':{},
             'policy':{'max_repair_cycles':3,'max_artifact_bytes':16777216},'decisions':[],'history':[],
-            'metrics':{},'result_contract':{'schema_version':1},'tasks':[],
+            'metrics':{},'result_contract':{'schema_version':1},'tasks':tasks,
             'stages':[{'id':'integrated','depends_on':[],'requirements':['REQ-ONE'],'status':'pending',
-                'execution_mode':'direct','validator_dependency':'domain','validator_contract':contract,
+                'execution_mode':stage_execution,'validator_dependency':'domain','validator_contract':contract,
                 'selection_binding':{'role':'workhorse','selection_sha256':self.selection['selection_sha256']}}],
             'adopter_admission':self.admission,'model_selection':self.selection,
             'model_selection_sha256':self.selection['selection_sha256'],'invocation_id':self.id,'scope_id':self.scope}
@@ -248,8 +261,9 @@ class AdopterFixture(ApePlanFixture):
         caps=deepcopy(self.selection['capabilities']);caps.update(parentThreadId='fixture-parent',
             inheritedProviderInstanceId=self.selection['coordinator']['providerInstanceId'],inheritedModel=self.selection['coordinator']['model'],
             inheritedOptions=self.selection['coordinator']['observed_options'])
-        self.box.job(self.package,'direct-execution',self.job_id,{'caller':self.caller,'stage_id':'integrated'},
-            extra=('--capabilities',self.box.payload(caps)))
+        if not maintainer_slot:
+            self.box.job(self.package,'direct-execution',self.job_id,{'caller':self.caller,'stage_id':'integrated'},
+                extra=('--capabilities',self.box.payload(caps)))
         if self.plugin_name=='agent-tuneup':self.descriptor['job_file']=str(self.job_file)
 
     def accept_integrated(self,ok=True):

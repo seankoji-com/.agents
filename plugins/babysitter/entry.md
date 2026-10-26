@@ -7,6 +7,13 @@ Public admission: `PKG/scripts/plan_review.py`; contract: `PKG/shared/adopter-pl
 criteria: `PKG/references/adopter-review-rubric.md`.
 Read `PKG/shared/learnings.md` and load lessons.
 
+Ordinary `pr`, `repo` and `org` maintenance uses `admit` for the frozen choices,
+then proceeds to the maintenance loop. Do not invent a written strategy, planning
+review job or evaluator before dispatching fixers. The roster, triage table,
+per-PR job plans and retry notes are operational state, not a strategy output.
+Only an actual supplied or requested written strategy uses `prepare`/`attach`
+and its separate review. Requested final-head review remains a per-PR gate.
+
 Each PR ends merged or as a `needs human:` blocker.
 Read `PKG/shared/t3-runtime.md`.
 Multi-PR and repair work follows `PKG/shared/job-coordination.md`; delegation follows
@@ -25,6 +32,14 @@ For `pr`, `repo`, and `org`, read `PKG/playbooks/maintain.md`. Read
 `PKG/references/job-plan.md`'s repair cycle before writes; load its job fields at creation. Roster
 listing, PR inspection, the quick merge pass, the PR table, and status reads stay
 direct in this thread.
+
+For ordinary org runs, use `PKG/references/org-execution.md`'s deterministic native
+bridge after authorization/model admission. It prepares per-PR jobs, dispatches
+every available fixer and retains host handles. For requested final-head review,
+use the review-gated coordinator path in the maintenance playbook instead.
+Never stop the roster because one PR has a local job, workspace or permission
+failure; retain that PR's blocker and continue independent PRs. Shared package or
+scope integrity failures still stop the affected writes.
 
 When a workflow pins babysitter, resolve `PKG` through
 `t3-plugins --job JOB path babysitter`, never the current path.

@@ -821,6 +821,45 @@ class AdvanceTest(unittest.TestCase):
         self.assertFalse(any(c.startswith('org-') for c in calls))
         self.assertEqual(len([1 for t, _ in self.host.calls if t == 'delegate_task']), 3)
 
+    def test_incomplete_scan_fans_out_around_one_prepare_failure_and_reconciles_handles(self):
+        nodes = [self.node(number) for number in (1, 2, 3, 4)]
+        report = self.report(*nodes)
+        report['complete'] = False
+        report['gaps'].append({'kind': 'fixture-incomplete-page'})
+        original_workspace = self.jobs.workspace
+
+        def workspace(row, prepared):
+            if row['number'] == 1:
+                raise runner.ExecutionError('pr-workspace-unavailable')
+            return original_workspace(row, prepared)
+
+        with patch.object(self.jobs, 'workspace', side_effect=workspace):
+            first = runner.execute(report, self.api, self.host, self.jobs, self.config)
+        self.assertFalse(first['complete'])
+        by_url = {outcome['url']: outcome for outcome in first['outcomes']}
+        self.assertEqual(by_url[pr()['url']]['status'], 'held')
+        launched = [by_url[pr(number=n)['url']] for n in (2, 3, 4)]
+        self.assertTrue(all(outcome['status'] == 'dispatched' for outcome in launched), first)
+        task_ids = [outcome['task_id'] for outcome in launched]
+        self.assertEqual(len(task_ids), len(set(task_ids)))
+        self.assertEqual(len([1 for tool, _ in self.host.calls if tool == 'delegate_task']), 3)
+        state = runner.continuous.read_state(self.config['continuous_state'])
+        for number in (2, 3, 4):
+            ledger = state['prs'][pr(number=number)['url']]
+            self.assertEqual([dispatch['kind'] for dispatch in ledger['dispatches']], ['fixer'])
+            self.assertTrue(ledger['fixer']['in_flight'])
+            self.assertIn(ledger['fixer']['host_task_id'], task_ids)
+
+        second_report = self.report(*nodes)
+        with patch.object(self.jobs, 'workspace', side_effect=workspace):
+            second = runner.execute(second_report, self.api, self.host, self.jobs, self.config)
+        second_by_url = {outcome['url']: outcome for outcome in second['outcomes']}
+        self.assertTrue(all(second_by_url[pr(number=n)['url']]['status'] == 'active-fixer'
+                            for n in (2, 3, 4)), second)
+        self.assertEqual(len([1 for tool, _ in self.host.calls if tool == 'delegate_task']), 3)
+        reconciled = [arguments['taskId'] for tool, arguments in self.host.calls if tool == 'task_status']
+        self.assertCountEqual(reconciled, task_ids)
+
     def test_terminal_pending_runs_and_missing_result_keep_writer(self):
         self.advance(self.node())
         host_id = self.finish(pending=True)
