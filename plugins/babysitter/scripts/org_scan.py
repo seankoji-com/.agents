@@ -29,6 +29,7 @@ CONTEXTS = '''nodes { __typename
   ... on StatusContext { id context state targetUrl }
 }'''
 PR_FIELDS = '''id number url title state isDraft isCrossRepository headRefOid headRefName
+  baseRefOid baseRefName
   repository { nameWithOwner } headRepository { nameWithOwner }
   autoMergeRequest { enabledAt } mergeable
   mergeStateStatus reviewDecision
@@ -196,6 +197,8 @@ def classify(node, api):
            'node_id': node['id'], 'head_ref': node['headRefName'],
            'head_repo': (node.get('headRepository') or {}).get('nameWithOwner'),
            'url': node['url'], 'title': node['title'], 'head_sha': node['headRefOid'],
+           'base_sha': node.get('baseRefOid'), 'base_ref': node.get('baseRefName'),
+           'state': node['state'], 'draft': node['isDraft'],
            'fork': node['isCrossRepository'], 'reasons': [], 'unknowns': [],
            'coordinator_actions': [], 'failing_checks': [], 'pending_checks': [],
            'unresolved_thread_ids': [], 'review_decision': node['reviewDecision'],
@@ -203,6 +206,10 @@ def classify(node, api):
     if not row['head_sha']:
         row['unknowns'].append('missing-head')
     row['auto_merge'] = node['autoMergeRequest'] is not None
+    if node['state'] in {'MERGED', 'CLOSED'}:
+        row.update(checks='none', action='lifecycle')
+        row['observation_key'] = hashlib.sha256(json.dumps(row, sort_keys=True).encode()).hexdigest()
+        return row
     if not row['auto_merge']:
         row['coordinator_actions'].append('enable-auto-merge')
     if node['mergeable'] == 'CONFLICTING' or node['mergeStateStatus'] == 'DIRTY':
@@ -277,7 +284,18 @@ def classify(node, api):
     return row
 
 
-def scan(api, org):
+def targeted(api, known):
+    owner, name = known['repo'].split('/')
+    data = api.query('''query($owner:String!,$name:String!,$number:Int!) {
+      repository(owner:$owner,name:$name) { pullRequest(number:$number) { %s } } %s
+    }''' % (PR_FIELDS, RATE), {'owner': owner, 'name': name, 'number': known['number']})
+    node = (data.get('repository') or {}).get('pullRequest')
+    if not node or node.get('url') != known['url'] or node.get('state') not in {'OPEN', 'MERGED', 'CLOSED'}:
+        raise ScanError('targeted-lifecycle-unavailable')
+    return classify(node, api)
+
+
+def scan(api, org, *, include_drafts=False, repository=None, repository_offset=0):
     result = {'schema_version': 1, 'org': org, 'started_at': utc_now(),
               'complete': False, 'gaps': [], 'prs': [], 'repositories': 0}
     try:
@@ -290,8 +308,20 @@ def scan(api, org):
             if not data.get('organization'):
                 raise ScanError('organization-inaccessible')
             return data['organization']['repositories']
-        repositories = collect(repos(None), repos)
+        if repository:
+            owner, name = repository.split('/')
+            data = api.query('''query($owner:String!,$name:String!) {
+              repository(owner:$owner,name:$name) { id nameWithOwner } %s
+            }''' % RATE, {'owner': owner, 'name': name})
+            if not data.get('repository') or data['repository']['nameWithOwner'].lower() != repository.lower():
+                raise ScanError('repository-inaccessible')
+            repositories = [data['repository']]
+        else:
+            repositories = collect(repos(None), repos)
         result['repositories'] = len(repositories)
+        if repositories:
+            start = repository_offset % len(repositories)
+            repositories = repositories[start:] + repositories[:start]
         pending = [(r, None) for r in repositories]
         seen_cursors = set()
         seen_prs = set()
@@ -324,7 +354,7 @@ def scan(api, org):
                     if node['id'] in seen_prs:
                         raise ScanError('duplicate-pr-during-pagination')
                     seen_prs.add(node['id'])
-                    if node['state'] == 'OPEN' and node['isDraft'] is False:
+                    if node['state'] == 'OPEN' and (node['isDraft'] is False or include_drafts):
                         result['prs'].append(classify(node, api))
                 if cursor is not None:
                     key = (repo['id'], cursor)

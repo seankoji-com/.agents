@@ -40,6 +40,14 @@ python3 PKG/scripts/continuous.py schedule-record --state <state.json> --now <RF
   --schedule-id <returned ID> --next-run-at <returned nextRunAt>
 ```
 
+For deterministic advancement, first bind the admitted run configuration with
+`python3 PKG/scripts/org_execute.py --advance --run-config RUN.json --bridge` through
+the native bridge described in `references/org-execution.md`. Bound schedule prompts
+contain one pinned advance invocation. Unbound runs retain continuous-helper
+reconciliation and report `missing-execution-config` until configuration is bound.
+Append `--wake-id` with the actual host wake ID when supplied; omit it otherwise.
+A missing requested schedule receipt remains an explicit coverage gap.
+
 The recorded scope, cadence, schedule ID and stop operation
 (`delete_scheduled_task` with that ID) go in the next status report. A second
 `schedule-record` for the same ID refreshes its next run and is idempotent; a
