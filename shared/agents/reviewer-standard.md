@@ -100,6 +100,11 @@ coordinator; they never file issues themselves without separate authority.
 
 ## Convergence
 
+Apply [workflow recovery](../workflow-recovery.md). Distinguish task artifacts from
+workflow-only repairs. Different validator errors or metadata hashes do not reset
+the two-repair checkpoint when no task artifact or stage has advanced. Diagnose
+before another dispatch; preserve the existing counters, findings and gates.
+
 The coordinator batches supported repairs before re-review and records why another
 assessment is needed. Report every finding at its honest severity regardless of
 round count. Keep ordinary severity rules outside the existing final-round triage;
