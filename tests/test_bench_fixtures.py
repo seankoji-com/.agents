@@ -205,6 +205,7 @@ class SidecarRestTest(unittest.TestCase):
         from tests.focus_group_install_fixtures import stop_fixture_process
         proc = Mock(pid=12345)
         proc.communicate.side_effect = subprocess.TimeoutExpired('fixture', 0.1)
+        proc.kill.side_effect = PermissionError
         proc.wait.side_effect = subprocess.TimeoutExpired('fixture', 0.1)
         primary = RuntimeError('original fixture failure')
         with patch('tests.focus_group_install_fixtures.os.killpg', side_effect=PermissionError):
@@ -217,10 +218,28 @@ class SidecarRestTest(unittest.TestCase):
         self.assertIs(caught.exception, primary)
         self.assertEqual(stdout, '')
         self.assertIn('could not be signalled', stderr)
+        self.assertIn('could not be killed', stderr)
         self.assertIn('did not settle', stderr)
         proc.stdout.close.assert_called_once_with()
         proc.stderr.close.assert_called_once_with()
+        proc.kill.assert_called_once_with()
         proc.wait.assert_called_once_with(timeout=0.1)
+
+    def test_focus_fixture_cleanup_kills_owned_leader_when_group_signal_is_denied(self):
+        from tests.focus_group_install_fixtures import stop_fixture_process
+        proc = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                start_new_session=True)
+        try:
+            with patch('tests.focus_group_install_fixtures.os.killpg', side_effect=PermissionError):
+                _, stderr = stop_fixture_process(proc, timeout=0.1)
+            self.assertIsNotNone(proc.returncode)
+            self.assertIn('could not be signalled', stderr)
+            self.assertNotIn('did not settle', stderr)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=1)
 
     def test_focus_fixture_cleanup_normalizes_empty_captured_output(self):
         from unittest.mock import Mock

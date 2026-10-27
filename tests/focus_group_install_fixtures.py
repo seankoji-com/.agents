@@ -199,6 +199,12 @@ def stop_fixture_process(proc, timeout=5):
     except subprocess.TimeoutExpired:
         proc.stdout.close(); proc.stderr.close()
         try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            diagnostics.append('fixture cleanup: process leader could not be killed')
+        try:
             proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             diagnostics.append('fixture cleanup: process leader did not settle before the deadline')

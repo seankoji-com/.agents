@@ -574,6 +574,28 @@ class ExecutionTest(unittest.TestCase):
                 receipt_path = next(self.jobs.directory.glob('*-receipt.json'))
                 self.assertEqual(json.loads(receipt_path.read_text())['receipt']['taskId'], 'host-task')
 
+    def test_duplicate_receipt_options_cannot_hide_an_unrequested_value(self):
+        original_prepare, original_call = self.jobs.prepare, self.host.call
+        def prepare(row):
+            prepared = original_prepare(row)
+            prepared['target']['options'] = {'effort': 'high'}
+            return prepared
+        def host(tool, arguments):
+            receipt = original_call(tool, arguments)
+            if tool == 'orchestrator_capabilities':
+                receipt['providers'][0]['models'][0]['options'] = [
+                    {'id': 'effort', 'values': ['low', 'high']}]
+            if tool == 'delegate_task':
+                receipt['options'] = [{'id': 'effort', 'value': 'low'}, {'id': 'effort', 'value': 'high'}]
+            return receipt
+        with patch.object(self.jobs, 'prepare', side_effect=prepare), patch.object(self.host, 'call', side_effect=host):
+            result = self.execute()
+        self.assertEqual(result['outcomes'][0]['reason'], 'host-options-unreported-or-mismatched')
+        self.assertFalse(any(event.get('kind') == 'accepted' for event in self.jobs.events))
+        receipt = json.loads(next(self.jobs.directory.glob('*-receipt.json')).read_text())['receipt']
+        self.assertEqual(len(receipt['options']), 2)
+        self.assertEqual(sum(tool == 'delegate_task' for tool, _ in self.host.calls), 1)
+
     def test_auto_merge_reservation_blocks_competing_writes(self):
         report = self.report()
         file = self.directory / 'snapshot.json'
@@ -1101,6 +1123,23 @@ class AdvanceTest(unittest.TestCase):
         self.assertTrue(any(tool == 'task_status' and args['taskId'] == host_id
                             for tool, args in self.host.calls))
         self.assertEqual(sum(tool == 'delegate_task' for tool, _ in self.host.calls), 1)
+
+    def test_duplicate_returned_receipt_options_refuse_before_reconciliation(self):
+        original_record = self.jobs.record
+        def fail_record(prepared, event):
+            if event.get('kind') == 'accepted':
+                raise runner.ExecutionError('fixture-record-failure')
+            return original_record(prepared, event)
+        with patch.object(self.jobs, 'record', side_effect=fail_record):
+            self.assertEqual(self.advance(self.node())['outcomes'][0]['status'], 'held')
+        path = next(self.jobs.directory.glob('*-receipt.json'))
+        envelope = json.loads(path.read_text())
+        envelope['receipt']['options'] = [{'id': 'effort', 'value': 'low'}, {'id': 'effort', 'value': 'high'}]
+        path.write_text(json.dumps(envelope))
+        self.host.calls.clear()
+        result = self.advance(self.node())
+        self.assertEqual(result['outcomes'][0]['reason'], 'host-receipt-options-shape')
+        self.assertFalse(any(tool in ('task_status', 'delegate_task') for tool, _ in self.host.calls))
 
     def test_mismatched_durable_receipt_holds_without_adopting_foreign_handle(self):
         original_record = self.jobs.record

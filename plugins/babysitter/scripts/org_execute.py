@@ -472,6 +472,8 @@ class Jobs:
         if isinstance(observed_options, list):
             require(all(isinstance(option, dict) and isinstance(option.get('id'), str)
                         and 'value' in option for option in observed_options), 'host-receipt-options-shape')
+            require(len({option['id'] for option in observed_options}) == len(observed_options),
+                    'host-receipt-options-shape')
             observed_options = {option['id']: option['value'] for option in observed_options}
         require(receipt.get('providerInstanceId') == target['providerInstanceId']
                 and receipt.get('model') == target['model']
@@ -1024,6 +1026,8 @@ def execute(report, api, host, jobs, config):
             if isinstance(observed_options, list):
                 require(all(isinstance(o, dict) and isinstance(o.get('id'), str)
                             and 'value' in o for o in observed_options),
+                        'host-options-unreported-or-mismatched')
+                require(len({o['id'] for o in observed_options}) == len(observed_options),
                         'host-options-unreported-or-mismatched')
                 observed_options = {o['id']: o['value'] for o in observed_options}
             require(isinstance(observed_options, dict) and observed_options == requested_options,
