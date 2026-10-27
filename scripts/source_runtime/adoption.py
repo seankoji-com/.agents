@@ -180,6 +180,10 @@ def apply(paths,journal,hook=None):
     head = git(root,'symbolic-ref','-q','HEAD',check=False).stdout.decode().strip() or None
     require(head in ({journal['head_ref'],'refs/heads/main'} if journal['git_existed'] else {'refs/heads/main'}),
             'adoption HEAD moved to another branch; stopped')
+    # A detached HEAD has no ref to compare, so the commit itself must still be ours.
+    head_commit = git(root,'rev-parse','--verify','-q','HEAD',check=False).stdout.decode().strip()
+    require(head_commit in ({journal['commit']} if journal['git_existed'] else {'',journal['commit']}),
+            'adoption HEAD moved to another commit; stopped')
     git(root,'read-tree',journal['commit'])
     git(root,'update-ref','refs/heads/main',journal['commit'],old)
     git(root,'symbolic-ref','HEAD','refs/heads/main')

@@ -8,7 +8,7 @@ import shlex
 import subprocess
 import sys
 
-from .io import atomic, canonical, digest, load, no_links, read, relative, require, source_lock, write_json
+from .io import atomic, canonical, digest, load, no_links, read, regular_files, relative, require, source_lock, write_json
 
 
 def classify(file):
@@ -179,7 +179,7 @@ def install_bridge(paths,catalog_root):
                 'interpreter':str(Path(sys.executable).resolve())}
     manifest_bytes = canonical(manifest)
     atomic(target/'runtime.json',manifest_bytes,0o444)
-    require({p.relative_to(target).as_posix() for p in target.rglob('*') if p.is_file()} ==
+    require(regular_files(target) ==
             {row['path'] for row in rows} | {'runtime.json'}, 'unexpected retained legacy executable inputs')
     # Execute a nonmutating catalog parse through the retained interpreter.
     checked = subprocess.run([sys.executable,'-B',str(target/'scripts/catalog.py'),'--help'],capture_output=True,timeout=20)
@@ -232,7 +232,7 @@ def dispatch(paths,argv):
         require(digest(read(target)) == row['sha256'] and bool(target.stat().st_mode & 0o111) == row['executable'],
                 'retained legacy runtime integrity failure')
         expected.add(row['path'])
-    require({p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file()} == expected,
+    require(regular_files(root) == expected,
             'unexpected legacy runtime executable inputs')
     dependencies = {dependency['plugin'] for dependency in job.get('dependencies',[])}
     if action == 'path':

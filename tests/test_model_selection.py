@@ -905,6 +905,24 @@ class SelectionTests(unittest.TestCase):
             with self.assertRaises(models.SelectionError): models.load_authority('fixture-project', env)
             with self.assertRaises(models.SelectionError): models.authority_path('../escape', env)
 
+    def test_pre_198_standing_grant_stays_in_use_in_place_until_moved(self):
+        grant = {**replacement(self.data, self.data['work']['workhorse'])['authority'], 'scope': 'standing-project'}
+        with tempfile.TemporaryDirectory() as temporary:
+            env = {'XDG_STATE_HOME': temporary}
+            saved = Path(models.save_authority('fixture-project', grant, env)['path'])
+            # Move the record to where pre-#198 releases stored it.
+            legacy = Path(temporary) / 't3-plugins/authorities/fixture-project/model-policy.json'
+            legacy.parent.mkdir(parents=True, mode=0o700)
+            saved.rename(legacy)
+            self.assertEqual(models.authority_path('fixture-project', env), legacy)
+            self.assertEqual(models.load_authority('fixture-project', env)['grant'], grant)
+            self.assertEqual(Path(models.save_authority('fixture-project', grant, env)['path']), legacy)
+            self.assertFalse(saved.exists())
+            # Once a policy exists at the current location, it wins.
+            saved.parent.mkdir(parents=True, exist_ok=True)
+            legacy.rename(saved)
+            self.assertEqual(models.authority_path('fixture-project', env), saved)
+
     def test_real_job_create_gate_refuses_missing_selection_before_install_or_writes(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); path = root / 'input.json'; path.write_text(json.dumps({'job_id': 'fixture-job'}))

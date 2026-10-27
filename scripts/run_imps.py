@@ -19,7 +19,7 @@ def main():
             matches = False
         if not matches:
             print('imps: installed snapshot differs from this CLI package; '
-                  'run agents install imps, then agents doctor imps. '
+                  'run agents start imps, then its doctor operation. '
                   'No installed files were changed.', file=sys.stderr)
     cli = catalog.ROOT / 'plugins' / 'imps' / 'cli.py'
     os.execv(sys.executable, [sys.executable, str(cli), *sys.argv[1:]])

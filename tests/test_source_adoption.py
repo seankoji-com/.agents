@@ -1,6 +1,7 @@
 """Populated-directory adoption, ownership and interrupted restart fixtures."""
 import json
 from pathlib import Path
+import shutil
 import sys
 import unittest
 
@@ -136,6 +137,26 @@ class AdoptionTest(unittest.TestCase):
         with self.assertRaisesRegex(SourceError,'HEAD moved'):
             adoption.adopt(self.paths)
         self.assertEqual(git(self.root,'symbolic-ref','HEAD').stdout.strip(),b'refs/heads/owner-work')
+
+    def test_owner_detached_commit_after_interruption_blocks_recovery(self):
+        # In-place adoption of an existing detached checkout of the reviewed commit.
+        shutil.rmtree(self.root)
+        (self.paths.home/'.fixture/skills/t3-demo').unlink()
+        git(self.donor.parent,'clone','-q',str(self.donor),str(self.root))
+        git(self.root,'remote','set-url','origin','https://github.com/seankoji-com/.agents.git')
+        git(self.root,'checkout','-q','--detach',self.commit)
+        def crash(phase):
+            if phase == 'files':
+                raise RuntimeError('simulated crash')
+        with self.assertRaises(RuntimeError):
+            adoption.adopt(self.paths,self.root,hook=crash)
+        # Same tree, so only the HEAD commit identifies the owner's work.
+        git(self.root,'-c','user.name=Owner','-c','user.email=owner@example.invalid','commit','-q','--allow-empty','-m','owner')
+        owner = transaction.oid(self.root,'HEAD')
+        with self.assertRaisesRegex(SourceError,'HEAD moved to another commit'):
+            adoption.adopt(self.paths)
+        self.assertEqual(transaction.oid(self.root,'HEAD'),owner)
+        self.assertEqual(git(self.root,'symbolic-ref','-q','HEAD',check=False).returncode,1)
 
     def test_owner_edit_after_interruption_is_preserved_and_blocks_recovery(self):
         def crash(phase):

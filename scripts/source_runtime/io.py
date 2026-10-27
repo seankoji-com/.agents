@@ -40,6 +40,21 @@ def no_links(path):
     return path
 
 
+def regular_files(root):
+    """Relative paths of every regular file under root. A symlink anywhere (a linked
+    directory is invisible to rglob/is_file scans) or a special file is refused."""
+    root = Path(root)
+    found = set()
+    for folder, dirs, files in os.walk(root):
+        for name in dirs + files:
+            path = Path(folder) / name
+            require(not path.is_symlink() and (path.is_dir() or path.is_file()),
+                    f'linked or special file among executable inputs: {path}')
+            if path.is_file():
+                found.add(path.relative_to(root).as_posix())
+    return found
+
+
 def relative(value):
     path = PurePosixPath(value)
     require(isinstance(value, str) and value and path.as_posix() == value and

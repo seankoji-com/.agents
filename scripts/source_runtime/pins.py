@@ -7,7 +7,7 @@ import tempfile
 from types import SimpleNamespace
 
 from . import layout
-from .io import atomic, canonical, digest, git, load, no_links, read, relative, require
+from .io import atomic, canonical, digest, git, load, no_links, read, regular_files, relative, require
 
 DIRECTORIES = {'bin', 'core', 'plugins', 'references', 'roles', 'scripts', 'shared', 'skills'}
 ROOT_FILES = {'.agents-source.json', 'discovery.json'}
@@ -170,7 +170,7 @@ def materialize(paths, pin, name, dependency=False):
             agents_root=str(paths.registry), force=False, dry_run=False, immutable=True))
         receipt = load(version / installer.MANIFEST)
     expected_files = {r['path'] for r in planned['manifest']['files']} | {installer.MANIFEST}
-    require({p.relative_to(version).as_posix() for p in version.rglob('*') if p.is_file()} == expected_files,
+    require(regular_files(version) == expected_files,
             'unexpected executable input in pinned package')
     _, assets = registry.declared_assets(source / 'plugins' / name, source / 'shared')
     if assets:
@@ -179,7 +179,7 @@ def materialize(paths, pin, name, dependency=False):
         require(expected['bundle_dir'] == receipt.get('bundle_dir') and
                 expected['bundle_digest'] == receipt.get('bundle_digest'), 'worker bundle is not from this source pin')
         bundle = Path(expected['bundle_dir'])
-        require({p.relative_to(bundle).as_posix() for p in bundle.rglob('*') if p.is_file()} ==
+        require(regular_files(bundle) ==
                 {a[0] for a in assets} | {'manifest.json'}, 'unexpected input in pinned worker bundle')
     for path in version.rglob('*'):
         no_links(path)

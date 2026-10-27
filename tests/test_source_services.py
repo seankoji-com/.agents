@@ -36,6 +36,24 @@ class ServiceTest(unittest.TestCase):
         self.assertIn('OnStartupSec=30s',timer)
         self.assertIn('Persistent=true',timer)
 
+    def test_service_binds_custom_xdg_roots_for_a_manager_without_them(self):
+        custom = {'XDG_STATE_HOME': str(self.home/'custom state%'), 'XDG_DATA_HOME': str(self.home/'custom"data')}
+        with patch.dict(os.environ, custom):
+            installed = Paths(self.home)
+            service = services.units(installed,'/usr/bin/python3')['agents-receive.service'].decode()
+        # What systemd hands the command: only the unit's Environment= values, unquoted.
+        bound = {}
+        for line in service.splitlines():
+            if line.startswith('Environment='):
+                value = line[len('Environment="'):-1].replace('%%','%').replace('\\"','"').replace('\\\\','\\')
+                name, _, setting = value.partition('=')
+                bound[name] = setting
+        self.assertEqual(bound, custom)
+        with patch.dict(os.environ, bound):
+            scheduled = Paths(self.home)
+        self.assertEqual((scheduled.control, scheduled.data), (installed.control, installed.data))
+        self.assertNotEqual(installed.control, self.paths.control)
+
     def test_author_refuses_enable_and_disabled_is_idempotent_without_systemd(self):
         write_json(self.config,{'profile':'author','receive_enabled':False})
         with self.assertRaisesRegex(SourceError,'author profile'):

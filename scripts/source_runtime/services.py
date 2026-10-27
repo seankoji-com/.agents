@@ -20,8 +20,13 @@ def quote(value):
 
 
 def units(paths, interpreter):
+    # The user manager need not share the installing shell's XDG variables; bind the
+    # roots this installation uses so scheduled syncs find the same control state.
+    roots = {'XDG_STATE_HOME': str(paths.state.parent), 'XDG_DATA_HOME': str(paths.data.parent)}
     service = ('[Unit]\nDescription=Receive validated agents source\n'
-        '[Service]\nType=oneshot\nUMask=0077\nExecStart=' + quote(interpreter) +
+        '[Service]\nType=oneshot\nUMask=0077\n' +
+        ''.join('Environment=' + quote(name + '=' + value) + '\n' for name, value in roots.items()) +
+        'ExecStart=' + quote(interpreter) +
         ' -I ' + quote(str(paths.launcher)) + ' sync\n')
     timer = ('[Unit]\nDescription=Check agents source every five minutes\n'
         '[Timer]\nOnStartupSec=30s\nOnCalendar=*:0/5\nPersistent=true\nUnit=agents-receive.service\n'

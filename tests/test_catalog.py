@@ -114,7 +114,7 @@ class CatalogTest(unittest.TestCase):
                 item['sha256'] = hashlib.sha256(contract.read_bytes()).hexdigest()
         manifest_path.write_text(json.dumps(manifest))
         receipt = json.loads(self.call('doctor', 'imps', expected=1).stdout)
-        self.assertEqual(receipt['errors'], ['snapshot_outdated: run agents install imps'])
+        self.assertEqual(receipt['errors'], ['snapshot_outdated: run agents start imps'])
         result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('snapshot differs', result.stderr)
@@ -146,7 +146,7 @@ class CatalogTest(unittest.TestCase):
 
     def test_doctor_names_a_missing_installation(self):
         receipt = json.loads(self.call('doctor', 'ape', expected=1).stdout)
-        self.assertEqual(receipt['errors'], ['not_installed: run agents install ape'])
+        self.assertEqual(receipt['errors'], ['not_installed: run agents start ape'])
 
     def test_uninstall_forwards_force_and_version(self):
         first = json.loads(self.call('install', 'ape').stdout)['data']

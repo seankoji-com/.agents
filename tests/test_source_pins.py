@@ -273,6 +273,22 @@ class SourcePinsTest(unittest.TestCase):
         self.assertIn('integrity failure', refused.stderr)
         self.assertNotIn('must never execute', refused.stderr)
 
+    def test_installed_launcher_refuses_a_linked_directory_before_importing(self):
+        bootstrap.self_install(ROOT, self.paths, source=self.source)
+        scripts = Path(load(self.paths.control / 'bootstrap-active.json')['installation']) / 'scripts'
+        payload = self.box / 'payload'
+        payload.mkdir()
+        (payload / '__init__.py').write_text('raise SystemExit("UNVERIFIED_DIRECTORY_EXECUTED")\n')
+        scripts.chmod(0o755)
+        # `subprocess` shadows a standard module the runtime imports first.
+        (scripts / 'subprocess').symlink_to(payload, target_is_directory=True)
+        refused = subprocess.run([str(self.paths.launcher), 'status'], capture_output=True, text=True)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn('linked or special bootstrap input', refused.stderr)
+        self.assertNotIn('UNVERIFIED_DIRECTORY_EXECUTED', refused.stdout + refused.stderr)
+        with self.assertRaisesRegex(SourceError, 'linked or special file'):
+            bootstrap.prepare(self.paths, {name: value for name, value in pins.read_author(ROOT).items()})
+
     def test_failed_successor_self_test_preserves_previous_launcher_and_pointer(self):
         bootstrap.self_install(ROOT, self.paths, source=self.source)
         before = {file:read(file) for file in (self.paths.launcher,self.paths.control/'bootstrap-active.json',

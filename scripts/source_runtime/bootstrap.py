@@ -7,7 +7,7 @@ import sys
 import tempfile
 
 from . import PROTOCOL
-from .io import Paths, atomic, canonical, digest, load, no_links, read, require, source_lock, write_json
+from .io import Paths, atomic, canonical, digest, load, no_links, read, regular_files, require, source_lock, write_json
 from .pins import read_author, records
 
 
@@ -41,7 +41,13 @@ try:
         if hashlib.sha256(path.read_bytes()).hexdigest()!=row['sha256']: raise ValueError('bootstrap installation integrity failure')
         if bool(path.stat().st_mode&0o111)!=row['executable']: raise ValueError('bootstrap executable mode changed')
         expected.add(name)
-    if {p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file()}!=expected: raise ValueError('unexpected bootstrap executable inputs')
+    found=set()
+    for folder,dirs,files in os.walk(root):
+        for name in dirs+files:
+            p=Path(folder)/name
+            if p.is_symlink() or not (p.is_dir() or p.is_file()): raise ValueError('linked or special bootstrap input')
+            if p.is_file(): found.add(p.relative_to(root).as_posix())
+    if found!=expected: raise ValueError('unexpected bootstrap executable inputs')
     sys.path.insert(0,str(root));sys.path.insert(0,str(root/'scripts'))
     from source_runtime.cli import main
     raise SystemExit(main(home=HOME))
@@ -129,7 +135,7 @@ def prepare(paths, values):
                 atomic(staging / row['path'], data, 0o555 if executable else 0o444)
             atomic(staging / 'installation.json', manifest_bytes, 0o444)
             os.rename(staging, target)
-    require({p.relative_to(target).as_posix() for p in target.rglob('*') if p.is_file()} ==
+    require(regular_files(target) ==
             {row['path'] for row in rows} | {'installation.json'}, 'unexpected candidate updater executable inputs')
     # Candidate execution precedes every live pointer/launcher mutation.
     result = subprocess.run([sys.executable, '-I', str(target / 'scripts/agents_bootstrap.py'), 'self-test'],

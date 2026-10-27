@@ -255,7 +255,7 @@ def main(argv=None):
                     hint = ''
                     if args.plugin in RETIRED:
                         hint = (f' (retired; nothing of it is installed under {prefix})' if args.command == 'uninstall'
-                                else f' (retired; agents uninstall {args.plugin} removes an old installation)')
+                                else f' (retired; scripts/catalog.py uninstall {args.plugin} removes an old installation)')
                     raise ValueError(f'unknown plugin: {args.plugin}{hint}')
                 plugins = [retired]
             plugins = [p for p in plugins if p['name'] == args.plugin]
@@ -348,7 +348,7 @@ def main(argv=None):
                     if manifest.get('version') != current.resolve().name:
                         raise ValueError('manifest version mismatch')
                     if not snapshot_matches_bundle(manifest, meta['name']):
-                        errors.append('snapshot_outdated: run agents install ' + meta['name'])
+                        errors.append('snapshot_outdated: run agents start ' + meta['name'])
                     if manifest.get('bundle_dir'):
                         registry.assert_owned_locator(agents_root, manifest.get('installation_id'), prefix)
                         if os.path.realpath(Path(manifest.get('agents_root', '')).expanduser()) != os.path.realpath(agents_root):
@@ -371,7 +371,7 @@ def main(argv=None):
                         errors.append('missing_entry')
                 except (OSError, ValueError, installer.InstallError) as exc:
                     if not current.is_symlink() and not current.exists():
-                        errors.append(f"not_installed: run agents install {meta['name']}")
+                        errors.append(f"not_installed: run agents start {meta['name']}")
                     else:
                         errors.append(f'installation_invalid: {exc}')
                 failed |= bool(errors)
@@ -390,7 +390,7 @@ def main(argv=None):
                     print(pinned_entry)
                     return 0
                 if not entry.is_file():
-                    raise ValueError(f"{meta['name']} is not installed; run agents install {meta['name']}")
+                    raise ValueError(f"{meta['name']} is not installed; run agents start {meta['name']}")
                 if args.command == 'path':
                     print(entry)
                 else:
