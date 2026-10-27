@@ -16,20 +16,20 @@ from core.schema import errors
 
 LEGACY = 'worker-brief-v1'
 COMPACT = 'worker-brief-compact-v2'
-MAP_HASH = '2b39b761de80b34dcce93de117980b05bd7184cebcc4be1640e4bde07e9b2596'
+MAP_HASH = '7e1be383196bc017696e48b10d1edcfb82d4079ec1b93feee6027249aad1e468'
 MAP_SCHEMA_HASH = 'e317cf397ab51acef93d39469280370e1f5676bcf2dcfe08d0c32e4db635f29f'
 MANIFEST_CONTRACT_HASHES = {
     # Automated releases may change only this validated metadata value. Hashing
     # exact bytes around it keeps every other manifest byte pinned.
-    'agent-tuneup': '5ae9bc712f93aa2d8e45ca2b5bb5782ab3610b10dc3e308678580f2ef2690244',
-    'ape': '636a5a04b9fcf2935882109da716098450bffca7c0e62a9d77a5d5653c88fcab',
-    'babysitter': '583be3a411e535a7caff59afca7fcfc69f6972dbda457ad153c5e531b57b656d',
+    'agent-tuneup': '68f2e421ffa9133781880a69ccafb0cfb2147c0f0681ba59991c09a0a68b6ba6',
+    'ape': 'f598276e6fc9378883d9f6872d94b34c04be774a21002d1f54c69801a04b0d05',
+    'babysitter': '05f25481d1f4c3ec423c90bf092b75d3b8c96ae68e2094592f044aedb204ba48',
     'elephant-goldfish': '23f3094a7b81ef8810e9485e53ea7bcf43bd408fb370d29c30173b7781ce028b',
-    'focus-group': '0b37f21dd5957110c6dabc767e0a4b953a035d5ced96f7e7151c4741ac28f87e',
-    'imps': 'a3b6727aad6e1d71d27fd9304317498cee999b389eb36e6d9963981fb679912f',
-    'ralph': '9fa48ebf654ee2c0024c267aba65e5368fef27a5bea9a6f08fb7a72c49969b60',
-    'plan': '847f34f77676037f40f52cd7c3bb505b946a16c38430272d4cad4039a9413e80',
-    'tests-omg': 'a1fb7b45dc1ebec77de2fad9996b29255737a717db14bad16b2c9766a0673135',
+    'focus-group': 'd770ed3fd34dd77689d1757f9e1878194e33036246f5b8a4ae7448e9b5c1db3a',
+    'imps': '9ac4f169eaa3f7c87b6020d4e7447fab21281b4838fff111f6bbdf0d8da1da8c',
+    'ralph': '835ec0892df22f733b151aa3b652c01cb354ab23cce741fd119031565878be2b',
+    'plan': 'c61ff283de7fc2af4762077133a4f42d1bd75fe33ae57976cdd0689bf8c70322',
+    'tests-omg': 'bd81ced41160ab0cb793f25e29838ab67a3ba89e5e205c7a4b9b8189285d65ab',
 }
 MANIFEST_VERSION = re.compile(
     rb'(?m)^(  "version"[ \t]*:[ \t]*)("[0-9]+\.[0-9]+\.[0-9]+")(?=[ \t]*,?[ \t]*\r?$)')
