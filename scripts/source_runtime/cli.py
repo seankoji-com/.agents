@@ -10,7 +10,7 @@ import sys
 import uuid
 
 from . import bootstrap, layout, pins
-from .io import Paths, SourceError, git, load, no_links, read, require, source_lock, write_json
+from .io import Paths, SourceError, git, load, no_links, read, require, run_verified, source_lock, write_json
 
 
 def configuration(paths):
@@ -261,4 +261,4 @@ def forward(paths, args):
                    '--prefix', str(paths.packages / args.pin), '--agents-root', str(paths.registry),
                    args.command, *args.arguments]
     env = {k:v for k,v in os.environ.items() if k not in ('PYTHONPATH', 'PYTHONHOME')}
-    return subprocess.run(command, env=env, check=False).returncode
+    return run_verified(command, env)

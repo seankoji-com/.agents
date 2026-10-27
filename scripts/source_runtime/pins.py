@@ -132,6 +132,7 @@ def verify(paths, pin):
     source = directory / 'source'
     manifest = load(directory / 'snapshot.json')
     require(manifest.get('schema_version') == 1 and manifest.get('pin') == pin, 'snapshot identity differs')
+    regular_files(source)  # refuses links and special files that the loop below would skip
     values = {}
     for path in sorted(source.rglob('*')):
         no_links(path)

@@ -107,12 +107,46 @@ class LegacyTest(CoreTestCase):
         for action,helper in helpers.items():
             with self.subTest(action=action):
                 command = self.dispatched(action,'load-authority','--input','input.json')
-                self.assertEqual(command[3],str(self.package/'shared'/helper))
+                self.assertIn(str(self.package/'shared'/helper),command)
         tampered = self.package/'shared/model_selection_cli.py'
         tampered.chmod(0o644)
         tampered.write_text('raise SystemExit("must not run")\n')
         with self.assertRaises(Exception):
             self.dispatched('selection','load-authority','--input','input.json')
+
+    def test_old_job_helpers_never_load_unreceipted_bytecode(self):
+        import py_compile
+        self.inventory()
+        installed = legacy.install_bridge(self.paths,self.brew)
+        shared = self.package/'shared'
+        shared.chmod(0o755)
+        source = self.tmp/'model_selection.py'
+        source.write_text('raise SystemExit("UNRECEIPTED_BYTECODE_LOADED")\n')
+        request = self.tmp/'input.json'
+        request.write_text('{}')
+        name = 'model_selection.'+sys.implementation.cache_tag+'.pyc'
+        for linked in (False,True):
+            with self.subTest(linked=linked):
+                cache = shared/'__pycache__'
+                if cache.is_symlink():
+                    cache.unlink()
+                else:
+                    shutil.rmtree(cache,ignore_errors=True)
+                target = self.tmp/('linked-cache' if linked else 'unused')
+                if linked:
+                    target.mkdir(exist_ok=True)
+                    cache.symlink_to(target,target_is_directory=True)
+                else:
+                    cache.mkdir()
+                py_compile.compile(str(source),cfile=str(cache/name),
+                    invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+                # Without isolation the interpreter would load it: the fixture is live.
+                direct = subprocess.run([sys.executable,'-I','-B',str(shared/'model_selection_cli.py'),
+                    'load-authority','--input',str(request)],capture_output=True,text=True)
+                self.assertIn('UNRECEIPTED_BYTECODE_LOADED',direct.stdout+direct.stderr)
+                bridged = subprocess.run([installed['bridge'],'--job',str(self.job),'selection','load-authority',
+                    '--input',str(request)],capture_output=True,text=True)
+                self.assertNotIn('UNRECEIPTED_BYTECODE_LOADED',bridged.stdout+bridged.stderr)
 
     def test_doctor_refuses_a_current_version_other_than_the_pin(self):
         self.inventory()

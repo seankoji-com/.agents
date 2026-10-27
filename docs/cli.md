@@ -99,3 +99,12 @@ and an allowed old-job operation. It cannot set up/install/register new workflow
 Existing jobs, receipts, old schemas, registry paths and immutable history remain
 at their original locations. A retirement report needs owner review and zero
 resumable/unknown references before any compatibility path can be removed.
+
+Pre-#198 files that hold settings or exclusive state stay in use where they are
+until you move them. While only the old copy exists, the current runtime reads and
+writes it in place; once a current copy exists, it wins. This covers repository
+`.t3-plugins/<plugin>.json` and `routing.json`, the user `t3-plugins/routing.json`
+and `workers.json`, the installation marker and registry lock, lessons, standing
+model grants, planning-review subjects, the bug-report ledger, the tests-omg run
+index and the babysitter workspace and org-scan lock. Two records for one
+planning-review output are refused rather than merged.

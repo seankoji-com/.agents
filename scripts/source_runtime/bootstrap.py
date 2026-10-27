@@ -1,6 +1,7 @@
 """Explicit installation of stable resolver infrastructure, outside source."""
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -16,11 +17,11 @@ def launcher_bytes(paths, interpreter):
             'launcher needs an absolute interpreter path without whitespace')
     # The control record and this launcher live outside normal agent write roots.
     # Verify all installed executable inputs before importing any of them.
-    text = '''#!INTERPRETER -I
+    text = '''#!@@INTERPRETER@@ -I
 import hashlib,json,os,sys
 from pathlib import Path
 sys.dont_write_bytecode=True
-record_path=Path(CONTROL)
+record_path=Path(@@CONTROL@@)
 try:
     for p in (record_path,*record_path.parents):
         if p.is_symlink(): raise ValueError('linked bootstrap control path')
@@ -50,11 +51,16 @@ try:
     if found!=expected: raise ValueError('unexpected bootstrap executable inputs')
     sys.path.insert(0,str(root));sys.path.insert(0,str(root/'scripts'))
     from source_runtime.cli import main
-    raise SystemExit(main(home=HOME))
+    raise SystemExit(main(home=@@HOME@@))
 except (OSError,ValueError,KeyError,TypeError) as error:
     sys.exit('agents bootstrap: '+str(error))
 '''
-    return text.replace('INTERPRETER', interpreter).replace('CONTROL', repr(str(paths.control / 'bootstrap-active.json'))).replace('HOME', repr(str(paths.home))).encode()
+    # One pass, so a substituted path is never rescanned for another placeholder.
+    values = {'INTERPRETER': interpreter, 'CONTROL': repr(str(paths.control / 'bootstrap-active.json')),
+              'HOME': repr(str(paths.home))}
+    text = re.sub(r'@@([A-Z]+)@@', lambda match: values[match.group(1)], text)
+    compile(text, str(paths.launcher), 'exec')  # never publish a launcher that cannot run
+    return text.encode()
 
 
 def self_test():

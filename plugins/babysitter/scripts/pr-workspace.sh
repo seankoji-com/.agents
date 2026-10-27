@@ -60,6 +60,12 @@ if [ -z "$ROOT" ] && [ "$STATE_HOME" != "${STATE_HOME#/}" ]; then
 elif [ -z "$ROOT" ] && [ -n "${HOME:-}" ]; then
   ROOT="${HOME}/.local/state/agents/jobs/babysitter"
 fi
+# Existing PR worktrees (possibly holding uncommitted work) stay in use: the pre-#198
+# cache (always under HOME) keeps serving until it is moved, so no PR gets a second one.
+if [ -z "${BABYSITTER_HOME:-}" ] && [ -n "$ROOT" ] && [ ! -e "$ROOT" ] && [ -n "${HOME:-}" ] &&
+  [ -d "${HOME}/.local/state/t3-plugins/babysitter" ]; then
+  ROOT="${HOME}/.local/state/t3-plugins/babysitter"
+fi
 
 die() {
   echo "pr-workspace.sh: $1" >&2

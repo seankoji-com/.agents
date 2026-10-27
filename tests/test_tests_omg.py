@@ -444,6 +444,15 @@ class EvidenceTests(unittest.TestCase):
 
 
 class CommandTests(unittest.TestCase):
+    def test_default_root_keeps_a_pre_198_run_index_until_moved(self):
+        with tempfile.TemporaryDirectory() as temp, mock.patch.dict(os.environ, {'XDG_STATE_HOME': temp}):
+            state = Path(temp)
+            self.assertEqual(helper.default_state_root(), state / 'agents/jobs/tests-omg')
+            (state / 't3-plugins/tests-omg').mkdir(parents=True)
+            self.assertEqual(helper.default_state_root(), state / 't3-plugins/tests-omg')
+            (state / 'agents/jobs/tests-omg').mkdir(parents=True)
+            self.assertEqual(helper.default_state_root(), state / 'agents/jobs/tests-omg')
+
     def test_doctor_manifest_cannot_read_outside_package(self):
         package = self.base / 'package'
         shutil.copytree(SCRIPTS.parent, package)

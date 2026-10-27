@@ -63,17 +63,24 @@ def logical_output_id(request_reference, output_name):
     return digest(canonical([request_reference, output_name]))
 
 
-def subject_root(project_id, environ=None):
+def subject_root(project_id, environ=None, folder='agents/jobs/review-subjects'):
     env = os.environ if environ is None else environ
     base = env.get('XDG_STATE_HOME')
     root = Path(base) if base and Path(base).is_absolute() else Path(env.get('HOME') or Path.home()) / '.local/state'
-    return root / 'agents/jobs/review-subjects' / component(project_id)
+    return root / folder / component(project_id)
 
 
 class Subject:
     """Reuse the job store's no-symlink, private-directory and process lock rules."""
     def __init__(self, project_id, output_id, environ=None):
-        self.store = Store(subject_root(project_id, environ), component(output_id))
+        name = component(output_id)
+        root = subject_root(project_id, environ)
+        # A pre-#198 subject keeps its owner, findings and round counters in place
+        # until it is moved; two records for one output are never merged silently.
+        legacy = subject_root(project_id, environ, 't3-plugins/review-subjects')
+        current, old = (root / name / 'review.json').exists(), (legacy / name / 'review.json').exists()
+        need(not (current and old), 'review subject exists at both the pre-#198 and current locations; reconcile it first')
+        self.store = Store(legacy if old else root, name)
         self.file = self.store.path / 'review.json'
 
     @contextmanager

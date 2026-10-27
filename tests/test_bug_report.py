@@ -45,6 +45,15 @@ def problem(pid='p1', outcome='t3-defect'):
 
 
 class Reporting(unittest.TestCase):
+    def test_default_root_keeps_a_pre_198_ledger_until_moved(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'XDG_STATE_HOME': temp}):
+            state = Path(temp)
+            self.assertEqual(ledger.default_state_root(), state / 'agents/jobs/bug-report')
+            (state / 't3-plugins/bug-report').mkdir(parents=True)
+            self.assertEqual(ledger.default_state_root(), state / 't3-plugins/bug-report')
+            (state / 'agents/jobs/bug-report').mkdir(parents=True)
+            self.assertEqual(ledger.default_state_root(), state / 'agents/jobs/bug-report')
+
     def setUp(self):
         self.tmp = private_fixture()
         self.addCleanup(self.tmp.cleanup)

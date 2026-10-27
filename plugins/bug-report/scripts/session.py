@@ -762,13 +762,21 @@ def summary(s):
                    'acceptance': 'unverified'}, s['private_values'])
 
 
+def default_state_root():
+    # The ledger's cross-session incident index must stay single: a pre-#198 ledger
+    # keeps serving until it is moved, so no incident is reported twice.
+    state = Path(os.environ.get('XDG_STATE_HOME', Path.home()/'.local/state'))
+    current, legacy = state/'agents/jobs/bug-report', state/'t3-plugins/bug-report'
+    return legacy if legacy.exists() and not current.exists() else current
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('action', choices=['init', 'status', 'problem', 'search', 'budget', 'prepare',
                                     'send', 'finish', 'reconcile', 'comments', 'handled',
                                     'block', 'gap', 'cancel', 'wake'])
     p.add_argument('--session', required=True)
-    p.add_argument('--state-root', default=str(Path(os.environ.get('XDG_STATE_HOME', Path.home()/'.local/state'))/'agents/jobs/bug-report'))
+    p.add_argument('--state-root', default=str(default_state_root()))
     p.add_argument('--input', type=Path)
     a = p.parse_args(argv)
     try:

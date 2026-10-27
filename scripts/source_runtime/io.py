@@ -55,6 +55,14 @@ def regular_files(root):
     return found
 
 
+def run_verified(command, env):
+    """Run Python against verified sources only. Package receipts do not cover
+    __pycache__, so the child gets an empty private bytecode cache (-X works under -I)."""
+    with tempfile.TemporaryDirectory(prefix='agents-pycache-') as cache:
+        argv = [command[0], '-X', 'pycache_prefix=' + cache, *command[1:]]
+        return subprocess.run(argv, env=env, check=False).returncode
+
+
 def relative(value):
     path = PurePosixPath(value)
     require(isinstance(value, str) and value and path.as_posix() == value and

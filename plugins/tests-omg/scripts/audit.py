@@ -471,9 +471,16 @@ def doctor():
             'limits': 'Local artifact integrity only; live provider and host interaction unverified.'}
 
 
+def default_state_root():
+    # A pre-#198 run index keeps serving until it is moved, so runs stay in one index.
+    state = Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state')
+    current, legacy = state / 'agents/jobs/tests-omg', state / 't3-plugins/tests-omg'
+    return legacy if legacy.exists() and not current.exists() else current
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--state-root', default=str(Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state') / 'agents/jobs/tests-omg'))
+    parser.add_argument('--state-root', default=str(default_state_root()))
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('doctor')
     for op in ('status', 'report'):

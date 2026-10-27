@@ -37,6 +37,15 @@ class PushPolicyTest(unittest.TestCase):
                                             env=run_env, capture_output=True, text=True, timeout=5)
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertIn(f'nothing to remove at {root}/worktrees/', result.stderr)
+            # A pre-#198 cache keeps serving until it is moved; a current one wins.
+            legacy = base / 'home/.local/state/t3-plugins/babysitter'
+            legacy.mkdir(parents=True)
+            for current, expected in ((False, legacy), (True, base / 'home/.local/state/agents/jobs/babysitter')):
+                if current:
+                    expected.mkdir(parents=True)
+                result = subprocess.run(['bash', str(SCRIPT), '--repo', 'owner/repo', '--pr', '1', '--remove'],
+                                        env=env, capture_output=True, text=True, timeout=5)
+                self.assertIn(f'nothing to remove at {expected}/worktrees/', result.stderr)
 
     def test_ref_syntax_in_branch_is_refused_before_any_clone(self):
         with tempfile.TemporaryDirectory() as directory:

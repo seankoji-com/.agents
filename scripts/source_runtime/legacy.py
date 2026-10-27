@@ -8,7 +8,7 @@ import shlex
 import subprocess
 import sys
 
-from .io import atomic, canonical, digest, load, no_links, read, regular_files, relative, require, source_lock, write_json
+from .io import atomic, canonical, digest, load, no_links, read, regular_files, relative, require, run_verified, source_lock, write_json
 
 
 def classify(file):
@@ -294,4 +294,4 @@ def dispatch(paths,argv):
         command = [sys.executable,'-B',str(root/'scripts/catalog.py'),'--prefix',str(prefix),
                    '--agents-root',receipt['agents_root'],*arguments[2:]]
     env = {k:v for k,v in os.environ.items() if k not in ('PYTHONHOME','PYTHONPATH')}
-    return subprocess.run(command,env=env,check=False).returncode
+    return run_verified(command,env)

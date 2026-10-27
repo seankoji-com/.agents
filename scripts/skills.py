@@ -200,7 +200,7 @@ def render(meta, entry):
                + routes + '\n' if meta['routes'] else
                ('Use the default workflow.\n' if meta.get('default_operation') else
                 'With no route table, ask which operation to run.\n')) +
-            'If the entry is missing, report that this adapter needs `agents install ' + meta['name'] +
+            'If the entry is missing, report that this adapter needs `scripts/catalog.py install ' + meta['name'] +
             '` using the same package prefix; do not switch to another ' + meta['name'] + ' installation.\n'
             'This adapter grants no additional authorization. T3 owns delegation and watches.\n')
 

@@ -273,6 +273,22 @@ class SourcePinsTest(unittest.TestCase):
         self.assertIn('integrity failure', refused.stderr)
         self.assertNotIn('must never execute', refused.stderr)
 
+    def test_launcher_keeps_paths_that_contain_placeholder_words(self):
+        home = self.box / 'HOME-CONTROL-INTERPRETER'
+        home.mkdir()
+        text = bootstrap.launcher_bytes(Paths(home), str(Path(sys.executable).resolve())).decode()
+        compile(text, 'launcher', 'exec')
+        self.assertIn(repr(str(home)), text)
+        self.assertIn(repr(str(Paths(home).control / 'bootstrap-active.json')), text)
+
+    def test_snapshot_with_a_special_file_is_refused(self):
+        pin = cli.start(self.paths, 'demo')['pin']
+        folder = self.paths.snapshots / pin / 'source' / 'skills/demo'
+        folder.chmod(0o755)
+        os.mkfifo(folder / 'unlisted.fifo')
+        with self.assertRaisesRegex(SourceError, 'linked or special file'):
+            pins.verify(self.paths, pin)
+
     def test_installed_launcher_refuses_a_linked_directory_before_importing(self):
         bootstrap.self_install(ROOT, self.paths, source=self.source)
         scripts = Path(load(self.paths.control / 'bootstrap-active.json')['installation']) / 'scripts'
