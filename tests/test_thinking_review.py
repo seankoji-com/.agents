@@ -135,7 +135,7 @@ class ReviewCommands:
         self.render("--draft", "--check")
         text = (self.topic / "handoff.draft.md").read_text()
         self.assertIn("DRAFT. Non-executable.", text)
-        self.assertNotIn("agents prompt imps", text)
+        self.assertNotIn("imps run Read thinking/", text)
         self.assertFalse((self.topic / "handoff.md").exists())
         # The draft's author record names the draft file and never repoints handoff.md.
         records = json.loads((self.topic / "document-authors.json").read_text())

@@ -10,10 +10,12 @@ MARKER = '.ape-workspace.json'
 
 def validate(path):
     marker = path / MARKER
-    expected = {'schema_version': 1, 'owner': 'agents/ape', 'workspace': str(path.resolve())}
+    # Workspaces created before #198 carry the historical owner name.
+    expected = [{'schema_version': 1, 'owner': owner, 'workspace': str(path.resolve())}
+                for owner in ('agents/ape', 't3-plugins/ape')]
     if marker.is_symlink() or not marker.is_file():
         raise ValueError('workspace has no regular ape ownership marker')
-    if json.loads(marker.read_text()) != expected:
+    if json.loads(marker.read_text()) not in expected:
         raise ValueError('workspace ownership marker does not match this directory')
 
 

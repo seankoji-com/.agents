@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -84,6 +85,18 @@ class ResearchBoundaryTest(unittest.TestCase):
                                         env=env, capture_output=True, text=True, timeout=5)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(keep.read_text(), 'unrelated research')
+
+    def test_pre_198_workspace_marker_still_validates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp).resolve() / 'tmp/repo-research/old'
+            workspace.mkdir(parents=True)
+            marker = {'schema_version': 1, 'owner': 't3-plugins/ape', 'workspace': str(workspace)}
+            (workspace / '.ape-workspace.json').write_text(json.dumps(marker))
+            result = subprocess.run([sys.executable, str(SCRIPTS / 'workspace.py'), 'validate', str(workspace)],
+                                    env={**os.environ, 'HOME': str(Path(tmp).resolve())},
+                                    capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads((workspace / '.ape-workspace.json').read_text()), marker)
 
     def test_initializer_does_not_adopt_unmarked_workspaces(self):
         with tempfile.TemporaryDirectory() as tmp:

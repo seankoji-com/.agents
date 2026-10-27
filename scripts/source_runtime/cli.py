@@ -89,6 +89,10 @@ def job_path(paths, job_file, name):
             'legacy job needs its inventoried compatibility runtime; no live package substitution')
     materialized = pins.materialize(paths, prefix.name, name, dependency=True)
     require(materialized['package_root'] == str(package), 'job package differs from source pin materialization')
+    # The job recorded these identities when it pinned the package; all must still agree.
+    receipt = load(package / 'install-manifest.json')
+    for field in ('package_digest', 'installation_id', 'bundle_dir', 'bundle_digest'):
+        require(matches[0].get(field) == receipt.get(field), 'job ' + field + ' differs from the pinned package')
     return materialized
 
 

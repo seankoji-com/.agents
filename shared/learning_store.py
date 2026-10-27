@@ -346,30 +346,27 @@ class Store:
         except (OSError, ValueError, KeyError, TypeError, UnicodeError, AttributeError) as exc:
             reason = str(exc)
             if operation != 'load' and isinstance(exc, OSError) and exc.errno in DENIED:
-                reason = denied_reason(self.root / 'agents/jobs/learnings')
+                try:
+                    granted = self.active_folder().parent
+                except OSError:
+                    granted = self.folder.parent
+                reason = denied_reason(granted)
             return {'status': 'unavailable', 'reason': reason, 'proposed_learning': proposal}
+
+    def active_folder(self):
+        # Pre-#198 lessons live under t3-plugins/learnings. Until they are moved, both
+        # runtimes read and write that file under its own lock, so neither forks it.
+        legacy = self.root / 't3-plugins/learnings' / self.key
+        if not (self.folder / self.name).exists() and (legacy / self.name).is_file():
+            return legacy
+        return self.folder
 
     def _operate(self, operation, proposal):
         if operation not in ('load', 'write', 'maintain', 'harvest'):
             raise Unavailable('unknown learning operation')
         writable = operation != 'load'
         empty = {'format_version': 1, 'maintained_version': self.version, 'entries': []}
-        folder = self.folder
-        # Pre-#198 lessons live under t3-plugins/learnings. Until this location has its
-        # own file, loads read the old one in place; the first write copies it here.
-        # The old file is never changed, so the legacy runtime keeps serving old jobs.
-        legacy = self.root / 't3-plugins/learnings' / self.key
-        if not (self.folder / self.name).exists() and (legacy / self.name).is_file():
-            if not writable:
-                folder = legacy
-            else:
-                with directory(legacy) as old_fd:
-                    old = read_file(old_fd, self.name)
-                with directory(self.folder, True) as fd, locked(fd, self.name + '.lock', True):
-                    try:
-                        read_file(fd, self.name)
-                    except FileNotFoundError:
-                        atomic_file(fd, self.name, old)
+        folder = self.active_folder()
         try:
             with directory(folder, writable) as fd, locked(fd, self.name + '.lock', writable):
                 try:
@@ -379,7 +376,7 @@ class Store:
                     raw, label, data = None, self.label, empty
                 original = digest(data)
                 if operation == 'load':
-                    return self.receipt(data, original)
+                    return self.receipt(data, original, folder)
                 if operation in ('maintain', 'harvest') and proposal.get('expected') != original:
                     raise Unavailable('learnings changed; reload before applying judgement')
                 if operation == 'write':
@@ -397,7 +394,7 @@ class Store:
                     data['entries'] = [e for e in data['entries'] if e['id'] != entry['id']] + [entry]
                 elif operation == 'maintain':
                     if data['maintained_version'] == self.version:
-                        return self.receipt(data, original)
+                        return self.receipt(data, original, folder)
                     backup = self.name + '.pre-' + data['maintained_version']
                     if raw is not None:
                         try:
@@ -430,7 +427,7 @@ class Store:
                     from harvest import apply_receipts
                     data['entries'] = apply_receipts(data['entries'], proposal)
                 atomic_file(fd, self.name, encode(label, data))
-                return self.receipt(data, digest(data))
+                return self.receipt(data, digest(data), folder)
         except FileNotFoundError:
             if not writable:
                 # No file/lock/directory means no lessons, with no read-only writes.
@@ -439,8 +436,8 @@ class Store:
                 return self.receipt(empty, digest(empty))
             raise
 
-    def receipt(self, data, revision):
-        return {'status': 'available', 'path': str(self.folder / self.name), 'key': self.key,
+    def receipt(self, data, revision, folder=None):
+        return {'status': 'available', 'path': str((folder or self.folder) / self.name), 'key': self.key,
                 'label': self.label, 'data': data, 'revision': revision,
                 'pending_maintenance': data['maintained_version'] != self.version,
                 'upstream_check': 'eligible' if '+g' in self.version else 'skipped: content install'}

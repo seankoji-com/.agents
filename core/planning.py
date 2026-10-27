@@ -20,8 +20,8 @@ def deep_merge(base, override):
 
 
 def repository_policy(worktree: Path, plugin: str) -> dict:
-    path = worktree / '.agents' / f'{plugin}.json'
-    if not path.is_file():
+    path = next((p for p in (worktree / d / f'{plugin}.json' for d in ('.agents', '.t3-plugins')) if p.is_file()), None)
+    if path is None:  # .agents wins; a pre-#198 .t3-plugins policy keeps binding until it is moved
         return {}
     data = read_json(path)
     schema.validate(data, 'repository-policy', 'repository_policy_invalid')

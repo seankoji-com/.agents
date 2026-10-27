@@ -38,8 +38,8 @@ helper calls stay direct. Read `PKG/playbooks/audit.md` for audit, then
 
 Helpers require Python 3.10+, Git and POSIX `fcntl` locking. Use absolute installed paths, resolved from
 this entry. `--state-root ROOT` precedes the operation. Never put state in a target
-checkout. The default is `$XDG_STATE_HOME/agents/tests-omg` or
-`~/.local/state/agents/tests-omg`.
+checkout. The default is `$XDG_STATE_HOME/agents/jobs/tests-omg` or
+`~/.local/state/agents/jobs/tests-omg`.
 
 - `doctor`: run `python3 PKG/scripts/audit.py doctor`. Checks package files, Python
   and an installed content receipt when present. No target mutation or model launch.

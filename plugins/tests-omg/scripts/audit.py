@@ -473,7 +473,7 @@ def doctor():
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--state-root', default=str(Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state') / 'agents/tests-omg'))
+    parser.add_argument('--state-root', default=str(Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state') / 'agents/jobs/tests-omg'))
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('doctor')
     for op in ('status', 'report'):

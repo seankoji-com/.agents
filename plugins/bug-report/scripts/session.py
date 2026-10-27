@@ -768,7 +768,7 @@ def main(argv=None):
                                     'send', 'finish', 'reconcile', 'comments', 'handled',
                                     'block', 'gap', 'cancel', 'wake'])
     p.add_argument('--session', required=True)
-    p.add_argument('--state-root', default=str(Path(os.environ.get('XDG_STATE_HOME', Path.home()/'.local/state'))/'agents/bug-report'))
+    p.add_argument('--state-root', default=str(Path(os.environ.get('XDG_STATE_HOME', Path.home()/'.local/state'))/'agents/jobs/bug-report'))
     p.add_argument('--input', type=Path)
     a = p.parse_args(argv)
     try:

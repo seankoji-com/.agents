@@ -90,6 +90,43 @@ class LegacyTest(CoreTestCase):
         self.assertEqual(status.returncode,0,status.stdout+status.stderr)
         self.assertEqual(json.loads(status.stdout)['run_id'],run_id)
 
+    def dispatched(self,*argv):
+        """The command the bridge would run for this inventoried job, without running it."""
+        with patch.object(legacy.subprocess,'run') as run:
+            run.return_value.returncode = 0
+            self.assertEqual(legacy.dispatch(self.paths,['--job',str(self.job),*argv]),0)
+        return run.call_args.args[0]
+
+    def test_old_job_helpers_verify_the_pinned_install_receipt(self):
+        self.inventory()
+        legacy.install_bridge(self.paths,self.brew)
+        helpers = {'selection':'model_selection_cli.py','agreement':'execution_agreement_cli.py',
+                   'planning-review':'planning_review_cli.py'}
+        for action,helper in helpers.items():
+            with self.subTest(action=action):
+                command = self.dispatched(action,'load-authority','--input','input.json')
+                self.assertEqual(command[3],str(self.package/'shared'/helper))
+        tampered = self.package/'shared/model_selection_cli.py'
+        tampered.chmod(0o644)
+        tampered.write_text('raise SystemExit("must not run")\n')
+        with self.assertRaises(Exception):
+            self.dispatched('selection','load-authority','--input','input.json')
+
+    def test_worker_show_and_doctor_refuse_a_current_version_other_than_the_pin(self):
+        self.inventory()
+        legacy.install_bridge(self.paths,self.brew)
+        self.assertIn('show',self.dispatched('agents','show','imps','implementer'))
+        self.assertIn('doctor',self.dispatched('doctor','imps'))
+        current = self.package.parent/'current'
+        other = self.package.parent/'0.0.1-other'
+        other.mkdir()
+        current.unlink()
+        current.symlink_to(other.name)
+        for argv in (('agents','show','imps','implementer'),('doctor','imps')):
+            with self.subTest(argv=argv), self.assertRaisesRegex(SourceError,"differs from this job's pin"):
+                legacy.dispatch(self.paths,['--job',str(self.job),*argv])
+        self.assertIn('list',self.dispatched('agents','list','imps'))
+
     def test_bridge_refuses_new_work_changed_pins_unknown_jobs_and_runtime_tampering(self):
         self.inventory()
         installed = legacy.install_bridge(self.paths,self.brew)

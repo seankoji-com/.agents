@@ -12,7 +12,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 RETIRED = ('offload-sidecar', 'prompt-builder')
-MARKER = '.agents-skill.json'
+MARKER = '.t3-plugins-skill.json'  # the receipt retired adapters were installed with
 DEFAULT_ROOTS = ('.claude/skills', '.codex/skills', '.config/opencode/skills',
                  '.gemini/config/skills', '.gemini/skills', '.config/muse/skills')
 
@@ -162,7 +162,7 @@ class RetiredAdapters(unittest.TestCase):
         (corrupt / MARKER).write_text('{not json')
         before_root, before_outside = tree(root), tree(outside)
         receipts = self.call('setup', 'imps', '--root', str(root))
-        adapter = {'imps', 'imps/SKILL.md', 'imps/' + MARKER, 'imps/agents', 'imps/agents/openai.yaml'}
+        adapter = {'imps', 'imps/SKILL.md', 'imps/.agents-skill.json', 'imps/agents', 'imps/agents/openai.yaml'}
         self.assertLessEqual({k for k in tree(root) if k.split('/')[0] == 'imps'}, adapter)
         after = {k: v for k, v in tree(root).items() if k not in adapter}
         self.assertEqual(after, before_root)

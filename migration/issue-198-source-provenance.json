@@ -49,55 +49,55 @@
       "previous_path": "plugins/agent-tuneup/entry.md",
       "previous_sha256": "a3aafc923831496b6ab576a6384b650d651676a78cc16d152a5f63f341de0f31",
       "source_path": "skills/agent-tuneup/SKILL.md",
-      "source_sha256": "d88625943e958911ed3018ed562aab5e650e36043655903e3ea77e472e089d37"
+      "source_sha256": "dd121dc0ed23fea31843772570fb68dd68b12b84ea4f658729c99260d7cf1f46"
     },
     "ape": {
       "previous_path": "plugins/ape/entry.md",
       "previous_sha256": "a8cd52aba89fcf2919213ca844e498c74206d49d8d0dcced7bc961d36479047c",
       "source_path": "skills/ape/SKILL.md",
-      "source_sha256": "23ce0d182f973a10e08a9981e27be47220988cfd161e89432260653ba65009d7"
+      "source_sha256": "2137543eec86fe18de6e4977baef75ba20c4287bed594d6620150efba05fc428"
     },
     "babysitter": {
       "previous_path": "plugins/babysitter/entry.md",
       "previous_sha256": "ac638835c29d2981fbef28c5904a41aa597a95cd343fe500076658be7f478e5c",
       "source_path": "skills/babysitter/SKILL.md",
-      "source_sha256": "7fe01f55eedd1643aca19bb76b05ee15495ff2e2117207c6d5bcb3b3d25cf24b"
+      "source_sha256": "e83a9b8fdcef89f7dc0ef36dc846ddf355e73f03e9bd8336193b891e8c20fe4c"
     },
     "bug-report": {
       "previous_path": "plugins/bug-report/entry.md",
       "previous_sha256": "68c2231693d729afbf17cade05e91ce9efad344b513c18db5d70816ff2553025",
       "source_path": "skills/bug-report/SKILL.md",
-      "source_sha256": "2e19db53bf3f043e7b95f8926b89b1fdf52e41fb4f13a9fb44eae2802c4f32d6"
+      "source_sha256": "cc588b1dfad22166a78af33227e64677b924a8ad0b5ddfa1e3aa2b5d84f9db1a"
     },
     "focus-group": {
       "previous_path": "plugins/focus-group/entry.md",
       "previous_sha256": "d3ecf2c0ba071bc783050365d2fa75869d9fc5f23a1101aa9cdb42622362bd67",
       "source_path": "skills/focus-group/SKILL.md",
-      "source_sha256": "a853c17f04490dea09a5180d3989a2177881bb12d6bf798b7453b2c6f3150816"
+      "source_sha256": "671984be1e6b27f7bea5a0cf7265e7c2e227885763c6c1f9faaa63e473a7783f"
     },
     "imps": {
       "previous_path": "plugins/imps/entry.md",
       "previous_sha256": "5536b4f8bea36662f8f852dce8834ae71f9fce199561ddb007b34ebbcf78b56b",
       "source_path": "skills/imps/SKILL.md",
-      "source_sha256": "90e30c67ce3b24e719b63ce34fd04bbeb1fbc1e6418f2d755ad31be18b686100"
+      "source_sha256": "9cddea2cb1b6baff0be91077f5f0a1f192eaf79d7b93fa04a6213de71fef3355"
     },
     "plan": {
       "previous_path": "plugins/plan/entry.md",
       "previous_sha256": "1974b75affd48226cf87329891f210d359657a2066e3273fc09f6718f6ee6796",
       "source_path": "skills/plan/SKILL.md",
-      "source_sha256": "798dde5e4e8d22e9c49471583f8d70f08ee45255e342e083c2a7ff5717cfa07a"
+      "source_sha256": "8a3709d8213ee37fe7c709107eb781c0c37d9374c8e481331a3e19c230872b3a"
     },
     "ralph": {
       "previous_path": "plugins/ralph/entry.md",
       "previous_sha256": "2bbd81d05b6e74e266520ac10b5b51df5c03d40dd58c298d54bd0a60d6376c80",
       "source_path": "skills/ralph/SKILL.md",
-      "source_sha256": "03a6a4081db8299dfb86b18b01574b0106351602f94f2674deaeb1b6f6b0c105"
+      "source_sha256": "fd89fae5335e14d8ba2e019be3659d6367208d1107921a31d8cd1ecf1b8caa72"
     },
     "tests-omg": {
       "previous_path": "plugins/tests-omg/entry.md",
       "previous_sha256": "976f106211df3eb5391cdaa3dbf5b29f39b39b561ddb5e017c465d07fdc1322e",
       "source_path": "skills/tests-omg/SKILL.md",
-      "source_sha256": "7a7c00ebfb6bc91108fa628cefca965060bf24ac0085a56ce3db00ff38628ef8"
+      "source_sha256": "fac1fdfb060ea0284817f373293ef9b13b29f17d428c6620b2c4935bcb968942"
     }
   }
 }

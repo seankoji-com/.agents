@@ -14,8 +14,10 @@ Neither check authorises execution. An owner override applies only to finalising
 
 ## When the user authorises implementation
 
-```sh
-agents prompt imps "Read thinking/{{TOPIC_SLUG}}/handoff.md in full and implement what it describes. Treat the evaluation criteria as hard requirements and the auto-reject conditions as absolute. Do not re-propose any approach the problem definition rules out."
+Invoke the `imps` skill in a fresh session (`/imps` in Claude Code, `$imps` in Codex):
+
+```text
+imps run Read thinking/{{TOPIC_SLUG}}/handoff.md in full and implement what it describes. Treat the evaluation criteria as hard requirements and the auto-reject conditions as absolute. Do not re-propose any approach the problem definition rules out.
 ```
 
 Or paste everything below as the first message of a fresh session.

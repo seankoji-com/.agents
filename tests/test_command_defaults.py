@@ -65,7 +65,7 @@ class CommandDefaults(unittest.TestCase):
             self.assertEqual(historical.read_text(), '{"receipt":"historical"}\n')
             # A pristine, owned adapter can be removed, without touching any old state.
             (old / 'SKILL.md').unlink()
-            (old / '.agents-skill.json').unlink()
+            (old / '.t3-plugins-skill.json').unlink()
             old.rmdir()
             owned_adapter(root, 'elephant-goldfish')
             cli('setup', 'plan', '--root', str(root))

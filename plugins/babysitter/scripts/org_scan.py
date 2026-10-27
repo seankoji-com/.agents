@@ -427,7 +427,7 @@ def main(argv=None):
         parser.error('--run-config requires --execute')
     if args.bridge:
         parser.error('--bridge requires --execute')
-    directory = args.state_dir or Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 'agents/babysitter/org-scan'
+    directory = args.state_dir or Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 'agents/jobs/babysitter/org-scan'
     try:
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         with (directory / (args.org + '.lock')).open('a') as lock:

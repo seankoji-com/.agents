@@ -62,7 +62,7 @@ or an armed auto-merge request never substitutes for an available action.
   not a written strategy requiring another evaluator.
 - Save the operator's request verbatim to an owner-source file outside the job
   directory and every PR worktree, for example
-  `$XDG_STATE_HOME/agents/babysitter/requests/<run-id>.txt`. Decisions quote it.
+  `$XDG_STATE_HOME/agents/jobs/babysitter/requests/<run-id>.txt`. Decisions quote it.
 - Run `python3 PKG/scripts/plan_review.py admit --input <admission-input.json>`
   after freezing the model choices. The input contains `operation` (`pr`, `repo`
   or `org`), `request_reference`, `output_name`, `invocation_id`, `selection` and

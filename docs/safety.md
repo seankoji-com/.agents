@@ -6,13 +6,14 @@ change settings.
 
 ## What installation changes
 
-`setup` writes versioned plugin snapshots and managed skill adapters under your user
-home, or the custom locations you supply. It preserves unowned and edited adapters.
-`install` writes snapshots only. Neither command calls a model.
+`agents start` writes immutable pinned snapshots under XDG data. `agents discovery`
+installs only the native skill links it owns and preserves vendor and edited skills.
+Neither command calls a model.
 
-Provider configuration stays unchanged unless you explicitly pass
-`--grant-learnings`. That flag backs up configuration and adds the printed learning
-subtree; it does not disable the sandbox or change approval policy.
+Provider configuration stays unchanged. `agents permissions` prints the narrow
+grants; the native configuration owner adds them. Nothing here disables the sandbox
+or changes approval policy. Pre-#198 installations keep the `--grant-learnings`
+grants they already applied.
 [Installation](getting-started.md) and [learnings](learnings.md) describe the paths.
 
 ## What an agent may send

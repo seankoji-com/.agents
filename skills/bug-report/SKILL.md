@@ -50,7 +50,7 @@ schedule, verifies cleanup, and reports outstanding requests.
 
 Use `python3 PKG/scripts/session.py ACTION --session ID --input FILE`. Supply
 `--state-root ROOT` only for an explicit private root outside any repository.
-The default is `$XDG_STATE_HOME/agents/bug-report`. JSON goes through a file,
+The default is `$XDG_STATE_HOME/agents/jobs/bug-report`. JSON goes through a file,
 never interpolated into shell code. Read `PKG/references/state.md` for exact input
 shapes. Each call prints `{ok, data}` or a redacted `{ok:false, error}` and exits
 0 or 2. Stop dependent actions when storage fails. Never edit state by hand.

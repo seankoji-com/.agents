@@ -40,7 +40,8 @@ def state_root() -> Path:
     explicit = os.environ.get('AGENTS_STATE_ROOT')
     if explicit:
         return Path(explicit).expanduser()
-    return Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local' / 'state') / 'agents' / 'imps'
+    # Same default as core.store.env_state_root('imps'), where the gate writes runs.
+    return Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local' / 'state') / 'agents' / 'jobs' / 'imps'
 
 
 def git(cwd, *args):

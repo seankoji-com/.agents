@@ -1,5 +1,6 @@
 """Conservative old-job inventory and a job-bound compatibility command."""
 from collections import Counter
+import json
 import os
 from pathlib import Path
 import re
@@ -248,7 +249,8 @@ def dispatch(paths,argv):
         package = Path(pin['package_dir'])
         require(package.is_absolute(), 'legacy package locator must be absolute')
         import registry
-        receipt = registry.load_manifest(package/'install-manifest.json') if hasattr(registry,'load_manifest') else load(package/'install-manifest.json')
+        # The install receipt, not a plugin manifest: load_manifest expects a plugin directory.
+        receipt = json.loads(registry.read_regular(package/'install-manifest.json','package receipt').decode('utf-8'))
         require(pin['package_digest'] == receipt['package_digest'] == registry.package_digest(receipt),
                 'legacy pinned package digest differs')
         registry.verify_package_files(package,receipt)
@@ -268,6 +270,12 @@ def dispatch(paths,argv):
             if next((d['plugin'] for d in job['dependencies'] if d['key'] == key),None) == name)
         receipt = load(Path(pin['package_dir'])/'install-manifest.json')
         prefix = Path(pin['package_dir']).parent.parent
+        # The retained catalog's show and doctor read the version named by current and
+        # take no version argument; refuse rather than describe another version.
+        if action == 'doctor' or arguments[3] == 'show':
+            current = prefix/name/'current'
+            require(current.is_symlink() and current.resolve() == Path(pin['package_dir']).resolve(),
+                    'retained current version differs from this job\'s pin; use agents list, which reports every version')
         command = [sys.executable,'-B',str(root/'scripts/catalog.py'),'--prefix',str(prefix),
                    '--agents-root',receipt['agents_root'],*arguments[2:]]
     env = {k:v for k,v in os.environ.items() if k not in ('PYTHONHOME','PYTHONPATH')}

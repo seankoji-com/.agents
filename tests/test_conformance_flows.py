@@ -83,6 +83,13 @@ class ConformanceFlowTest(unittest.TestCase):
             call('setup', '--dest', str(dest))
         self.assertIn('exists', str(caught.exception))
 
+    def test_default_state_root_is_the_gate_default(self):
+        sys.path.insert(0, str(ROOT))
+        from core.store import env_state_root
+        with patch.dict(os.environ, {'XDG_STATE_HOME': str(self.tmp / 'xdg')}):
+            os.environ.pop('AGENTS_STATE_ROOT')
+            self.assertEqual(conformance.state_root(), env_state_root('imps'))
+
     def test_find_run_matches_the_worktree_and_since(self):
         mine, other = self.tmp / 'mine', self.tmp / 'other'
         mine.mkdir()

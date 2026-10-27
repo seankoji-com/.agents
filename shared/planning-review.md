@@ -6,7 +6,7 @@ models, asks model-selection questions or schedules work. The coordinator keeps
 ownership of independent review of an implementation.
 
 Run `python3 PKG/shared/planning_review_cli.py COMMAND --input FILE`, or
-`agents planning-review COMMAND --input FILE`. Job operations also need
+`agents --pin PIN planning-review COMMAND --input FILE`. Job operations also need
 `--state-root ROOT --job ID`; `create` needs `--prefix PREFIX --agents-root ROOT`.
 Successful commands return one JSON value and exit 0. Refusals exit 2 on stderr;
 `check-draft` also uses exit 2 with a JSON diagnostic on stdout for invalid drafts.
@@ -161,7 +161,7 @@ and independence policy. They cannot be imported or waived into this runtime.
 
   ```sh
   python3 PKG/shared/planning_review_cli.py unavailable --input refusal.json --state-root ROOT --job ID
-  # Equivalent: agents planning-review unavailable --input refusal.json --state-root ROOT --job ID
+  # Equivalent: agents --pin PIN planning-review unavailable --input refusal.json --state-root ROOT --job ID
   ```
 
   `refusal.json` has this shape. Copy the returned `create.caller` object unchanged

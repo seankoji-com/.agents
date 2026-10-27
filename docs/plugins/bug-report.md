@@ -80,7 +80,7 @@ closure and a fix running in your installed build are separate observations.
 ## Private state and recovery
 
 State lives outside your checkout at
-`$XDG_STATE_HOME/agents/bug-report` (default `~/.local/state/agents/bug-report`).
+`$XDG_STATE_HOME/agents/jobs/bug-report` (default `~/.local/state/agents/jobs/bug-report`).
 Files use private permissions, no-follow path access, a process lock and atomic
 replacement. Runtime helpers require Python 3.10+ and POSIX file locks. They call
 no network API and create no background process. The agent uses T3's host tools.

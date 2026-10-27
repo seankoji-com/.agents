@@ -67,11 +67,12 @@ proposed lesson.
 
 - **The provider's sandbox doesn't allow the learnings folder.** Lessons live under
   `agents/jobs/learnings` in XDG state. `agents permissions` prints the narrow native
-  grants without changing settings; `agents setup --grant-learnings` adds the grant.
-  Only `agents/jobs`, `agents/snapshots` and `agents/locks` belong in agent-write
-  grants; keep updater, launcher, ownership receipts, active records and service units
-  protected. If setup returns `status: manual`, the provider config is dotfiles-managed:
-  add the printed `snippet` to the printed `target` at its source and sync.
+  grants without changing settings; add them through the provider configuration's
+  owner, at its dotfiles source when it is managed there. Only `agents/jobs`,
+  `agents/snapshots` and `agents/locks` belong in agent-write grants; keep updater,
+  launcher, ownership receipts, active records and service units protected. Lessons
+  still under `t3-plugins/learnings` keep the `--grant-learnings` grant a pre-#198
+  setup applied until they are moved.
 - **Ordinary filesystem permissions or a read-only mount.** A sandbox grant can't fix
   these. Check who owns the state root and the learnings folder, their permission
   bits, and whether the mount is read-only, then fix whichever blocks your user.

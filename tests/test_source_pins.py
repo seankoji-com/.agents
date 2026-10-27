@@ -132,6 +132,27 @@ class SourcePinsTest(unittest.TestCase):
         with self.assertRaisesRegex(SourceError, 'exactly one prose'):
             cli.start(self.paths, 'unslop')
 
+    def test_job_path_correlates_every_recorded_package_identity(self):
+        package = self.paths.packages / ('a' * 64) / 'imps' / '1.0.0'
+        receipt = {'package_digest': 'p' * 64, 'installation_id': 'install-1',
+                   'bundle_dir': str(self.box / 'bundle'), 'bundle_digest': 'b' * 64}
+        write_json(package / 'install-manifest.json', receipt)
+        job = self.box / 'job.json'
+        materialized = {'package_root': str(package)}
+        with patch.object(pins, 'materialize', return_value=materialized):
+            for field in (None, *receipt):
+                with self.subTest(field=field):
+                    pin = {**receipt, 'package_dir': str(package)}
+                    if field:
+                        pin[field] = 'wrong'
+                    write_json(job, {'dependencies': [{'key': 'workflow', 'plugin': 'imps'}],
+                                     'pins': {'workflow': pin}})
+                    if field is None:
+                        self.assertEqual(cli.job_path(self.paths, job, 'imps'), materialized)
+                    else:
+                        with self.assertRaisesRegex(SourceError, 'job ' + field + ' differs'):
+                            cli.job_path(self.paths, job, 'imps')
+
     def test_receiver_export_uses_git_objects_not_dirty_worktree(self):
         commit = git(self.source, 'rev-parse', 'HEAD').stdout.decode().strip()
         self.put('skills/demo/scripts/helper.py', 'print("partial checkout")\n')

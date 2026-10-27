@@ -177,7 +177,7 @@ requires an explicitly authorised schedule ID and fresh catalog/policy validatio
 every fire; no saved defaults or new scheduler.
 
 Use `python3 PKG/shared/model_selection_cli.py ACTION --input FILE` (or
-`agents selection ACTION --input FILE` in the source launcher):
+`agents --pin PIN selection ACTION --input FILE` in the source launcher):
 
 - `discover`: `{capabilities, profiles, routing?, role?}` returns recommendations and
   exclusions. Profiles name role floors and sourced model quality/lineage evidence.

@@ -125,19 +125,28 @@ class LearningsTest(unittest.TestCase):
         self.assertTrue(result['pending_maintenance'])
         self.assertEqual(before, {p: p.read_bytes() for p in self.store.folder.iterdir()})
 
-    def test_pre_198_lessons_load_in_place_and_are_copied_on_first_write(self):
+    def test_pre_198_lessons_stay_shared_in_place_until_moved(self):
         self.write('legacy', upstream='seankoji-com/t3-plugins#28')
         legacy = self.store.root / 't3-plugins/learnings' / self.store.key
         legacy.parent.mkdir(parents=True)
         self.store.folder.rename(legacy)
-        before = {p.name: p.read_bytes() for p in legacy.iterdir()}
         loaded = Store(self.project, 'imps', OLD, self.env).operate()
         self.assertEqual([e['id'] for e in loaded['data']['entries']], ['legacy'])
-        self.assertFalse(self.store.folder.exists())
+        self.assertEqual(Path(loaded['path']).parent, legacy)
         written = self.write('new')
-        self.assertEqual(sorted(e['id'] for e in written['data']['entries']), ['legacy', 'new'])
-        self.assertEqual(Path(written['path']).parent, self.store.folder)
-        self.assertEqual(before, {p.name: p.read_bytes() for p in legacy.iterdir()})
+        self.assertEqual(Path(written['path']).parent, legacy)
+        self.assertFalse(self.store.folder.exists())
+        # An old job writing in between is seen by the next new-runtime load: no fork.
+        old_job = Store(self.project, 'imps', OLD, self.env)
+        old_job.folder = legacy
+        self.assertEqual(old_job.operate('write', {'entry': {'id': 'late-old-job', 'summary': 'Old runtime',
+                                                             'failure': 'Written at the old location'}})['status'],
+                         'available')
+        ids = sorted(e['id'] for e in Store(self.project, 'imps', OLD, self.env).operate()['data']['entries'])
+        self.assertEqual(ids, ['late-old-job', 'legacy', 'new'])
+        # Once moved, the current location wins and the old file is no longer used.
+        legacy.rename(self.store.folder)
+        self.assertEqual(Path(self.write('moved')['path']).parent, self.store.folder)
 
     def test_versioned_format_authorship_and_plugin_isolation(self):
         loaded = self.write()
@@ -704,7 +713,7 @@ class SandboxDenialTest(unittest.TestCase):
         text = ' '.join((ROOT / 'docs/troubleshooting.md').read_text().split())
         self.assertIn('the sandbox or filesystem permissions deny', text)
         self.assertIn('read-only mount', text)
-        self.assertIn('--grant-learnings', text)
+        self.assertIn('agents permissions', text)
 
 
 if __name__ == '__main__':

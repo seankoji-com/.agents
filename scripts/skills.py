@@ -15,6 +15,8 @@ import manifest_data
 from core.jobs.store import trusted_link  # importing install puts the repository root on sys.path
 
 MARKER = '.agents-skill.json'
+# Adapters installed before #198 (t3-<plugin> directories) carry this receipt.
+HISTORICAL_MARKER = '.t3-plugins-skill.json'
 # Codex reads picker metadata from agents/openai.yaml beside SKILL.md. The receipt
 # owns it by relative path, so only these names can ever be replaced or removed.
 OPENAI_YAML = 'agents/openai.yaml'
@@ -381,12 +383,12 @@ class Adapter:
                 pass  # refilled or replaced since the listing: leave it
 
 
-def managed(adapter, name, pending=None):
+def managed(adapter, name, pending=None, marker_name=MARKER):
     """Verify the marker owns an unmodified adapter. `pending` maps owned files to
     the digests an install is about to write; a file already holding those bytes
     is the trace of an interrupted install, not an edit."""
     pending = pending or {}
-    marker, skill = adapter.read(MARKER), adapter.read('SKILL.md')
+    marker, skill = adapter.read(marker_name), adapter.read('SKILL.md')
     if marker is None:
         raise ValueError(f'refusing an unowned skill directory: {adapter.path}')
     receipt = json.loads(marker)
@@ -404,12 +406,12 @@ def managed(adapter, name, pending=None):
     return receipt
 
 
-def remove_owned(adapter, receipt):
+def remove_owned(adapter, receipt, marker_name=MARKER):
     """Remove the adapter files the verified receipt owns. Operator files stay."""
     for relative in receipt.get('files', {}):
         adapter.unlink(relative)
     adapter.unlink('SKILL.md')
-    adapter.unlink(MARKER)
+    adapter.unlink(marker_name)
 
 
 def interrupted_first_install(adapter, expected):
@@ -545,7 +547,8 @@ def install(root, prefix, meta):
 def remove_retired(root, plugin):
     """Remove a retired plugin's adapter only when its own marker proves it is ours
     and unmodified. Anything else is preserved untouched and reported. Retired
-    adapters were only ever installed under their historical t3- names (#198)."""
+    adapters were only ever installed under their historical t3- names and
+    receipt (#198)."""
     name = 't3-' + plugin
     try:
         directory = safe_path(root) / name
@@ -559,7 +562,8 @@ def remove_retired(root, plugin):
         if directory.is_symlink():
             raise ValueError(f'skill directory is a symlink: {directory}')
         with Adapter(directory, root_is_link=root_is_link) as adapter:
-            remove_owned(adapter, managed(adapter, name))
+            receipt_data = managed(adapter, name, marker_name=HISTORICAL_MARKER)
+            remove_owned(adapter, receipt_data, marker_name=HISTORICAL_MARKER)
             kept = adapter.entries()
             if not kept:
                 adapter.remove_if_empty()

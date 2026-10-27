@@ -122,8 +122,8 @@ turn unknown measurements or failed/missing repository checks into passes. The
 six-field descriptor and stage contract are documented in `references/evidence.md`
 inside the package. Organization reports remain outside this local-source adapter.
 
-State defaults to `$XDG_STATE_HOME/agents/tests-omg` (or
-`~/.local/state/agents/tests-omg`), outside the target repository. Each private
+State defaults to `$XDG_STATE_HOME/agents/jobs/tests-omg` (or
+`~/.local/state/agents/jobs/tests-omg`), outside the target repository. Each private
 `runs/ID/` saves input.json, audit.json, report.html and a manifest with content
 hashes and generator version. The index records revision/config/history and
 predecessor/supersession. Compact sanitized findings stay until owner deletion;

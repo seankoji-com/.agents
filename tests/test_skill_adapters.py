@@ -718,13 +718,23 @@ class SkillAdapters(unittest.TestCase):
 
     def historical(self, plugin='imps'):
         """Turn an installed adapter into the t3- form retired plugins were installed
-        under (#198): same owned bytes, historical directory and receipt name."""
+        under (#198): same owned bytes, historical directory, receipt file and name."""
         folder = self.skills / ('t3-' + plugin)
         (self.skills / plugin).rename(folder)
         receipt = json.loads((folder / '.agents-skill.json').read_text())
         receipt['name'] = 't3-' + plugin
-        (folder / '.agents-skill.json').write_text(json.dumps(receipt))
+        (folder / '.agents-skill.json').unlink()
+        (folder / '.t3-plugins-skill.json').write_text(json.dumps(receipt))
         return folder
+
+    def test_retired_adapter_with_the_current_receipt_name_is_not_ours(self):
+        self.install()
+        folder = self.historical()
+        (folder / '.t3-plugins-skill.json').rename(folder / '.agents-skill.json')
+        removed = skills.remove_retired(self.skills, 'imps')
+        self.assertFalse(removed['removed'])
+        self.assertIn('unowned', removed['preserved'])
+        self.assertTrue((folder / 'SKILL.md').is_file())
 
     def test_retired_adapter_removal_takes_its_owned_metadata(self):
         self.install()
