@@ -538,12 +538,16 @@ class ExecutionTest(unittest.TestCase):
         self.jobs.bad_workspace = False
         self.assertEqual(self.execute()['outcomes'][0]['status'], 'dispatched')
 
-    def test_identity_mismatch_retains_actual_owned_handle(self):
+    def test_identity_mismatch_is_evidence_but_never_an_owned_handle(self):
         self.host.identity = 'different-model'
         result = self.execute()
         self.assertEqual(result['outcomes'][0]['reason'], 'host-identity-mismatch')
-        self.assertEqual(result['outcomes'][0]['task_id'], 'host-task')
-        self.assertEqual(self.execute()['outcomes'][0]['status'], 'active-fixer')
+        self.assertNotIn('task_id', result['outcomes'][0])
+        receipts = list(self.jobs.directory.glob('*-receipt.json'))
+        self.assertEqual(len(receipts), 1)
+        self.assertEqual(json.loads(receipts[0].read_text())['receipt']['taskId'], 'host-task')
+        self.assertEqual(self.jobs.handles, {})
+        self.assertFalse(any(event.get('kind') == 'accepted' for event in self.jobs.events))
         self.assertEqual(sum(t == 'delegate_task' for t, _ in self.host.calls), 1)
 
     def test_missing_machine_transport_does_not_run_provider_cli(self):
@@ -551,6 +555,46 @@ class ExecutionTest(unittest.TestCase):
             with self.assertRaisesRegex(runner.ExecutionError, 'transport-unavailable'):
                 runner.T3Host()
             run.assert_not_called()
+
+    def test_malformed_receipt_options_keep_specific_diagnostic_and_returned_handle(self):
+        for options in ([None], [{}], [{'id': 'effort'}], 'invalid', None):
+            with self.subTest(options=options):
+                # Each launch needs an independent reservation and fixture state.
+                self.setUp()
+                original = self.host.call
+                def malformed(tool, arguments):
+                    receipt = original(tool, arguments)
+                    if tool == 'delegate_task':
+                        receipt['options'] = options
+                    return receipt
+                with patch.object(self.host, 'call', side_effect=malformed):
+                    result = self.execute()
+                self.assertEqual(result['outcomes'][0]['reason'], 'host-options-unreported-or-mismatched')
+                self.assertFalse(any(event.get('kind') == 'accepted' for event in self.jobs.events))
+                receipt_path = next(self.jobs.directory.glob('*-receipt.json'))
+                self.assertEqual(json.loads(receipt_path.read_text())['receipt']['taskId'], 'host-task')
+
+    def test_duplicate_receipt_options_cannot_hide_an_unrequested_value(self):
+        original_prepare, original_call = self.jobs.prepare, self.host.call
+        def prepare(row):
+            prepared = original_prepare(row)
+            prepared['target']['options'] = {'effort': 'high'}
+            return prepared
+        def host(tool, arguments):
+            receipt = original_call(tool, arguments)
+            if tool == 'orchestrator_capabilities':
+                receipt['providers'][0]['models'][0]['options'] = [
+                    {'id': 'effort', 'values': ['low', 'high']}]
+            if tool == 'delegate_task':
+                receipt['options'] = [{'id': 'effort', 'value': 'low'}, {'id': 'effort', 'value': 'high'}]
+            return receipt
+        with patch.object(self.jobs, 'prepare', side_effect=prepare), patch.object(self.host, 'call', side_effect=host):
+            result = self.execute()
+        self.assertEqual(result['outcomes'][0]['reason'], 'host-options-unreported-or-mismatched')
+        self.assertFalse(any(event.get('kind') == 'accepted' for event in self.jobs.events))
+        receipt = json.loads(next(self.jobs.directory.glob('*-receipt.json')).read_text())['receipt']
+        self.assertEqual(len(receipt['options']), 2)
+        self.assertEqual(sum(tool == 'delegate_task' for tool, _ in self.host.calls), 1)
 
     def test_auto_merge_reservation_blocks_competing_writes(self):
         report = self.report()
@@ -1080,6 +1124,23 @@ class AdvanceTest(unittest.TestCase):
                             for tool, args in self.host.calls))
         self.assertEqual(sum(tool == 'delegate_task' for tool, _ in self.host.calls), 1)
 
+    def test_duplicate_returned_receipt_options_refuse_before_reconciliation(self):
+        original_record = self.jobs.record
+        def fail_record(prepared, event):
+            if event.get('kind') == 'accepted':
+                raise runner.ExecutionError('fixture-record-failure')
+            return original_record(prepared, event)
+        with patch.object(self.jobs, 'record', side_effect=fail_record):
+            self.assertEqual(self.advance(self.node())['outcomes'][0]['status'], 'held')
+        path = next(self.jobs.directory.glob('*-receipt.json'))
+        envelope = json.loads(path.read_text())
+        envelope['receipt']['options'] = [{'id': 'effort', 'value': 'low'}, {'id': 'effort', 'value': 'high'}]
+        path.write_text(json.dumps(envelope))
+        self.host.calls.clear()
+        result = self.advance(self.node())
+        self.assertEqual(result['outcomes'][0]['reason'], 'host-receipt-options-shape')
+        self.assertFalse(any(tool in ('task_status', 'delegate_task') for tool, _ in self.host.calls))
+
     def test_mismatched_durable_receipt_holds_without_adopting_foreign_handle(self):
         original_record = self.jobs.record
 
@@ -1474,6 +1535,13 @@ class AdvanceTest(unittest.TestCase):
         row['head_sha'] = git('rev-parse', 'HEAD')
         guard = self.jobs.guard(row, {}, str(worktree))
         self.assertEqual(guard['observed_head'], guard['local_head'])
+        git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'unpublished worker commit')
+        with self.assertRaisesRegex(runner.ExecutionError, 'pr-workspace-head-mismatch'):
+            self.jobs.guard(row, {}, str(worktree))
+        row['head_sha'] = git('rev-parse', 'HEAD')
+        (worktree / 'dirty.txt').write_text('uncommitted')
+        with self.assertRaisesRegex(runner.ExecutionError, 'pr-workspace-dirty'):
+            self.jobs.guard(row, {}, str(worktree))
 
 
 if __name__ == '__main__':

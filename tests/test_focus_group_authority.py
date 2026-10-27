@@ -461,6 +461,31 @@ class DelegatedAuthorityTests(unittest.TestCase):
         self.assertTrue(store.load()['authorization']['delegated_authority'])
         with self.assertRaises(JobError):revise_plan(store,**inp,commit_guard=guard)
 
+    def test_resume_transition_uses_proposed_dependency_and_pin(self):
+        from shared import adopter_planning as adopter
+        from unittest.mock import Mock
+        current_dep = {'key': 'current', 'plugin': 'focus-group'}
+        proposed_dep = {'key': 'proposed', 'plugin': 'focus-group'}
+        current_pin = {'package_dir': '/synthetic/current'}
+        proposed_pin = {'package_dir': '/synthetic/proposed'}
+        current = {'workflow': 'focus-group/run', 'dependencies': [current_dep],
+                   'pins': {'current': current_pin}, 'policy': {'transaction_guard_required': ['plan-revision']}}
+        proposed = {'workflow': 'focus-group/resume', 'dependencies': [proposed_dep],
+                    'pins': {'proposed': proposed_pin}, 'policy': current['policy']}
+        expected_guard = lambda *args: None
+        adapter = Mock(transaction_guard=Mock(return_value=expected_guard))
+        with patch('shared.job_coordinator.verify_pinned_dependency', return_value=True) as verify:
+            with patch.object(adopter, 'focus_group_adapter', return_value=adapter) as factory:
+                self.assertIs(adopter.transaction_guard(current, 'plan-revision', proposed=proposed,
+                                                       caller=self.caller), expected_guard)
+                verify.assert_called_once_with(proposed_dep, proposed_pin)
+                factory.assert_called_once_with(Path(proposed_pin['package_dir']))
+                adapter.transaction_guard.assert_called_once_with(proposed, 'plan-revision', proposed=proposed,
+                                                                  caller=self.caller, job_file=None)
+            with patch.object(adopter, 'focus_group_adapter', return_value=object()):
+                with self.assertRaisesRegex(JobError, 'capability missing'):
+                    adopter.transaction_guard(current, 'plan-revision', proposed=proposed, caller=self.caller)
+
     def test_pinned_resolver_compares_proposed_marker_and_refuses_missing_capability(self):
         from shared import adopter_planning as adopter
         self.approve(); store=self.job(); a=self.authority

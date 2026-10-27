@@ -76,6 +76,95 @@ protected cutover identity and external discovery receipt for native links. Edit
 bodies are not immutable receipt assets. Legacy t3-plugins receipts stay recognized.
 Inventory preserves all files and aliases; none of these checks proves live loading.
 
+## Detailed agents and roles, wiring v2
+
+The enclosing comparison inventory remains version `1`. Set only its `wiring`
+object to version `2`; the ten surface IDs stay unchanged. V1 still reports its
+existing coverage and explicitly marks detailed inventory/normalization unavailable.
+V2 fields inside v1, unknown versions, unknown v2 fields and malformed records
+are invalid input (exit `2`). Native inventory details attach to `orchestration`
+and `roles` in the existing report, with a consolidated `agent_inventory` summary.
+
+Each v2 provider record adds `adapter`, `runtime_version`, `agent_roots` and
+`agent_configs`. Roots are `{path,scope,format:"markdown"}`; configs are
+`{path,scope,format:"json"|"jsonc"}`. All paths are explicit absolute paths.
+No default home/config root is scanned. Scopes are `global`, `project`, `managed`,
+`session`, `vendor` and `shared`; a scope outside a profile's documented precedence
+remains unknown. Multiple same-scope definitions remain ambiguous. OpenCode merges
+definitions, so collisions report `merge-required` rather than inventing an effective
+permission policy. All source layers remain in the private plan.
+
+The version table is `PKG/references/native-agent-formats-v1.json`. It recognizes
+OpenCode `2.1.2` (v2 `agents`, `default_agent`, Markdown) and Claude Code `2.1.198`
+(Markdown and explicit JSON managed/session `--agents` captures). Claude captures
+are named agent maps, not inferred settings keys. Other versions/providers remain
+unsupported gaps; missing versions remain unknown. Disabled catalog instances still
+get rows. This table binds documented shapes, not observed loading or execution.
+
+Add `role_roots:[{path,scope}]` at wiring level for portable Markdown expertise.
+They grant no tools, actions or delegation authority. Native directory traversal is
+bounded to eight levels and 2,048 entries, never follows child directory aliases,
+and reads at most 1 MiB per file with data depth 16. Frontmatter accepts scalar,
+mapping, sequence and JSON collection data plus block text. YAML tags, anchors,
+complex keys and unsupported syntax refuse inspection; no hooks/modules are run.
+Only a root alias explicitly named in input may be traversed. An individual file
+alias target outside declared roots needs an exact `read_paths` entry. Alias
+metadata and target readability are separate, including broken links. Linked parents
+and ambiguous aliases cannot be eligible for retirement.
+
+Detached ownership receipts use the provider's `ownership_receipts` array of
+`{path,sha256}` descriptors. Receipt JSON is
+`{schema_version:1,owner:"source-owner",items:[...]}`. Each item has exactly `path`,
+`sha256`, `mode` (integer), `link_target` (string or null), `content_sha256`
+(digest of readable content, or null), `source:{path,sha256}`,
+and `kind` (`native`, `primary-adapter`, `repo-worker`, `role`, `vendor`). For an
+alias, its digest/byte count covers the filesystem-encoded link target; file digests
+cover original bytes. Verification requires current receipt, object mode/digest/link,
+dereferenced content digest
+and owning-source bytes. Multiple ownership claims stay ambiguous. This records
+declared provenance and cannot authenticate a same-user forged receipt or owner intent.
+Names, target prefixes and prompt similarity never establish ownership.
+
+Optional `caller_references:{state:"complete"|"unknown",names:[],evidence:[]}`
+and `assessments:[{path,disposition,reason,evidence}]` bind operator observations.
+Evidence uses the same `{path,sha256}` shape. Empty, stale or unreadable proof does
+not establish complete caller coverage or intent. Known `default_agent` and caller
+references preserve required entrypoints. A missing, disabled, hidden or non-primary
+default target is reported. Built-ins and hidden maintenance stay retained, and
+custom built-in name collisions remain unresolved. Configured, loaded and exercised
+states are always separate; no provider or transcript scan is implied.
+
+The private item-by-item plan uses `keep`, `keep-as-native-exception`, `extract-role`,
+`retire-managed-alias`, `preserve-unmanaged` or `unresolved`. A retirement requires
+one verified alias, unchanged owning-source evidence, complete bound caller coverage,
+bound intent and no reference, collision, hidden/built-in status or linked parent.
+`automatic_eligibility` means eligible for a separate reviewed proposal only. No
+automatic executor exists. Files, modified/unmanaged/vendor content and unresolved
+callers never qualify for alias retirement. Expertise extraction grants no actions.
+Optional wiring `role_evidence` accepts the same `ownership_receipts`, `read_paths`,
+`caller_references` and `assessments` fields for role provenance.
+
+Use the existing public audit path, adding `--private-out /absolute/new-plan.json`
+to write an exclusive mode-0600 plan. Stdout contains only indices, codes, counts,
+byte sizes and flags; neither output contains settings values or prompt bodies.
+Private paths and link targets remain only in the plan. Keep it out of commits.
+`--revalidate-plan /absolute/previous-plan.json` recomputes and compares the entire
+plan, refusing source, object, receipt, catalog or input drift with exit `2`.
+Audit exits `1` for gaps/findings and `2` for unreadable/invalid native inputs.
+Comparison remains diagnostic, with a `fatal` inventory flag for invalid sources.
+
+The plan preserves original mode/link/digest/byte metadata, owning-source references,
+caller/default references and the narrow proposed follow-up. It mandates recapturing
+all destinations before a separately approved write, verified exclusive backups
+outside checkouts, linked-parent and concurrent-drift refusal, preservation of unknown
+content and partial-completion reporting. `align.py apply` refuses this plan kind.
+Dotfiles remains the source of its profiles and roles; no competing native workers,
+role publisher, migration writer or dispatcher is introduced.
+
+This stage changes no worker composition, shared assets, brief transport or bytes.
+Installed fixtures exercise the actual `align.py audit` path in temporary prefixes.
+They prove local report behavior and version dispatch, not live provider compatibility.
+
 ## Migration preflight and recovery
 
 Before **any** migration write, including adapter generation, capture the exact

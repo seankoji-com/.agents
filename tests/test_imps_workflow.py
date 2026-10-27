@@ -290,18 +290,24 @@ class ImpsWholeJobTest(CoreTestCase):
         self.assertEqual(set(locator), {'path', 'sha256', 'bytes', 'provenance'})
         raw = Path(locator['path']).read_bytes()
         self.assertEqual((hashlib.sha256(raw).hexdigest(), len(raw)), (locator['sha256'], locator['bytes']))
-        brief = json.loads(raw)
+        from shared.compact_briefs import deserialize
+        brief = deserialize(raw)
         self.assertEqual(brief['resources']['gate'], gate)
-        self.assertIn('you are its verification slot', ' '.join(brief['effective_definition']['bytes'].split()))
+        definition = brief['effective_definition']['bytes'] if brief['schema_version'] == 1 else brief['definition']
+        self.assertIn('you are its verification slot', ' '.join(definition.split()))
+        if brief['schema_version'] == 2:
+            self.assertEqual(brief['verification_tool']['argv_prefix'], ['python3', str(version / 'cli.py')])
+            self.assertEqual(brief['verification_tool']['sha256'], hashlib.sha256((version / 'cli.py').read_bytes()).hexdigest())
         self.assertEqual(brief['constraints'], job['constraints'])
 
         def observe(brief, n):
             handle = {'request_id': brief['request_id'], 'host_task_id': f'host-task-{n}', 'child_thread_id': f'child-{n}'}
+            selection = brief['model_selection']
+            target = selection.get('dispatch', {}).get('target', selection.get('target'))
             for event in ({**handle, 'kind': 'accepted', 'status': 'running', 'work_state': 'working',
                            'has_pending_child_runs': False},
                           {**handle, 'kind': 'completion', 'completion_id': f'done-{n}', 'status': 'completed',
                            'work_state': 'result_available', 'has_pending_child_runs': False}):
-                target = brief['model_selection']['dispatch']['target']
                 event['status_identity'] = {**target, 'options': target.get('options', {})}
                 observed = jobs_call('task-observation', {'caller': caller, 'task_id': 'impl-exec', 'event': event})
                 self.assertEqual(observed.returncode, 0, observed.stderr)
@@ -329,7 +335,7 @@ class ImpsWholeJobTest(CoreTestCase):
         self.assertEqual(repaired.returncode, 0, repaired.stderr)
         again = jobs_call('prepare', {'caller': caller, 'task_id': 'impl-exec', 'target_reason': 'workhorse tier'})
         self.assertEqual(again.returncode, 0, again.stderr)
-        retry_brief = json.loads(Path(json.loads(again.stdout)['path']).read_bytes())
+        retry_brief = deserialize(Path(json.loads(again.stdout)['path']).read_bytes())
         self.assertNotEqual(retry_brief['request_id'], brief['request_id'])
         self.assertEqual(retry_brief['attempt'], 1)
         observe(retry_brief, 2)

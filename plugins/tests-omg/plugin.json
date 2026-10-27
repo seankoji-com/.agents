@@ -1,6 +1,6 @@
 {
   "name": "tests-omg",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "entry": "entry.md",
   "operations": [
     "doctor",

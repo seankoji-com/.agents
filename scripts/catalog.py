@@ -148,6 +148,7 @@ def main(argv=None):
     agent_list.add_argument('plugin', nargs='?')
     agent_show = agent_sub.add_parser('show', help='show an effective worker definition')
     agent_show.add_argument('plugin'); agent_show.add_argument('worker')
+    agent_show.add_argument('--compact', action='store_true', help='inspect the exact compact-v2 inline definition')
     for action in ('enable-override', 'disable-override'):
         command = agent_sub.add_parser(action, help='explicitly enable or disable a worker override')
         command.add_argument('worker_id'); command.add_argument('--base-digest', required=True)
@@ -230,7 +231,7 @@ def main(argv=None):
             if args.agent_command == 'list':
                 for item in registry.inspect_agents(agents_root, args.plugin, prefix): print(json.dumps(item))
             elif args.agent_command == 'show':
-                print(json.dumps(registry.show_agent(agents_root, args.plugin, args.worker, prefix)))
+                print(json.dumps(registry.show_agent(agents_root, args.plugin, args.worker, prefix, compact=args.compact)))
             else:
                 enabled = args.agent_command == 'enable-override'
                 if enabled:

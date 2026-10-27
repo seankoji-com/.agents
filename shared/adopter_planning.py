@@ -108,7 +108,11 @@ def authors(admission, documents, job_file=None):
                 bp = (Path(task['brief']['path']) if request == task['request_id'] else
                     Path(job_file).parent / 'briefs' / ('followup' if h in task.get('followups', []) else '') /
                     (task['task_id'] + '-' + digest(request.encode()) + '.json'))
-                brief = strict_load(_regular(bp)); frozen = brief['model_selection']; sha = frozen['selection_sha256']
+                from shared.job_coordinator import pinned_store
+                from shared.compact_briefs import producer_authority
+                jp = Path(job_file)
+                brief = producer_authority(pinned_store(jp.parent.parent, jp.parent.name), job, task, request, _regular(bp))
+                frozen = brief['model_selection']; sha = frozen['selection_sha256']
                 producing = (job.get('model_selection_history') or {}).get(sha, job['model_selection'])
                 models.validate(producing, sha)
                 binding = frozen['binding']
@@ -394,8 +398,10 @@ def transaction_guard(job, operation, *, proposed=None, caller=None, job_file=No
         if required or typed:
             raise JobError('required pinned transaction adapter unavailable')
         return None
-    dependency = next((d for d in job['dependencies'] if d['plugin'] == 'focus-group'), None)
-    pin = job.get('pins', {}).get(dependency['key']) if dependency else None
+    transition = next((j for j in (proposed, job) if j and
+                       j.get('workflow') in ('focus-group/run', 'focus-group/resume')), job)
+    dependency = next((d for d in transition.get('dependencies', []) if d['plugin'] == 'focus-group'), None)
+    pin = transition.get('pins', {}).get(dependency['key']) if dependency else None
     if not pin:
         if required or typed:
             raise JobError('transaction adapter requires verified dependency pins')
@@ -409,7 +415,7 @@ def transaction_guard(job, operation, *, proposed=None, caller=None, job_file=No
         if required or typed:
             raise JobError('pinned transaction adapter capability missing')
         return None
-    guard = factory(job, operation, proposed=proposed, caller=caller, job_file=job_file)
+    guard = factory(transition, operation, proposed=proposed, caller=caller, job_file=job_file)
     if (required or typed) and not callable(guard):
         raise JobError('required transaction adapter returned no guard')
     return guard

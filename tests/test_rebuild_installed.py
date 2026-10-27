@@ -45,6 +45,14 @@ def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def decode_worker_brief(raw: bytes) -> dict:
+    try:
+        from shared.compact_briefs import deserialize
+    except ImportError:
+        return json.loads(raw.decode('utf-8'))
+    return deserialize(raw)
+
+
 def meta(plugin: str) -> dict:
     return skill_manifest(ROOT / 'plugins' / plugin / 'plugin.json')
 
@@ -187,7 +195,7 @@ class Sandbox:
                                                      'target_reason': 'lowest suitable configured tier'})
         raw = Path(prepared['path']).read_bytes()
         assert (sha(raw), len(raw)) == (prepared['sha256'], prepared['bytes']), 'brief locator differs from bytes'
-        brief = json.loads(raw)
+        brief = decode_worker_brief(raw)
         observed_target = brief.get('target') or brief.get('model_selection', {}).get('dispatch', {}).get('target', {})
         self.job(pkg, 'task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
             'kind': 'accepted', 'request_id': brief['request_id'], 'host_task_id': host,
@@ -244,6 +252,15 @@ class InstalledArtifactTest(unittest.TestCase):
         version = current.resolve()
         self.assertEqual(version.parent, (self.box.prefix / plugin).resolve())
         return version, json.loads((version / 'install-manifest.json').read_text())
+
+    def test_compact_transport_errors_are_not_retried_as_legacy_json(self):
+        from core.jobs.store import JobError, digest
+        from shared.compact_briefs import BODY, COMPACT, MAGIC
+        body = b'\xff'
+        header = {'schema_version': 2, 'transport': COMPACT,
+                  'definition': {'encoding': 'inline-utf-8', 'sha256': digest(body), 'bytes': len(body)}}
+        with self.assertRaisesRegex(JobError, 'compact_inline_definition_invalid_utf8'):
+            decode_worker_brief(MAGIC + canonical(header) + BODY + body)
 
     def test_setup_installs_every_plugin_with_bundles_shared_contract_and_pinned_digests(self):
         installed = {r['data']['plugin'] for r in self.receipts if r.get('ok') and 'plugin' in r.get('data', {})}

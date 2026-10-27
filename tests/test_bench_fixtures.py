@@ -151,6 +151,104 @@ class SidecarRestTest(unittest.TestCase):
         _, headers, only = self.sidecar.request('GET', '/api/v3/repos/bench-org/bench-repo/pulls')
         self.assertEqual(([p['number'] for p in only], headers.get('Link')), ([1], None))
 
+    def test_actions_job_urls_resolve_to_the_pull_that_created_them(self):
+        scenario = github_sidecar.scenario_from_fixture(BABYSITTER)
+        base = scenario['pulls'][0]
+        scenario['pulls'] = [
+            dict(base, number=n, head_ref=f'bench/change-{n}', head_sha=sha,
+                 checks=[dict(base['checks'][0], name=f'unit-{n}', sha=sha)])
+            for n, sha in ((1, 'a' * 40), (2, 'b' * 40))]
+        sidecar = Sidecar(scenario)
+        self.addCleanup(sidecar.close)
+        job_ids = []
+        for number, sha in ((1, 'a' * 40), (2, 'b' * 40)):
+            query = ('query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) '
+                     '{ pullRequest(number: $number) { ...PRState } } } ' + list_prs_fragment(pr_number=number))
+            response = sidecar.graphql(query, {'owner': 'bench-org', 'name': 'bench-repo', 'number': number})
+            check = response['data']['repository']['pullRequest']['commits']['nodes'][0]['commit'][
+                'statusCheckRollup']['contexts']['nodes'][0]
+            job_id = int(check['detailsUrl'].rsplit('/', 1)[1])
+            job_ids.append(job_id)
+            status, _, job = sidecar.request('GET', f'/repos/bench-org/bench-repo/actions/jobs/{job_id}')
+            self.assertEqual(status, 200)
+            self.assertEqual((job['name'], job['head_sha']), (f'unit-{number}', sha))
+        self.assertEqual(job_ids, [30000, 30001])
+
+    def test_run_job_pair_url_is_not_a_supported_sidecar_route(self):
+        status, _, body = self.sidecar.request(
+            'GET', '/repos/bench-org/bench-repo/actions/runs/1/job/30000')
+        self.assertEqual(status, 404, body)
+
+    def test_focus_fixture_cleanup_does_not_wait_on_a_detached_descendant_pipe(self):
+        import signal
+        import time
+        from tests.focus_group_install_fixtures import stop_fixture_process
+        proc = subprocess.Popen([sys.executable, '-c',
+            'import subprocess,sys; child=subprocess.Popen([sys.executable,"-c",'
+            '"import time; time.sleep(30)"]); print(child.pid,flush=True)'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        child_pid = int(proc.stdout.readline())
+        try:
+            with self.assertRaises(subprocess.TimeoutExpired):
+                proc.communicate(timeout=0.05)
+            started = time.monotonic()
+            stop_fixture_process(proc, timeout=0.1)
+            self.assertLess(time.monotonic() - started, 2)
+        finally:
+            try:
+                os.kill(child_pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+    def test_focus_fixture_cleanup_preserves_primary_errors_and_reports_unsettled_process(self):
+        from unittest.mock import Mock
+        from tests.focus_group_install_fixtures import stop_fixture_process
+        proc = Mock(pid=12345)
+        proc.communicate.side_effect = subprocess.TimeoutExpired('fixture', 0.1)
+        proc.kill.side_effect = PermissionError
+        proc.wait.side_effect = subprocess.TimeoutExpired('fixture', 0.1)
+        primary = RuntimeError('original fixture failure')
+        with patch('tests.focus_group_install_fixtures.os.killpg', side_effect=PermissionError):
+            with self.assertRaises(RuntimeError) as caught:
+                try:
+                    raise primary
+                except RuntimeError:
+                    stdout, stderr = stop_fixture_process(proc, timeout=0.1)
+                    raise
+        self.assertIs(caught.exception, primary)
+        self.assertEqual(stdout, '')
+        self.assertIn('could not be signalled', stderr)
+        self.assertIn('could not be killed', stderr)
+        self.assertIn('did not settle', stderr)
+        proc.stdout.close.assert_called_once_with()
+        proc.stderr.close.assert_called_once_with()
+        proc.kill.assert_called_once_with()
+        proc.wait.assert_called_once_with(timeout=0.1)
+
+    def test_focus_fixture_cleanup_kills_owned_leader_when_group_signal_is_denied(self):
+        from tests.focus_group_install_fixtures import stop_fixture_process
+        proc = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                start_new_session=True)
+        try:
+            with patch('tests.focus_group_install_fixtures.os.killpg', side_effect=PermissionError):
+                _, stderr = stop_fixture_process(proc, timeout=0.1)
+            self.assertIsNotNone(proc.returncode)
+            self.assertIn('could not be signalled', stderr)
+            self.assertNotIn('did not settle', stderr)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=1)
+
+    def test_focus_fixture_cleanup_normalizes_empty_captured_output(self):
+        from unittest.mock import Mock
+        from tests.focus_group_install_fixtures import stop_fixture_process
+        proc = Mock(pid=12345)
+        proc.communicate.return_value = (None, None)
+        with patch('tests.focus_group_install_fixtures.os.killpg'):
+            self.assertEqual(stop_fixture_process(proc), ('', ''))
+
     def test_writes_are_refused_and_logged_without_bodies(self):
         secret_body = {'body': 'agent text that must not be logged'}
         status, _, _ = self.sidecar.request('POST', '/api/v3/repos/bench-org/bench-repo/issues/1/comments', secret_body)

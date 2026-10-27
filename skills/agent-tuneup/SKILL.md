@@ -18,14 +18,12 @@ Read the pinned SKILL.md and manifest before work. Already pinned: do not resolv
 
 # agent-tuneup
 
-Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
-asking; direct controls stay prompt-free. Substantive work records the scoped
-agreement; nested calls and unchanged continuations reuse its binding and budgets.
+Apply `PKG/shared/upfront-agreement.md`.
 
 Apply `PKG/shared/model-selection.md` before substantive work or dispatch; workers consume frozen choices.
-Use `PKG/shared/adopter-planning.md` and `PKG/references/adopter-review-rubric.md`
-for public admission and receipt gates through `PKG/scripts/plan_review.py`.
-Read `PKG/shared/learnings.md` and load this plugin's project lessons before work.
+Public admission: `PKG/scripts/plan_review.py`; contract: `PKG/shared/adopter-planning.md`;
+criteria: `PKG/references/adopter-review-rubric.md`.
+Read `PKG/shared/learnings.md` and load lessons.
 
 Audit and align agent configuration without weakening permissions. Read
 `PKG/shared/t3-runtime.md` once. Delegation follows `PKG/shared/delegation.md`.
@@ -47,6 +45,9 @@ such as "only inspect this settings file" limits the work and its authority.
 2. Inventory every provider instance in T3's current catalog and all default
    coverage in `PKG/references/central-wiring.md`: shared instructions, skills,
    permissions, MCPs, runtime modes, roles, duplicate orchestration and worktree setup.
+   Wiring v2 adds explicit native-agent/portable-role discovery and a private
+   normalization proposal through the existing `align.py audit` entrypoint. V1
+   retains its earlier coverage with detailed inventory marked unavailable.
    Follow `PKG/playbooks/audit.md` for format checks and T3 bootstrap inspection.
 3. Include a local usage-frequency scan when readable Claude transcripts exist:
    `python3 PKG/scripts/scan_perms.py --json`. Keep input and aggregate output private.
@@ -73,68 +74,35 @@ concrete approval still gates adding and executing its settings-apply stage.
 
 Any T3 provider can run this audit. The target settings format is separate from the
 calling provider. Supported structured audits: Claude JSON, OpenCode JSON/JSONC,
-Codex TOML (Python 3.11+) and Muse JSON (named permission profiles under
-`permissions.profiles`). The alignment helper also supports Antigravity MCP JSON/JSONC.
-Other settings get manual inspection only. Alignment uses explicit capability
-mappings, never translates permission syntax by analogy, and retains unsupported or
-intentional differences.
-
-## Workers
-
-Only the coordinator dispatches, through the routing and lifecycle rules in the
-coordination contract.
-
-- `agent-tuneup/config-researcher`: exact provider format, scope, precedence and
-  version semantics with primary-source citations. Route at the lowest suitable
-  workhorse tier. Read-only.
-- `agent-tuneup/config-verifier`: checks only listed proposed or applied changes and
-  returns parse, load and live-enforcement outcomes separately. Route at reviewer
-  tier, on a different known lineage from the researcher when one is configured;
-  otherwise report independence as unverified.
-
-Worker definitions grant no settings-edit, push, merge or message authority, and task
-briefs narrow them further. Workers never run `align.py apply`, restore a backup, edit
-settings, dispatch children or accept their own results. An extra-work request that
-does not fit a declared slot and its authority is refused or needs an owner decision.
+Codex TOML, Gemini JSON, Cursor JSON. Target settings are never executed.
 
 ## Boundaries
 
 - **Deterministic format checks.** `audit.py` and `align.py` decide format, changed
   keys, risk counts and write safety. A worker or model claim never overrides a
   helper exit code or refusal.
-- **Local usage scan.** The default workflow scans readable local transcripts; narrower requests may exclude it. Frequency never
-  justifies an allow rule, and transcripts stay private.
+- **Local usage scan.** Scan readable local transcripts when available; narrower
+  requests may exclude the scan. Frequency never justifies an allow rule, and
+  transcripts stay private.
 - **Report first.** `doctor`, `scan`, `audit` and `align` write no settings. Their
   findings, matrix and candidates are the deliverable.
-- **Authorized, backed-up settings edits only.** Only the coordinator edits settings,
-  only through `apply`, and only for a concrete plan the owner approved through the
-  native question picker with the recommended option first. Record the answer with
-  the job `decision` command scoped `settings-change:<change-id>` before applying.
-  Keep a before-edit snapshot and a new private backup outside job state and every
-  checkout. Stop on a denied write; never reroute it through another tool.
+  A run with correctly reported findings and exit `1` completes when the criteria
+  allow findings; exit `2` is a blocker.
+- **Authorized, backed-up settings edits only.** Only the coordinator edits settings
+  through `apply`, after the owner approves the concrete plan using the native
+  question picker with the recommended option first. Record the answer with the
+  job decision scoped `settings-change:<change-id>` before applying.
 - **No permission expansion.** Never broadly allow shells, interpreters, installers,
-  arbitrary MCP tools or remote commands. Never disable sandboxing or approvals,
-  copy permission expressions between providers, or remove deny or ask rules to
-  reduce prompts. An audit or alignment request is not permission to widen access.
-- **Distinct observations.** Parse, load and live enforcement are separate
-  observations. A parseable file is not loaded, and a loaded file is not enforced.
-  Unknown enforcement stays `unverified`; it blocks acceptance only when the task
-  requires live enforcement.
-- **Privacy.** Never print credentials, headers, private URLs, hostnames or settings
-  values. Inventories, plans, candidates and backups stay private and out of commits.
+  arbitrary MCP tools or remote commands. Never disable sandboxing or approvals.
+  An audit or alignment request is not permission to widen access.
+- **Distinct observations.** Parse, load and live enforcement are separate. Unknown
+  enforcement stays `unverified`; it blocks acceptance only when the task requires
+  live enforcement.
 
-## Acceptance
+Worker definitions grant no settings-edit, push, merge or message authority.
+`PKG/scripts/validate_audit.py` is the pinned acceptance authority. Never reroute
+a denied write through another tool.
 
-The authority is the pinned `PKG/scripts/validate_audit.py`, run through
-`PKG/shared/job_acceptance_cli.py` from the job's pinned package. It accepts a published
-coordinator observation that matches the stage's declared criteria. An audit with
-correctly reported findings and exit `1` completes when the criteria allow findings;
-exit `2` is a blocker. A report-only audit with settings changes is rejected. An apply
-needs each change's recorded owner authorization, an exact backup of the before-edit
-bytes, and passed parse and load observations. Required live enforcement must pass.
-A worker's `ready-for-acceptance` or a terminal task is never acceptance.
-
-Report findings, proposals, owner approvals, files applied, backups, parse, load and
-live-enforcement results separately. Never claim aligned effective permissions from
-file equality, fixture tests or a running process. Do not commit, push or persist
-personal learnings unless separately requested.
+Apply creates a private backup before any write; report the backup path.
+Apply is backed by a verified plan with an unchanged digest. When a settings
+format is not supported, report the gap; do not guess an unstructured write.

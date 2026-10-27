@@ -134,10 +134,9 @@ def guarded(guard,before,operation,context):
   if not callable(final):raise JobError('transaction guard must yield a final check')
   yield lambda proposed:final(copy.deepcopy(before),copy.deepcopy(proposed),copy.deepcopy(frozen))
 class Store:
- def __init__(self,state_root,job_id,verify_pins=None):
+ def __init__(self,state_root,job_id,verify_pins=None,verify_brief=None):
   if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',job_id):raise JobError('unsafe job id')
-  self.root=Path(state_root).expanduser().absolute();self.path=self.root/job_id;self.file=self.path/'job.json';self.lock=self.path/'job.lock'
-  self.verify_pins=verify_pins
+  self.root=Path(state_root).expanduser().absolute();self.path=self.root/job_id;self.file=self.path/'job.json';self.lock=self.path/'job.lock';self.verify_pins=verify_pins;self.verify_brief=verify_brief
  def locked(self):
   for path,label in ((self.root,'state root'),(self.path,'job directory')):
    _reject_symlink_components(path);os.close(_directory_fd(path,create=True))

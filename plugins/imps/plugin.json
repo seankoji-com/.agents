@@ -1,6 +1,6 @@
 {
   "name": "imps",
-  "version": "1.0.37",
+  "version": "1.0.38",
   "entry": "entry.md",
   "defaults": "config.json",
   "tested_t3_version": "0.0.46-nightly.20261008.2849",

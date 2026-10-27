@@ -42,6 +42,17 @@ Use `agents --pin PIN agents list NAME` or `agents --pin PIN agents show NAME WO
 to inspect the selected source's worker bundle, definition and integrity. New runs
 record effective worker definitions with the same package and source pin.
 
+Inspect the compact definition explicitly:
+
+```sh
+agents --pin PIN agents show imps reviewer --compact
+```
+
+The JSON response includes `definition`, its exact UTF-8 SHA-256 and byte count,
+and retention bindings. A new preparation pinning that package and override uses
+those exact definition bytes. Plain `show` continues to return the complete
+canonical v1 definition. Inspection grants no execution or read authority.
+
 ### Overrides and limits
 
 Explicit worker overrides remain owner-managed configuration under XDG config
@@ -55,6 +66,92 @@ Existing legacy overrides remain with their retained runtime until reconciled.
 verifies its original source-backed package. It never substitutes a current
 installation. Old-format jobs use the inventoried `t3-plugins --job JOB.json path
 NAME` compatibility interface described below.
+
+The coordinator drives jobs with `shared/job_cli.py` and
+`shared/job_acceptance_cli.py` inside the pinned package. Like the imps CLI, they
+store and validate data; they never call a model or dispatch work. See
+[architecture](architecture.md#whole-jobs) for the model and the
+[jobs contract](https://github.com/seankoji-com/.agents/blob/main/shared/agents/jobs-contract.md)
+for inputs.
+
+### Compact worker transport
+
+For a **new** job, set `policy.worker_brief_transport` to
+`"worker-brief-compact-v2"` in its creation input. A separate planning-review
+`create` takes the same explicit choice as top-level `worker_brief_transport`.
+Omitting it preserves v1. A job's transport choice cannot change through a plan
+revision; resume with its pinned package and original format.
+
+The existing public `prepare` command still returns only a path, file SHA-256,
+byte count and provenance. Send that descriptor to the selected worker. A v2 file
+has a version marker, a JSON header and a literal inline UTF-8 procedure body;
+it is not one JSON object despite retaining the immutable `.json` brief filename.
+Do not pass it to a v1 JSON consumer. The shared `compact_briefs.deserialize`
+reader dispatches explicitly, and result admission verifies the exact file against
+private coordinator state. Workers return `worker-result-v1` with version 1,
+the header's remaining correlation fields and `binding: snapshot`.
+
+Approved retention/source/procedure hashes, schemas, rubrics, package dependencies,
+overrides, selection/options and current task authority are checked before result
+admission and acceptance. Missing, changed, unsafe or mixed input fails closed.
+No worker needs to discover omitted instructions or read the full job. Existing
+full definitions, pinned v1 resume and original result schemas keep their meaning.
+
+The [measured fixture bytes](architecture.md#tradeoffs) distinguish dependency-only
+reduction from procedure serialization. All 18 default procedures fit 24 KiB with
+their required inline shapes and procedural headers; evidence growth is accounted
+separately. This does not establish token savings or live model compatibility.
+
+### Compact resumes and admission
+
+Use the helper from the job's pinned package:
+
+```sh
+python3 PKG/shared/job_cli.py overview --state-root ROOT --job JOB --compact
+python3 PKG/shared/job_cli.py status --state-root ROOT --job JOB --compact --since SHA
+python3 PKG/shared/job_cli.py overview --state-root ROOT --job JOB --compact --cursor TOKEN
+python3 PKG/shared/job_cli.py admission --state-root ROOT --job JOB
+```
+
+Compact pages contain active-task actions, capacity holders (including retained
+history and conflicting handles), blockers, pending decisions, stage repair
+allowances and coordination metrics. Each response is at most 16 KiB, with 20 records
+by default (`--limit 1` through `100`). Counts and `next_cursor` make omissions explicit;
+follow the cursor to inspect every obligation. Details remain in the referenced
+`job.json` locations. Plain `overview` and `status` retain their full output.
+
+Save `view_sha256` and pass it as `--since` on a later resume. An unchanged view
+returns `changed: false` without replaying history. Cursors bind to the complete
+derived view and are refused after a change; restart pagination. `--since` and
+`--cursor` cannot be combined. Reads recheck receipt and artifact freshness before
+comparing digests, never run validators and never mint acceptance.
+
+Admission is job-local advice, rechecked under the preparation lock. Prepared briefs
+reserve capacity alongside live and uncertain work. Follow-ups and terminal handles
+with pending children also occupy a slot. Configure limits in `workers.json` or the
+initial job policy; jobs freeze them at creation. Removing or raising a provider cap
+needs an owner-bound plan revision. Old pinned limits retain their values.
+Adding a cap for a previously unlimited provider narrows capacity and needs no owner
+decision. Planning-review jobs freeze and enforce the same capacity limits before
+charging a technical attempt. Other jobs
+and host-wide capacity remain T3's responsibility. No helper dispatches or schedules.
+
+Record host capacity or rate-limit refusal with `task-observation` kind
+`capacity-deferred`, reason `capacity` or `rate-limit`. Only unlaunched requests can
+defer. A retry needs a newly recorded owned completion ID; one completion permits
+one capacity retry. Inspect existing owned work rather than polling or resetting it.
+
+`coordination_metrics` counts accepted stages in the derived view, repair cycles,
+retained unchanged observations, capacity deferrals, decision requests and result
+transport bytes. Completed decision waits use local observation receipt timestamps,
+with overlapping waits summed; they are not execution or personal attention time.
+Historical missing sizes/timestamps, host token use and execution duration are
+explicitly unknown. Deduplicated completion deliveries are not counted. Status is
+read-only, and metrics never decide acceptance or consume repair budget.
+
+Whole jobs default to 20 repairs after their initial pass. Ralph's separate
+`--max-attempts` defaults to 20 total implementation attempts, including its first.
+Explicit configured limits and existing pinned jobs keep their own allowances.
 
 ## Custom locations
 

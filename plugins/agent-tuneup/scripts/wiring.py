@@ -8,6 +8,11 @@ import os
 from pathlib import Path
 import re
 import stat
+import importlib.util
+
+_spec = importlib.util.spec_from_file_location('tuneup_agent_inventory', Path(__file__).with_name('agent_inventory.py'))
+agent_inventory = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(agent_inventory)
 
 SURFACES = ('global-rules', 'skills', 'permissions', 'mcp', 'roles', 'orchestration',
             'repository-entrypoints', 'worktree-bootstrap', 'lazy-context', 'discovery')
@@ -226,17 +231,26 @@ def skill_inventory(shared, providers, add):
     return rows
 
 
-def inspect(catalog, inventory):
+def inspect(catalog, inventory, private=None):
     """All catalog rows and required surfaces remain visible, including missing input.
 
     Surface states/reasons are operator observations backed by file digests. This
     verifies coverage and freshness, not the truth of native runtime assertions.
     """
-    if not isinstance(inventory, dict) or inventory.get('version', 1) != 1:
+    if (not isinstance(inventory, dict) or type(inventory.get('version', 1)) is not int
+            or inventory.get('version', 1) not in {1, 2}):
         raise ValueError('invalid_wiring_inventory')
+    version = inventory.get('version', 1)
+    if version == 1 and (set(inventory) & {'role_roots', 'role_evidence'} or any(
+            isinstance(p, dict) and set(p) & {'agent_roots', 'agent_configs', 'ownership_receipts',
+                'caller_references', 'assessments', 'read_paths', 'adapter'}
+            for p in inventory.get('providers', []))):
+        raise ValueError('mixed_wiring_versions')
     catalog_ids = [p['providerInstanceId'] for p in catalog['providers']]
     supplied = inventory.get('providers', [])
     if not isinstance(supplied, list):
+        raise ValueError('invalid_wiring_inventory')
+    if any(not isinstance(p, dict) or not isinstance(p.get('provider_instance_id'), str) for p in supplied):
         raise ValueError('invalid_wiring_inventory')
     ids = [p['provider_instance_id'] for p in supplied]
     if len(set(ids)) != len(ids) or set(ids) - set(catalog_ids):
@@ -276,15 +290,30 @@ def inspect(catalog, inventory):
             if state == 'unknown' or evidence != 'bound' or (state != 'configured' and not reason):
                 add('wiring_surface_unverified', location)
             cells.append({'surface': surface, 'declared': state, 'evidence': evidence})
-        version = provider.get('runtime_version')
-        if version is not None and (not isinstance(version, str) or not version.strip()):
+        runtime_version = provider.get('runtime_version')
+        if runtime_version is not None and (not isinstance(runtime_version, str) or not runtime_version.strip()):
             raise ValueError('invalid_runtime_version')
-        if version is None:
+        if runtime_version is None:
             add('runtime_version_unknown', f'wiring.providers[{index}]')
-        rows.append({'provider': index, 'version': 'observed' if version else 'unknown', 'surfaces': cells})
+        rows.append({'provider': index, 'version': 'observed' if runtime_version else 'unknown', 'surfaces': cells})
     if not inventory.get('shared_skills'):
         add('shared_skills_unknown', 'wiring.shared_skills')
     skills = skill_inventory(inventory.get('shared_skills'), ordered, add)
-    return {'providers': rows, 'authorities': authority_rows, 'skill_roots': skills,
+    agents = {'version': 1, 'coverage': 'unavailable', 'normalization': 'unavailable',
+              'reason': 'wiring v1 has no detailed agent/role evidence', 'fatal': False}
+    if version == 2:
+        agents, plan = agent_inventory.inspect(catalog, inventory)
+        if private is not None:
+            private['agent_plan'] = plan
+        for index, row in enumerate(rows):
+            for cell in row['surfaces']:
+                if cell['surface'] == 'orchestration':
+                    cell['agent_inventory'] = agents['providers'][index]
+                elif cell['surface'] == 'roles':
+                    cell['role_inventory'] = agents['roles']
+        for finding in agents['findings']:
+            add(finding['code'], finding['location'])
+    return {'version': version, 'providers': rows, 'authorities': authority_rows, 'skill_roots': skills,
+            'agent_inventory': agents,
             'findings': findings, 'writes': 0, 'loading': 'unverified',
             'coverage': 'declared_paths_only', 'semantics': 'operator_observations_not_runtime_proof'}

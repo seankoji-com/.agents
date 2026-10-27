@@ -15,7 +15,7 @@ The repository does not implement another model client, task scheduler or dispat
 | `skills/<name>/SKILL.md` | Canonical body and human-facing frontmatter | Pinned before helper-backed execution |
 | `plugins/<name>/` | Routing manifest, playbooks, worker definitions, helpers, validators, templates | May use the shared runtime contract and core |
 | `shared/` | T3 contract, whole-job protocol, worker registry, job and acceptance helpers, result parser, optional learnings | Standard library; no provider SDK or executable orchestration |
-| `shared/agents/` | Worker boundaries and the version-1 job, brief, result, acceptance and manifest schemas | Data and contracts only |
+| `shared/agents/` | Worker boundaries, version-1 contracts and the separate compact-v2 brief schema | Data and contracts only |
 | `core/` | imps run state, generic job storage, atomic writes, evidence, readiness | Python standard library; no plugin imports or vocabulary |
 | `bin/` | Source development entry and stable-launcher delegation | Operational commands use the installed resolver |
 | `scripts/` | Source resolver, snapshots, receiving, adoption and site tooling | Runtime is standard-library Python |
@@ -73,6 +73,7 @@ written under a process lock.
 | `job.json` | Plan, requirements, verbatim constraints, separate action authorization, package and worker pins, counters, task handles, decisions, blockers, metrics |
 | `overview.json` | Full stored overview; the pinned CLI adds fresh coordination metrics and bounded `--compact` resume pages |
 | `briefs/` | One immutable, self-contained brief per task attempt |
+| `brief-authority/` | Private full authority objects for compact attempts; never worker read references |
 | `results/` | Validated worker results or artifact envelopes |
 | `acceptance/` | Hash-chained validator receipts |
 | `artifacts/tasks/<task-id>/` | The only place a worker may write job evidence |
@@ -86,6 +87,32 @@ validator receipts do. Editing an accepted flag cannot promote a stage.
 The worker reads that file and stops if the hash differs. Cold readers get only the
 document and their procedural instructions, never the job objective or other
 findings.
+
+New jobs can explicitly select `policy.worker_brief_transport:
+"worker-brief-compact-v2"`. The default stays `worker-brief-v1`. Compact preparation
+uses the same worker IDs, task lifecycle and acceptance gates. T3 still owns dispatch.
+
+A compact file starts with `T3-COMPACT-BRIEF/2`, followed by one JSON header line,
+the `INLINE PROCEDURE (UTF-8)` marker, and the literal approved procedure. Required
+result schemas and applicable full planning rubrics stay inline. The header binds
+task authority, scope, requirements, evidence, stops, snapshot, revision, producing
+selection/options and the retained procedure. It carries no full pins, model catalog,
+other worker definitions or pointer to the private authority file. Cold readers gain
+no history or reference reads; their existing extra-context refusal remains binding.
+An executor assigned a native gate receives that helper's exact argv, hash and
+gate arguments, without a package or registry read grant.
+Required task-specific planning rubrics also stay inline. A rubric already present
+verbatim in the definition is identified there, without a duplicate copy or file
+read grant. Additional procedural text remains separately measurable.
+
+The dedicated v2 schema validates the decoded projection. Admission hashes the
+exact transmitted file, verifies the private coordinator reference, reconstructs
+the current authority and projection, and compares exact bytes. Its effective
+correlation hash still means canonical decoded content with only
+`effective_brief_sha256` omitted. The separate file hash includes every byte.
+Results retain `worker-result-v1` and `schema_version: 1`; the transport's version
+does not change result semantics. Unknown or mixed formats refuse. Full canonical
+definitions, original schemas, existing jobs and old pinned packages keep v1.
 
 A result is exactly one JSON object that matches
 `shared/agents/worker-result.schema.json`, or a short envelope that points to a full
@@ -261,10 +288,31 @@ like "reviewer" means a particular model.
 Instructions are portable but model adherence varies. Unit tests prove helper and
 state behavior, not that every model follows a playbook. T3 tool schemas also evolve.
 Whole-stage delegation is meant to keep the coordinator's context small, but no
-measured saving is claimed yet; see
+provider token or cost saving is inferred from byte measurements; see
 [measurement limits](compatibility.md#measurement-limits). The compatibility ledger
 records this uncertainty rather than treating provider logos as proof. See
 [compatibility](compatibility.md) and [testing](testing.md).
+
+The issue96 installed fixtures measure a representative imps review brief at
+648,465 bytes, then 107,859 bytes after removing dependency payloads alone, an
+83.37% reduction with its procedure and task evidence unchanged. Separately, the
+approved procedures plus required inline schemas and serialized procedural headers
+measure as follows across all 18 workers:
+
+| Worker class | Minimum bytes | Maximum bytes |
+| --- | ---: | ---: |
+| Ordinary | 16,284 | 24,547 |
+| Code review | 17,007 | 23,700 |
+| Configuration | 16,380 | 22,934 |
+| Planning | 19,821 | 23,394 |
+| Document only | 14,160 | 14,160 |
+
+These counts include framing, escaping, definition hash/size headers, transport
+instructions, result contract and artifact limit. Task evidence and authority are
+separate measured header categories and may grow. The 24,576-byte target never
+permits truncating required rules. Fixtures also prove that an unused worker or
+unrelated schema does not increase the transmitted size. This is local transport
+evidence; semantic review, model obedience and live compatibility remain separate.
 
 Focus-group also uses the shared chooser and separate planning-review lifecycle.
 Its exact study-plan receipt gates approval and panel work, with per-model work
