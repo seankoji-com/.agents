@@ -160,11 +160,14 @@ def collect(args):
         raise SystemExit('--repeat counts from 1; --interventions and --elapsed cannot be negative')
     run_dir = state_root() / 'runs' / args.run_id
     state = json.loads((run_dir / 'run.json').read_text())
+    # Source-pinned runs keep their package outside any moving `current`; --package names it.
     prefix = Path(os.environ.get('AGENTS_PREFIX', '~/.local/share/agents')).expanduser()
-    cli = prefix / 'imps' / 'current' / 'core' / 'cli.py'
+    package = Path(args.package).expanduser() if args.package else prefix / 'imps' / 'current'
+    cli = package / 'core' / 'cli.py'
     if not cli.is_file():
-        raise SystemExit(f'no installed imps core at {cli}; set AGENTS_PREFIX to the install prefix')
-    out = subprocess.run([sys.executable, str(cli), 'report', '--run-id', args.run_id], capture_output=True, text=True)
+        raise SystemExit(f'no installed imps core at {cli}; pass the run package with --package')
+    out = subprocess.run([sys.executable, str(cli), 'report', '--state-root', str(state_root()), '--run-id', args.run_id],
+                         capture_output=True, text=True)
     try:
         envelope = json.loads(out.stdout)
     except json.JSONDecodeError:
@@ -245,6 +248,7 @@ def main(argv=None):
         p.add_argument('--' + name, required=True)
     p.add_argument('--repeat', type=int, required=True)
     p.add_argument('--transcript')
+    p.add_argument('--package', help="the run's imps package directory (default: AGENTS_PREFIX/imps/current)")
     p.add_argument('--elapsed', type=float)
     p.add_argument('--interventions', type=int, default=0)
     p.add_argument('--note')

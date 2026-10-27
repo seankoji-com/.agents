@@ -98,8 +98,10 @@ checkout. It holds local paths, so don't commit it:
 ```
 
 ```sh
-python3 "$(dirname "$(agents path agent-tuneup)")/scripts/audit.py" --t3-projects private-snapshot.json
+python3 "$(dirname "$(agents --pin PIN path agent-tuneup)")/scripts/audit.py" --t3-projects private-snapshot.json
 ```
+
+`PIN` is the `pin` that `agents start agent-tuneup` returns.
 
 It exits `1` with findings, `0` with none and `2` for an unreadable snapshot. Findings
 name projects by index and T3 id, never by path. Projects whose checkout is missing
@@ -176,7 +178,7 @@ your environment; this is a synthetic example, not a discovery rule:
 ```
 
 ```sh
-entry="$(agents path agent-tuneup)"
+entry="$(agents --pin PIN path agent-tuneup)"
 python3 "$(dirname "$entry")/scripts/align.py" compare \
   --catalog private-catalog.json --inventory private-inventory.json
 ```
@@ -295,7 +297,7 @@ the broad Bash rule. This is real output, captured with
 
 ```console
 $ printf '%s\n' '{"permissions":{"allow":["Bash(*)"]}}' > example-settings.json
-$ python3 "$(dirname "$(agents path agent-tuneup)")/scripts/audit.py" --provider claude --settings example-settings.json
+$ python3 "$(dirname "$(agents --pin PIN path agent-tuneup)")/scripts/audit.py" --provider claude --settings example-settings.json
 {"ok": true, "provider": "claude", "findings": [{"code": "broad_execution_allow", "location": "permissions.allow[0]"}], "scope": "known-pattern audit; not a complete permission evaluation", "writes": 0}
 ```
 

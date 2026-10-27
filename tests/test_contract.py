@@ -242,6 +242,11 @@ class JobCoordinationTest(CoreTestCase):
         catalog_help = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'catalog.py'), '--help'],
                                       capture_output=True, text=True, check=True, timeout=60).stdout
         catalog_choices = set(re.search(r'\{([a-z,-]+)\}', catalog_help).group(1).split(','))
+        # Operators reach these through the stable `agents` launcher (#198), so its commands count too.
+        stable_help = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, sys.argv[1]); '
+                                      'from source_runtime import cli; cli.parser().print_help()', str(ROOT / 'scripts')],
+                                     capture_output=True, text=True, check=True, timeout=60).stdout
+        catalog_choices |= set(re.search(r'\{([a-z,-]+)\}', stable_help).group(1).split(','))
         self.assertIn('task-observation', job_choices)
         self.assertEqual(accept_choices, {'accept-stage', 'validate', 'validate-final'})
         choices = {'job_cli': job_choices, 'job_acceptance_cli': accept_choices}

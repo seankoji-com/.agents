@@ -51,8 +51,13 @@ PRESERVE=0
 # Left empty rather than defaulted to "${HOME}/..." directly: under `set -u` an unset
 # HOME aborts with a raw "unbound variable", and defaulting HOME to "" would silently
 # produce the absolute-looking /.local/state/agents/jobs/babysitter. Empty here, validated below.
+# An absolute XDG_STATE_HOME wins, as in the printed `agents permissions` grants;
+# the XDG spec ignores a relative value.
 ROOT="${BABYSITTER_HOME:-}"
-if [ -z "$ROOT" ] && [ -n "${HOME:-}" ]; then
+STATE_HOME="${XDG_STATE_HOME:-}"
+if [ -z "$ROOT" ] && [ "$STATE_HOME" != "${STATE_HOME#/}" ]; then
+  ROOT="${STATE_HOME}/agents/jobs/babysitter"
+elif [ -z "$ROOT" ] && [ -n "${HOME:-}" ]; then
   ROOT="${HOME}/.local/state/agents/jobs/babysitter"
 fi
 

@@ -22,6 +22,22 @@ class PushPolicyTest(unittest.TestCase):
                     self.assertIn('plain owner/name', result.stderr)
                     self.assertFalse(root.exists())
 
+    def test_default_root_follows_an_absolute_xdg_state_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            env = {k: v for k, v in os.environ.items() if k not in ('BABYSITTER_HOME', 'XDG_STATE_HOME')}
+            env['HOME'] = str(base / 'home')
+            cases = {str(base / 'xdg'): base / 'xdg/agents/jobs/babysitter',
+                     'relative': base / 'home/.local/state/agents/jobs/babysitter',
+                     None: base / 'home/.local/state/agents/jobs/babysitter'}
+            for xdg, root in cases.items():
+                with self.subTest(xdg=xdg):
+                    run_env = dict(env, **({'XDG_STATE_HOME': xdg} if xdg else {}))
+                    result = subprocess.run(['bash', str(SCRIPT), '--repo', 'owner/repo', '--pr', '1', '--remove'],
+                                            env=run_env, capture_output=True, text=True, timeout=5)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(f'nothing to remove at {root}/worktrees/', result.stderr)
+
     def test_ref_syntax_in_branch_is_refused_before_any_clone(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'cache'

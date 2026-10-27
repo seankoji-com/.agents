@@ -275,7 +275,8 @@ def effective_config(user_path=None, repo=None) -> tuple[dict, list]:
             raise RoutingError(exc.code, f'{repo_file} against user config {user_path}: {exc}') from exc
         sources.append(str(repo_file))
     if config is None:
-        raise RoutingError('config_missing', f'no routing config at {user_path}; run agents setup --capabilities FILE')
+        raise RoutingError('config_missing', f'no routing config at {user_path}; write one from a saved '
+                           'orchestrator_capabilities response with routing.write_default')
     return config, sources
 
 

@@ -101,9 +101,11 @@ def prepare(paths, source):
         rows.append({'path':str(file.relative_to(paths.home)),'before':before,'after':after})
     previous = {'schema_version':1,'links':[{'path':path,'target':target} for path,target in sorted(imported.items())]}
     aliases = discovery.plan(paths,candidate,root,previous_receipt=previous)
+    head_ref = None
     if (root/'.git').exists():
         require(transaction.oid(root,'HEAD') == commit and source == root,
                 'existing Git adoption must select its own exact source checkout')
+        head_ref = git(root,'symbolic-ref','-q','HEAD',check=False).stdout.decode().strip() or None
     for name in info['skills']:
         pins.materialize(paths,selection['pin'],name)
     backup = paths.control/'adoptions'/str(uuid.uuid4())
@@ -114,6 +116,7 @@ def prepare(paths, source):
         'source_root':str(root),'donor':str(source),'commit':commit,'pin':selection['pin'],
         'identity_sha256':digest(values['.agents-source.json'][0]),'files':rows,'links':aliases,
         'old_discovery':old_discovery,'backup':str(backup),
+        'git_existed':(root/'.git').exists(),'head_ref':head_ref,
         'legacy_paths':['agents/t3-plugins','.t3-plugins-registry.lock','.dotfiles-wiring.json','mcp.json','plugins/marketplace.json','skills/synced']}
     write_json(backup/'restore-map.json',journal)
     return journal
@@ -166,6 +169,17 @@ def apply(paths,journal,hook=None):
     existing = git(root,'rev-parse','--verify','refs/heads/main',check=False)
     old = existing.stdout.decode().strip() if existing.returncode == 0 else '0'*40
     require(old in ('0'*40,journal['commit']), 'adoption branch changed; stopped')
+    # read-tree replaces the index, so only a state adoption itself produced may be
+    # replaced: the commit's tree, or the empty index of a repository adoption created.
+    # Anything else is owner work (staged or index-only); stop and keep it.
+    index = git(root,'write-tree').stdout.decode().strip()
+    permitted = {git(root,'rev-parse',journal['commit']+'^{tree}').stdout.decode().strip()}
+    if not journal['git_existed']:
+        permitted.add(git(root,'hash-object','-t','tree','--stdin',input=b'').stdout.decode().strip())
+    require(index in permitted, 'adoption index holds owner changes; stopped without replacing them')
+    head = git(root,'symbolic-ref','-q','HEAD',check=False).stdout.decode().strip() or None
+    require(head in ({journal['head_ref'],'refs/heads/main'} if journal['git_existed'] else {'refs/heads/main'}),
+            'adoption HEAD moved to another branch; stopped')
     git(root,'read-tree',journal['commit'])
     git(root,'update-ref','refs/heads/main',journal['commit'],old)
     git(root,'symbolic-ref','HEAD','refs/heads/main')

@@ -110,6 +110,33 @@ class AdoptionTest(unittest.TestCase):
         self.assertEqual(load(self.paths.control/'cutover.json')['phase'],'active')
         self.assertFalse(transaction.pending(self.paths))
 
+    def test_owner_staged_index_change_after_interruption_blocks_recovery(self):
+        def crash(phase):
+            if phase == 'ref':
+                raise RuntimeError('simulated crash after ref publication')
+        with self.assertRaises(RuntimeError):
+            adoption.adopt(self.paths,self.donor,hook=crash)
+        # Index-only owner work: staged content with no worktree file.
+        blob = git(self.root,'hash-object','-w','--stdin',input=b'owner note\n').stdout.decode().strip()
+        git(self.root,'update-index','--add','--cacheinfo','100644,'+blob+',owner-note.txt')
+        with self.assertRaisesRegex(SourceError,'index holds owner changes'):
+            adoption.adopt(self.paths)
+        self.assertIn(b'owner-note.txt',git(self.root,'diff','--cached','--name-only').stdout)
+        self.assertEqual(load(self.paths.control/'cutover.json')['phase'],'pending')
+        git(self.root,'update-index','--force-remove','owner-note.txt')
+        self.assertEqual(adoption.adopt(self.paths)['status'],'adopted')
+
+    def test_owner_branch_switch_after_interruption_blocks_recovery(self):
+        def crash(phase):
+            if phase == 'ref':
+                raise RuntimeError('simulated crash after ref publication')
+        with self.assertRaises(RuntimeError):
+            adoption.adopt(self.paths,self.donor,hook=crash)
+        git(self.root,'symbolic-ref','HEAD','refs/heads/owner-work')
+        with self.assertRaisesRegex(SourceError,'HEAD moved'):
+            adoption.adopt(self.paths)
+        self.assertEqual(git(self.root,'symbolic-ref','HEAD').stdout.strip(),b'refs/heads/owner-work')
+
     def test_owner_edit_after_interruption_is_preserved_and_blocks_recovery(self):
         def crash(phase):
             if phase == 'files':

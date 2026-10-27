@@ -139,13 +139,24 @@ class SourcePinsTest(unittest.TestCase):
         write_json(package / 'install-manifest.json', receipt)
         job = self.box / 'job.json'
         materialized = {'package_root': str(package)}
+        dependency = {'key': 'workflow', 'plugin': 'imps'}
+        pin = {**receipt, 'package_dir': str(package)}
+        envelopes = {'unsupported job schema_version': {'schema_version': 999},
+                     'duplicate job dependency key': {'dependencies': [dependency, dependency]},
+                     'pins are missing': {'dependencies': [dependency, {'key': 'other', 'plugin': 'plan'}]}}
         with patch.object(pins, 'materialize', return_value=materialized):
+            for reason, change in envelopes.items():
+                with self.subTest(envelope=reason):
+                    write_json(job, {'schema_version': 1, 'dependencies': [dependency], 'pins': {'workflow': pin},
+                                     **change})
+                    with self.assertRaisesRegex(SourceError, reason):
+                        cli.job_path(self.paths, job, 'imps')
             for field in (None, *receipt):
                 with self.subTest(field=field):
                     pin = {**receipt, 'package_dir': str(package)}
                     if field:
                         pin[field] = 'wrong'
-                    write_json(job, {'dependencies': [{'key': 'workflow', 'plugin': 'imps'}],
+                    write_json(job, {'schema_version': 1, 'dependencies': [dependency],
                                      'pins': {'workflow': pin}})
                     if field is None:
                         self.assertEqual(cli.job_path(self.paths, job, 'imps'), materialized)

@@ -85,7 +85,7 @@ class LegacyStateTest(CoreTestCase):
             code, refused = self.gate(pkg, command, '--state-root', self.state_root, '--run-id', v1)
             self.assertNotEqual(code, 0, command)
             self.assertEqual(refused['error']['code'], 'unsupported_version')
-            self.assertIn('agents activate imps <previous-version>', refused['error']['message'])
+            self.assertIn("run's original package (its core/cli.py)", refused['error']['message'])
         self.assertEqual((old / 'run.json').read_bytes(), v1_bytes)
 
     def test_legacy_thinking_topic_resolves_but_is_never_promoted(self):

@@ -138,6 +138,24 @@ class ConformanceFlowTest(unittest.TestCase):
                 call(*argv)
             self.assertIn('never overwritten', str(caught.exception))
 
+    def test_collect_reads_the_named_run_package_with_the_selected_state_root(self):
+        run_dir = self.add_run('run-0003', self.tmp / 'repo')
+        (run_dir / 'reports' / 'report.md').write_text('Report\n')
+        package = self.tmp / 'packages' / ('a' * 64) / 'imps' / '1.0.0'
+        stub = package / 'core' / 'cli.py'
+        stub.parent.mkdir(parents=True)
+        # The stub succeeds only when called with the collector's state root.
+        envelope = json.dumps({'ok': True, 'data': {'report': REPORT}})
+        stub.write_text('import sys\n'
+                        f'assert sys.argv[1:4] == ["report", "--state-root", {str(self.state_root)!r}], sys.argv\n'
+                        f'print({envelope!r})\n')
+        repo = self.tmp / 'checkout'
+        argv = ['collect', '--run-id', 'run-0003', '--provider', 'p', '--model', 'm', '--case', 'bugfix',
+                '--repeat', '1', '--t3-version', '1', '--thread-id', 't', '--package', str(package)]
+        with patch.dict(os.environ, {'AGENTS_PREFIX': str(self.tmp / 'no-prefix')}), \
+                patch.object(conformance, 'ROOT', repo), patch.object(conformance, 'CONFORMANCE', repo / 'conformance'):
+            self.assertTrue(call(*argv)['grade']['passed'])
+
     def test_collect_reports_a_missing_install_and_a_failing_report(self):
         self.add_run('run-0002', self.tmp / 'repo')
         argv = ['collect', '--run-id', 'run-0002', '--provider', 'p', '--model', 'm', '--case', 'bugfix',

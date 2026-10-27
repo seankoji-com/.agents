@@ -99,15 +99,12 @@ new review. Historical runs retain their evidence as legacy-unreviewed.
 ## Previous runs
 
 State major version 1 is refused by this gate without conversion or writes.
-Keep the previous installed version until its runs are finished. Find its version
-in the installation receipt. If `agents path imps` prints
-`<prefix>/imps/current/entry.md`, the version folders are in `<prefix>/imps/`,
-alongside `current/`. Then use
-`agents activate imps <previous-version>`. Read that version's entry through
-`agents path imps`; use its `status`, `resume` or `cancel` operation with the
-original run ID and state root. Activate the new version again when done.
-Never hand-edit a run's version number. Activation changes only the selected package;
-it does not migrate state. The [migration record](../imps-gate-migration.md) explains
+Keep the previous installed version until its runs are finished. Its package stays
+at its original path, `<prefix>/imps/<previous-version>/`; the installation receipt
+names the version. Read that package's `entry.md` and run its own `core/cli.py`
+`status`, `resume` or `cancel` with the original run ID and state root. An
+inventoried old job resolves it with `t3-plugins --job JOB.json path imps`. Never
+hand-edit a run's version number. Using the old package does not migrate state. The [migration record](../imps-gate-migration.md) explains
 the removed APIs and retained evidence boundaries.
 
 ### Upgrading a whole job

@@ -16,7 +16,7 @@ directly. Never create a job or launch a worker for them.
 ## 2. Plan
 
 Substantive multi-stage work gets one job. Write the complete `job.schema.json` object
-and run, from the current package (`agents path PLUGIN`):
+and run, from the started package (`package_root` from `agents start PLUGIN`):
 
 ```sh
 python3 "PKG/shared/job_cli.py" create --state-root "$ROOT" --job JOB_ID --input job.json --prefix PREFIX --agents-root AGENTS_ROOT

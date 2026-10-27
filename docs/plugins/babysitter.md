@@ -73,7 +73,7 @@ Org mode starts with a deterministic, read-only scan:
 python3 PKG/scripts/org_scan.py --org OWNER
 ```
 
-Resolve `PKG` with `agents path babysitter` (use `--job JOB` for a pinned job).
+`PKG` is the `package_root` from `agents start babysitter` (`agents --job JOB.json path babysitter` for a pinned job).
 The JSON lists every accessible repository's open, non-draft PRs, including forks
 and all authors, with exact heads and stable action/reason fields. `dispatch`
 contains PRs with failed checks, unresolved review threads, conflicts or requested

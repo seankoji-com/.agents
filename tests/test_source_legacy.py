@@ -1,4 +1,6 @@
 """Brew-independent old-format job resolution through retained catalog code."""
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -112,20 +114,45 @@ class LegacyTest(CoreTestCase):
         with self.assertRaises(Exception):
             self.dispatched('selection','load-authority','--input','input.json')
 
-    def test_worker_show_and_doctor_refuse_a_current_version_other_than_the_pin(self):
+    def test_doctor_refuses_a_current_version_other_than_the_pin(self):
         self.inventory()
         legacy.install_bridge(self.paths,self.brew)
-        self.assertIn('show',self.dispatched('agents','show','imps','implementer'))
         self.assertIn('doctor',self.dispatched('doctor','imps'))
         current = self.package.parent/'current'
         other = self.package.parent/'0.0.1-other'
         other.mkdir()
         current.unlink()
         current.symlink_to(other.name)
-        for argv in (('agents','show','imps','implementer'),('doctor','imps')):
-            with self.subTest(argv=argv), self.assertRaisesRegex(SourceError,"differs from this job's pin"):
-                legacy.dispatch(self.paths,['--job',str(self.job),*argv])
+        with self.assertRaisesRegex(SourceError,"differs from this job's pin"):
+            legacy.dispatch(self.paths,['--job',str(self.job),'doctor','imps'])
         self.assertIn('list',self.dispatched('agents','list','imps'))
+
+    def test_worker_show_renders_the_job_frozen_worker_not_live_overrides(self):
+        import registry
+        worker = 'imps/stage-executor'
+        config = self.home/'.config/agents/workers.json'
+        override = registry.override_path(self.registry,worker)
+        override.parent.mkdir(parents=True)
+        override.write_text('worker_id: '+worker+'\nJOB_FROZEN_CUSTOM\n')
+        bundle_digest = self.record['pins']['workflow']['bundle_digest']
+        registry.set_override(self.registry,worker,bundle_digest,True,config)
+        pins = registry.snapshot_pins(self.job,{'workflow':'imps'},self.package.parent.parent,self.registry,config)['pins']
+        self.record = {**self.record,'pins':pins}
+        write_json(self.job,self.record)
+        self.inventory()
+        legacy.install_bridge(self.paths,self.brew)
+        registry.set_override(self.registry,worker,bundle_digest,False,config)
+        # current still names the pinned package, so only the override changed.
+        self.assertEqual((self.package.parent/'current').resolve(),self.package.resolve())
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(legacy.dispatch(self.paths,['--job',str(self.job),'agents','show','imps','stage-executor']),0)
+        shown = json.loads(output.getvalue())
+        self.assertIn('JOB_FROZEN_CUSTOM',shown['definition'])
+        self.assertEqual(shown['provenance']['override_status'],'enabled')
+        self.assertEqual(shown['definition'],pins['workflow']['effective_workers'][worker]['bytes'])
+        with self.assertRaisesRegex(SourceError,'not pinned'):
+            legacy.dispatch(self.paths,['--job',str(self.job),'agents','show','imps','nobody'])
 
     def test_bridge_refuses_new_work_changed_pins_unknown_jobs_and_runtime_tampering(self):
         self.inventory()

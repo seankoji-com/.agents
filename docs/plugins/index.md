@@ -20,7 +20,7 @@ ape finds the approach before you commit to one. babysitter takes over once a PR
 exists.
 
 Plan, ape and agent-tuneup choose their normal workflow automatically. Use the
-catalog's `agents doctor` for installed-package diagnostics.
+workflow's own `doctor` operation, or `agents status`, for diagnostics.
 The first five run long work as one job: your thread keeps the plan and accepts each
 stage, while fresh T3 tasks do the stage work. See
 [architecture](../architecture.md#whole-jobs).

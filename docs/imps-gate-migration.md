@@ -137,7 +137,7 @@ does not select providers or build delegate_task calls.
 ## Compatibility and paths
 
 Old major-version-1 state is refused before writing any state or lock. To inspect, resume
-or cancel it, use the previous installed package through agents activate, as explained
+or cancel it, use the previous installed package at its original path, as explained
 in the [imps guide](plugins/imps.md#previous-runs). No conversion is attempted.
 Historical conformance observations and their old-format collector remain dated evidence;
 they do not establish compatibility for the new gate. The frozen benchmark stays unchanged.

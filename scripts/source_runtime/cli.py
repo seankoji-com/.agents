@@ -80,8 +80,15 @@ def start(paths, name, explicit_source=None, pin=None):
 
 def job_path(paths, job_file, name):
     job = load(job_file)
-    matches = [pin for key, pin in job.get('pins', {}).items()
-               if next((d.get('plugin') for d in job.get('dependencies', []) if d.get('key') == key), None) == name]
+    # The same envelope snapshot_pins writes: one pin per uniquely keyed declared dependency.
+    require(isinstance(job, dict) and job.get('schema_version') == 1, 'unsupported job schema_version')
+    dependencies = job.get('dependencies')
+    require(isinstance(dependencies, list) and all(isinstance(d, dict) and isinstance(d.get('key'), str) and
+            isinstance(d.get('plugin'), str) for d in dependencies), 'job dependency records are malformed')
+    keys = [d['key'] for d in dependencies]
+    require(len(set(keys)) == len(keys), 'duplicate job dependency key')
+    require(isinstance(job.get('pins'), dict) and set(job['pins']) == set(keys), 'job pins are missing or undeclared')
+    matches = [job['pins'][d['key']] for d in dependencies if d['plugin'] == name]
     require(len(matches) == 1, 'job does not pin exactly one requested dependency')
     package = no_links(matches[0]['package_dir'])
     prefix = package.parent.parent

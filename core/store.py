@@ -60,7 +60,7 @@ class RunStore:
         if type(version) is not int or version != SCHEMA_VERSION:
             raise InvalidInput('unsupported_version',
                                f'run major version {version!r} is unsupported; this gate requires major version 2. '
-                               'Use agents activate imps <previous-version> to inspect, resume or cancel an old run.')
+                               "Use the run's original package (its core/cli.py) to inspect, resume or cancel an old run.")
         schema.validate(state, 'run', 'state_invalid')
         return state
 

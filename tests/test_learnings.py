@@ -5,6 +5,7 @@ import errno
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import subprocess
@@ -144,6 +145,17 @@ class LearningsTest(unittest.TestCase):
                          'available')
         ids = sorted(e['id'] for e in Store(self.project, 'imps', OLD, self.env).operate()['data']['entries'])
         self.assertEqual(ids, ['late-old-job', 'legacy', 'new'])
+        # Old runtimes validate with the pre-#198 pattern, so the shared file must keep passing it.
+        before = (legacy / 'imps.md').read_bytes()
+        refused = self.store.operate('write', {'entry': {'id': 'renamed', 'summary': 'New reference',
+                                                         'failure': 'Cited the renamed repository',
+                                                         'upstream': 'seankoji-com/.agents#7'}})
+        self.assertEqual(refused['status'], 'unavailable')
+        self.assertIn('seankoji-com/t3-plugins#N', refused['reason'])
+        self.assertEqual((legacy / 'imps.md').read_bytes(), before)
+        _, data = decode((legacy / 'imps.md').read_bytes())
+        base_pattern = r'seankoji-com/t3-plugins#[1-9]\d*'  # a76f51c shared/learning_store.py validate_entry
+        self.assertTrue(all(re.fullmatch(base_pattern, e['upstream']) for e in data['entries'] if e.get('upstream')))
         # Once moved, the current location wins and the old file is no longer used.
         legacy.rename(self.store.folder)
         self.assertEqual(Path(self.write('moved')['path']).parent, self.store.folder)

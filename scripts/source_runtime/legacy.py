@@ -266,13 +266,28 @@ def dispatch(paths,argv):
         name = arguments[4] if action == 'agents' and len(arguments) >= 5 else arguments[3]
         require(name in dependencies, 'worker/doctor command must name an inventoried dependency')
         require(action != 'agents' or arguments[3] in ('list','show'), 'legacy worker registration/overrides are disabled')
-        pin = next(pin for key,pin in job['pins'].items()
-            if next((d['plugin'] for d in job['dependencies'] if d['key'] == key),None) == name)
+        dependency = next(d for d in job['dependencies'] if d['plugin'] == name)
+        pin = job['pins'][dependency['key']]
+        if action == 'agents' and arguments[3] == 'show':
+            # The job froze its effective workers; never recompose them from live overrides.
+            require(len(arguments) == 6, 'agents show needs PLUGIN WORKER')
+            import registry  # noqa: F401  puts the source root on sys.path
+            from shared.job_coordinator import verify_pinned_dependency
+            verify_pinned_dependency(dependency,pin)
+            worker = name+'/'+arguments[5]
+            record = pin['effective_workers'].get(worker)
+            require(record is not None, 'worker is not pinned by this job: '+worker)
+            print(json.dumps({'worker': {'id': worker, 'bundle_digest': pin['bundle_digest']},
+                'provenance': {'source': 'job pin', 'job': str(file), 'bundle_dir': pin['bundle_dir'],
+                    'base_sha256': record['base_sha256'], 'override_status': record['override_status'],
+                    'override_sha256': record['override_sha256']},
+                'definition': record['bytes']}))
+            return 0
         receipt = load(Path(pin['package_dir'])/'install-manifest.json')
         prefix = Path(pin['package_dir']).parent.parent
-        # The retained catalog's show and doctor read the version named by current and
-        # take no version argument; refuse rather than describe another version.
-        if action == 'doctor' or arguments[3] == 'show':
+        # The retained catalog's doctor reads the version named by current and takes no
+        # version argument; refuse rather than check another version.
+        if action == 'doctor':
             current = prefix/name/'current'
             require(current.is_symlink() and current.resolve() == Path(pin['package_dir']).resolve(),
                     'retained current version differs from this job\'s pin; use agents list, which reports every version')

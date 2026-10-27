@@ -286,6 +286,17 @@ def validate_entry(entry):
         raise Unavailable('invalid harvest destinations')
 
 
+# The pre-#198 validator's upstream pattern, verbatim. A legacy store is shared with
+# retained old runtimes, so everything written there must still pass their reader.
+LEGACY_UPSTREAM = r'seankoji-com/t3-plugins#[1-9]\d*'
+
+
+def require_legacy_readable(entries):
+    if any(e.get('upstream') and not re.fullmatch(LEGACY_UPSTREAM, e['upstream']) for e in entries):
+        raise Unavailable('these lessons are still in the pre-#198 store shared with old jobs; cite the '
+                          'issue as seankoji-com/t3-plugins#N (GitHub redirects it) or move the lessons first')
+
+
 def encode(label, data):
     if not isinstance(label, str) or '\n' in label or '\r' in label:
         raise Unavailable('display label must be one line')
@@ -426,6 +437,8 @@ class Store:
                 elif operation == 'harvest':
                     from harvest import apply_receipts
                     data['entries'] = apply_receipts(data['entries'], proposal)
+                if folder != self.folder:
+                    require_legacy_readable(data['entries'])
                 atomic_file(fd, self.name, encode(label, data))
                 return self.receipt(data, digest(data), folder)
         except FileNotFoundError:

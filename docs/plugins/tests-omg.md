@@ -96,7 +96,7 @@ completeness. Complete organization status can exit 0 with freshness unknown and
 ## Reports and deterministic local use
 
 No model is needed to ingest existing evidence and render unknowns. Resolve the
-installed entry with `agents path tests-omg`, then run its sibling helper:
+installed entry with `agents --pin PIN path tests-omg` (PIN is the `pin` from `agents start tests-omg`), then run its sibling helper:
 
 ```sh
 python3 /installed/tests-omg/scripts/audit.py doctor
