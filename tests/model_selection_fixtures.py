@@ -47,6 +47,18 @@ def canonical_selection_input():
     return data
 
 
+def opencode_selection_input():
+    """Explicit synthetic OpenCode auto review, with host-advertised permissions."""
+    data = canonical_selection_input()
+    target = data['review_panel'][0]['target']
+    target.update(model='qwen-fixture', options={'variant': 'high'}, runtimeMode='auto')
+    provider = data['capabilities']['providers'][1]
+    provider.update(driverKind='opencode', runtimeModes=['auto', 'full-access'])
+    provider['models'][0].update(id=target['model'], options=[{'id': 'variant', 'values': ['high']}])
+    data['profiles']['models'][1]['lineage'] = 'qwen'
+    return data
+
+
 def replacement(data, target, review=False):
     role = 'reviewer' if review else 'workhorse'
     authority = {'scope': 'invocation-only', 'invocation_id': data['invocation_id'],
