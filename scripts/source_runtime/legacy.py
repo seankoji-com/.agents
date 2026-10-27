@@ -271,6 +271,10 @@ def dispatch(paths,argv):
             require(bundle['bundle_digest'] == pin.get('bundle_digest') == receipt['bundle_digest'],
                     'legacy pinned worker bundle differs')
         command = [sys.executable,'-I','-B',str(package/'shared'/helpers[action]),*arguments[3:]]
+    elif action == 'resolve':
+        # Read-only candidate inspection through the verified retained catalog.
+        require(len(arguments) >= 4, 'resolve needs a role')
+        command = isolated_catalog(root,'resolve',*arguments[3:])
     else:
         require(action in ('agents','doctor') and len(arguments) >= 4, 'legacy command not needed by the inventoried resume contract')
         # Worker access is restricted to this job's package prefix and registry.

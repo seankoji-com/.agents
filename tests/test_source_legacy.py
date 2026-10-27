@@ -166,6 +166,23 @@ class LegacyTest(CoreTestCase):
             env={**os.environ,'PYTHONPATH':str(outside)})
         self.assertTrue(marker.exists())
 
+    def test_bridge_resolve_matches_the_retained_catalog(self):
+        from tests.model_selection_fixtures import selection_input
+        data = selection_input()
+        caps = self.tmp/'caps.json'
+        caps.write_text(json.dumps(data['capabilities']))
+        profiles = self.tmp/'profiles.json'
+        profiles.write_text(json.dumps(data['profiles']))
+        self.inventory()
+        installed = legacy.install_bridge(self.paths,self.brew)
+        args = ['resolve','reviewer','--repo',str(self.tmp),'--profiles',str(profiles),'--capabilities',str(caps)]
+        env = {**os.environ,'XDG_CONFIG_HOME':str(self.tmp/'config')}
+        bridged = subprocess.run([installed['bridge'],'--job',str(self.job),*args],capture_output=True,text=True,env=env)
+        catalog = Path(installed['retained_runtime'])/'scripts/catalog.py'
+        direct = subprocess.run([sys.executable,'-B',str(catalog),*args],capture_output=True,text=True,env=env)
+        self.assertEqual(direct.returncode,0,direct.stderr)
+        self.assertEqual((bridged.returncode,json.loads(bridged.stdout)),(0,json.loads(direct.stdout)))
+
     def test_doctor_refuses_a_current_version_other_than_the_pin(self):
         self.inventory()
         legacy.install_bridge(self.paths,self.brew)
