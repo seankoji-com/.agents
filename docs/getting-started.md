@@ -294,6 +294,8 @@ at `high`. Both the tiers and the lineage labels are guesses: edit them. Provide
 default to `auto`, except OpenCode, which defaults to
 `full-access` with `"requireRuntimeMode": true` because its children otherwise stall
 on permission prompts.
+An explicit lower OpenCode mode is accepted when T3 advertises it and the parent
+permits it. This does not change the defaults or override a configured required mode.
 
 ```json
 {

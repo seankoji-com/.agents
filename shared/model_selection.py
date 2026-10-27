@@ -121,9 +121,9 @@ def validate_target(target, capabilities, child=True):
     mode = target.get('runtimeMode')
     if child:
         if provider.get('driverKind') == 'opencode':
-            require(mode == 'full-access', 'OpenCode requires explicit full-access')
-            require(isinstance(provider.get('runtimeModes'), list) and 'full-access' in provider['runtimeModes'],
-                    'OpenCode full-access support must be advertised')
+            require(mode is not None, 'OpenCode requires explicit runtime mode')
+            require(isinstance(provider.get('runtimeModes'), list) and mode in provider['runtimeModes'],
+                    'OpenCode runtime mode support must be advertised')
         if mode is not None:
             require(mode in MODES and capabilities.get('runtimeMode') in MODES and
                     MODES.index(mode) <= MODES.index(capabilities['runtimeMode']), 'runtime mode exceeds parent')

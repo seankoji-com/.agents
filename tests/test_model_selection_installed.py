@@ -12,11 +12,31 @@ sys.path.insert(0, str(ROOT))
 from shared import model_selection as models
 from shared import planning_review as planning
 from tests.upfront_fixtures import approved_selection, agree
-from tests.model_selection_fixtures import selection_input, canonical_selection_input, answer
+from tests.model_selection_fixtures import selection_input, canonical_selection_input, opencode_selection_input, answer
 from tests.test_rebuild_installed import Sandbox
 
 
 class InstalledSelectionTests(unittest.TestCase):
+    def test_relocated_imps_accepts_advertised_opencode_auto_and_rejects_escalation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            box = Sandbox(Path(temporary))
+            package, _ = box.install('imps')
+            relocated = box.base / 'relocated-opencode-imps'
+            shutil.copytree(package, relocated)
+            helper = relocated / 'shared/model_selection_cli.py'
+            data = opencode_selection_input()
+            frozen = box.run([sys.executable, helper, 'freeze', '--input', box.payload(data)])
+            record = json.loads(frozen.stdout)
+            dispatched = box.run([sys.executable, helper, 'dispatch', '--input', box.payload({
+                'record': record, 'role': 'reviewer', 'slot_id': 'review',
+                'expected': record['selection_sha256'],
+            })])
+            self.assertEqual(json.loads(dispatched.stdout)['target'], data['review_panel'][0]['target'])
+            data['review_panel'][0]['target']['runtimeMode'] = 'full-access'
+            rejected = box.run([sys.executable, helper, 'freeze', '--input', box.payload(data)], check=False)
+            self.assertEqual(rejected.returncode, 2, rejected.stderr)
+            self.assertIn('runtime mode exceeds parent', rejected.stderr)
+
     def test_relocated_imps_keeps_endorsed_author_and_refuses_unknown_identity(self):
         with tempfile.TemporaryDirectory() as temporary:
             box = Sandbox(Path(temporary))

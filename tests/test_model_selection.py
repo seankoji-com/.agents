@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 from shared import model_selection as models
 from shared.job_coordinator import selection_for_task, prepare_task
 from core.jobs.store import JobError
-from tests.model_selection_fixtures import answer, selection_input, canonical_selection_input, replacement
+from tests.model_selection_fixtures import answer, selection_input, canonical_selection_input, opencode_selection_input, replacement
 
 
 class SelectionTests(unittest.TestCase):
@@ -46,6 +46,49 @@ class SelectionTests(unittest.TestCase):
             self.assertEqual(json.loads(result.stdout), {'allowed': True, 'chooser': False, 'dispatch': False})
         self.assertEqual(self.cli('gate', {'record': None, 'invocation_id': 'doctor', 'scope_id': 'scope',
                                           'action': 'dispatch'}).returncode, 2)
+
+    def test_opencode_explicit_advertised_mode_reaches_unchanged_review_dispatch(self):
+        for mode in ('auto', 'full-access'):
+            with self.subTest(mode=mode):
+                data = opencode_selection_input()
+                data['capabilities']['runtimeMode'] = mode
+                data['review_panel'][0]['target']['runtimeMode'] = mode
+                record = models.freeze(data)
+                plan = models.dispatch(record, role='reviewer', slot_id='review')
+                self.assertEqual(plan['target'], data['review_panel'][0]['target'])
+                self.assertEqual(plan['target']['options'], {'variant': 'high'})
+
+    def test_opencode_mode_still_requires_advertisement_and_parent_permission(self):
+        cases = [
+            ('auto', 'full-access', ['auto', 'full-access'], 'runtime mode exceeds parent'),
+            ('approval-required', 'auto', ['auto'], 'runtime mode exceeds parent'),
+            ('auto', None, ['auto'], 'requires explicit runtime mode'),
+            ('auto', 'auto', None, 'support must be advertised'),
+            ('auto', 'auto', [], 'support must be advertised'),
+            ('auto', 'auto', ['full-access'], 'support must be advertised'),
+            ('auto', 'unknown', ['unknown'], 'runtime mode exceeds parent'),
+        ]
+        for parent, mode, advertised, error in cases:
+            with self.subTest(parent=parent, mode=mode, advertised=advertised):
+                data = opencode_selection_input()
+                data['capabilities']['runtimeMode'] = parent
+                data['capabilities']['providers'][1]['runtimeModes'] = advertised
+                target = data['review_panel'][0]['target']
+                if mode is None:
+                    del target['runtimeMode']
+                else:
+                    target['runtimeMode'] = mode
+                with self.assertRaisesRegex(models.SelectionError, error):
+                    models.validate_target(target, data['capabilities'])
+
+    def test_opencode_auto_does_not_override_a_required_configured_mode(self):
+        data = opencode_selection_input()
+        data['routing'] = {'roles': {
+            'workhorse': [{**data['work']['workhorse'], 'lineage': 'openai'}],
+            'reviewer': [data['review_panel'][0]['target']],
+        }, 'providers': {'fixture-review': {'runtimeMode': 'full-access', 'requireRuntimeMode': True}}}
+        with self.assertRaisesRegex(models.SelectionError, 'required configured runtime mode'):
+            models.freeze(data)
 
     def test_explicit_command_answer_and_exact_custom_targets_reach_dispatch(self):
         self.data['source'] = answer('fixture command: explicit custom work/high and review/high')
