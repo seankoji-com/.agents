@@ -204,6 +204,17 @@ class ReceivingTest(unittest.TestCase):
                 with source_lock(self.paths,timeout=0.05):
                     self.fail('second lock acquired')
 
+    def test_configured_filters_run_nowhere_and_a_selected_filter_is_refused(self):
+        # git-lfs installs filter.lfs.* for every repository; it runs only where attributes select it.
+        git(self.source,'config','filter.lfs.clean','false')
+        git(self.source,'config','filter.lfs.required','true')
+        self.assertEqual(self.run_sync()['active']['commit'],self.new)
+        attributes = self.home/'.config/git/attributes'
+        attributes.parent.mkdir(parents=True)
+        attributes.write_text('*.md filter=lfs\n')
+        with self.assertRaisesRegex(SourceError,'selects a filter'):
+            self.run_sync()
+
     def test_index_flags_and_executable_checkout_hooks_are_refused_without_disabling_them(self):
         file = 'skills/demo/helper.py'
         git(self.source,'update-index','--assume-unchanged',file)

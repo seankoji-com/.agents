@@ -57,9 +57,16 @@ def preflight(root, config):
         hook = hooks/name
         require(not hook.exists() or not hook.stat().st_mode & 0o111,
                 'executable Git hook is unsupported during receiving: '+name)
-    filters = git(root, 'config', '--get-regexp', r'^(filter\.|remote\.origin\.(uploadpack|fetch)|core\.attributesfile)', check=False)
-    for line in filters.stdout.decode().splitlines():
+    transport = git(root, 'config', '--get-regexp', r'^(remote\.origin\.(uploadpack|fetch)|core\.attributesfile)', check=False)
+    for line in transport.stdout.decode().splitlines():
         require(line == 'remote.origin.fetch +refs/heads/*:refs/remotes/origin/*', 'unsupported Git filter/transport configuration')
+    # A configured filter (git-lfs installs filter.lfs.* for every repository) runs only
+    # for paths whose attributes select it, so refuse any tracked path that does. This
+    # covers the global attributes file; prepare() limits incoming .gitattributes.
+    listed = git(root, 'ls-files', '-z').stdout
+    selected = git(root, 'check-attr', '--stdin', '-z', 'filter', input=listed).stdout.split(b'\0')
+    require(all(value in (b'unspecified', b'unset') for value in selected[2::3]),
+            'unsupported Git filter/transport configuration: a tracked path selects a filter')
     require(not (git_dir / 'info/attributes').exists() or not read(git_dir / 'info/attributes').strip(),
             'custom Git attributes are unsupported')
     require(git(root, 'diff', '--no-ext-diff', '--no-textconv', '--quiet', check=False).returncode == 0, 'tracked source is dirty')
