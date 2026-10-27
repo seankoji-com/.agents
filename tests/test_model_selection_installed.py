@@ -17,32 +17,26 @@ from tests.test_rebuild_installed import Sandbox
 
 
 class InstalledSelectionTests(unittest.TestCase):
-    def test_relocated_imps_accepts_advertised_opencode_auto_and_rejects_escalation(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            box = Sandbox(Path(temporary))
-            package, _ = box.install('imps')
-            relocated = box.base / 'relocated-opencode-imps'
-            shutil.copytree(package, relocated)
-            helper = relocated / 'shared/model_selection_cli.py'
-            data = opencode_selection_input()
-            frozen = box.run([sys.executable, helper, 'freeze', '--input', box.payload(data)])
-            record = json.loads(frozen.stdout)
-            dispatched = box.run([sys.executable, helper, 'dispatch', '--input', box.payload({
-                'record': record, 'role': 'reviewer', 'slot_id': 'review',
-                'expected': record['selection_sha256'],
-            })])
-            self.assertEqual(json.loads(dispatched.stdout)['target'], data['review_panel'][0]['target'])
-            data['review_panel'][0]['target']['runtimeMode'] = 'full-access'
-            rejected = box.run([sys.executable, helper, 'freeze', '--input', box.payload(data)], check=False)
-            self.assertEqual(rejected.returncode, 2, rejected.stderr)
-            self.assertIn('runtime mode exceeds parent', rejected.stderr)
-
     def test_relocated_imps_keeps_endorsed_author_and_refuses_unknown_identity(self):
         with tempfile.TemporaryDirectory() as temporary:
             box = Sandbox(Path(temporary))
             package, _ = box.install('imps')
             relocated = box.base / 'relocated-imps'
             shutil.copytree(package, relocated)
+            # Reuse this real installed artifact for the runtime contract as well.
+            helper = relocated / 'shared/model_selection_cli.py'
+            runtime = opencode_selection_input()
+            frozen = box.run([sys.executable, helper, 'freeze', '--input', box.payload(runtime)])
+            frozen_record = json.loads(frozen.stdout)
+            dispatched = box.run([sys.executable, helper, 'dispatch', '--input', box.payload({
+                'record': frozen_record, 'role': 'reviewer', 'slot_id': 'review',
+                'expected': frozen_record['selection_sha256'],
+            })])
+            self.assertEqual(json.loads(dispatched.stdout)['target'], runtime['review_panel'][0]['target'])
+            runtime['review_panel'][0]['target']['runtimeMode'] = 'full-access'
+            rejected = box.run([sys.executable, helper, 'freeze', '--input', box.payload(runtime)], check=False)
+            self.assertEqual(rejected.returncode, 2, rejected.stderr)
+            self.assertIn('runtime mode exceeds parent', rejected.stderr)
             data = canonical_selection_input()
             work = data['work']['workhorse']
             data['routing'] = {'roles': {'workhorse': [{**work, 'lineage': 'openai'}],
