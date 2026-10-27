@@ -74,7 +74,9 @@ concrete approval still gates adding and executing its settings-apply stage.
 
 Any T3 provider can run this audit. The target settings format is separate from the
 calling provider. Supported structured audits: Claude JSON, OpenCode JSON/JSONC,
-Codex TOML, Gemini JSON, Cursor JSON. Target settings are never executed.
+Codex TOML (Python 3.11+) and Muse JSON (named permission profiles under
+`permissions.profiles`). The alignment helper also supports Antigravity MCP JSON/JSONC.
+Other settings get manual inspection only. Target settings are never executed.
 
 ## Boundaries
 
