@@ -97,7 +97,10 @@ def transport(job):
 
 def _read(package, relative):
     from shared.worker_registry import package_file
-    return _regular(package_file(package, relative))
+    try:
+        return _regular(package_file(package, relative))
+    except (OSError, ValueError) as exc:
+        raise JobError('retention_package_file_invalid: ' + relative) from exc
 
 
 def validate_retention_rules(profile):
@@ -128,7 +131,10 @@ def read_required_rubric(descriptor, allowed_hashes, allowed_descriptors=None):
     if allowed_descriptors is not None and allowed_descriptors.get(str(canonical_path)) != (
             descriptor['bytes'], descriptor['sha256']):
         raise JobError('compact_required_rubric_not_frozen')
-    raw = _regular(path)
+    try:
+        raw = _regular(path)
+    except (OSError, ValueError) as exc:
+        raise JobError('compact_required_rubric_descriptor_invalid') from exc
     if digest(raw) != descriptor['sha256'] or len(raw) != descriptor['bytes']:
         raise JobError('compact_required_rubric_bytes_changed')
     return raw
@@ -312,29 +318,34 @@ def project(full, job, task):
     snapshot = view.get('resources', {}).get('planning_snapshot')
     if isinstance(snapshot, dict) and snapshot.get('rubrics'):
         inline = []
-        # The frozen planning snapshot is coordinator-owned input. Its exact
-        # descriptor authorizes this task rubric; package rubrics remain
-        # independently pinned in the retained procedure.
+        # The sealed snapshot comes from coordinator-authorized job state, not
+        # the task's resource descriptors. Its seal detects drift, not authorship.
+        # Package rubrics remain independently pinned in the retained procedure.
         allowed_rubric_hashes = set(bindings['rubrics'].values())
         package_root = Path(pin['package_dir'])
         allowed_rubric_descriptors = {}
         for relative, expected_hash in bindings['rubrics'].items():
-            rubric_path = (package_root / relative).resolve(strict=True)
-            raw = _regular(rubric_path)
-            allowed_rubric_descriptors[str(rubric_path)] = (len(raw), expected_hash)
-        frozen_snapshot = job.get('planning', {}).get('snapshot', {})
-        for frozen in frozen_snapshot.get('rubrics', []) if isinstance(frozen_snapshot, dict) else []:
-            if not isinstance(frozen, dict) or not isinstance(frozen.get('path'), str):
-                continue
+            raw = _read(package_root, relative)
             try:
-                frozen_path = Path(frozen['path'])
-                canonical_path = frozen_path.resolve(strict=True)
-                raw = _regular(canonical_path)
-            except (OSError, RuntimeError, ValueError, JobError):
-                continue
-            if (frozen_path.is_absolute() and str(frozen_path) == str(canonical_path)
-                    and frozen.get('bytes') == len(raw) and frozen.get('sha256') == digest(raw)):
-                allowed_rubric_descriptors[str(canonical_path)] = (len(raw), digest(raw))
+                rubric_path = (package_root / relative).resolve(strict=True)
+            except (OSError, RuntimeError, ValueError) as exc:
+                raise JobError('retention_package_file_invalid: ' + relative) from exc
+            allowed_rubric_descriptors[str(rubric_path)] = (len(raw), expected_hash)
+        frozen_snapshot = job.get('planning', {}).get('snapshot')
+        if frozen_snapshot is not None:
+            from shared.planning_review import unseal
+            unseal(frozen_snapshot)
+            frozen_rubrics = frozen_snapshot.get('rubrics')
+            if not isinstance(frozen_rubrics, list):
+                raise JobError('compact_frozen_rubrics_invalid')
+            for frozen in frozen_rubrics:
+                if not isinstance(frozen, dict) or not isinstance(frozen.get('sha256'), str):
+                    raise JobError('compact_frozen_rubric_invalid')
+                try:
+                    raw = read_required_rubric(frozen, {frozen['sha256']})
+                except JobError as exc:
+                    raise JobError('compact_frozen_rubric_invalid: ' + str(exc)) from exc
+                allowed_rubric_descriptors[frozen['path']] = (len(raw), digest(raw))
                 allowed_rubric_hashes.add(digest(raw))
         for descriptor in snapshot['rubrics']:
             raw = read_required_rubric(descriptor, allowed_rubric_hashes, allowed_rubric_descriptors)

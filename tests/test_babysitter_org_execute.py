@@ -556,6 +556,24 @@ class ExecutionTest(unittest.TestCase):
                 runner.T3Host()
             run.assert_not_called()
 
+    def test_malformed_receipt_options_keep_specific_diagnostic_and_returned_handle(self):
+        for options in ([None], [{}], [{'id': 'effort'}], 'invalid', None):
+            with self.subTest(options=options):
+                # Each launch needs an independent reservation and fixture state.
+                self.setUp()
+                original = self.host.call
+                def malformed(tool, arguments):
+                    receipt = original(tool, arguments)
+                    if tool == 'delegate_task':
+                        receipt['options'] = options
+                    return receipt
+                with patch.object(self.host, 'call', side_effect=malformed):
+                    result = self.execute()
+                self.assertEqual(result['outcomes'][0]['reason'], 'host-options-unreported-or-mismatched')
+                self.assertFalse(any(event.get('kind') == 'accepted' for event in self.jobs.events))
+                receipt_path = next(self.jobs.directory.glob('*-receipt.json'))
+                self.assertEqual(json.loads(receipt_path.read_text())['receipt']['taskId'], 'host-task')
+
     def test_auto_merge_reservation_blocks_competing_writes(self):
         report = self.report()
         file = self.directory / 'snapshot.json'
@@ -1478,9 +1496,6 @@ class AdvanceTest(unittest.TestCase):
         row['head_sha'] = git('rev-parse', 'HEAD')
         guard = self.jobs.guard(row, {}, str(worktree))
         self.assertEqual(guard['observed_head'], guard['local_head'])
-        current_head = row['head_sha']
-        git('config', 'user.name', 'Fixture')
-        git('config', 'user.email', 'fixture@example.invalid')
         git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'unpublished worker commit')
         with self.assertRaisesRegex(runner.ExecutionError, 'pr-workspace-head-mismatch'):
             self.jobs.guard(row, {}, str(worktree))
@@ -1488,7 +1503,6 @@ class AdvanceTest(unittest.TestCase):
         (worktree / 'dirty.txt').write_text('uncommitted')
         with self.assertRaisesRegex(runner.ExecutionError, 'pr-workspace-dirty'):
             self.jobs.guard(row, {}, str(worktree))
-        row['head_sha'] = current_head
 
 
 if __name__ == '__main__':

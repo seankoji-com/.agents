@@ -167,7 +167,9 @@ def audit_fidelity_probe(base):
             'alias=Path("alias");alias.symlink_to(allowed);assert alias.read_text()==allowed.read_text()\n'
             'original=os.path.realpath\n'
             'def no_component_walk(*args,**kwargs):raise AssertionError("descriptor path fell back to component traversal")\n'
-            'if hasattr(os,"O_PATH") or (sys.platform=="darwin" and hasattr(os,"O_EVTONLY") and hasattr(fcntl,"F_GETPATH")):os.path.realpath=no_component_walk\n'
+            'descriptor_backend=hasattr(os,"O_PATH") or (sys.platform=="darwin" and hasattr(os,"O_EVTONLY") and hasattr(fcntl,"F_GETPATH"))\n'
+            'assert descriptor_backend,"audit proof requires a descriptor path backend"\n'
+            'os.path.realpath=no_component_walk\n'
             'try:\n'
             ' alias.unlink();alias.symlink_to(target);assert alias.read_bytes()\n'
             ' alias.unlink();alias.symlink_to(target.parent);list(alias.iterdir())\n'
@@ -184,16 +186,23 @@ def audit_fidelity_probe(base):
 
 def stop_fixture_process(proc, timeout=5):
     """Bound cleanup when descendants outside the process group retain pipes."""
+    diagnostics = []
     try:
         os.killpg(proc.pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
+    except PermissionError:
+        diagnostics.append('fixture cleanup: process group could not be signalled')
     try:
-        return proc.communicate(timeout=timeout)
+        stdout, stderr = proc.communicate(timeout=timeout)
+        return stdout or '', (stderr or '') + '\n'.join(diagnostics)
     except subprocess.TimeoutExpired:
         proc.stdout.close(); proc.stderr.close()
-        proc.wait(timeout=timeout)
-        return '', ''
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            diagnostics.append('fixture cleanup: process leader did not settle before the deadline')
+        return '', '\n'.join(diagnostics)
 
 
 class PristineFixture:

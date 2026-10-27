@@ -524,32 +524,6 @@ def op_analysis_inputs(args):
                                                                                  'analysis'))
     if missing:
         refuse('sharing_not_authorised', f'the analyst provider may not receive {missing}', {'missing': missing})
-    unresolved = [r for r in unresolved_work(study, plan, job)
-                  if not str(study.ledger()['requests'].get(r, {}).get('slot', '')).startswith(('analysis:', 'review:'))]
-    if unresolved:
-        refuse('participant_work_unresolved', 'owned participant work is unresolved; the inputs would omit or later '
-                                              'contradict it', {'unresolved': unresolved})
-    evidence.op_disclosure(argparse.Namespace(state_root=str(study.root), study=study.id, consumer='analysis'))
-    view = evidence_view(study, plan, revision, job)
-    if view['denominators']['first_impressions'] == 0:
-        refuse('zero_denominator', 'no usable first impression exists; there is no accepted evidence to synthesise')
-    assessments = assessments_of(study, args.assessments)
-    body = {'schema': 'focus-group/analysis-inputs', 'schema_version': SCHEMA_VERSION, 'evidence': view,
-            'evidence_sha256': sha(view), 'source_assessments': assessments,
-            'feedback': {'prior_review_rounds': prior_rounds(study, job)}}
-    inputs_sha = sha(body)
-    document_path = report_dir(study) / 'inputs' / f'{inputs_sha}.md'
-    record = {'schema_version': SCHEMA_VERSION, 'revision': revision, 'inputs_sha256': inputs_sha,
-              'evidence_sha256': body['evidence_sha256'], 'inputs': body}
-    raw_doc = inputs_document(dict(body, inputs_sha256=inputs_sha, study_revision=revision)).encode('utf-8')
-    record['document'] = {'path': str(document_path), 'sha256': digest(raw_doc)}
-    # Every cleared capture and accepted journey file, as a content-addressed copy the analyst's document-only brief
-    # may read by its declared path and hash (and the fidelity reviewer's round names).
-    material = material_files(study, plan, view)
-    files_dir = report_dir(study) / 'files'
-    record['files'] = [{'path': str(files_dir / context_name(key, name)), 'sha256': key}
-                       for key, (name, _) in sorted(material.items())]
-    record['record_sha256'] = sha(record)
     with study.locked():
         # Revalidate delegated authority and approval under the same lock that
         # protects the immutable inputs write.
@@ -564,6 +538,32 @@ def op_analysis_inputs(args):
                                             fg.ceiling(plan, study.ledger()))
         if locked_approval['state'] != 'approved':
             refuse('unapproved_revision', 'approval changed before analysis inputs were retained')
+        job = locked_job
+        unresolved = [r for r in unresolved_work(study, plan, job)
+                      if not str(study.ledger()['requests'].get(r, {}).get('slot', '')).startswith(('analysis:', 'review:'))]
+        if unresolved:
+            refuse('participant_work_unresolved', 'owned participant work is unresolved; the inputs would omit or later '
+                                                  'contradict it', {'unresolved': unresolved})
+        evidence.op_disclosure(argparse.Namespace(state_root=str(study.root), study=study.id, consumer='analysis'))
+        view = evidence_view(study, plan, revision, job)
+        if view['denominators']['first_impressions'] == 0:
+            refuse('zero_denominator', 'no usable first impression exists; there is no accepted evidence to synthesise')
+        assessments = assessments_of(study, args.assessments)
+        body = {'schema': 'focus-group/analysis-inputs', 'schema_version': SCHEMA_VERSION, 'evidence': view,
+                'evidence_sha256': sha(view), 'source_assessments': assessments,
+                'feedback': {'prior_review_rounds': prior_rounds(study, job)}}
+        inputs_sha = sha(body)
+        document_path = report_dir(study) / 'inputs' / f'{inputs_sha}.md'
+        record = {'schema_version': SCHEMA_VERSION, 'revision': revision, 'inputs_sha256': inputs_sha,
+                  'evidence_sha256': body['evidence_sha256'], 'inputs': body}
+        raw_doc = inputs_document(dict(body, inputs_sha256=inputs_sha, study_revision=revision)).encode('utf-8')
+        record['document'] = {'path': str(document_path), 'sha256': digest(raw_doc)}
+        # Retain each cleared capture and accepted journey as an addressed copy.
+        material = material_files(study, plan, view)
+        files_dir = report_dir(study) / 'files'
+        record['files'] = [{'path': str(files_dir / context_name(key, name)), 'sha256': key}
+                           for key, (name, _) in sorted(material.items())]
+        record['record_sha256'] = sha(record)
         (report_dir(study) / 'inputs').mkdir(parents=True, exist_ok=True, mode=0o700)
         files_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         try:

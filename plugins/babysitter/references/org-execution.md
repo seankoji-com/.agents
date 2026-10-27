@@ -182,9 +182,10 @@ PRs rotate at the start of each wake, so bounded API exhaustion cannot always st
 the last repository. A failed PR does not stop reconciliation/refill for other PRs.
 
 Retries derive counters and findings from the existing job and continuous ledger;
-no model-maintained maps are needed. Preserved local commits and dirty worktrees
-are handed back to the worker for fetch/integrate/revalidate, never reset to recover
-from ordinary head movement. Update and merge actions execute `merge-pr.sh` under
+no model-maintained maps are needed. Dirty worktrees and local heads that differ
+from the observed PR head block dispatch until the coordinator reconciles them;
+preserve their work and never reset them to recover from ordinary head movement.
+Update and merge actions execute `merge-pr.sh` under
 the same reservations. An update requires fresh gates; a merge command still needs
 an authoritative later lifecycle read. Unknown helper writes retain their holds.
 

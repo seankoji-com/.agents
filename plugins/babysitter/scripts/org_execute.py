@@ -1022,8 +1022,12 @@ def execute(report, api, host, jobs, config):
             requested_options = target.get('options', {})
             observed_options = receipt.get('options')
             if isinstance(observed_options, list):
+                require(all(isinstance(o, dict) and isinstance(o.get('id'), str)
+                            and 'value' in o for o in observed_options),
+                        'host-options-unreported-or-mismatched')
                 observed_options = {o['id']: o['value'] for o in observed_options}
-            require(observed_options == requested_options, 'host-options-unreported-or-mismatched')
+            require(isinstance(observed_options, dict) and observed_options == requested_options,
+                    'host-options-unreported-or-mismatched')
             outcome.update(task_id=receipt['taskId'], request_id=prepared['request_id'])
             jobs.record(prepared, {'kind': 'accepted', 'request_id': prepared['request_id'],
                 'host_task_id': receipt['taskId'], 'child_thread_id': receipt.get('childThreadId'),

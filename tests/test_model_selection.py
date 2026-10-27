@@ -902,6 +902,9 @@ class SelectionTests(unittest.TestCase):
         proposed = {'policy': {'model_selection_required': True}}
         with self.assertRaisesRegex(JobError, 'requires a proposed model_selection'):
             selection_plan_revision(current, proposed)
+        proposed.update(model_selection=self.record, model_selection_sha256='0' * 64)
+        with self.assertRaisesRegex(models.SelectionError, 'selection tampered or producing selection digest mismatch'):
+            selection_plan_revision(current, proposed)
 
     def test_real_routing_cli_no_config_uses_profiles_and_keeps_recommendations_separate(self):
         with tempfile.TemporaryDirectory() as temporary:

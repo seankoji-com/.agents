@@ -200,6 +200,36 @@ class SidecarRestTest(unittest.TestCase):
             except ProcessLookupError:
                 pass
 
+    def test_focus_fixture_cleanup_preserves_primary_errors_and_reports_unsettled_process(self):
+        from unittest.mock import Mock
+        from tests.focus_group_install_fixtures import stop_fixture_process
+        proc = Mock(pid=12345)
+        proc.communicate.side_effect = subprocess.TimeoutExpired('fixture', 0.1)
+        proc.wait.side_effect = subprocess.TimeoutExpired('fixture', 0.1)
+        primary = RuntimeError('original fixture failure')
+        with patch('tests.focus_group_install_fixtures.os.killpg', side_effect=PermissionError):
+            with self.assertRaises(RuntimeError) as caught:
+                try:
+                    raise primary
+                except RuntimeError:
+                    stdout, stderr = stop_fixture_process(proc, timeout=0.1)
+                    raise
+        self.assertIs(caught.exception, primary)
+        self.assertEqual(stdout, '')
+        self.assertIn('could not be signalled', stderr)
+        self.assertIn('did not settle', stderr)
+        proc.stdout.close.assert_called_once_with()
+        proc.stderr.close.assert_called_once_with()
+        proc.wait.assert_called_once_with(timeout=0.1)
+
+    def test_focus_fixture_cleanup_normalizes_empty_captured_output(self):
+        from unittest.mock import Mock
+        from tests.focus_group_install_fixtures import stop_fixture_process
+        proc = Mock(pid=12345)
+        proc.communicate.return_value = (None, None)
+        with patch('tests.focus_group_install_fixtures.os.killpg'):
+            self.assertEqual(stop_fixture_process(proc), ('', ''))
+
     def test_writes_are_refused_and_logged_without_bodies(self):
         secret_body = {'body': 'agent text that must not be logged'}
         status, _, _ = self.sidecar.request('POST', '/api/v3/repos/bench-org/bench-repo/issues/1/comments', secret_body)

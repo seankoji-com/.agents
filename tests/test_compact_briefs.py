@@ -122,6 +122,27 @@ class CompactInstalledTest(unittest.TestCase):
         case = self.make('imps/reviewer', source=source)
         self.assert_refusal(self.prepare(case, check=False), 'retention_manifest_source_changed')
 
+    def test_manifest_normalizers_agree_on_patch_minor_and_major_versions(self):
+        from tests.test_worker_retention import version_neutral_manifest
+        original = (ROOT / 'plugins/imps/plugin.json').read_bytes()
+        version = json.loads(original)['version']
+        major, minor, patch = map(int, version.split('.'))
+        baseline = compact_briefs._manifest_contract_hash(original, 'imps')
+        for bumped, allowed in ((f'{major}.{minor}.{patch + 1}', True),
+                                (f'{major}.{minor + 1}.0', False), (f'{major + 1}.0.0', False)):
+            with self.subTest(version=bumped):
+                raw = original.replace(f'"version": "{version}"'.encode(),
+                                       f'"version": "{bumped}"'.encode())
+                runtime_hash = compact_briefs._manifest_contract_hash(raw, 'imps')
+                self.assertEqual(runtime_hash, digest(version_neutral_manifest(raw)))
+                self.assertEqual(runtime_hash == baseline, allowed)
+        source = self.box.source_copy('imps')
+        path = source / 'plugins/imps/plugin.json'
+        path.write_bytes(original.replace(f'"version": "{version}"'.encode(),
+                                         f'"version": "{major}.{minor + 1}.0"'.encode()))
+        self.assert_refusal(self.prepare(self.make('imps/reviewer', source=source), check=False),
+                            'retention_manifest_source_changed')
+
     def make(self, worker='imps/investigator', *, compact=True, task_changes=None, job_changes=None,
              source=None, dependencies=None):
         plugin = worker.partition('/')[0]
@@ -345,6 +366,66 @@ class CompactInstalledTest(unittest.TestCase):
         self.edit_state(case, lambda state: state['stages'][0]['resources'].update(
             planning_snapshot={'rubrics': [descriptor]}))
         self.assert_refusal(self.prepare(case, check=False), 'compact_required_rubric_not_frozen')
+
+    def test_project_validates_coordinator_frozen_rubrics_before_transmission(self):
+        from core.jobs import build_brief
+        from shared.planning_review import seal
+        case = self.make('imps/reviewer')
+        job = self.box.state_of(case['job'])
+        rubric = self.box.private / 'coordinator-frozen-rubric.md'
+        rubric.write_text('Only this frozen private rubric is authorized.\n')
+        raw = rubric.read_bytes()
+        descriptor = {'path': str(rubric), 'sha256': digest(raw), 'bytes': len(raw)}
+        stage, task = job['stages'][0], job['tasks'][0]
+        stage['resources']['planning_snapshot'] = {'rubrics': [descriptor]}
+        full = build_brief(job, task, stage, 'fixture')
+        job['planning'] = {'snapshot': {'rubrics': [descriptor]}}
+        with self.assertRaisesRegex(JobError, 'planning record digest mismatch'):
+            compact_briefs.project(full, job, task)
+        job['planning']['snapshot'] = seal({'rubrics': [descriptor], 'private_coordinator_metadata': 'not transmitted'})
+        view = compact_briefs.project(full, job, task)
+        self.assertEqual(view['resources']['planning_snapshot']['rubrics'],
+                         [{'sha256': digest(raw), 'bytes': len(raw), 'text': raw.decode()}])
+        self.assertNotIn('private_coordinator_metadata', view['resources']['planning_snapshot'])
+        job['planning']['snapshot']['private_coordinator_metadata'] = 'drifted'
+        with self.assertRaisesRegex(JobError, 'planning record digest mismatch'):
+            compact_briefs.project(full, job, task)
+        for malformed in ('rubrics', {}, [None], [{}]):
+            with self.subTest(malformed=malformed):
+                job['planning']['snapshot'] = seal({'rubrics': malformed})
+                with self.assertRaisesRegex(JobError, 'compact_frozen_rubrics?_invalid'):
+                    compact_briefs.project(full, job, task)
+        job['planning']['snapshot'] = seal({'rubrics': [descriptor]})
+        rubric.write_bytes(raw + b'Drifted.')
+        with self.assertRaisesRegex(JobError, 'compact_frozen_rubric_invalid: compact_required_rubric_bytes_changed'):
+            compact_briefs.project(full, job, task)
+        rubric.unlink()
+        with self.assertRaisesRegex(JobError, 'compact_frozen_rubric_invalid: compact_required_rubric_descriptor_invalid'):
+            compact_briefs.project(full, job, task)
+
+    def test_package_rubric_read_race_is_a_controlled_job_error(self):
+        from core.jobs import build_brief
+        case = self.make('imps/reviewer')
+        job = self.box.state_of(case['job'])
+        stage, task = job['stages'][0], job['tasks'][0]
+        rubric = case['package'] / 'references/plan-review-rubric.md'
+        raw = rubric.read_bytes()
+        stage['resources']['planning_snapshot'] = {'rubrics': [
+            {'path': str(rubric), 'sha256': digest(raw), 'bytes': len(raw)}]}
+        full = build_brief(job, task, stage, 'fixture')
+        original = compact_briefs._regular
+        reads = 0
+        def disappearing(path, *args, **kwargs):
+            nonlocal reads
+            if Path(path) == rubric:
+                reads += 1
+                if reads == 2:
+                    raise FileNotFoundError('synthetic rubric deletion after retention validation')
+            return original(path, *args, **kwargs)
+        with mock.patch.object(compact_briefs, '_regular', side_effect=disappearing):
+            with self.assertRaisesRegex(JobError, 'retention_package_file_invalid: references/plan-review-rubric.md'):
+                compact_briefs.project(full, job, task)
+        self.assertEqual(reads, 2)
 
     def test_frozen_rubric_hash_is_admitted(self):
         rubric = self.packages['imps'][0] / 'references/plan-review-rubric.md'
