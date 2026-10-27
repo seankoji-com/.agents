@@ -1,84 +1,51 @@
 # Command-line reference
 
-There are two interfaces. `t3-plugins` manages the catalog and prints prompts for
-T3. `imps` is the evidence-state CLI used by the agent; it does not implement a task
-or run tests for you.
-
-For source installs, use `python3 bin/t3-plugins` in place of `t3-plugins`.
-Run `t3-plugins --help` or `t3-plugins COMMAND --help` for all options.
+Use the stable `$HOME/.local/bin/agents`. The repo-local `bin/agents` delegates
+operational commands to it. `bin/agents dev ...` explicitly selects that worktree.
+All helpers use Python 3.10+ and the standard library; TOML support needs 3.11+.
 
 ## Catalog commands
 
 | Command | Result |
 | --- | --- |
-| `list` | Print active bundled plugin names and descriptions; does not list installed versions |
-| `setup [PLUGIN]` | Install snapshots, worker bundles and skill adapters; omit the name for all active plugins |
-| `install [PLUGIN]` | Install snapshots and worker bundles, without skill adapters |
-| `path PLUGIN` | Print the active installed entry path |
-| `prompt PLUGIN [REQUEST…]` | Print a prompt to paste into T3; with no request, start its default workflow when defined, otherwise use its manifest picker |
-| `doctor [PLUGIN] [--project PATH]` | Check installed files and package currency, and probe whether this process can write learnings (a global check from any directory); `--project` also refuses a learnings root inside that project, as its plugin runs would. Omit the name for all plugins |
-| `activate PLUGIN VERSION` | Select an existing snapshot without migrating run state |
-| `uninstall PLUGIN [--version VERSION]` | Remove owned snapshot and bundle files, preserving local edits, overrides and state; refuses a version a live job pins, in any recorded state root |
-| `skills install [PLUGIN] --root PATH` | Install an adapter into one provider skill root |
-| `skills uninstall [PLUGIN] --root PATH` | Remove an unchanged owned adapter |
-| `resolve ROLE --capabilities FILE` | List available configured child-model candidates |
-| `agents list [PLUGIN]` | List installed workers with version, role, override status and integrity |
-| `agents show PLUGIN WORKER` | Print one worker's effective definition and provenance |
-| `agents enable-override WORKER_ID --base-digest DIGEST` | Turn on one worker override |
-| `agents disable-override WORKER_ID --base-digest DIGEST` | Turn it off again |
-| `--job JOB.json path PLUGIN` | Print the entry pinned by a job, not the active one |
-| `adopt --from-prefix OLD` | Keep a moved installation's identity after verifying its receipt |
+| `self-install [--source PATH] [--profile author|receiver]` | Explicitly validate/install resolver infrastructure; retain the previous installation |
+| `status` | Show source HEAD/status/ahead/behind, active pin, infrastructure/interpreter, pending recovery and last sync |
+| `permissions` | Print narrow native write grants; change no settings |
+| `discovery` | Owner-run reconciliation of native links after adding, renaming or deleting skills; install no package and change no source |
+| `validate-source` | Check source identity, canonical frontmatter/manifests and bootstrap contracts |
+| `start NAME` | Select a coherent source pin and return its body, manifest, package and registry paths |
+| `--source PATH start NAME` | Test an explicit author worktree for this invocation |
+| `resume PIN NAME` | Verify and reuse that exact immutable source pin |
+| `--pin PIN path NAME` | Print the pinned body path; never follow a moving current path |
+| `--job JOB.json path NAME` | Resolve only that job's exact source-backed dependency |
+| `adopt --from-source PATH` | Inventory/back up and adopt the existing source directory in place |
+| `sync` | Receive validated fast-forward source on a receiver; reject dirty/staged/ahead/diverged source |
+| `recover` | Resume the exact pending source/adoption transaction; refuse owner edits |
+| `recover --restore` | Restore only recorded receiver transaction bytes/ref changes |
+| `rollback PIN` | Keep a previously validated runtime selected without deleting newer source or pins |
+| `rollback follow-source` | Explicitly release the rollback hold for the next sync |
+| `receive enable|disable` | Manage the owned Linux systemd user timer; no shell-start fallback |
 
-Omit the plugin from a `skills` command to act on all bundled plugins.
+`start` returns JSON. Read `skill_file` and `manifest_file` before substantive
+workflow work, using `package_root`, `package_prefix` and `registry_root` for later
+helpers. The manifest routing contract is [shared](https://github.com/seankoji-com/.agents/blob/main/shared/manifest-routing.md).
+Single-file prose may declare a validated bootstrap exemption and needs no snapshot.
 
-Workflows with a manifest `default_operation` start that workflow from a bare
-command or unmatched request, using relevant conversation context. Their adapters
-do not present an operation menu. Other workflows declare 2 to 4 unique picker
-options. Remove declared standalone flags before matching the full request against
-the manifest routes in order; the first match wins. Without a match or default,
-ask the user to choose an operation. A bare command never defaults to `doctor`.
-
-`setup --root PATH` replaces the default skill roots. Repeat it for multiple roots.
-`setup --capabilities FILE` initializes routing from a saved T3 capabilities response.
-`setup --grant-learnings` also applies the proposed learning-directory grants after
-backing up provider configuration. See [routing](getting-started.md#model-routing)
-and [learnings](learnings.md#sandbox-grants) before using these optional flags.
-
-## Custom locations
-
-Pass `--prefix` **before** the command, or set `T3_PLUGINS_PREFIX` consistently:
-
-```sh
-t3-plugins --prefix /tmp/example-t3-plugins install imps
-t3-plugins --prefix /tmp/example-t3-plugins doctor imps
-t3-plugins --prefix /tmp/example-t3-plugins prompt imps doctor
-```
-
-Use a persistent writable directory for a permanent installation. State uses
-`XDG_STATE_HOME` separately; changing the package prefix does not move existing runs.
-
-Worker bundles go under the agents root, `~/.agents/agents/t3-plugins` by default.
-Change it with `--agents-root PATH` before the command or `T3_PLUGINS_AGENTS_ROOT`.
-Keep one agents root per prefix: installing into a prefix whose versions use another
-root fails with `agents_root_conflict`.
+Workflow commands `selection`, `agreement`, `planning-review`, `resolve` and
+`agents list|show` require `--pin PIN`; they execute/inspect that pin's code and
+worker definitions. Workflow job creation and evidence commands stay in its pinned
+package. These interfaces do not dispatch agents or select models themselves.
 
 ## Managed workers
 
-These two commands are read-only:
-
-```sh
-t3-plugins agents list babysitter
-t3-plugins agents show babysitter pr-maintainer
-```
-
-`list` prints one JSON line per worker: `id`, `version`, `role`, `override_status`
-(`disabled`, `enabled` or `stale`), `integrity` and `bundle_digest`. `show` adds the
-bundle and file paths, their hashes and the composed effective text.
+Use `agents --pin PIN agents list NAME` or `agents --pin PIN agents show NAME WORKER`
+to inspect the selected source's worker bundle, definition and integrity. New runs
+record effective worker definitions with the same package and source pin.
 
 Inspect the compact definition explicitly:
 
 ```sh
-t3-plugins agents show imps reviewer --compact
+agents --pin PIN agents show imps reviewer --compact
 ```
 
 The JSON response includes `definition`, its exact UTF-8 SHA-256 and byte count,
@@ -88,63 +55,23 @@ canonical v1 definition. Inspection grants no execution or read authority.
 
 ### Overrides and limits
 
-Worker limits and overrides live in `$XDG_CONFIG_HOME/t3-plugins/workers.json`, or
-`~/.config/t3-plugins/workers.json` when `XDG_CONFIG_HOME` is unset. A missing file
-means the defaults below. Routing stays in [`routing.json`](getting-started.md#model-routing).
-
-```json
-{
-  "schema_version": 1,
-  "max_live_workers": null,
-  "max_live_workers_by_provider": {},
-  "max_repair_cycles": 20,
-  "overrides": []
-}
-```
-
-| Field | Meaning |
-| --- | --- |
-| `max_live_workers` | `null` for no plugin cap, or a positive integer. T3 capacity still applies |
-| `max_live_workers_by_provider` | Optional positive limits keyed by exact live provider instance ID; omitted providers use only the global cap |
-| `max_repair_cycles` | Repairs after the initial attempt, a nonnegative integer; default `20` |
-| `overrides` | Records written by `enable-override` and `disable-override` |
-
-Booleans, fractions and unknown fields are rejected. To customize a worker:
-
-1. Write `<agents-root>/overrides/<plugin>/<worker>.md`. It must be a regular UTF-8
-   file, not a symlink, and contain the line `worker_id: <plugin>/<worker>`.
-2. Copy `bundle_digest` from `agents list` for the active version.
-3. Run `t3-plugins agents enable-override <plugin>/<worker> --base-digest DIGEST`.
-
-A file on disk does nothing until it is enabled. An enabled override that is missing
-or malformed fails rather than falling back to the default. After an upgrade the
-override shows `stale` and stays inactive until you enable it against the new
-digest. Overrides change wording only; they cannot grant authority or change
-runtime mode.
-
-A job snapshots these limits and the exact definition and override bytes when it
-is created. Later edits affect new jobs only. Bringing a change into an existing
-job needs a recorded plan revision, new briefs, and stales the affected acceptance.
+Explicit worker overrides remain owner-managed configuration under XDG config
+`agents/workers.json`. Their base digest must match the selected bundle. They do
+not replace the canonical skill body or add a second model-selection authority.
+Existing legacy overrides remain with their retained runtime until reconciled.
 
 ## Pinned job paths
 
-Inside a job, resolve every plugin through its pin:
-
-```sh
-t3-plugins --job ~/.local/state/t3-plugins/jobs/JOB_ID/job.json path babysitter
-```
-
-This prints the entry inside the pinned version directory after checking the
-package and bundle digests. It refuses a plugin the job did not declare and a
-package that changed. Plain `path` still prints the active `current` entry.
-A job helper run from another package refuses with `wrong executing package`; each
-pin in `job.json` stores the recovery command as `compatible_pinned_invocation`.
+`agents --job JOB.json path NAME` resolves the dependency named by that job and
+verifies its original source-backed package. It never substitutes a current
+installation. Old-format jobs use the inventoried `t3-plugins --job JOB.json path
+NAME` compatibility interface described below.
 
 The coordinator drives jobs with `shared/job_cli.py` and
 `shared/job_acceptance_cli.py` inside the pinned package. Like the imps CLI, they
 store and validate data; they never call a model or dispatch work. See
 [architecture](architecture.md#whole-jobs) for the model and the
-[jobs contract](https://github.com/seankoji-com/t3-plugins/blob/master/shared/agents/jobs-contract.md)
+[jobs contract](https://github.com/seankoji-com/.agents/blob/main/shared/agents/jobs-contract.md)
 for inputs.
 
 ### Compact worker transport
@@ -226,56 +153,55 @@ Whole jobs default to 20 repairs after their initial pass. Ralph's separate
 `--max-attempts` defaults to 20 total implementation attempts, including its first.
 Explicit configured limits and existing pinned jobs keep their own allowances.
 
-## Receipts and exit codes
+## Custom locations
 
-Installation, setup, removal and integrity checks print JSON receipts. Setup prints
-multiple lines, one per completed step. It is not a single all-catalog transaction;
-read earlier receipts when a later step fails, resolve the conflict and retry.
-`path`, `prompt` and `list` print text.
-
-| Exit | Catalog meaning |
-| --- | --- |
-| `0` | Command succeeded |
-| `1` | Integrity check failed, routing has no candidates, or setup retained an invalid routing config |
-| `2` | Invalid arguments, unreadable input, configuration error, a refused pin, or a version a live job still pins |
-| `4` | Installation refused because owned files were modified locally; back up edits before using `--force` |
-| `5` | Installation I/O error |
-
-A successful prompt command proves only that an entry exists. A successful catalog
-`doctor` proves installed integrity and currency, not model behavior or T3 readiness.
-The agent's `doctor` checks workflow prerequisites instead.
-
-`install --dry-run` previews snapshot installation; it does not preview skill setup.
-`uninstall PLUGIN --dry-run` previews removal. `--force` on installation overwrites
-modified owned files; on removal it deletes them. Back up edits before using it.
+`--source /absolute/worktree` is an explicit author-test selection. XDG state/data
+overrides must be absolute and keep mutable state outside the repository. The
+native discovery source remains `~/.agents`; a test worktree does not take it over.
 
 ## Inspect imps state
 
-Homebrew installs the `imps` executable. In a source checkout use
-`python3 plugins/imps/cli.py`. To use a selected snapshot's matching engine, obtain
-its entry with `t3-plugins path imps` and run `cli.py` in that directory.
+After resolving imps, invoke its returned pinned `package_root/cli.py` with
+`status`, `validate` or `report` and the recorded `--state-root`/`--run-id`.
+Whole-job status uses that same package's `shared/job_cli.py overview --compact`.
+Do not load a moving current package to inspect or mutate an older job.
 
-```sh
-imps status --run-id RUN_ID
-imps validate --run-id RUN_ID
-imps report --run-id RUN_ID
-```
+## Storage and recovery
 
-Pass `--state-root PATH` on every call when the run used a custom root. `status`
-reads stored observations; `validate` computes readiness against the current tree;
-`report` writes JSON and Markdown reports using that same validation.
+The author profile captures dirty/untracked managed assets and retains old pins.
+The receiver selects Git objects at the protected active commit. A shared kernel
+lock serializes launch/apply. Pending recovery refuses new starts; explicit old
+pins remain verifiable. Per-file discovery publication is atomic; an ordinary
+multi-file checkout is not. Status exposes source/runtime divergence.
 
-The CLI prints a JSON envelope with `ok`, `op`, `run_id` and either `data` or `error`.
-Exit codes are `0` success, `2` input/version, `3` conflict, `4` prohibited and `5`
-environment failure. **Exit 0 from `validate` means validation ran, not that the work
-is ready.** Read `data.ready`, `data.outcome` and the missing/failed/stale evidence.
+XDG state holds `agents/jobs`, `agents/snapshots`, `agents/locks`, protected
+`agents/control` and bounded logs. XDG data holds protected updater and retained
+legacy installations. No new mutable state belongs in `~/.agents`.
+No pins are garbage-collected or deemed abandoned from age/live flags.
 
-`snapshot` captures the current tree without a submission. The agent uses `init`,
-`check`, `evidence`, `review`, `child`, `waive`,
-`note`, `policy`, `remote` and `cancel` with schema-checked submissions. JSON goes
-through `--input FILE`; `--input -` reads stdin, or `--json OBJECT` takes inline JSON.
-Recipe commands are
-`recipe-scaffold`, `recipe-check` and `recipe-stamp`. See the
-[imps entry](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/imps/entry.md)
-and [submission schemas](https://github.com/seankoji-com/t3-plugins/tree/master/core/schemas)
-when integrating directly. Never edit stored run JSON to force completion.
+## Legacy compatibility
+
+`legacy inventory --root /absolute/old/registry` reads every indexed job and claim.
+Repeat `--root`; add `--job-file /absolute/job.json` for jobs outside those indexes.
+Use `--run-root /absolute/old/state` for retained version-1/2 gate runs. Their
+original package paths and an absolute-interpreter status command are recorded;
+they are not converted to new jobs or moved into the new source.
+The private report classifies resumable, terminal and missing/unknown jobs; it never
+deletes unknowns or infers test leaks. `legacy install-bridge --catalog-root
+/absolute/keg/libexec` retains the complete old runtime and installs a job-bound
+`t3-plugins` command independently of Brew.
+
+The bridge requires `t3-plugins --job INVENTORIED_JOB ...`, exact original pins
+and an allowed old-job operation. It cannot set up/install/register new workflows.
+Existing jobs, receipts, old schemas, registry paths and immutable history remain
+at their original locations. A retirement report needs owner review and zero
+resumable/unknown references before any compatibility path can be removed.
+
+Pre-#198 files that hold settings or exclusive state stay in use where they are
+until you move them. While only the old copy exists, the current runtime reads and
+writes it in place; once a current copy exists, it wins. This covers repository
+`.t3-plugins/<plugin>.json` and `routing.json`, the user `t3-plugins/routing.json`
+and `workers.json`, the installation marker and registry lock, lessons, standing
+model grants, planning-review subjects, the bug-report ledger, the tests-omg run
+index and the babysitter workspace and org-scan lock. Two records for one
+planning-review output are refused rather than merged.

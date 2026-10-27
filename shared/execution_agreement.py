@@ -19,6 +19,9 @@ MODEL_FIELDS = ('work', 'review_panel', 'work_replacements', 'review_replacement
 # its internal stages and older explicit helper clients still require admission.
 INTERNAL_OPS = {'agent-tuneup/audit': 'substantive', 'agent-tuneup/align': 'substantive',
                 'agent-tuneup/apply': 'continuation'}
+# Issue #198 moved each canonical body to skills/<plugin>/SKILL.md (packages still
+# install it as entry.md). These plugins keep their historical source entry.
+LEGACY_ENTRY = {'elephant-goldfish'}
 
 
 def inventory(root=None):
@@ -28,10 +31,13 @@ def inventory(root=None):
         if root is not None:
             manifest = json.loads((Path(root) / 'plugins' / plugin / 'plugin.json').read_text())
             require(set(manifest['operations']) == set(operations), 'unclassified manifest operation: ' + plugin)
+        # Source-relative, so a relocated package reports the same rows as the checkout.
+        entry = ('plugins/' + plugin + '/entry.md' if plugin in LEGACY_ENTRY
+                 else 'skills/' + plugin + '/SKILL.md')
         for op, row in operations.items():
             result.append({'operation': plugin + '/' + op, 'classification': row['classification'],
-                           'entry': 'plugins/' + plugin + '/entry.md',
-                           'route': 'plugins/' + plugin + '/' + row['route'],
+                           'entry': entry,
+                           'route': entry if row['route'] == 'entry.md' else 'plugins/' + plugin + '/' + row['route'],
                            'completion_evidence': row['completion_evidence']})
     if root is not None:
         require({p.parent.name for p in (Path(root) / 'plugins').glob('*/plugin.json')} == set(rows),

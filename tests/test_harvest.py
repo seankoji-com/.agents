@@ -50,8 +50,8 @@ class HarvestTest(unittest.TestCase):
         ]
         for value in blocked:
             self.assertTrue(screen(value, 'the-project-key', 'private-project'), value)
-        permitted = ['Keep task handles.', 'Use seankoji-com/t3-plugins',
-                     'See https://github.com/seankoji-com/t3-plugins',
+        permitted = ['Keep task handles.', 'Use seankoji-com/.agents',
+                     'See https://github.com/seankoji-com/.agents',
                      'See docs.example.invalid for public instructions.', 'Keep one lesson per stable ID.',
                      'Note: keep handles', 'Impact: retries stalled']
         for value in permitted:
@@ -88,7 +88,7 @@ class HarvestTest(unittest.TestCase):
 
     def test_fakes_publish_exact_drafts_and_remove_only_after_all_destinations_have_urls(self):
         prepared = prepare(self.loaded, self.drafts, project_slug='public/example')
-        issue = mock.Mock(return_value='https://github.com/seankoji-com/t3-plugins/issues/42')
+        issue = mock.Mock(return_value='https://github.com/seankoji-com/.agents/issues/42')
         pr = mock.Mock(side_effect=OSError('publication unavailable'))
         approved = verify_for_publication(self.loaded, prepared['draft'], prepared['shown_digest'],
                                          'approve ' + prepared['shown_digest'])
@@ -117,6 +117,17 @@ class HarvestTest(unittest.TestCase):
         self.assertEqual(result['status'], 'available', result)
         self.assertEqual(result['data']['entries'], [])
         issue.assert_called_once()
+
+    def test_pre_198_upstream_receipt_still_reconciles(self):
+        prepared = prepare(self.loaded, self.drafts[:1], project_slug='public/example')
+        lookalike = self.proposal(prepared, [dict(entry_id='lesson', destination='upstream',
+                                                  url='https://github.com/seankoji-com/t3-plugins-fork/issues/42')])
+        self.assertEqual(self.store.operate('harvest', lookalike)['status'], 'unavailable')
+        old = 'https://github.com/seankoji-com/t3-plugins/issues/42'
+        result = self.store.operate('harvest', self.proposal(prepared, [
+            dict(entry_id='lesson', destination='upstream', url=old)]))
+        self.assertEqual(result['status'], 'available', result)
+        self.assertEqual(result['data']['entries'], [])  # its only approved destination is published
 
     def test_changed_source_and_unapproved_destinations_cannot_delete_entries(self):
         prepared = prepare(self.loaded, self.drafts, project_slug='public/example')
@@ -148,7 +159,7 @@ class HarvestTest(unittest.TestCase):
     def test_normal_writes_cannot_forge_publication_receipts(self):
         before = self.store.operate()
         for entry_id in ('lesson', 'new'):
-            for destinations in ({}, {'upstream': 'https://github.com/seankoji-com/t3-plugins/issues/42',
+            for destinations in ({}, {'upstream': 'https://github.com/seankoji-com/.agents/issues/42',
                                      'agents': 'https://github.com/public/example/pull/7'}):
                 result = self.store.operate('write', {'entry': {
                     'id': entry_id, 'summary': 'Retain handles', 'failure': 'Observed failure',

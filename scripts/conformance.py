@@ -37,10 +37,11 @@ PATH_SEGMENT = re.compile(r'[A-Za-z0-9][A-Za-z0-9._+-]*')
 
 
 def state_root() -> Path:
-    explicit = os.environ.get('T3_PLUGINS_STATE_ROOT')
+    explicit = os.environ.get('AGENTS_STATE_ROOT')
     if explicit:
         return Path(explicit).expanduser()
-    return Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local' / 'state') / 't3-plugins' / 'imps'
+    # Same default as core.store.env_state_root('imps'), where the gate writes runs.
+    return Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local' / 'state') / 'agents' / 'jobs' / 'imps'
 
 
 def git(cwd, *args):
@@ -66,8 +67,8 @@ def setup(args):
     for name, case in CASES['cases'].items():
         git(dest, 'checkout', '-q', '-b', case['branch'], 'main')
         policy = dict(case['policy'], model_preferences=CASES['model_preferences'])
-        (dest / '.t3-plugins').mkdir(exist_ok=True)
-        (dest / '.t3-plugins' / 'imps.json').write_text(json.dumps({'schema_version': 1, 'policy': policy}, indent=2) + '\n')
+        (dest / '.agents').mkdir(exist_ok=True)
+        (dest / '.agents' / 'imps.json').write_text(json.dumps({'schema_version': 1, 'policy': policy}, indent=2) + '\n')
         git(dest, 'add', '-A')
         git(dest, 'commit', '-qm', f'conformance policy: {name}')
     git(dest, 'checkout', '-q', 'main')
@@ -159,11 +160,14 @@ def collect(args):
         raise SystemExit('--repeat counts from 1; --interventions and --elapsed cannot be negative')
     run_dir = state_root() / 'runs' / args.run_id
     state = json.loads((run_dir / 'run.json').read_text())
-    prefix = Path(os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins')).expanduser()
-    cli = prefix / 'imps' / 'current' / 'core' / 'cli.py'
+    # Source-pinned runs keep their package outside any moving `current`; --package names it.
+    prefix = Path(os.environ.get('AGENTS_PREFIX', '~/.local/share/agents')).expanduser()
+    package = Path(args.package).expanduser() if args.package else prefix / 'imps' / 'current'
+    cli = package / 'core' / 'cli.py'
     if not cli.is_file():
-        raise SystemExit(f'no installed imps core at {cli}; set T3_PLUGINS_PREFIX to the install prefix')
-    out = subprocess.run([sys.executable, str(cli), 'report', '--run-id', args.run_id], capture_output=True, text=True)
+        raise SystemExit(f'no installed imps core at {cli}; pass the run package with --package')
+    out = subprocess.run([sys.executable, str(cli), 'report', '--state-root', str(state_root()), '--run-id', args.run_id],
+                         capture_output=True, text=True)
     try:
         envelope = json.loads(out.stdout)
     except json.JSONDecodeError:
@@ -244,6 +248,7 @@ def main(argv=None):
         p.add_argument('--' + name, required=True)
     p.add_argument('--repeat', type=int, required=True)
     p.add_argument('--transcript')
+    p.add_argument('--package', help="the run's imps package directory (default: AGENTS_PREFIX/imps/current)")
     p.add_argument('--elapsed', type=float)
     p.add_argument('--interventions', type=int, default=0)
     p.add_argument('--note')

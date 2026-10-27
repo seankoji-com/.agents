@@ -37,15 +37,15 @@ owned `<plugin>.md.pre-<old-version>` backup before replacing the active file.
 Never delete backups by glob.
 
 Only a `+g<sha>` installation permits upstream checks. When `gh` is available,
-look up each `seankoji-com/t3-plugins#N` with `gh api repos/seankoji-com/t3-plugins/issues/N`.
+look up each `seankoji-com/.agents#N` with `gh api repos/seankoji-com/.agents/issues/N`.
 If it is closed as completed, retrieve the closing commit from the issue timeline
-(`gh api --paginate repos/seankoji-com/t3-plugins/issues/N/timeline`). Confirm it is
+(`gh api --paginate repos/seankoji-com/.agents/issues/N/timeline`). Confirm it is
 the commit for the current closing event, not an earlier close before a reopening.
-Then call `gh api repos/seankoji-com/t3-plugins/compare/CLOSING_COMMIT...BUILD_SHA`.
+Then call `gh api repos/seankoji-com/.agents/compare/CLOSING_COMMIT...BUILD_SHA`.
 Pass fixture-shaped observations to `maintain`:
 
 ```json
-{"expected":"loaded revision","states":[{"upstream":"seankoji-com/t3-plugins#123",
+{"expected":"loaded revision","states":[{"upstream":"seankoji-com/.agents#123",
 "state":"closed","state_reason":"completed","closing_commit":"40 hex characters",
 "compare_base":"same closing commit","compare_head":"installed build suffix",
 "compare_status":"ahead"}],"remove":[],"amend":[]}
@@ -57,7 +57,7 @@ installations skip this entire lookup, without calling gh, and report the skip.
 The model's current-instruction review still applies. A failure leaves the active
 file unchanged and reports the proposal. Versions always use installed manifest
 labels. `write` takes `{"entry":{"id":"stable-id","summary":"one line",
-"failure":"observed failure","upstream":"seankoji-com/t3-plugins#123"}}`.
+"failure":"observed failure","upstream":"seankoji-com/.agents#123"}}`.
 Authorship is immutable; validation and maintenance versions are separate.
 
 ## Harvest

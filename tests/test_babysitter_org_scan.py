@@ -92,6 +92,15 @@ class FixtureAPI:
 
 
 class ClassificationTest(unittest.TestCase):
+    def test_default_lock_dir_keeps_a_pre_198_one_until_moved(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'XDG_STATE_HOME': temp}):
+            state = Path(temp)
+            self.assertEqual(scan.default_state_dir(), state / 'agents/jobs/babysitter/org-scan')
+            (state / 't3-plugins/babysitter/org-scan').mkdir(parents=True)
+            self.assertEqual(scan.default_state_dir(), state / 't3-plugins/babysitter/org-scan')
+            (state / 'agents/jobs/babysitter/org-scan').mkdir(parents=True)
+            self.assertEqual(scan.default_state_dir(), state / 'agents/jobs/babysitter/org-scan')
+
     def row(self, node):
         return scan.classify(node, FixtureAPI([], {}))
 

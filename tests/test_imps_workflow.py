@@ -15,15 +15,19 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from support import source_entry
+
+from support import skill_manifest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tests.support import CoreTestCase  # noqa: E402
 from tests.test_model_ids import MODEL_ID  # noqa: E402
 
 PLUGIN = ROOT / 'plugins' / 'imps'
-ENTRY = PLUGIN / 'entry.md'
+ENTRY = source_entry(PLUGIN)
 JOBS_REF = PLUGIN / 'references' / 'jobs.md'
-MANIFEST = json.loads((PLUGIN / 'plugin.json').read_text())
+MANIFEST = skill_manifest(PLUGIN / 'plugin.json')
 OPERATIONS = ['doctor', 'run', 'resume', 'status', 'cancel', 'verification-init', 'blast-radius', 'audit',
               'issues', 'prs', 'checklist', 'discussion']
 PERSPECTIVES = {'solution-architect', 'grumpy-engineer', 'sre', 'business-analyst', 'ux-designer'}
@@ -68,9 +72,9 @@ class ImpsRoutingTest(unittest.TestCase):
     def test_prs_resolves_babysitter_through_the_job_pin(self):
         entry, jobs = ENTRY.read_text(), JOBS_REF.read_text()
         prs = entry[entry.index('**prs**'):]
-        self.assertIn('t3-plugins --job JOB path babysitter', prs)
-        self.assertNotIn('`t3-plugins path babysitter`', entry)
-        self.assertIn('t3-plugins --job JOBS/JOB/job.json path babysitter', jobs)
+        self.assertIn('agents --pin PIN --job JOB path babysitter', prs)
+        self.assertNotIn('`agents path babysitter`', entry)
+        self.assertIn('agents --job JOBS/JOB/job.json path babysitter', jobs)
         self.assertIn('{"key": "imps", "plugin": "imps"}', jobs)
 
     def test_entry_loads_only_the_coordination_contract_and_selected_files(self):
@@ -95,7 +99,7 @@ class ImpsRoutingTest(unittest.TestCase):
             self.assertIn('direct', text.lower(), marker)
             for launch in ('delegate_task', 'prepare', 'create'):
                 self.assertNotIn(launch, text, marker)
-        self.assertIn('doctor and status stay direct', entry)
+        self.assertIn('doctor/status stay direct, without jobs or agents', entry)
         self.assertIn('authored facts need review', entry)
         self.assertIn('never create a job or launch an agent', ' '.join(JOBS_REF.read_text().split()))
 

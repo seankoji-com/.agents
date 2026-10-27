@@ -119,7 +119,8 @@ def check_page(path: Path, root: Path, anchor_cache: dict) -> list:
 
 def check(root=ROOT):
     errors = []
-    pages = [*root.glob('*.md'), *(root / 'docs').rglob('*.md'), *(root / 'plugins').rglob('*.md')]
+    pages = [*root.glob('*.md'), *(root / 'docs').rglob('*.md'), *(root / 'plugins').rglob('*.md'),
+             *(root / 'skills').rglob('*.md'), *(root / 'roles').rglob('*.md'), *(root / 'references').rglob('*.md')]
     anchor_cache = {}
     for path in sorted(pages):
         errors.extend(check_page(path, root, anchor_cache))
@@ -128,7 +129,9 @@ def check(root=ROOT):
         name = meta['name']
         if not (root / 'docs/plugins' / f'{name}.md').is_file():
             errors.append(f'{name}: missing user guide')
-        entry = manifest.parent / meta['entry']
+        entry = root / 'skills' / name / 'SKILL.md'
+        if not entry.is_file():
+            entry = manifest.parent / meta['entry']
         if len(entry.read_text().split()) >= 1500:
             errors.append(f'{name}: entry exceeds 1,500-word budget')
     return errors

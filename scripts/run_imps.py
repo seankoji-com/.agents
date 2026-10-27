@@ -9,7 +9,7 @@ import install
 
 
 def main():
-    prefix = Path(os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins')).expanduser()
+    prefix = Path(os.environ.get('AGENTS_PREFIX', '~/.local/share/agents')).expanduser()
     current = prefix / 'imps' / 'current'
     if current.exists() or current.is_symlink():
         try:
@@ -19,7 +19,7 @@ def main():
             matches = False
         if not matches:
             print('imps: installed snapshot differs from this CLI package; '
-                  'run t3-plugins install imps, then t3-plugins doctor imps. '
+                  'run agents start imps, then its doctor operation. '
                   'No installed files were changed.', file=sys.stderr)
     cli = catalog.ROOT / 'plugins' / 'imps' / 'cli.py'
     os.execv(sys.executable, [sys.executable, str(cli), *sys.argv[1:]])

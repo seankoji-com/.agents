@@ -52,6 +52,15 @@ EXTENSION_V2_REVISION = '32bf69d9d5a2db7cb87be3e196110ead32214835'
 EXTENSION_V2_PARENT = '1bc352ec059a80799bc9881dcb2f222d910fffe3'
 EXTENSION_V2_SOURCE_PATHS = {'shared/agents/reviewer-standard.md'}
 EXTENSION_V2_PACKAGE_PATHS = {'shared/workflow-recovery.md'}
+# Issue #198: the recovery command in jobs-contract.md names `agents`; manifests move
+# their descriptions to skills/<name>/SKILL.md. Pinned to the #198 merge commit, which
+# lands on master as a merge commit so this revision stays reachable.
+EXTENSION_V3 = ROOT / 'tests/fixtures/worker-retention-extension-v3.json'
+EXTENSION_V3_HASH = 'd38b6415dcfa73301ba90fbf3eba19ccb49889e52666e258843950f09cf15b7e'
+EXTENSION_V3_REVISION = 'f76e352df2d36e90eb9d49d1e46c8d9013a778f6'
+EXTENSION_V3_PARENT = '32bf69d9d5a2db7cb87be3e196110ead32214835'
+EXTENSION_V3_SOURCE_PATHS = {'shared/agents/jobs-contract.md'}
+EXTENSION_V3_PACKAGE_PATHS = {'shared/manifest-routing.md'}
 SCHEMA_HASH = 'e317cf397ab51acef93d39469280370e1f5676bcf2dcfe08d0c32e4db635f29f'
 PACKAGE_ADDITIONS = {'shared/agents/worker-retention.json',
                      'shared/agents/worker-retention.schema.json',
@@ -137,6 +146,17 @@ def extension_v2():
     return value
 
 
+def extension_v3():
+    raw = EXTENSION_V3.read_bytes()
+    if sha(raw) != EXTENSION_V3_HASH:
+        raise ValueError('third retention extension changed; reassess the exact base revision')
+    value = json.loads(raw)
+    if (value.get('source_revision') != EXTENSION_V3_REVISION
+            or value.get('parent_source_revision') != EXTENSION_V3_PARENT):
+        raise ValueError('third retention extension revision chain changed')
+    return value
+
+
 def git_source(revision, row):
     raw = git_blob(revision, row['path'])
     if row['kind'] == 'composer-framing':
@@ -176,9 +196,9 @@ def changed_paths(before, after):
 
 def current_generation():
     frozen = baseline()
-    addenda = [extension(), extension_v2()]
-    source_paths = [EXTENSION_SOURCE_PATHS, EXTENSION_V2_SOURCE_PATHS]
-    package_paths = [EXTENSION_PACKAGE_PATHS, EXTENSION_V2_PACKAGE_PATHS]
+    addenda = [extension(), extension_v2(), extension_v3()]
+    source_paths = [EXTENSION_SOURCE_PATHS, EXTENSION_V2_SOURCE_PATHS, EXTENSION_V3_SOURCE_PATHS]
+    package_paths = [EXTENSION_PACKAGE_PATHS, EXTENSION_V2_PACKAGE_PATHS, EXTENSION_V3_PACKAGE_PATHS]
     source_map = {row['source_id']: row for row in frozen['sources']}
     changed = {}
     covered = set()
@@ -1031,7 +1051,11 @@ class WorkerRetentionTest(unittest.TestCase):
                 if plugin == 'agent-tuneup':
                     expected.update(INVENTORY_ADDITIONS)
                 files = {r['path']: r for r in receipt['files']}
-                self.assertEqual(set(files) - expected, PACKAGE_ADDITIONS)
+                # Since #198 packages derive entry.md and SKILL.md from the canonical
+                # skills/<name>/SKILL.md; additions tracked at the pinned revision are in `expected`.
+                derived = ({'SKILL.md', 'entry.md'} - expected if (ROOT / 'skills' / plugin / 'SKILL.md').is_file()
+                           else set())
+                self.assertEqual(set(files) - expected, (PACKAGE_ADDITIONS - set(current_tracked)) | derived)
                 self.assertEqual(expected - set(files), set())
                 registry.verify_package_files(package, receipt)
                 for path in PACKAGE_ADDITIONS:

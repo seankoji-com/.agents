@@ -387,6 +387,13 @@ def positive(value):
     return number
 
 
+def default_state_dir():
+    # Old and new sweeps must share one per-org overlap lock until a pre-#198 one is moved.
+    state = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state'))
+    current, legacy = state / 'agents/jobs/babysitter/org-scan', state / 't3-plugins/babysitter/org-scan'
+    return legacy if legacy.exists() and not current.exists() else current
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--org', required=True)
@@ -427,7 +434,7 @@ def main(argv=None):
         parser.error('--run-config requires --execute')
     if args.bridge:
         parser.error('--bridge requires --execute')
-    directory = args.state_dir or Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 't3-plugins/babysitter/org-scan'
+    directory = args.state_dir or default_state_dir()
     try:
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         with (directory / (args.org + '.lock')).open('a') as lock:

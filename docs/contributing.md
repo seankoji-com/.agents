@@ -40,7 +40,7 @@ Do not add a test that merely repeats a constant from the implementation.
 
 ## Work on the site
 
-Read [the design system](https://github.com/seankoji-com/t3-plugins/blob/master/DESIGN.md)
+Read [the design system](https://github.com/seankoji-com/.agents/blob/main/DESIGN.md)
 before changing layout or styling. Use its existing colour, type and spacing tokens.
 
 ```sh

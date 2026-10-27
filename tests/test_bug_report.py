@@ -45,6 +45,15 @@ def problem(pid='p1', outcome='t3-defect'):
 
 
 class Reporting(unittest.TestCase):
+    def test_default_root_keeps_a_pre_198_ledger_until_moved(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'XDG_STATE_HOME': temp}):
+            state = Path(temp)
+            self.assertEqual(ledger.default_state_root(), state / 'agents/jobs/bug-report')
+            (state / 't3-plugins/bug-report').mkdir(parents=True)
+            self.assertEqual(ledger.default_state_root(), state / 't3-plugins/bug-report')
+            (state / 'agents/jobs/bug-report').mkdir(parents=True)
+            self.assertEqual(ledger.default_state_root(), state / 'agents/jobs/bug-report')
+
     def setUp(self):
         self.tmp = private_fixture()
         self.addCleanup(self.tmp.cleanup)
@@ -521,13 +530,13 @@ class Installed(unittest.TestCase):
             env={**os.environ,'HOME':temp,'XDG_STATE_HOME':str(root/'state'),
                  'XDG_CONFIG_HOME':str(root/'config'),'CODEX_HOME':str(root/'codex')}
             def cli(*args):
-                p=subprocess.run([sys.executable,str(ROOT/'bin/t3-plugins'),'--prefix',str(prefix),
+                p=subprocess.run([sys.executable,str(ROOT/'scripts/catalog.py'),'--prefix',str(prefix),
                                   '--agents-root',str(agents),*args],capture_output=True,text=True,env=env,timeout=30)
                 self.assertEqual(p.returncode,0,p.stdout+p.stderr)
                 return p.stdout
             self.assertIn('bug-report',cli('list'))
             cli('setup','bug-report','--root',str(skills))
-            adapter=(skills/'t3-bug-report/SKILL.md').read_text()
+            adapter=(skills/'bug-report/SKILL.md').read_text()
             self.assertIn('bug-report',adapter)
             self.assertIn('use relevant current conversation context',adapter)
             self.assertNotIn('Do nothing until the owner answers',adapter)

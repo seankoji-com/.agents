@@ -1,84 +1,78 @@
 # Troubleshooting
 
-Find the symptom, run the check, apply the fix. If nothing here matches,
-[report a bug](#report-a-bug) with the exact output.
+Use the exact error and identities from `agents status`. Preserve private logs
+locally; redact paths, credentials and transcripts before reporting a bug.
 
 ## The agent cannot read the entry
 
-Run `t3-plugins path PLUGIN` on the machine where the provider runs tools, and check
-that the path is inside the folders it can read. If not, install under a
-[custom prefix](getting-started.md#paths-and-remote-environments) it can reach. An
-install on your laptop doesn't put files on a remote provider's machine.
+Run `agents start NAME` on the machine running provider tools. Inspect its
+`skill_file`, `manifest_file`, `package_root` and absolute `interpreter`.
+A local install cannot provide files to a remote provider. See
+[custom locations](cli.md#custom-locations).
 
 ## `doctor` reports an outdated snapshot
 
-`brew upgrade` updates the package but not your installed snapshots or skills. Run
-`t3-plugins setup` after every upgrade. `doctor` compares each snapshot with the
-bundled package and reports `snapshot_outdated` when they differ, including after an
-intentional rollback. The packaged `imps` command warns too, without changing files.
+A new invocation selects current author source; an existing job keeps its pin.
+That difference is expected after edits. `agents status` reports source and installed
+infrastructure separately. Ordinary body/helper edits need no installation.
+Infrastructure changes require explicit `agents self-install` after review.
 
 ## `doctor` reports modified or missing files
 
-The terminal `doctor` checks the installed files. Look at the files it names before
-reinstalling. Copy any edits you want to keep, then run `t3-plugins install PLUGIN
---force` to overwrite that snapshot. The agent's `$t3-PLUGIN doctor` is a different
-check: it covers workflow prerequisites and T3 capabilities.
+A pin or installed resolver integrity failure is a refusal, not permission to
+overwrite it. Preserve the evidence and restore the exact trusted dependency.
+Never edit an immutable package or substitute current source for an older job.
 
 ## The skill is missing from the slash menu
 
-Check three things: the skill is in the folder your provider reads (see
-[slash commands](slash-commands.md)), **Show skills in slash menu** is on, and you
-restarted the agent session after `setup`. Custom provider homes use their own
-folders. Meanwhile, `t3-plugins prompt PLUGIN OPERATION` prints a line you can paste
-instead.
+Check the provider's discovery root, explicit skill mention and session refresh in
+[slash commands](slash-commands.md). After adding, renaming or deleting a skill,
+the owner runs `agents discovery`. An unowned destination collision needs
+reconciliation; never delete a native skill root to make installation succeed.
+Verify built-in-name collisions, including `plan`, in a fresh session.
 
 ## A T3 task or watch tool is missing
 
-Note the T3 build and the missing tool, and have the agent list T3's live
-capabilities. Work the playbook allows to run directly can continue. A required
-independent review can't be replaced by the agent reviewing its own output, and the
-agent must not start another provider's CLI to stand in for a missing T3 task tool.
+Record the T3 build and missing tool; discover live capabilities. Authorized direct
+work may continue. A required independent review remains blocked. Do not substitute
+another provider's CLI or a polling process for unavailable host tools.
 
 ## imps is blocked after interruption
 
-Resume in the same thread with the recorded run ID and state root. Reconcile child
-handles, verify uncertain stops and collect missing evidence. The process lock keeps
-submissions atomic; it does not decide which agent should perform the work.
-Do not run two agents against the same working tree.
-
-For state major version 1, activate the previous installed imps package and use its
-entry to inspect, resume or cancel the run. See [previous runs](plugins/imps.md#previous-runs).
-Do not change the state version or try to convert it by editing JSON.
+Resume using the recorded job/run ID, state root and pinned package. Reconcile
+owned child handles and uncertain stops before launching replacements.
+Do not edit state versions, acceptance receipts or terminal flags.
 
 ## Homebrew has an older catalog
 
-Check with `t3-plugins list`: no `ralph` means you have v0.4.0 or earlier. Run
-`brew update && brew upgrade t3-plugins`, then `t3-plugins setup`. On a
-[HEAD install](getting-started.md#homebrew-release-channel), run
-`brew upgrade --fetch-HEAD t3-plugins` instead; plain `brew upgrade` doesn't check it for
-new commits. A GitHub release and its
-tap formula update are separate steps, so a new release can take a while to reach
-`brew`.
+Homebrew is the retained legacy channel. New source work uses the reviewed
+`.agents` checkout and stable launcher. Keep the tap installable for unmigrated
+hosts. Remove this project's local keg only after the independent bridge,
+interpreter and an actual old-job resume have passed. See
+[legacy compatibility](cli.md#legacy-compatibility).
 
 ## Setup stopped partway through
 
-Setup prints one receipt per completed step and stops on a conflict. An existing
-skill directory without a valid ownership marker, edited generated files or a
-symlinked root can cause refusal. Preserve the conflicting files and follow the
-[adapter recovery steps](slash-commands.md#ownership-and-removal), then retry.
-Do not delete a whole skill root or use snapshot `--force` to solve a skill conflict.
+Run `agents status` and inspect the pending transaction. Use `agents recover`
+for its recorded continuation, or `agents recover --restore` for a receiver
+transaction's exact recorded restore. Adoption recovery is a continuation.
+If a path contains owner edits, recovery stops; preserve and reconcile those
+edits before retrying. Never reset, clean, stash or delete the source directory.
 
 ## Learnings report `unavailable` with a denied write
 
 A reason starting "the sandbox or filesystem permissions deny" has two possible
-causes, and each has its own fix. The plugin still finishes its work and reports the
+causes, and each has its own fix. The skill still finishes its work and reports the
 proposed lesson.
 
-- **The provider's sandbox doesn't allow the learnings folder.** Run
-  `t3-plugins setup --grant-learnings`, or add the grant the reason names. If setup
-  returns `status: manual`, your provider config is a symlink, usually into a dotfiles
-  repository. Add the printed `snippet` to the printed `target` in that repository and
-  sync; editing through the link gets overwritten.
+- **The provider's sandbox doesn't allow the learnings folder.** Lessons live under
+  `agents/jobs/learnings` in XDG state. `agents permissions` prints the narrow native
+  grants without changing settings; add them through the provider configuration's
+  owner, at its dotfiles source when it is managed there. Only `agents/jobs`,
+  `agents/snapshots` and `agents/locks` belong in agent-write grants; keep updater,
+  launcher, ownership receipts, active records and service units protected. Lessons
+  still under `t3-plugins/learnings` keep the `--grant-learnings` grant a pre-#198
+  setup applied until they are moved.
 - **Ordinary filesystem permissions or a read-only mount.** A sandbox grant can't fix
   these. Check who owns the state root and the learnings folder, their permission
   bits, and whether the mount is read-only, then fix whichever blocks your user.
@@ -88,70 +82,56 @@ lessons to the project or a temporary folder, and don't turn the sandbox off.
 
 ## Resume a job after an interruption
 
-Ask the same workflow to `resume` with the job ID, in the same thread when you can.
-The agent first resolves the pinned entry with
-`t3-plugins --job ~/.local/state/t3-plugins/jobs/JOB_ID/job.json path PLUGIN` and loads
-that one, even if `current` has moved. It then reads the job overview, checks every
-recorded task handle with `task_status`, and only then acts. A missing reply is never
-a reason to start the same work again. `status` prints the overview without changing
-anything.
-
-The overview lists every stage, requirement coverage, the current stage, open
-decisions, blockers, task handles and `fallback: direct (<reason>)` markers. It does
-not read worker transcripts.
+Use `agents --job /absolute/JOB.json path NAME` for a source-backed job.
+Inventoried old-format jobs use `t3-plugins --job /absolute/JOB.json path NAME`.
+Load that exact body, read the compact overview and reconcile recorded task
+handles. A missing reply does not justify relaunching work. `status` changes no
+observations. See [pinned job paths](cli.md#pinned-job-paths).
 
 ## A job is blocked
 
-| Report | Meaning | Next step |
-| --- | --- | --- |
-| `uncertain_dispatch` | A launch had no clear answer after two same-ID retries | Find the task in T3. Nothing replaces it until it is proven absent or stopped |
-| `capacity_deferred` | T3 refused the launch while this job had live tasks | Wait; the retry follows the next completion notification from a task this job owns |
-| `attempt_budget_exhausted` | The stage used its initial attempt and every repair | Choose in the picker: raise the limit, narrow the work or stop |
-| `undeclared_expansion` | The change adds work, widens authority or weakens a requirement | Answer the picker question; the agent records your exact words |
-| `required_review_unavailable`, or an adverse review | No approving reviewer on another known lineage | Configure a reviewer in routing; self-review cannot replace it |
-| `stale_evidence` or `dependency_stale` | Inputs, pins or an earlier stage changed after acceptance | Let the agent repair and accept the stage again |
-| `pin_mismatch` (`wrong executing package` or a changed pin) | A helper ran from a package the job did not pin | Load the entry printed by `--job JOB path PLUGIN` |
-| `pin_mismatch: legacy package has no worker bundle` | The active package predates worker bundles | Activate a listed version that has bundles, or run `t3-plugins setup PLUGIN` |
-| a rejected result | The worker returned prose, a partial object or oversize output | It counts as a failed attempt; results are never truncated or guessed |
+| Report | Next step |
+| --- | --- |
+| `uncertain_dispatch` | Reconcile the retained host handle; do not replace uncertain work |
+| `capacity_deferred` | Continue on a completion notification from owned work |
+| `attempt_budget_exhausted` | Obtain an explicit owner decision before raising limits |
+| `undeclared_expansion` | Record an owner decision for the added scope |
+| `required_review_unavailable` | Restore the selected reviewer; self-review cannot replace it |
+| `stale_evidence`, `dependency_stale` | Recheck the changed revision and affected dependencies |
+| `pin_mismatch` | Restore the exact retained package/bundle, never switch silently |
+| Rejected result | Repair the schema/transport; never truncate or infer a result |
 
-Blocked stages keep their counters. Resume, a new model or a replacement task never
-resets them.
+Resume or replacement never resets counters.
 
 ## Uninstall says a version is still in use
 
-`version_referenced` means a live or resumable job pins that package or worker
-bundle. Uninstall checks `$XDG_STATE_HOME/t3-plugins/jobs` and every state root
-recorded in `<agents-root>/job-index.json` when a job was created, including custom
-`--state-root` paths. Finish, cancel or discard the job first; both keep its artifacts.
-
-Uninstall also refuses when that index is corrupt, or when a recorded job's state is
-missing or unreadable and the job was never cancelled or discarded. Restore the state
-root, or repair the index entry if you deleted that job deliberately.
+Do not retire a compatibility path while any resumable or missing/unknown reference
+remains. The private inventory retains exact legacy jobs, claims, packages and
+stored recovery commands. Age, absent files and live flags alone prove no
+abandonment. Retirement requires an owner-reviewed zero-reference report.
 
 ## `doctor` reports a worker bundle or job pin problem
 
-`worker_bundle_missing` means the package was installed before bundles existed: run
-`t3-plugins setup PLUGIN`. `worker_bundle_digest_mismatch` and other bundle errors mean
-the bundle no longer matches its receipt; reinstall rather than editing it.
-`job_*` errors name a live job whose pinned package or bundle is missing, changed or
-corrupt. Restore that version, or cancel the job. An identity conflict after moving a
-prefix needs `t3-plugins adopt --from-prefix OLD`.
+Restore the exact version and integrity receipt named by the job. A package that
+predates worker bundles retains its original capabilities; migration does not
+invent a new bundle or convert its state. Keep the old runtime until references
+permit retirement.
 
 ## A worker override is ignored
 
-`agents list` shows `stale` after an upgrade: the override was enabled against the
-previous bundle digest. Review your file against the new definition from
-`agents show`, then enable it again with the new `bundle_digest`. Running jobs keep
-the override text they started with. See [overrides and limits](cli.md#overrides-and-limits).
+Overrides are bound to the selected bundle digest. Inspect
+`agents --pin PIN agents list NAME` and `agents --pin PIN agents show NAME WORKER`,
+then reconcile an explicitly enabled override against that definition.
+Running jobs keep their original effective definitions.
 
 ## The CLI succeeded but imps is not complete
 
-`imps validate` exits 0 when validation succeeds, even if requirements remain open.
-Read `data.ready`, `data.outcome` and its evidence details. The report separates
-local readiness from remote confirmation. See [CLI receipts](cli.md#inspect-imps-state).
+A successful `validate` command can report incomplete readiness. Read
+`data.ready`, `data.outcome` and the evidence details from the pinned package.
+Local readiness, hosted CI, merge and live deployment remain separate claims.
 
 ## Report a bug
 
-Use the organization's inherited [issue forms](https://github.com/seankoji-com/t3-plugins/issues/new/choose).
-Include the smallest reproduction, plugin/T3/provider versions, expected and actual
-behavior, and redacted error output. Avoid private transcripts or live credentials.
+Use the inherited [issue forms](https://github.com/seankoji-com/.agents/issues/new/choose).
+Include a minimal reproduction, source/launcher/pin identities, T3/provider versions,
+expected behavior and redacted errors.

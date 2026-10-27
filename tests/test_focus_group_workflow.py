@@ -425,7 +425,7 @@ class CombinedStudyTest(Loopback):
         stub = h.base / 'stub-bin'
         stub.mkdir()
         log = h.base / 'external-calls.log'
-        for tool in ('gh', 'git', 't3-plugins', 'imps', 'curl'):
+        for tool in ('gh', 'git', 'agents', 'imps', 'curl'):
             (stub / tool).write_text(f'#!/bin/sh\necho {tool} "$@" >> {log}\nexit 97\n')
             (stub / tool).chmod(0o755)
         env = {**os.environ, 'PATH': f'{stub}{os.pathsep}{os.environ["PATH"]}', 'PYTHONDONTWRITEBYTECODE': '1'}
@@ -580,7 +580,7 @@ class IntegrationStageTest(unittest.TestCase):
         nav = (ROOT / 'mkdocs.yml').read_text()
         self.assertIn('focus-group: plugins/focus-group.md', nav)
         entry = json.loads((ROOT / 'docs' / 'field-guide.json').read_text())['focus-group']
-        self.assertTrue(entry['try'].startswith('$t3-focus-group '))
+        self.assertTrue(entry['try'].startswith('$focus-group '))
         self.assertTrue((ROOT / 'docs' / 'assets' / 'specimens' / 'focus-group.svg').is_file())
 
 

@@ -99,7 +99,7 @@ class JobStateTests(unittest.TestCase):
  def test_plan_widening_requires_owner_evidence_and_preserves_old_plan(self):
   from core.jobs import revise_plan,decision
   with tempfile.TemporaryDirectory() as d:
-   s=Store(d,'job-1');j=self.base();j['pins']={'imps':{'package_digest':'c'*64,'compatible_pinned_invocation':'t3-plugins --job /tmp/j path imps'}};s.create(j)
+   s=Store(d,'job-1');j=self.base();j['pins']={'imps':{'package_digest':'c'*64,'compatible_pinned_invocation':'agents --job /tmp/j path imps'}};s.create(j)
    caller={'installation_id':'install-1','workflow':'imps/run','package_digest':'c'*64,'actor':'coordinator'};new=dict(j);new['requirements']={'R1':'weakened'}
    with self.assertRaisesRegex(JobError,'undeclared_expansion'):
     revise_plan(s,caller,{'id':'rev-1'},new)
@@ -118,7 +118,7 @@ class JobStateTests(unittest.TestCase):
   for name,old_fields,new_fields in cases:
    with self.subTest(case=name), tempfile.TemporaryDirectory() as d:
     s=Store(d,'job-1');j=self.base();j['policy']['identity']='observed';j['stages'][0].update(old_fields)
-    j['pins']={'imps':{'package_digest':'c'*64,'compatible_pinned_invocation':'t3-plugins --job /tmp/j path imps'}}
+    j['pins']={'imps':{'package_digest':'c'*64,'compatible_pinned_invocation':'agents --job /tmp/j path imps'}}
     s.create(j);caller={'installation_id':'install-1','workflow':'imps/run','package_digest':'c'*64,'actor':'coordinator'}
     plan={k:json.loads(json.dumps(s.load()[k])) for k in ('requirements','dependencies','stages','tasks','constraints','authorization','policy')}
     stage=plan['stages'][0]
@@ -139,7 +139,7 @@ class JobStateTests(unittest.TestCase):
  def test_mutation_lock_preserves_whole_job(self):
   with tempfile.TemporaryDirectory() as d:
    s=Store(d,'job-1');s.create(self.base());c={'installation_id':'install-1','workflow':'imps/run','package_digest':'c'*64,'actor':'coordinator'}
-   j=s.load();j['pins']={'imps':{'package_digest':'c'*64,'compatible_pinned_invocation':'t3-plugins --job /tmp/job path imps'}};from core.jobs.store import _atomic;_atomic(s.file,canonical(j))
+   j=s.load();j['pins']={'imps':{'package_digest':'c'*64,'compatible_pinned_invocation':'agents --job /tmp/job path imps'}};from core.jobs.store import _atomic;_atomic(s.file,canonical(j))
    s.mutate(c,lambda state:state['decisions'].append({'id':'d1'}));self.assertEqual(len(Store(d,'job-1').load()['decisions']),1)
 
  def test_caller_must_name_actor_explicitly(self):

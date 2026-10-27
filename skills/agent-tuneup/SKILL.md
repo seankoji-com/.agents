@@ -1,3 +1,21 @@
+---
+name: agent-tuneup
+description: "Audit and align centralized T3 provider wiring, shared rules, skills, permissions and MCPs with approved native changes. Args: [scope or desired outcome]."
+metadata:
+  agents-bootstrap: "1"
+  opencode/slash: "true"
+  opencode/autoinvoke: "false"
+---
+
+
+Before substantive work, run only:
+
+```sh
+"$HOME/.local/bin/agents" start agent-tuneup
+```
+
+Read the pinned SKILL.md and manifest before work. Already pinned: do not resolve again. Bind returned `package_root=PKG`, `pin=PIN`, `package_prefix=PREFIX`, `registry_root=AGENTS_ROOT`, `interpreter=PYTHON`; run Python examples with that absolute interpreter. Helpers, playbooks and workers use that pin only. Read `PKG/shared/manifest-routing.md`. Worktree tests add `--source /absolute/worktree` before `start`. Missing/incompatible launcher: explicit self-install.
+
 # agent-tuneup
 
 Apply `PKG/shared/upfront-agreement.md`.
@@ -16,13 +34,13 @@ tuneup policy. Load `PKG/playbooks/audit.md` for inspection,
 
 ## One workflow
 
-Invoke `$t3-agent-tuneup [scope or desired outcome]`. A bare invocation runs the
+Invoke `$agent-tuneup [scope or desired outcome]`. A bare invocation runs the
 complete workflow. Do not offer audit, align, apply, scan or doctor as public
 subcommands, and do not ask the owner to choose a mode. Natural-language narrowing
 such as "only inspect this settings file" limits the work and its authority.
 
 1. Check local readiness directly with `python3 PKG/scripts/audit.py --list-adapters`
-   and `t3-plugins agents list agent-tuneup` when available. Report missing tools;
+   and `agents --pin PIN agents list agent-tuneup` when available. Report missing tools;
    never install a provider to make readiness pass.
 2. Inventory every provider instance in T3's current catalog and all default
    coverage in `PKG/references/central-wiring.md`: shared instructions, skills,
@@ -56,7 +74,9 @@ concrete approval still gates adding and executing its settings-apply stage.
 
 Any T3 provider can run this audit. The target settings format is separate from the
 calling provider. Supported structured audits: Claude JSON, OpenCode JSON/JSONC,
-Codex TOML, Gemini JSON, Cursor JSON. Target settings are never executed.
+Codex TOML (Python 3.11+) and Muse JSON (named permission profiles under
+`permissions.profiles`). The alignment helper also supports Antigravity MCP JSON/JSONC.
+Other settings get manual inspection only. Target settings are never executed.
 
 ## Boundaries
 

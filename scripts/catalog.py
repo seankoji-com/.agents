@@ -12,6 +12,7 @@ import install as installer
 import routing
 import skills
 import registry
+import manifest_data
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'shared'))
 import learning_grants
@@ -36,7 +37,7 @@ def default_skill_roots():
 def catalog(include_deprecated=False):
     plugins = []
     for path in sorted((ROOT / 'plugins').glob('*/plugin.json')):
-        meta = json.loads(path.read_text())
+        meta = manifest_data.load(path)
         installer.validate_name(meta['name'])
         if meta['name'] != path.parent.name:
             raise ValueError(f'catalog name does not match folder: {path.parent.name}')
@@ -127,8 +128,8 @@ def resolve_job_pin(job_path: Path, plugin: str) -> Path:
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--prefix', default=os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins'))
-    parser.add_argument('--agents-root', default=os.environ.get('T3_PLUGINS_AGENTS_ROOT', registry.DEFAULT_AGENTS_ROOT))
+    parser.add_argument('--prefix', default=os.environ.get('AGENTS_PREFIX', '~/.local/share/agents'))
+    parser.add_argument('--agents-root', default=os.environ.get('AGENTS_REGISTRY_ROOT'))
     parser.add_argument('--job', metavar='JOB', help='resolve package paths from this pinned job.json')
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('list', help='list bundled plugins')
@@ -163,7 +164,7 @@ def main(argv=None):
     resolve.add_argument('role')
     resolve.add_argument('--capabilities', metavar='FILE', required=True,
                          help='saved orchestrator_capabilities response')
-    resolve.add_argument('--repo', default='.', help='repository whose .t3-plugins/routing.json takes precedence')
+    resolve.add_argument('--repo', default='.', help='repository whose .agents/routing.json takes precedence')
     resolve.add_argument('--implementer-lineage', metavar='LINEAGE',
                          help='list candidates of other lineages first and mark each as independent or not')
     resolve.add_argument('--profiles', metavar='FILE', help='sourced model suitability and per-role quality floors')
@@ -255,7 +256,7 @@ def main(argv=None):
                     hint = ''
                     if args.plugin in RETIRED:
                         hint = (f' (retired; nothing of it is installed under {prefix})' if args.command == 'uninstall'
-                                else f' (retired; t3-plugins uninstall {args.plugin} removes an old installation)')
+                                else f' (retired; scripts/catalog.py uninstall {args.plugin} removes an old installation)')
                     raise ValueError(f'unknown plugin: {args.plugin}{hint}')
                 plugins = [retired]
             plugins = [p for p in plugins if p['name'] == args.plugin]
@@ -265,7 +266,7 @@ def main(argv=None):
             return 0
         for meta in plugins:
             if meta.get('deprecated'):
-                print(f"t3-plugins: {meta['name']} is deprecated; use {meta['replacement']} for new work. "
+                print(f"agents: {meta['name']} is deprecated; use {meta['replacement']} for new work. "
                       'Existing packages and state are preserved.', file=sys.stderr)
         if args.command == 'setup':
             roots = args.root or default_skill_roots()
@@ -287,19 +288,26 @@ def main(argv=None):
             for receipt in learning_grants.setup_grants(None, caps, args.grant_learnings):
                 print(json.dumps({'learnings_grant': receipt}))
                 if receipt['status'] == 'manual':
-                    print(f"t3-plugins: {receipt['action']}\n{receipt['snippet']}", file=sys.stderr)
+                    print(f"agents: {receipt['action']}\n{receipt['snippet']}", file=sys.stderr)
             if args.capabilities:
                 receipt = routing.write_default(args.capabilities)
                 print(json.dumps(receipt))
                 if not receipt['valid']:
-                    print(f"t3-plugins: kept the existing routing config, which is invalid: {receipt['error']}",
+                    print(f"agents: kept the existing routing config, which is invalid: {receipt['error']}",
                           file=sys.stderr)
                     return 1
             return 0
         if args.command == 'skills':
             for meta in plugins:
-                receipt = (skills.install(args.root, prefix, meta) if args.action == 'install'
-                           else skills.uninstall(args.root, meta))
+                if args.action == 'uninstall' and meta['name'] in RETIRED:
+                    # Retired adapters only exist under their historical t3- names.
+                    receipt = (skills.remove_retired(args.root, meta['name'])
+                               or {'name': 't3-' + meta['name'], 'removed': False})
+                    if receipt.get('preserved'):
+                        raise ValueError(receipt['preserved'])
+                else:
+                    receipt = (skills.install(args.root, prefix, meta) if args.action == 'install'
+                               else skills.uninstall(args.root, meta))
                 print(json.dumps(receipt))
             return 0
         if args.command in ('install', 'uninstall', 'activate'):
@@ -341,7 +349,7 @@ def main(argv=None):
                     if manifest.get('version') != current.resolve().name:
                         raise ValueError('manifest version mismatch')
                     if not snapshot_matches_bundle(manifest, meta['name']):
-                        errors.append('snapshot_outdated: run t3-plugins install ' + meta['name'])
+                        errors.append('snapshot_outdated: run agents start ' + meta['name'])
                     if manifest.get('bundle_dir'):
                         registry.assert_owned_locator(agents_root, manifest.get('installation_id'), prefix)
                         if os.path.realpath(Path(manifest.get('agents_root', '')).expanduser()) != os.path.realpath(agents_root):
@@ -364,7 +372,7 @@ def main(argv=None):
                         errors.append('missing_entry')
                 except (OSError, ValueError, installer.InstallError) as exc:
                     if not current.is_symlink() and not current.exists():
-                        errors.append(f"not_installed: run t3-plugins install {meta['name']}")
+                        errors.append(f"not_installed: run agents start {meta['name']}")
                     else:
                         errors.append(f'installation_invalid: {exc}')
                 failed |= bool(errors)
@@ -383,7 +391,7 @@ def main(argv=None):
                     print(pinned_entry)
                     return 0
                 if not entry.is_file():
-                    raise ValueError(f"{meta['name']} is not installed; run t3-plugins install {meta['name']}")
+                    raise ValueError(f"{meta['name']} is not installed; run agents start {meta['name']}")
                 if args.command == 'path':
                     print(entry)
                 else:
@@ -403,7 +411,7 @@ def main(argv=None):
                               f'Options: {options}.')
         return 1 if failed else 0
     except (ValueError, OSError, KeyError, installer.InstallError, routing.RoutingError) as exc:
-        print(f't3-plugins: {exc}', file=sys.stderr)
+        print(f'agents: {exc}', file=sys.stderr)
         return 2
 
 

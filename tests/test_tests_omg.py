@@ -444,6 +444,15 @@ class EvidenceTests(unittest.TestCase):
 
 
 class CommandTests(unittest.TestCase):
+    def test_default_root_keeps_a_pre_198_run_index_until_moved(self):
+        with tempfile.TemporaryDirectory() as temp, mock.patch.dict(os.environ, {'XDG_STATE_HOME': temp}):
+            state = Path(temp)
+            self.assertEqual(helper.default_state_root(), state / 'agents/jobs/tests-omg')
+            (state / 't3-plugins/tests-omg').mkdir(parents=True)
+            self.assertEqual(helper.default_state_root(), state / 't3-plugins/tests-omg')
+            (state / 'agents/jobs/tests-omg').mkdir(parents=True)
+            self.assertEqual(helper.default_state_root(), state / 'agents/jobs/tests-omg')
+
     def test_doctor_manifest_cannot_read_outside_package(self):
         package = self.base / 'package'
         shutil.copytree(SCRIPTS.parent, package)
@@ -968,11 +977,11 @@ class CommandTests(unittest.TestCase):
 
     def test_installed_relocated_operation_outside_source_and_skill_adapter(self):
         prefix, agents, skills = (self.base / p for p in ('prefix', 'agents', 'skills'))
-        cli = [sys.executable, str(ROOT / 'bin/t3-plugins'), '--prefix', str(prefix), '--agents-root', str(agents)]
+        cli = [sys.executable, str(ROOT / 'scripts/catalog.py'), '--prefix', str(prefix), '--agents-root', str(agents)]
         p = subprocess.run([*cli, 'setup', 'tests-omg', '--root', str(skills)], cwd=self.base,
                            capture_output=True, text=True, env=self.env, timeout=60)
         self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
-        adapter = (skills / 't3-tests-omg/SKILL.md').read_text()
+        adapter = (skills / 'tests-omg/SKILL.md').read_text()
         self.assertIn('audit', adapter)
         self.assertIn('tests-omg', adapter)
         current = (prefix / 'tests-omg/current').resolve()

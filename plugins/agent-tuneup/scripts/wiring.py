@@ -74,7 +74,11 @@ def evidence_state(items):
 def skill_receipts(entry):
     """Describe recognized owners without adopting or modifying any files."""
     receipts = []
-    for marker, owner in (('.t3-plugins-skill.json', 't3-plugins'), ('.dotfiles-skill.json', 'dotfiles')):
+    source = source_skill_owner(entry)
+    if source is not None:
+        return [source]
+    for marker, owner in (('.agents-skill.json', 'agents'), ('.t3-plugins-skill.json','t3-plugins'),
+                          ('.dotfiles-skill.json', 'dotfiles')):
         path = entry / marker
         try:
             path.lstat()
@@ -97,7 +101,7 @@ def skill_receipts(entry):
             if not isinstance(files, dict):
                 raise ValueError('invalid_receipt')
             files = dict(files)
-            if owner == 't3-plugins':
+            if owner in ('agents','t3-plugins'):
                 if not set(files) <= {'agents/openai.yaml'}:
                     raise ValueError('invalid_receipt')
                 files['SKILL.md'] = receipt.get('sha256')
@@ -121,6 +125,45 @@ def skill_receipts(entry):
             status = 'invalid'
         receipts.append({'owner': owner, 'status': status})
     return receipts or [{'owner': 'unmanaged', 'status': 'unmanaged'}]
+
+
+def source_skill_owner(entry):
+    """Describe protected source/link ownership without hashing editable bodies."""
+    recognized = False
+    try:
+        resolved = entry.resolve(strict=True)
+        if not resolved.is_dir() or resolved.parent.name != 'skills':
+            return None
+        root = resolved.parent.parent
+        identity_path = root/'.agents-source.json'
+        if not identity_path.is_file():
+            return None
+        control = Path(os.environ.get('XDG_STATE_HOME') or Path.home()/'.local/state')/'agents/control'
+        marker_path = control/'cutover.json'
+        if not marker_path.is_file():
+            return None
+        recognized = True
+        if any(path.is_symlink() for path in (marker_path,*marker_path.parents,identity_path,*identity_path.parents)):
+            raise ValueError('linked_source_identity')
+        marker = json.loads(read_file(marker_path))
+        identity = read_file(identity_path)
+        value = json.loads(identity)
+        if (marker.get('schema_version') != 1 or marker.get('phase') != 'active' or
+                marker.get('source_root') != str(root) or marker.get('repository_id') != '1411719736' or
+                value.get('schema_version') != 1 or value.get('repository_id') != '1411719736' or
+                marker.get('identity_sha256') != hashlib.sha256(identity).hexdigest()):
+            return {'owner':'agents-source','status':'invalid'}
+        header = read_file(resolved/'SKILL.md').decode().split('\n---\n',1)[0]
+        if not re.search(r'(?m)^  agents-bootstrap(?:-exempt)?: *[\"\']?(?:1|true)[\"\']? *$',header):
+            return None
+        if entry.absolute() != resolved:
+            receipt = json.loads(read_file(control/'discovery.json'))
+            if not any(row.get('path') == str(entry.absolute()) and row.get('target') == str(resolved)
+                       for row in receipt.get('links',[])):
+                return None
+        return {'owner':'agents-source','status':'identity-bound'}
+    except (OSError,ValueError,TypeError,KeyError,RuntimeError):
+        return {'owner':'agents-source','status':'invalid'} if recognized else None
 
 
 def skill_inventory(shared, providers, add):
@@ -152,11 +195,11 @@ def skill_inventory(shared, providers, add):
                 alias = is_alias(entry) or is_alias(root)
                 row['aliases'] += int(alias)
                 row['entries'].append({'skill': row['skills'] - 1, 'receipts': receipts})
-                owned = all(receipt['status'] == 'verified' for receipt in receipts)
+                owned = all(receipt['status'] in ('verified','identity-bound') for receipt in receipts)
                 row['receipt_owned'] += int(owned)
                 row['local_or_vendor'] += int(receipts[0]['status'] == 'unmanaged')
                 for receipt in receipts:
-                    if receipt['status'] not in {'verified', 'unmanaged'}:
+                    if receipt['status'] not in {'verified', 'identity-bound', 'unmanaged'}:
                         add('skill_receipt_' + receipt['status'], location + f'.skills[{row["skills"] - 1}]')
                 try:
                     identity = str(entry.resolve())

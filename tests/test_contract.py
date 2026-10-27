@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from support import source_entry
+
 from support import CLI, PLUGIN, ROOT, CoreTestCase, cli
 
 FORBIDDEN_CORE_WORDS = ('implementer', 'reviewer', 'researcher', 'bug-fix', 'bugfix', 'playbook')
@@ -54,7 +56,7 @@ class PurityTest(CoreTestCase):
 
 class SurfaceTest(CoreTestCase):
     def test_no_undocumented_t3_tools(self):
-        for path, text in text_files('core', 'plugins', 'scripts'):
+        for path, text in text_files('core', 'plugins', 'scripts', 'skills'):
             for banned in ('acp-mcp-call',):
                 self.assertNotIn(banned, text, path)
 
@@ -69,7 +71,9 @@ class SurfaceTest(CoreTestCase):
         self.assertIn('`AskUserQuestion`', text)
         self.assertIn('Never bury an approval in a prose status', text)
         self.assertIn('silence is not approval', text)
-        for entry in sorted((ROOT / 'plugins').glob('*/entry.md')):
+        for entry in sorted([*(ROOT / 'plugins').glob('*/entry.md'), *(ROOT/'skills').glob('*/SKILL.md')]):
+            if entry.parent.name == 'unslop':
+                continue  # Independently owned single-file prose has no T3 runtime.
             self.assertIn('shared/t3-runtime.md', entry.read_text(), entry.parent.name)
 
     def test_top_level_thread_tools_appear_only_as_prohibitions(self):
@@ -124,7 +128,7 @@ def cli_surface(script: Path) -> tuple:
 
 def plugin_instructions(plugin: str):
     base = ROOT / 'plugins' / plugin
-    yield base / 'entry.md'
+    yield source_entry(base)
     for folder in ('playbooks', 'references'):
         yield from sorted((base / folder).glob('**/*.md'))
 
@@ -148,7 +152,7 @@ class ApprovalPickerTest(CoreTestCase):
             self.assertIn(phrase, ' '.join(runtime.split()))
         for plugin in COORDINATORS:
             with self.subTest(plugin=plugin):
-                entry = (ROOT / 'plugins' / plugin / 'entry.md').read_text()
+                entry = (source_entry(ROOT / 'plugins' / plugin)).read_text()
                 self.assertIn('`PKG/shared/t3-runtime.md`', entry)
                 # The installed package carries the same contract the entry points at.
                 mapping = install.source_files(ROOT, plugin)
@@ -164,7 +168,7 @@ class ApprovalPickerTest(CoreTestCase):
     def test_each_coordinator_entry_adopts_the_job_coordination_protocol(self):
         for plugin in COORDINATORS:
             with self.subTest(plugin=plugin):
-                entry = (ROOT / 'plugins' / plugin / 'entry.md').read_text()
+                entry = (source_entry(ROOT / 'plugins' / plugin)).read_text()
                 self.assertIn('`PKG/shared/job-coordination.md`', entry)
                 self.assertIn('`PKG/shared/t3-runtime.md`', entry)
 
@@ -238,6 +242,11 @@ class JobCoordinationTest(CoreTestCase):
         catalog_help = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'catalog.py'), '--help'],
                                       capture_output=True, text=True, check=True, timeout=60).stdout
         catalog_choices = set(re.search(r'\{([a-z,-]+)\}', catalog_help).group(1).split(','))
+        # Operators reach these through the stable `agents` launcher (#198), so its commands count too.
+        stable_help = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, sys.argv[1]); '
+                                      'from source_runtime import cli; cli.parser().print_help()', str(ROOT / 'scripts')],
+                                     capture_output=True, text=True, check=True, timeout=60).stdout
+        catalog_choices |= set(re.search(r'\{([a-z,-]+)\}', stable_help).group(1).split(','))
         self.assertIn('task-observation', job_choices)
         self.assertEqual(accept_choices, {'accept-stage', 'validate', 'validate-final'})
         choices = {'job_cli': job_choices, 'job_acceptance_cli': accept_choices}
@@ -247,7 +256,7 @@ class JobCoordinationTest(CoreTestCase):
         # Every job_cli subcommand is covered, so the protocol cannot silently drop one.
         tokens = set(re.findall(r'`([a-z][a-z-]*)`', text)) | {c for h, c in named if h == 'job_cli'}
         self.assertEqual(job_choices - tokens, set())
-        for command in re.findall(r'`t3-plugins (?:--job \S+ )?([a-z]+)', text):
+        for command in re.findall(r'`agents (?:--job \S+ )?([a-z]+)', text):
             self.assertIn(command, catalog_choices)
         for flag in set(re.findall(r'(?<![\w-])--[a-z][a-z-]*', text)):
             self.assertIn(flag, job_flags | accept_flags | catalog_flags, f'{flag} is not a real helper option')
@@ -279,7 +288,7 @@ class JobCoordinationTest(CoreTestCase):
         for word in ('`doctor`', '`status`', 'directly', 'Never create a job or launch a worker'):
             self.assertIn(word, cheap)
         for plugin in COORDINATORS:
-            for line in (ROOT / 'plugins' / plugin / 'entry.md').read_text().splitlines():
+            for line in (source_entry(ROOT / 'plugins' / plugin)).read_text().splitlines():
                 if re.search(r'\*\*doctor\b|`doctor`|^- doctor\b', line):
                     self.assertNotRegex(line, r'delegate_task|job_cli\.py|dispatch', f'{plugin}: {line}')
         # job_cli status/overview render through Store.overview(persist=False): no state write.
@@ -301,7 +310,7 @@ class JobCoordinationTest(CoreTestCase):
     def test_installed_package_ships_the_protocol_beside_the_runtime_contract(self):
         home = self.tmp / 'home'
         home.mkdir()
-        env = {k: v for k, v in __import__('os').environ.items() if not k.startswith(('T3_PLUGINS_', 'XDG_'))}
+        env = {k: v for k, v in __import__('os').environ.items() if not k.startswith(('AGENTS_', 'XDG_'))}
         env['HOME'] = str(home)
         cli = [sys.executable, str(ROOT / 'scripts' / 'catalog.py'), '--prefix', str(self.tmp / 'prefix'),
                '--agents-root', str(self.tmp / 'agents')]
@@ -335,13 +344,13 @@ class NoMachinePathsTest(CoreTestCase):
 
 class EntryTest(CoreTestCase):
     def test_word_budgets(self):
-        entry = len((PLUGIN / 'entry.md').read_text().split())
+        entry = len((source_entry(PLUGIN)).read_text().split())
         bugfix = len((PLUGIN / 'playbooks' / 'bug-fix.md').read_text().split())
         self.assertLessEqual(entry, 800)
         self.assertLessEqual(entry + bugfix, 3000)
 
     def test_entry_supports_operations_and_names_every_loadable_file(self):
-        text = (PLUGIN / 'entry.md').read_text()
+        text = (source_entry(PLUGIN)).read_text()
         for op in ('doctor', 'run <task>', 'resume <run-id>', 'status <run-id>', 'cancel <run-id>', 'verification-init'):
             self.assertIn(f'**{op}.**', text)
         named = set(re.findall(r'`PKG/([\w./-]+)`', text))

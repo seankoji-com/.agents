@@ -96,7 +96,7 @@ def route(text):
     if re.fullmatch(r'(?:--personas\s+)?/imps:imps(?:\s+--personas)?', text):
         return {'operation': None, 'arguments': '',
                 'personas': '--personas' in text, 'picker': True}
-    text = re.sub(r'^(?:\$|/)?t3-imps(?:\s+|$)', '', text, count=1)
+    text = re.sub(r'^(?:\$|/)?imps(?:\s+|$)', '', text, count=1)
     # Only a standalone flag opts in, never a mention inside task prose or a path.
     panel = bool(re.search(r'(?<!\S)--personas(?!\S)', text))
     text = re.sub(r'(?<!\S)--personas(?!\S)', '', text).strip()

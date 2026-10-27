@@ -11,7 +11,7 @@ Only a live workflow run answers the third.
 | Plugin catalog | Deterministic install and invocation tests | `tests/test_catalog.py`, `tests/test_skill_adapters.py` |
 | Portable workflow entries | Readable with local file access | Entry/path contracts and manual review; no full provider matrix yet |
 | imps 1.0 evidence gate | Deterministic tests; live provider matrix pending | `tests/test_snapshot.py`, `tests/test_review.py`, `tests/test_readiness.py`, `tests/test_gate_boundaries.py` |
-| Previous imps gate | Historical partial live conformance for `0.1.0+ga50f506cd178` | [Recorded matrix](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/compatibility.md) |
+| Previous imps gate | Historical partial live conformance for `0.1.0+ga50f506cd178` | [Recorded matrix](https://github.com/seankoji-com/.agents/blob/main/conformance/compatibility.md) |
 | Whole-job coordination and managed workers | Deterministic and installed-helper tests; no live run recorded. Codex and Claude acceptance pending; OpenCode and Antigravity unverified | [Issue #28 test map](stage4-test-map.md) |
 | agent-tuneup | Audit, alignment inventory and approved native settings writes | Claude JSON, OpenCode JSON/JSONC, Codex TOML, Muse JSON (permission profiles; shapes verified against Muse 1.4.7); Antigravity MCP JSON/JSONC fixtures. Effective policy and live loading need separate checks. |
 | Muse provider | Skill adapters discovered and validated by the Muse 1.4.7 CLI; no T3 composer picker; routing refuses modes the driver does not offer | `muse skills list`/`validate` on generated adapters; `tests/test_routing.py`. No live workflow run recorded. |
@@ -27,7 +27,7 @@ historical observations, not certification of imps 1.0 or current T3.
 Whole-stage delegation is meant to keep the coordinator's context small during long
 jobs without lowering quality. Whether it does is an open measurement, not a claim.
 
-- The frozen [benchmark protocol v2](https://github.com/seankoji-com/t3-plugins/blob/master/bench/v2/protocol.md)
+- The frozen [benchmark protocol v2](https://github.com/seankoji-com/.agents/blob/main/bench/v2/protocol.md)
   plans 24 Codex and Claude starts in isolated containers: paired baseline and rebuilt
   engineering jobs, one run of each other workflow, and two negative paths per
   provider. Its quality checks were frozen before any start. Those starts have not
@@ -59,7 +59,7 @@ settings file without turning it into a Codex configuration file.
 Include plugin version, T3 build, provider instance type, exact model ID, OS, operation,
 expected behavior, observed behavior, and a minimal redacted transcript. Record
 interventions and missing capabilities. Do not include credentials or private source.
-The linked [historical conformance procedure](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/procedure.md)
+The linked [historical conformance procedure](https://github.com/seankoji-com/.agents/blob/main/conformance/procedure.md)
 describes the old gate. Current-gate reports must exercise the named submission API;
 do not replay removed dispatcher commands as current verification.
 

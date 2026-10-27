@@ -26,7 +26,7 @@ package for later migration. If this run already has its own pinned job, add
 `--job <job-dir>` to `start`; the helper verifies and records that job's pin.
 
 Keep `<state.json>` in the private run state, for example
-`$XDG_STATE_HOME/t3-plugins/babysitter/continuous/<run-id>.json`; never in a PR
+`$XDG_STATE_HOME/agents/jobs/babysitter/continuous/<run-id>.json`; never in a PR
 worktree or the job directory. It holds no credentials, only the recorded scope,
 policy, schedule receipt and PR state.
 

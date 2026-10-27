@@ -13,7 +13,7 @@ leaves a nonexistent path as task text. A task without an operation uses `run`. 
 `{"text": "the full request"}` to a scratch JSON file, then run
 `python3 PKG/scripts/input.py --input FILE`. Check `ok`. The helper classifies input
 without running commands or contacting GitHub. Use its operation and arguments:
-It also accepts a full request with a leading `$t3-imps`, `/t3-imps`, or `t3-imps`.
+It also accepts a full request with a leading `$imps`, `/imps`, or `imps`.
 Put the mention before the request. Operation names are reserved first words:
 write `run status page shows stale data` or `run audit trail lacks timestamps`
 when those words begin a free-text task. Use `checklist PATH` with a readable file;

@@ -34,18 +34,18 @@ retained findings and fallback limits.
 ## Try it
 
 ```text
-$t3-focus-group plan https://staging.example/welcome first-run experience for busy parents
+$focus-group plan https://staging.example/welcome first-run experience for busy parents
 ```
 
 Other forms:
 
 ```text
-$t3-focus-group plan pantry-planner-onboarding
-$t3-focus-group run pantry-planner-onboarding
-$t3-focus-group resume pantry-planner-onboarding
-$t3-focus-group status pantry-planner-onboarding
-$t3-focus-group cancel pantry-planner-onboarding
-$t3-focus-group doctor
+$focus-group plan pantry-planner-onboarding
+$focus-group run pantry-planner-onboarding
+$focus-group resume pantry-planner-onboarding
+$focus-group status pantry-planner-onboarding
+$focus-group cancel pantry-planner-onboarding
+$focus-group doctor
 ```
 
 `status` and `doctor` never start a task. `plan` uses a separate study-plan reviewer

@@ -1,6 +1,6 @@
 """Issue #28 Stage 5: the installed artifact, not the source tree (REQ-COMPAT, REQ-REGISTRY, REQ-DELIVERY).
 
-`bin/t3-plugins setup` installs every plugin into an isolated HOME, XDG roots, prefix,
+`bin/agents setup` installs every plugin into an isolated HOME, XDG roots, prefix,
 agents root and two provider skill roots. The tests then read only what was installed:
 adapters route every operation to the installed coordinator entry, packages carry their
 worker bundles, shared coordination contract and pinned digests, `agents list/show`
@@ -27,10 +27,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from core.jobs.store import canonical  # noqa: E402
+# Package-qualified: installed fixtures import copied test modules as the tests package.
+from tests.support import skill_manifest  # noqa: E402
 from shared.job_acceptance import ADAPTERS  # noqa: E402
 from shared.worker_registry import SHARED_REQUIRED, package_digest, verify_bundle, verify_package_files  # noqa: E402
 
-BIN = ROOT / 'bin' / 't3-plugins'
+BIN = ROOT / 'scripts' / 'catalog.py'
 INSTALL = ROOT / 'scripts' / 'install.py'
 FIVE = ('imps', 'ape', 'plan', 'babysitter', 'agent-tuneup')
 # Plugins whose Stage 4 coordinator entry is merged. ape joins when its rebuild names the
@@ -52,7 +54,7 @@ def decode_worker_brief(raw: bytes) -> dict:
 
 
 def meta(plugin: str) -> dict:
-    return json.loads((ROOT / 'plugins' / plugin / 'plugin.json').read_text())
+    return skill_manifest(ROOT / 'plugins' / plugin / 'plugin.json')
 
 
 def tree_digest(*roots: Path) -> dict:
@@ -79,7 +81,7 @@ class Sandbox:
         self.home = self.base / 'home'
         self.prefix, self.agents = self.base / 'prefix', self.base / 'agents'
         self.config, self.state = self.base / 'config', self.base / 'state'
-        self.jobs = self.state / 't3-plugins' / 'jobs'  # the default job root under XDG_STATE_HOME
+        self.jobs = self.state / 'agents' / 'jobs'  # the default job root under XDG_STATE_HOME
         self.private = self.base / 'coordinator'  # coordinator-owned inputs, outside job state
         for path in (self.home, self.private):
             path.mkdir(parents=True)
@@ -117,6 +119,9 @@ class Sandbox:
         source = self.base / (name or f'source-{next(self._counter)}')
         ignore = shutil.ignore_patterns('__pycache__', '*.pyc')
         shutil.copytree(ROOT / 'plugins' / plugin, source / 'plugins' / plugin, ignore=ignore)
+        skill = ROOT/'skills'/plugin
+        if skill.exists():
+            shutil.copytree(skill,source/'skills'/plugin,ignore=ignore)
         for part in ('core', 'shared'):
             shutil.copytree(ROOT / part, source / part, ignore=ignore)
         if mutate:
@@ -153,7 +158,7 @@ class Sandbox:
         attach_selection(job)
         return self.job(pkg, 'create', job['job_id'], job,
                         extra=('--prefix', self.prefix, '--agents-root', self.agents,
-                               '--config', self.config / 't3-plugins' / 'workers.json'))
+                               '--config', self.config / 'agents' / 'workers.json'))
 
     def accept(self, pkg, action, job_id, data):
         return self.run([sys.executable, Path(pkg) / 'shared' / 'job_acceptance_cli.py', action, '--state-root',
@@ -227,7 +232,7 @@ def worker_result(brief, conclusion='synthetic fixture result', status='ready-fo
 
 
 class InstalledArtifactTest(unittest.TestCase):
-    """One `t3-plugins setup` of the whole catalog; every test here only reads it."""
+    """One `agents setup` of the whole catalog; every test here only reads it."""
 
     @classmethod
     def setUpClass(cls):
@@ -304,11 +309,13 @@ class InstalledArtifactTest(unittest.TestCase):
             entry_path = self.box.prefix / plugin / 'current' / declared['entry']
             entry = entry_path.read_text()
             with self.subTest(plugin=plugin, check='entry bytes'):
-                self.assertEqual(entry_path.read_bytes(), (ROOT / 'plugins' / plugin / declared['entry']).read_bytes())
+                canonical = ROOT/'skills'/plugin/'SKILL.md'
+                expected = canonical if canonical.exists() else ROOT/'plugins'/plugin/declared['entry']
+                self.assertEqual(entry_path.read_bytes(),expected.read_bytes())
             for root in self.roots:
                 with self.subTest(plugin=plugin, root=root.parent.name):
-                    skill = root / f't3-{plugin}' / 'SKILL.md'
-                    receipt = json.loads((skill.parent / '.t3-plugins-skill.json').read_text())
+                    skill = root / plugin / 'SKILL.md'
+                    receipt = json.loads((skill.parent / '.agents-skill.json').read_text())
                     self.assertEqual((receipt['entry'], receipt['sha256']), (str(entry_path), sha(skill.read_bytes())))
                     text = skill.read_text()
                     self.assertIn('Read the installed entry file at ' + json.dumps(str(entry_path)), text)
@@ -394,10 +401,10 @@ class InstalledUninstallTest(unittest.TestCase):
         box.t3('agents', 'enable-override', 'imps/reviewer', '--base-digest', manifest['bundle_digest'])
         listed = {r['id']: r for r in json_lines(box.t3('agents', 'list', 'imps').stdout)}
         self.assertEqual(listed['imps/reviewer']['override_status'], 'enabled')
-        config = box.config / 't3-plugins' / 'workers.json'
+        config = box.config / 'agents' / 'workers.json'
         notes = version / 'operator-notes.txt'
         notes.write_text('mine\n')
-        adapter_note = self.root / 't3-imps' / 'notes.md'
+        adapter_note = self.root / 'imps' / 'notes.md'
         adapter_note.write_text('operator file beside the adapter\n')
         kept = {p: p.read_bytes() for p in (override, config, notes, adapter_note)}
         baby_before = tree_digest(box.prefix / 'babysitter', box.agents / 'installations' /
@@ -414,7 +421,7 @@ class InstalledUninstallTest(unittest.TestCase):
         self.assertFalse((version / 'entry.md').exists())
         self.assertFalse((version / 'install-manifest.json').exists())
         self.assertFalse(bundle.exists(), 'every owned, verified bundle file is removed')
-        self.assertFalse((self.root / 't3-imps' / 'SKILL.md').exists())
+        self.assertFalse((self.root / 'imps' / 'SKILL.md').exists())
         self.assertTrue((box.agents / 'claims.json').is_file())
         self.assertEqual(tree_digest(box.prefix / 'babysitter', box.agents / 'installations' /
                                      manifest['installation_id'] / 'babysitter'), baby_before)

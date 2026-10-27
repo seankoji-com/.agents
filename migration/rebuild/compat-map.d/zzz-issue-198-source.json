@@ -1,0 +1,597 @@
+{
+  "schema_version": 1,
+  "stage": 6,
+  "inventory": {
+    "cli_subcommands": [
+      {
+        "id": "agents:activate",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:adopt",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:agents",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:agreement",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:doctor",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:install",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:list",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:path",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:planning-review",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:prompt",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:resolve",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:selection",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:setup",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:skills",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      },
+      {
+        "id": "agents:uninstall",
+        "path": "scripts/catalog.py",
+        "disposition": "change",
+        "stage": 5,
+        "reason": "Issue #198 renames the public launcher to the unprefixed agents command; the subcommand is otherwise unchanged."
+      }
+    ]
+  },
+  "updates": {
+    "operations": [
+      {
+        "id": "imps:doctor",
+        "replace": true,
+        "files": [
+          "skills/imps/SKILL.md"
+        ]
+      },
+      {
+        "id": "imps:run",
+        "replace": true,
+        "files": [
+          "skills/imps/SKILL.md",
+          "plugins/imps/references/jobs.md",
+          "plugins/imps/playbooks/bug-fix.md",
+          "plugins/imps/playbooks/investigation.md",
+          "plugins/imps/references/brief-probes.md",
+          "plugins/imps/references/delegation.md"
+        ]
+      },
+      {
+        "id": "imps:resume",
+        "replace": true,
+        "files": [
+          "skills/imps/SKILL.md",
+          "plugins/imps/references/jobs.md"
+        ]
+      },
+      {
+        "id": "imps:status",
+        "replace": true,
+        "files": [
+          "skills/imps/SKILL.md",
+          "plugins/imps/references/jobs.md"
+        ]
+      },
+      {
+        "id": "imps:cancel",
+        "replace": true,
+        "files": [
+          "skills/imps/SKILL.md",
+          "plugins/imps/references/jobs.md"
+        ]
+      },
+      {
+        "id": "imps:prs",
+        "replace": true,
+        "files": [
+          "skills/imps/SKILL.md",
+          "plugins/imps/references/jobs.md"
+        ]
+      },
+      {
+        "id": "ape:doctor",
+        "replace": true,
+        "files": [
+          "skills/ape/SKILL.md"
+        ]
+      },
+      {
+        "id": "babysitter:doctor",
+        "replace": true,
+        "files": [
+          "skills/babysitter/SKILL.md"
+        ]
+      },
+      {
+        "id": "babysitter:pr",
+        "replace": true,
+        "files": [
+          "skills/babysitter/SKILL.md",
+          "plugins/babysitter/playbooks/maintain.md",
+          "plugins/babysitter/references/job-plan.md"
+        ]
+      },
+      {
+        "id": "babysitter:repo",
+        "replace": true,
+        "files": [
+          "skills/babysitter/SKILL.md",
+          "plugins/babysitter/playbooks/maintain.md",
+          "plugins/babysitter/references/job-plan.md"
+        ]
+      },
+      {
+        "id": "babysitter:org",
+        "replace": true,
+        "files": [
+          "skills/babysitter/SKILL.md",
+          "plugins/babysitter/playbooks/maintain.md",
+          "plugins/babysitter/references/job-plan.md"
+        ]
+      },
+      {
+        "id": "agent-tuneup:doctor",
+        "replace": true,
+        "files": [
+          "skills/agent-tuneup/SKILL.md"
+        ]
+      },
+      {
+        "id": "agent-tuneup:scan",
+        "replace": true,
+        "files": [
+          "skills/agent-tuneup/SKILL.md"
+        ]
+      },
+      {
+        "id": "bug-report:run",
+        "replace": true,
+        "files": [
+          "skills/bug-report/SKILL.md",
+          "plugins/bug-report/playbooks/report.md",
+          "plugins/bug-report/scripts/session.py",
+          "plugins/bug-report/references/state.md",
+          "plugins/bug-report/references/acceptance.md"
+        ]
+      },
+      {
+        "id": "bug-report:resume",
+        "replace": true,
+        "files": [
+          "skills/bug-report/SKILL.md",
+          "plugins/bug-report/playbooks/report.md",
+          "plugins/bug-report/scripts/session.py",
+          "plugins/bug-report/references/state.md",
+          "plugins/bug-report/references/acceptance.md"
+        ]
+      },
+      {
+        "id": "bug-report:status",
+        "replace": true,
+        "files": [
+          "skills/bug-report/SKILL.md",
+          "plugins/bug-report/playbooks/report.md",
+          "plugins/bug-report/scripts/session.py",
+          "plugins/bug-report/references/state.md",
+          "plugins/bug-report/references/acceptance.md"
+        ]
+      },
+      {
+        "id": "bug-report:cancel",
+        "replace": true,
+        "files": [
+          "skills/bug-report/SKILL.md",
+          "plugins/bug-report/playbooks/report.md",
+          "plugins/bug-report/scripts/session.py",
+          "plugins/bug-report/references/state.md",
+          "plugins/bug-report/references/acceptance.md"
+        ]
+      },
+      {
+        "id": "ralph:cancel",
+        "replace": true,
+        "files": [
+          "skills/ralph/SKILL.md"
+        ]
+      },
+      {
+        "id": "ralph:doctor",
+        "replace": true,
+        "files": [
+          "skills/ralph/SKILL.md"
+        ]
+      },
+      {
+        "id": "ralph:resume",
+        "replace": true,
+        "files": [
+          "skills/ralph/SKILL.md"
+        ]
+      },
+      {
+        "id": "ralph:run",
+        "replace": true,
+        "files": [
+          "skills/ralph/SKILL.md"
+        ]
+      },
+      {
+        "id": "ralph:status",
+        "replace": true,
+        "files": [
+          "skills/ralph/SKILL.md"
+        ]
+      },
+      {
+        "id": "focus-group:plan",
+        "replace": true,
+        "files": [
+          "skills/focus-group/SKILL.md",
+          "plugins/focus-group/playbooks/plan.md",
+          "plugins/focus-group/playbooks/capture.md",
+          "plugins/focus-group/scripts/study.py",
+          "plugins/focus-group/scripts/evidence.py"
+        ]
+      },
+      {
+        "id": "focus-group:run",
+        "replace": true,
+        "files": [
+          "skills/focus-group/SKILL.md",
+          "plugins/focus-group/playbooks/run.md",
+          "plugins/focus-group/playbooks/journeys.md",
+          "plugins/focus-group/scripts/study.py",
+          "plugins/focus-group/scripts/evidence.py",
+          "plugins/focus-group/scripts/lifecycle.py",
+          "plugins/focus-group/scripts/report.py",
+          "plugins/focus-group/scripts/validate_study.py"
+        ]
+      },
+      {
+        "id": "focus-group:resume",
+        "replace": true,
+        "files": [
+          "skills/focus-group/SKILL.md",
+          "plugins/focus-group/playbooks/run.md",
+          "plugins/focus-group/playbooks/journeys.md",
+          "plugins/focus-group/scripts/study.py",
+          "plugins/focus-group/scripts/evidence.py",
+          "plugins/focus-group/scripts/lifecycle.py",
+          "plugins/focus-group/scripts/report.py",
+          "plugins/focus-group/scripts/validate_study.py"
+        ]
+      },
+      {
+        "id": "focus-group:status",
+        "replace": true,
+        "files": [
+          "skills/focus-group/SKILL.md",
+          "plugins/focus-group/scripts/study.py"
+        ]
+      },
+      {
+        "id": "focus-group:cancel",
+        "replace": true,
+        "files": [
+          "skills/focus-group/SKILL.md",
+          "plugins/focus-group/playbooks/run.md",
+          "plugins/focus-group/scripts/study.py",
+          "plugins/focus-group/scripts/lifecycle.py"
+        ]
+      },
+      {
+        "id": "focus-group:doctor",
+        "replace": true,
+        "files": [
+          "skills/focus-group/SKILL.md",
+          "plugins/focus-group/scripts/study.py"
+        ]
+      },
+      {
+        "id": "tests-omg:doctor",
+        "replace": true,
+        "files": [
+          "skills/tests-omg/SKILL.md",
+          "plugins/tests-omg/scripts/audit.py"
+        ]
+      },
+      {
+        "id": "tests-omg:audit",
+        "replace": true,
+        "files": [
+          "skills/tests-omg/SKILL.md",
+          "plugins/tests-omg/scripts/audit.py"
+        ]
+      },
+      {
+        "id": "tests-omg:status",
+        "replace": true,
+        "files": [
+          "skills/tests-omg/SKILL.md",
+          "plugins/tests-omg/scripts/audit.py"
+        ]
+      },
+      {
+        "id": "tests-omg:report",
+        "replace": true,
+        "files": [
+          "skills/tests-omg/SKILL.md",
+          "plugins/tests-omg/scripts/audit.py"
+        ]
+      },
+      {
+        "id": "plan:plan",
+        "replace": true,
+        "files": [
+          "skills/plan/SKILL.md",
+          "plugins/plan/agents/plan-reviewer.md",
+          "plugins/plan/playbooks/plan.md",
+          "plugins/plan/scripts/plan_state.py",
+          "plugins/plan/scripts/source_plan_review.py",
+          "plugins/plan/scripts/gh_publish.py",
+          "plugins/plan/scripts/validate_document.py",
+          "plugins/plan/scripts/render_handoff.py",
+          "plugins/plan/references/plan-review-rubric.md",
+          "plugins/plan/references/source-plan-review.md",
+          "plugins/plan/templates/probes.research.md",
+          "plugins/plan/templates/handoff.research.md",
+          "plugins/plan/templates/spec.skeleton.md",
+          "plugins/plan/templates/probes.implementation.md",
+          "plugins/plan/templates/discovery.skeleton.md",
+          "plugins/plan/templates/handoff.implementation.md"
+        ]
+      },
+      {
+        "id": "agent-tuneup:tuneup",
+        "replace": true,
+        "files": [
+          "skills/agent-tuneup/SKILL.md"
+        ]
+      }
+    ]
+  },
+  "added": [
+    {
+      "path": "bin/agents",
+      "stage": 6,
+      "kind": "launcher",
+      "reason": "Issue #198 unprefixed source launcher; selects the worktree or ~/.agents source and runs scripts/catalog.py."
+    },
+    {
+      "path": "scripts/agents_bootstrap.py",
+      "stage": 6,
+      "kind": "python-cli",
+      "reason": "Issue #198 stable infrastructure self-install with an explicit interpreter and isolated self-test."
+    },
+    {
+      "path": "scripts/manifest_data.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 shared manifest parsing for SKILL.md frontmatter-owned descriptions and routing."
+    },
+    {
+      "path": "shared/manifest-routing.md",
+      "stage": 6,
+      "kind": "reference",
+      "reason": "Issue #198 single routing reference loaded by canonical SKILL.md bodies."
+    },
+    {
+      "path": "scripts/source_runtime/__init__.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 source runtime (__init__): pins, snapshots, adoption, legacy bridge, receiving and services for the editable ~/.agents source."
+    },
+    {
+      "path": "scripts/source_runtime/adoption.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 source runtime (adoption): pins, snapshots, adoption, legacy bridge, receiving and services for the editable ~/.agents source."
+    },
+    {
+      "path": "scripts/source_runtime/bootstrap.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 source runtime (bootstrap): pins, snapshots, adoption, legacy bridge, receiving and services for the editable ~/.agents source."
+    },
+    {
+      "path": "scripts/source_runtime/cli.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 source runtime (cli): pins, snapshots, adoption, legacy bridge, receiving and services for the editable ~/.agents source."
+    },
+    {
+      "path": "scripts/source_runtime/discovery.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 source runtime (discovery): pins, snapshots, adoption, legacy bridge, receiving and services for the editable ~/.agents source."
+    },
+    {
+      "path": "scripts/source_runtime/io.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 source runtime (io): pins, snapshots, adoption, legacy bridge, receiving and services for the editable ~/.agents source."
+    },
+    {
+      "path": "scripts/source_runtime/layout.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 source runtime (layout): pins, snapshots, adoption, legacy bridge, receiving and services for the editable ~/.agents source."
+    },
+    {
+      "path": "scripts/source_runtime/legacy.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 source runtime (legacy): pins, snapshots, adoption, legacy bridge, receiving and services for the editable ~/.agents source."
+    },
+    {
+      "path": "scripts/source_runtime/pins.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 source runtime (pins): pins, snapshots, adoption, legacy bridge, receiving and services for the editable ~/.agents source."
+    },
+    {
+      "path": "scripts/source_runtime/services.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 source runtime (services): pins, snapshots, adoption, legacy bridge, receiving and services for the editable ~/.agents source."
+    },
+    {
+      "path": "scripts/source_runtime/transaction.py",
+      "stage": 6,
+      "kind": "helper",
+      "reason": "Issue #198 source runtime (transaction): pins, snapshots, adoption, legacy bridge, receiving and services for the editable ~/.agents source."
+    },
+    {
+      "path": "tests/test_source_adoption.py",
+      "stage": 6,
+      "kind": "test",
+      "reason": "Issue #198 behavioral tests for the source runtime (adoption)."
+    },
+    {
+      "path": "tests/test_source_legacy.py",
+      "stage": 6,
+      "kind": "test",
+      "reason": "Issue #198 behavioral tests for the source runtime (legacy)."
+    },
+    {
+      "path": "tests/test_source_pins.py",
+      "stage": 6,
+      "kind": "test",
+      "reason": "Issue #198 behavioral tests for the source runtime (pins)."
+    },
+    {
+      "path": "tests/test_source_receiving.py",
+      "stage": 6,
+      "kind": "test",
+      "reason": "Issue #198 behavioral tests for the source runtime (receiving)."
+    },
+    {
+      "path": "tests/test_source_services.py",
+      "stage": 6,
+      "kind": "test",
+      "reason": "Issue #198 behavioral tests for the source runtime (services)."
+    }
+  ],
+  "removed": [
+    {
+      "path": "plugins/agent-tuneup/entry.md",
+      "stage": 5,
+      "reason": "Issue #198 replaces this entry with skills/agent-tuneup/SKILL.md, the single editable skill body."
+    },
+    {
+      "path": "plugins/ape/entry.md",
+      "stage": 5,
+      "reason": "Issue #198 replaces this entry with skills/ape/SKILL.md, the single editable skill body."
+    },
+    {
+      "path": "plugins/babysitter/entry.md",
+      "stage": 5,
+      "reason": "Issue #198 replaces this entry with skills/babysitter/SKILL.md, the single editable skill body."
+    },
+    {
+      "path": "plugins/imps/entry.md",
+      "stage": 5,
+      "reason": "Issue #198 replaces this entry with skills/imps/SKILL.md, the single editable skill body."
+    },
+    {
+      "path": "plugins/ralph/entry.md",
+      "stage": 5,
+      "reason": "Issue #198 replaces this entry with skills/ralph/SKILL.md, the single editable skill body."
+    },
+    {
+      "path": "plugins/bug-report/entry.md",
+      "stage": 5,
+      "reason": "Issue #198 replaces this entry with skills/bug-report/SKILL.md, the single editable skill body."
+    },
+    {
+      "path": "plugins/focus-group/entry.md",
+      "stage": 5,
+      "reason": "Issue #198 replaces this entry with skills/focus-group/SKILL.md, the single editable skill body."
+    },
+    {
+      "path": "plugins/tests-omg/entry.md",
+      "stage": 5,
+      "reason": "Issue #198 replaces this entry with skills/tests-omg/SKILL.md, the single editable skill body."
+    },
+    {
+      "path": "plugins/plan/entry.md",
+      "stage": 5,
+      "reason": "Issue #198 replaces this entry with skills/plan/SKILL.md, the single editable skill body."
+    }
+  ]
+}

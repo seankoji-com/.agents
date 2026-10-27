@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from support import skill_manifest
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
 import field_guide  # noqa: E402
@@ -85,12 +87,12 @@ class RepositoryGuideTest(unittest.TestCase):
 
     def test_every_try_line_is_a_skill_mention_for_a_real_operation(self):
         for s in field_guide.load_guide(ROOT):
-            meta = json.loads((ROOT / 'plugins' / s['name'] / 'plugin.json').read_text())
+            meta = skill_manifest(ROOT / 'plugins' / s['name'] / 'plugin.json')
             if meta.get('default_operation'):
-                self.assertTrue(s['try'] == f'$t3-{s["name"]}' or
-                                s['try'].startswith(f'$t3-{s["name"]} '), s['name'])
+                self.assertTrue(s['try'] == f'${s["name"]}' or
+                                s['try'].startswith(f'${s["name"]} '), s['name'])
                 continue
-            self.assertTrue(s['try'].startswith(f'$t3-{s["name"]} '), s['name'])
+            self.assertTrue(s['try'].startswith(f'${s["name"]} '), s['name'])
             words = s['try'].split()
             first = words[1]
             if first in s['operations']:
@@ -104,7 +106,7 @@ class RepositoryGuideTest(unittest.TestCase):
         template = (ROOT / 'overrides' / 'home.html').read_text()
         self.assertIn('guide.recording | safe', template)
         # v0.5.0 ships what these docs describe, so the hero installs the stable formula.
-        self.assertIn('brew install seankoji-com/tap/t3-plugins', template)
+        self.assertIn('self-install --profile author', template)
         self.assertNotIn('--HEAD', template)
         # The hero sits outside Material's content area, so it carries its own copy
         # button; Material's document-wide clipboard handler serves it.
@@ -165,7 +167,7 @@ class SyntheticRootTest(unittest.TestCase):
             'operations': ['doctor'], 'kind': 'workflow', 'compatibility': 'experimental'}))
         (self.tmp / 'docs/assets/specimens/alpha.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
         self.guide = {'alpha': {'plate': 'I', 'binomial': 'A b', 'summary': 's', 'use_when': 'u',
-                                'try': '$t3-alpha doctor', 'habitat': 'h', 'diet': 'd', 'field_marks': 'f'}}
+                                'try': '$alpha doctor', 'habitat': 'h', 'diet': 'd', 'field_marks': 'f'}}
         self.write_guide()
 
     def write_guide(self):
@@ -213,9 +215,9 @@ class SyntheticRootTest(unittest.TestCase):
                 field_guide.load_guide(self.tmp)
 
     def test_try_must_mention_its_own_skill(self):
-        self.guide['alpha']['try'] = '$t3-beta doctor'
+        self.guide['alpha']['try'] = '$beta doctor'
         self.write_guide()
-        with self.assertRaisesRegex(field_guide.FieldGuideError, r'\$t3-alpha'):
+        with self.assertRaisesRegex(field_guide.FieldGuideError, r'\$alpha'):
             field_guide.load_guide(self.tmp)
 
     def test_missing_recording_fails_the_build(self):
@@ -257,7 +259,7 @@ class SyntheticRootTest(unittest.TestCase):
 
     def test_html_in_data_is_escaped(self):
         self.guide['alpha']['binomial'] = '<b>x</b>'
-        self.guide['alpha']['try'] = '$t3-alpha run <i>y</i>'
+        self.guide['alpha']['try'] = '$alpha run <i>y</i>'
         self.write_guide()
         header = field_guide.render_specimen_header(field_guide.load_guide(self.tmp)[0])
         self.assertIn('&lt;b&gt;x&lt;/b&gt;', header)

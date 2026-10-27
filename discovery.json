@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "legacy_roots": [".claude/skills", ".codex/skills", ".gemini/config/skills", ".gemini/skills", ".config/opencode/skills", ".config/muse/skills"],
+  "providers": [
+    {"id": "claude", "registration": "link", "root": ".claude/skills"},
+    {"id": "codex", "registration": "shared"},
+    {"id": "agy", "registration": "link", "root": ".gemini/config/skills"},
+    {"id": "gemini", "registration": "link", "root": ".gemini/skills"},
+    {"id": "muse", "registration": "shared"},
+    {"id": "opencode", "registration": "shared"},
+    {"id": "grok", "registration": "shared"}
+  ]
+}

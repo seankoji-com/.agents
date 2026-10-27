@@ -310,7 +310,7 @@ class PlanningReviewTests(unittest.TestCase):
             with self.subTest(limit=limit):
                 if self.caller:
                     self.setUp()
-                config = self.box.config / 't3-plugins/workers.json'
+                config = self.box.config / 'agents/workers.json'
                 old = config.read_bytes() if config.exists() else None
                 config.parent.mkdir(parents=True, exist_ok=True)
                 target = self.selection_data['review_panel'][0]['target']
@@ -542,7 +542,7 @@ class PlanningReviewTests(unittest.TestCase):
         self.assertIn('not permitted', self.cli('create', payload, ok=False))
 
     def test_provider_limits_freeze_and_installed_launch_refuses_without_charging(self):
-        config = self.box.config / 't3-plugins/workers.json'
+        config = self.box.config / 'agents/workers.json'
         old = config.read_bytes() if config.exists() else None
         self.addCleanup(lambda: config.write_bytes(old) if old is not None else config.unlink())
         config.parent.mkdir(parents=True, exist_ok=True)
@@ -789,6 +789,28 @@ class PlanningReviewTests(unittest.TestCase):
         state = json.loads(Path(self.created['subject_file']).read_text())
         self.assertEqual(state['active_job']['job_id'], original)
         self.assertEqual(state['rounds_used'], 0)
+
+    def test_pre_198_subject_keeps_its_active_owner_in_place(self):
+        payload = self.create()
+        original = self.job_id
+        current = Path(self.created['subject_file']).parent
+        # The same subject, where pre-#198 releases kept it.
+        legacy = Path(str(current).replace('/agents/jobs/review-subjects/', '/t3-plugins/review-subjects/'))
+        self.assertNotEqual(legacy, current)
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        current.rename(legacy)
+        before = (legacy / 'review.json').read_bytes()
+        self.job_id += '-second'
+        with self.assertRaises(AssertionError):self.create(snapshot=self.snapshot, begin=False)
+        self.assertEqual((legacy / 'review.json').read_bytes(), before)
+        self.assertEqual(json.loads((legacy / 'review.json').read_text())['active_job']['job_id'], original)
+        self.assertFalse((current / 'review.json').exists())
+        # A second record for the same output is refused rather than merged.
+        current.mkdir(parents=True)
+        (current / 'review.json').write_bytes(before)
+        refused = self.cli('create', dict(payload, job_id=self.job_id), ok=False)
+        self.assertIn('both the pre-#198 and current locations', refused)
+        self.assertEqual((legacy / 'review.json').read_bytes(), before)
 
     def test_rejected_major_requires_original_lineage_child_or_actual_repair(self):
         self.create();self.result(self.attempt(), findings=[self.finding()], verdict='adverse');self.finish(accepted=False)

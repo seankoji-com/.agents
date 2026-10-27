@@ -5,16 +5,16 @@ would justify keeping, simplifying, replacing or deleting them. The audit writes
 private local HTML report and JSON. It changes no tests, CI or merge protections.
 
 ```text
-$t3-tests-omg doctor
-$t3-tests-omg audit
-$t3-tests-omg audit /path/to/repo --run-checks
-$t3-tests-omg audit --org OWNER
-$t3-tests-omg status omg-RUN
-$t3-tests-omg report omg-RUN
+$tests-omg doctor
+$tests-omg audit
+$tests-omg audit /path/to/repo --run-checks
+$tests-omg audit --org OWNER
+$tests-omg status omg-RUN
+$tests-omg report omg-RUN
 ```
 
-Install from source with `python3 bin/t3-plugins setup tests-omg`, then restart your
-agent session. The slash-menu item `/t3-tests-omg` inserts the same skill mention.
+Follow [source installation](../getting-started.md), then restart the
+agent session. The slash-menu item `/tests-omg` inserts the same skill mention.
 This workflow is experimental and has no live-provider compatibility claim.
 Local helpers require Python 3.10+, Git and a POSIX host with `fcntl` file locking.
 
@@ -96,7 +96,7 @@ completeness. Complete organization status can exit 0 with freshness unknown and
 ## Reports and deterministic local use
 
 No model is needed to ingest existing evidence and render unknowns. Resolve the
-installed entry with `t3-plugins path tests-omg`, then run its sibling helper:
+installed entry with `agents --pin PIN path tests-omg` (PIN is the `pin` from `agents start tests-omg`), then run its sibling helper:
 
 ```sh
 python3 /installed/tests-omg/scripts/audit.py doctor
@@ -122,8 +122,8 @@ turn unknown measurements or failed/missing repository checks into passes. The
 six-field descriptor and stage contract are documented in `references/evidence.md`
 inside the package. Organization reports remain outside this local-source adapter.
 
-State defaults to `$XDG_STATE_HOME/t3-plugins/tests-omg` (or
-`~/.local/state/t3-plugins/tests-omg`), outside the target repository. Each private
+State defaults to `$XDG_STATE_HOME/agents/jobs/tests-omg` (or
+`~/.local/state/agents/jobs/tests-omg`), outside the target repository. Each private
 `runs/ID/` saves input.json, audit.json, report.html and a manifest with content
 hashes and generator version. The index records revision/config/history and
 predecessor/supersession. Compact sanitized findings stay until owner deletion;

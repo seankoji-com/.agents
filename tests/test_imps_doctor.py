@@ -41,7 +41,7 @@ class DoctorTest(unittest.TestCase):
         self.project = self.tmp / 'project'
         self.project.mkdir()
         self.env = dict(os.environ, HOME=str(self.tmp / 'home'), XDG_STATE_HOME=str(self.tmp / 'xdg'))
-        self.env.pop('T3_PLUGINS_STATE_ROOT', None)
+        self.env.pop('AGENTS_STATE_ROOT', None)
 
     def doctor(self, *args, cli=WRAPPER, env=None):
         result = subprocess.run([sys.executable, str(cli), 'doctor', '--repo', str(self.project), *map(str, args)],
@@ -181,7 +181,7 @@ class DoctorTest(unittest.TestCase):
     def test_default_root_is_the_xdg_state_directory(self):
         code, out = self.doctor()
         self.assertEqual(code, 0, out)
-        self.assertEqual(out['data']['checks']['state_root']['path'], str(self.tmp / 'xdg' / 't3-plugins' / 'imps'))
+        self.assertEqual(out['data']['checks']['state_root']['path'], str(self.tmp / 'xdg' / 'agents' / 'jobs' / 'imps'))
 
     def test_root_under_a_file_fails_with_exit_5(self):
         blocker = self.tmp / 'blocker'
@@ -308,19 +308,19 @@ class InstalledDoctorTest(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, True)
         source = tmp / 'src'
-        for part in ('core', 'plugins', 'scripts', 'shared'):
+        for part in ('core', 'plugins', 'scripts', 'shared', 'skills'):
             shutil.copytree(ROOT / part, source / part, ignore=shutil.ignore_patterns('__pycache__'))
         home = tmp / 'home'
         home.mkdir()
         env = dict(os.environ, HOME=str(home))
-        for name in ('T3_PLUGINS_PREFIX', 'T3_PLUGINS_STATE_ROOT', 'XDG_STATE_HOME', 'T3_PLUGINS_AGENTS_ROOT'):
+        for name in ('AGENTS_PREFIX', 'AGENTS_STATE_ROOT', 'XDG_STATE_HOME', 'AGENTS_REGISTRY_ROOT'):
             env.pop(name, None)
         installed = subprocess.run([sys.executable, str(source / 'scripts' / 'install.py')], capture_output=True,
                                    text=True, env=env, timeout=120)
         self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
         shutil.rmtree(source)  # the installed copy must not reach back into its source checkout
         version = json.loads(installed.stdout)['data']['version']
-        cli = home / '.local' / 'share' / 't3-plugins' / 'imps' / 'current' / 'cli.py'
+        cli = home / '.local' / 'share' / 'agents' / 'imps' / 'current' / 'cli.py'
         project = tmp / 'project'
         project.mkdir()
         before = tree(home)
@@ -330,7 +330,7 @@ class InstalledDoctorTest(unittest.TestCase):
         out = json.loads(result.stdout)
         self.assertEqual(out['data']['version'], version)
         self.assertEqual(out['data']['checks']['state_root']['path'],
-                         str(home / '.local' / 'state' / 't3-plugins' / 'imps'))
+                         str(home / '.local' / 'state' / 'agents' / 'jobs' / 'imps'))
         # An installed package has a manifest, so the learnings helper gets past it to the store.
         self.assertNotIn('install-manifest.json', str(out['data']['checks']['learnings'].get('reason')))
         self.assertEqual(tree(home), before)

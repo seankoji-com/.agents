@@ -64,8 +64,8 @@ Use these rounds, skipping decisions already answered:
    An explicit global choice stays global; record it separately from dispatch scope
    and, when settings writes are authorized, set the top-level `preferred_workhorse`
    to `{"providerInstanceId": "<exact provider>", "model": "<exact model>"}` in
-   `$XDG_CONFIG_HOME/t3-plugins/routing.json` (default
-   `~/.config/t3-plugins/routing.json`), preserving other candidates, roles and provider settings.
+   `$XDG_CONFIG_HOME/agents/routing.json` (default
+   `~/.config/agents/routing.json`), preserving other candidates, roles and provider settings.
    It must match exactly one `roles.workhorse` entry. Keep selected options on that
    entry. Read back the user file, effective repository override and both `resolve`
    and selection `discover` results before claiming it persisted. Both readers mark
@@ -148,7 +148,7 @@ Offer a suitable original-lineage dispute-only child, content repair or a scoped
 owner decision. A changed panel or self-review cannot clear an unchanged objection.
 
 Persist only genuine standing-project grants, using locked atomic private XDG state
-at `t3-plugins/authorities/<project-id>/model-policy.json`. The separate missing-grant
+at `agents/control/authorities/<project-id>/model-policy.json`. The separate missing-grant
 question explicitly offers **invocation-only** (recommended) or **standing-project**.
 Both answers include the source/answer hash, recipient/model classes and limits.
 Only the latter persists. Read applicable records without repeating permission;
@@ -177,7 +177,7 @@ requires an explicitly authorised schedule ID and fresh catalog/policy validatio
 every fire; no saved defaults or new scheduler.
 
 Use `python3 PKG/shared/model_selection_cli.py ACTION --input FILE` (or
-`t3-plugins selection ACTION --input FILE` in the source launcher):
+`agents --pin PIN selection ACTION --input FILE` in the source launcher):
 
 - `discover`: `{capabilities, profiles, routing?, role?}` returns recommendations and
   exclusions. Profiles name role floors and sourced model quality/lineage evidence.

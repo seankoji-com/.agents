@@ -16,19 +16,19 @@ directly. Never create a job or launch a worker for them.
 ## 2. Plan
 
 Substantive multi-stage work gets one job. Write the complete `job.schema.json` object
-and run, from the current package (`t3-plugins path PLUGIN`):
+and run, from the started package (`package_root` from `agents start PLUGIN`):
 
 ```sh
 python3 "PKG/shared/job_cli.py" create --state-root "$ROOT" --job JOB_ID --input job.json --prefix PREFIX --agents-root AGENTS_ROOT
 ```
 
-`ROOT` is `$XDG_STATE_HOME/t3-plugins/jobs` (default `~/.local/state/t3-plugins/jobs`,
+`ROOT` is `$XDG_STATE_HOME/agents/jobs` (default `~/.local/state/agents/jobs`,
 mode 0700) or an explicit alternative, never inside the target repository. The plan
 declares finite stages and task slots, acyclic dependencies, requirements and
 constraints quoted verbatim, action authorization kept separate, every plugin
 dependency (cross-plugin ones included), and a final integration/acceptance stage with
 its verification and review slots. From then on resolve each package from its pin:
-`t3-plugins --job "$ROOT/JOB_ID/job.json" path PLUGIN` prints the pinned entry, and
+`agents --job "$ROOT/JOB_ID/job.json" path PLUGIN` prints the pinned entry, and
 `PKG` is its directory. Run every later helper from that pinned `PKG`; a helper run from
 another package refuses with `wrong executing package`. Every mutation input carries
 `caller: {actor: "coordinator", installation_id, workflow, package_digest}` copied from

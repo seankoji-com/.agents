@@ -10,17 +10,17 @@ It reports a merge only after GitHub shows one.
 Start read-only, with one PR:
 
 ```text
-$t3-babysitter pr https://github.com/OWNER/REPO/pull/NUMBER Inspect reviews and CI only. Report blockers; do not edit, post, push or merge.
+$babysitter pr https://github.com/OWNER/REPO/pull/NUMBER Inspect reviews and CI only. Report blockers; do not edit, post, push or merge.
 ```
 
 When you want it landed, send the same URL without the restriction:
 
 ```text
-$t3-babysitter pr https://github.com/OWNER/REPO/pull/NUMBER Babysit through merge.
+$babysitter pr https://github.com/OWNER/REPO/pull/NUMBER Babysit through merge.
 ```
 
 `repo OWNER/REPO` and `org OWNER` widen the scope to every open PR there, which can
-mean many branches and model calls. Send `$t3-babysitter doctor` first on a new
+mean many branches and model calls. Send `$babysitter doctor` first on a new
 machine or provider.
 
 ## What you get
@@ -73,7 +73,7 @@ Org mode starts with a deterministic, read-only scan:
 python3 PKG/scripts/org_scan.py --org OWNER
 ```
 
-Resolve `PKG` with `t3-plugins path babysitter` (use `--job JOB` for a pinned job).
+`PKG` is the `package_root` from `agents start babysitter` (`agents --job JOB.json path babysitter` for a pinned job).
 The JSON lists every accessible repository's open, non-draft PRs, including forks
 and all authors, with exact heads and stable action/reason fields. `dispatch`
 contains PRs with failed checks, unresolved review threads, conflicts or requested
@@ -106,7 +106,7 @@ verified thread resolutions and landing commands execute in the coordinator.
 Worker claims still need explicit verification at the current head; those compact
 judgment requests keep findings and evidence visible. Requested periodic coverage
 without a host schedule receipt is reported as a gap.
-[Execution setup and limits](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/babysitter/references/org-execution.md)
+[Execution setup and limits](https://github.com/seankoji-com/.agents/blob/main/plugins/babysitter/references/org-execution.md)
 describe the configuration and host adapter. GitHub's branch rules control native
 auto-merge; without a conversation-resolution rule, it can merge with open threads.
 
@@ -114,7 +114,7 @@ A small coordinator can read `complete`, `summary`, `dispatch` and each selected
 row's reasons, then use the existing per-PR jobs and writer reservations. Repeated
 sweeps retain active tasks rather than launching duplicates. Fetch detailed comments,
 queue clocks and current-head evidence only when the maintenance workflow needs
-them. [The scan contract](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/babysitter/references/org-scan.md)
+them. [The scan contract](https://github.com/seankoji-com/.agents/blob/main/plugins/babysitter/references/org-scan.md)
 documents output, limits and routing. Fixture tests cover installed preparation and
 the complete offline convergence path. Live fixer execution and scheduled delivery remain
 separate checks.
@@ -174,7 +174,7 @@ stops writes for that PR. It does not bypass the workflow to land it.
 ## Operations
 
 `doctor`, `pr`, `repo`, `org`. The
-[entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/babysitter/entry.md)
+[entry file](https://github.com/seankoji-com/.agents/blob/main/skills/babysitter/SKILL.md)
 names the file the agent loads for each one.
 
 ## Jobs and workers

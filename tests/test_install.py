@@ -24,14 +24,14 @@ class InstallTest(CoreTestCase):
         self.home = self.tmp / 'home'
         self.home.mkdir()
         self.source = self.tmp / 'src'
-        for part in ('core', 'plugins', 'scripts', 'shared'):
+        for part in ('core', 'plugins', 'scripts', 'shared', 'skills'):
             shutil.copytree(ROOT / part, self.source / part, ignore=shutil.ignore_patterns('__pycache__'))
         self.env = dict(os.environ, HOME=str(self.home))
-        self.env.pop('T3_PLUGINS_PREFIX', None)
-        self.env.pop('T3_PLUGINS_STATE_ROOT', None)
+        self.env.pop('AGENTS_PREFIX', None)
+        self.env.pop('AGENTS_STATE_ROOT', None)
         self.env.pop('XDG_STATE_HOME', None)
-        self.prefix = self.home / '.local' / 'share' / 't3-plugins'
-        self.state = self.home / '.local' / 'state' / 't3-plugins'
+        self.prefix = self.home / '.local' / 'share' / 'agents'
+        self.state = self.home / '.local' / 'state' / 'agents'
 
     def installer(self, *args, expect=0, source=None):
         script = (source or self.source) / 'scripts' / 'install.py'
@@ -98,14 +98,15 @@ class InstallTest(CoreTestCase):
         other_plugin = self.prefix / 'someone-else' / 'keep.md'
         other_plugin.parent.mkdir(parents=True)
         other_plugin.write_text('keep')
-        state_before = tree_digest(self.state)
+        run_state = self.state/'jobs/imps'
+        state_before = tree_digest(run_state)
         self.assertTrue(state_before, 'the init above created run state')
         self.installer('--uninstall')
         self.assertFalse(version_dir.exists())
         self.assertFalse(current.is_symlink())
         self.assertEqual(unrelated.read_text(), 'mine')
         self.assertEqual(other_plugin.read_text(), 'keep')
-        self.assertEqual(tree_digest(self.state), state_before)
+        self.assertEqual(tree_digest(run_state), state_before)
 
     def test_new_version_and_rollback(self):
         first = self.installer()['data']
@@ -210,14 +211,14 @@ class InstallTest(CoreTestCase):
         worker = Path(receipt['bundle_dir']) / 'workers/stage-executor.md'
         worker.chmod(0o644); worker.write_text('tampered')
         result = subprocess.run([sys.executable, str(self.source / 'scripts/catalog.py'), '--prefix', str(self.prefix),
-                                 '--agents-root', str(self.home / '.agents/agents/t3-plugins'), 'doctor', 'imps'],
+                                 '--agents-root', str(self.home / '.local/state/agents/jobs/registry'), 'doctor', 'imps'],
                                 capture_output=True, text=True, env=self.env)
         self.assertEqual(result.returncode, 1)
         self.assertIn('integrity failure', result.stdout)
         second_prefix = self.home / 'copied-prefix'
         shutil.copytree(self.prefix, second_prefix)
         result = subprocess.run([sys.executable, str(self.source / 'scripts/install.py'), '--prefix', str(second_prefix),
-                                 '--agents-root', str(self.home / '.agents/agents/t3-plugins')],
+                                 '--agents-root', str(self.home / '.local/state/agents/jobs/registry')],
                                 capture_output=True, text=True, env=self.env)
         self.assertEqual(result.returncode, 2)
         self.assertIn('identity conflict', result.stdout + result.stderr)
@@ -225,7 +226,7 @@ class InstallTest(CoreTestCase):
     def test_live_job_pin_blocks_bundle_removal(self):
         first = self.installer()['data']
         receipt = json.loads((Path(first['version_dir']) / 'install-manifest.json').read_text())
-        state = self.home / '.local/state/t3-plugins/jobs/job-one'
+        state = self.home / '.local/state/agents/jobs/job-one'
         state.mkdir(parents=True)
         (state / 'job.json').write_text(json.dumps({'schema_version': 1, 'status': 'running',
                           'dependencies': [{'key': 'imps', 'plugin': 'imps'}],

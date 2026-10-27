@@ -1,3 +1,21 @@
+---
+name: bug-report
+description: "Verify suspected upstream defects, use their documented reporting channel, and follow up for one fixed 30-minute window. Args: [symptom, upstream or context reference]."
+metadata:
+  agents-bootstrap: "1"
+  opencode/slash: "true"
+  opencode/autoinvoke: "false"
+---
+
+
+Before substantive work, run only:
+
+```sh
+"$HOME/.local/bin/agents" start bug-report
+```
+
+Read the pinned SKILL.md and manifest before work. Already pinned: do not resolve again. Bind returned `package_root=PKG`, `pin=PIN`, `package_prefix=PREFIX`, `registry_root=AGENTS_ROOT`, `interpreter=PYTHON`; run Python examples with that absolute interpreter. Helpers, playbooks and workers use that pin only. Read `PKG/shared/manifest-routing.md`. Worktree tests add `--source /absolute/worktree` before `start`. Missing/incompatible launcher: explicit self-install.
+
 # bug-report
 
 Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
@@ -21,7 +39,7 @@ no host, model or GitHub API, starts no process and schedules nothing.
 
 ## Invocation
 
-`/t3-bug-report [symptom or context reference]` uses relevant current conversation
+`/bug-report [symptom or context reference]` uses relevant current conversation
 context. A bare command starts investigation when that context identifies the
 symptom. Otherwise ask only for the missing symptom. Never invent a failure.
 The normal invocation has no required `run` prefix or operation menu.
@@ -32,7 +50,7 @@ schedule, verifies cleanup, and reports outstanding requests.
 
 Use `python3 PKG/scripts/session.py ACTION --session ID --input FILE`. Supply
 `--state-root ROOT` only for an explicit private root outside any repository.
-The default is `$XDG_STATE_HOME/t3-plugins/bug-report`. JSON goes through a file,
+The default is `$XDG_STATE_HOME/agents/jobs/bug-report`. JSON goes through a file,
 never interpolated into shell code. Read `PKG/references/state.md` for exact input
 shapes. Each call prints `{ok, data}` or a redacted `{ok:false, error}` and exits
 0 or 2. Stop dependent actions when storage fails. Never edit state by hand.

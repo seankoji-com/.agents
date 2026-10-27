@@ -201,7 +201,7 @@ class RunTestsTest(unittest.TestCase):
             self.assertEqual(code, 0, out)
             self.assertEqual([call.args[1] for call in run.call_args_list], [600])
 
-        for name in ('test.yml', 'release.yml'):
+        for name in ('test.yml',):
             with self.subTest(workflow=name):
                 workflow = (ROOT / '.github' / 'workflows' / name).read_text()
                 check(workflow)

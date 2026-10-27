@@ -14,6 +14,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from support import source_entry
+
+from support import skill_manifest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 APE = ROOT / 'plugins' / 'ape'
@@ -44,11 +48,11 @@ def operation_rows(text):
 
 class ApeEntryRoutingTests(unittest.TestCase):
     def setUp(self):
-        self.entry = (APE / 'entry.md').read_text()
+        self.entry = (source_entry(APE)).read_text()
         self.rows = operation_rows(self.entry)
 
     def test_every_manifest_operation_routes_with_its_meaning(self):
-        manifest = json.loads((APE / 'plugin.json').read_text())
+        manifest = skill_manifest(APE / 'plugin.json')
         self.assertEqual(manifest['operations'], list(OPERATIONS))
         self.assertEqual(set(self.rows), set(OPERATIONS))
         meanings = {'doctor': 'change nothing', 'forage': 'at most five', 'study': 'one pinned source',
@@ -87,7 +91,7 @@ class ApeEntryRoutingTests(unittest.TestCase):
         self.assertIn('job-coordination.md', (ROOT / 'shared' / 't3-runtime.md').read_text())
 
     def test_word_budgets(self):
-        self.assertLess(words(APE / 'entry.md'), 1500)
+        self.assertLess(words(source_entry(APE)), 1500)
         for path in [*(APE / 'playbooks').glob('*.md'), *(APE / 'references').glob('*.md'),
                      *(APE / 'agents').glob('*.md')]:
             self.assertLess(words(path), 700, path.name)
@@ -117,7 +121,7 @@ class ApeEntryRoutingTests(unittest.TestCase):
 
 class ApeWorkerDefinitionTests(unittest.TestCase):
     def test_manifest_workers_have_contract_definitions(self):
-        manifest = json.loads((APE / 'plugin.json').read_text())
+        manifest = skill_manifest(APE / 'plugin.json')
         self.assertEqual({w['id'] for w in manifest['workers']}, {'ape/source-researcher', 'ape/synthesizer'})
         for worker in manifest['workers']:
             text = (APE / worker['path']).read_text()

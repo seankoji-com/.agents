@@ -37,6 +37,37 @@ class WiringTest(unittest.TestCase):
     def evidence(self, path):
         return [{'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}]
 
+    def test_canonical_source_and_only_receipted_native_alias_are_identity_bound(self):
+        source = self.root/'home/.agents'
+        skill = source/'skills/imps'
+        skill.mkdir(parents=True)
+        (skill/'SKILL.md').write_text('---\nname: imps\nmetadata:\n  agents-bootstrap: "1"\n---\nEditable body\n')
+        identity = source/'.agents-source.json'
+        identity.write_text(json.dumps({'schema_version':1,'repository_id':'1411719736'}))
+        state = self.root/'state'
+        control = state/'agents/control'
+        control.mkdir(parents=True)
+        marker = control/'cutover.json'
+        marker.write_text(json.dumps({'schema_version':1,'phase':'active','source_root':str(source),
+            'repository_id':'1411719736','identity_sha256':hashlib.sha256(identity.read_bytes()).hexdigest()}))
+        native = self.root/'home/.claude/skills/imps'
+        native.parent.mkdir(parents=True)
+        native.symlink_to(skill)
+        with patch.dict(os.environ,{'XDG_STATE_HOME':str(state)}):
+            self.assertEqual(wiring.skill_receipts(skill),[{'owner':'agents-source','status':'identity-bound'}])
+            (control/'discovery.json').write_text('{"schema_version":1,"links":[]}')
+            self.assertEqual(wiring.skill_receipts(native),[{'owner':'unmanaged','status':'unmanaged'}])
+            (control/'discovery.json').write_text(json.dumps({'schema_version':1,'links':[{'path':str(native),'target':str(skill)}]}))
+            self.assertEqual(wiring.skill_receipts(native),[{'owner':'agents-source','status':'identity-bound'}])
+            (skill/'SKILL.md').write_text('---\nname: imps\nmetadata:\n  agents-bootstrap: "1"\n---\nDirty owner body\n')
+            self.assertEqual(wiring.skill_receipts(skill)[0]['status'],'identity-bound')
+            vendor = source/'skills/foreign'
+            vendor.mkdir()
+            (vendor/'SKILL.md').write_text('Foreign instructions\n')
+            self.assertEqual(wiring.skill_receipts(vendor)[0]['owner'],'unmanaged')
+            identity.write_text('{}')
+            self.assertEqual(wiring.skill_receipts(skill)[0]['status'],'invalid')
+
     def test_default_compare_includes_all_surfaces_for_all_catalog_providers(self):
         result = align.compare(self.catalog, {'version': 1, 'providers': []})
         central = result['wiring']
@@ -161,7 +192,7 @@ class WiringTest(unittest.TestCase):
     def test_receipt_counts_require_every_owned_file_to_match(self):
         skill = self.file('shared/t3-example/SKILL.md')
         extra = self.file('shared/t3-example/agents/openai.yaml', 'metadata')
-        self.file('shared/t3-example/.t3-plugins-skill.json', json.dumps({
+        self.file('shared/t3-example/.agents-skill.json', json.dumps({
             'schema_version': 1, 'name': 't3-example',
             'sha256': hashlib.sha256(skill.read_bytes()).hexdigest(),
             'files': {'agents/openai.yaml': hashlib.sha256(extra.read_bytes()).hexdigest()}}))
@@ -172,14 +203,14 @@ class WiringTest(unittest.TestCase):
         row = result['skill_roots'][0]
         self.assertEqual(row['receipt_owned'], 0)
         self.assertEqual(row['local_or_vendor'], 0)
-        self.assertEqual(row['entries'][0]['receipts'], [{'owner': 't3-plugins', 'status': 'modified'}])
+        self.assertEqual(row['entries'][0]['receipts'], [{'owner': 'agents', 'status': 'modified'}])
         self.assertIn('skill_receipt_modified', {f['code'] for f in result['findings']})
         self.assertEqual(extra.read_text(), 'operator edit')
-        marker = skill.parent / '.t3-plugins-skill.json'
+        marker = skill.parent / '.agents-skill.json'
         receipt = json.loads(marker.read_text())
         receipt['files']['operator.txt'] = '0' * 64
         marker.write_text(json.dumps(receipt))
-        self.assertEqual(wiring.skill_receipts(skill.parent), [{'owner': 't3-plugins', 'status': 'invalid'}])
+        self.assertEqual(wiring.skill_receipts(skill.parent), [{'owner': 'agents', 'status': 'invalid'}])
 
     def test_common_dotfiles_receipt_checks_all_files_through_read_alias(self):
         skill = self.file('shared/ordinary/SKILL.md')
@@ -208,7 +239,7 @@ class WiringTest(unittest.TestCase):
     def test_recognized_bad_receipts_never_become_vendor_content(self):
         skill = self.file('shared/ordinary/SKILL.md')
         inventory = {'shared_skills': str(skill.parent.parent)}
-        for owner, marker in (('dotfiles', '.dotfiles-skill.json'), ('t3-plugins', '.t3-plugins-skill.json')):
+        for owner, marker in (('dotfiles', '.dotfiles-skill.json'), ('agents', '.agents-skill.json')):
             for raw, status in (('{', 'invalid'), ('[]', 'invalid'),
                                 (json.dumps({'schema_version': 2}), 'unsupported')):
                 with self.subTest(owner=owner, raw=raw):

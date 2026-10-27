@@ -1,8 +1,8 @@
 # Architecture
 
-Substantive public commands use a scoped upfront agreement after inspecting context. It binds the completion target, destinations, exact work/review chains and options, authority and limits to the existing selection and immutable briefs. The manifest operation inventory distinguishes substantive, continuation and direct controls. Endpoint observations remain separate from source readiness and live compatibility. See the [runtime agreement](https://github.com/seankoji-com/t3-plugins/blob/master/shared/upfront-agreement.md).
+Substantive public commands use a scoped upfront agreement after inspecting context. It binds the completion target, destinations, exact work/review chains and options, authority and limits to the existing selection and immutable briefs. The manifest operation inventory distinguishes substantive, continuation and direct controls. Endpoint observations remain separate from source readiness and live compatibility. See the [runtime agreement](https://github.com/seankoji-com/.agents/blob/main/shared/upfront-agreement.md).
 
-t3-plugins has three execution paths. Instructions guide the current agent. Local
+agents has three execution paths. Instructions guide the current agent. Local
 helpers do deterministic work. T3 owns delegated tasks and browser/PR interactions.
 The repository does not implement another model client, task scheduler or dispatch loop.
 
@@ -12,13 +12,14 @@ The repository does not implement another model client, task scheduler or dispat
 
 | Directory | Responsibility | Dependency rule |
 | --- | --- | --- |
-| `plugins/<name>/` | Entry, selected playbooks, worker definitions in `agents/`, helpers, stage validators, templates | May use the shared runtime contract and core |
+| `skills/<name>/SKILL.md` | Canonical body and human-facing frontmatter | Pinned before helper-backed execution |
+| `plugins/<name>/` | Routing manifest, playbooks, worker definitions, helpers, validators, templates | May use the shared runtime contract and core |
 | `shared/` | T3 contract, whole-job protocol, worker registry, job and acceptance helpers, result parser, optional learnings | Standard library; no provider SDK or executable orchestration |
 | `shared/agents/` | Worker boundaries, version-1 contracts and the separate compact-v2 brief schema | Data and contracts only |
 | `core/` | imps run state, generic job storage, atomic writes, evidence, readiness | Python standard library; no plugin imports or vocabulary |
-| `bin/` | Source-checkout launcher for the catalog CLI | Thin wrapper over `scripts/catalog.py` |
-| `scripts/` | Catalog, installation, conformance, release, and site-build tooling | Finds plugins through their manifests |
-| `packaging/` | Homebrew formula template | Calls the same installer used from source |
+| `bin/` | Source development entry and stable-launcher delegation | Operational commands use the installed resolver |
+| `scripts/` | Source resolver, snapshots, receiving, adoption and site tooling | Runtime is standard-library Python |
+| `packaging/` | Retained historical Homebrew formula template | No new project Brew publishing |
 | `tests/` | Deterministic regression tests and fixtures | No paid models or live GitHub mutations |
 | `bench/` | Frozen benchmark protocols, fixtures and graders | Not installed; live runs need separate authorization |
 | `conformance/` | Dated live-provider observations and the pre-merge review rounds under `review/` | Separate from unit-test success |
@@ -56,14 +57,14 @@ plan job → prepare brief → delegate_task → completion → ingest result
 ```
 
 The agent-facing protocol is
-[`shared/job-coordination.md`](https://github.com/seankoji-com/t3-plugins/blob/master/shared/job-coordination.md);
+[`shared/job-coordination.md`](https://github.com/seankoji-com/.agents/blob/main/shared/job-coordination.md);
 field-level rules and limits are in
-[`shared/agents/jobs-contract.md`](https://github.com/seankoji-com/t3-plugins/blob/master/shared/agents/jobs-contract.md).
+[`shared/agents/jobs-contract.md`](https://github.com/seankoji-com/.agents/blob/main/shared/agents/jobs-contract.md).
 
 ### Job state
 
-Jobs live in `$XDG_STATE_HOME/t3-plugins/jobs/<job-id>/` (default
-`~/.local/state/t3-plugins/jobs`), or under an explicit `--state-root`. Never put
+Jobs live in `$XDG_STATE_HOME/agents/jobs/<job-id>/` (default
+`~/.local/state/agents/jobs`), or under an explicit `--state-root`. Never put
 them inside the target repository. Files are private, replaced atomically and
 written under a process lock.
 
@@ -150,7 +151,7 @@ every underlying record.
   decision.
 - **Routing.** The coordinator recommends an eligible saved workhorse preference,
   otherwise the lowest suitable configured tier, with
-  [`t3-plugins resolve`](getting-started.md#model-routing) and records the reason and
+  [`agents resolve`](getting-started.md#model-routing) and records the reason and
   escalation order. The user's upfront work/panel choices control dispatch and exact
   supported options. Reviewers need a reviewer or judgement tier; planning fallback
   reports its actual lineage mode. The coordinator's own model never changes.
@@ -198,19 +199,18 @@ plugin's own commands load them.
 | `focus-group/fidelity-reviewer` | Check the exact integrated report against its inputs and actual authors |
 
 Installation copies each package's definitions and shared contracts into an
-immutable bundle under the agents root (default `~/.agents/agents/t3-plugins`):
+immutable bundle under the XDG registry (default `~/.local/state/agents/jobs/registry`):
 
 ```text
 <agents-root>/installations/<installation-id>/<plugin>/<package-version>/
   manifest.json
   workers/<worker>.md
   shared/<contract files>
-<agents-root>/overrides/<plugin>/<worker>.md
 ```
 
 This is the plugin registry's own layout. No harness discovers these files as native
-agents. Each prefix gets its own installation ID; a moved prefix keeps its identity
-only through explicit `t3-plugins adopt`.
+agents. Each materialized package retains an installation identity. Worker override
+configuration is outside the source, under XDG config `agents/workers.json`.
 
 A worker's effective definition is composed in a fixed order: shared boundaries,
 the worker definition, an explicitly enabled override, then the task contract. An

@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-CLI = ROOT / 'bin/t3-plugins'
+CLI = ROOT / 'scripts/catalog.py'
 
 
 class CatalogTest(unittest.TestCase):
@@ -59,7 +59,7 @@ class CatalogTest(unittest.TestCase):
         self.env.pop('CODEX_HOME', None)
         self.env.pop('XDG_CONFIG_HOME', None)
         home = Path(self.tmp.name)
-        shared = home / '.agents/skills/t3-ape/SKILL.md'
+        shared = home / '.agents/skills/ape/SKILL.md'
         shared.parent.mkdir(parents=True)
         shared.write_text('operator-owned shared copy')
         self.call('setup', 'ape')
@@ -67,7 +67,7 @@ class CatalogTest(unittest.TestCase):
                  home / '.config/opencode/skills', home / '.gemini/config/skills',
                  home / '.gemini/skills', home / '.config/muse/skills')
         for root in roots:
-            self.assertTrue((root / 't3-ape/SKILL.md').is_file(), str(root))
+            self.assertTrue((root / 'ape/SKILL.md').is_file(), str(root))
         self.assertEqual(shared.read_text(), 'operator-owned shared copy')
         self.assertEqual(list(shared.parent.parent.iterdir()), [shared.parent])
 
@@ -78,11 +78,11 @@ class CatalogTest(unittest.TestCase):
         self.env['XDG_CONFIG_HOME'] = str(home / 'custom config')
         result = self.call('setup', 'ape')
         receipts = [json.loads(line) for line in result.stdout.splitlines()]
-        adapters = [row['path'] for row in receipts if row.get('name') == 't3-ape']
+        adapters = [row['path'] for row in receipts if row.get('name') == 'ape']
         self.assertEqual(len(adapters), 5)
         self.assertEqual(len(set(adapters)), 5)
         for provider in ('opencode', 'muse'):
-            self.assertTrue((home / 'custom config' / provider / 'skills/t3-ape/SKILL.md').is_file())
+            self.assertTrue((home / 'custom config' / provider / 'skills/ape/SKILL.md').is_file())
         self.assertFalse((home / '.codex/skills').exists())
         self.assertFalse((home / 'config/opencode/skills').exists())
         self.assertFalse((home / '.agents/skills').exists())
@@ -91,7 +91,7 @@ class CatalogTest(unittest.TestCase):
         self.env.pop('CODEX_HOME', None)
         root = Path(self.tmp.name) / 'chosen skills'
         self.call('setup', 'ape', '--root', str(root))
-        self.assertTrue((root / 't3-ape/SKILL.md').is_file())
+        self.assertTrue((root / 'ape/SKILL.md').is_file())
         for name in ('.claude/skills', '.codex/skills', 'config/opencode/skills',
                      '.gemini/config/skills', '.gemini/skills', 'config/muse/skills',
                      '.agents/skills'):
@@ -100,7 +100,7 @@ class CatalogTest(unittest.TestCase):
     def test_healthy_old_snapshot_is_reported_and_cli_warns_without_rewriting(self):
         self.call('install', 'imps')
         command = [sys.executable, str(ROOT / 'scripts/run_imps.py'), '--help']
-        env = {**os.environ, 'T3_PLUGINS_PREFIX': str(self.prefix)}
+        env = {**os.environ, 'AGENTS_PREFIX': str(self.prefix)}
         result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn('snapshot differs', result.stderr)
@@ -114,7 +114,7 @@ class CatalogTest(unittest.TestCase):
                 item['sha256'] = hashlib.sha256(contract.read_bytes()).hexdigest()
         manifest_path.write_text(json.dumps(manifest))
         receipt = json.loads(self.call('doctor', 'imps', expected=1).stdout)
-        self.assertEqual(receipt['errors'], ['snapshot_outdated: run t3-plugins install imps'])
+        self.assertEqual(receipt['errors'], ['snapshot_outdated: run agents start imps'])
         result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('snapshot differs', result.stderr)
@@ -146,7 +146,7 @@ class CatalogTest(unittest.TestCase):
 
     def test_doctor_names_a_missing_installation(self):
         receipt = json.loads(self.call('doctor', 'ape', expected=1).stdout)
-        self.assertEqual(receipt['errors'], ['not_installed: run t3-plugins install ape'])
+        self.assertEqual(receipt['errors'], ['not_installed: run agents start ape'])
 
     def test_uninstall_forwards_force_and_version(self):
         first = json.loads(self.call('install', 'ape').stdout)['data']
@@ -222,7 +222,9 @@ class CatalogTest(unittest.TestCase):
         import re
         for directory in (ROOT / 'plugins').iterdir():
             meta = json.loads((directory / 'plugin.json').read_text())
-            entry = directory / meta['entry']
+            entry = ROOT/'skills'/directory.name/'SKILL.md'
+            if not entry.exists():
+                entry = directory / meta['entry']
             self.assertLess(len(entry.read_text().split()), 1500, directory.name)
             for path in directory.rglob('*.md'):
                 for rel in re.findall(r'PKG/([a-zA-Z0-9_./-]+)', path.read_text()):
@@ -231,6 +233,9 @@ class CatalogTest(unittest.TestCase):
                         continue
                     # Placeholder-derived template names are checked by rendering tests.
                     if rel in ('templates/probes',):
+                        continue
+                    if rel == 'entry.md' and (ROOT/'skills'/directory.name/'SKILL.md').is_file():
+                        self.assertTrue(entry.is_file(), 'installed entry is derived from the canonical body')
                         continue
                     self.assertTrue((directory / rel).exists() or (ROOT / rel).exists(), f'{path}: {rel}')
 

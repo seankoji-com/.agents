@@ -160,13 +160,16 @@ class LabelTest(Base):
         self.assertIn('Waived is never counted as passed', (run.run_dir / 'reports' / 'report.md').read_text())
 
     def test_repository_required_check_cannot_be_waived(self):
-        repo = self.make_repo()
-        (repo / '.t3-plugins').mkdir()
-        (repo / '.t3-plugins' / 'imps.json').write_text(json.dumps({'schema_version': 1, 'policy': {
-            'checks': [{'name': 'unit', 'argv': [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests']}]}}))
-        git(repo, 'add', '-A')
-        git(repo, 'commit', '-qm', 'policy')
-        repo, run = self.verifying_run(repo=repo)
-        code, env, _ = run.submit_raw('waive', {'target': 'check:unit', 'reason': 'slow', 'decided_by': 'operator',
-                                                 'operator_quote': 'skip unit'})
-        self.assertEqual((code, env['error']['code']), (4, 'waiver_forbidden'))
+        # .t3-plugins is the pre-#198 location; it keeps binding until the policy is moved.
+        for folder in ('.agents', '.t3-plugins'):
+            with self.subTest(folder=folder):
+                repo = self.make_repo()
+                (repo / folder).mkdir()
+                (repo / folder / 'imps.json').write_text(json.dumps({'schema_version': 1, 'policy': {
+                    'checks': [{'name': 'unit', 'argv': [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests']}]}}))
+                git(repo, 'add', '-A')
+                git(repo, 'commit', '-qm', 'policy')
+                repo, run = self.verifying_run(repo=repo)
+                code, env, _ = run.submit_raw('waive', {'target': 'check:unit', 'reason': 'slow',
+                                                         'decided_by': 'operator', 'operator_quote': 'skip unit'})
+                self.assertEqual((code, env['error']['code']), (4, 'waiver_forbidden'))

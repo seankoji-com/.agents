@@ -56,13 +56,13 @@ class PackagingAcceptance(unittest.TestCase):
                         self.assertNotIn('bundle_digest', receipt)
                     skills = box.home / 'skills'
                     box.t3('skills', 'install', plugin, '--root', skills)
-                    adapter = skills / ('t3-' + plugin) / 'SKILL.md'
+                    adapter = skills / plugin / 'SKILL.md'
                     text = adapter.read_text()
                     frontmatter = text.split('---', 2)[1]
                     self.assertNotIn('model:', frontmatter)
                     self.assertNotIn('effort:', frontmatter)
                     self.assertIn(str(box.prefix / plugin / 'current/entry.md'), text)
-                    marker = json.loads((adapter.parent / '.t3-plugins-skill.json').read_text())
+                    marker = json.loads((adapter.parent / '.agents-skill.json').read_text())
                     self.assertEqual(marker['entry'], str(box.prefix / plugin / 'current/entry.md'))
                     self.assertFalse(list(skills.glob('*plan-reviewer*')))
 

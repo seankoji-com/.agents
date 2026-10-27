@@ -1,3 +1,21 @@
+---
+name: ralph
+description: "Implement a goal with fresh T3 tasks, evaluate with another lineage, repair blockers and track safe deferrals as repository issues before the selected delivery endpoint. Args: run [--max-attempts N] <goal> | resume <state-file> | status <state-file> | cancel <state-file> | doctor."
+metadata:
+  agents-bootstrap: "1"
+  opencode/slash: "true"
+  opencode/autoinvoke: "false"
+---
+
+
+Before substantive work, run only:
+
+```sh
+"$HOME/.local/bin/agents" start ralph
+```
+
+Read the pinned SKILL.md and manifest before work. Already pinned: do not resolve again. Bind returned `package_root=PKG`, `pin=PIN`, `package_prefix=PREFIX`, `registry_root=AGENTS_ROOT`, `interpreter=PYTHON`; run Python examples with that absolute interpreter. Helpers, playbooks and workers use that pin only. Read `PKG/shared/manifest-routing.md`. Worktree tests add `--source /absolute/worktree` before `start`. Missing/incompatible launcher: explicit self-install.
+
 # Ralph for T3 Code
 
 Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before

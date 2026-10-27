@@ -10,10 +10,10 @@ other project's code and never edits yours.
 Study one repository you already have in mind:
 
 ```text
-$t3-ape https://github.com/python/cpython How are parser error cases tested? Compare with this project and propose a small experiment.
+$ape https://github.com/python/cpython How are parser error cases tested? Compare with this project and propose a small experiment.
 ```
 
-Or name the gap directly: `$t3-ape find simpler approaches to retry handling`.
+Or name the gap directly: `$ape find simpler approaches to retry handling`.
 Without a URL it automatically searches for candidates; with a URL anywhere in the
 request it studies that repository. There is no operation picker. Bare invocation
 uses relevant project context and asks only if the gap is unclear.
@@ -41,10 +41,10 @@ Research happens in a workspace of cloned repositories outside your project. To
 reclaim the disk space, name that workspace:
 
 ```text
-$t3-ape --clean WORKSPACE
+$ape --clean WORKSPACE
 ```
 
-That deletes the clones and keeps the reports. `$t3-ape --clean WORKSPACE --all` also
+That deletes the clones and keeps the reports. `$ape --clean WORKSPACE --all` also
 deletes the reports and the workspace itself. Either way the agent first lists what
 it would remove and asks you to confirm; a `study` or `forage` request never counts as
 permission to delete.
@@ -53,7 +53,7 @@ permission to delete.
 
 `--doctor` and `--clean WORKSPACE` remain explicit maintenance flags. Research chooses its
 internal `forage` or `study` route automatically. The
-[entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/ape/entry.md)
+[entry file](https://github.com/seankoji-com/.agents/blob/main/skills/ape/SKILL.md)
 names the file the agent loads for each one.
 
 ## Jobs and workers

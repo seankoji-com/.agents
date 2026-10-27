@@ -46,9 +46,9 @@ class SkillAdapters(unittest.TestCase):
     def test_adapter_uses_installed_entry_and_is_idempotent(self):
         first = self.install()
         entry = self.prefix / 'imps/current/entry.md'
-        adapter = self.skills / 't3-imps/SKILL.md'
+        adapter = self.skills / 'imps/SKILL.md'
         self.assertIn(json.dumps(str(entry)), adapter.read_text())
-        self.assertIn('name: t3-imps', adapter.read_text())
+        self.assertIn('name: imps', adapter.read_text())
         self.assertIn("With no request, ask through the host's native question picker.", adapter.read_text())
         self.assertIn('Recommend the first option.', adapter.read_text())
         self.assertIn('Do nothing until the owner answers.', adapter.read_text())
@@ -59,7 +59,7 @@ class SkillAdapters(unittest.TestCase):
         self.assertNotIn(str(ROOT), adapter.read_text())
         second = self.call('skills', 'install', 'imps', '--root', str(self.skills))
         self.assertEqual(first.stdout, second.stdout)
-        receipt = json.loads((adapter.parent / '.t3-plugins-skill.json').read_text())
+        receipt = json.loads((adapter.parent / '.agents-skill.json').read_text())
         self.assertEqual(receipt['sha256'], hashlib.sha256(adapter.read_bytes()).hexdigest())
         # Exercise the actual helper bundled behind the adapter, from another cwd.
         request = self.base / 'request.json'
@@ -74,8 +74,8 @@ class SkillAdapters(unittest.TestCase):
         first = json.loads(self.call('install', 'imps').stdout)['data']
         entry = self.prefix / 'imps/current/entry.md'
         self.call('skills', 'install', 'imps', '--root', str(self.skills))
-        adapter = self.skills / 't3-imps/SKILL.md'
-        marker_path = adapter.parent / '.t3-plugins-skill.json'
+        adapter = self.skills / 'imps/SKILL.md'
+        marker_path = adapter.parent / '.agents-skill.json'
         self.assertIn(json.dumps(str(entry)), adapter.read_text())
         self.assertEqual(json.loads(marker_path.read_text())['entry'], str(entry))
 
@@ -83,7 +83,7 @@ class SkillAdapters(unittest.TestCase):
         # directions. The adapter and receipt keep the public current path while it
         # resolves to whichever verified snapshot is active.
         source = self.base / 'second-source'
-        for name in ('core', 'shared', 'plugins'):
+        for name in ('core', 'shared', 'plugins', 'skills'):
             shutil.copytree(ROOT / name, source / name,
                             ignore=shutil.ignore_patterns('__pycache__', '.pytest_cache'))
         note = next((source / 'plugins/imps').rglob('*.md'))
@@ -148,7 +148,7 @@ class SkillAdapters(unittest.TestCase):
 
     def test_unowned_and_modified_adapters_are_preserved(self):
         self.call('install', 'imps')
-        folder = self.skills / 't3-imps'
+        folder = self.skills / 'imps'
         folder.mkdir(parents=True)
         skill = folder / 'SKILL.md'
         skill.write_text('my existing skill')
@@ -161,7 +161,7 @@ class SkillAdapters(unittest.TestCase):
         for action in ('install', 'uninstall'):
             self.call('skills', action, 'imps', '--root', str(self.skills), code=2)
         self.assertEqual(skill.read_text(), 'my edited skill')
-        self.assertTrue((folder / '.t3-plugins-skill.json').exists())
+        self.assertTrue((folder / '.agents-skill.json').exists())
 
     def test_symlink_roots_and_leafs_are_rejected(self):
         self.call('install', 'imps')
@@ -174,7 +174,7 @@ class SkillAdapters(unittest.TestCase):
         self.install()
         target = external / 'private.md'
         target.write_text('preserve')
-        skill = self.skills / 't3-imps/SKILL.md'
+        skill = self.skills / 'imps/SKILL.md'
         skill.unlink()
         skill.symlink_to(target)
         for action in ('install', 'uninstall'):
@@ -183,7 +183,7 @@ class SkillAdapters(unittest.TestCase):
 
     def test_uninstall_preserves_extra_files_and_is_idempotent(self):
         self.install()
-        extra = self.skills / 't3-imps/operator.txt'
+        extra = self.skills / 'imps/operator.txt'
         extra.write_text('notes')
         self.call('skills', 'uninstall', 'imps', '--root', str(self.skills))
         self.assertEqual(extra.read_text(), 'notes')
@@ -198,7 +198,7 @@ class SkillAdapters(unittest.TestCase):
         self.call('install')
         result = self.call('skills', 'install', '--root', str(self.skills))
         self.assertEqual(len(result.stdout.splitlines()), 9)
-        marker = self.skills / 't3-imps/.t3-plugins-skill.json'
+        marker = self.skills / 'imps/.agents-skill.json'
         marker.write_text('[]')
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
 
@@ -206,37 +206,38 @@ class SkillAdapters(unittest.TestCase):
         self.call('install')
         self.call('skills', 'install', '--root', str(self.skills))
         for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
-            meta = json.loads(manifest.read_text())
+            meta = skills.manifest_data.load(manifest)
             if meta.get('deprecated'):
                 continue
             with self.subTest(plugin=meta['name']):
-                adapter = self.skills / ('t3-' + meta['name']) / 'SKILL.md'
+                adapter = self.skills / meta['name'] / 'SKILL.md'
                 front = adapter.read_text().split('---\n', 2)[1]
                 line = next(line for line in front.splitlines() if line.startswith('description: '))
                 description = json.loads(line.removeprefix('description: '))
-                self.assertTrue(description.startswith(meta['description'] + ' Args: '))
-                self.assertIn(meta['argument_hint'], description)
+                self.assertEqual(description, meta['description'])
+                hint = description.split(' Args: ',1)[1].rstrip('.')
+                self.assertIn(hint, description)
                 self.assertLessEqual(len(description), 1024)
-                operations = {hint.strip().split()[0] for hint in meta['argument_hint'].split('|')}
+                operations = {part.strip().split()[0] for part in hint.split('|')}
                 if not meta.get('default_operation'):
                     self.assertEqual(operations, set(meta['operations']))
                 else:
-                    self.assertNotIn('|', meta['argument_hint'])
+                    self.assertNotIn('|', hint)
                     self.assertIn('never ask the owner to select an operation', adapter.read_text())
                 self.assertEqual(len(meta['picker']), len(set(meta['picker'])))
                 self.assertGreaterEqual(len(meta['picker']), 1 if meta.get('default_operation') else 2)
                 self.assertLessEqual(len(meta['picker']), 4)
                 for route in meta['routes']:
                     self.assertTrue(route['pattern'].startswith('^') and route['pattern'].endswith('$'))
-                    self.assertIn(route['pattern'], (self.skills / ('t3-' + meta['name']) / 'SKILL.md').read_text())
+                    self.assertIn(route['pattern'], (self.skills / meta['name'] / 'SKILL.md').read_text())
                     self.assertIn(route['operation'], meta['operations'])
-        imps = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
-        imps_adapter = (self.skills / 't3-imps/SKILL.md').read_text()
+        imps = (self.skills / 'imps/SKILL.md').read_text().split('---\n', 2)[1]
+        imps_adapter = (self.skills / 'imps/SKILL.md').read_text()
         self.assertIn('Remove declared standalone flags (`--personas`) before choosing the operation.',
                       imps_adapter)
-        for hint in ('run <task>', 'resume <run-id>', 'checklist <path>',
-                     'issues <number> [<number> ...]', 'discussion <number or URL>',
-                     'add --personas before or after any request'):
+        # Frontmatter-owned canonical description (skills/imps/SKILL.md).
+        for hint in ('run TASK', 'resume RUN', 'checklist PATH', 'issues N...', 'discussion NUMBER/URL',
+                     'Add --personas anywhere'):
             self.assertIn(hint, imps)
 
     def test_modified_snapshot_is_not_registered(self):
@@ -294,7 +295,7 @@ class SkillAdapters(unittest.TestCase):
         asset.chmod(0o644)
         asset.write_text('modified bundle')
         asset.chmod(0o444)
-        folder = self.skills / 't3-imps'
+        folder = self.skills / 'imps'
         before = {p: p.read_bytes() for p in folder.rglob('*') if p.is_file()}
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
         self.assertEqual(before, {p: p.read_bytes() for p in before})
@@ -329,11 +330,11 @@ class SkillAdapters(unittest.TestCase):
 
     def test_adapter_metadata_comes_from_current_receipted_package_not_cli_catalog(self):
         self.call('install', 'imps')
-        installed = json.loads((self.prefix / 'imps/current/plugin.json').read_text())
+        installed = skills.manifest_data.load(self.prefix / 'imps/current/plugin.json')
         bundled = dict(installed, version='999.0.0', description='wrong CLI metadata',
                        operations=['wrong'], picker=['wrong', 'other'])
         skills.install(self.skills, self.prefix, bundled)
-        text = (self.skills / 't3-imps/SKILL.md').read_text()
+        text = (self.skills / 'imps/SKILL.md').read_text()
         self.assertIn(installed['description'], text)
         self.assertNotIn('wrong CLI metadata', text)
         self.assertNotIn('999.0.0', text)
@@ -394,7 +395,7 @@ class SkillAdapters(unittest.TestCase):
             'tests-omg': ['audit', 'status', 'report', 'doctor'],
         }
         for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
-            meta = json.loads(manifest.read_text())
+            meta = skills.manifest_data.load(manifest)
             if meta.get('deprecated'):
                 continue
             with self.subTest(plugin=meta['name']):
@@ -428,7 +429,7 @@ class SkillAdapters(unittest.TestCase):
                                         'standalone_flags': flags})
 
     def test_imps_manifest_routes_match_input_classifier_and_render_in_order(self):
-        manifest = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        manifest = skills.manifest_data.load(ROOT / 'plugins/imps/plugin.json')
         input_spec = importlib.util.spec_from_file_location(
             'imps_input_for_routes', ROOT / 'plugins/imps/scripts/input.py')
         input_module = importlib.util.module_from_spec(input_spec)
@@ -503,7 +504,7 @@ class SkillAdapters(unittest.TestCase):
 
     def test_manifest_routes_dispatch_first_match_and_leave_ambiguous_text_to_picker(self):
         manifests = {meta['name']: meta for manifest in (ROOT / 'plugins').glob('*/plugin.json')
-                     for meta in [json.loads(manifest.read_text())]}
+                     for meta in [skills.manifest_data.load(manifest)]}
         babysitter = manifests['babysitter']
         ape = manifests['ape']
         tuneup = manifests['agent-tuneup']
@@ -572,31 +573,31 @@ class SkillAdapters(unittest.TestCase):
                     self.assertIn('- `' + item['pattern'] + '` -> `' + item['operation'] + '`', rendered)
 
     def test_adapter_frontmatter_carries_provenance_metadata(self):
-        meta = json.loads((ROOT / 'plugins/babysitter/plugin.json').read_text())
+        meta = skills.manifest_data.load(ROOT / 'plugins/babysitter/plugin.json')
         self.call('install', 'babysitter')
         self.call('skills', 'install', 'babysitter', '--root', str(self.skills))
-        front = (self.skills / 't3-babysitter/SKILL.md').read_text().split('---\n', 2)[1]
+        front = (self.skills / 'babysitter/SKILL.md').read_text().split('---\n', 2)[1]
         self.assertIn('metadata:', front)
-        self.assertIn('  t3-plugins-version: ' + json.dumps(meta['version']), front)
-        self.assertIn('  t3-plugins-kind: ' + json.dumps(meta['kind']), front)
-        self.assertIn('  t3-plugins-compatibility: ' + json.dumps(meta['compatibility']), front)
+        self.assertIn('  agents-version: ' + json.dumps(meta['version']), front)
+        self.assertIn('  agents-kind: ' + json.dumps(meta['kind']), front)
+        self.assertIn('  agents-compatibility: ' + json.dumps(meta['compatibility']), front)
         origin = meta['origin']
-        self.assertIn('  t3-plugins-origin-repository: ' + json.dumps(origin['repository']), front)
-        self.assertIn('  t3-plugins-origin-plugin: ' + json.dumps(origin['plugin']), front)
-        self.assertIn('  t3-plugins-origin-version: ' + json.dumps(origin['version']), front)
+        self.assertIn('  agents-origin-repository: ' + json.dumps(origin['repository']), front)
+        self.assertIn('  agents-origin-plugin: ' + json.dumps(origin['plugin']), front)
+        self.assertIn('  agents-origin-version: ' + json.dumps(origin['version']), front)
 
     def test_adapter_without_origin_omits_origin_keys(self):
-        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        meta = skills.manifest_data.load(ROOT / 'plugins/imps/plugin.json')
         self.assertNotIn('origin', meta)
         self.install()
-        front = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
-        self.assertIn('  t3-plugins-version: ' + json.dumps(meta['version']), front)
-        self.assertNotIn('t3-plugins-origin', front)
+        front = (self.skills / 'imps/SKILL.md').read_text().split('---\n', 2)[1]
+        self.assertIn('  agents-version: ' + json.dumps(meta['version']), front)
+        self.assertNotIn('agents-origin', front)
 
     def test_frontmatter_top_level_stays_within_the_spec(self):
         spec_fields = {'name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'}
         self.install()
-        front = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
+        front = (self.skills / 'imps/SKILL.md').read_text().split('---\n', 2)[1]
         keys = {line.split(':', 1)[0] for line in front.splitlines() if line and not line[0].isspace()}
         self.assertLessEqual(keys, spec_fields)
         self.assertNotIn('disable-model-invocation', front)
@@ -604,28 +605,28 @@ class SkillAdapters(unittest.TestCase):
         self.assertNotIn('argument-hint', front)
 
     def test_model_invocation_policy_lives_in_metadata(self):
-        imps = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        imps = skills.manifest_data.load(ROOT / 'plugins/imps/plugin.json')
         self.assertNotIn('model_invocable', imps)
         self.install()
-        front = (self.skills / 't3-imps/SKILL.md').read_text().split('---\n', 2)[1]
+        front = (self.skills / 'imps/SKILL.md').read_text().split('---\n', 2)[1]
         self.assertIn('  opencode/slash: "true"', front)
         self.assertIn('  opencode/autoinvoke: "false"', front)
 
     def test_babysitter_stays_model_invocable(self):
-        meta = json.loads((ROOT / 'plugins/babysitter/plugin.json').read_text())
+        meta = skills.manifest_data.load(ROOT / 'plugins/babysitter/plugin.json')
         self.assertTrue(meta['model_invocable'])
         self.call('install', 'babysitter')
         self.call('skills', 'install', 'babysitter', '--root', str(self.skills))
-        front = (self.skills / 't3-babysitter/SKILL.md').read_text().split('---\n', 2)[1]
+        front = (self.skills / 'babysitter/SKILL.md').read_text().split('---\n', 2)[1]
         self.assertIn('  opencode/slash: "true"', front)
         self.assertNotIn('opencode/autoinvoke', front)
 
 
     def openai_yaml(self, plugin='imps'):
-        return self.skills / ('t3-' + plugin) / 'agents/openai.yaml'
+        return self.skills / plugin / 'agents/openai.yaml'
 
     def receipt(self, plugin='imps'):
-        return json.loads((self.skills / ('t3-' + plugin) / '.t3-plugins-skill.json').read_text())
+        return json.loads((self.skills / plugin / '.agents-skill.json').read_text())
 
     def test_codex_metadata_is_written_owned_and_removed_with_the_adapter(self):
         self.install()
@@ -634,19 +635,19 @@ class SkillAdapters(unittest.TestCase):
         self.assertEqual(lines[0], 'interface:')
         fields = {line.split(':', 1)[0].strip(): json.loads(line.split(':', 1)[1]) for line in lines[1:]}
         self.assertEqual(set(fields), {'display_name', 'short_description', 'default_prompt'})
-        self.assertEqual(fields['display_name'], 'T3 Imps')
-        self.assertIn('$t3-imps', fields['default_prompt'])
+        self.assertEqual(fields['display_name'], 'Imps')
+        self.assertIn('$imps', fields['default_prompt'])
         self.assertNotIn(str(self.prefix), yaml.read_text())
         self.assertEqual(self.receipt()['files'],
                          {'agents/openai.yaml': hashlib.sha256(yaml.read_bytes()).hexdigest()})
         self.call('skills', 'uninstall', 'imps', '--root', str(self.skills))
-        self.assertFalse((self.skills / 't3-imps').exists())
+        self.assertFalse((self.skills / 'imps').exists())
 
     def test_every_catalog_adapter_has_a_short_picker_description(self):
         self.call('install')
         self.call('skills', 'install', '--root', str(self.skills))
         for manifest in sorted((ROOT / 'plugins').glob('*/plugin.json')):
-            meta = json.loads(manifest.read_text())
+            meta = skills.manifest_data.load(manifest)
             if meta.get('deprecated'):
                 continue
             with self.subTest(plugin=meta['name']):
@@ -655,30 +656,30 @@ class SkillAdapters(unittest.TestCase):
                 short = json.loads(line.split(': ', 1)[1])
                 # Codex picker blurbs are 25-64 characters.
                 self.assertTrue(25 <= len(short) <= 64, short)
-                self.assertEqual(short, meta.get('short_description', meta['description']))
+                self.assertTrue(meta['description'].startswith(short))
 
     def test_upgrade_from_a_receipt_without_files_adopts_the_metadata(self):
         self.install()
-        folder = self.skills / 't3-imps'
+        folder = self.skills / 'imps'
         receipt = self.receipt()
         receipt.pop('files')
-        (folder / '.t3-plugins-skill.json').write_text(json.dumps(receipt))
+        (folder / '.agents-skill.json').write_text(json.dumps(receipt))
         self.openai_yaml().unlink()
         (folder / 'agents').rmdir()
         self.call('skills', 'install', 'imps', '--root', str(self.skills))
         self.assertIn('agents/openai.yaml', self.receipt()['files'])
         # Bytes identical to ours (an interrupted earlier install) are adopted too.
         receipt.pop('files', None)
-        (folder / '.t3-plugins-skill.json').write_text(json.dumps(receipt))
+        (folder / '.agents-skill.json').write_text(json.dumps(receipt))
         self.call('skills', 'install', 'imps', '--root', str(self.skills))
         self.assertIn('agents/openai.yaml', self.receipt()['files'])
 
     def test_operator_metadata_under_an_old_receipt_is_preserved(self):
         self.install()
-        folder = self.skills / 't3-imps'
+        folder = self.skills / 'imps'
         receipt = self.receipt()
         receipt.pop('files')
-        (folder / '.t3-plugins-skill.json').write_text(json.dumps(receipt))
+        (folder / '.agents-skill.json').write_text(json.dumps(receipt))
         self.openai_yaml().write_text('interface:\n  display_name: "Mine"\n')
         result = json.loads(self.call('skills', 'install', 'imps', '--root', str(self.skills)).stdout)
         self.assertEqual(result['preserved_files'], ['agents/openai.yaml'])
@@ -706,18 +707,38 @@ class SkillAdapters(unittest.TestCase):
 
     def test_receipt_cannot_name_files_outside_the_owned_set(self):
         self.install()
-        folder = self.skills / 't3-imps'
+        folder = self.skills / 'imps'
         bystander = folder / 'operator.txt'
         bystander.write_text('notes')
         receipt = self.receipt()
         receipt['files']['operator.txt'] = hashlib.sha256(b'notes').hexdigest()
-        (folder / '.t3-plugins-skill.json').write_text(json.dumps(receipt))
+        (folder / '.agents-skill.json').write_text(json.dumps(receipt))
         self.call('skills', 'uninstall', 'imps', '--root', str(self.skills), code=2)
         self.assertEqual(bystander.read_text(), 'notes')
 
+    def historical(self, plugin='imps'):
+        """Turn an installed adapter into the t3- form retired plugins were installed
+        under (#198): same owned bytes, historical directory, receipt file and name."""
+        folder = self.skills / ('t3-' + plugin)
+        (self.skills / plugin).rename(folder)
+        receipt = json.loads((folder / '.agents-skill.json').read_text())
+        receipt['name'] = 't3-' + plugin
+        (folder / '.agents-skill.json').unlink()
+        (folder / '.t3-plugins-skill.json').write_text(json.dumps(receipt))
+        return folder
+
+    def test_retired_adapter_with_the_current_receipt_name_is_not_ours(self):
+        self.install()
+        folder = self.historical()
+        (folder / '.t3-plugins-skill.json').rename(folder / '.agents-skill.json')
+        removed = skills.remove_retired(self.skills, 'imps')
+        self.assertFalse(removed['removed'])
+        self.assertIn('unowned', removed['preserved'])
+        self.assertTrue((folder / 'SKILL.md').is_file())
+
     def test_retired_adapter_removal_takes_its_owned_metadata(self):
         self.install()
-        folder = self.skills / 't3-imps'
+        folder = self.historical()
         removed = skills.remove_retired(self.skills, 'imps')
         self.assertTrue(removed['removed'])
         self.assertEqual(removed['kept'], [])
@@ -725,8 +746,8 @@ class SkillAdapters(unittest.TestCase):
 
     def test_interrupted_upgrade_with_new_bytes_already_written_recovers(self):
         self.install()
-        folder = self.skills / 't3-imps'
-        marker = folder / '.t3-plugins-skill.json'
+        folder = self.skills / 'imps'
+        marker = folder / '.agents-skill.json'
         # Simulate an earlier version: different owned bytes, receipt for them.
         old = b'interface:\n  display_name: "Old"\n'
         receipt = self.receipt()
@@ -743,29 +764,30 @@ class SkillAdapters(unittest.TestCase):
         for remove in ('uninstall', 'retired'):
             with self.subTest(remove=remove):
                 self.install()
-                own = self.skills / 't3-imps/agents/claude.yaml'
+                folder = self.historical() if remove == 'retired' else self.skills / 'imps'
+                own = folder / 'agents/claude.yaml'
                 own.write_text('mine')
                 if remove == 'uninstall':
                     self.call('skills', 'uninstall', 'imps', '--root', str(self.skills))
                 else:
                     self.assertEqual(skills.remove_retired(self.skills, 'imps')['kept'], ['agents'])
                 self.assertEqual(own.read_text(), 'mine')
-                self.assertFalse(self.openai_yaml().exists())
-                self.assertFalse((self.skills / 't3-imps/SKILL.md').exists())
+                self.assertFalse((folder / 'agents/openai.yaml').exists())
+                self.assertFalse((folder / 'SKILL.md').exists())
                 own.unlink()
                 own.parent.rmdir()
-                (self.skills / 't3-imps').rmdir()
+                folder.rmdir()
 
     def external(self, name='external'):
         external = self.base / name
         external.mkdir()
-        for leaf in ('openai.yaml', 'SKILL.md', '.t3-plugins-skill.json'):
+        for leaf in ('openai.yaml', 'SKILL.md', '.agents-skill.json'):
             (external / leaf).write_text('external')
         return external
 
     def assert_external_untouched(self, external):
         self.assertEqual(sorted(p.name for p in external.iterdir()),
-                         ['.t3-plugins-skill.json', 'SKILL.md', 'openai.yaml'])
+                         ['.agents-skill.json', 'SKILL.md', 'openai.yaml'])
         for item in external.iterdir():
             self.assertEqual(item.read_text(), 'external')
 
@@ -781,7 +803,7 @@ class SkillAdapters(unittest.TestCase):
         return mock.patch.object(skills, 'managed', racing)
 
     def test_agents_swapped_for_a_symlink_after_validation_is_never_followed(self):
-        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        meta = skills.manifest_data.load(ROOT / 'plugins/imps/plugin.json')
         external = self.external()
 
         def swap(folder):
@@ -798,13 +820,13 @@ class SkillAdapters(unittest.TestCase):
                     else:
                         skills.uninstall(self.skills, meta)
                 self.assert_external_untouched(external)
-                (self.skills / 't3-imps/agents').unlink()
-                shutil_rmtree(self.skills / 't3-imps')
+                (self.skills / 'imps/agents').unlink()
+                shutil_rmtree(self.skills / 'imps')
 
     def test_adapter_swapped_for_a_symlink_after_validation_stays_pinned(self):
-        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        meta = skills.manifest_data.load(ROOT / 'plugins/imps/plugin.json')
         external = self.external()
-        folder = self.skills / 't3-imps'
+        folder = self.skills / 'imps'
         detached = self.skills / 'detached'
 
         def swap(path):
@@ -813,11 +835,12 @@ class SkillAdapters(unittest.TestCase):
         for action in ('install', 'uninstall', 'retired'):
             with self.subTest(action=action):
                 self.install()
+                target = self.historical() if action == 'retired' else folder
                 with self.racing_managed(swap):
                     if action == 'install':
                         skills.install(self.skills, self.prefix, meta)
                         self.assertIn('agents/openai.yaml',
-                                      json.loads((detached / '.t3-plugins-skill.json').read_text())['files'])
+                                      json.loads((detached / '.agents-skill.json').read_text())['files'])
                     elif action == 'uninstall':
                         skills.uninstall(self.skills, meta)
                     else:
@@ -827,15 +850,15 @@ class SkillAdapters(unittest.TestCase):
                         # directory by name now meets the link and is skipped.
                         self.assertEqual(list(detached.iterdir()), [])
                 self.assert_external_untouched(external)
-                folder.unlink()
+                target.unlink()
                 if detached.exists():
                     shutil_rmtree(detached)
 
     def test_agents_vanishing_after_creation_fails_closed(self):
-        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        meta = skills.manifest_data.load(ROOT / 'plugins/imps/plugin.json')
         self.install()
-        (self.skills / 't3-imps/agents/openai.yaml').unlink()
-        (self.skills / 't3-imps/agents').rmdir()
+        (self.skills / 'imps/agents/openai.yaml').unlink()
+        (self.skills / 'imps/agents').rmdir()
         original = skills.mkdir_at
 
         def vanishing(dir_fd, name):
@@ -854,20 +877,20 @@ class SkillAdapters(unittest.TestCase):
 
     def test_fifos_are_refused_without_blocking(self):
         self.install()
-        folder = self.skills / 't3-imps'
+        folder = self.skills / 'imps'
         self.openai_yaml().unlink()
         os.mkfifo(self.openai_yaml())
         for action in ('install', 'uninstall'):
             self.call('skills', action, 'imps', '--root', str(self.skills), code=2)
         self.openai_yaml().unlink()
-        (folder / '.t3-plugins-skill.json').unlink()
+        (folder / '.agents-skill.json').unlink()
         os.mkfifo(folder / 'pipe')
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
         self.assertTrue(stat.S_ISFIFO((folder / 'pipe').lstat().st_mode))
 
     def test_interrupted_first_install_is_adopted_on_retry(self):
-        folder = self.skills / 't3-imps'
-        for lost in (['.t3-plugins-skill.json'], ['.t3-plugins-skill.json', 'SKILL.md']):
+        folder = self.skills / 'imps'
+        for lost in (['.agents-skill.json'], ['.agents-skill.json', 'SKILL.md']):
             with self.subTest(lost=lost):
                 self.install()
                 for name in lost:
@@ -878,14 +901,14 @@ class SkillAdapters(unittest.TestCase):
                 self.assertFalse(folder.exists())
         # A marker-less directory with any byte that is not ours stays refused.
         self.install()
-        (folder / '.t3-plugins-skill.json').unlink()
+        (folder / '.agents-skill.json').unlink()
         self.openai_yaml().write_text('interface:\n  display_name: "Mine"\n')
         self.call('skills', 'install', 'imps', '--root', str(self.skills), code=2)
         self.assertEqual(self.openai_yaml().read_text(), 'interface:\n  display_name: "Mine"\n')
 
     def test_swap_after_agents_is_opened_cannot_redirect_writes_or_deletes(self):
         self.install()
-        folder = self.skills / 't3-imps'
+        folder = self.skills / 'imps'
         external = self.external()
         original = skills.Adapter.sub
 
@@ -908,7 +931,7 @@ class SkillAdapters(unittest.TestCase):
             (folder / 'agents-detached').rename(folder / 'agents')
 
     def test_root_swapped_for_a_symlink_before_open_is_refused(self):
-        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        meta = skills.manifest_data.load(ROOT / 'plugins/imps/plugin.json')
         self.install()
         external = self.external()
         original = skills.Adapter.__init__
@@ -922,7 +945,7 @@ class SkillAdapters(unittest.TestCase):
         self.assert_external_untouched(external)
 
     def test_directory_swapped_in_after_mkdir_gets_the_ownership_check(self):
-        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        meta = skills.manifest_data.load(ROOT / 'plugins/imps/plugin.json')
         self.call('install', 'imps')
         self.skills.mkdir()
         operator = self.base / 'operator-skill'
@@ -932,17 +955,17 @@ class SkillAdapters(unittest.TestCase):
 
         def swapping(dir_fd, name):
             made = original(dir_fd, name)
-            if name == 't3-imps':
+            if name == 'imps':
                 os.rmdir(name, dir_fd=dir_fd)
                 operator.rename(self.skills / name)
             return made
         with mock.patch.object(skills, 'mkdir_at', swapping), self.assertRaises(ValueError):
             skills.install(self.skills, self.prefix, meta)
-        self.assertEqual((self.skills / 't3-imps/SKILL.md').read_text(), 'mine')
-        self.assertEqual(sorted(p.name for p in (self.skills / 't3-imps').iterdir()), ['SKILL.md'])
+        self.assertEqual((self.skills / 'imps/SKILL.md').read_text(), 'mine')
+        self.assertEqual(sorted(p.name for p in (self.skills / 'imps').iterdir()), ['SKILL.md'])
 
     def test_agents_replaced_by_a_plain_directory_after_validation_keeps_operator_files(self):
-        meta = json.loads((ROOT / 'plugins/imps/plugin.json').read_text())
+        meta = skills.manifest_data.load(ROOT / 'plugins/imps/plugin.json')
 
         def swap(folder):
             (folder / 'agents').rename(self.base / 'old-agents')
@@ -951,6 +974,7 @@ class SkillAdapters(unittest.TestCase):
         for action in ('install', 'uninstall', 'retired'):
             with self.subTest(action=action):
                 self.install()
+                folder = self.historical() if action == 'retired' else self.skills / 'imps'
                 with self.racing_managed(swap), contextlib.suppress(ValueError, OSError):
                     if action == 'install':
                         skills.install(self.skills, self.prefix, meta)
@@ -958,14 +982,14 @@ class SkillAdapters(unittest.TestCase):
                         skills.uninstall(self.skills, meta)
                     else:
                         skills.remove_retired(self.skills, 'imps')
-                self.assertEqual((self.skills / 't3-imps/agents/openai.yaml').read_text(), 'operator')
-                shutil_rmtree(self.skills / 't3-imps')
+                self.assertEqual((folder / 'agents/openai.yaml').read_text(), 'operator')
+                shutil_rmtree(folder)
                 shutil_rmtree(self.base / 'old-agents')
 
     def test_adoption_tolerates_agents_vanishing_mid_check(self):
         self.install()
-        folder = self.skills / 't3-imps'
-        (folder / '.t3-plugins-skill.json').unlink()
+        folder = self.skills / 'imps'
+        (folder / '.agents-skill.json').unlink()
         with skills.Adapter(folder) as adapter, mock.patch.object(
                 skills.Adapter, '_open_sub', lambda adapter, name: None):
             self.assertFalse(skills.interrupted_first_install(adapter, {}))
@@ -975,14 +999,14 @@ class SkillAdapters(unittest.TestCase):
         link = self.base / 'link-root'
         link.symlink_to(external, target_is_directory=True)
         self.assertFalse(skills.trusted_root_link(link))
-        folder = link / 't3-imps'
+        folder = link / 'imps'
         with self.assertRaises(ValueError):
             skills.Adapter(folder, create=True, root_is_link=skills.trusted_root_link(link))
         self.assert_external_untouched(external)
 
     def test_failed_subdirectory_check_closes_its_descriptor(self):
         self.install()
-        folder = self.skills / 't3-imps'
+        folder = self.skills / 'imps'
         shutil_rmtree(folder / 'agents')
         before = len(os.listdir('/dev/fd'))
         real_listdir = os.listdir

@@ -1,3 +1,21 @@
+---
+name: ape
+description: "Research transferable patterns in open-source repositories. Args: [focus or repository URL]."
+metadata:
+  agents-bootstrap: "1"
+  opencode/slash: "true"
+  opencode/autoinvoke: "false"
+---
+
+
+Before substantive work, run only:
+
+```sh
+"$HOME/.local/bin/agents" start ape
+```
+
+Read the pinned SKILL.md and manifest before work. Already pinned: do not resolve again. Bind returned `package_root=PKG`, `pin=PIN`, `package_prefix=PREFIX`, `registry_root=AGENTS_ROOT`, `interpreter=PYTHON`; run Python examples with that absolute interpreter. Helpers, playbooks and workers use that pin only. Read `PKG/shared/manifest-routing.md`. Worktree tests add `--source /absolute/worktree` before `start`. Missing/incompatible launcher: explicit self-install.
+
 # ape
 
 Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
@@ -14,7 +32,7 @@ ape policy. Load the row for the requested operation and nothing else.
 
 ## Invocation
 
-Use `$t3-ape [focus or repository URL]`. With no URL, automatically forage for
+Use `$ape [focus or repository URL]`. With no URL, automatically forage for
 repositories addressing the requested gap. With a URL anywhere in the request,
 study that repository and use the remaining text as focus. Extract the URL as data;
 never pass surrounding prose as a URL or shell code. The study helper currently
@@ -27,7 +45,7 @@ Ordinary phrases such as "clean architecture" always remain research input.
 
 | Request | Meaning | Load |
 | --- | --- | --- |
-| `doctor` | Check Python 3.10+, Bash, Git, `gh`, `jq`, `gh auth status`, and `t3-plugins agents list ape` integrity; change nothing. | Direct. No job, no agents. |
+| `doctor` | Check Python 3.10+, Bash, Git, `gh`, `jq`, `gh auth status`, and `agents --pin PIN agents list ape` integrity; change nothing. | Direct. No job, no agents. |
 | `forage [focus]` | Search for at most five repositories that address named gaps in the current project, compare each, then synthesize. | `PKG/playbooks/forage.md` |
 | `study <GitHub URL> [focus]` | Compare one pinned source repository with the current project. | `PKG/playbooks/study.md` |
 | `clean <workspace> [--all]` | Delete an owned research workspace after explicit authorization. | `PKG/playbooks/clean.md`. Direct. No agents. |

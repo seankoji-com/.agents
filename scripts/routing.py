@@ -1,12 +1,12 @@
 """User-local model routing for T3 delegation.
 
-The config lives at $XDG_CONFIG_HOME/t3-plugins/routing.json, falling back to
-~/.config/t3-plugins/routing.json. `write_default` builds it from an
+The config lives at $XDG_CONFIG_HOME/agents/routing.json, falling back to
+~/.config/agents/routing.json. `write_default` builds it from an
 orchestrator_capabilities response the agent saved to a file; nothing here calls
 T3 or reads host credentials. `resolve` returns the configured candidates for a
 role that the saved capabilities can actually run, in tier order, and reports
 every configured entry it could not use instead of substituting another model.
-A repository's `.t3-plugins/routing.json` takes precedence over the user config.
+A repository's `.agents/routing.json` takes precedence over the user config.
 """
 from __future__ import annotations
 
@@ -43,13 +43,26 @@ class RoutingError(Exception):
 
 
 def config_path(environ=None) -> Path:
+    """The user config. An existing pre-#198 t3-plugins/routing.json stays in use,
+    read in place, until the owner moves it; nothing writes over or beside it."""
     environ = os.environ if environ is None else environ
     base = environ.get('XDG_CONFIG_HOME')
     if base and Path(base).is_absolute():
         root = Path(base)
     else:
         root = Path(environ.get('HOME') or Path.home()) / '.config'
-    return root / 't3-plugins' / 'routing.json'
+    current, legacy = root / 'agents' / 'routing.json', root / 't3-plugins' / 'routing.json'
+    if not (current.exists() or current.is_symlink()) and (legacy.exists() or legacy.is_symlink()):
+        return legacy
+    return current
+
+
+def repository_policy_path(repo) -> Path:
+    """`.agents/routing.json`, or an existing pre-#198 `.t3-plugins/routing.json`."""
+    current, legacy = Path(repo) / '.agents' / 'routing.json', Path(repo) / '.t3-plugins' / 'routing.json'
+    if not (current.exists() or current.is_symlink()) and (legacy.exists() or legacy.is_symlink()):
+        return legacy
+    return current
 
 
 def load_capabilities(path) -> dict:
@@ -233,13 +246,13 @@ def write_default(capabilities_file, path=None) -> dict:
 
 
 def effective_config(user_path=None, repo=None) -> tuple[dict, list]:
-    """Repository policy (`.t3-plugins/routing.json`) wins over the user config:
+    """Repository policy (`.agents/routing.json`) wins over the user config:
     each role or provider it names replaces the user's, and its tiers win."""
     user_path = Path(user_path) if user_path else config_path()
     config, sources = read_config(user_path), []
     if config is not None:
         sources.append(str(user_path))
-    repo_file = Path(repo) / '.t3-plugins' / 'routing.json' if repo else None
+    repo_file = repository_policy_path(repo) if repo else None
     if repo_file and (repo_file.exists() or repo_file.is_symlink()):
         policy = _read_json(repo_file)
         if not isinstance(policy, dict) or not all(isinstance(policy.get(k, {}), dict) for k in ('providers', 'roles')):
@@ -262,7 +275,8 @@ def effective_config(user_path=None, repo=None) -> tuple[dict, list]:
             raise RoutingError(exc.code, f'{repo_file} against user config {user_path}: {exc}') from exc
         sources.append(str(repo_file))
     if config is None:
-        raise RoutingError('config_missing', f'no routing config at {user_path}; run t3-plugins setup --capabilities FILE')
+        raise RoutingError('config_missing', f'no routing config at {user_path}; write one from a saved '
+                           'orchestrator_capabilities response with routing.write_default')
     return config, sources
 
 

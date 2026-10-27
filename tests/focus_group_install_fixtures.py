@@ -120,7 +120,7 @@ def module_deadline():
 def clean_env(base):
     """A process environment with its own HOME and XDG roots and no inherited plugin, XDG or Python settings."""
     (base / 'home').mkdir(parents=True, exist_ok=True)
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('T3_PLUGINS_', 'XDG_', 'PYTHON', 'FG_'))}
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('AGENTS_', 'XDG_', 'PYTHON', 'FG_'))}
     env.update(HOME=str(base / 'home'), XDG_CONFIG_HOME=str(base / 'config'), XDG_STATE_HOME=str(base / 'xdg-state'),
                PYTHONDONTWRITEBYTECODE='1')
     return env
@@ -395,7 +395,7 @@ class Swap:
         os.chdir(self.cwd)
         fg3.INSTALL.update(env=self.env, prefix=self.inst['prefix'], agents=self.inst['agents'],
                            package=self.inst['package'], installation=self.inst['installation'])
-        for key in [k for k in os.environ if k.startswith(('PYTHON', 'FG_', 'T3_PLUGINS_', 'XDG_'))]:
+        for key in [k for k in os.environ if k.startswith(('PYTHON', 'FG_', 'AGENTS_', 'XDG_'))]:
             del os.environ[key]
         os.environ.update({k: v for k, v in self.env.items() if k.startswith(('PYTHON', 'FG_', 'XDG_')) or k == 'HOME'})
         return self
@@ -520,7 +520,7 @@ class RecoveryInstallation:
     so audits detect checkout imports and reads. No live state is used.
     """
 
-    SUPPORT = ('focus_group_install_fixtures.py', 'focus_group_fixtures.py',
+    SUPPORT = ('support.py', 'focus_group_install_fixtures.py', 'focus_group_fixtures.py',
                'test_focus_group_plan.py', 'test_focus_group_lifecycle.py', 'test_focus_group_report.py',
                'test_model_ids.py', 'model_selection_fixtures.py', 'upfront_fixtures.py',
                'test_rebuild_installed.py', 'test_focus_group_install_authority.py',
@@ -534,7 +534,11 @@ class RecoveryInstallation:
         self.prefix, self.agents = self.base/'prefix', self.base/'agents'
         original = self.base/'committed-source'
         original.mkdir()
-        archive = subprocess.run(['git', 'archive', 'HEAD', 'core', 'shared', 'plugins/focus-group'],
+        archive_paths = ['core','shared','plugins/focus-group']
+        if subprocess.run(['git','cat-file','-e','HEAD:skills/focus-group/SKILL.md'],
+                          cwd=ROOT,capture_output=True).returncode == 0:
+            archive_paths.append('skills/focus-group')
+        archive = subprocess.run(['git', 'archive', 'HEAD', *archive_paths],
                                  cwd=ROOT, capture_output=True, check=True).stdout
         with tarfile.open(fileobj=io.BytesIO(archive)) as bundle:
             for member in bundle.getmembers():
@@ -562,7 +566,7 @@ class RecoveryInstallation:
             'old_package_digest':old_manifest['package_digest'],'new_package_digest':new_manifest['package_digest'],
             'retained_finance_pin_cross_code_compatibility':False}
         future_source=self.base/'future-source'
-        for rel in ('core','shared','plugins/focus-group'):
+        for rel in ('core','shared','plugins/focus-group','skills/focus-group'):
             shutil.copytree(ROOT/rel,future_source/rel,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
         future_manifest=future_source/'plugins/focus-group/plugin.json'
         future_meta=json.loads(future_manifest.read_text());future_meta['version']='0.1.99'

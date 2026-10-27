@@ -1,3 +1,21 @@
+---
+name: tests-omg
+description: "Audit test protection and validation cost, with twelve evidence-based findings and private HTML/JSON recommendations. Args: doctor | audit [path] [--org OWNER] [--run-checks] | status <run-id> | report <run-id>."
+metadata:
+  agents-bootstrap: "1"
+  opencode/slash: "true"
+  opencode/autoinvoke: "false"
+---
+
+
+Before substantive work, run only:
+
+```sh
+"$HOME/.local/bin/agents" start tests-omg
+```
+
+Read the pinned SKILL.md and manifest before work. Already pinned: do not resolve again. Bind returned `package_root=PKG`, `pin=PIN`, `package_prefix=PREFIX`, `registry_root=AGENTS_ROOT`, `interpreter=PYTHON`; run Python examples with that absolute interpreter. Helpers, playbooks and workers use that pin only. Read `PKG/shared/manifest-routing.md`. Worktree tests add `--source /absolute/worktree` before `start`. Missing/incompatible launcher: explicit self-install.
+
 # tests-omg
 
 Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
@@ -20,8 +38,8 @@ helper calls stay direct. Read `PKG/playbooks/audit.md` for audit, then
 
 Helpers require Python 3.10+, Git and POSIX `fcntl` locking. Use absolute installed paths, resolved from
 this entry. `--state-root ROOT` precedes the operation. Never put state in a target
-checkout. The default is `$XDG_STATE_HOME/t3-plugins/tests-omg` or
-`~/.local/state/t3-plugins/tests-omg`.
+checkout. The default is `$XDG_STATE_HOME/agents/jobs/tests-omg` or
+`~/.local/state/agents/jobs/tests-omg`.
 
 - `doctor`: run `python3 PKG/scripts/audit.py doctor`. Checks package files, Python
   and an installed content receipt when present. No target mutation or model launch.

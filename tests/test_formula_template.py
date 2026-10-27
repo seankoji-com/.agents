@@ -9,10 +9,13 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = (ROOT / 'packaging' / 't3-plugins.rb.tmpl').read_text()
-WORKFLOW = (ROOT / '.github' / 'workflows' / 'release.yml').read_text()
+WORKFLOW = (ROOT / 'migration/issue-198-retired-workflows/release.yml').read_text()
 
 
 class FormulaTemplateTest(unittest.TestCase):
+    def test_historical_publishing_workflow_is_not_active(self):
+        self.assertFalse((ROOT/'.github/workflows/release.yml').exists())
+
     def condition(self, expression, *, ref, existing_tag, result, cancelled=False):
         values = {'github.ref': ref, 'github.event.inputs.existing_tag': existing_tag,
                   'needs.test.result': result, 'always()': True, 'cancelled()': cancelled}

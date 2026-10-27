@@ -6,13 +6,14 @@ change settings.
 
 ## What installation changes
 
-`setup` writes versioned plugin snapshots and managed skill adapters under your user
-home, or the custom locations you supply. It preserves unowned and edited adapters.
-`install` writes snapshots only. Neither command calls a model.
+`agents start` writes immutable pinned snapshots under XDG data. `agents discovery`
+installs only the native skill links it owns and preserves vendor and edited skills.
+Neither command calls a model.
 
-Provider configuration stays unchanged unless you explicitly pass
-`--grant-learnings`. That flag backs up configuration and adds the printed learning
-subtree; it does not disable the sandbox or change approval policy.
+Provider configuration stays unchanged. `agents permissions` prints the narrow
+grants; the native configuration owner adds them. Nothing here disables the sandbox
+or changes approval policy. Pre-#198 installations keep the `--grant-learnings`
+grants they already applied.
 [Installation](getting-started.md) and [learnings](learnings.md) describe the paths.
 
 ## What an agent may send
@@ -38,7 +39,7 @@ PRs and harvest publication require authorization for their destination and cont
 
 imps stores contracts, logs, copied evidence and reports under its state root.
 Jobs store plans, briefs, worker results, receipts and the owner decisions they quote
-under `~/.local/state/t3-plugins/jobs`, with private permissions.
+under `~/.local/state/agents/jobs`, with private permissions.
 Planning writes discovery and handoff files in the project. ape writes clones and
 reports in its research workspace. Optional project lessons live outside the checkout.
 These may contain project material: inspect and redact artifacts before sharing.
@@ -55,4 +56,4 @@ merge are distinct actions; make the allowed scope explicit in your request.
 The evidence gate checks submitted artifacts and revision bindings. It cannot prove
 that every model followed every instruction. [Compatibility](compatibility.md)
 records what has and has not been observed. Report vulnerabilities through the
-[private security advisory form](https://github.com/seankoji-com/t3-plugins/security/advisories/new).
+[private security advisory form](https://github.com/seankoji-com/.agents/security/advisories/new).

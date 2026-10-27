@@ -101,10 +101,11 @@ class CompactInstalledTest(unittest.TestCase):
         changed_source = self.box.source_copy('imps')
         changed_path = changed_source / 'plugins/imps/plugin.json'
         changed = changed_path.read_bytes()
-        original_description = json.loads(changed)['description'].encode()
-        self.assertEqual(changed.count(original_description), 1)
-        changed_path.write_bytes(changed.replace(original_description,
-                                                 original_description + b' Tampered contract.'))
+        # Descriptions live in skills/<name>/SKILL.md since #198; tamper a contract field
+        # that plugin.json still carries.
+        original_field = json.loads(changed)['tested_t3_version'].encode()
+        self.assertEqual(changed.count(original_field), 1)
+        changed_path.write_bytes(changed.replace(original_field, original_field + b'-tampered'))
         rejected = self.make('imps/reviewer', source=changed_source)
         self.assert_refusal(self.prepare(rejected, check=False), 'retention_manifest_source_changed')
 

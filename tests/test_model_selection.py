@@ -667,7 +667,7 @@ class SelectionTests(unittest.TestCase):
         self.assertIn('keep the implementer answer', ralph)
         self.assertIn("target's correction, retaining other answers", ralph)
         for name in ('shared/t3-runtime.md', 'shared/adopter-planning.md',
-                     'plugins/focus-group/entry.md', 'plugins/focus-group/playbooks/plan.md',
+                     'skills/focus-group/SKILL.md', 'plugins/focus-group/playbooks/plan.md',
                      'plugins/ape/references/planning-review.md', 'shared/upfront-agreement.md',
                      'plugins/imps/references/brief-probes.md'):
             self.assertIn('short rounds', (ROOT / name).read_text())
@@ -954,7 +954,7 @@ class SelectionTests(unittest.TestCase):
             root = Path(temporary)
             caps = root/'caps.json'; caps.write_text(json.dumps(self.data['capabilities']))
             profiles = root/'profiles.json'; profiles.write_text(json.dumps(self.data['profiles']))
-            proc = subprocess.run([sys.executable, str(ROOT/'bin/t3-plugins'), 'resolve', 'reviewer',
+            proc = subprocess.run([sys.executable, str(ROOT/'scripts/catalog.py'), 'resolve', 'reviewer',
                                    '--repo', str(root), '--profiles', str(profiles), '--capabilities', str(caps)],
                                   text=True, capture_output=True, timeout=30,
                                   env={**os.environ, 'HOME': str(root), 'XDG_CONFIG_HOME': str(root/'config')})
@@ -980,6 +980,24 @@ class SelectionTests(unittest.TestCase):
             data = json.loads(path.read_text()); data['grant']['limits'] = {}; path.write_text(json.dumps(data))
             with self.assertRaises(models.SelectionError): models.load_authority('fixture-project', env)
             with self.assertRaises(models.SelectionError): models.authority_path('../escape', env)
+
+    def test_pre_198_standing_grant_stays_in_use_in_place_until_moved(self):
+        grant = {**replacement(self.data, self.data['work']['workhorse'])['authority'], 'scope': 'standing-project'}
+        with tempfile.TemporaryDirectory() as temporary:
+            env = {'XDG_STATE_HOME': temporary}
+            saved = Path(models.save_authority('fixture-project', grant, env)['path'])
+            # Move the record to where pre-#198 releases stored it.
+            legacy = Path(temporary) / 't3-plugins/authorities/fixture-project/model-policy.json'
+            legacy.parent.mkdir(parents=True, mode=0o700)
+            saved.rename(legacy)
+            self.assertEqual(models.authority_path('fixture-project', env), legacy)
+            self.assertEqual(models.load_authority('fixture-project', env)['grant'], grant)
+            self.assertEqual(Path(models.save_authority('fixture-project', grant, env)['path']), legacy)
+            self.assertFalse(saved.exists())
+            # Once a policy exists at the current location, it wins.
+            saved.parent.mkdir(parents=True, exist_ok=True)
+            legacy.rename(saved)
+            self.assertEqual(models.authority_path('fixture-project', env), saved)
 
     def test_real_job_create_gate_refuses_missing_selection_before_install_or_writes(self):
         with tempfile.TemporaryDirectory() as temporary:

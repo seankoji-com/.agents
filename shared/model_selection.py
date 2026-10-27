@@ -696,7 +696,10 @@ def authority_path(project_id, environ=None):
     env = os.environ if environ is None else environ
     base = env.get('XDG_STATE_HOME')
     root = Path(base) if base and Path(base).is_absolute() else Path(env.get('HOME') or Path.home()) / '.local/state'
-    return root / 't3-plugins/authorities' / project_id / 'model-policy.json'
+    path = root / 'agents/control/authorities' / project_id / 'model-policy.json'
+    # A pre-#198 standing grant (same record format) stays in use in place until it is moved.
+    legacy = root / 't3-plugins/authorities' / project_id / 'model-policy.json'
+    return legacy if not path.exists() and legacy.is_file() else path
 
 
 def save_authority(project_id, grant, environ=None):

@@ -48,7 +48,7 @@ def denied_reason(subtree, action='writes under'):
     """Name both causes and remedies without echoing paths below the learnings root."""
     return (f'the sandbox or filesystem permissions deny {action} {subtree}. Either allow writes to '
             f'{subtree} and {subtree}/** in the sandbox (for Claude, add {subtree} to '
-            'sandbox.filesystem.allowWrite, or run `t3-plugins setup --grant-learnings`), or fix the '
+            'sandbox.filesystem.allowWrite; `agents permissions` prints the narrow roots), or fix the '
             'ownership, permissions or read-only mount that blocks it')
 
 
@@ -123,7 +123,7 @@ def state_root(project, env=None):
         pass
     except OSError as exc:
         if exc.errno in DENIED:
-            raise Denied(denied_reason(root / 't3-plugins/learnings', 'access to')) from exc
+            raise Denied(denied_reason(root / 'agents/jobs/learnings', 'access to')) from exc
         raise
     return root
 
@@ -159,7 +159,7 @@ def probe_write(project=None, env=None):
     creates or removes directories: it creates one file inside an existing learnings root and
     unlinks it through the same directory descriptor, and says so if that unlink fails."""
     try:
-        subtree = state_root(project, env) / 't3-plugins/learnings'
+        subtree = state_root(project, env) / 'agents/jobs/learnings'
     except Denied as exc:
         return {'status': 'denied', 'reason': str(exc)}
     except (OSError, ValueError, RuntimeError) as exc:
@@ -279,10 +279,22 @@ def validate_entry(entry):
         raise Unavailable('summary must be one line')
     for name in ('authored_version', 'last_validated_version'):
         validate_version(entry.get(name))
-    if entry.get('upstream') and not re.fullmatch(r'seankoji-com/t3-plugins#[1-9]\d*', entry['upstream']):
+    # Lessons written before the #198 rename cite seankoji-com/t3-plugins issues.
+    if entry.get('upstream') and not re.fullmatch(r'seankoji-com/(?:\.agents|t3-plugins)#[1-9]\d*', entry['upstream']):
         raise Unavailable('invalid upstream issue')
     if not isinstance(entry.get('destinations', {}), dict):
         raise Unavailable('invalid harvest destinations')
+
+
+# The pre-#198 validator's upstream pattern, verbatim. A legacy store is shared with
+# retained old runtimes, so everything written there must still pass their reader.
+LEGACY_UPSTREAM = r'seankoji-com/t3-plugins#[1-9]\d*'
+
+
+def require_legacy_readable(entries):
+    if any(e.get('upstream') and not re.fullmatch(LEGACY_UPSTREAM, e['upstream']) for e in entries):
+        raise Unavailable('these lessons are still in the pre-#198 store shared with old jobs; cite the '
+                          'issue as seankoji-com/t3-plugins#N (GitHub redirects it) or move the lessons first')
 
 
 def encode(label, data):
@@ -333,7 +345,7 @@ class Store:
         validate_version(version)
         self.key, self.label = project_identity(project)
         self.root = state_root(project, env)
-        self.folder = self.root / 't3-plugins/learnings' / self.key
+        self.folder = self.root / 'agents/jobs/learnings' / self.key
         self.name = plugin + '.md'
         self.version = version
 
@@ -345,16 +357,29 @@ class Store:
         except (OSError, ValueError, KeyError, TypeError, UnicodeError, AttributeError) as exc:
             reason = str(exc)
             if operation != 'load' and isinstance(exc, OSError) and exc.errno in DENIED:
-                reason = denied_reason(self.root / 't3-plugins/learnings')
+                try:
+                    granted = self.active_folder().parent
+                except OSError:
+                    granted = self.folder.parent
+                reason = denied_reason(granted)
             return {'status': 'unavailable', 'reason': reason, 'proposed_learning': proposal}
+
+    def active_folder(self):
+        # Pre-#198 lessons live under t3-plugins/learnings. Until they are moved, both
+        # runtimes read and write that file under its own lock, so neither forks it.
+        legacy = self.root / 't3-plugins/learnings' / self.key
+        if not (self.folder / self.name).exists() and (legacy / self.name).is_file():
+            return legacy
+        return self.folder
 
     def _operate(self, operation, proposal):
         if operation not in ('load', 'write', 'maintain', 'harvest'):
             raise Unavailable('unknown learning operation')
         writable = operation != 'load'
         empty = {'format_version': 1, 'maintained_version': self.version, 'entries': []}
+        folder = self.active_folder()
         try:
-            with directory(self.folder, writable) as fd, locked(fd, self.name + '.lock', writable):
+            with directory(folder, writable) as fd, locked(fd, self.name + '.lock', writable):
                 try:
                     raw = read_file(fd, self.name)
                     label, data = decode(raw)
@@ -362,7 +387,7 @@ class Store:
                     raw, label, data = None, self.label, empty
                 original = digest(data)
                 if operation == 'load':
-                    return self.receipt(data, original)
+                    return self.receipt(data, original, folder)
                 if operation in ('maintain', 'harvest') and proposal.get('expected') != original:
                     raise Unavailable('learnings changed; reload before applying judgement')
                 if operation == 'write':
@@ -380,7 +405,7 @@ class Store:
                     data['entries'] = [e for e in data['entries'] if e['id'] != entry['id']] + [entry]
                 elif operation == 'maintain':
                     if data['maintained_version'] == self.version:
-                        return self.receipt(data, original)
+                        return self.receipt(data, original, folder)
                     backup = self.name + '.pre-' + data['maintained_version']
                     if raw is not None:
                         try:
@@ -412,8 +437,10 @@ class Store:
                 elif operation == 'harvest':
                     from harvest import apply_receipts
                     data['entries'] = apply_receipts(data['entries'], proposal)
+                if folder != self.folder:
+                    require_legacy_readable(data['entries'])
                 atomic_file(fd, self.name, encode(label, data))
-                return self.receipt(data, digest(data))
+                return self.receipt(data, digest(data), folder)
         except FileNotFoundError:
             if not writable:
                 # No file/lock/directory means no lessons, with no read-only writes.
@@ -422,8 +449,8 @@ class Store:
                 return self.receipt(empty, digest(empty))
             raise
 
-    def receipt(self, data, revision):
-        return {'status': 'available', 'path': str(self.folder / self.name), 'key': self.key,
+    def receipt(self, data, revision, folder=None):
+        return {'status': 'available', 'path': str((folder or self.folder) / self.name), 'key': self.key,
                 'label': self.label, 'data': data, 'revision': revision,
                 'pending_maintenance': data['maintained_version'] != self.version,
                 'upstream_check': 'eligible' if '+g' in self.version else 'skipped: content install'}

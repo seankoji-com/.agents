@@ -80,7 +80,7 @@ class SchemaParityTest(CoreTestCase):
 
     def test_no_third_party_imports_or_runtime_dependency_manifests(self):
         pattern = re.compile(r'^(import|from) (jsonschema|pydantic|yaml|attrs)\b', re.M)
-        for directory in ('core', 'plugins', 'scripts'):
+        for directory in ('core', 'plugins', 'scripts', 'skills'):
             for path in (ROOT / directory).rglob('*.py'):
                 self.assertIsNone(pattern.search(path.read_text()), path)
         for manifest in ('requirements.txt', 'pyproject.toml', 'setup.py', 'setup.cfg', 'Pipfile', 'package.json'):

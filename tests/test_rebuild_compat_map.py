@@ -287,7 +287,7 @@ def problems(data: dict, root: Path = ROOT) -> list:
     finally:
         sys.path.remove(str(root))
     required_cli = {f'core:{op}' for op in OPS}
-    required_cli |= {f't3-plugins:{name}' for name in subcommands(root / 'scripts' / 'catalog.py')}
+    required_cli |= {f'agents:{name}' for name in subcommands(root / 'scripts' / 'catalog.py')}
     required_cli |= {f'thinking_state:{name}' for name in
                      subcommands(root / 'plugins/elephant-goldfish/scripts/thinking_state.py')}
     for missing in sorted(required_cli - set(cli_ids)):
@@ -427,7 +427,7 @@ class CompatMapTest(unittest.TestCase):
         shard = {'stage': 2, 'inventory': {
             'manifest_fields': [{'id': 'plugin.json:synthetic', 'field': 'synthetic', 'disposition': 'change',
                                  'stage': 2, 'reason': 'Worker catalog declaration.'}],
-            'cli_subcommands': [{'id': 't3-plugins:synthetic', 'path': 'scripts/catalog.py', 'disposition': 'change',
+            'cli_subcommands': [{'id': 'agents:synthetic', 'path': 'scripts/catalog.py', 'disposition': 'change',
                                  'stage': 2, 'reason': 'Explicit verified relocation adoption.'}],
             'tests': []},
             'updates': {'helpers': [{'path': 'scripts/catalog.py', 'replace': True,
@@ -435,7 +435,7 @@ class CompatMapTest(unittest.TestCase):
         merged_data = merged(data, [shard])
         self.assertEqual(len(next(item for item in merged_data['tests'] if item['path'] == 'tests/test_install.py')['assertions']), original)
         self.assertIn('plugin.json:synthetic', {item['id'] for item in merged_data['manifest_fields']})
-        self.assertIn('t3-plugins:synthetic', {item['id'] for item in merged_data['cli_subcommands']})
+        self.assertIn('agents:synthetic', {item['id'] for item in merged_data['cli_subcommands']})
         self.assertEqual(next(item for item in merged_data['helpers'] if item['path'] == 'scripts/catalog.py')['reason'],
                          'Stage 2 implementation adds registry inspection and job pin resolution.')
         self.assertEqual(problems(merged_data), [])
@@ -449,9 +449,9 @@ class CompatMapTest(unittest.TestCase):
 
     def test_stage_inventory_rejects_duplicate_and_conflicting_assertion(self):
         path = 'scripts/catalog.py'
-        row = {'id': 't3-plugins:agents', 'path': path, 'disposition': 'change', 'stage': 2, 'reason': 'test'}
+        row = {'id': 'agents:agents', 'path': path, 'disposition': 'change', 'stage': 2, 'reason': 'test'}
         duplicate = merged(self.data, [{'inventory': {'cli_subcommands': [row, row]}}])
-        self.assertIn('duplicate cli_subcommands inventory key t3-plugins:agents', problems(duplicate))
+        self.assertIn('duplicate cli_subcommands inventory key agents:agents', problems(duplicate))
         test_row = {'path': 'tests/test_install.py', 'assertions': [{'selector': 'test_install.InstallTest',
                     'tests': 99, 'coverage': ['REQ-REGISTRY'], 'survives': True}]}
         conflict = merged(self.data, [{'inventory': {'tests': [test_row]}}])

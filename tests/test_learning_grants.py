@@ -22,7 +22,7 @@ class GrantsTest(unittest.TestCase):
         self.project.mkdir()
         self.env = dict(HOME=str(self.base / 'home'), XDG_CONFIG_HOME=str(self.base / 'config'),
                         XDG_STATE_HOME=str(self.base / 'state'))
-        self.subtree = str(self.base / 'state/t3-plugins/learnings')
+        self.subtree = str(self.base / 'state/agents/jobs/learnings')
 
     def config(self, driver, raw):
         receipt = grant(driver, self.project, env=self.env)

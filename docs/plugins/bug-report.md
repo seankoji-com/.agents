@@ -1,6 +1,6 @@
 # bug-report
 
-Use `$t3-bug-report` when an upstream project or service appears broken. It
+Use `$bug-report` when an upstream project or service appears broken. It
 investigates the symptom, identifies the owner, verifies the documented reporting
 method and searches existing reports. Verified defects get a separate reporting
 conversation. Established T3 improvements can still use its Ideas channel.
@@ -8,10 +8,10 @@ That conversation files the redacted report or adds new evidence, then follows u
 for one fixed 30-minute window.
 
 ```text
-$t3-bug-report delegated worktree setup failed; use the error above
-$t3-bug-report resume report-session
-$t3-bug-report status report-session
-$t3-bug-report cancel report-session
+$bug-report delegated worktree setup failed; use the error above
+$bug-report resume report-session
+$bug-report status report-session
+$bug-report cancel report-session
 ```
 
 A bare invocation uses relevant conversation context and asks for a symptom when
@@ -80,7 +80,7 @@ closure and a fix running in your installed build are separate observations.
 ## Private state and recovery
 
 State lives outside your checkout at
-`$XDG_STATE_HOME/t3-plugins/bug-report` (default `~/.local/state/t3-plugins/bug-report`).
+`$XDG_STATE_HOME/agents/jobs/bug-report` (default `~/.local/state/agents/jobs/bug-report`).
 Files use private permissions, no-follow path access, a process lock and atomic
 replacement. Runtime helpers require Python 3.10+ and POSIX file locks. They call
 no network API and create no background process. The agent uses T3's host tools.

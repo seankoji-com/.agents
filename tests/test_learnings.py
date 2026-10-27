@@ -5,6 +5,7 @@ import errno
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import subprocess
@@ -124,6 +125,40 @@ class LearningsTest(unittest.TestCase):
         result = Store(self.project, 'imps', NEW, self.env).operate()
         self.assertTrue(result['pending_maintenance'])
         self.assertEqual(before, {p: p.read_bytes() for p in self.store.folder.iterdir()})
+
+    def test_pre_198_lessons_stay_shared_in_place_until_moved(self):
+        self.write('legacy', upstream='seankoji-com/t3-plugins#28')
+        legacy = self.store.root / 't3-plugins/learnings' / self.store.key
+        legacy.parent.mkdir(parents=True)
+        self.store.folder.rename(legacy)
+        loaded = Store(self.project, 'imps', OLD, self.env).operate()
+        self.assertEqual([e['id'] for e in loaded['data']['entries']], ['legacy'])
+        self.assertEqual(Path(loaded['path']).parent, legacy)
+        written = self.write('new')
+        self.assertEqual(Path(written['path']).parent, legacy)
+        self.assertFalse(self.store.folder.exists())
+        # An old job writing in between is seen by the next new-runtime load: no fork.
+        old_job = Store(self.project, 'imps', OLD, self.env)
+        old_job.folder = legacy
+        self.assertEqual(old_job.operate('write', {'entry': {'id': 'late-old-job', 'summary': 'Old runtime',
+                                                             'failure': 'Written at the old location'}})['status'],
+                         'available')
+        ids = sorted(e['id'] for e in Store(self.project, 'imps', OLD, self.env).operate()['data']['entries'])
+        self.assertEqual(ids, ['late-old-job', 'legacy', 'new'])
+        # Old runtimes validate with the pre-#198 pattern, so the shared file must keep passing it.
+        before = (legacy / 'imps.md').read_bytes()
+        refused = self.store.operate('write', {'entry': {'id': 'renamed', 'summary': 'New reference',
+                                                         'failure': 'Cited the renamed repository',
+                                                         'upstream': 'seankoji-com/.agents#7'}})
+        self.assertEqual(refused['status'], 'unavailable')
+        self.assertIn('seankoji-com/t3-plugins#N', refused['reason'])
+        self.assertEqual((legacy / 'imps.md').read_bytes(), before)
+        _, data = decode((legacy / 'imps.md').read_bytes())
+        base_pattern = r'seankoji-com/t3-plugins#[1-9]\d*'  # a76f51c shared/learning_store.py validate_entry
+        self.assertTrue(all(re.fullmatch(base_pattern, e['upstream']) for e in data['entries'] if e.get('upstream')))
+        # Once moved, the current location wins and the old file is no longer used.
+        legacy.rename(self.store.folder)
+        self.assertEqual(Path(self.write('moved')['path']).parent, self.store.folder)
 
     def test_versioned_format_authorship_and_plugin_isolation(self):
         loaded = self.write()
@@ -406,7 +441,7 @@ class LearningsTest(unittest.TestCase):
 
     def test_maintenance_fixture_prunes_only_completed_released_issue(self):
         for number, name in enumerate(('completed', 'duplicate', 'rejected', 'reopened', 'unreleased', 'unknown'), 1):
-            self.write(name, 'seankoji-com/t3-plugins#' + str(number))
+            self.write(name, 'seankoji-com/.agents#' + str(number))
         loaded = self.store.operate()
         new = Store(self.project, 'imps', NEW, self.env)
         states = []
@@ -432,11 +467,11 @@ class LearningsTest(unittest.TestCase):
                             for e in result['data']['entries']))
 
     def test_content_install_skips_upstream_without_gh_and_judgement_can_amend(self):
-        loaded = self.write(upstream='seankoji-com/t3-plugins#42')
+        loaded = self.write(upstream='seankoji-com/.agents#42')
         new = Store(self.project, 'imps', CONTENT, self.env)
         with mock.patch('learning_store.subprocess.run', side_effect=AssertionError('no gh')):
             result = new.operate('maintain', {'expected': loaded['revision'], 'states': [
-                {'upstream': 'seankoji-com/t3-plugins#42', 'state': 'closed', 'state_reason': 'completed',
+                {'upstream': 'seankoji-com/.agents#42', 'state': 'closed', 'state_reason': 'completed',
                  'closing_commit': 'd' * 40, 'compare_base': 'd' * 40, 'compare_head': 'b' * 12,
                  'compare_status': 'ahead'}], 'amend': [{'id': 'lesson', 'summary': 'Keep every handle'}]})
         self.assertIn('skipped', result['upstream_check'])
@@ -470,9 +505,9 @@ class LearningsTest(unittest.TestCase):
                 self.assertEqual(self.store.operate('write', {'entry': {'id': 'extra'}})['status'], 'unavailable')
 
     def test_upstream_compare_endpoints_are_bound(self):
-        loaded = self.write(upstream='seankoji-com/t3-plugins#42')
+        loaded = self.write(upstream='seankoji-com/.agents#42')
         new = Store(self.project, 'imps', NEW, self.env)
-        state = {'upstream': 'seankoji-com/t3-plugins#42', 'state': 'closed', 'state_reason': 'completed',
+        state = {'upstream': 'seankoji-com/.agents#42', 'state': 'closed', 'state_reason': 'completed',
                  'closing_commit': 'd' * 40, 'compare_base': 'e' * 40, 'compare_head': 'b' * 12,
                  'compare_status': 'ahead'}
         result = new.operate('maintain', {'expected': loaded['revision'], 'states': [state]})
@@ -525,7 +560,7 @@ class SandboxDenialTest(unittest.TestCase):
         self.project = self.base / 'project'
         self.project.mkdir()
         self.env = dict(os.environ, HOME=str(self.base / 'home'), XDG_STATE_HOME=str(self.base / 'state'))
-        self.subtree = str(self.base / 'state/t3-plugins/learnings')
+        self.subtree = str(self.base / 'state/agents/jobs/learnings')
         self.store = Store(self.project, 'imps', OLD, self.env)
         self.proposal = {'entry': {'id': 'lesson', 'summary': 'Keep task handles',
                                    'failure': 'A lost task handle prevented cancellation'}}
@@ -534,7 +569,7 @@ class SandboxDenialTest(unittest.TestCase):
         self.assertIn(f'the sandbox or filesystem permissions deny {action} {self.subtree}', reason)
         self.assertIn(f'allow writes to {self.subtree} and {self.subtree}/** in the sandbox', reason)
         self.assertIn('sandbox.filesystem.allowWrite', reason)
-        self.assertIn('t3-plugins setup --grant-learnings', reason)
+        self.assertIn('agents permissions', reason)
         self.assertIn('fix the ownership, permissions or read-only mount', reason)
         # Nothing below the learnings root: no identity hash, plugin file or temporary name.
         for private in (self.store.key, 'imps.md', '.learning-', '.probe-', 'Errno'):
@@ -690,7 +725,7 @@ class SandboxDenialTest(unittest.TestCase):
         text = ' '.join((ROOT / 'docs/troubleshooting.md').read_text().split())
         self.assertIn('the sandbox or filesystem permissions deny', text)
         self.assertIn('read-only mount', text)
-        self.assertIn('--grant-learnings', text)
+        self.assertIn('agents permissions', text)
 
 
 if __name__ == '__main__':

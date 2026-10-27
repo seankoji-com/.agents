@@ -201,8 +201,8 @@ class TestRenderCLI(unittest.TestCase):
         with topic(output_type="implementation"):
             run(["t"])
             implementation = read("thinking/t/handoff.md")
-        self.assertIn("t3-plugins prompt imps", implementation)
-        self.assertNotIn("t3-plugins prompt imps", research)
+        self.assertIn("imps run Read thinking/", implementation)
+        self.assertNotIn("imps run Read thinking/", research)
         self.assertIn("Research brief", research)
 
     def test_stdout_mode_writes_no_file(self):

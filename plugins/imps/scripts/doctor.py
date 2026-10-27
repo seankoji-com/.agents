@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local readiness for `$t3-imps doctor`, printed as one core-style JSON envelope.
+"""Local readiness for `$imps doctor`, printed as one core-style JSON envelope.
 
 Checks Python 3.10+, Git, the state root and the learnings load status. The only
 write is one temporary file inside an existing state root, removed straight away; an

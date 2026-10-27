@@ -1606,11 +1606,11 @@ class RalphTest(unittest.TestCase):
         env = {**os.environ, 'HOME': str(self.base / 'home'), 'XDG_CONFIG_HOME': str(self.base / 'config'),
                'XDG_STATE_HOME': str(self.base / 'state')}
         for args in (['setup', 'ralph', '--root', str(skills)], ['doctor', 'ralph']):
-            result = subprocess.run([sys.executable, str(ROOT / 'bin/t3-plugins'), '--prefix', str(prefix), *args],
+            result = subprocess.run([sys.executable, str(ROOT / 'scripts/catalog.py'), '--prefix', str(prefix), *args],
                                     cwd=self.base, text=True, capture_output=True, env=env)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        adapter = (skills / 't3-ralph/SKILL.md').read_text()
-        self.assertIn('name: t3-ralph', adapter)
+        adapter = (skills / 'ralph/SKILL.md').read_text()
+        self.assertIn('name: ralph', adapter)
         self.assertIn(str(prefix / 'ralph/current/entry.md'), adapter)
         self.assertNotIn('imps', adapter)
         self.assertIn('do not switch to another ralph installation', adapter)

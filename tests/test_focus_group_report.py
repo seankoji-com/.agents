@@ -614,7 +614,7 @@ class EndToEndTest(ReportCase):
         stub = h.base / 'stub-bin'
         stub.mkdir()
         log = h.base / 'external-calls.log'
-        for tool in ('gh', 'git', 't3-plugins', 'imps', 'curl'):
+        for tool in ('gh', 'git', 'agents', 'imps', 'curl'):
             (stub / tool).write_text(f'#!/bin/sh\necho {tool} "$@" >> {log}\nexit 97\n')
             (stub / tool).chmod(0o755)
         before = {p: p.read_bytes() for p in (h.root / h.view['study_id']).rglob('*') if p.is_file()}

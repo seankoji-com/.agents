@@ -41,7 +41,7 @@ class ReleaseArchiveModelIds(unittest.TestCase):
 
     def test_archive_has_no_model_ids(self):
         files = list(archive_files())
-        self.assertIn('plugins/imps/entry.md', files)
+        self.assertIn('skills/imps/SKILL.md', files)
         self.assertIn('scripts/routing.py', files)
         self.assertFalse(any(f.startswith(('tests/', 'docs/', 'bench/')) for f in files))
         for rel in files:

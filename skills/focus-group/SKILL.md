@@ -1,3 +1,21 @@
+---
+name: focus-group
+description: "Plan and run an editable multi-model persona panel that tests a product and returns synthetic findings and a build/fix backlog. Args: plan <product-or-brief> | plan <study> | run <study> | resume <study> | status <study> | cancel <study> | doctor."
+metadata:
+  agents-bootstrap: "1"
+  opencode/slash: "true"
+  opencode/autoinvoke: "false"
+---
+
+
+Before substantive work, run only:
+
+```sh
+"$HOME/.local/bin/agents" start focus-group
+```
+
+Read the pinned SKILL.md and manifest before work. Already pinned: do not resolve again. Bind returned `package_root=PKG`, `pin=PIN`, `package_prefix=PREFIX`, `registry_root=AGENTS_ROOT`, `interpreter=PYTHON`; run Python examples with that absolute interpreter. Helpers, playbooks and workers use that pin only. Read `PKG/shared/manifest-routing.md`. Worktree tests add `--source /absolute/worktree` before `start`. Missing/incompatible launcher: explicit self-install.
+
 # focus-group
 
 Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
@@ -63,7 +81,7 @@ inspection happen during `plan`, before approval.
 
 ## Study state
 
-A study lives under the private job root (`$XDG_STATE_HOME/t3-plugins/jobs`, or
+A study lives under the private job root (`$XDG_STATE_HOME/agents/jobs`, or
 the explicit `--state-root`), never in a repository. The study ID is the job ID.
 `study.py` keeps plan revisions, approvals, the budget ledger, accepted-result
 records and carry-forward mappings in `ROOT/<study>/focus-group/`; the generic job

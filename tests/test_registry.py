@@ -10,6 +10,8 @@ import threading
 import unittest
 from unittest import mock
 
+from support import skill_manifest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import registry
@@ -90,6 +92,49 @@ class RegistryPolicyTest(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(set(claims), set(identities))
 
+    def test_pre_198_workers_config_stays_in_use_until_moved(self):
+        with tempfile.TemporaryDirectory() as temp:
+            config = Path(temp)
+            env = {'XDG_CONFIG_HOME': str(config)}
+            self.assertEqual(registry.worker_config_path(env), config / 'agents/workers.json')
+            legacy = config / 't3-plugins/workers.json'
+            legacy.parent.mkdir()
+            legacy.write_text('{"schema_version": 1, "overrides": []}')
+            self.assertEqual(registry.worker_config_path(env), legacy)
+            (config / 'agents').mkdir()
+            (config / 'agents/workers.json').write_text('{"schema_version": 1, "overrides": []}')
+            self.assertEqual(registry.worker_config_path(env), config / 'agents/workers.json')
+
+    def test_pre_198_installation_marker_and_registry_lock_stay_shared(self):
+        import fcntl
+        with tempfile.TemporaryDirectory() as temp:
+            prefix = Path(temp) / 'prefix'
+            prefix.mkdir()
+            identity = 'c0ffee00-0000-4000-8000-000000000198'
+            (prefix / '.t3-plugins-installation.json').write_text(
+                json.dumps({'schema_version': 1, 'installation_id': identity}))
+            legacy_lock = prefix / '.t3-plugins-registry.lock'
+            legacy_lock.write_text('')  # the old runtime's existing lock
+            # Old and new runtimes in one prefix keep one identity and lock; nothing new appears.
+            self.assertEqual(registry.installation_id(prefix), identity)
+            self.assertFalse((prefix / '.agents-installation.json').exists())
+            self.assertFalse((prefix / '.agents-registry.lock').exists())
+            # An old writer holding the legacy registry lock excludes the new runtime there.
+            self.assertEqual(registry.legacy_named(prefix / '.agents-registry.lock', legacy_lock), legacy_lock)
+            with legacy_lock.open('a') as held:
+                fcntl.flock(held, fcntl.LOCK_EX)
+                child = subprocess.run([sys.executable, '-c', (
+                    'import fcntl, sys; f = open(sys.argv[1], "a")\n'
+                    'try:\n    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)\nexcept OSError:\n    sys.exit(7)\n'),
+                    str(registry.legacy_named(prefix / '.agents-registry.lock', legacy_lock))])
+                self.assertEqual(child.returncode, 7)
+            # A fresh location uses the new names.
+            fresh = Path(temp) / 'fresh'
+            fresh.mkdir()
+            registry.installation_id(fresh)
+            self.assertTrue((fresh / '.agents-installation.json').is_file())
+            self.assertFalse((fresh / '.t3-plugins-installation.json').exists())
+
 
 class PinSnapshotTest(unittest.TestCase):
     def setUp(self):
@@ -129,7 +174,7 @@ class PinSnapshotTest(unittest.TestCase):
         self.assertEqual(pin['installation_id'], manifest['installation_id'])
         self.assertEqual(pin['package_digest'], manifest['package_digest'])
         self.assertEqual(pin['bundle_digest'], manifest['bundle_digest'])
-        self.assertEqual(pin['compatible_pinned_invocation'], f't3-plugins --job {job.absolute()} path imps')
+        self.assertEqual(pin['compatible_pinned_invocation'], f'agents --job {job.absolute()} path imps')
         self.assertEqual(snap['compatible_pinned_invocations']['workflow'], pin['compatible_pinned_invocation'])
         self.assertEqual(pin['limits'], {'max_live_workers': None, 'max_repair_cycles': 20})
         effective = pin['effective_workers']['imps/stage-executor']
@@ -184,7 +229,7 @@ class PinSnapshotTest(unittest.TestCase):
         allowed = {'workhorse', 'reviewer', 'judgement'}
         roles = []
         for plugin in ('imps', 'ape', 'elephant-goldfish', 'babysitter', 'agent-tuneup'):
-            manifest = json.loads((ROOT / 'plugins' / plugin / 'plugin.json').read_text())
+            manifest = skill_manifest(ROOT / 'plugins' / plugin / 'plugin.json')
             for worker in manifest['workers']:
                 self.assertIn(worker['role'], allowed)
                 self.assertTrue(worker['responsibility'].strip())

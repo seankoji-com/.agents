@@ -96,7 +96,7 @@ def json_update(raw, driver, subtree):
 def grant(driver, project, apply=False, env=None):
     env = os.environ if env is None else env
     try:
-        subtree = str(state_root(project, env) / 't3-plugins/learnings')
+        subtree = str(state_root(project, env) / 'agents/jobs/learnings')
         # Provider pattern languages treat these characters specially. Refuse ambiguous paths.
         if any(c in subtree for c in ('*', '?', '\n', '\r', '[', ']', '$', '~', '\\')):
             raise Unavailable('learning path contains provider-pattern metacharacters')
@@ -129,7 +129,7 @@ def grant(driver, project, apply=False, env=None):
             return dict(receipt, status='manual', target=str(target), snippet=snippet(driver, change),
                         action=(f'{link} is a symlink and setup does not write through it. Merge the snippet '
                                 f'into {target} in its source repository, keeping existing entries, then '
-                                'sync and run t3-plugins doctor to confirm learnings_write is writable.'))
+                                'sync and confirm an authorized learnings write in a fresh restricted session.'))
         if not apply:
             return receipt
         if project is not None and path.absolute().is_relative_to(Path(project).resolve()):

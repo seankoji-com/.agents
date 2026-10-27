@@ -14,15 +14,14 @@ use event-only without scheduler authority.
    armed request. Inspect the roster with
    `bash PKG/scripts/list-prs.sh --all-authors --repo <owner/name>`;
    org mode uses `org_scan.py` per `PKG/references/org-scan.md`.
-   Warnings: a partial page is not the whole roster. Follow
+   A partial page is not the whole roster. Follow
    `PKG/references/scope.md`: include all authors and bots; exclude drafts and forks
    unless included by the operator. Run the sibling-work check in
    `PKG/shared/t3-runtime.md` per PR; another active thread's PR stays
    visible as owned elsewhere. Read-only runs skip this check.
-   Record scope and link each admitted PR with `link_pull_request`. An
-   inspect-only run skips step 2's helper, posts step 3's table, and stops; deep triage
-   may plan `read` only maintainer slots, whose `blocked` results answer triage but
-   never an acceptance.
+   Record scope and link each admitted PR with `link_pull_request`. An inspect-only run skips
+   step 2's helper, posts step 3's table and stops; deep triage may plan `read` only
+   maintainer slots. Their `blocked` results answer triage, never an acceptance.
 2. Quick pass, in this thread, before any child: refresh with `continuous.py observe`;
    reserve current `merge` or `update-branch` only when the returned action matches, with
    `continuous.py dispatch --kind <kind> --reserve --head <head>` before
@@ -30,7 +29,7 @@ use event-only without scheduler authority.
    For `update-branch`, add `--update-only --expected-head <head>`; record `UPDATED`,
    refresh new-head gates before any merge reservation. For `merge`, add
    `--expected-head <head>` and `--arm-always` under **enable**, otherwise `--no-auto`.
-   Record `MERGED` and each `BLOCKED` line's whole `blockers=` list, not just `reason=`.
+   Record `MERGED` and each `BLOCKED` line's complete `blockers=` list.
    `automerge=preexisting` is someone else's armed request and withholds nothing.
    Record reservation/head receipts; `armed` is pending, never
    merged. If the operator asked for review before landing, every PR is review-gated:
@@ -43,7 +42,7 @@ use event-only without scheduler authority.
    |---|---|---|
    | [owner/repo#12](https://github.com/owner/repo/pull/12) | PR title | 3 unresolved threads; failing check `lint`; fixer round 2 (candidate 1) |
 
-   Emit each job's compact overview checklist; never stream raw logs.
+   Emit compact job checklists, never raw logs.
 4. Classify each unmerged PR from `blockers=` or the complete observation when
    step 2 skipped the helper. Child work: conflicts, an
    unupdatable branch, failing checks, unresolved threads needing code, requested
@@ -52,14 +51,13 @@ use event-only without scheduler authority.
    nothing left to fix is `needs human:`. Every PR with child work gets a
    fixer now, no concurrency cap and no question, one job each with
    `PKG/references/job-plan.md`.
-5. Prepare with `bash PKG/scripts/pr-workspace.sh`. Honor upfront selected work target/options;
-   explicit configured workhorse is the selection. Follow short rounds.
-   Prefer eligible `preferred_workhorse`; otherwise recommend cheapest suitable tier from the configured role pool.
-   Without routing, show suitable live-catalog choices; report `unavailable` entries.
-   Never infer an answer. Global answers: `routing_scope: global`;
-   preserve/update/read back `routing.json` and overrides under settings-write authority
-   per `PKG/shared/model-selection.md`. Run-only: `routing_scope: invocation-only`,
-   never writes routing. Keep reviewer choices separate; show role/model/options/scope before dispatch.
+5. Prepare with `bash PKG/scripts/pr-workspace.sh`. Honor upfront selected work target/options.
+   Follow short rounds and `PKG/shared/model-selection.md`: configured workhorse or eligible
+   `preferred_workhorse`, otherwise cheapest suitable configured tier; without routing,
+   offer live-catalog choices and report `unavailable`. Never infer an answer.
+   Global `routing_scope: global` requires settings-write authority and readback of
+   routing/overrides. `routing_scope: invocation-only` never writes routing.
+   Keep reviewer choices separate; show role/model/options/scope before dispatch.
 6. Dispatch per `PKG/shared/job-coordination.md`: `job_cli.py prepare`, reserve with
    `continuous.py dispatch --kind fixer --reserve` before launching
    `babysitter/pr-maintainer`, then attach the handle with `--host-task-id`. Close a

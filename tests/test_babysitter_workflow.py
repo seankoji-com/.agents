@@ -16,6 +16,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from support import source_entry
+
+from support import skill_manifest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -33,13 +37,13 @@ def norm(value):
 
 
 def text(rel):
-    return norm((PLUGIN / rel).read_text())
+    return norm((source_entry(PLUGIN) if rel == 'entry.md' else PLUGIN / rel).read_text())
 
 
 def sections(rel):
     """Map each '## ' heading of a Markdown file to its whitespace-normalised body."""
     found, current = {}, None
-    for line in (PLUGIN / rel).read_text().splitlines():
+    for line in (source_entry(PLUGIN) if rel == 'entry.md' else PLUGIN / rel).read_text().splitlines():
         if line.startswith('## '):
             current = line[3:].strip()
             found[current] = []
@@ -50,16 +54,16 @@ def sections(rel):
 
 def steps(rel):
     """Numbered top-level steps of a playbook, whitespace-normalised."""
-    raw = (PLUGIN / rel).read_text()
+    raw = (source_entry(PLUGIN) if rel == 'entry.md' else PLUGIN / rel).read_text()
     parts = re.split(r'\n(\d+)\. ', '\n' + raw)
     return {int(number): norm(body) for number, body in zip(parts[1::2], parts[2::2])}
 
 
 class EntryRoutingTest(unittest.TestCase):
     def test_every_operation_keeps_its_name_meaning_and_route(self):
-        meta = json.loads((PLUGIN / 'plugin.json').read_text())
+        meta = skill_manifest(PLUGIN / 'plugin.json')
         self.assertEqual(meta['operations'], ['doctor', 'pr', 'repo', 'org'])
-        ops = (PLUGIN / 'entry.md').read_text().split('## Operations')[1].split('\n## ')[0]
+        ops = (source_entry(PLUGIN)).read_text().split('## Operations')[1].split('\n## ')[0]
         bullets = {re.match(r'`([^`]+)`', b).group(1): norm(b) for b in ops.split('\n- ')[1:]}
         self.assertEqual(set(bullets), {'doctor', 'pr <URL>', 'repo <owner/name>', 'org <owner>'})
         for op, meaning in (('doctor', 'GitHub authentication'), ('pr <URL>', 'one pull request'),
@@ -96,7 +100,7 @@ class EntryRoutingTest(unittest.TestCase):
         self.assertIn('`--arm-always` under **enable**', quick)
 
     def test_word_budgets(self):
-        entry = len((PLUGIN / 'entry.md').read_text().split())
+        entry = len((source_entry(PLUGIN)).read_text().split())
         self.assertLess(entry, 1500)
         self.assertLess(entry + len((PLUGIN / 'playbooks/maintain.md').read_text().split()), 2000)
 
@@ -161,7 +165,7 @@ class BoundaryTest(unittest.TestCase):
 
     def test_roster_pagination_isolation_and_exact_head(self):
         play = steps('playbooks/maintain.md')
-        self.assertIn('a partial page is not the whole roster', play[1])
+        self.assertIn('A partial page is not the whole roster', play[1])
         self.assertIn('`bash PKG/scripts/list-prs.sh --all-authors', play[1])
         self.assertIn('include all authors and bots; exclude drafts and forks unless included by the operator', play[1])
         self.assertIn('`bash PKG/scripts/pr-workspace.sh`', play[5])
@@ -226,7 +230,7 @@ class BoundaryTest(unittest.TestCase):
             self.assertIn(f'`{field}`', stages)
         self.assertIn('never from a worker result', sections('references/job-plan.md')['Acceptance input'])
         self.assertIn('`review_thread_count`', sections('references/job-plan.md')['Acceptance input'])
-        self.assertIn('a complete list of resolved threads', acceptance)
+        self.assertIn('all resolved threads', acceptance)
 
     def test_missing_reviewer_and_fallback_stay_visible(self):
         fallback = steps('playbooks/maintain.md')[11]
@@ -237,10 +241,10 @@ class BoundaryTest(unittest.TestCase):
         play = steps('playbooks/maintain.md')
         self.assertIn('| PR | Description | Not merged because |', play[3])
         self.assertIn('Post it after the quick pass and at the end of every turn', play[3])
-        self.assertIn('Without routing, show suitable live-catalog choices', play[5])
-        self.assertIn('cheapest suitable tier from the configured role pool', play[5])
-        for text in ('workhorse is the selection', '`routing_scope: global`',
-                     '`routing.json`', 'read back', '`routing_scope: invocation-only`',
+        self.assertIn('without routing, offer live-catalog choices', play[5])
+        self.assertIn('cheapest suitable configured tier', play[5])
+        for text in ('configured workhorse', '`routing_scope: global`',
+                     'routing/overrides', 'readback', '`routing_scope: invocation-only`',
                      'never writes routing', 'Keep reviewer choices', 'before dispatch'):
             self.assertIn(text, play[5])
         self.assertIn('`needs human:`', play[9])
@@ -253,7 +257,7 @@ class RelentlessLandingTest(unittest.TestCase):
 
     def test_every_blocker_is_read_not_just_the_first(self):
         play = steps('playbooks/maintain.md')
-        self.assertIn("whole `blockers=` list, not just `reason=`", play[2])
+        self.assertIn("complete `blockers=` list", play[2])
         self.assertIn('the complete `blockers=` list, every unresolved thread\'s ID and comments', play[6])
         self.assertIn('every listed blocker cleared at a pushed head', play[6])
 
@@ -282,7 +286,7 @@ class RelentlessLandingTest(unittest.TestCase):
         self.assertIn('For a job without operator-requested review', sections('references/job-plan.md')['Merge and acceptance'])
 
     def test_a_new_matching_pr_is_not_a_scope_expansion(self):
-        self.assertIn('Automatically admit new matching PRs under the original request',
+        self.assertIn('Automatically admit new matching org/repo PRs, recording actions before writes',
                       sections('entry.md')['Authorization'])
         self.assertIn('New matching PRs are already authorized by org/repo scope and get separate jobs',
                       sections('references/job-plan.md')['Merge and acceptance'])
@@ -349,7 +353,7 @@ class RelentlessLandingTest(unittest.TestCase):
 
     def test_health_and_ledger_errors_stop_supported_writes_without_bypass(self):
         cycle = sections('references/job-plan.md')['Repair cycle']
-        for phrase in ('`t3-plugins doctor babysitter`', '`t3-plugins agents list babysitter`',
+        for phrase in ('verify the selected package and worker bundle', '`agents --pin PIN agents list babysitter`',
                        '`job_cli.py overview`', 'integrity failure stops writes for that PR',
                        'exact command, exit code and error', 'Never edit the ledger by hand',
                        'create a replacement job to evade it',
@@ -373,7 +377,7 @@ class RelentlessLandingTest(unittest.TestCase):
 
 class WorkerDefinitionTest(unittest.TestCase):
     def test_definitions_satisfy_the_worker_contract(self):
-        meta = json.loads((PLUGIN / 'plugin.json').read_text())
+        meta = skill_manifest(PLUGIN / 'plugin.json')
         self.assertEqual({w['id'] for w in meta['workers']}, {'babysitter/pr-maintainer', 'babysitter/pr-reviewer'})
         for worker in meta['workers']:
             raw = (PLUGIN / worker['path']).read_text()
@@ -491,8 +495,8 @@ class MergeGatePlanTest(unittest.TestCase):
 
     def test_gate_is_stated_where_the_coordinator_reads_it(self):
         gate = sections('entry.md')['Landing gate']
-        self.assertIn('Thread resolution, latest review state, required checks and mergeability are separate gates', gate)
-        self.assertIn('unless the operator asks for review before landing', gate)
+        self.assertIn('Thread resolution, review, checks and mergeability are separate gates', gate)
+        self.assertIn('Add review only when requested before landing', gate)
         self.assertIn('UNSTABLE PRs whose every required check succeeded at the head', gate)
         self.assertNotIn('never dispatched while the PR has an auto-merge request', text('entry.md'))
         self.assertIn('An armed request never withholds a fixer push', sections('entry.md')['Auto-merge posture'])
@@ -523,7 +527,7 @@ class SyntheticJobTest(unittest.TestCase):
         # The operator's verbatim request, saved outside the job directory and every worktree.
         (base / 'owner').mkdir()
         self.request = base / 'owner' / 'request.txt'
-        self.request.write_text('/t3-babysitter repo fixture/widgets\n')
+        self.request.write_text('/babysitter repo fixture/widgets\n')
         self.counter = 0
 
     def test_installed_instructions_cover_scope_and_the_avoidable_decisions(self):
@@ -864,7 +868,7 @@ class SyntheticJobTest(unittest.TestCase):
     def test_worker_cannot_use_coordinator_commands(self):
         self.job('create', self.plan())
         worker = {**self.caller, 'actor': 'worker', 'task_id': 'pr-12-maintain', 'stage_id': 'pr-12'}
-        decision = {'id': 'x', 'quote': '/t3-babysitter', 'source': str(self.request),
+        decision = {'id': 'x', 'quote': '/babysitter', 'source': str(self.request),
                     'source_sha256': hashlib.sha256(self.request.read_bytes()).hexdigest(), 'scope': 'plan:x'}
         for command, payload in (('prepare', {'caller': worker, 'task_id': 'pr-12-maintain'}),
                                  ('decision', {'caller': worker, 'decision': decision}),
