@@ -119,12 +119,18 @@ class PlanningReviewTests(unittest.TestCase):
                 'inspected_paths': [str(self.source)], 'responses': list(responses)}
 
     def draft_result(self, attempt, *, findings=(), verdict='approve', edit=None):
-        brief = json.loads(Path(attempt['path']).read_text())
+        raw = Path(attempt['path']).read_bytes()
+        try:
+            from shared.compact_briefs import deserialize
+            brief = deserialize(raw)
+        except Exception:
+            brief = json.loads(raw.decode('utf-8'))
         result = {k: brief[k] for k in ('schema_version', 'job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256', 'revision')}
         result.update(status='ready-for-acceptance', conclusion='Fixture evidence supports the declared plan.',
             requirements=[{'id': r['id'], 'status': 'passed', 'evidence': 'fixture:observed'} for r in brief['requirements']],
             review_verdict=verdict, findings=list(findings), gaps=[], uncertainties=[], changes=[], commands=[], artifacts=[],
             binding=brief.get('snapshot'), extra_work_requests=[], metrics={}, planning_review=self.assessment())
+        result['schema_version'] = 1  # result protocol is independent of brief transport
         if edit:
             edit(result)
         return result
@@ -405,7 +411,7 @@ class PlanningReviewTests(unittest.TestCase):
                 Path(attempt['path']).write_bytes(raw)
                 before = (store.file.read_bytes(), subject.read_bytes())
                 with self.assertRaisesRegex(planning.PlanningError, 'immutable planning brief tampered'):
-                    planning._expected(store.load(), store.load()['tasks'][0])
+                    planning._expected(store, store.load(), store.load()['tasks'][0])
                 self.assertIn('immutable planning brief tampered', self.cli('launch', payload, ok=False))
                 self.assertEqual((store.file.read_bytes(), subject.read_bytes()), before)
                 # Corrupt fixture metadata explicitly to reach the root-shape guard.
@@ -414,7 +420,7 @@ class PlanningReviewTests(unittest.TestCase):
                 before = (store.file.read_bytes(), subject.read_bytes())
                 with self.subTest(interface='helper'):
                     with self.assertRaisesRegex(planning.PlanningError, 'planning brief must be a JSON object'):
-                        planning._expected(store.load(), store.load()['tasks'][0])
+                        planning._expected(store, store.load(), store.load()['tasks'][0])
                 with self.subTest(interface='cli'):
                     error = self.cli('launch', payload, ok=False)
                     self.assertIn('planning_review_error: planning brief must be a JSON object', error)

@@ -188,6 +188,61 @@ not prove that the provider loads the file, that a plugin is installed, or that 
 MCP authenticates. An approval-list entry without a supplied MCP definition remains `unknown`.
 No files change during comparison.
 
+## Native agents and portable roles
+
+Wiring inventory v2 adds native definitions, config-defined agents and portable
+roles to the existing audit report. It uses explicit paths and a documented exact
+version table, including disabled provider instances. Unsupported or unknown
+versions stay visible as gaps. No provider is launched and no transcript is read.
+
+The enclosing inventory remains version `1`; set `wiring.version` to `2`. Existing
+wiring v1 inputs retain their coverage with detailed agent/role inventory marked
+unavailable. Unknown versions, mixed v1/v2 fields and invalid v2 records exit `2`.
+The ten wiring surfaces stay unchanged. The full contract and synthetic fixtures
+ship in the installed package under `references/central-wiring.md` and `fixtures/`.
+
+Native parsing currently covers OpenCode `2.1.2` and Claude Code `2.1.198` only.
+See the [OpenCode v2 agent documentation](https://dev.opencode.ai/v2/docs/agents/)
+and [Claude subagent documentation](https://code.claude.com/docs/en/sub-agents).
+The package's version table records the data shapes checked on 23 October 2026.
+Other providers and versions require separate format evidence. Documented runtime
+built-ins and hidden maintenance agents remain retained; their presence in a table
+does not prove a running session loaded them.
+
+The report distinguishes absent, broken, unreadable, invalid and unsupported inputs,
+custom definitions, primary adapters with provenance, vendor content, portable roles
+and T3-managed workers. It retains source layers, aliases and collisions, and separates
+configured state from unverified loading and unexercised runtime behavior. Model,
+permission and delegation signals are flags, never proof of effective authority.
+
+An optional private plan gives every item a disposition, recovery metadata,
+ownership/source evidence, caller/default references and revalidation requirements:
+
+```sh
+python3 "$(dirname "$entry")/scripts/align.py" audit \
+  --catalog private-catalog.json --inventory private-inventory-v2.json \
+  --private-out /absolute/new-private-plan.json
+```
+
+The new file is exclusive and mode 0600. Keep it outside checkouts. Public output
+contains indices and flags; prompt bodies and settings values are withheld from
+both outputs. Private object paths and link targets appear only in the plan.
+Use `--revalidate-plan /absolute/previous-plan.json` on a later audit to refuse drift.
+
+Dispositions are `keep`, `keep-as-native-exception`, `extract-role`,
+`retire-managed-alias`, `preserve-unmanaged` and `unresolved`. Names or familiar link
+targets never prove ownership. Unknown/modified/vendor objects, built-ins, hidden
+agents and unresolved callers cannot qualify for alias retirement. Eligible means
+ready for a separately reviewed proposal, with fresh destination capture, verified
+exclusive backups and owner authorization before any write. The settings apply
+operation refuses these plans. Dotfiles keeps ownership of its profiles and roles.
+
+Inventory fixtures test installed public audit/report behavior, version dispatch
+and refusal paths. This stage does not change worker-view formats, canonical worker
+definitions or serialized brief bytes. Compact transport and byte measurements are
+separate dependent work. Fixture success proves no live-provider compatibility or
+host migration.
+
 ## Apply approved changes
 
 Before any migration write, verify the exact source/package revision and ownership

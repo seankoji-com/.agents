@@ -50,12 +50,28 @@ def selection_plan_revision(current, proposed, revision=None):
     The core persists these generic contract fields in the same transaction as the
     task revision. Existing findings, rounds and history are never replaced here.
     """
+    from shared.compact_briefs import transport
+    if transport({'policy': {**current.get('policy', {}), **proposed.get('policy', {})}}) != transport(current):
+        raise JobError('brief_transport_is_immutable: use a new job for a new transport')
     from shared.job_coordination import provider_limits
     provider_limits({**current.get('policy', {}), **proposed.get('policy', {})}.get('max_live_workers_by_provider', {}))
     if current.get('model_selection', {}).get('agreement'):
         limit = current['model_selection']['agreement']['limits']['max_repair_cycles']
         if proposed.get('policy', {}).get('max_repair_cycles', current['policy']['max_repair_cycles']) > limit:
-            raise JobError('new cost/retry boundary needs a scoped owner decision; retained budget cannot reset')
+            from core.jobs import _owner_current
+            revision_id = revision.get('id') if isinstance(revision, dict) else None
+            decision_id = revision.get('owner_decision_id') if isinstance(revision, dict) else None
+            decision = next((row for row in current.get('decisions', [])
+                             if isinstance(revision_id, str) and revision_id
+                             and isinstance(row, dict) and row.get('id') == decision_id
+                             and row.get('scope') == 'plan:' + revision_id
+                             and _owner_current(row, current['policy']['max_artifact_bytes'])), None)
+            if decision is None:
+                raise JobError('new cost/retry boundary needs a scoped owner decision; retained budget cannot reset')
+    selection_required = bool(proposed.get('policy', {}).get(
+        'model_selection_required', current.get('policy', {}).get('model_selection_required')))
+    if selection_required and not proposed.get('model_selection') and not current.get('model_selection'):
+        raise JobError('new model-selection policy requires a proposed model_selection and model_selection_sha256')
     if not (current.get('policy', {}).get('model_selection_required') or
             proposed.get('policy', {}).get('model_selection_required')):
         return
@@ -182,6 +198,8 @@ def create_pinned_job(job,state_root,prefix,agents_root,config_path=None):
     first (and the pin fails) or sees the index record (and refuses removal)."""
     from shared.worker_registry import locked,registry_root,job_agents_roots,record_job_root,forget_job_root
     job=__import__('copy').deepcopy(job)
+    from shared.compact_briefs import transport
+    transport(job)
     job.setdefault('policy', {})['identity']='observed'
     workflow = str(job.get('workflow', ''))
     if job.get('model_selection', {}).get('agreement'):
@@ -302,6 +320,8 @@ def verify_all_pins(store,caller=None):
     return job
 
 def verify_job_pins(job):
+    from shared.compact_briefs import transport
+    transport(job)
     for dep in job['dependencies']:
         pin=job['pins'].get(dep['key'])
         if not pin:raise JobError(f"pin_mismatch: missing stored pin: {dep['key']}")
@@ -309,7 +329,8 @@ def verify_job_pins(job):
     return True
 
 def pinned_store(state_root,job_id):
-    return Store(state_root,job_id,verify_pins=verify_job_pins)
+    from shared.compact_briefs import verify_transmitted
+    return Store(state_root,job_id,verify_pins=verify_job_pins,verify_brief=verify_transmitted)
 
 
 def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_reason='configured worker'):
@@ -367,6 +388,8 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
             except AcceptanceError as exc:
                 raise JobError(str(exc)) from exc
         validate_adopter_job(job, task.get('stage_id'))
+    from shared.compact_briefs import prepare_projection, verify_transmitted, serialize
+    store.verify_brief = verify_transmitted
     from shared.adopter_planning import transaction_guard
     job_file = getattr(store, 'file', None)
     guard = transaction_guard(store.load(), 'prepare', caller=caller, job_file=job_file)
@@ -382,7 +405,8 @@ def prepare_task(store, caller, task_id, verify_pin, verify_acceptance, target_r
                 raise JobError('predecessor acceptance is not current')
         from shared.job_acceptance import validate_stage
         verify_acceptance = lambda sid: validate_stage(store, sid, run_validator=False).get('accepted') is True
-    return prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason, bind_inputs=bind, commit_guard=guard)
+    return prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason, bind_inputs=bind,
+                   project_brief=prepare_projection, serialize_brief=serialize, commit_guard=guard)
 
 
 TERMINAL = ('completed', 'failed', 'cancelled', 'interrupted')
@@ -637,16 +661,24 @@ def prepare_followup(store, caller, task_id, request_id):
         raw = _regular(Path(original['path']))
         if digest(raw) != original['sha256']:
             raise JobError('original brief bytes changed')
-        brief = strict_load(raw)
-        brief.pop('effective_brief_sha256')
+        from shared.compact_briefs import COMPACT, transport, authoritative_full, verify_transmitted, prepare_projection, deserialize, serialize
+        brief = deserialize(raw)
+        compact = transport(job) == COMPACT
+        if compact:
+            verify_transmitted(store, job, task, task['request_id'], raw, original)
+            brief = authoritative_full(store, job, task, task['request_id'])
+        brief.pop('effective_brief_sha256', None)
         # Authority, definition and target come from the current task contract, never from the
         # original brief; a contract the original execution did not run under needs a fresh execution.
         current = _current_authority(job, task, stage)
         if any(brief.get(key) != value for key, value in current.items()):
             raise JobError('follow-up authority differs from the current task contract; a charged fresh preparation is required')
         brief.update(current, request_id=request_id, attempt=task['attempt'], followup_of=task['request_id'])
+        if compact:
+            brief = prepare_projection(store, job, task, brief)
+            brief.pop('effective_brief_sha256', None)
         brief['effective_brief_sha256'] = digest(canonical(brief))
-        raw = canonical(brief)
+        raw = serialize(brief)
         # Follow-up briefs live in their own directory under the same fixed-width
         # <task_id>-<sha256(request_id)> encoding as normal briefs, so no task/request pair aliases another.
         path = store.path / 'briefs' / 'followup' / (task_id + '-' + digest(request_id.encode()) + '.json')

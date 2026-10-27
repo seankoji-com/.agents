@@ -662,7 +662,12 @@ def inspect_agents(agents_root: Path, plugin: str | None = None, prefix: Path | 
 
 
 def show_agent(agents_root: Path, plugin: str, worker: str, prefix: Path | None = None,
-               config_path: Path | None = None) -> dict:
+               config_path: Path | None = None, *, compact: bool = False) -> dict:
+    if compact:
+        if prefix is None:
+            raise RegistryError('compact definition inspection requires an explicit prefix')
+        from shared.compact_briefs import inspect_definition
+        return inspect_definition(agents_root, plugin, worker, prefix, config_path or worker_config_path())
     items = [item for item in inspect_agents(agents_root, plugin, prefix, config_path) if item['id'] == f'{plugin}/{worker}']
     if not items: raise RegistryError(f'worker is not installed: {plugin}/{worker}')
     active = None

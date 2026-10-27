@@ -863,7 +863,7 @@ def _mapping_for(study, target_revision):
     stages = stages_for(plan['mode'])
     accepted = study.accepted()
     records = [r for r in accepted if r['revision'] != target_revision]
-    native = {(r['cell_id'], r['stage']): {'record_sha256': r['record_sha256'], 'result_sha256': r['result']['sha256']}
+    native = {(r['cell_id'], r['stage']): ({'record_sha256': r['record_sha256'], 'result_sha256': r['result']['sha256']}, None)
               for r in accepted if r['revision'] == target_revision}
     resolver = evidence_module()._RecordResolver(study)
     def problem(record):
@@ -872,10 +872,10 @@ def _mapping_for(study, target_revision):
     firsts = {r['cell_id']: (r, problem(r)) for r in accepted
               if (r['revision'], r['stage']) == (target_revision, 'first-impression')}
     for cell_id, (_, found) in firsts.items():
-        native[(cell_id, 'first-impression')]['problem'] = found
+        native[(cell_id, 'first-impression')] = (native[(cell_id, 'first-impression')][0], found)
     lifecycle = lifecycle_module()
     job = resolver.job
-    entries, carried = [], dict(native)
+    entries, carried = [], {key: {**record, 'problem': found} for key, (record, found) in native.items()}
     for record in sorted(records, key=lambda r: (STAGES.index(r['stage']), r['cell_id'], r['revision'])):
         entry = {'cell_id': record['cell_id'], 'stage': record['stage'], 'from_revision': record['revision'],
                  'result_sha256': record['result']['sha256'], 'record_sha256': record['record_sha256'], 'reasons': []}

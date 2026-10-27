@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "claude": {
+      "versions": ["2.1.198"],
+      "documentation": "https://code.claude.com/docs/en/sub-agents",
+      "checked_on": "2026-10-23",
+      "config_key": null,
+      "builtins": ["Explore", "Plan", "general-purpose", "claude", "statusline-setup", "claude-code-guide"],
+      "maintenance": ["statusline-setup", "claude-code-guide"],
+      "precedence": ["vendor", "global", "project", "session", "managed"],
+      "semantics": "Higher scope wins; multiple roots at one scope remain ambiguous. Managed/session entries require explicit JSON captures."
+    },
+    "opencode": {
+      "versions": ["2.1.2"],
+      "documentation": "https://dev.opencode.ai/v2/docs/agents/",
+      "checked_on": "2026-10-23",
+      "config_key": "agents",
+      "builtins": ["build", "plan", "general", "explore", "compaction", "title", "summary"],
+      "builtin_modes": {"build": "primary", "plan": "primary", "general": "subagent", "explore": "subagent"},
+      "maintenance": ["compaction", "title", "summary"],
+      "precedence": ["global", "project"],
+      "semantics": "Definitions merge in loading order. Inventory preserves all layers and reports merge-required rather than reconstructing runtime permissions."
+    }
+  },
+  "limits": "Exact versions only. Paths are explicit, not discovered from the current machine. Builtin rows describe documented runtime inventory, not observed loading. Other versions and providers remain unsupported."
+}

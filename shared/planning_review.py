@@ -244,6 +244,10 @@ def snapshot_data_classes(snapshot, explicit):
 def create(data, state_root, prefix, agents_root, environ=None):
     """Create a NEW separate pinned job. Callers cannot supply stages/purpose/policy."""
     need(not set(data) & {'stages', 'tasks', 'policy', 'purpose', 'history'}, 'cannot relabel or import existing stronger slots')
+    from shared.compact_briefs import transport
+    brief_policy = ({'worker_brief_transport': data['worker_brief_transport']}
+                    if 'worker_brief_transport' in data else {})
+    transport({'policy': brief_policy})
     snapshot = data['snapshot']
     check_snapshot(snapshot)
     selected = models.validate(data['selection'])
@@ -282,7 +286,7 @@ def create(data, state_root, prefix, agents_root, environ=None):
                'dependencies': [{'key': 'workflow', 'plugin': data['plugin']}], 'stages': [
                    {'id': 'planning', 'depends_on': [], 'requirements': list(snapshot['requirements']), 'status': 'pending',
                     'resources': {'planning_snapshot': snapshot, 'prior_findings': state['findings']}, 'revision': snapshot['sha256']}],
-               'pins': {}, 'policy': {'max_repair_cycles': 0, 'max_artifact_bytes': 16*1024*1024, 'identity': 'observed'},
+               'pins': {}, 'policy': {'max_repair_cycles': 0, 'max_artifact_bytes': 16*1024*1024, 'identity': 'observed', **brief_policy},
                'tasks': [], 'decisions': [], 'history': [], 'metrics': {}, 'result_contract': {'schema_version': 1},
                'model_selection': selected, 'model_selection_sha256': selected['selection_sha256'],
                'invocation_id': data['invocation_id'], 'scope_id': data['scope_id'],
@@ -537,6 +541,21 @@ def _attempt_selection(job, attempt):
             **{k: deepcopy(attempt[k]) for k in ('slot_id', 'target', 'mode', 'lineage')}}
 
 
+def compact_selection(job, task):
+    """Bind the existing planning candidate/mode, without invoking another chooser."""
+    record = models.validate(job['model_selection'], job['model_selection_sha256'])
+    attempt = next(a for a in job['planning']['attempts'] if a['request_id'] == task['request_id'])
+    candidate = next(c for c in candidates(job, attempt['slot_id']) if c['target'] == attempt['target'])
+    need(task['target'] == attempt['target'] and candidate['mode'] == attempt['mode'] and
+         candidate['lineage'] == attempt['lineage'], 'compact planning candidate binding differs')
+    panel = next(p for p in record['review_panel'] if p['slot_id'] == attempt['slot_id'])
+    return {'selection_sha256': record['selection_sha256'],
+            'binding': {'role': panel['role'], 'slot_id': attempt['slot_id'],
+                        'selection_sha256': record['selection_sha256']},
+            'dispatch': {'execution': 'child', 'role': panel['role'], 'slot_id': attempt['slot_id'],
+                         'selection_sha256': record['selection_sha256'], 'target': task['target'],
+                         'substituted': not candidate.get('primary', False),
+                         'planning_mode': attempt['mode'], 'lineage': attempt['lineage']}}
 def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
     """Reserve one finite technical attempt and prepare an existing immutable brief.
 
@@ -562,7 +581,7 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
             brief = task['brief']
             need(brief['path'] == str(store.path / 'briefs' / (task['task_id'] + '-' + digest(request_id.encode()) + '.json')),
                  'prepared brief path binding differs')
-            _expected(current, task)  # Rehash immutable bytes and their planning snapshot.
+            _expected(store, current, task)  # Rehash immutable bytes and their planning snapshot.
             assigned = strict_load(_regular(Path(brief['path'])))
             selection = _attempt_selection(current, attempt)
             need(assigned.get('model_selection') == task.get('model_selection') == selection,
@@ -632,8 +651,13 @@ def launch(store, caller, slot_id, request_id, sharing=None, environ=None):
                 'write_scope': {'mode': 'worker-evidence', 'path': 'artifacts/tasks/' + task_id}})
             require_admission(j, j['tasks'][-1])
             j['planning']['attempts'].append(deepcopy(attempt))
+            from shared.compact_briefs import COMPACT, transport
+            if transport(j) == COMPACT:
+                j['tasks'][-1]['model_selection'] = compact_selection(j, j['tasks'][-1])
+        from shared.compact_briefs import prepare_projection, serialize
         brief = prepare(store, caller, task_id, verify_pinned_dependency, lambda _: False,
-                        'explicit planning panel/availability candidate', bind_inputs=apply)
+                        'explicit planning panel/availability candidate', bind_inputs=apply,
+                        project_brief=prepare_projection, serialize_brief=serialize)
         # A failed job transaction cannot charge the subject. If this save fails
         # after preparation commits, return no brief; replay recovers the charge
         # under the subject lock before exposing the same durable reservation.
@@ -701,15 +725,23 @@ def unavailable(store, caller, task_id, failure, environ=None):
         return updated
 
 
-def _expected(job, task):
+def _expected(store, job, task):
     brief = task['brief']
     raw = _regular(Path(brief['path']))
     need(digest(raw) == brief['sha256'], 'immutable planning brief tampered')
-    assigned = strict_load(raw)
+    from shared.compact_briefs import MAGIC, verify_transmitted
+    if not raw.startswith(MAGIC):
+        need(isinstance(strict_load(raw), dict), 'planning brief must be a JSON object')
+    assigned = verify_transmitted(store, job, task, task['request_id'], raw, brief)
     need(isinstance(assigned, dict), 'planning brief must be a JSON object')
     claimed = assigned.pop('effective_brief_sha256')
     need(digest(canonical(assigned)) == claimed == brief['effective_brief_sha256'], 'planning brief content hash differs')
-    need(assigned['resources']['planning_snapshot'] == job['planning']['snapshot'], 'result belongs to a superseded content round')
+    if assigned['schema_version'] == 2:
+        from shared.compact_briefs import authoritative_full
+        snapshot = authoritative_full(store, job, task, task['request_id'])['resources']['planning_snapshot']
+    else:
+        snapshot = assigned['resources']['planning_snapshot']
+    need(snapshot == job['planning']['snapshot'], 'result belongs to a superseded content round')
     expected = {k: brief[k] for k in ('job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256')}
     expected.update(role='review', revision=brief['revision'], binding=brief['snapshot'], task_id=task['task_id'],
                     requirements=list(job['requirements']))
@@ -1065,7 +1097,7 @@ def ingest(store, caller, task_id, raw, completion_id, environ=None):
     task = next(t for t in job['tasks'] if t['task_id'] == task_id)
     attempt = next(a for a in job['planning']['attempts'] if a['task_id'] == task_id)
     need(attempt['outcome'] is None, 'attempt outcome already retained; cannot reclassify adverse to incomplete')
-    expected = _expected(job, task)
+    expected = _expected(store, job, task)
     # Check host terminal state before consuming any substantive response.
     from shared.job_acceptance import review_handle
     handle = review_handle(task)
@@ -1404,7 +1436,7 @@ def validate_receipt(reference, *, expected_snapshot=None, environ=None):
                 need(handle['task_id'] == pass_['execution_id'] and handle['child_thread_id'] == pass_['child_thread_id'], 'host execution correlation differs')
                 raw = _regular(Path(task['result_ref']['transport_path']), max_bytes=32768)
                 need(digest(raw) == pass_['transport_sha256'], 'accepted worker result changed')
-                parsed = parse_result(raw, _expected(job, task), store.path, job['policy']['max_artifact_bytes'])
+                parsed = parse_result(raw, _expected(store, job, task), store.path, job['policy']['max_artifact_bytes'])
                 need(parsed['sha256'] == task['result_ref']['sha256'], 'accepted result artifact changed')
                 _coverage(job, parsed['result']['planning_review'])
                 _result_artifacts(store, job, task, parsed['result'])

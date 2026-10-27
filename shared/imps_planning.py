@@ -74,7 +74,8 @@ def _authors(admission, documents, job_file=None, producers=None):
         from shared.job_coordinator import pinned_store, verify_all_pins
         from core.jobs.store import tasks
         path = Path(job_file)
-        job = verify_all_pins(pinned_store(path.parent.parent, path.parent.name))
+        store = pinned_store(path.parent.parent, path.parent.name)
+        job = verify_all_pins(store)
         planning.need(job['workflow'] == 'imps/' + admission['operation'] and
                       job.get('imps_admission', {}).get('scope_id') == admission['scope_id'],
                       'another producing job/admission')
@@ -96,7 +97,8 @@ def _authors(admission, documents, job_file=None, producers=None):
                 brief_path = (Path(task['brief']['path']) if request == task['request_id'] else
                     path.parent / 'briefs' / ('followup' if h in task.get('followups', []) else '') /
                     (task['task_id'] + '-' + digest(request.encode()) + '.json'))
-                brief = strict_load(_regular(brief_path))
+                from shared.compact_briefs import producer_authority
+                brief = producer_authority(store, job, task, request, _regular(brief_path))
                 planning.need(brief['request_id'] == request and brief['worker_id'] == task['worker_id'],
                               'actual producer brief correlation differs')
                 frozen = brief.get('model_selection') or {}

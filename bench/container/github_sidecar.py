@@ -190,6 +190,26 @@ class Model:
         self.pulls = sorted(scenario['pulls'], key=lambda p: p['number'])
         self.repository = self._graph_repository()
 
+    def check_ids(self, pull, index):
+        offset = 0
+        for candidate in self.pulls:
+            if candidate['number'] == pull['number']:
+                if index >= len(candidate.get('checks', [])):
+                    break
+                return 28000 + offset + index, 30000 + offset + index
+            offset += len(candidate.get('checks', []))
+        raise ValueError('check does not belong to a modeled pull request')
+
+    def pull_for_job(self, job_id):
+        offset = 0
+        for pull in self.pulls:
+            count = len(pull.get('checks', []))
+            index = job_id - 30000 - offset
+            if 0 <= index < count:
+                return pull, index
+            offset += count
+        return None
+
     # REST ---------------------------------------------------------------
     def rest_repo(self):
         return {'id': 2800, 'node_id': 'R_bench', 'name': self.name, 'full_name': self.full_name,
@@ -214,14 +234,15 @@ class Model:
     def check_runs(self, pull, observe):
         runs = []
         for index, check in enumerate(pull.get('checks', [])):
+            run_id, job_id = self.check_ids(pull, index)
             sha = check.get('sha', pull['head_sha'])
             observe('check_sha', sha)
             # The REST check-run object has started_at/completed_at, not created_at;
             # the Actions job object below is the supported source of that clock.
-            runs.append({'id': 28000 + index, 'name': check['name'], 'head_sha': sha, 'status': 'completed',
+            runs.append({'id': run_id, 'name': check['name'], 'head_sha': sha, 'status': 'completed',
                          'conclusion': check['conclusion'], 'started_at': CREATED, 'completed_at': CREATED,
                          'details_url': (f'https://{self.host}/{self.full_name}/actions/runs/'
-                                         f'{28000 + index}/job/{30000 + index}'),
+                                         f'{run_id}/job/{job_id}'),
                          'app': {'slug': 'bench-ci'}})
         return runs
 
@@ -274,19 +295,21 @@ class Model:
 
     def _graph_pull(self, pull, repo):
         head = pull['head_sha']
-        runs = [{'__typename': 'CheckRun', '__implements': ('StatusCheckRollupContext',),
+        runs = []
+        for index, check in enumerate(pull.get('checks', [])):
+            run_id, job_id = self.check_ids(pull, index)
+            runs.append({'__typename': 'CheckRun', '__implements': ('StatusCheckRollupContext',),
                  '__observe__': {'conclusion': ('check_sha', check.get('sha', head)),
                                  'name': ('check_sha', check.get('sha', head))},
-                 'id': f'CR_{index}', 'databaseId': 28000 + index, 'name': check['name'],
+                 'id': f'CR_{run_id}', 'databaseId': run_id, 'name': check['name'],
                  'status': 'COMPLETED', 'conclusion': check['conclusion'].upper(), 'startedAt': CREATED,
                  'completedAt': CREATED,
                  'detailsUrl': (f'https://{self.host}/{self.full_name}/actions/runs/'
-                                f'{28000 + index}/job/{30000 + index}'),
+                                f'{run_id}/job/{job_id}'),
                  'isRequired': (lambda required: lambda args: required)(bool(check.get('required', True))),
                  'checkSuite': {'__typename': 'CheckSuite', 'workflowRun': {
                      '__typename': 'WorkflowRun', 'event': 'pull_request',
-                     'workflow': {'__typename': 'Workflow', 'name': 'bench-ci'}}}}
-                for index, check in enumerate(pull.get('checks', []))]
+                     'workflow': {'__typename': 'Workflow', 'name': 'bench-ci'}}}})
         failing = any(r['conclusion'] not in ('SUCCESS', 'NEUTRAL', 'SKIPPED') for r in runs)
         rollup = {'__typename': 'StatusCheckRollup', 'state': 'FAILURE' if failing else 'SUCCESS',
                   'contexts': connection(runs, {'checkRunCount': len(runs), 'statusContextCount': 0})}
@@ -872,14 +895,15 @@ def make_handler(model: Model, log: EventLog, protocol: str):
             match = re.fullmatch(r'actions/jobs/(\d+)', rest)
             if match:
                 job_id = int(match.group(1))
-                index = job_id - 30000
-                pull = model.pulls[0] if model.pulls else None
-                checks = pull.get('checks', []) if pull else []
-                if not 0 <= index < len(checks):
+                selected = model.pull_for_job(job_id)
+                if selected is None:
                     return 404, {'message': 'Not Found'}, ()
+                pull, index = selected
+                checks = pull.get('checks', [])
+                run_id, _ = model.check_ids(pull, index)
                 observe('check_sha', checks[index].get('sha', pull['head_sha']))
                 # Actions job object: created_at exists here, before any runner claims it.
-                return 200, {'id': job_id, 'run_id': 28000 + index, 'name': checks[index]['name'],
+                return 200, {'id': job_id, 'run_id': run_id, 'name': checks[index]['name'],
                              'head_sha': checks[index].get('sha', pull['head_sha']), 'status': 'queued',
                              'conclusion': None, 'created_at': CREATED, 'started_at': None,
                              'completed_at': None, 'labels': []}, ()

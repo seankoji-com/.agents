@@ -44,7 +44,8 @@ class ElephantRepairJobTests(ElephantDocumentJobFixture):
         self.assertEqual(brief['document'], {'path': str(document), 'sha256': sha(document.read_bytes())})
         self.assertEqual(brief['requirements'], [{'id': 'R-COLD'}])
         self.assertEqual(brief['authorization']['read'], [str(document)])
-        self.assertIn('Assess only the supplied document', json.dumps(brief['effective_definition']))
+        definition = brief['effective_definition'] if brief['schema_version'] == 1 else brief['definition']
+        self.assertIn('Assess only the supplied document', json.dumps(definition))
         self.assertNotIn('objective', brief)
 
         cold_argv = lambda path: self.doc_argv(document.parent.parent, document.parent.name, 'cold-read', path)

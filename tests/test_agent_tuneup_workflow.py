@@ -271,7 +271,8 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertEqual(set(prepared) & {'path', 'sha256', 'bytes'}, {'path', 'sha256', 'bytes'})
         raw = Path(prepared['path']).read_bytes()
         self.assertEqual((sha(raw), len(raw)), (prepared['sha256'], prepared['bytes']))
-        brief = json.loads(raw)
+        from shared.compact_briefs import deserialize
+        brief = deserialize(raw)
         declared = next(t for t in self.state(job_id)['tasks'] if t['task_id'] == task_id)
         self.assertEqual(brief['worker_id'], declared['worker_id'])
         host = 'host-' + task_id

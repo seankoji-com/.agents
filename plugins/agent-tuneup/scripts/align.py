@@ -52,6 +52,7 @@ SAFE_ERRORS = {
     'changed_keys_do_not_match', 'stale_or_unapproved_plan', 'stale_plan',
     'invalid_backup', 'protective_setting_weakened', 'reviewed_proposal_and_owner_approval_required',
     'invalid_batch', 'overlapping_batch', 'destination_not_writable', 'destination_readiness_unknown',
+    'private_plan_too_large',
 }
 
 
@@ -160,11 +161,15 @@ def resources(adapter, data):
     return result
 
 
-def compare(catalog, inventory):
+def compare(catalog, inventory, private=None):
     providers = catalog.get('providers')
     supplied = inventory.get('providers')
-    if inventory.get('version') != 1 or not isinstance(providers, list) or not isinstance(supplied, list):
+    if (type(inventory.get('version')) is not int or inventory.get('version') != 1
+            or not isinstance(providers, list) or not isinstance(supplied, list)):
         raise ValueError('invalid_inventory')
+    if set(inventory) - {'version', 'providers', 'capabilities', 'wiring'} or any(
+            isinstance(p, dict) and set(p) & {'agent_roots', 'agent_configs', 'role_roots'} for p in supplied):
+        raise ValueError('mixed_inventory_versions')
     ids = [p['providerInstanceId'] for p in providers]
     given = [p['provider_instance_id'] for p in supplied]
     if len(set(ids)) != len(ids) or len(set(given)) != len(given) or set(given) - set(ids):
@@ -239,7 +244,7 @@ def compare(catalog, inventory):
                                  'location': f'capabilities[{number}].providers[{ids.index(ident)}]'})
         gaps.append({'capability': number, 'kind': kind, 'states': statuses,
                      'equivalence': 'operator_mapping_requires_review'})
-    central = wiring.inspect(catalog, inventory.get('wiring', {}))
+    central = wiring.inspect(catalog, inventory.get('wiring', {}), private=private)
     return {'ok': True, 'providers': rows, 'capabilities': gaps, 'findings': findings, 'wiring': central, 'writes': 0,
             'effective_permissions': 'unverified', 'live_acceptance': 'not_run'}
 
@@ -250,7 +255,10 @@ def read_source(path):
     with os.fdopen(fd, 'rb') as stream:
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
             raise ValueError('unsafe_source')
-        return stream.read()
+        raw = stream.read(wiring.agent_inventory.MAX_BYTES + 1)
+        if len(raw) > wiring.agent_inventory.MAX_BYTES:
+            raise ValueError('size_limit')
+        return raw
 
 
 def risk_counts(adapter, data):
@@ -503,18 +511,12 @@ def prepare(adapter, target, candidate, allowed):
 
 
 def write_private(path, raw):
+    if len(raw) > wiring.agent_inventory.MAX_BYTES:
+        raise ValueError('private_plan_too_large')
     path = checked_path(path)
-    parent = open_parent(path)
-    try:
-        fd = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                     0o600, dir_fd=parent)
-        with os.fdopen(fd, 'wb') as stream:
-            stream.write(raw)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.fsync(parent)
-    finally:
-        os.close(parent)
+    if _store is None:
+        raise ValueError('atomic_private_plan_writer_unavailable')
+    _core_store._atomic(path, raw, exclusive=True)
 
 
 def preflight_batch(batch):
@@ -582,6 +584,8 @@ def require_destination_access(parent):
 
 
 def apply(document, approval, backup, context=None):
+    if document.get('kind') == 'agent-normalization-plan':
+        raise ValueError('agent_plan_has_no_apply')
     sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents if (p / "shared/adopter_planning.py").is_file())))
     from shared.adopter_planning import apply_ready
     if context is None:
@@ -635,6 +639,8 @@ def main(argv=None):
         compare_cmd = sub.add_parser(operation)
         compare_cmd.add_argument('--catalog', type=Path, required=True)
         compare_cmd.add_argument('--inventory', type=Path, required=True)
+        compare_cmd.add_argument('--private-out', help='Exclusive private v2 normalization plan, mode 0600')
+        compare_cmd.add_argument('--revalidate-plan', type=Path, help='Refuse drift from an earlier private v2 plan')
     preflight_cmd = sub.add_parser('preflight')
     preflight_cmd.add_argument('--batch', type=Path, required=True)
     plan_cmd = sub.add_parser('plan')
@@ -652,7 +658,23 @@ def main(argv=None):
     started_apply = args.operation == 'apply'
     try:
         if args.operation in {'compare', 'audit'}:
-            receipt = compare(json.loads(args.catalog.read_text()), json.loads(args.inventory.read_text()))
+            private = {}
+            # Explicit CLI read files may use cwd-relative paths or aliases.
+            # Trust their resolved destinations once; secure reads still pin
+            # every ancestor and inode. This grants no native or write scope.
+            inventory = wiring.agent_inventory.json_data(wiring.agent_inventory.read(args.inventory.resolve()))
+            catalog = wiring.agent_inventory.json_data(wiring.agent_inventory.read(args.catalog.resolve()))
+            receipt = compare(catalog, inventory, private=private)
+            if args.private_out or args.revalidate_plan:
+                if 'agent_plan' not in private:
+                    raise ValueError('agent_inventory_v2_required')
+                if args.revalidate_plan:
+                    previous = wiring.agent_inventory.json_data(wiring.agent_inventory.read(args.revalidate_plan.resolve()))
+                    wiring.agent_inventory.revalidate(previous, private['agent_plan'])
+                if args.private_out:
+                    write_private(checked_path(args.private_out),
+                                  (json.dumps(private['agent_plan'], indent=2) + '\n').encode())
+                receipt['normalization_plan'] = 'private-proposal-only'
         elif args.operation == 'preflight':
             receipt = preflight_batch(json.loads(args.batch.read_text()))
         elif args.operation == 'plan':
@@ -668,7 +690,7 @@ def main(argv=None):
         else:
             receipt = apply(json.loads(args.plan.read_text()), args.approval, args.backup,
                             json.loads(args.context.read_text()) if args.context else None)
-    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, RecursionError, RuntimeError) as exc:
         # Neither native parser errors nor paths/keys belong in public receipts.
         receipt = {'ok': False, 'error': str(exc) if isinstance(exc, ValueError) and str(exc) in SAFE_ERRORS else 'invalid_unsafe_stale_or_unapproved_input',
                    'settings_writes': 'inspect_target_and_backup' if started_apply else 0}
@@ -677,7 +699,7 @@ def main(argv=None):
     code = 0
     if args.operation == 'audit':
         if any(source['status'] == 'unreadable_or_invalid'
-               for provider in receipt['providers'] for source in provider['sources']):
+               for provider in receipt['providers'] for source in provider['sources']) or receipt['wiring']['agent_inventory']['fatal']:
             code = 2
             receipt['ok'] = False
         elif (receipt['findings'] or receipt['wiring']['findings'] or any(source.get('findings')

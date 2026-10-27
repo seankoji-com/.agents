@@ -47,7 +47,18 @@ def create_job(payload,state_root,pins,*,commit_guard=None):
     for t in j['tasks']:
         t.setdefault('status','pending');t.setdefault('attempt',0);t.setdefault('handles',[]);t.setdefault('followups',[]);t.setdefault('dispatch_retries',0)
     store=Store(state_root,j['job_id']);store.create(j,commit_guard=commit_guard,commit_context={'request_sha256':digest(canonical(payload))});return {'job':str(store.file),'overview':str(store.path/'overview.json')}
-def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason='configured worker', *, bind_inputs=None, commit_guard=None):
+def build_brief(j, task, stage, target_reason):
+    task_id=task['task_id'];pin=j['pins'][task['dependency_key']];effective=pin['effective_workers'].get(task['worker_id'])
+    if not effective or task.get('context_files') is not None and task.get('context_policy')!='document-only':raise JobError('context files belong only to a document-only task' if effective else 'worker missing from pinned dependency')
+    consumed=[output for prior in j['stages'] if prior['id'] in stage.get('depends_on',[]) for output in prior.get('outputs',[])];req=task.get('requirements',stage['requirements']);brief={'schema_version':1,'job_id':j['job_id'],'stage_id':task['stage_id'],'logical_slot_id':task['logical_slot_id'],'task_id':task_id,'request_id':task['request_id'],'worker_id':task['worker_id'],'objective':j.get('objective',''),'requirements':[{'id':r,'statement':j['requirements'][r]} for r in req],'authorization':j['authorization'],'constraints':j['constraints'],'snapshot':j.get('snapshot'),'dependency_pins':j['pins'],'consumed_outputs':consumed,'effective_definition':effective,'target_reason':target_reason,'attempt':task.get('attempt',0),'max_attempts':1+j['policy']['max_repair_cycles'],'stop_conditions':stage.get('stop_conditions',[]),'result_contract':j['result_contract'],'write_scope':task.get('write_scope',{'mode':'coordinator-only'}),'revision':stage.get('revision'),'target':task.get('target'),'resources':stage.get('resources',{}),'role':task.get('role','worker'),'review_inputs':task.get('review_inputs',{}),'owner_decisions':[d for d in j['decisions'] if d.get('scope')=='waiver:'+task_id]};brief.update({'model_selection':task['model_selection']} if task.get('model_selection') else {})
+    if task.get('context_policy')=='document-only':
+        document=task.get('document',{});files=[dict(f) for f in task.get('context_files') or []]
+        if not document.get('path') or digest(_regular(Path(document['path']),max_bytes=j['policy']['max_artifact_bytes']))!=document.get('sha256') or any(not Path(f['path']).is_absolute() or '..' in Path(f['path']).parts or digest(_regular(Path(f['path']),max_bytes=j['policy']['max_artifact_bytes']))!=f['sha256'] for f in files):raise JobError('document or context file bytes differ from the declared read scope')
+        if pin.get('task_contract'):raise JobError('document-only definition cannot include a job task contract')
+        for key in ('objective','consumed_outputs','resources','target_reason','target','revision','owner_decisions'):brief.pop(key,None)
+        brief.update(result_contract={'schema_version':1,'transport':'worker-result-v1'},stop_conditions=['Stop if the supplied document '+('or a declared context file ' if files else '')+'is unreadable or its hash differs.'],revision=None);brief.update(document=document,requirements=[{'id':r} for r in req],authorization={'read':[document['path']]+[f['path'] for f in files],'write':task.get('write_scope',{})},constraints=['Read only the supplied document'+(', its declared context files' if files else '')+' and procedural definition; no other job context or child work.'],snapshot={'sha256':digest(canonical(j.get('snapshot')))},dependency_pins={task['dependency_key']:{k:pin[k] for k in ('package_digest','bundle_digest')}},target_reason='declared document-only scope',**({'context_files':files} if files else {}))
+    return brief
+def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason='configured worker', *, bind_inputs=None, project_brief=None, serialize_brief=None, commit_guard=None):
     if not callable(verify_pin):raise JobError('pinned dependency verifier is required')
     def check(job):
         for dep in job['dependencies']:
@@ -63,24 +74,15 @@ def prepare(store, caller, task_id, verify_pin, verify_acceptance, target_reason
         if task.get('attempt',0)>=1+j['policy']['max_repair_cycles']:raise JobError('attempt_budget_exhausted: task execution budget exhausted')
         for dep in stage.get('depends_on',[]):
             if not callable(verify_acceptance) or verify_acceptance(dep) is not True:raise JobError('predecessor acceptance is not current')
-        pin=j['pins'][task['dependency_key']];effective=pin['effective_workers'].get(task['worker_id'])
-        if not effective or task.get('context_files') is not None and task.get('context_policy')!='document-only':raise JobError('context files belong only to a document-only task' if effective else 'worker missing from pinned dependency')
-        consumed=[output for prior in j['stages'] if prior['id'] in stage.get('depends_on',[]) for output in prior.get('outputs',[])]
-        req=task.get('requirements',stage['requirements']);brief={'schema_version':1,'job_id':j['job_id'],'stage_id':task['stage_id'],'logical_slot_id':task['logical_slot_id'],'task_id':task_id,'request_id':task['request_id'],'worker_id':task['worker_id'],'objective':j.get('objective',''),'requirements':[{'id':r,'statement':j['requirements'][r]} for r in req],'authorization':j['authorization'],'constraints':j['constraints'],'snapshot':j.get('snapshot'),'dependency_pins':j['pins'],'consumed_outputs':consumed,'effective_definition':effective,'target_reason':target_reason,'attempt':task.get('attempt',0),'max_attempts':1+j['policy']['max_repair_cycles'],'stop_conditions':stage.get('stop_conditions',[]),'result_contract':j['result_contract'],'write_scope':task.get('write_scope',{'mode':'coordinator-only'}),'revision':stage.get('revision'),'target':task.get('target'),'resources':stage.get('resources',{}),'role':task.get('role','worker'),'review_inputs':task.get('review_inputs',{}),'owner_decisions':[d for d in j['decisions'] if d.get('scope')=='waiver:'+task_id]};brief.update({'model_selection':task['model_selection']} if task.get('model_selection') else {})
-        if task.get('context_policy')=='document-only':
-            document=task.get('document',{});files=[dict(f) for f in task.get('context_files') or []]  # exact extra read-only files; the schema bounds their shape and count
-            if not document.get('path') or digest(_regular(Path(document['path']),max_bytes=j['policy']['max_artifact_bytes']))!=document.get('sha256') or any(not Path(f['path']).is_absolute() or '..' in Path(f['path']).parts or digest(_regular(Path(f['path']),max_bytes=j['policy']['max_artifact_bytes']))!=f['sha256'] for f in files):raise JobError('document or context file bytes differ from the declared read scope')
-            if pin.get('task_contract'):raise JobError('document-only definition cannot include a job task contract')
-            for key in ('objective','consumed_outputs','resources','target_reason','target','revision','owner_decisions'):brief.pop(key,None)
-            brief.update(result_contract={'schema_version':1,'transport':'worker-result-v1'},stop_conditions=['Stop if the supplied document '+('or a declared context file ' if files else '')+'is unreadable or its hash differs.'],revision=None);brief.update(document=document,requirements=[{'id':r} for r in req],authorization={'read':[document['path']]+[f['path'] for f in files],'write':task.get('write_scope',{})},constraints=['Read only the supplied document'+(', its declared context files' if files else '')+' and procedural definition; no other job context or child work.'],snapshot={'sha256':digest(canonical(j.get('snapshot')))},dependency_pins={task['dependency_key']:{k:pin[k] for k in ('package_digest','bundle_digest')}},target_reason='declared document-only scope',**({'context_files':files} if files else {}))
-        brief['effective_brief_sha256']=digest(canonical(brief));raw=canonical(brief);path=store.path/'briefs'/(task_id+'-'+digest(task['request_id'].encode())+'.json')
+        brief=build_brief(j,task,stage,target_reason);brief=project_brief(store,j,task,brief) if project_brief is not None else brief
+        if project_brief is None and j['policy'].get('worker_brief_transport') not in (None,'worker-brief-v1'):raise JobError('requested brief transport requires its explicit adapter')
+        brief.pop('effective_brief_sha256',None);brief['effective_brief_sha256']=digest(canonical(brief));raw=serialize_brief(brief) if serialize_brief else canonical(brief);path=store.path/'briefs'/(task_id+'-'+digest(task['request_id'].encode())+'.json')
         _retain(path,raw,'immutable brief changed; an explicit new attempt is required');task['brief']={key:brief[key] for key in ('job_id','stage_id','logical_slot_id','task_id','request_id','worker_id','effective_brief_sha256','revision','snapshot')}
         task['brief'].update(path=str(path),sha256=digest(raw));task['cycle']=stage.get('cycle',0);task.pop('inputs_stale',None)  # the execution belongs to this pass under the current contract
         return {'path':str(path),'sha256':digest(raw),'bytes':len(raw),'provenance':{key:brief[key] for key in ('job_id','stage_id','task_id','request_id')}}
     store.verify_pins=check;return store.transact(caller,apply,'prepare',**({'commit_guard':commit_guard,'commit_context':{'task_id':task_id}} if commit_guard is not None else {}))
 def record_result(store,caller,task_id,result,result_parser=None):
-    from .results import parse_result
-    parser=result_parser or parse_result
+    from .results import parse_result;parser=result_parser or parse_result
     def apply(j):
         task=next((t for t in j['tasks'] if t['task_id']==task_id),None)
         if task is None:raise JobError('unknown task slot')
@@ -95,17 +97,16 @@ def record_result(store,caller,task_id,result,result_parser=None):
         if not isinstance(brief,dict):raise JobError('task has no prepared immutable brief correlation')
         brief_raw=_regular(Path(brief['path']))
         if 'sha256' in brief and digest(brief_raw)!=brief['sha256']:raise JobError('prepared brief bytes changed')
-        assigned=strict_load(brief_raw)
+        verifier=getattr(store,'verify_brief',None);assigned=verifier(store,j,task,request,brief_raw,brief) if verifier else strict_load(brief_raw)
+        if not verifier and assigned.get('schema_version')!=1:raise JobError('unsupported brief transport; use its pinned adapter')
         if request!=task['request_id']:brief=assigned
         if assigned.get('request_id')!=request or assigned.get('effective_brief_sha256')!=brief['effective_brief_sha256']:raise JobError('prepared brief correlation changed')
-        expected={key:brief[key] for key in ('job_id','stage_id','logical_slot_id','request_id','worker_id','effective_brief_sha256')}
-        expected.update(role=assigned.get('role','worker'),revision=brief.get('revision'),binding=brief.get('snapshot'),requirements=[r['id'] for r in assigned['requirements']],task_id=task_id,owner_waivers=[d for d in j['decisions'] if d.get('scope')=='waiver:'+task_id and _owner_current(d,j['policy']['max_artifact_bytes'])],waivable_requirements=j['policy'].get('waivable_requirements',[]));completion_id=result.get('completion_id')
+        expected={key:brief[key] for key in ('job_id','stage_id','logical_slot_id','request_id','worker_id','effective_brief_sha256')};expected.update(role=assigned.get('role','worker'),revision=brief.get('revision'),binding=brief.get('snapshot'),requirements=[r['id'] for r in assigned['requirements']],task_id=task_id,owner_waivers=[d for d in j['decisions'] if d.get('scope')=='waiver:'+task_id and _owner_current(d,j['policy']['max_artifact_bytes'])],waivable_requirements=j['policy'].get('waivable_requirements',[]));completion_id=result.get('completion_id')
         if not isinstance(completion_id,str) or not completion_id:raise JobError('result completion_id is required for idempotent ingestion')
         if any(x.get('completion_id')==completion_id for x in task.get('execution_history',[])):return task
         if any(x.get('request_id')==request for x in task.get('execution_history',[])):raise JobError('request execution result already ingested')
         if task['attempt']>=1+j['policy']['max_repair_cycles'] and not any(h.get('request_id')==request for h in handles):raise JobError('attempt_budget_exhausted: attempt budget exhausted')
-        transport=store.path/'results'/(request+'.json');_retain(transport,bytes(result['result']),'result transport for this request is already retained for another execution')
-        task['attempt']+=1
+        transport=store.path/'results'/(request+'.json');_retain(transport,bytes(result['result']),'result transport for this request is already retained for another execution');task['attempt']+=1
         try:parsed=parser(bytes(result['result']),expected,store.path if task.get('write_scope',{}).get('mode')=='worker-evidence' else None,j['policy']['max_artifact_bytes'])
         except Exception as exc:
             if request==task['request_id']:task.update(status='stale' if task.get('inputs_stale') else 'failed',last_execution_status='malformed-result',last_completion_id=completion_id)
@@ -116,9 +117,7 @@ def record_result(store,caller,task_id,result,result_parser=None):
                 task['finding_dispositions'].append({'finding_id':finding['id'],'finding':finding,'finding_sha256':digest(canonical(finding)),'request_id':request,'disposition':None})
         if request!=task['request_id']:
             task.setdefault('execution_history',[]).append({'request_id':request,'result':parsed['result'],'completion_id':completion_id,'sha256':parsed['sha256'],'result_bytes':len(result['result']),'accepted_execution':True,'transport_ref':{'kind':parsed['kind'],'transport_path':str(transport),'transport_sha256':digest(bytes(result['result']))}});return task
-        task['status']='stale' if task.get('inputs_stale') else _RESULT_STATUS[parsed['result']['status']]
-        task['result_ref']={'sha256':parsed['sha256'],'kind':parsed['kind'],'bytes':parsed['bytes'],'transport_path':str(transport),'transport_sha256':digest(bytes(result['result']))};task.update(last_execution_status=parsed['result']['status'],last_completion_id=completion_id)
-        task.setdefault('execution_history',[]).append({'request_id':request,'result':parsed['result'],'completion_id':completion_id,'sha256':parsed['sha256'],'result_bytes':len(result['result']),'accepted_execution':True,'transport_ref':task['result_ref']});return task
+        task['status']='stale' if task.get('inputs_stale') else _RESULT_STATUS[parsed['result']['status']];task['result_ref']={'sha256':parsed['sha256'],'kind':parsed['kind'],'bytes':parsed['bytes'],'transport_path':str(transport),'transport_sha256':digest(bytes(result['result']))};task.update(last_execution_status=parsed['result']['status'],last_completion_id=completion_id);task.setdefault('execution_history',[]).append({'request_id':request,'result':parsed['result'],'completion_id':completion_id,'sha256':parsed['sha256'],'result_bytes':len(result['result']),'accepted_execution':True,'transport_ref':task['result_ref']});return task
     return store.transact(caller,apply,'result')
 def decision(store,caller,decision):
     def apply(j):
@@ -199,9 +198,11 @@ def record_dispatch(store,caller,task_id,event):
             if len(_slot_followups(j,t))>=t.get('max_followups',1):raise JobError('attempt_budget_exhausted: declared followup budget exhausted')
             staged=t.get('prepared_followup',{})
             if staged.get('request_id')!=request:raise JobError('followup requires a prepared immutable brief')
-            if digest(raw:=_regular(Path(staged['path'])))!=staged['sha256'] or t['request_id']!=strict_load(raw).get('followup_of') or t['request_id']!=parent['request_id']:raise JobError('prepared followup brief changed or follows a superseded request')
+            raw=_regular(Path(staged['path']));verifier=getattr(store,'verify_brief',None);assigned=verifier(store,j,t,request,raw,staged) if verifier else strict_load(raw)
+            if not verifier and assigned.get('schema_version')!=1:raise JobError('unsupported brief transport; use its pinned adapter')
+            if digest(raw)!=staged['sha256'] or t['request_id']!=assigned.get('followup_of') or t['request_id']!=parent['request_id']:raise JobError('prepared followup brief changed or follows a superseded request')
             t['brief']=t.pop('prepared_followup');t['request_id']=request
-            followup={'task_id':host_id,'host_task_id':host_id,'request_id':request,'parent_task_id':parent.get('task_id'),'child_thread_id':event.get('child_thread_id'),'status':event.get('status','running'),'work_state':event.get('work_state','working'),'has_pending_child_runs':event.get('has_pending_child_runs',False),'target':strict_load(_regular(Path(staged['path']))).get('target',t.get('target')),'scope':t.get('write_scope'),'cycle':t.get('cycle',0)};t['followups'].append(followup);_record_identity(j,t,followup,event);t['status']='stale' if t.get('inputs_stale') else 'running'
+            followup={'task_id':host_id,'host_task_id':host_id,'request_id':request,'parent_task_id':parent.get('task_id'),'child_thread_id':event.get('child_thread_id'),'status':event.get('status','running'),'work_state':event.get('work_state','working'),'has_pending_child_runs':event.get('has_pending_child_runs',False),'target':assigned.get('target',t.get('target')),'scope':t.get('write_scope'),'cycle':t.get('cycle',0)};t['followups'].append(followup);_record_identity(j,t,followup,event);t['status']='stale' if t.get('inputs_stale') else 'running'
         elif kind=='approval-wait':
             if not event.get('wait_id'):raise JobError('approval wait identity required')
             if not any(w.get('wait_id')==event['wait_id'] for w in j.setdefault('approval_waits',[])):j['approval_waits'].append(event)

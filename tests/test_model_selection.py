@@ -873,6 +873,39 @@ class SelectionTests(unittest.TestCase):
         changed['model_selection_history'] = {self.record['selection_sha256']: newer}
         with self.assertRaises(AcceptanceError): _semantic_binding(changed, stage)
 
+    def test_plan_revision_owner_decision_can_raise_agreed_repair_limit(self):
+        from shared.job_coordinator import selection_plan_revision
+        from core.jobs.store import digest
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / 'owner.txt'
+            source.write_text('Owner approves the scoped repair budget increase.')
+            decision = {'id': 'owner-limit', 'scope': 'plan:limit-one',
+                        'quote': 'approves the scoped repair budget increase.',
+                        'source': str(source), 'source_sha256': digest(source.read_bytes())}
+            current = {'policy': {'max_repair_cycles': 3, 'max_artifact_bytes': 1024},
+                       'model_selection': {'agreement': {'limits': {'max_repair_cycles': 3}}},
+                       'decisions': [decision]}
+            proposed = {'policy': {'max_repair_cycles': 4}}
+            selection_plan_revision(current, proposed,
+                                    {'id': 'limit-one', 'owner_decision_id': 'owner-limit'})
+            with self.assertRaisesRegex(JobError, 'scoped owner decision'):
+                selection_plan_revision(current, proposed,
+                                        {'id': 'different-plan', 'owner_decision_id': 'owner-limit'})
+            source.write_text('The owner record changed after review.')
+            with self.assertRaisesRegex(JobError, 'scoped owner decision'):
+                selection_plan_revision(current, proposed,
+                                        {'id': 'limit-one', 'owner_decision_id': 'owner-limit'})
+
+    def test_revision_cannot_enable_selection_without_proposed_choice(self):
+        from shared.job_coordinator import selection_plan_revision
+        current = {'policy': {'model_selection_required': False}, 'tasks': []}
+        proposed = {'policy': {'model_selection_required': True}}
+        with self.assertRaisesRegex(JobError, 'requires a proposed model_selection'):
+            selection_plan_revision(current, proposed)
+        proposed.update(model_selection=self.record, model_selection_sha256='0' * 64)
+        with self.assertRaisesRegex(models.SelectionError, 'selection tampered or producing selection digest mismatch'):
+            selection_plan_revision(current, proposed)
+
     def test_real_routing_cli_no_config_uses_profiles_and_keeps_recommendations_separate(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

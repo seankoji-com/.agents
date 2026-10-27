@@ -318,9 +318,11 @@ class Jobs:
         require(git('remote', 'get-url', 'origin') == 'https://github.com/' + row['head_repo'] + '.git',
                 'pr-workspace-repository')
         git('cat-file', '-e', row['head_sha'] + '^{commit}')
-        # Diverged or dirty local work stays intact for the repair worker to integrate.
+        local_head = git('rev-parse', 'HEAD')
+        require(local_head == row['head_sha'], 'pr-workspace-head-mismatch')
+        require(not git('status', '--porcelain'), 'pr-workspace-dirty')
         return {'path': worktree, 'repository': row['head_repo'], 'branch': row['head_ref'],
-                'observed_head': row['head_sha'], 'local_head': git('rev-parse', 'HEAD')}
+                'observed_head': row['head_sha'], 'local_head': local_head}
 
     def semantic(self, row):
         """Consume explicit coordinator judgments, never a worker's resolution claim."""
@@ -470,6 +472,8 @@ class Jobs:
         if isinstance(observed_options, list):
             require(all(isinstance(option, dict) and isinstance(option.get('id'), str)
                         and 'value' in option for option in observed_options), 'host-receipt-options-shape')
+            require(len({option['id'] for option in observed_options}) == len(observed_options),
+                    'host-receipt-options-shape')
             observed_options = {option['id']: option['value'] for option in observed_options}
         require(receipt.get('providerInstanceId') == target['providerInstanceId']
                 and receipt.get('model') == target['model']
@@ -999,13 +1003,11 @@ def execute(report, api, host, jobs, config):
                 raise
             try:
                 receipt = host.call('delegate_task', request_args)
+                require(isinstance(receipt, dict), 'malformed-host-receipt')
                 require(receipt.get('taskId'), 'missing-host-handle')
             except Exception:
                 jobs.record(prepared, {'kind': 'uncertain', 'request_id': prepared['request_id']})
                 raise
-            # Retain the actual host handle before identity checks. A mismatch is
-            # still owned work and must never disappear or trigger replacement.
-            outcome.update(task_id=receipt['taskId'], request_id=prepared['request_id'])
             reservation = reserved['dispatch']
             continuous.save_json(jobs.directory / (prepared['request_id'] + '-receipt.json'), {
                 'schema': 'babysitter-returned-receipt', 'version': 1,
@@ -1017,6 +1019,20 @@ def execute(report, api, host, jobs, config):
                 'target': {'providerInstanceId': target.get('providerInstanceId'),
                     'model': target.get('model'), 'options': target.get('options', {})},
                 'receipt': receipt})
+            require(receipt.get('providerInstanceId') == target['providerInstanceId']
+                    and receipt.get('model') == target['model'], 'host-identity-mismatch')
+            requested_options = target.get('options', {})
+            observed_options = receipt.get('options')
+            if isinstance(observed_options, list):
+                require(all(isinstance(o, dict) and isinstance(o.get('id'), str)
+                            and 'value' in o for o in observed_options),
+                        'host-options-unreported-or-mismatched')
+                require(len({o['id'] for o in observed_options}) == len(observed_options),
+                        'host-options-unreported-or-mismatched')
+                observed_options = {o['id']: o['value'] for o in observed_options}
+            require(isinstance(observed_options, dict) and observed_options == requested_options,
+                    'host-options-unreported-or-mismatched')
+            outcome.update(task_id=receipt['taskId'], request_id=prepared['request_id'])
             jobs.record(prepared, {'kind': 'accepted', 'request_id': prepared['request_id'],
                 'host_task_id': receipt['taskId'], 'child_thread_id': receipt.get('childThreadId'),
                 'status': receipt.get('status', 'running'), 'work_state': receipt.get('workState', 'working'),
@@ -1027,13 +1043,6 @@ def execute(report, api, host, jobs, config):
                 attempt=action['attempt'], review_triage=bool(action.get('review_triage')),
                 reconciliation_request_id=action['request_id'])
             outcome.update(status='dispatched', task_id=receipt['taskId'], request_id=prepared['request_id'])
-            require(receipt.get('providerInstanceId') == target['providerInstanceId']
-                    and receipt.get('model') == target['model'], 'host-identity-mismatch')
-            requested_options = target.get('options', {})
-            observed_options = receipt.get('options')
-            if isinstance(observed_options, list):
-                observed_options = {o['id']: o['value'] for o in observed_options}
-            require(observed_options == requested_options, 'host-options-unreported-or-mismatched')
         except (ExecutionError, org_scan.ScanError, continuous.ContinuousError,
                 subprocess.SubprocessError, OSError, KeyError, TypeError, ValueError) as exc:
             outcome.update(status='held', reason=str(exc) if isinstance(exc, (ExecutionError, org_scan.ScanError, continuous.ContinuousError)) else 'malformed-execution-data')

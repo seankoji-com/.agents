@@ -246,6 +246,9 @@ class Pass22AdapterToPinnedFinalGateTests(unittest.TestCase):
             version, manifest = self._install(base)
             state_root = base / 'stage-state'; state_root.mkdir()
             final = version / 'scripts/validate_stage.py'
+            authoritative_python = subprocess.run(
+                ['python3', '-c', 'import sys; print(sys.executable)'], cwd=version,
+                capture_output=True, text=True, check=True, timeout=30).stdout.strip()
             stage_hash = hashlib.sha256(final.read_bytes()).hexdigest()
             env = {**os.environ, 'HOME': str(base / 'home'), 'XDG_CONFIG_HOME': str(base / 'config'), 'XDG_STATE_HOME': str(base / 'state')}
             runs = {sid: self._run(state_root, sid, version, manifest, env) for sid in ('s', 't')}
@@ -281,6 +284,9 @@ class Pass22AdapterToPinnedFinalGateTests(unittest.TestCase):
                     # a later stage's window; its snapshot and stage gates are real subprocesses.
                     self.assertEqual(command, argv)
                     gate = load_gate(final, 'pass22_installed_final_gate')
+                    # Match the installed entrypoint's interpreter even when
+                    # the test runner is a different Python on PATH.
+                    gate.sys = types.SimpleNamespace(executable=authoritative_python)
                     def run(cmd, **kwargs):
                         proc = subprocess.run(cmd, **kwargs)
                         kind = 'validate' if cmd[1].endswith('validate_stage.py') else cmd[2]

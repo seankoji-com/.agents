@@ -75,6 +75,17 @@ t3-plugins agents show babysitter pr-maintainer
 (`disabled`, `enabled` or `stale`), `integrity` and `bundle_digest`. `show` adds the
 bundle and file paths, their hashes and the composed effective text.
 
+Inspect the compact definition explicitly:
+
+```sh
+t3-plugins agents show imps reviewer --compact
+```
+
+The JSON response includes `definition`, its exact UTF-8 SHA-256 and byte count,
+and retention bindings. A new preparation pinning that package and override uses
+those exact definition bytes. Plain `show` continues to return the complete
+canonical v1 definition. Inspection grants no execution or read authority.
+
 ### Overrides and limits
 
 Worker limits and overrides live in `$XDG_CONFIG_HOME/t3-plugins/workers.json`, or
@@ -135,6 +146,34 @@ store and validate data; they never call a model or dispatch work. See
 [architecture](architecture.md#whole-jobs) for the model and the
 [jobs contract](https://github.com/seankoji-com/t3-plugins/blob/master/shared/agents/jobs-contract.md)
 for inputs.
+
+### Compact worker transport
+
+For a **new** job, set `policy.worker_brief_transport` to
+`"worker-brief-compact-v2"` in its creation input. A separate planning-review
+`create` takes the same explicit choice as top-level `worker_brief_transport`.
+Omitting it preserves v1. A job's transport choice cannot change through a plan
+revision; resume with its pinned package and original format.
+
+The existing public `prepare` command still returns only a path, file SHA-256,
+byte count and provenance. Send that descriptor to the selected worker. A v2 file
+has a version marker, a JSON header and a literal inline UTF-8 procedure body;
+it is not one JSON object despite retaining the immutable `.json` brief filename.
+Do not pass it to a v1 JSON consumer. The shared `compact_briefs.deserialize`
+reader dispatches explicitly, and result admission verifies the exact file against
+private coordinator state. Workers return `worker-result-v1` with version 1,
+the header's remaining correlation fields and `binding: snapshot`.
+
+Approved retention/source/procedure hashes, schemas, rubrics, package dependencies,
+overrides, selection/options and current task authority are checked before result
+admission and acceptance. Missing, changed, unsafe or mixed input fails closed.
+No worker needs to discover omitted instructions or read the full job. Existing
+full definitions, pinned v1 resume and original result schemas keep their meaning.
+
+The [measured fixture bytes](architecture.md#tradeoffs) distinguish dependency-only
+reduction from procedure serialization. All 18 default procedures fit 24 KiB with
+their required inline shapes and procedural headers; evidence growth is accounted
+separately. This does not establish token savings or live model compatibility.
 
 ### Compact resumes and admission
 

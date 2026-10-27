@@ -10,6 +10,8 @@ would record. Nothing calls a model, a browser, T3, imps or GitHub; nothing here
 provider compatibility, and fixture scanning shows only the tested refusal paths.
 """
 import copy
+import contextlib
+import argparse
 import json
 import os
 import shutil
@@ -17,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -475,6 +478,39 @@ class ReportCase(unittest.TestCase):
 
 
 class EndToEndTest(ReportCase):
+    def test_analysis_inputs_rechecks_evidence_changed_before_lock_acquisition(self):
+        report = load_report_module()
+        study = report.Study(self.h.root, self.h.view['study_id'])
+        original_lock = study.locked
+        original_view = report.evidence_view(study, study.plan(study.require()['revision'])['plan'],
+                                             study.require()['revision'], self.h.job_state())
+        self.assertGreater(original_view['denominators']['first_impressions'], 0)
+        acquired = []
+
+        @contextlib.contextmanager
+        def concurrent_change():
+            with original_lock():
+                acquired.append(True)
+                # Another writer invalidated all native first impressions while
+                # this caller was waiting for the study lock.
+                for record in study.accepted():
+                    if record['stage'] == 'first-impression':
+                        path = Path(record['result']['path'])
+                        if not path.is_absolute():
+                            path = study.job_dir / path
+                        path.write_bytes(b'Changed accepted fixture evidence.')
+                yield
+
+        args = argparse.Namespace(state_root=str(study.root), study=study.id,
+                                  capabilities=self.h.catalog(), now=BEFORE, assessments=None)
+        with patch.object(report, 'Study', return_value=study), patch.object(study, 'locked', concurrent_change):
+            with patch.dict(os.environ, self.h.policy_env):
+                with self.assertRaises(report.fg.StudyError) as caught:
+                    report.op_analysis_inputs(args)
+        self.assertEqual(acquired, [True])
+        self.assertEqual(caught.exception.code, 'disclosure_blocked')
+        self.assertEqual(list((report.report_dir(study) / 'inputs').glob('*.json')), [])
+
     def test_delegated_synthesis_reviewed_by_another_lineage_renders_accepts_and_exports_portably(self):
         h = self.h
         record, synthesised = self.analysed()
