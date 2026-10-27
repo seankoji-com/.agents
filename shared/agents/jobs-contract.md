@@ -6,7 +6,7 @@ State is private, process-locked JSON outside the repository. Supply an explicit
 Run existing jobs from a stored pinned package; a current pointer never selects a
 replacement package, worker override or limit. Recovery pins retain both a quoted
 `compatible_pinned_invocation` and structured `compatible_pinned_argv`. The latter
-resolves the exact package through `t3-plugins --job JOB.json path PLUGIN`. Both are
+resolves the exact package through `agents --job JOB.json path PLUGIN`. Both are
 recovery-only. `validator_argv` is a different shape: its first element must resolve
 to `<pin.package_dir>/scripts/<adapter>`, and the remaining flags are the ones that
 adapter accepts.

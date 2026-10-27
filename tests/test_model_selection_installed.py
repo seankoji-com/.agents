@@ -65,7 +65,7 @@ print(json.dumps(result))
             box = Sandbox(Path(temporary))
             # Homebrew's libexec layout, copied then moved away from this checkout.
             libexec = box.base / 'libexec'
-            for name in ('core', 'plugins', 'scripts', 'shared'):
+            for name in ('core', 'plugins', 'scripts', 'shared', 'skills'):
                 shutil.copytree(ROOT / name, libexec / name,
                                 ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
             relocated = box.base / 'relocated-libexec'
@@ -77,7 +77,7 @@ print(json.dumps(result))
             config = {'schema_version': 1, 'tiers': ['low', 'high'], 'providers': {},
                       'roles': {'workhorse': pool, 'reviewer': deepcopy(pool)},
                       'preferred_workhorse': {'providerInstanceId': 'codex', 'model': 'model-x1'}}
-            config_path = box.config / 't3-plugins/routing.json'
+            config_path = box.config / 'agents/routing.json'
             config_path.parent.mkdir(parents=True)
             config_path.write_text(json.dumps(config))
             before = config_path.read_bytes()
@@ -202,7 +202,7 @@ print(json.dumps(result))
                 entry = {**work, 'tier': 'low', 'lineage': 'openai'}
                 config = {'schema_version': 1, 'tiers': ['low'], 'providers': {},
                           'roles': {'workhorse': [entry]}}
-                config_path = box.config / 't3-plugins/routing.json'
+                config_path = box.config / 'agents/routing.json'
                 config_path.parent.mkdir(parents=True, exist_ok=True)
                 caps = box.payload(data['capabilities'])
                 profiles = box.payload(data['profiles'])
@@ -215,9 +215,9 @@ print(json.dumps(result))
                         before = config_path.read_bytes()
                         commands = [
                             [sys.executable, helper, 'discover', '--input', box.payload(request)],
-                            [sys.executable, ROOT / 'bin/t3-plugins', '--prefix', box.prefix,
+                            [sys.executable, ROOT / 'scripts/catalog.py', '--prefix', box.prefix,
                              'resolve', 'workhorse', '--capabilities', caps],
-                            [sys.executable, ROOT / 'bin/t3-plugins', '--prefix', box.prefix,
+                            [sys.executable, ROOT / 'scripts/catalog.py', '--prefix', box.prefix,
                              'resolve', 'workhorse', '--capabilities', caps, '--profiles', profiles],
                         ]
                         for command in commands:
@@ -270,7 +270,7 @@ print(json.dumps(result))
                                                {**work, 'tier': 'high', 'lineage': 'openai'}],
                                 'reviewer': [{**data['review_panel'][0]['target'],
                                               'tier': 'high', 'lineage': 'anthropic'}]}}
-            config_path = box.config / 't3-plugins/routing.json'
+            config_path = box.config / 'agents/routing.json'
             config_path.parent.mkdir(parents=True)
             config_path.write_text(json.dumps(config))
             caps = box.payload(data['capabilities'])
@@ -364,7 +364,7 @@ print(json.dumps(result))
                                                  data['review_panel'][0]['target'])
                                 self.assertEqual(plan['routing_scope'], 'global' if role == 'workhorse'
                                                  else 'invocation-only')
-                    self.assertFalse((box.config / 't3-plugins/routing.json').exists())
+                    self.assertFalse((box.config / 'agents/routing.json').exists())
 
     def test_installed_babysitter_and_ralph_short_rounds_and_exact_dispatch(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -404,7 +404,7 @@ print(json.dumps(result))
                 self.assertEqual(plan['target'], data['work']['workhorse'])
                 self.assertEqual(plan['routing_scope'], 'global')
                 self.assertEqual(plan['scope_id'], data['scope_id'])
-                self.assertFalse((box.config / 't3-plugins/routing.json').exists())
+                self.assertFalse((box.config / 'agents/routing.json').exists())
                 agreed = deepcopy(data)
                 agreed['operation'] = 'ralph/run'
                 agree(agreed)
@@ -427,7 +427,7 @@ print(json.dumps(result))
                     '--input', box.payload({'record': run_record, 'role': 'workhorse',
                                             'expected': run_record['selection_sha256']})])
                 self.assertEqual(json.loads(run_dispatch.stdout)['routing_scope'], 'invocation-only')
-                self.assertFalse((box.config / 't3-plugins/routing.json').exists())
+                self.assertFalse((box.config / 'agents/routing.json').exists())
                 del data['profiles']['models'][0]
                 endorsed = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
                                    '--input', box.payload(data)])
@@ -452,7 +452,7 @@ print(json.dumps(result))
                                             'expected': corrected_record['selection_sha256']})])
                 self.assertEqual(json.loads(corrected_dispatch.stdout)['target'], data['work']['workhorse'])
                 self.assertEqual(json.loads(corrected_dispatch.stdout)['routing_scope'], 'global')
-                self.assertFalse((box.config / 't3-plugins/routing.json').exists())
+                self.assertFalse((box.config / 'agents/routing.json').exists())
                 data['profiles']['roles']['workhorse']['source'] = 'fixture-policy.md#work'
                 missing = box.run([sys.executable, relocated/'shared/model_selection_cli.py', 'freeze',
                                   '--input', box.payload(data)], check=False)

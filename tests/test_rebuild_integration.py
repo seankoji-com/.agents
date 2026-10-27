@@ -1,7 +1,7 @@
 """Issue #28 Stage 5 cross-stage regressions through installed CLIs (REQ-JOB, REQ-VISIBILITY,
 REQ-EVIDENCE, REQ-REPAIR).
 
-Every call goes through an isolated installed package: `bin/t3-plugins` for pins and the
+Every call goes through an isolated installed package: `bin/agents` for pins and the
 pinned `shared/job_cli.py` / `shared/job_acceptance_cli.py` for job state. Each helper
 call is a fresh process, so the coordinator keeps nothing in memory between steps; a
 "restart" additionally recovers the package from the job pin before reading the overview.

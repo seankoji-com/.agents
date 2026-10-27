@@ -15,8 +15,8 @@ and the observed merge are its record.
 Run this cycle on initial triage, every PR wake and every fixer completion. A watch
 or an armed auto-merge request never substitutes for an available action.
 
-1. Before PR writes, check the installed package and worker bundle with
-   `t3-plugins doctor babysitter` and `t3-plugins agents list babysitter`. For an
+1. Before PR writes, verify the selected package and worker bundle with
+   `agents --pin PIN agents list babysitter`. For an
    existing job, read `job_cli.py overview` from its pinned package and reconcile
    owned handles. A package, bundle or ledger integrity failure stops writes for
    that PR, including replies, resolutions, pushes and merge/auto-merge mutations.
@@ -62,7 +62,7 @@ or an armed auto-merge request never substitutes for an available action.
   not a written strategy requiring another evaluator.
 - Save the operator's request verbatim to an owner-source file outside the job
   directory and every PR worktree, for example
-  `$XDG_STATE_HOME/t3-plugins/babysitter/requests/<run-id>.txt`. Decisions quote it.
+  `$XDG_STATE_HOME/agents/babysitter/requests/<run-id>.txt`. Decisions quote it.
 - Run `python3 PKG/scripts/plan_review.py admit --input <admission-input.json>`
   after freezing the model choices. The input contains `operation` (`pr`, `repo`
   or `org`), `request_reference`, `output_name`, `invocation_id`, `selection` and
@@ -227,4 +227,4 @@ without that newline is rejected as changed bytes.
 `validator_argv` is `[PKG/scripts/validate_pr.py, "--input", OBSERVATION]`, whose
 first element must resolve to that script inside the stored pinned package. Never
 pass the pin's `compatible_pinned_argv`: that one is the recovery invocation
-(`t3-plugins --job JOB.json path babysitter`), and `accept-stage` refuses it.
+(`agents --job JOB.json path babysitter`), and `accept-stage` refuses it.

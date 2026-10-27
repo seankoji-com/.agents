@@ -5,7 +5,7 @@
 # The babysitter works across a whole org, so "isolated worktree" cannot mean a
 # worktree of the repo the session was launched in — each PR lives in a different
 # repository. This script keeps one bare-ish cache clone per repository under
-# ~/.local/state/t3-plugins/babysitter/repos/ and cuts one worktree per PR from it, so N agents on N
+# ~/.local/state/agents/babysitter/repos/ and cuts one worktree per PR from it, so N agents on N
 # PRs never share an index, and two PRs in the same repo still get separate
 # checkouts.
 #
@@ -50,10 +50,10 @@ FORCE=0
 PRESERVE=0
 # Left empty rather than defaulted to "${HOME}/..." directly: under `set -u` an unset
 # HOME aborts with a raw "unbound variable", and defaulting HOME to "" would silently
-# produce the absolute-looking /.local/state/t3-plugins/babysitter. Empty here, validated below.
+# produce the absolute-looking /.local/state/agents/babysitter. Empty here, validated below.
 ROOT="${BABYSITTER_HOME:-}"
 if [ -z "$ROOT" ] && [ -n "${HOME:-}" ]; then
-  ROOT="${HOME}/.local/state/t3-plugins/babysitter"
+  ROOT="${HOME}/.local/state/agents/babysitter"
 fi
 
 die() {

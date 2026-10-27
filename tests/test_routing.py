@@ -50,7 +50,7 @@ class RoutingCli(unittest.TestCase):
         self.config_home = self.base / 'xdg config'
         self.env = {**os.environ, 'HOME': str(self.home), 'XDG_CONFIG_HOME': str(self.config_home),
                     'XDG_STATE_HOME': str(self.base / 'state')}
-        self.config = self.config_home / 't3-plugins/routing.json'
+        self.config = self.config_home / 'agents/routing.json'
         self.caps = self.base / 'caps.json'
         self.caps.write_text(json.dumps(CAPABILITIES))
         self.repo = self.base / 'repo'
@@ -216,6 +216,29 @@ class RoutingCli(unittest.TestCase):
         self.assertEqual(receipt, {'routing': str(self.config), 'action': 'preserved', 'valid': True})
         self.assertEqual(self.config.read_bytes(), before)
 
+    def test_pre_198_configs_stay_in_use_in_place_until_moved(self):
+        legacy = self.config_home / 't3-plugins/routing.json'
+        mine = {'schema_version': 1, 'tiers': ['low'], 'providers': {},
+                'roles': {'workhorse': [entry('codex', 'model-x2', 'low', 'openai')]}}
+        self.write(mine, legacy)
+        before = legacy.read_bytes()
+        self.assertEqual(routing.config_path(self.env), legacy)
+        self.assertEqual([c['model'] for c in self.resolve('workhorse')['candidates']], ['model-x2'])
+        # Setup preserves the legacy config rather than shadowing it with a new default.
+        receipt = json.loads(self.cli('setup', 'imps', '--root', str(self.base / 'skills'),
+                                      '--capabilities', str(self.caps)).stdout.splitlines()[-1])
+        self.assertEqual(receipt, {'routing': str(legacy), 'action': 'preserved', 'valid': True})
+        self.assertFalse(self.config.exists())
+        self.assertEqual(legacy.read_bytes(), before)
+        # A repository's legacy policy is honored the same way; the new name wins once present.
+        self.write({'roles': {'workhorse': [entry('claudeAgent', 'model-c1', 'low', 'anthropic')]}},
+                   self.repo / '.t3-plugins/routing.json')
+        self.assertEqual(self.resolve('workhorse')['sources'], [str(legacy), str(self.repo / '.t3-plugins/routing.json')])
+        self.write(mine)
+        self.assertEqual(routing.config_path(self.env), self.config)
+        self.write({'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai')]}}, self.repo / '.agents/routing.json')
+        self.assertEqual(self.resolve('workhorse')['sources'], [str(self.config), str(self.repo / '.agents/routing.json')])
+
     def test_setup_keeps_a_malformed_config_and_says_so(self):
         self.config.parent.mkdir(parents=True)
         self.config.write_text('{broken')
@@ -231,9 +254,9 @@ class RoutingCli(unittest.TestCase):
     def test_fallback_path_without_xdg(self):
         env = dict(self.env)
         env.pop('XDG_CONFIG_HOME')
-        self.assertEqual(routing.config_path(env), self.home / '.config/t3-plugins/routing.json')
+        self.assertEqual(routing.config_path(env), self.home / '.config/agents/routing.json')
         self.assertEqual(routing.config_path({'HOME': str(self.home), 'XDG_CONFIG_HOME': 'relative'}),
-                         self.home / '.config/t3-plugins/routing.json')
+                         self.home / '.config/agents/routing.json')
         self.assertEqual(routing.config_path(self.env), self.config)
 
     def test_resolve_returns_available_candidates_in_tier_order(self):
@@ -291,7 +314,7 @@ class RoutingCli(unittest.TestCase):
                             'reviewer': [entry('codex', 'model-x1', 'low', 'openai')]},
                   'preferred_workhorse': {'providerInstanceId': 'claudeAgent', 'model': 'model-c2'}}
         self.write(config)
-        policy_path = self.repo / '.t3-plugins/routing.json'
+        policy_path = self.repo / '.agents/routing.json'
         self.write({'providers': {'claudeAgent': {'runtimeMode': 'full-access'}}}, policy_path)
         effective, _ = routing.effective_config(self.config, self.repo)
         self.assertEqual(effective['preferred_workhorse'], config['preferred_workhorse'])
@@ -340,7 +363,7 @@ class RoutingCli(unittest.TestCase):
                   'roles': {'workhorse': [entry('codex', 'model-x1', 'low', 'openai')]},
                   'preferred_workhorse': {'providerInstanceId': 'codex', 'model': 'model-x1'}}
         self.write(config)
-        policy_path = self.repo / '.t3-plugins/routing.json'
+        policy_path = self.repo / '.agents/routing.json'
         for policy, detail in (({'roles': {'workhorse': None}}, 'role workhorse must be a list'),
                                ({'preferred_workhorse': {'providerInstanceId': 'codex', 'model': 'absent'}},
                                 'preferred_workhorse must match exactly one')):
@@ -387,7 +410,7 @@ class RoutingCli(unittest.TestCase):
             self.config.parent.mkdir(parents=True, exist_ok=True)
             self.config.write_text(text)
             result = self.cli('resolve', 'workhorse', '--capabilities', str(self.caps), code=2)
-            self.assertIn('t3-plugins:', result.stderr, text)
+            self.assertIn('agents:', result.stderr, text)
 
     def test_malformed_capabilities_are_rejected(self):
         self.write({'schema_version': 1, 'tiers': ['low'], 'providers': {},
@@ -432,7 +455,7 @@ class RoutingCli(unittest.TestCase):
         self.write({'schema_version': 1, 'tiers': ['low', 'high'], 'providers': {'codex': {'runtimeMode': 'auto'}},
                     'roles': {'reviewer': [entry('codex', 'model-x1', 'low', 'openai')],
                               'workhorse': [entry('codex', 'model-x2', 'low', 'openai')]}})
-        policy = self.repo / '.t3-plugins/routing.json'
+        policy = self.repo / '.agents/routing.json'
         self.write({'roles': {'reviewer': [entry('gemini-box', 'model-a2', 'high', 'google')]},
                     'providers': {'codex': {'runtimeMode': 'approval-required'}}}, policy)
         result = self.resolve('reviewer')
@@ -490,7 +513,7 @@ class RoutingCli(unittest.TestCase):
                     'roles': {'workhorse': [entry('opencode', 'gateway/glm-9', 'low', 'glm'),
                                             entry('codex', 'model-x1', 'low', 'openai')]}})
         self.assertEqual([c['providerInstanceId'] for c in self.resolve('workhorse')['candidates']], ['codex'])
-        policy = self.repo / '.t3-plugins/routing.json'
+        policy = self.repo / '.agents/routing.json'
         self.write({'providers': {'opencode': {'runtimeMode': 'full-access'}}}, policy)
         self.assertEqual([c['providerInstanceId'] for c in self.resolve('workhorse')['candidates']], ['codex'])
         policy.unlink()

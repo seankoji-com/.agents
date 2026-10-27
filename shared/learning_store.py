@@ -48,7 +48,7 @@ def denied_reason(subtree, action='writes under'):
     """Name both causes and remedies without echoing paths below the learnings root."""
     return (f'the sandbox or filesystem permissions deny {action} {subtree}. Either allow writes to '
             f'{subtree} and {subtree}/** in the sandbox (for Claude, add {subtree} to '
-            'sandbox.filesystem.allowWrite, or run `t3-plugins setup --grant-learnings`), or fix the '
+            'sandbox.filesystem.allowWrite; `agents permissions` prints the narrow roots), or fix the '
             'ownership, permissions or read-only mount that blocks it')
 
 
@@ -123,7 +123,7 @@ def state_root(project, env=None):
         pass
     except OSError as exc:
         if exc.errno in DENIED:
-            raise Denied(denied_reason(root / 't3-plugins/learnings', 'access to')) from exc
+            raise Denied(denied_reason(root / 'agents/jobs/learnings', 'access to')) from exc
         raise
     return root
 
@@ -159,7 +159,7 @@ def probe_write(project=None, env=None):
     creates or removes directories: it creates one file inside an existing learnings root and
     unlinks it through the same directory descriptor, and says so if that unlink fails."""
     try:
-        subtree = state_root(project, env) / 't3-plugins/learnings'
+        subtree = state_root(project, env) / 'agents/jobs/learnings'
     except Denied as exc:
         return {'status': 'denied', 'reason': str(exc)}
     except (OSError, ValueError, RuntimeError) as exc:
@@ -279,7 +279,8 @@ def validate_entry(entry):
         raise Unavailable('summary must be one line')
     for name in ('authored_version', 'last_validated_version'):
         validate_version(entry.get(name))
-    if entry.get('upstream') and not re.fullmatch(r'seankoji-com/t3-plugins#[1-9]\d*', entry['upstream']):
+    # Lessons written before the #198 rename cite seankoji-com/t3-plugins issues.
+    if entry.get('upstream') and not re.fullmatch(r'seankoji-com/(?:\.agents|t3-plugins)#[1-9]\d*', entry['upstream']):
         raise Unavailable('invalid upstream issue')
     if not isinstance(entry.get('destinations', {}), dict):
         raise Unavailable('invalid harvest destinations')
@@ -333,7 +334,7 @@ class Store:
         validate_version(version)
         self.key, self.label = project_identity(project)
         self.root = state_root(project, env)
-        self.folder = self.root / 't3-plugins/learnings' / self.key
+        self.folder = self.root / 'agents/jobs/learnings' / self.key
         self.name = plugin + '.md'
         self.version = version
 
@@ -345,7 +346,7 @@ class Store:
         except (OSError, ValueError, KeyError, TypeError, UnicodeError, AttributeError) as exc:
             reason = str(exc)
             if operation != 'load' and isinstance(exc, OSError) and exc.errno in DENIED:
-                reason = denied_reason(self.root / 't3-plugins/learnings')
+                reason = denied_reason(self.root / 'agents/jobs/learnings')
             return {'status': 'unavailable', 'reason': reason, 'proposed_learning': proposal}
 
     def _operate(self, operation, proposal):
@@ -353,8 +354,24 @@ class Store:
             raise Unavailable('unknown learning operation')
         writable = operation != 'load'
         empty = {'format_version': 1, 'maintained_version': self.version, 'entries': []}
+        folder = self.folder
+        # Pre-#198 lessons live under t3-plugins/learnings. Until this location has its
+        # own file, loads read the old one in place; the first write copies it here.
+        # The old file is never changed, so the legacy runtime keeps serving old jobs.
+        legacy = self.root / 't3-plugins/learnings' / self.key
+        if not (self.folder / self.name).exists() and (legacy / self.name).is_file():
+            if not writable:
+                folder = legacy
+            else:
+                with directory(legacy) as old_fd:
+                    old = read_file(old_fd, self.name)
+                with directory(self.folder, True) as fd, locked(fd, self.name + '.lock', True):
+                    try:
+                        read_file(fd, self.name)
+                    except FileNotFoundError:
+                        atomic_file(fd, self.name, old)
         try:
-            with directory(self.folder, writable) as fd, locked(fd, self.name + '.lock', writable):
+            with directory(folder, writable) as fd, locked(fd, self.name + '.lock', writable):
                 try:
                     raw = read_file(fd, self.name)
                     label, data = decode(raw)

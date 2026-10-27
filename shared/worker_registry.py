@@ -27,7 +27,7 @@ except ImportError:  # pragma: no cover - unsupported platform is reported on us
     fcntl = None
 
 SCHEMA_VERSION = 1
-DEFAULT_AGENTS_ROOT = '~/.agents/agents/t3-plugins'
+DEFAULT_AGENTS_ROOT = '~/.local/state/agents/jobs/registry'
 SHARED_REQUIRED = ('boundaries.md', 'reviewer-standard.md', 'model-selection.schema.json', 'model-authority.schema.json')
 WORKER_CATALOG = {
     'imps': {
@@ -82,7 +82,7 @@ def locked(directory: Path):
         raise RegistryError('process-safe registry locking is unavailable on this platform')
     directory = directory.expanduser().absolute()
     directory.mkdir(parents=True, exist_ok=True)
-    lock_path = directory / '.t3-plugins-registry.lock'
+    lock_path = legacy_named(directory / '.agents-registry.lock', directory / '.t3-plugins-registry.lock')
     key = str(lock_path)
     owner = threading.get_ident()
     if _LOCK_DEPTH.get(key) == owner:
@@ -164,14 +164,34 @@ def ensure_no_symlink_path(path: Path, stop: Path):
         if current.is_symlink() and not trusted_link(current): raise RegistryError(f'registry path crosses symlink: {current}')
 
 
+def legacy_named(current: Path, legacy: Path) -> Path:
+    """Keep using a pre-#198 control file where one already exists, so old and new
+    runtimes share one installation identity and one registry lock there; new
+    locations get the new name."""
+    try:
+        current.lstat()
+        return current
+    except FileNotFoundError:
+        pass
+    try:
+        legacy.lstat()
+        return legacy
+    except FileNotFoundError:
+        return current
+
+
 def installation_id(prefix: Path, create: bool = True) -> str:
     """Read/create stable identity in the data prefix, not derived from its path."""
     with locked(prefix):
         return _installation_id_locked(prefix, create)
 
 
+def installation_marker(prefix: Path) -> Path:
+    return legacy_named(prefix / '.agents-installation.json', prefix / '.t3-plugins-installation.json')
+
+
 def _installation_id_locked(prefix: Path, create: bool = True) -> str:
-    marker = prefix / '.t3-plugins-installation.json'
+    marker = installation_marker(prefix)
     try:
         marker.lstat()
     except FileNotFoundError:
@@ -194,6 +214,8 @@ def _installation_id_locked(prefix: Path, create: bool = True) -> str:
 
 
 def registry_root(value: str | Path | None) -> Path:
+    if value is None:
+        return Path(os.environ.get('XDG_STATE_HOME') or Path.home()/'.local/state') / 'agents/jobs/registry'
     return Path(value or DEFAULT_AGENTS_ROOT).expanduser().absolute()
 
 
@@ -494,7 +516,7 @@ def referenced_versions(agents_root: Path, bundle: Path | None, state_root: Path
     removal; only an explicit job_cli cancel/discard releases it.
     """
     if state_root is None:
-        state_root = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))).expanduser() / 't3-plugins/jobs'
+        state_root = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))).expanduser() / 'agents/jobs'
     found, seen = [], set()
     job_paths = sorted(state_root.glob('*/job.json')) if state_root.exists() else []
     index_path = Path(agents_root) / JOB_INDEX
@@ -543,7 +565,7 @@ def referenced_versions(agents_root: Path, bundle: Path | None, state_root: Path
 def validate_job_references(state_root: Path | None = None) -> list[str]:
     """Validate every live pin locally; do not infer missing or unknown state."""
     if state_root is None:
-        state_root = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))).expanduser() / 't3-plugins/jobs'
+        state_root = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))).expanduser() / 'agents/jobs'
     errors = []
     if not state_root.exists(): return errors
     for job_path in sorted(state_root.glob('*/job.json')):
@@ -619,7 +641,7 @@ def inspect_agents(agents_root: Path, plugin: str | None = None, prefix: Path | 
     if not isinstance(claims, dict): raise RegistryError('registry claims are malformed')
     roots = []
     if prefix:
-        marker = prefix / '.t3-plugins-installation.json'
+        marker = installation_marker(prefix)
         if marker.exists():
             identity = installation_id(prefix, create=False)
             assert_owned_locator(agents_root, identity, prefix)
@@ -762,7 +784,11 @@ def verify_bundle(path: Path, identity: str, plugin: str, version: str, expected
 def worker_config_path(env=None) -> Path:
     env = os.environ if env is None else env
     config = Path(env.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))).expanduser()
-    return config / 't3-plugins' / 'workers.json'
+    # An existing pre-#198 t3-plugins/workers.json stays in use, read in place.
+    current, legacy = config / 'agents' / 'workers.json', config / 't3-plugins' / 'workers.json'
+    if not (current.exists() or current.is_symlink()) and (legacy.exists() or legacy.is_symlink()):
+        return legacy
+    return current
 
 
 def load_workers_config(path: Path) -> dict:
@@ -913,9 +939,9 @@ def snapshot_pins(job_path: Path, dependency_plugins: dict[str, str], prefix: Pa
                      'task_contract': ({'bytes': task_contract.decode('utf-8'), 'sha256': digest(task_contract)}
                                        if task_contract is not None else None),
                      'limits': {'max_live_workers': cfg['max_live_workers'], 'max_repair_cycles': cfg['max_repair_cycles'], **({'max_live_workers_by_provider': cfg['max_live_workers_by_provider']} if cfg.get('max_live_workers_by_provider') else {})}}
-        pins[key]['compatible_pinned_invocation'] = f't3-plugins --job {job_path.absolute()} path {plugin}'
+        pins[key]['compatible_pinned_invocation'] = f'agents --job {job_path.absolute()} path {plugin}'
     return {'schema_version': 1, 'pins': pins,
-            'compatible_pinned_invocations': {key: f't3-plugins --job {job_path.absolute()} path {plugin}'
+            'compatible_pinned_invocations': {key: f'agents --job {job_path.absolute()} path {plugin}'
                                               for key, plugin in dependency_plugins.items()}}
 
 
@@ -937,7 +963,7 @@ def _adopt_locked(prefix: Path, old_prefix: Path, agents_root: Path) -> dict:
         claim = old_claims.get(old_id)
         if not claim or not same_prefix(claim.get('prefix', ''), old_prefix):
             raise RegistryError('old relocation locator does not match this installation identity')
-    new_marker = prefix / '.t3-plugins-installation.json'
+    new_marker = installation_marker(prefix)
     if new_marker.exists():
         if installation_id(prefix, create=False) != old_id: raise RegistryError('identity conflict at destination')
     root = agents_root

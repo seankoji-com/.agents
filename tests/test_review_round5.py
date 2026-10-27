@@ -24,15 +24,15 @@ class LauncherTest(CoreTestCase):
     def test_launcher_runs_the_core_installed_and_from_source(self):
         home = self.tmp / 'home'
         source = self.tmp / 'src'
-        for part in ('core', 'plugins', 'scripts', 'shared'):
+        for part in ('core', 'plugins', 'scripts', 'shared', 'skills'):
             shutil.copytree(ROOT / part, source / part, ignore=shutil.ignore_patterns('__pycache__'))
         env = {key: value for key, value in os.environ.items()
-               if key not in ('T3_PLUGINS_PREFIX', 'T3_PLUGINS_STATE_ROOT', 'XDG_STATE_HOME')}
+               if key not in ('AGENTS_PREFIX', 'AGENTS_STATE_ROOT', 'XDG_STATE_HOME')}
         env['HOME'] = str(home)
         installed = subprocess.run([sys.executable, str(source / 'scripts' / 'install.py')], capture_output=True,
                                    text=True, env=env)
         self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
-        prefix = home / '.local' / 'share' / 't3-plugins'
+        prefix = home / '.local' / 'share' / 'agents'
         for launcher in (prefix / 'imps' / 'current' / 'cli.py', ROOT / 'plugins' / 'imps' / 'cli.py'):
             result = subprocess.run([sys.executable, str(launcher), 'status', '--state-root', str(self.tmp / 's'),
                                      '--run-id', 'bad'], capture_output=True, text=True, env=env)
@@ -59,14 +59,14 @@ class Round6Test(CoreTestCase):
     def test_uninstall_keeps_current_for_a_version_kept_for_local_edits(self):
         home = self.tmp / 'home'
         source = self.tmp / 'src'
-        for part in ('core', 'plugins', 'scripts', 'shared'):
+        for part in ('core', 'plugins', 'scripts', 'shared', 'skills'):
             shutil.copytree(ROOT / part, source / part, ignore=shutil.ignore_patterns('__pycache__'))
         env = {key: value for key, value in os.environ.items()
-               if key not in ('T3_PLUGINS_PREFIX', 'T3_PLUGINS_STATE_ROOT', 'XDG_STATE_HOME')}
+               if key not in ('AGENTS_PREFIX', 'AGENTS_STATE_ROOT', 'XDG_STATE_HOME')}
         env['HOME'] = str(home)
         installer = [sys.executable, str(source / 'scripts' / 'install.py')]
         self.assertEqual(subprocess.run(installer, capture_output=True, env=env).returncode, 0)
-        current = home / '.local' / 'share' / 't3-plugins' / 'imps' / 'current'
+        current = home / '.local' / 'share' / 'agents' / 'imps' / 'current'
         (current / 'entry.md').write_text((current / 'entry.md').read_text() + '\nlocal note\n')
         out = subprocess.run(installer + ['--uninstall'], capture_output=True, text=True, env=env)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)

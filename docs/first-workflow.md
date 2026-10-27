@@ -6,12 +6,12 @@ This page takes one real bug from task to evidence. You need the catalog
 ## 1. Check readiness
 
 ```text
-$t3-imps doctor
+$imps doctor
 ```
 
 The agent checks Python, Git, its state directory and T3's live provider list, then
-says what it can and can't run. It changes no files. If `/` doesn't list `t3-imps`,
-run `t3-plugins prompt imps doctor` in a terminal and paste the line it prints. See
+says what it can and can't run. It changes no files. If `/` doesn't list `imps`,
+use the explicit request `use imps to run doctor` and verify its loaded path. See
 [slash commands](slash-commands.md) for provider-specific skill folders.
 
 ## 2. Give it one bounded job
@@ -19,18 +19,18 @@ run `t3-plugins prompt imps doctor` in a terminal and paste the line it prints. 
 Name the failure, the expected behaviour, and how far the agent may go:
 
 ```text
-$t3-imps run Fix the word counter: a file containing "one two" on line 1 and "three" on line 2 returns 2; it should return 3. Verify locally. Do not commit, push or open a PR.
+$imps run Fix the word counter: a file containing "one two" on line 1 and "three" on line 2 returns 2; it should return 3. Verify locally. Do not commit, push or open a PR.
 ```
 
 The last sentence sets the endstate. imps defaults to local work, and it won't commit
 or open a PR unless you say so. For a feature, describe the interaction and how you'll
 know it works. If you can't write that sentence yet, run
-[elephant-goldfish](plugins/elephant-goldfish.md) first.
+[plan](plugins/plan.md) first.
 
-Without the slash menu, generate the same prompt in a terminal:
+Without the slash menu, send the same request explicitly:
 
-```sh
-t3-plugins prompt imps run 'Fix the word counter: a file containing "one two" on line 1 and "three" on line 2 returns 2; it should return 3. Verify locally. Do not commit, push or open a PR.'
+```text
+Use imps to fix the word counter described above. Verify locally. Do not commit, push or open a PR.
 ```
 
 ## 3. Read the evidence
@@ -59,14 +59,14 @@ deployment; each needs its own authorization and its own observation.
 Keep the run ID from the report. In the same thread:
 
 ```text
-$t3-imps status RUN_ID
-$t3-imps resume RUN_ID
-$t3-imps cancel RUN_ID
+$imps status RUN_ID
+$imps resume RUN_ID
+$imps cancel RUN_ID
 ```
 
 `status` shows the run without changing it. `resume` finishes missing work. `cancel`
 confirms that the run's child tasks and processes have stopped. Run state lives in
-`~/.local/state/t3-plugins/imps/runs/` unless the report names another state root.
+`~/.local/state/agents/jobs/imps/runs/` unless the report names another state root.
 
 Larger work runs as a job, and the report gives a job ID instead. The same three
 operations take it. `status` shows each stage, the current stage, open decisions,

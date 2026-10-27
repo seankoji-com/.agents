@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Source-checkout launcher; Homebrew supplies a wrapper to the same catalog."""
+"""Historical catalog test helper. Installed compatibility is job-bound."""
 import sys
 from pathlib import Path
 
+if not any(flag in sys.argv for flag in ('--prefix','--job','--help','-h')) and sys.argv[1:] != ['list']:
+    sys.exit('New work uses ~/.local/bin/agents. The historical catalog needs an explicit test --prefix or an inventoried --job.')
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
 from catalog import main
 

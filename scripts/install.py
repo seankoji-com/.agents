@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install, activate or uninstall a t3-plugins plugin.
+"""Install, activate or uninstall a agents plugin.
 
   python3 scripts/install.py [--plugin imps] [--dry-run] [--force]
   python3 scripts/install.py --activate VERSION      # roll back or forward
@@ -8,7 +8,7 @@
 Copies plugins/<plugin>/ plus its own copy of core/ to
 <prefix>/<plugin>/<version>/, writes an ownership manifest there and atomically
 repoints <prefix>/<plugin>/current. The prefix defaults to
-~/.local/share/t3-plugins. Run state (~/.local/state/t3-plugins) is never touched.
+~/.local/share/agents. Run state (~/.local/state/agents) is never touched.
 Prints one JSON object on stdout."""
 from __future__ import annotations
 
@@ -56,6 +56,18 @@ def source_files(source: Path, plugin: str) -> dict:
     if not (plugin_dir / 'plugin.json').is_file():
         raise InstallError('unknown_plugin', f'no plugin named {plugin} under {source / "plugins"}')
     mapping = {path.relative_to(plugin_dir).as_posix(): path for path in files_under(plugin_dir)}
+    skill = source / 'skills' / plugin / 'SKILL.md'
+    if skill.is_file():
+        # Source has one editable body. Both names in an immutable legacy-shaped
+        # package are derived from those exact bytes, never edited/generated live.
+        mapping['entry.md'] = skill
+        mapping['SKILL.md'] = skill
+        for path in files_under(skill.parent):
+            rel = path.relative_to(skill.parent).as_posix()
+            if rel != 'SKILL.md':
+                if rel in mapping:
+                    raise InstallError('skill_asset_collision', 'skill and plugin both own ' + rel)
+                mapping[rel] = path
     for path in files_under(source / 'core'):
         mapping['core/' + path.relative_to(source / 'core').as_posix()] = path
     for path in files_under(source / 'shared'):
@@ -86,7 +98,7 @@ def git_commit(source: Path, paths) -> tuple[str | None, bool]:
     return head.stdout.strip(), dirty.returncode != 0 or bool(dirty.stdout.strip())
 
 
-def plan_install(source: Path, plugin: str) -> dict:
+def plan_install(source: Path, plugin: str, immutable: bool = False) -> dict:
     mapping = source_files(source, plugin)
     meta = json.loads((source / 'plugins' / plugin / 'plugin.json').read_text())
     if not re.fullmatch(r'\d+\.\d+\.\d+', meta.get('version', '')):
@@ -94,10 +106,12 @@ def plan_install(source: Path, plugin: str) -> dict:
     entry = meta.get('entry', 'entry.md')
     if entry not in mapping or Path(entry).is_absolute() or '..' in Path(entry).parts:
         raise InstallError('invalid_entry', 'entry must name a bundled file')
-    entries = [{'path': rel, 'sha256': sha256(path), 'mode': 0o755 if os.access(path, os.X_OK) else 0o644}
+    entries = [{'path': rel, 'sha256': sha256(path),
+                'mode': (0o555 if os.access(path, os.X_OK) else 0o444) if immutable else
+                        (0o755 if os.access(path, os.X_OK) else 0o644)}
                for rel, path in sorted(mapping.items())]
     content = hashlib.sha256(json.dumps(entries, sort_keys=True).encode()).hexdigest()
-    commit, dirty = git_commit(source, ['plugins/' + plugin, 'core', 'shared'])
+    commit, dirty = git_commit(source, ['plugins/' + plugin, 'skills/' + plugin, 'core', 'shared'])
     if commit and not dirty:
         version = f'{meta["version"]}+g{commit[:12]}'
     else:
@@ -177,7 +191,8 @@ def active_version(plugin_root: Path) -> str | None:
 @registry.serialized_registry
 def install(args) -> dict:
     prefix = prefix_path(args)
-    planned = plan_install(SOURCE if not args.source else Path(args.source), args.plugin)
+    planned = plan_install(SOURCE if not args.source else Path(args.source), args.plugin,
+                           immutable=getattr(args, 'immutable', False))
     manifest = planned['manifest']
     plugin_source = (SOURCE if not args.source else Path(args.source)) / 'plugins' / args.plugin
     registry_meta, worker_assets = registry.declared_assets(plugin_source, (SOURCE if not args.source else Path(args.source)) / 'shared')
@@ -464,8 +479,8 @@ def uninstall(args) -> dict:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--plugin', default='imps')
-    parser.add_argument('--prefix', default=os.environ.get('T3_PLUGINS_PREFIX', '~/.local/share/t3-plugins'))
-    parser.add_argument('--agents-root', default=os.environ.get('T3_PLUGINS_AGENTS_ROOT', registry.DEFAULT_AGENTS_ROOT))
+    parser.add_argument('--prefix', default=os.environ.get('AGENTS_PREFIX', '~/.local/share/agents'))
+    parser.add_argument('--agents-root', default=os.environ.get('AGENTS_REGISTRY_ROOT'))
     parser.add_argument('--source', help=argparse.SUPPRESS)
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--force', action='store_true', help='overwrite or remove locally modified owned files')

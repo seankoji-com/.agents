@@ -57,7 +57,7 @@ class RegistryGapTest(unittest.TestCase):
         select_legacy_imps_job(job, self.box.private, Path(pkg), manifest, self.box.env)
         return self.job(pkg, 'create', root, job['job_id'], job,
                         extra=('--prefix', self.box.prefix, '--agents-root', self.box.agents,
-                               '--config', self.box.config / 't3-plugins' / 'workers.json'))
+                               '--config', self.box.config / 'agents' / 'workers.json'))
 
     def uninstall(self, version):
         return self.box.t3('uninstall', 'imps', '--version', version, check=False)

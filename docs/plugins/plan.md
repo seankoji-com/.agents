@@ -3,10 +3,10 @@
 Describe the problem you want to understand before implementing anything:
 
 ```text
-$t3-plan simplify retries without hiding failures or repeating unsafe requests
+$plan simplify retries without hiding failures or repeating unsafe requests
 ```
 
-There are no public subcommands. A bare `$t3-plan` uses the relevant conversation
+There are no public subcommands. A bare `$plan` uses the relevant conversation
 context and asks only for a missing topic. You can ask to list or resume an existing
 plan in ordinary language.
 
@@ -58,7 +58,7 @@ maintain a separate `elephant.md` document.
 
 The old plugin is deprecated and excluded from default setup. Existing installed
 packages, pinned jobs and `thinking/` topics remain intact. Continue old jobs with
-their pinned package; start new work with `$t3-plan`. No automatic migration or
+their pinned package; start new work with `$plan`. No automatic migration or
 rewriting of old review receipts takes place.
 
 ## Verification

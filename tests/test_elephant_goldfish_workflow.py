@@ -18,6 +18,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from support import source_entry
+
+from support import skill_manifest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -32,8 +36,8 @@ class InstructionContractTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.manifest = json.loads((PLUGIN / 'plugin.json').read_text())
-        cls.entry = (PLUGIN / 'entry.md').read_text()
+        cls.manifest = skill_manifest(PLUGIN / 'plugin.json')
+        cls.entry = (source_entry(PLUGIN)).read_text()
         cls.thinking = (PLUGIN / 'playbooks/thinking.md').read_text()
         cls.elephant = (PLUGIN / 'playbooks/elephant.md').read_text()
         cls.reference = (PLUGIN / 'references/document-jobs.md').read_text()
@@ -66,7 +70,7 @@ class InstructionContractTests(unittest.TestCase):
         # Plugin policy only: the generic dispatch/lifecycle protocol is not restated.
         for generic in ('clientRequestId', 'delegate_task', 'task-observation', 'same-ID'):
             self.assertNotIn(generic, self.entry)
-        self.assertLess(words(PLUGIN / 'entry.md'), 1500)
+        self.assertLess(words(source_entry(PLUGIN)), 1500)
         # Each operation loads the entry plus one playbook (and the reference only before delegation).
         for loaded in ('playbooks/thinking.md', 'playbooks/elephant.md', 'references/document-jobs.md'):
             self.assertLess(words(PLUGIN / loaded), 1300, loaded)

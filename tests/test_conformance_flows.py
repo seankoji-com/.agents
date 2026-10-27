@@ -46,7 +46,7 @@ class ConformanceFlowTest(unittest.TestCase):
         self.tmp = Path(tmp.name).resolve()
         self.state_root = self.tmp / 'state'
         # A global hooksPath or commit.gpgsign must not break the fixture commits.
-        env = patch.dict(os.environ, {'T3_PLUGINS_STATE_ROOT': str(self.state_root), 'GIT_CONFIG_NOSYSTEM': '1',
+        env = patch.dict(os.environ, {'AGENTS_STATE_ROOT': str(self.state_root), 'GIT_CONFIG_NOSYSTEM': '1',
                                       'GIT_CONFIG_GLOBAL': os.devnull})
         env.start()
         self.addCleanup(env.stop)
@@ -73,7 +73,7 @@ class ConformanceFlowTest(unittest.TestCase):
         cases = conformance.CASES['cases']
         self.assertEqual(sorted(receipt['branches']), sorted(c['branch'] for c in cases.values()))
         for case in cases.values():
-            policy = subprocess.run(['git', '-C', str(dest), 'show', f'{case["branch"]}:.t3-plugins/imps.json'],
+            policy = subprocess.run(['git', '-C', str(dest), 'show', f'{case["branch"]}:.agents/imps.json'],
                                     capture_output=True, text=True, check=True).stdout
             self.assertEqual(json.loads(policy)['policy']['model_preferences'], conformance.CASES['model_preferences'])
         branch = subprocess.run(['git', '-C', str(dest), 'branch', '--show-current'],
@@ -112,7 +112,7 @@ class ConformanceFlowTest(unittest.TestCase):
         argv = ['collect', '--run-id', 'run-0001', '--provider', 'provider-a', '--model', 'model-a', '--case', 'bugfix',
                 '--repeat', '1', '--t3-version', '1.2.3', '--thread-id', 'thread-1', '--transcript', str(transcript),
                 '--elapsed', '12.5', '--note', 'clean run']
-        with patch.dict(os.environ, {'T3_PLUGINS_PREFIX': str(prefix)}), \
+        with patch.dict(os.environ, {'AGENTS_PREFIX': str(prefix)}), \
                 patch.object(conformance, 'TEMP', str(self.tmp)), \
                 patch.object(conformance, 'ROOT', repo), \
                 patch.object(conformance, 'CONFORMANCE', repo / 'conformance'):
@@ -136,7 +136,7 @@ class ConformanceFlowTest(unittest.TestCase):
         argv = ['collect', '--run-id', 'run-0002', '--provider', 'p', '--model', 'm', '--case', 'bugfix',
                 '--repeat', '1', '--t3-version', '1', '--thread-id', 't']
         prefix = self.tmp / 'prefix'
-        with patch.dict(os.environ, {'T3_PLUGINS_PREFIX': str(prefix)}):
+        with patch.dict(os.environ, {'AGENTS_PREFIX': str(prefix)}):
             with self.assertRaises(SystemExit) as caught:
                 call(*argv)
             self.assertIn('no installed imps core', str(caught.exception))

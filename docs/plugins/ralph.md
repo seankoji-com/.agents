@@ -12,7 +12,7 @@ source evaluation is complete and the selected delivery gates follow.
 ## Try it
 
 ```text
-$t3-ralph fix the parser and add regression coverage
+$ralph fix the parser and add regression coverage
 ```
 
 ralph inspects context, then recommends exact work/reviewer chains and options from
@@ -20,17 +20,14 @@ T3's live catalog in one scoped agreement unless already supplied. Then it runs 
 default) runs out. Other forms:
 
 ```text
-$t3-ralph --max-attempts 8 implement the export endpoint
-$t3-ralph status /path/to/ralph-state.json
-$t3-ralph resume /path/to/ralph-state.json
-$t3-ralph cancel /path/to/ralph-state.json
+$ralph --max-attempts 8 implement the export endpoint
+$ralph status /path/to/ralph-state.json
+$ralph resume /path/to/ralph-state.json
+$ralph cancel /path/to/ralph-state.json
 ```
 
-Choosing `t3-ralph` from the `/` menu inserts the `$t3-ralph` mention. ralph needs
-catalog v0.5.0 or later. If `t3-plugins list` doesn't include it, run
-`brew update && brew upgrade t3-plugins` (or
-[install from source](../getting-started.md#from-source)), then run
-`t3-plugins setup ralph` and restart the agent session.
+Choosing `ralph` from the `/` menu inserts the `$ralph` mention. Follow the
+[source installation](../getting-started.md#from-source) and restart the agent session.
 
 ## What you get
 

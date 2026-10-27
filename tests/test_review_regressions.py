@@ -27,7 +27,7 @@ class InstallerFindingsTest(test_install.InstallTest):
 
     def test_12_manifest_paths_cannot_escape_the_version_directory(self):
         first = self.installer()['data']
-        victim = self.home / '.local' / 'state' / 't3-plugins' / 'imps' / 'runs' / 'evidence.log'
+        victim = self.home / '.local' / 'state' / 'agents' / 'imps' / 'runs' / 'evidence.log'
         victim.parent.mkdir(parents=True)
         victim.write_text('run evidence')
         manifest_path = Path(first['version_dir']) / 'install-manifest.json'

@@ -11,9 +11,10 @@ import secrets
 import stat
 
 import install as installer
+import manifest_data
 from core.jobs.store import trusted_link  # importing install puts the repository root on sys.path
 
-MARKER = '.t3-plugins-skill.json'
+MARKER = '.agents-skill.json'
 # Codex reads picker metadata from agents/openai.yaml beside SKILL.md. The receipt
 # owns it by relative path, so only these names can ever be replaced or removed.
 OPENAI_YAML = 'agents/openai.yaml'
@@ -134,12 +135,12 @@ def metadata_fields(meta):
     values = {}
     for key in ('version', 'kind', 'compatibility'):
         if meta.get(key) is not None:
-            values['t3-plugins-' + key] = str(meta[key])
+            values['agents-' + key] = str(meta[key])
     origin = meta.get('origin')
     if origin:
         for key in ('repository', 'plugin', 'version'):
             if origin.get(key) is not None:
-                values['t3-plugins-origin-' + key] = str(origin[key])
+                values['agents-origin-' + key] = str(origin[key])
     values['opencode/slash'] = 'true'
     if not meta.get('model_invocable', False):
         values['opencode/autoinvoke'] = 'false'
@@ -154,7 +155,7 @@ def render(meta, entry):
     if meta.get('argument_hint'):
         description += ' Args: ' + meta['argument_hint'] + '.'
     # JSON strings are valid quoted YAML scalars. Descriptions may contain colons.
-    header = ['---', 'name: t3-' + meta['name'], 'description: ' + json.dumps(description)]
+    header = ['---', 'name: ' + meta['name'], 'description: ' + json.dumps(description)]
     metadata = metadata_fields(meta)
     if metadata:
         header.append('metadata:')
@@ -197,19 +198,25 @@ def render(meta, entry):
                + routes + '\n' if meta['routes'] else
                ('Use the default workflow.\n' if meta.get('default_operation') else
                 'With no route table, ask which operation to run.\n')) +
-            'If the entry is missing, report that this adapter needs `t3-plugins install ' + meta['name'] +
+            'If the entry is missing, report that this adapter needs `agents install ' + meta['name'] +
             '` using the same package prefix; do not switch to another ' + meta['name'] + ' installation.\n'
             'This adapter grants no additional authorization. T3 owns delegation and watches.\n')
+
+
+def picker_description(meta):
+    """Legacy adapter compatibility only; source discovery emits no YAML."""
+    description = meta.get('short_description') or meta['description']
+    return description if len(description) <= 64 else description[:65].rsplit(' ',1)[0]
 
 
 def openai_yaml(meta):
     """Codex picker metadata. JSON strings are valid double-quoted YAML scalars.
     A manifest `short_description` keeps the picker blurb short; otherwise the
     description is used as written."""
-    name = 't3-' + meta['name']
+    name = meta['name']
     interface = {
-        'display_name': 'T3 ' + meta['name'].replace('-', ' ').title(),
-        'short_description': meta.get('short_description') or meta['description'],
+        'display_name': meta['name'].replace('-', ' ').title(),
+        'short_description': picker_description(meta),
         'default_prompt': ('Use $' + name + ' for the current request.' if meta.get('default_operation') else
                            'Use $' + name + ' with one operation: ' + ', '.join(meta['operations']) + '.'),
     }
@@ -257,7 +264,7 @@ def read_at(dir_fd, name, label):
 
 
 def write_at(dir_fd, name, data):
-    temporary = f'.t3-skill-{os.getpid()}-{secrets.token_hex(4)}'
+    temporary = f'.agents-skill-{os.getpid()}-{secrets.token_hex(4)}'
     fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dir_fd)
     try:
         with os.fdopen(fd, 'wb') as stream:
@@ -436,7 +443,7 @@ def interrupted_first_install(adapter, expected):
 def install(root, prefix, meta):
     root = safe_path(root)
     root_is_link = trusted_root_link(root)
-    name = 't3-' + meta['name']
+    name = meta['name']
     directory = safe_path(root / name)
     current = prefix / meta['name'] / 'current'
     version_dir = current.resolve()
@@ -467,6 +474,12 @@ def install(root, prefix, meta):
             or meta.get('name') != manifest['plugin']
             or meta.get('version') != manifest['version'].split('+', 1)[0]):
         raise ValueError('installed plugin metadata mismatch')
+    skill_row = next((item for item in manifest['files'] if item['path'] == 'SKILL.md'),None)
+    if skill_row is not None:
+        body = registry.read_regular(version_dir/'SKILL.md','installed canonical skill')
+        if digest(body) != skill_row['sha256']:
+            raise ValueError('installed canonical skill changed during adapter preflight')
+        meta = manifest_data.enrich(meta,body)
     if meta.get('workers') and not manifest.get('bundle_dir'):
         raise ValueError('installed worker package has no complete external bundle')
     if manifest.get('bundle_dir'):
@@ -531,7 +544,8 @@ def install(root, prefix, meta):
 
 def remove_retired(root, plugin):
     """Remove a retired plugin's adapter only when its own marker proves it is ours
-    and unmodified. Anything else is preserved untouched and reported."""
+    and unmodified. Anything else is preserved untouched and reported. Retired
+    adapters were only ever installed under their historical t3- names (#198)."""
     name = 't3-' + plugin
     try:
         directory = safe_path(root) / name
@@ -555,7 +569,7 @@ def remove_retired(root, plugin):
 
 
 def uninstall(root, meta):
-    name = 't3-' + meta['name']
+    name = meta['name']
     directory = safe_path(safe_path(root) / name)
     root_is_link = trusted_root_link(directory.parent)
     if not directory.exists():

@@ -19,6 +19,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tests import focus_group_fixtures as fixtures  # noqa: E402
+# Package-qualified: installed fixtures import this module as tests.test_focus_group_plan.
+from tests.support import skill_manifest, source_entry  # noqa: E402
 from tests.test_model_ids import MODEL_ID  # noqa: E402
 
 PLUGIN = ROOT / 'plugins' / 'focus-group'
@@ -307,8 +309,8 @@ class CommandTest(FixtureCase):
 
     def setUp(self):
         super().setUp()
-        self.meta = json.loads((PLUGIN / 'plugin.json').read_text())
-        self.entry = (PLUGIN / 'entry.md').read_text()
+        self.meta = skill_manifest(PLUGIN / 'plugin.json')
+        self.entry = (source_entry(PLUGIN)).read_text()
 
     def test_manifest_exposes_every_operation_through_the_catalog_routes(self):
         self.assertEqual(self.meta['operations'], OPERATIONS)
@@ -404,7 +406,7 @@ class CommandTest(FixtureCase):
     def test_installed_package_routes_bare_invocation_to_the_picker_and_materialises_workers(self):
         home = self.ws.base / 'home'
         home.mkdir()
-        env = {k: v for k, v in os.environ.items() if not k.startswith(('T3_PLUGINS_', 'XDG_'))}
+        env = {k: v for k, v in os.environ.items() if not k.startswith(('AGENTS_', 'XDG_'))}
         env.update(HOME=str(home), XDG_STATE_HOME=str(self.ws.base / 'xdg-state'),
                    XDG_CONFIG_HOME=str(self.ws.base / 'config'), PYTHONDONTWRITEBYTECODE='1')
         prefix, agents = self.ws.base / 'prefix', self.ws.base / 'agents'
@@ -432,7 +434,7 @@ class CommandTest(FixtureCase):
                                 text=True, env=env, timeout=60, cwd=self.ws.base)
         self.assertEqual(doctor.returncode, 0, doctor.stdout + doctor.stderr)
         self.assertTrue(all(json.loads(doctor.stdout)['data']['package_files'].values()))
-        self.assertFalse((self.ws.base / 'xdg-state' / 't3-plugins' / 'jobs').exists())
+        self.assertFalse((self.ws.base / 'xdg-state' / 'agents' / 'jobs').exists())
 
 
 class PlanTest(FixtureCase):

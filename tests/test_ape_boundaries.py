@@ -77,7 +77,7 @@ class ResearchBoundaryTest(unittest.TestCase):
             keep = workspace / 'keep.txt'
             keep.write_text('unrelated research')
             env = {**os.environ, 'HOME': tmp}
-            for marker in (None, {'schema_version': 1, 'owner': 't3-plugins/ape', 'workspace': str(workspace.parent / 'other')}):
+            for marker in (None, {'schema_version': 1, 'owner': 'agents/ape', 'workspace': str(workspace.parent / 'other')}):
                 if marker:
                     (workspace / '.ape-workspace.json').write_text(json.dumps(marker))
                 result = subprocess.run(['bash', str(SCRIPTS / 'clean-ape-workspace.sh'), str(workspace), '--all', '--confirm'],

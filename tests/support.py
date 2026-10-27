@@ -26,6 +26,18 @@ GIT_ENV = {'GIT_AUTHOR_NAME': 'Fixture', 'GIT_AUTHOR_EMAIL': 'fixture@example.in
            'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull}  # a global hooksPath or gpgsign must not break fixtures
 
 
+def source_entry(plugin):
+    """Canonical source body; old fixture/retired packages retain their layout."""
+    canonical = ROOT/'skills'/Path(plugin).name/'SKILL.md'
+    return canonical if canonical.is_file() else Path(plugin)/'entry.md'
+
+
+def skill_manifest(path):
+    sys.path.insert(0,str(ROOT/'scripts'))
+    from manifest_data import load
+    return load(path)
+
+
 def git(cwd, *args, check=True):
     env = dict(os.environ, **GIT_ENV)
     return subprocess.run(['git', '-C', str(cwd), *args], capture_output=True, text=True, check=check, env=env,

@@ -67,7 +67,7 @@ def subject_root(project_id, environ=None):
     env = os.environ if environ is None else environ
     base = env.get('XDG_STATE_HOME')
     root = Path(base) if base and Path(base).is_absolute() else Path(env.get('HOME') or Path.home()) / '.local/state'
-    return root / 't3-plugins/review-subjects' / component(project_id)
+    return root / 'agents/jobs/review-subjects' / component(project_id)
 
 
 class Subject:

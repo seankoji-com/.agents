@@ -106,7 +106,7 @@ class SiblingWorkCheckTest(unittest.TestCase):
         self.assertLess(loop.index(SIBLING_REF), loop.index('Initialize with `init --state FILE'))
         self.assertIn('needs an owner decision before dispatch', loop)
 
-        imps = flat((ROOT / 'plugins/imps/entry.md').read_text())
+        imps = flat((ROOT / 'skills/imps/SKILL.md').read_text())
         run = imps.split('**run <task>.**')[1].split('**resume')[0]
         self.assertIn('Before a writable run, run ' + SIBLING_REF, run)
         self.assertLess(run.index(SIBLING_REF), run.index('Initialize with `init --input FILE`'))

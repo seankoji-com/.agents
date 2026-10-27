@@ -28,7 +28,7 @@ def banned_in(text):
 
 def instruction_files():
     plugins = ROOT / 'plugins'
-    found = set(plugins.glob('*/entry.md')) | set((ROOT / 'shared').glob('*.md'))
+    found = set(plugins.glob('*/entry.md')) | set((ROOT/'skills').glob('*/SKILL.md')) | set((ROOT / 'shared').glob('*.md'))
     for folder in ('playbooks', 'references', 'templates'):
         found |= {p for p in plugins.glob(f'*/{folder}/**/*') if p.is_file()}
     return sorted(found)
@@ -48,8 +48,8 @@ def generated_briefs():
     """Representative output of every Python brief generator."""
     briefs = {}
     for meta_path in sorted((ROOT / 'plugins').glob('*/plugin.json')):
-        meta = json.loads(meta_path.read_text())
-        briefs['adapter:' + meta['name']] = skills.render(meta, Path('/opt/t3-plugins') / meta['name'] / 'entry.md')
+        meta = skills.manifest_data.load(meta_path)
+        briefs['adapter:' + meta['name']] = skills.render(meta, Path('/opt/agents') / meta['name'] / 'entry.md')
     briefs.update(handoff_briefs())
     return briefs
 
@@ -108,7 +108,7 @@ class InstructionHygiene(unittest.TestCase):
     def test_instruction_files_contain_no_banned_phrases(self):
         files = instruction_files()
         self.assertIn(ROOT / 'shared/delegation.md', files)
-        self.assertIn(ROOT / 'plugins/imps/entry.md', files)
+        self.assertIn(ROOT / 'skills/imps/SKILL.md', files)
         self.assertTrue(any('/templates/' in str(p) for p in files))
         for path in files:
             self.assertEqual(banned_in(path.read_text()), [], path)
@@ -146,7 +146,7 @@ class InstructionHygiene(unittest.TestCase):
         self.assertEqual(banned_in(prompt), [])
 
     def test_review_brief_asks_for_every_finding_then_filters_separately(self):
-        review = (ROOT/'plugins/imps/entry.md').read_text()
+        review = (ROOT/'skills/imps/SKILL.md').read_text()
         every = review.index('Report every finding with severity')
         verdict = review.index('as a separate step, set the', every)
         self.assertLess(every, verdict)

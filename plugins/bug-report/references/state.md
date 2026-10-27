@@ -2,7 +2,7 @@
 
 Run `python3 PKG/scripts/session.py ACTION --session ID --input FILE`. IDs use
 letters, numbers, underscores and hyphens, at most 80 characters. Default state
-root: `$XDG_STATE_HOME/t3-plugins/bug-report`. It must be private, POSIX, outside
+root: `$XDG_STATE_HOME/agents/bug-report`. It must be private, POSIX, outside
 repositories and live userdata, with no symlink components. `status` never creates
 or locks files. All other actions serialize under a no-follow root lock and save
 with private atomic replacement. An operation failure permits no dependent host

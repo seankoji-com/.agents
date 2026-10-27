@@ -20,7 +20,7 @@ def deep_merge(base, override):
 
 
 def repository_policy(worktree: Path, plugin: str) -> dict:
-    path = worktree / '.t3-plugins' / f'{plugin}.json'
+    path = worktree / '.agents' / f'{plugin}.json'
     if not path.is_file():
         return {}
     data = read_json(path)

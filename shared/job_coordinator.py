@@ -133,7 +133,7 @@ def selection_for_direct_stage(job, stage, identity):
 def _recovery_invocations(pins,job,state_root):
     by_key={d['key']:d['plugin'] for d in job['dependencies']}
     for key,pin in pins.items():
-        argv=['t3-plugins','--job',str(Path(state_root).absolute()/job['job_id']/'job.json'),'path',by_key[key]]
+        argv=['agents','--job',str(Path(state_root).absolute()/job['job_id']/'job.json'),'path',by_key[key]]
         pin['compatible_pinned_argv']=argv;pin['compatible_pinned_invocation']=shlex.join(argv)
     return pins
 

@@ -30,16 +30,16 @@ class ImpsInput(unittest.TestCase):
         empty = {'operation': None, 'arguments': '', 'personas': False, 'picker': True}
         self.assertEqual(inputs.route(''), empty)
         self.assertEqual(inputs.route('   '), empty)
-        self.assertEqual(inputs.route('$t3-imps'), empty)
-        self.assertEqual(inputs.route('/t3-imps'), empty)
+        self.assertEqual(inputs.route('$imps'), empty)
+        self.assertEqual(inputs.route('/imps'), empty)
         self.assertEqual(inputs.route('/imps:imps'), empty)
         self.assertEqual(inputs.route('/imps:imps --personas'),
                          {'operation': None, 'arguments': '', 'personas': True, 'picker': True})
         self.assertEqual(inputs.route('--personas /imps:imps'),
                          {'operation': None, 'arguments': '', 'personas': True, 'picker': True})
-        self.assertEqual(inputs.route('$t3-imps --personas'),
+        self.assertEqual(inputs.route('$imps --personas'),
                          {'operation': None, 'arguments': '', 'personas': True, 'picker': True})
-        for request in ('run', '$t3-imps run', '/imps:imps run', 'run --personas'):
+        for request in ('run', '$imps run', '/imps:imps run', 'run --personas'):
             value = inputs.route(request)
             self.assertEqual(value['operation'], 'run')
             self.assertEqual(value['arguments'], '')
@@ -72,7 +72,7 @@ class ImpsInput(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'audit.md'
             path.write_text('- [ ] passes\n  Verify: python3 check.py\n  Done when: exit zero\n')
-            for prefix in ('$t3-imps', '/t3-imps', 't3-imps'):
+            for prefix in ('$imps', '/imps', 'imps'):
                 result = inputs.route(prefix + ' --personas 42 43')
                 self.assertEqual(result['operation'], 'issues')
                 self.assertEqual(result['issues'], [42, 43])

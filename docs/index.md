@@ -36,5 +36,5 @@ The test suite exercises the helpers without calling a model. The published live
 results cover an earlier imps gate and do **not** certify imps 1.0;
 [compatibility](compatibility.md) has the exact scope.
 
-MIT licensed. [Source](https://github.com/seankoji-com/t3-plugins) ·
+MIT licensed. [Source](https://github.com/seankoji-com/.agents) ·
 [Contribute](contributing.md)

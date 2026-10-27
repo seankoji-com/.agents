@@ -521,13 +521,13 @@ class Installed(unittest.TestCase):
             env={**os.environ,'HOME':temp,'XDG_STATE_HOME':str(root/'state'),
                  'XDG_CONFIG_HOME':str(root/'config'),'CODEX_HOME':str(root/'codex')}
             def cli(*args):
-                p=subprocess.run([sys.executable,str(ROOT/'bin/t3-plugins'),'--prefix',str(prefix),
+                p=subprocess.run([sys.executable,str(ROOT/'scripts/catalog.py'),'--prefix',str(prefix),
                                   '--agents-root',str(agents),*args],capture_output=True,text=True,env=env,timeout=30)
                 self.assertEqual(p.returncode,0,p.stdout+p.stderr)
                 return p.stdout
             self.assertIn('bug-report',cli('list'))
             cli('setup','bug-report','--root',str(skills))
-            adapter=(skills/'t3-bug-report/SKILL.md').read_text()
+            adapter=(skills/'bug-report/SKILL.md').read_text()
             self.assertIn('bug-report',adapter)
             self.assertIn('use relevant current conversation context',adapter)
             self.assertNotIn('Do nothing until the owner answers',adapter)

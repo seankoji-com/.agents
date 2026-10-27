@@ -21,7 +21,7 @@ rounds, then freeze them.
 Retain explicit choices and requested scope; recommendations never reopen an answer.
 The installed `PKG/shared/agents/reviewer-standard.md` defines reviewer depth and reporting.
 Worker bundles expose the same contract at `shared/reviewer-standard.md`.
-When a routing config exists, `t3-plugins resolve <role> --capabilities FILE` lists the
+When a routing config exists, `agents resolve <role> --capabilities FILE` lists the
 configured candidates for `workhorse`, `reviewer` or `judgement` that the saved
 `orchestrator_capabilities` response can run, with an eligible saved
 `preferred_workhorse` first and otherwise cheapest tier first. An unavailable

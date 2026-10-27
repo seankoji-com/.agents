@@ -15,6 +15,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from support import source_entry
+
+from support import skill_manifest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from core.jobs.store import canonical  # noqa: E402
@@ -108,8 +112,8 @@ class RoutingAndBoundaryTest(unittest.TestCase):
     """Operation names, cheap-operation routing and stated boundaries survive the rebuild."""
 
     def setUp(self):
-        self.entry = (PLUGIN / 'entry.md').read_text()
-        self.meta = json.loads((PLUGIN / 'plugin.json').read_text())
+        self.entry = (source_entry(PLUGIN)).read_text()
+        self.meta = skill_manifest(PLUGIN / 'plugin.json')
 
     def test_one_workflow_includes_every_stage_and_concrete_approval(self):
         self.assertEqual(self.meta['operations'], OPERATIONS)
@@ -153,7 +157,7 @@ class RoutingAndBoundaryTest(unittest.TestCase):
                 self.assertEqual(proc.returncode, code, proc.stdout)
             # Direct operations leave no job state anywhere in the isolated roots.
             self.assertFalse(inst.state.exists())
-            self.assertFalse((inst.base / 'xdg-state' / 't3-plugins' / 'jobs').exists())
+            self.assertFalse((inst.base / 'xdg-state' / 'agents' / 'jobs').exists())
 
     def test_guarantees_and_boundaries_are_stated(self):
         text = folded(self.entry)
@@ -180,7 +184,7 @@ class RoutingAndBoundaryTest(unittest.TestCase):
         self.assertIn("host's native question picker", runtime)
 
     def test_word_budgets(self):
-        self.assertLess(words(PLUGIN / 'entry.md'), 1500)
+        self.assertLess(words(source_entry(PLUGIN)), 1500)
         for path in (PLUGIN / 'agents').glob('*.md'):
             self.assertLess(words(path), 700, path.name)
 
@@ -189,7 +193,7 @@ class WorkerDefinitionTest(unittest.TestCase):
     """Definitions satisfy the worker contract and never grant settings-edit authority."""
 
     def test_definitions_satisfy_the_worker_contract(self):
-        declared = {w['id']: w for w in json.loads((PLUGIN / 'plugin.json').read_text())['workers']}
+        declared = {w['id']: w for w in skill_manifest(PLUGIN / 'plugin.json')['workers']}
         self.assertEqual(set(declared), set(WORKERS))
         for worker_id, row in declared.items():
             with self.subTest(worker=worker_id):

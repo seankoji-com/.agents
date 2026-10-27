@@ -1094,6 +1094,9 @@ def package_files():
     found = {}
     for rel in (*REQUIRED_FILES, *extra):
         path = (RUNTIME if rel.split('/', 1)[0] in ('shared', 'core') else PKG) / rel
+        if rel == 'entry.md' and not path.exists():
+            # A source checkout keeps the canonical body at skills/<name>/SKILL.md; packages map it to entry.md.
+            path = RUNTIME / 'skills' / PKG.name / 'SKILL.md'
         present = path.is_file() and not path.is_symlink()
         if present and rel.endswith('.json'):
             try:

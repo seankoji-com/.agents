@@ -304,7 +304,7 @@ class PlanningReviewTests(unittest.TestCase):
             with self.subTest(limit=limit):
                 if self.caller:
                     self.setUp()
-                config = self.box.config / 't3-plugins/workers.json'
+                config = self.box.config / 'agents/workers.json'
                 old = config.read_bytes() if config.exists() else None
                 config.parent.mkdir(parents=True, exist_ok=True)
                 target = self.selection_data['review_panel'][0]['target']
@@ -536,7 +536,7 @@ class PlanningReviewTests(unittest.TestCase):
         self.assertIn('not permitted', self.cli('create', payload, ok=False))
 
     def test_provider_limits_freeze_and_installed_launch_refuses_without_charging(self):
-        config = self.box.config / 't3-plugins/workers.json'
+        config = self.box.config / 'agents/workers.json'
         old = config.read_bytes() if config.exists() else None
         self.addCleanup(lambda: config.write_bytes(old) if old is not None else config.unlink())
         config.parent.mkdir(parents=True, exist_ok=True)

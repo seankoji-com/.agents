@@ -60,7 +60,7 @@ class RunStore:
         if type(version) is not int or version != SCHEMA_VERSION:
             raise InvalidInput('unsupported_version',
                                f'run major version {version!r} is unsupported; this gate requires major version 2. '
-                               'Use t3-plugins activate imps <previous-version> to inspect, resume or cancel an old run.')
+                               'Use agents activate imps <previous-version> to inspect, resume or cancel an old run.')
         schema.validate(state, 'run', 'state_invalid')
         return state
 
@@ -89,10 +89,10 @@ class RunStore:
 
 
 def env_state_root(plugin: str | None) -> Path | None:
-    explicit = os.environ.get('T3_PLUGINS_STATE_ROOT')
+    explicit = os.environ.get('AGENTS_STATE_ROOT')
     if explicit:
         return Path(explicit).expanduser()
     if not plugin:
         return None
     base = os.environ.get('XDG_STATE_HOME') or str(Path.home() / '.local' / 'state')
-    return Path(base) / 't3-plugins' / plugin
+    return Path(base) / 'agents' / 'jobs' / plugin

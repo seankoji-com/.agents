@@ -12,7 +12,7 @@ report says so. For a one-line edit, ask the agent directly instead.
 In a T3 thread attached to your repository, check readiness first:
 
 ```text
-$t3-imps doctor
+$imps doctor
 ```
 
 Doctor runs `cli.py doctor` to check Python, Git, the state root and the learnings
@@ -26,11 +26,11 @@ broken symlink fails.
 Then give it a task with a finish line and a limit:
 
 ```text
-$t3-imps run Fix the date parser: reject 31 April with a useful error. Add a regression check. Verify locally without committing or publishing.
+$imps run Fix the date parser: reject 31 April with a useful error. Add a regression check. Verify locally without committing or publishing.
 ```
 
-No slash menu? `t3-plugins prompt imps run '…'` prints the same request as a line to
-paste. [Your first imps run](../first-workflow.md) walks through one end to end.
+No slash menu? Send the explicit request `use imps to run ...` in the thread.
+[Your first imps run](../first-workflow.md) walks through one end to end.
 
 ## What you get
 
@@ -47,7 +47,7 @@ as a PR or a merge. A job adds a job ID and an overview of every stage.
 
 `doctor`, `run`, `resume`, `status`, `cancel`, `verification-init`, `blast-radius`,
 `audit`, `issues`, `prs`, `checklist`, `discussion`. The
-[entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/imps/entry.md)
+[entry file](https://github.com/seankoji-com/.agents/blob/main/skills/imps/SKILL.md)
 names the file the agent loads for each one.
 
 imps picks the operation from what you send. Free text starts `run`. Issue numbers
@@ -100,11 +100,11 @@ new review. Historical runs retain their evidence as legacy-unreviewed.
 
 State major version 1 is refused by this gate without conversion or writes.
 Keep the previous installed version until its runs are finished. Find its version
-in the installation receipt. If `t3-plugins path imps` prints
+in the installation receipt. If `agents path imps` prints
 `<prefix>/imps/current/entry.md`, the version folders are in `<prefix>/imps/`,
 alongside `current/`. Then use
-`t3-plugins activate imps <previous-version>`. Read that version's entry through
-`t3-plugins path imps`; use its `status`, `resume` or `cancel` operation with the
+`agents activate imps <previous-version>`. Read that version's entry through
+`agents path imps`; use its `status`, `resume` or `cancel` operation with the
 original run ID and state root. Activate the new version again when done.
 Never hand-edit a run's version number. Activation changes only the selected package;
 it does not migrate state. The [migration record](../imps-gate-migration.md) explains
@@ -138,7 +138,7 @@ old state under `migrations/`, named by its hash.
 
 The job ID, evidence history, handles, findings, decisions and repair counters
 survive. Dependent acceptance becomes stale and requires fresh validators.
-Resolve the new pinned path with `t3-plugins --job "$JOBS/$JOB_ID/job.json" path imps`
+Resolve the new pinned path with `agents --job "$JOBS/$JOB_ID/job.json" path imps`
 and use its receipt digest for subsequent caller metadata. A changed state hash,
 missing owner decision, pending work, wrong installation or altered package
 refuses the upgrade. Ordinary commands still refuse an unpinned package.

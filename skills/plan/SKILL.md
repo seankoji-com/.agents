@@ -1,3 +1,21 @@
+---
+name: plan
+description: "Turn an uncertain problem into a reviewed, testable plan and a handoff for implementation. Args: <topic or problem>."
+metadata:
+  agents-bootstrap: "1"
+  opencode/slash: "true"
+  opencode/autoinvoke: "false"
+---
+
+
+Before substantive work, run only:
+
+```sh
+"$HOME/.local/bin/agents" start plan
+```
+
+Read the pinned SKILL.md and manifest before work. Already pinned: do not resolve again. Bind returned `package_root=PKG`, `pin=PIN`, `package_prefix=PREFIX`, `registry_root=AGENTS_ROOT`, `interpreter=PYTHON`; run Python examples with that absolute interpreter. Helpers, playbooks and workers use that pin only. Read `PKG/shared/manifest-routing.md`. Worktree tests add `--source /absolute/worktree` before `start`. Missing/incompatible launcher: explicit self-install.
+
 # plan
 
 Apply `PKG/shared/upfront-agreement.md` at this public entry. Inspect context before
@@ -5,7 +23,7 @@ asking; direct controls stay prompt-free. Substantive work records the scoped
 agreement; nested calls and unchanged continuations reuse its binding and budgets.
 
 Turn an uncertain problem into a reviewed plan that a fresh thread can execute.
-Invoke `$t3-plan <topic or problem>`. There are no public subcommands. With no text,
+Invoke `$plan <topic or problem>`. There are no public subcommands. With no text,
 use the relevant conversation context and ask only for a missing topic. A request
 to list or resume plans uses the state helper directly, without an operation menu.
 

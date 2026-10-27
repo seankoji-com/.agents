@@ -50,7 +50,7 @@ Homebrew formula tests a fresh installation, catalog, integrity doctor, and imps
 Runtime packages do not depend on documentation dependencies.
 
 Coverage is useful when it identifies a missing failure scenario. A percentage alone
-does not establish that a workflow works. The [test map](https://github.com/seankoji-com/t3-plugins/blob/master/tests/README.md)
+does not establish that a workflow works. The [test map](https://github.com/seankoji-com/.agents/blob/main/tests/README.md)
 links the current evidence boundaries to tests; the newer suites name their boundary
 and failure mode directly.
 The [issue #28 test map](stage4-test-map.md) lists which suites prove each
@@ -58,13 +58,13 @@ whole-job requirement.
 
 ## Live provider conformance
 
-The major-version-1 [conformance procedure](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/procedure.md)
+The major-version-1 [conformance procedure](https://github.com/seankoji-com/.agents/blob/main/conformance/procedure.md)
 and its collector describe the previous gate. Activate that package to reproduce those dated results. New-gate live compatibility is unverified. Record exact T3/provider/model versions,
 repetitions, artifacts, interventions, and failures. Keep credentials out of commits.
 No unit-test result upgrades a provider's compatibility status automatically.
 
 The rebuilt whole-job workflows have their own frozen
-[benchmark protocol v2](https://github.com/seankoji-com/t3-plugins/blob/master/bench/v2/protocol.md).
+[benchmark protocol v2](https://github.com/seankoji-com/.agents/blob/main/bench/v2/protocol.md).
 `tests/test_bench_v2.py` checks its graders and frozen files offline; it is not a
 live run. See [measurement limits](compatibility.md#measurement-limits).
 

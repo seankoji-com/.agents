@@ -624,7 +624,7 @@ class SelectionTests(unittest.TestCase):
         self.assertIn('keep the implementer answer', ralph)
         self.assertIn("target's correction, retaining other answers", ralph)
         for name in ('shared/t3-runtime.md', 'shared/adopter-planning.md',
-                     'plugins/focus-group/entry.md', 'plugins/focus-group/playbooks/plan.md',
+                     'skills/focus-group/SKILL.md', 'plugins/focus-group/playbooks/plan.md',
                      'plugins/ape/references/planning-review.md', 'shared/upfront-agreement.md',
                      'plugins/imps/references/brief-probes.md'):
             self.assertIn('short rounds', (ROOT / name).read_text())
@@ -878,7 +878,7 @@ class SelectionTests(unittest.TestCase):
             root = Path(temporary)
             caps = root/'caps.json'; caps.write_text(json.dumps(self.data['capabilities']))
             profiles = root/'profiles.json'; profiles.write_text(json.dumps(self.data['profiles']))
-            proc = subprocess.run([sys.executable, str(ROOT/'bin/t3-plugins'), 'resolve', 'reviewer',
+            proc = subprocess.run([sys.executable, str(ROOT/'scripts/catalog.py'), 'resolve', 'reviewer',
                                    '--repo', str(root), '--profiles', str(profiles), '--capabilities', str(caps)],
                                   text=True, capture_output=True, timeout=30,
                                   env={**os.environ, 'HOME': str(root), 'XDG_CONFIG_HOME': str(root/'config')})

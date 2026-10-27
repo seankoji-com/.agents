@@ -2,7 +2,7 @@
 
 `PKG/shared/job-coordination.md` defines the generic protocol: planning, dispatch,
 lifecycle, acceptance, repair, fallback, visibility and approvals. This file adds
-only imps policy. `JOBS` is the jobs state root, `$XDG_STATE_HOME/t3-plugins/jobs`
+only imps policy. `JOBS` is the jobs state root, `$XDG_STATE_HOME/agents/jobs`
 unless you pass `--state-root`. `GATES` is a coordinator-private directory for stage
 gate runs, outside the repository and outside every job directory. Use absolute
 paths for both.
@@ -116,7 +116,7 @@ Exhausted budgets, undeclared work or out-of-scope fixes need an owner decision.
 ## prs
 
 `prs` depends on babysitter. Declare it at job creation, then load the entry that
-`t3-plugins --job JOBS/JOB/job.json path babysitter` prints. Never resolve it with
+`agents --job JOBS/JOB/job.json path babysitter` prints. Never resolve it with
 the plain `path` command during a job. Babysitter's own scope, validator and
 communication rules apply unchanged.
 
@@ -131,7 +131,7 @@ It changes no repair budgets or requirements. Acceptance is invalidated and must
 be rerun with the newly pinned package. Ordinary commands still refuse an unpinned
 executing package. Never patch an installed package or truncate job history.
 
-- **Resume.** Run `t3-plugins --job JOBS/JOB/job.json path imps`. If it names a
+- **Resume.** Run `agents --job JOBS/JOB/job.json path imps`. If it names a
   different entry than the one you loaded, load that one; a wrong package refuses
   writes and prints the pinned invocation. Read `overview`, reuse the frozen agreement and work/review chains/options without retain-or-stop
   through planning `continue` (`event: resume`). Older packages keep their pinned contract.

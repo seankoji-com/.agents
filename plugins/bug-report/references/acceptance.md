@@ -1,7 +1,7 @@
 # Issue #84 acceptance ledger
 
 This preserves the original 19 IDs. The full acceptance contract is
-https://github.com/seankoji-com/t3-plugins/issues/84. The implementation does not
+https://github.com/seankoji-com/.agents/issues/84. The implementation does not
 waive its runtime or manual checks. Current host schemas are discovered at use;
 fixture success never establishes live compatibility.
 

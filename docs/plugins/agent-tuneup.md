@@ -9,7 +9,7 @@ file for broad allow rules without a model.
 ## Try it
 
 ```text
-$t3-agent-tuneup
+$agent-tuneup
 ```
 
 The command checks readiness, inventories every provider, audits shared wiring and
@@ -21,7 +21,7 @@ in the same workflow. A declined proposal ends with the report and no writes.
 Narrow the scope in ordinary language when needed:
 
 ```text
-$t3-agent-tuneup inspect only .claude/settings.json; do not propose changes
+$agent-tuneup inspect only .claude/settings.json; do not propose changes
 ```
 
 The provider running the workflow need not be the one being inspected. Missing
@@ -98,7 +98,7 @@ checkout. It holds local paths, so don't commit it:
 ```
 
 ```sh
-python3 "$(dirname "$(t3-plugins path agent-tuneup)")/scripts/audit.py" --t3-projects private-snapshot.json
+python3 "$(dirname "$(agents path agent-tuneup)")/scripts/audit.py" --t3-projects private-snapshot.json
 ```
 
 It exits `1` with findings, `0` with none and `2` for an unreadable snapshot. Findings
@@ -123,11 +123,11 @@ recorded approval, an exact backup and passing parse and load observations.
 
 ## Align all T3 providers
 
-```sh
-t3-plugins prompt agent-tuneup
+```text
+$agent-tuneup
 ```
 
-Paste the output into a T3 thread, or invoke `$t3-agent-tuneup`.
+Invoke the explicit skill mention in a T3 thread.
 The workflow discovers every provider instance in the live catalog and identifies
 its global, project, local, managed and host settings layers. Disabled and unknown
 providers stay visible. Choose which capabilities should be shared and which should
@@ -146,7 +146,7 @@ provider. Missing or stale evidence stays visible. Its private input can bind so
 and observation files by SHA-256 and inventory shared/provider skill roots. It counts
 skill aliases, reports redundant discovery and preserves all files. The full input
 contract and migration checklist are in
-[central wiring](https://github.com/seankoji-com/t3-plugins/blob/4899a8e870eb8aa12fd3109cc6a704d2929c0aeb/plugins/agent-tuneup/references/central-wiring.md).
+[central wiring](https://github.com/seankoji-com/.agents/blob/4899a8e870eb8aa12fd3109cc6a704d2929c0aeb/plugins/agent-tuneup/references/central-wiring.md).
 These checks bind supplied evidence; they do not establish native loading.
 
 Matching capability names does not prove matching access. Permission expressions
@@ -176,7 +176,7 @@ your environment; this is a synthetic example, not a discovery rule:
 ```
 
 ```sh
-entry="$(t3-plugins path agent-tuneup)"
+entry="$(agents path agent-tuneup)"
 python3 "$(dirname "$entry")/scripts/align.py" compare \
   --catalog private-catalog.json --inventory private-inventory.json
 ```
@@ -291,11 +291,11 @@ Format references (checked on 12 October 2026): [Muse Code configuration](https:
 
 The audit helper is plain Python. Point it at a synthetic settings file and it reports
 the broad Bash rule. This is real output, captured with
-[`scripts/capture_terminal.py`](https://github.com/seankoji-com/t3-plugins/blob/master/scripts/capture_terminal.py):
+[`scripts/capture_terminal.py`](https://github.com/seankoji-com/.agents/blob/main/scripts/capture_terminal.py):
 
 ```console
 $ printf '%s\n' '{"permissions":{"allow":["Bash(*)"]}}' > example-settings.json
-$ python3 "$(dirname "$(t3-plugins path agent-tuneup)")/scripts/audit.py" --provider claude --settings example-settings.json
+$ python3 "$(dirname "$(agents path agent-tuneup)")/scripts/audit.py" --provider claude --settings example-settings.json
 {"ok": true, "provider": "claude", "findings": [{"code": "broad_execution_allow", "location": "permissions.allow[0]"}], "scope": "known-pattern audit; not a complete permission evaluation", "writes": 0}
 ```
 

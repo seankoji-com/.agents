@@ -696,7 +696,7 @@ def authority_path(project_id, environ=None):
     env = os.environ if environ is None else environ
     base = env.get('XDG_STATE_HOME')
     root = Path(base) if base and Path(base).is_absolute() else Path(env.get('HOME') or Path.home()) / '.local/state'
-    return root / 't3-plugins/authorities' / project_id / 'model-policy.json'
+    return root / 'agents/control/authorities' / project_id / 'model-policy.json'
 
 
 def save_authority(project_id, grant, environ=None):

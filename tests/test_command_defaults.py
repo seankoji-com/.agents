@@ -16,7 +16,7 @@ import skills
 
 class CommandDefaults(unittest.TestCase):
     def test_ape_infers_search_or_study_without_command_words(self):
-        meta = json.loads((ROOT / 'plugins/ape/plugin.json').read_text())
+        meta = skills.manifest_data.load(ROOT / 'plugins/ape/plugin.json')
         for text in ('', 'find retry approaches', 'study permission patterns', 'clean up error handling', 'clean architecture'):
             self.assertEqual(skills.route(meta, text), 'forage')
         for text in ('https://github.com/example/parser parser tests',
@@ -29,7 +29,7 @@ class CommandDefaults(unittest.TestCase):
         self.assertEqual(skills.route(meta, 'clean https://github.com/example/parser'), 'study')
 
     def test_one_workflow_tuneup_has_no_public_mode_or_reserved_word_collisions(self):
-        meta = json.loads((ROOT / 'plugins/agent-tuneup/plugin.json').read_text())
+        meta = skills.manifest_data.load(ROOT / 'plugins/agent-tuneup/plugin.json')
         for text in ('', 'scan our configuration', 'apply consistent wiring', 'only inspect this file'):
             self.assertEqual(skills.route(meta, text), 'tuneup')
         self.assertEqual(meta['operations'], ['tuneup'])
@@ -60,12 +60,12 @@ class CommandDefaults(unittest.TestCase):
             receipt = json.loads(setup.stdout.splitlines()[0])['data']
             self.assertIn('default workflow', receipt['paste'])
             self.assertNotIn('run: doctor', receipt['paste'])
-            self.assertTrue((root / 't3-plan/SKILL.md').is_file())
+            self.assertTrue((root / 'plan/SKILL.md').is_file())
             self.assertEqual((old / 'SKILL.md').read_text(), 'Keep my local changes')
             self.assertEqual(historical.read_text(), '{"receipt":"historical"}\n')
             # A pristine, owned adapter can be removed, without touching any old state.
             (old / 'SKILL.md').unlink()
-            (old / '.t3-plugins-skill.json').unlink()
+            (old / '.agents-skill.json').unlink()
             old.rmdir()
             owned_adapter(root, 'elephant-goldfish')
             cli('setup', 'plan', '--root', str(root))

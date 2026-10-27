@@ -17,11 +17,12 @@
         <p class="fg-lead">{{ words[count] if count < 11 else count }} workflows for coding agents in T3 Code. Each ends in something you can check: a diff with the test run that passed on it, a brief, cited research, a merged PR.</p>
         <div class="fg-install" aria-labelledby="fg-install-title">
           <p id="fg-install-title" class="fg-install__title">Install on macOS or Linux</p>
-          <p class="fg-install__note">Already on an older version? Run <code>brew upgrade t3-plugins</code>, then <code>t3-plugins setup</code>. <a href="{{ 'getting-started/#homebrew-release-channel' | url }}">Release channel</a></p>
-          <pre id="fg-install-code"><nav class="md-code__nav"><button class="md-code__button" title="Copy to clipboard" data-clipboard-target="#fg-install-code > code" data-md-type="copy"></button></nav><code>brew install seankoji-com/tap/t3-plugins
-t3-plugins setup
-t3-plugins doctor</code></pre>
-          <p class="fg-install__next">Then turn on <b>Show skills in slash menu</b> in T3, restart the agent session, and send <code>$t3-imps doctor</code> in a thread.</p>
+          <p class="fg-install__note">Existing populated <code>~/.agents</code>? Follow the <a href="{{ 'getting-started/#existing-populated-home' | url }}">inventory and adoption procedure</a>. Keep old jobs and their pins.</p>
+          <pre id="fg-install-code"><nav class="md-code__nav"><button class="md-code__button" title="Copy to clipboard" data-clipboard-target="#fg-install-code > code" data-md-type="copy"></button></nav><code>git clone --branch main https://github.com/seankoji-com/.agents.git "$HOME/.agents"
+python3 "$HOME/.agents/bin/agents" self-install --profile author
+"$HOME/.local/bin/agents" adopt --from-source "$HOME/.agents"
+"$HOME/.local/bin/agents" status</code></pre>
+          <p class="fg-install__next">Then turn on <b>Show skills in slash menu</b> in T3, restart the agent session, and send <code>$imps doctor</code> in a thread.</p>
         </div>
         <p class="fg-actions">
           <a class="fg-primary" href="{{ 'getting-started/' | url }}">First ten minutes</a>
@@ -30,7 +31,7 @@ t3-plugins doctor</code></pre>
       </div>
       <figure class="fg-rec" aria-labelledby="fg-rec-caption">
         <div class="fg-rec__screen">{{ guide.recording | safe }}</div>
-        <figcaption id="fg-rec-caption"><i>Fig. 1</i> <code>list</code>, <code>setup</code> and <code>doctor</code>, run from source in an empty home directory. Output and timing are real; the typing is simulated.
+        <figcaption id="fg-rec-caption"><i>Fig. 1</i> Historical catalog <code>list</code>, <code>setup</code> and <code>doctor</code>, recorded on 13 October 2026. Output and timing are real; the typing is simulated. This predates the source checkout interface.
           <a href="{{ 'assets/quickstart.mp4' | url }}">Video</a> ·
           <a href="{{ 'assets/recordings/quickstart.txt' | url }}">transcript</a></figcaption>
       </figure>

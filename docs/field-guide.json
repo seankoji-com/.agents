@@ -5,7 +5,7 @@
     "binomial": "Daemon diligens",
     "summary": "Fix a bug or implement a change, with checks and review tied to the files you receive.",
     "use_when": "You can name the failure and what fixed looks like, and you want the checks that prove it run against the files you get back.",
-    "try": "$t3-imps run fix the date parser: reject 31 April with a clear error, add a regression test, do not commit",
+    "try": "$imps run fix the date parser: reject 31 April with a clear error, add a regression test, do not commit",
     "habitat": "A T3 thread attached to a repository, with a small Python core holding run state.",
     "diet": "One task with observable acceptance criteria and an agreed Open PR, Tagged Version or Verified in Prod target.",
     "field_marks": "Any edit after verification makes the evidence stale. Blocked is a complete answer. Delegation goes through T3 only."
@@ -15,7 +15,7 @@
     "binomial": "Simia studiosa",
     "summary": "Find an approach in another codebase, with source citations and a small experiment to try.",
     "use_when": "Another project has probably solved your problem, and you want its code cited by line before you borrow the idea.",
-    "try": "$t3-ape https://github.com/python/cpython how are parser error cases tested?",
+    "try": "$ape https://github.com/python/cpython how are parser error cases tested?",
     "habitat": "A research workspace of cloned repositories, outside your project.",
     "diet": "A named gap and a GitHub search, or one repository URL.",
     "field_marks": "Read-only in the current project. Every recommendation cites source lines and proposes a small experiment. Never runs third-party code."
@@ -25,7 +25,7 @@
     "binomial": "Gallina patiens",
     "summary": "Carry an authorized PR through review, failing checks and conflicts to an observed merge.",
     "use_when": "A pull request is stuck on review comments, red checks or conflicts, and you want it fixed and watched until it merges.",
-    "try": "$t3-babysitter pr https://github.com/OWNER/REPO/pull/12 inspect reviews and CI only",
+    "try": "$babysitter pr https://github.com/OWNER/REPO/pull/12 inspect reviews and CI only",
     "habitat": "One pull request, a repository, or an organization, within the scope you state.",
     "diet": "Review findings, red checks, and base-branch drift.",
     "field_marks": "\"Review\" alone authorizes inspection only. Pushes to the PR branch only. Never bypasses protected-branch rules. T3 owns the watch."
@@ -35,7 +35,7 @@
     "binomial": "Gryllus auditor",
     "summary": "Check all agent wiring, inspect available usage and prepare approved native changes.",
     "use_when": "You want to check shared instructions, skills, permissions, MCPs, roles and repository setup across your T3 providers.",
-    "try": "$t3-agent-tuneup",
+    "try": "$agent-tuneup",
     "habitat": "A T3 thread with a live provider catalog and identified configuration sources.",
     "diet": "A complete wiring audit, a narrower explicit target, or approval of concrete changes.",
     "field_marks": "One workflow covers readiness, audit, usage analysis, alignment and approved apply. Settings writes require a concrete reviewed plan and private backup."
@@ -45,7 +45,7 @@
     "binomial": "Helix iterans",
     "summary": "Implement a goal and repair independent evaluator findings through the agreed delivery target.",
     "use_when": "You want one model to implement a goal and a model from another lineage to grade it, with every criticism sent back for another attempt.",
-    "try": "$t3-ralph fix the parser and add regression coverage",
+    "try": "$ralph fix the parser and add regression coverage",
     "habitat": "One T3 parent thread and a retained worktree, with checkpoints outside the repository.",
     "diet": "A goal, exact work and reviewer backup chains, and a retained attempt limit.",
     "field_marks": "Fresh review tasks. All feedback triggers repair. Retained budgets. Completion requires Open PR, Tagged Version or Verified in Prod evidence."
@@ -55,7 +55,7 @@
     "binomial": "Grex dissentiens",
     "summary": "Test a product with an editable panel of invented personas across several models.",
     "use_when": "You want to know what to fix, build and keep in a product or prototype, and you will treat the answers as hypotheses rather than customer evidence.",
-    "try": "$t3-focus-group plan https://staging.example/welcome first-run experience for busy parents",
+    "try": "$focus-group plan https://staging.example/welcome first-run experience for busy parents",
     "habitat": "A T3 thread with a live model catalog, a private study directory and shared captures of the product.",
     "diet": "An audience, a decision to inform, a target or capture pack, and an approved panel and task ceiling.",
     "field_marks": "Planning reviews the study before panel work. Every revision is approved by hash. Unknown capabilities stay unknown until a pilot. Results are synthetic hypotheses, never demand."
@@ -65,7 +65,7 @@
     "binomial": "Coleopterus relator",
     "summary": "Verify upstream defects, use their documented reporting method and follow up for 30 minutes.",
     "use_when": "An upstream project or service appears broken and you want evidence and a report through its known reporting channel.",
-    "try": "$t3-bug-report investigate the error above",
+    "try": "$bug-report investigate the error above",
     "habitat": "A T3 conversation, a private reporting ledger and a separate reporting thread.",
     "diet": "A symptom or relevant conversation context, observed evidence and current report destinations.",
     "field_marks": "Unknown reporting methods retain a private draft. Verified upstreams use their documented channel. Follow-up retains one fixed deadline."
@@ -75,7 +75,7 @@
     "binomial": "Consilium probabile",
     "summary": "Turn an uncertain problem into a reviewed, testable plan and a handoff.",
     "use_when": "You know something should change and want to establish the problem, decisions and observable acceptance before implementation.",
-    "try": "$t3-plan simplify our retry policy",
+    "try": "$plan simplify our retry policy",
     "habitat": "A plans directory inside your repository.",
     "diet": "A problem you cannot yet state as a task.",
     "field_marks": "Planning ends at the handoff. Source review binds the exact discovery, specification and declared evidence."
@@ -85,7 +85,7 @@
     "binomial": "Strix examinans",
     "summary": "Inspect test protection and validation cost, with private HTML and evidence-based recommendations.",
     "use_when": "Validation is slow and you want to know what protection each check adds before simplifying the suite.",
-    "try": "$t3-tests-omg audit",
+    "try": "$tests-omg audit",
     "habitat": "An attached repository or a bounded visible organization inventory.",
     "diet": "Source, existing runner outputs, incident history and explicitly authorized local measurements.",
     "field_marks": "Advisory and read-only by default. Twelve findings keep unknowns visible. No CI changes or report publication."

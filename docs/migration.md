@@ -1,3 +1,5 @@
+> Historical guide for the packaged 1.0 migration. Commands and paths below describe that release. For the editable source migration, use [getting started](getting-started.md) and [legacy compatibility](cli.md#legacy-compatibility).
+
 # Upgrading to plugin 1.0
 
 ## Whole-job coordination

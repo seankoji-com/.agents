@@ -11,6 +11,10 @@ import html
 import json
 import re
 from pathlib import Path
+import sys
+
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+import manifest_data
 
 ROOT = Path(__file__).resolve().parent.parent
 SIGHTINGS_MARKER = '<!-- sightings-matrix -->'
@@ -72,7 +76,7 @@ def load_guide(root: Path = ROOT) -> list[dict]:
     guide.pop('$comment', None)
     manifests = {}
     for path in sorted((root / 'plugins').glob('*/plugin.json')):
-        meta = json.loads(path.read_text())
+        meta = manifest_data.load(path)
         if meta.get('deprecated'):
             continue
         manifests[meta['name']] = meta
@@ -85,9 +89,9 @@ def load_guide(root: Path = ROOT) -> list[dict]:
         absent = [f for f in GUIDE_FIELDS if not str(entry.get(f, '')).strip()]
         if absent:
             raise FieldGuideError(f'{name}: field guide entry is missing {absent}')
-        if not (entry['try'].startswith(f'$t3-{name} ') or
-                (manifests[name].get('default_operation') and entry['try'] == f'$t3-{name}')):
-            raise FieldGuideError(f'{name}: try must start with the skill mention $t3-{name}')
+        if not (entry['try'].startswith(f'${name} ') or
+                (manifests[name].get('default_operation') and entry['try'] == f'${name}')):
+            raise FieldGuideError(f'{name}: try must start with the skill mention ${name}')
         plate = entry['plate']
         if plate not in ROMAN:
             raise FieldGuideError(f'{name}: unknown plate numeral {plate!r}')

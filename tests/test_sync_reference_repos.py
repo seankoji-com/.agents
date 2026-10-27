@@ -118,7 +118,8 @@ class RepositoryConfigTest(unittest.TestCase):
         preview = scripts['Docs preview']
         self.assertIn('mkdocs serve -a 127.0.0.1:8000', preview['command'])
         self.assertIn('requirements-docs.txt', preview['command'])
-        self.assertEqual(preview['previewUrl'], 'http://127.0.0.1:8000/t3-plugins/')
+        # mkdocs serve uses the site_url path (https://seankoji-com.github.io/.agents/).
+        self.assertEqual(preview['previewUrl'], 'http://127.0.0.1:8000/.agents/')
         self.assertIs(preview['autoOpenPreview'], True)
 
 

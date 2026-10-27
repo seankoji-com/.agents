@@ -21,7 +21,7 @@ class SetupTest(unittest.TestCase):
         self.home.mkdir()
         # Match the formula's installed tree, with no Git checkout or bin directory.
         self.package = self.base / 'libexec'
-        for name in ('scripts', 'core', 'plugins', 'shared'):
+        for name in ('scripts', 'core', 'plugins', 'shared', 'skills'):
             shutil.copytree(ROOT / name, self.package / name,
                             ignore=shutil.ignore_patterns('__pycache__'))
         self.prefix = self.home / 'snapshots'
@@ -55,7 +55,7 @@ class SetupTest(unittest.TestCase):
         self.assertFalse((self.home / '.codex/config.toml').exists())
         for root in ('.claude/skills', '.codex/skills', 'config/opencode/skills',
                      '.gemini/config/skills', '.gemini/skills', 'config/muse/skills'):
-            skill = self.home / root / 't3-imps/SKILL.md'
+            skill = self.home / root / 'imps/SKILL.md'
             self.assertIn(str(self.prefix / 'imps/current/entry.md'), skill.read_text())
         self.assertFalse((self.home / '.agents/skills').exists())
         self.call('setup')
@@ -70,7 +70,7 @@ class SetupTest(unittest.TestCase):
         self.assertEqual(next(g for g in grants if g['provider'] == 'claudeAgent')['status'], 'applied')
         config = json.loads((self.home / '.claude/settings.json').read_text())
         self.assertEqual(config, {'sandbox': {'filesystem': {'allowWrite': [
-            str(self.base / 'state/t3-plugins/learnings')]}}})
+            str(self.base / 'state/agents/jobs/learnings')]}}})
         repeated = self.call('setup', 'imps', '--grant-learnings')
         grants = [json.loads(line)['learnings_grant'] for line in repeated.stdout.splitlines()
                   if 'learnings_grant' in json.loads(line)]
@@ -88,7 +88,7 @@ class SetupTest(unittest.TestCase):
         claude = next(g for g in grants if g['provider'] == 'claudeAgent')
         self.assertEqual((claude['status'], claude['target']), ('manual', str(target)))
         self.assertEqual(json.loads(claude['snippet']), {'sandbox': {'filesystem': {'allowWrite': [
-            str(self.base / 'state/t3-plugins/learnings')]}}})
+            str(self.base / 'state/agents/jobs/learnings')]}}})
         self.assertIn(f'into {target} in its source repository', result.stderr)
         self.assertIn('"allowWrite": [', result.stderr)
         self.assertEqual(target.read_text(), '{"sandbox": {"enabled": true}}')
@@ -97,7 +97,7 @@ class SetupTest(unittest.TestCase):
     def test_doctor_probes_learnings_write_and_leaves_no_files(self):
         self.call('install', 'imps')
         state = self.base / 'state'
-        root = state / 't3-plugins/learnings'
+        root = state / 'agents/jobs/learnings'
         receipt = json.loads(self.call('doctor', 'imps').stdout)
         self.assertEqual((receipt['learnings_write']['status'], receipt['learnings_write']['root']),
                          ('absent', str(root)))
@@ -112,7 +112,7 @@ class SetupTest(unittest.TestCase):
             receipt = json.loads(self.call('doctor', 'imps').stdout)
             self.assertTrue(receipt['ok'])
             self.assertEqual(receipt['learnings_write']['status'], 'denied')
-            self.assertIn('t3-plugins setup --grant-learnings', receipt['learnings_write']['reason'])
+            self.assertIn('agents permissions', receipt['learnings_write']['reason'])
             self.assertEqual(list(root.iterdir()), [])
         self.assertFalse((self.home / '.claude').exists())
 
@@ -125,7 +125,7 @@ class SetupTest(unittest.TestCase):
         self.assertEqual(list(self.project.iterdir()), [])
 
     def test_doctor_without_project_is_a_global_check_from_any_directory(self):
-        # The documented first run is `t3-plugins doctor` from $HOME, which contains the
+        # The documented first run is `agents doctor` from $HOME, which contains the
         # default ~/.local/state root; a global check must not call that "inside the project".
         self.call('install', 'imps')
         self.env['XDG_STATE_HOME'] = str(self.project / 'state')
@@ -144,7 +144,7 @@ class SetupTest(unittest.TestCase):
         claude = next(g for g in grants if g['provider'] == 'claudeAgent')
         self.assertEqual(claude['status'], 'proposed')
         self.assertEqual(claude['grant'], {'sandbox': {'filesystem': {'allowWrite': [
-            str(self.home / '.local/state/t3-plugins/learnings')]}}})
+            str(self.home / '.local/state/agents/jobs/learnings')]}}})
         applied = self.call('setup', 'imps', '--grant-learnings')
         grants = [json.loads(line)['learnings_grant'] for line in applied.stdout.splitlines()
                   if 'learnings_grant' in json.loads(line)]
@@ -154,12 +154,12 @@ class SetupTest(unittest.TestCase):
         custom = self.home / 'custom skills'
         second = self.home / 'second skills'
         self.call('setup', 'imps', '--root', str(custom), '--root', str(second))
-        self.assertTrue((second / 't3-imps/SKILL.md').is_file())
+        self.assertTrue((second / 'imps/SKILL.md').is_file())
         self.assertFalse((self.home / '.agents').exists())
-        (custom / 't3-imps/SKILL.md').write_text('operator edit')
+        (custom / 'imps/SKILL.md').write_text('operator edit')
         self.call('setup', 'imps', '--root', str(custom), code=2)
-        self.assertEqual((custom / 't3-imps/SKILL.md').read_text(), 'operator edit')
-        self.assertTrue((custom / 't3-imps/.t3-plugins-skill.json').exists())
+        self.assertEqual((custom / 'imps/SKILL.md').read_text(), 'operator edit')
+        self.assertTrue((custom / 'imps/.agents-skill.json').exists())
 
     def test_setup_rejects_symlink_root_without_touching_target(self):
         target = self.home / 'target'

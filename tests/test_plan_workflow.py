@@ -95,7 +95,8 @@ class PlanWorkflow(unittest.TestCase):
     def test_default_routing_does_not_interpret_prose_as_document_commands(self):
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
         from skills import route, render
-        meta = json.loads((Path(__file__).resolve().parents[1] / 'plugins/plan/plugin.json').read_text())
+        from support import skill_manifest
+        meta = skill_manifest(Path(__file__).resolve().parents[1] / 'plugins/plan/plugin.json')
         for request in ('', 'check whether retries are safe', 'elephant migration', 'list current plans'):
             self.assertEqual(route(meta, request), 'plan')
         adapter = render(meta, Path('entry.md'))

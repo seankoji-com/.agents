@@ -3,7 +3,7 @@
 This appendix lists each changed or removed pre-stage-3 test method. Unchanged
 installer, helper and recipe assertions stay in their original methods. The
 [file-level rationale](imps-gate-migration.md#test-migration) and
-[current evidence test map](https://github.com/seankoji-com/t3-plugins/blob/master/tests/README.md)
+[current evidence test map](https://github.com/seankoji-com/.agents/blob/main/tests/README.md)
 identify the surviving suites. New tests strengthen process storage, snapshots,
 pre-verification binding and submission boundaries.
 

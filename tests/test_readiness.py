@@ -161,8 +161,8 @@ class LabelTest(Base):
 
     def test_repository_required_check_cannot_be_waived(self):
         repo = self.make_repo()
-        (repo / '.t3-plugins').mkdir()
-        (repo / '.t3-plugins' / 'imps.json').write_text(json.dumps({'schema_version': 1, 'policy': {
+        (repo / '.agents').mkdir()
+        (repo / '.agents' / 'imps.json').write_text(json.dumps({'schema_version': 1, 'policy': {
             'checks': [{'name': 'unit', 'argv': [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests']}]}}))
         git(repo, 'add', '-A')
         git(repo, 'commit', '-qm', 'policy')

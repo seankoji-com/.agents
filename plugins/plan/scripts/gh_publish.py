@@ -248,7 +248,7 @@ def cmd_ensure(args) -> int:
     intro = (
         f"Plan record for **{meta.get('title', args.slug)}** (`{args.slug}`), "
         f"output type: **{meta.get('output_type', 'unknown')}**.\n\n"
-        "Produced with plan [`plan <topic>`](https://github.com/seankoji-com/t3-plugins/tree/master/plugins/plan) "
+        "Produced with plan [`plan <topic>`](https://github.com/seankoji-com/.agents/tree/master/plugins/plan) "
         "— steps 1 and 2 of Rensin's three-step process. Each artifact is posted as a comment below as it completes.\n"
     )
 

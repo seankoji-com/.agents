@@ -125,6 +125,20 @@ class LearningsTest(unittest.TestCase):
         self.assertTrue(result['pending_maintenance'])
         self.assertEqual(before, {p: p.read_bytes() for p in self.store.folder.iterdir()})
 
+    def test_pre_198_lessons_load_in_place_and_are_copied_on_first_write(self):
+        self.write('legacy', upstream='seankoji-com/t3-plugins#28')
+        legacy = self.store.root / 't3-plugins/learnings' / self.store.key
+        legacy.parent.mkdir(parents=True)
+        self.store.folder.rename(legacy)
+        before = {p.name: p.read_bytes() for p in legacy.iterdir()}
+        loaded = Store(self.project, 'imps', OLD, self.env).operate()
+        self.assertEqual([e['id'] for e in loaded['data']['entries']], ['legacy'])
+        self.assertFalse(self.store.folder.exists())
+        written = self.write('new')
+        self.assertEqual(sorted(e['id'] for e in written['data']['entries']), ['legacy', 'new'])
+        self.assertEqual(Path(written['path']).parent, self.store.folder)
+        self.assertEqual(before, {p.name: p.read_bytes() for p in legacy.iterdir()})
+
     def test_versioned_format_authorship_and_plugin_isolation(self):
         loaded = self.write()
         self.assertEqual(stat.S_IMODE(Path(loaded['path']).stat().st_mode), 0o600)
@@ -406,7 +420,7 @@ class LearningsTest(unittest.TestCase):
 
     def test_maintenance_fixture_prunes_only_completed_released_issue(self):
         for number, name in enumerate(('completed', 'duplicate', 'rejected', 'reopened', 'unreleased', 'unknown'), 1):
-            self.write(name, 'seankoji-com/t3-plugins#' + str(number))
+            self.write(name, 'seankoji-com/.agents#' + str(number))
         loaded = self.store.operate()
         new = Store(self.project, 'imps', NEW, self.env)
         states = []
@@ -432,11 +446,11 @@ class LearningsTest(unittest.TestCase):
                             for e in result['data']['entries']))
 
     def test_content_install_skips_upstream_without_gh_and_judgement_can_amend(self):
-        loaded = self.write(upstream='seankoji-com/t3-plugins#42')
+        loaded = self.write(upstream='seankoji-com/.agents#42')
         new = Store(self.project, 'imps', CONTENT, self.env)
         with mock.patch('learning_store.subprocess.run', side_effect=AssertionError('no gh')):
             result = new.operate('maintain', {'expected': loaded['revision'], 'states': [
-                {'upstream': 'seankoji-com/t3-plugins#42', 'state': 'closed', 'state_reason': 'completed',
+                {'upstream': 'seankoji-com/.agents#42', 'state': 'closed', 'state_reason': 'completed',
                  'closing_commit': 'd' * 40, 'compare_base': 'd' * 40, 'compare_head': 'b' * 12,
                  'compare_status': 'ahead'}], 'amend': [{'id': 'lesson', 'summary': 'Keep every handle'}]})
         self.assertIn('skipped', result['upstream_check'])
@@ -470,9 +484,9 @@ class LearningsTest(unittest.TestCase):
                 self.assertEqual(self.store.operate('write', {'entry': {'id': 'extra'}})['status'], 'unavailable')
 
     def test_upstream_compare_endpoints_are_bound(self):
-        loaded = self.write(upstream='seankoji-com/t3-plugins#42')
+        loaded = self.write(upstream='seankoji-com/.agents#42')
         new = Store(self.project, 'imps', NEW, self.env)
-        state = {'upstream': 'seankoji-com/t3-plugins#42', 'state': 'closed', 'state_reason': 'completed',
+        state = {'upstream': 'seankoji-com/.agents#42', 'state': 'closed', 'state_reason': 'completed',
                  'closing_commit': 'd' * 40, 'compare_base': 'e' * 40, 'compare_head': 'b' * 12,
                  'compare_status': 'ahead'}
         result = new.operate('maintain', {'expected': loaded['revision'], 'states': [state]})
@@ -525,7 +539,7 @@ class SandboxDenialTest(unittest.TestCase):
         self.project = self.base / 'project'
         self.project.mkdir()
         self.env = dict(os.environ, HOME=str(self.base / 'home'), XDG_STATE_HOME=str(self.base / 'state'))
-        self.subtree = str(self.base / 'state/t3-plugins/learnings')
+        self.subtree = str(self.base / 'state/agents/jobs/learnings')
         self.store = Store(self.project, 'imps', OLD, self.env)
         self.proposal = {'entry': {'id': 'lesson', 'summary': 'Keep task handles',
                                    'failure': 'A lost task handle prevented cancellation'}}
@@ -534,7 +548,7 @@ class SandboxDenialTest(unittest.TestCase):
         self.assertIn(f'the sandbox or filesystem permissions deny {action} {self.subtree}', reason)
         self.assertIn(f'allow writes to {self.subtree} and {self.subtree}/** in the sandbox', reason)
         self.assertIn('sandbox.filesystem.allowWrite', reason)
-        self.assertIn('t3-plugins setup --grant-learnings', reason)
+        self.assertIn('agents permissions', reason)
         self.assertIn('fix the ownership, permissions or read-only mount', reason)
         # Nothing below the learnings root: no identity hash, plugin file or temporary name.
         for private in (self.store.key, 'imps.md', '.learning-', '.probe-', 'Errno'):

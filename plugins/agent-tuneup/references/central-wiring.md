@@ -17,7 +17,7 @@ approval/sandbox protections to make the rows match.
 | Surface | Default target and required evidence |
 | --- | --- |
 | `global-rules` | One maintained global source, native imports or generated shims only where needed. Record precedence and actual loaded layer. |
-| `skills` | Custom skills live in `~/.agents/skills`. Use native shared-root discovery where supported; otherwise the smallest owned adapter. No custom provider-specific skill copies. Preserve local/vendor/plugin content. |
+| `skills` | Canonical bodies live in the `~/.agents` source checkout. Shared discovery or receipt-owned native links expose them; no generated body or default picker YAML. .agents owns discovery; dotfiles owns native settings and frozen unmigrated-host compatibility. Preserve local/vendor content. |
 | `permissions` | Compare intent and access boundaries using each native syntax, profiles, sandbox and approval rules. Sync shared policy without increasing access. File equality is insufficient. |
 | `mcp` | One purpose-based capability catalog; render native names, transport, arguments, endpoints and tool filters. Scope profiles by task/project; keep credentials and host-specific overrides machine-local. Inspect T3-injected tools separately. |
 | `roles` | Portable expertise briefs in `~/.agents/roles`, loaded only when useful. Separate them from T3 worker contracts, review personas and GitHub Apps. Roles grant no tools or orchestration authority. |
@@ -67,11 +67,14 @@ Capability gaps also produce findings. A capability may declare
 
 Skill duplicates are scoped to each provider's effective roots. The shared root
 counts only for providers declaring `reads_shared_skills: true`; other providers
-can retain required aliases. Entry receipts identify `t3-plugins`, `dotfiles`, or
+can retain required aliases. Entry receipts identify `agents`, `dotfiles`, or
 `unmanaged` ownership with `verified`, `modified`, `invalid`, `unsupported`, or
 `unmanaged` status. Both receipt formats check every listed file; malformed receipts
 stay findings. Receipt paths must remain inside the skill directory after resolving
-aliases. Inventory preserves all files and aliases.
+aliases. Canonical source ownership is `agents-source`/`identity-bound`, using the
+protected cutover identity and external discovery receipt for native links. Editable
+bodies are not immutable receipt assets. Legacy t3-plugins receipts stay recognized.
+Inventory preserves all files and aliases; none of these checks proves live loading.
 
 ## Migration preflight and recovery
 

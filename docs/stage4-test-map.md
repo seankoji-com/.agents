@@ -27,11 +27,11 @@ writes good output or that a provider completes a job.
 
 `test_issue28_pass*.py` and `test_jobs_review*.py` hold regressions from successive
 review rounds. The per-assertion ledger, including removed and changed tests, is the
-[compatibility map](https://github.com/seankoji-com/t3-plugins/blob/master/migration/rebuild/compat-map.md).
+[compatibility map](https://github.com/seankoji-com/.agents/blob/main/migration/rebuild/compat-map.md).
 
 Tests cannot cover REQ-LIVE or the live half of REQ-METRICS. Those need the
 container canaries and the 24 starts in the
-[benchmark protocol](https://github.com/seankoji-com/t3-plugins/blob/master/bench/v2/protocol.md),
+[benchmark protocol](https://github.com/seankoji-com/.agents/blob/main/bench/v2/protocol.md),
 recorded separately. Desktop and mobile inspection of changed pages is also a manual
 check. See [measurement limits](compatibility.md#measurement-limits).
 

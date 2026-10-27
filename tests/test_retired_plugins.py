@@ -12,7 +12,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 RETIRED = ('offload-sidecar', 'prompt-builder')
-MARKER = '.t3-plugins-skill.json'
+MARKER = '.agents-skill.json'
 DEFAULT_ROOTS = ('.claude/skills', '.codex/skills', '.config/opencode/skills',
                  '.gemini/config/skills', '.gemini/skills', '.config/muse/skills')
 
@@ -87,7 +87,7 @@ class RetiredAdapters(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in (root / 't3-prompt-builder').iterdir()), ['notes.md'])
             self.assertEqual((root / 't3-prompt-builder/notes.md').read_text(), 'keep me')
             self.assertEqual((root / 'my-skill/SKILL.md').read_text(), 'unrelated')
-            self.assertTrue((root / 't3-imps/SKILL.md').is_file())
+            self.assertTrue((root / 'imps/SKILL.md').is_file())
         by_root = {}
         for receipt in receipts:
             if receipt.get('name') in ('t3-offload-sidecar', 't3-prompt-builder') and 'removed' in receipt:
@@ -128,7 +128,7 @@ class RetiredAdapters(unittest.TestCase):
         self.seed([root])
         receipts = self.call('setup', 'imps', '--root', str(root))
         self.assert_cleanup([root], receipts)
-        self.assertFalse((root / 't3-ape').exists())
+        self.assertFalse((root / 'ape').exists())
         # The retired name is accepted for adapter removal, still by marker only.
         owned_adapter(self.base / 'other root', 'offload-sidecar')
         self.call('skills', 'uninstall', 'offload-sidecar', '--root', str(self.base / 'other root'))
@@ -162,8 +162,8 @@ class RetiredAdapters(unittest.TestCase):
         (corrupt / MARKER).write_text('{not json')
         before_root, before_outside = tree(root), tree(outside)
         receipts = self.call('setup', 'imps', '--root', str(root))
-        adapter = {'t3-imps', 't3-imps/SKILL.md', 't3-imps/' + MARKER, 't3-imps/agents', 't3-imps/agents/openai.yaml'}
-        self.assertLessEqual({k for k in tree(root) if k.split('/')[0] == 't3-imps'}, adapter)
+        adapter = {'imps', 'imps/SKILL.md', 'imps/' + MARKER, 'imps/agents', 'imps/agents/openai.yaml'}
+        self.assertLessEqual({k for k in tree(root) if k.split('/')[0] == 'imps'}, adapter)
         after = {k: v for k, v in tree(root).items() if k not in adapter}
         self.assertEqual(after, before_root)
         self.assertEqual(tree(outside), before_outside)
@@ -184,7 +184,7 @@ class RetiredAdapters(unittest.TestCase):
         (renamed / MARKER).write_text(json.dumps(receipt))
         before = tree(root)
         self.call('setup', 'imps', '--root', str(root))
-        after = {k: v for k, v in tree(root).items() if not k.startswith('t3-imps')}
+        after = {k: v for k, v in tree(root).items() if not k.startswith('imps')}
         self.assertEqual(after, before)
         self.assertEqual(secret.read_text(), 'private')
         shutil.rmtree(renamed)
@@ -265,7 +265,7 @@ class RetiredUninstall(unittest.TestCase):
         self.assertTrue((version_dir / 'entry.md').exists())
         missing = self.call('uninstall', 'prompt-builder', code=2)
         self.assertIn('nothing of it is installed', missing.stderr)
-        self.assertNotIn('t3-plugins uninstall prompt-builder', missing.stderr)
+        self.assertNotIn('agents uninstall prompt-builder', missing.stderr)
 
     def test_other_commands_reject_retired_names(self):
         self.old_snapshot('offload-sidecar')

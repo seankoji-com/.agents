@@ -31,11 +31,11 @@ providers and were fixed afterwards, with regression tests:
 1. Review briefs showed a `changed_files` example, and a Codex reviewer listed the files it had read there. The core rejected the claim and blocked two Antigravity repeats instead of accepting a false result. The original dispatcher was repaired to require an empty list in read-only results. The current gate no longer uses that result parser.
 2. A Claude child cited an evidence path relative to its own scratch directory. The original dispatcher added absolute-path requirements and a correction round. The current gate validates submitted evidence paths directly.
 
-Both are recorded in [the full ledger](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/compatibility.md),
+Both are recorded in [the full ledger](https://github.com/seankoji-com/.agents/blob/main/conformance/compatibility.md),
 with per-repeat transcripts under `conformance/results/`.
 
 ## Record a sighting
 
-Follow the [live conformance procedure](https://github.com/seankoji-com/t3-plugins/blob/master/conformance/procedure.md).
+Follow the [live conformance procedure](https://github.com/seankoji-com/.agents/blob/main/conformance/procedure.md).
 Include the plugin version, T3 build, provider instance, exact model ID, operating
 system, the case, and a redacted transcript. Failed attempts belong in the ledger too.

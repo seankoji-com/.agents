@@ -38,7 +38,7 @@ PRs and harvest publication require authorization for their destination and cont
 
 imps stores contracts, logs, copied evidence and reports under its state root.
 Jobs store plans, briefs, worker results, receipts and the owner decisions they quote
-under `~/.local/state/t3-plugins/jobs`, with private permissions.
+under `~/.local/state/agents/jobs`, with private permissions.
 Planning writes discovery and handoff files in the project. ape writes clones and
 reports in its research workspace. Optional project lessons live outside the checkout.
 These may contain project material: inspect and redact artifacts before sharing.
@@ -55,4 +55,4 @@ merge are distinct actions; make the allowed scope explicit in your request.
 The evidence gate checks submitted artifacts and revision bindings. It cannot prove
 that every model followed every instruction. [Compatibility](compatibility.md)
 records what has and has not been observed. Report vulnerabilities through the
-[private security advisory form](https://github.com/seankoji-com/t3-plugins/security/advisories/new).
+[private security advisory form](https://github.com/seankoji-com/.agents/security/advisories/new).

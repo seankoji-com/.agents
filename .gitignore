@@ -6,3 +6,10 @@ site/
 .coverage
 htmlcov/
 .repos/
+# Exact legacy/vendor residues inventoried for issue #198; no new runtime state.
+/agents/t3-plugins/
+/.t3-plugins-registry.lock
+/.dotfiles-wiring.json
+/mcp.json
+/plugins/marketplace.json
+/skills/synced/

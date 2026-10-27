@@ -15,7 +15,7 @@
       "name": "Docs preview",
       "command": "python3 -m venv .venv-docs && .venv-docs/bin/python -m pip install -q -r requirements-docs.txt && .venv-docs/bin/mkdocs serve -a 127.0.0.1:8000",
       "icon": "play",
-      "previewUrl": "http://127.0.0.1:8000/t3-plugins/",
+      "previewUrl": "http://127.0.0.1:8000/.agents/",
       "autoOpenPreview": true
     }
   ]

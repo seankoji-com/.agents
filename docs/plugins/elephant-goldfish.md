@@ -1,6 +1,6 @@
 # elephant-goldfish (deprecated)
 
-Use [`$t3-plan <topic>`](plan.md) for new planning work. The old package is excluded
+Use [`$plan <topic>`](plan.md) for new planning work. The old package is excluded
 from default installation and the workflow catalog. Setup removes only its owned,
 unmodified skill adapters; edited adapters, installed snapshots, documents and
 pinned job state remain intact. An explicit old-package request reports deprecation
@@ -96,7 +96,7 @@ wrong, so the two verdicts stay separate.
 ## Operations
 
 `doctor`, `thinking`, `elephant`, `check`. The
-[entry file](https://github.com/seankoji-com/t3-plugins/blob/master/plugins/elephant-goldfish/entry.md)
+[entry file](https://github.com/seankoji-com/.agents/blob/main/plugins/elephant-goldfish/entry.md)
 names the file the agent loads for each one.
 
 ## Review and drafts

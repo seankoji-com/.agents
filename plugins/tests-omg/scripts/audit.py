@@ -443,7 +443,10 @@ def save(root, audit, locator):
 def doctor():
     required = ['plugin.json', 'entry.md', 'scripts/audit.py', 'scripts/analysis.py', 'scripts/render.py',
                 'playbooks/audit.md', 'references/evidence.md', 'templates/evidence.example.json']
-    missing = [name for name in required if not (PACKAGE / name).is_file()]
+    # A source checkout keeps the canonical body at skills/<name>/SKILL.md; packages map it to entry.md.
+    canonical_entry = PACKAGE.parents[1] / 'skills' / PACKAGE.name / 'SKILL.md'
+    missing = [name for name in required if not (PACKAGE / name).is_file()
+               and not (name == 'entry.md' and canonical_entry.is_file())]
     if not shutil.which('git'):
         missing.append('Git executable unavailable')
     if importlib.util.find_spec('fcntl') is None:
@@ -470,7 +473,7 @@ def doctor():
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--state-root', default=str(Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state') / 't3-plugins/tests-omg'))
+    parser.add_argument('--state-root', default=str(Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state') / 'agents/tests-omg'))
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('doctor')
     for op in ('status', 'report'):

@@ -33,11 +33,11 @@ def screen(text, key, label, docs_domain=None):
         parsed = urlsplit(url)
         if parsed.hostname not in allowed:
             reasons.add('hostname')
-        if parsed.hostname == 'github.com' and parsed.path.rstrip('/').removesuffix('.git') != '/seankoji-com/t3-plugins':
+        if parsed.hostname == 'github.com' and parsed.path.rstrip('/').removesuffix('.git') != '/seankoji-com/.agents':
             reasons.add('git remote')
     # Repo slugs and remote URLs. Only the public upstream slug may be shared.
     for slug in re.findall(r'(?<![\w/.-])([\w.-]+/[\w.-]+)(?:\.git)?\b', text):
-        if slug != 'seankoji-com/t3-plugins':
+        if slug != 'seankoji-com/.agents':
             reasons.add('repository slug or relative path')
     for host in re.findall(r'(?<![\w.-])(?:[a-zA-Z0-9-]+\.)+[a-zA-Z0-9-]+', text):
         if host.lower() not in allowed:
@@ -126,7 +126,7 @@ def apply_receipts(entries, proposal):
             raise Unavailable('receipt has an unapproved or duplicate destination')
         receipt_pairs.add(pair)
         url = urlsplit(receipt['url'])
-        expected = ('seankoji-com/t3-plugins/issues' if pair[1] == 'upstream'
+        expected = ('seankoji-com/.agents/issues' if pair[1] == 'upstream'
                     else draft.get('project_slug', '') + '/pull')
         if (url.scheme != 'https' or url.netloc != 'github.com' or url.query or url.fragment
                 or not re.fullmatch('/' + re.escape(expected) + r'/[1-9]\d*', url.path)):

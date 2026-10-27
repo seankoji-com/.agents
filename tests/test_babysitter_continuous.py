@@ -21,6 +21,8 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from support import skill_manifest, source_entry
+
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins' / 'babysitter'
 HELPER = PLUGIN / 'scripts' / 'continuous.py'
@@ -65,7 +67,7 @@ class ContinuousCase(unittest.TestCase):
         self.base = Path(self.tmp.name)
         self.state = self.base / 'state.json'
         self.request = self.base / 'request.txt'
-        self.request.write_text('/t3-babysitter org fixture owner authorised continuous coverage\n')
+        self.request.write_text('/babysitter org fixture owner authorised continuous coverage\n')
 
     def cli(self, command, *args, ok=True, helper=HELPER, payload=None, state=None):
         argv = [sys.executable, str(helper), command, '--state', str(state or self.state), *args]
@@ -438,7 +440,7 @@ class CancelResumeTest(ContinuousCase):
         self.assertIn('upgrade receipt', refused.stderr)
         # Cancellation can be resumed independently when the package is unchanged.
         state['policy_version'] = 'continuous-1'
-        state['package']['pinned_version'] = json.loads((PLUGIN / 'plugin.json').read_text())['version']
+        state['package']['pinned_version'] = skill_manifest(PLUGIN / 'plugin.json')['version']
         self.state.write_text(json.dumps(state))
         resumed_state = self.cli('resume', '--now', '2026-10-22T14:15:00Z', '--resume-cancelled')
         self.assertEqual(resumed_state['status'], 'resumed')
@@ -1460,7 +1462,7 @@ class InstalledPackageTest(unittest.TestCase):
             identity = json.loads(version.stdout)
             self.assertEqual(identity['policy_version'], 'continuous-1')
             self.assertEqual(identity['version'],
-                             json.loads((PLUGIN / 'plugin.json').read_text())['version'])
+                             skill_manifest(PLUGIN / 'plugin.json')['version'])
             self.assertEqual(identity['installed_version'], version_dir.name)
             self.assertEqual(identity['installed_version'],
                              json.loads((version_dir / 'install-manifest.json').read_text())['version'])
@@ -1560,7 +1562,7 @@ class InstalledPackageTest(unittest.TestCase):
                              json.dumps({'name': 'babysitter', 'version': '1.2.2'}))
 
     def test_manifest_declares_the_continuous_policy(self):
-        meta = json.loads((PLUGIN / 'plugin.json').read_text())
+        meta = skill_manifest(PLUGIN / 'plugin.json')
         self.assertRegex(meta['version'].split('+', 1)[0], r'^\d+\.\d+\.\d+$')
         # The continuous policy survives ordinary package version increments.
         self.assertGreaterEqual(tuple(map(int, meta['version'].split('+', 1)[0].split('.'))),
@@ -1572,8 +1574,8 @@ class InstalledPackageTest(unittest.TestCase):
         self.assertEqual(continuous['state_helper'], 'scripts/continuous.py')
         self.assertEqual(continuous['sweep_adapter'], 'scripts/continuous_sweep.py')
         self.assertEqual(continuous['max_repair_attempts'], 3)
-        for rel in ('entry.md', 'playbooks/maintain.md', 'references/scope.md'):
-            self.assertIn('continuous', (PLUGIN / rel).read_text().lower())
+        for path in (source_entry(PLUGIN), PLUGIN / 'playbooks/maintain.md', PLUGIN / 'references/scope.md'):
+            self.assertIn('continuous', path.read_text().lower())
 
 
 if __name__ == '__main__':
