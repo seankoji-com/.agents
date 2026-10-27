@@ -37,15 +37,24 @@ class PushPolicyTest(unittest.TestCase):
                                             env=run_env, capture_output=True, text=True, timeout=5)
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertIn(f'nothing to remove at {root}/worktrees/', result.stderr)
-            # A pre-#198 cache keeps serving until it is moved; a current one wins.
+            # This repository's pre-#198 cache keeps serving, even after other babysitter
+            # state (such as org-scan's lock directory) creates the current parent.
             legacy = base / 'home/.local/state/t3-plugins/babysitter'
-            legacy.mkdir(parents=True)
-            for current, expected in ((False, legacy), (True, base / 'home/.local/state/agents/jobs/babysitter')):
-                if current:
-                    expected.mkdir(parents=True)
-                result = subprocess.run(['bash', str(SCRIPT), '--repo', 'owner/repo', '--pr', '1', '--remove'],
-                                        env=env, capture_output=True, text=True, timeout=5)
-                self.assertIn(f'nothing to remove at {expected}/worktrees/', result.stderr)
+            current = base / 'home/.local/state/agents/jobs/babysitter'
+            (legacy / 'worktrees/owner__repo__pr-1').mkdir(parents=True)
+            (current / 'org-scan').mkdir(parents=True)
+
+            def selected(repo='owner/repo'):
+                return subprocess.run(['bash', str(SCRIPT), '--repo', repo, '--pr', '1', '--remove'],
+                                      env=env, capture_output=True, text=True, timeout=5)
+            self.assertIn(f'{legacy}/worktrees/owner__repo__pr-1', selected().stderr)
+            # Repositories with no pre-#198 cache use the current location.
+            self.assertIn(f'nothing to remove at {current}/worktrees/', selected('owner/other').stderr)
+            # Both locations holding this repository is refused, not silently picked.
+            (current / 'repos/owner__repo').mkdir(parents=True)
+            refused = selected()
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertIn('both the pre-#198 and current locations', refused.stderr)
 
     def test_ref_syntax_in_branch_is_refused_before_any_clone(self):
         with tempfile.TemporaryDirectory() as directory:

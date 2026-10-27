@@ -7,8 +7,17 @@ import re
 import shlex
 import subprocess
 import sys
+import tempfile
 
 from .io import atomic, canonical, digest, load, no_links, read, regular_files, relative, require, run_verified, source_lock, write_json
+
+# Isolated (-I: no inherited PYTHONPATH, user site or script-directory import path);
+# only the verified retained scripts directory is added, as pinned forwarding does.
+RUNPY = 'import sys,runpy;sys.path.insert(0,sys.argv.pop(1));sys.argv[0]=sys.argv.pop(1);runpy.run_path(sys.argv[0],run_name="__main__")'
+
+
+def isolated_catalog(root, *arguments):
+    return [str(Path(sys.executable).resolve()),'-I','-B','-c',RUNPY,str(root/'scripts'),str(root/'scripts/catalog.py'),*arguments]
 
 
 def classify(file):
@@ -182,7 +191,9 @@ def install_bridge(paths,catalog_root):
     require(regular_files(target) ==
             {row['path'] for row in rows} | {'runtime.json'}, 'unexpected retained legacy executable inputs')
     # Execute a nonmutating catalog parse through the retained interpreter.
-    checked = subprocess.run([sys.executable,'-B',str(target/'scripts/catalog.py'),'--help'],capture_output=True,timeout=20)
+    with tempfile.TemporaryDirectory(prefix='agents-pycache-') as cache:
+        command = isolated_catalog(target,'--help')
+        checked = subprocess.run([command[0],'-X','pycache_prefix='+cache,*command[1:]],capture_output=True,timeout=20)
     require(checked.returncode == 0, 'retained legacy catalog/interpreter is not runnable')
     launcher = paths.home/'.local/bin/t3-plugins'
     control = paths.control/'legacy-runtime.json'
@@ -237,7 +248,7 @@ def dispatch(paths,argv):
     dependencies = {dependency['plugin'] for dependency in job.get('dependencies',[])}
     if action == 'path':
         require(len(arguments) == 4 and arguments[3] in dependencies, 'path must name an inventoried dependency')
-        command = [str(Path(sys.executable).resolve()),'-B',str(root/'scripts/catalog.py'),*arguments]
+        command = isolated_catalog(root,*arguments)
     elif action in ('selection','agreement','planning-review'):
         helpers = {'selection':'model_selection_cli.py','agreement':'execution_agreement_cli.py',
                    'planning-review':'planning_review_cli.py'}
@@ -291,7 +302,6 @@ def dispatch(paths,argv):
             current = prefix/name/'current'
             require(current.is_symlink() and current.resolve() == Path(pin['package_dir']).resolve(),
                     'retained current version differs from this job\'s pin; use agents list, which reports every version')
-        command = [sys.executable,'-B',str(root/'scripts/catalog.py'),'--prefix',str(prefix),
-                   '--agents-root',receipt['agents_root'],*arguments[2:]]
+        command = isolated_catalog(root,'--prefix',str(prefix),'--agents-root',receipt['agents_root'],*arguments[2:])
     env = {k:v for k,v in os.environ.items() if k not in ('PYTHONHOME','PYTHONPATH')}
     return run_verified(command,env)

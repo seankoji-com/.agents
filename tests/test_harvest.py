@@ -118,6 +118,17 @@ class HarvestTest(unittest.TestCase):
         self.assertEqual(result['data']['entries'], [])
         issue.assert_called_once()
 
+    def test_pre_198_upstream_receipt_still_reconciles(self):
+        prepared = prepare(self.loaded, self.drafts[:1], project_slug='public/example')
+        lookalike = self.proposal(prepared, [dict(entry_id='lesson', destination='upstream',
+                                                  url='https://github.com/seankoji-com/t3-plugins-fork/issues/42')])
+        self.assertEqual(self.store.operate('harvest', lookalike)['status'], 'unavailable')
+        old = 'https://github.com/seankoji-com/t3-plugins/issues/42'
+        result = self.store.operate('harvest', self.proposal(prepared, [
+            dict(entry_id='lesson', destination='upstream', url=old)]))
+        self.assertEqual(result['status'], 'available', result)
+        self.assertEqual(result['data']['entries'], [])  # its only approved destination is published
+
     def test_changed_source_and_unapproved_destinations_cannot_delete_entries(self):
         prepared = prepare(self.loaded, self.drafts, project_slug='public/example')
         proposal = self.proposal(prepared, [dict(entry_id='lesson', destination='upstream',

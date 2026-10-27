@@ -148,6 +148,24 @@ class LegacyTest(CoreTestCase):
                     '--input',str(request)],capture_output=True,text=True)
                 self.assertNotIn('UNRECEIPTED_BYTECODE_LOADED',bridged.stdout+bridged.stderr)
 
+    def test_bridge_install_and_catalog_commands_ignore_inherited_python_paths(self):
+        outside = self.tmp/'inherited'
+        outside.mkdir()
+        marker = self.tmp/'inherited-module-ran'
+        (outside/'subprocess.py').write_text('import pathlib\npathlib.Path('+repr(str(marker))+').write_text("ran")\n')
+        self.inventory()
+        with patch.dict(os.environ,{'PYTHONPATH':str(outside)}):
+            installed = legacy.install_bridge(self.paths,self.brew)
+            resolved = subprocess.run([installed['bridge'],'--job',str(self.job),'path','imps'],
+                capture_output=True,text=True)
+        self.assertEqual(resolved.returncode,0,resolved.stdout+resolved.stderr)
+        self.assertFalse(marker.exists())
+        # A non-isolated run of the same catalog does pick the module up: the fixture is live.
+        catalog = Path(installed['retained_runtime'])/'scripts/catalog.py'
+        subprocess.run([sys.executable,'-B',str(catalog),'--help'],capture_output=True,
+            env={**os.environ,'PYTHONPATH':str(outside)})
+        self.assertTrue(marker.exists())
+
     def test_doctor_refuses_a_current_version_other_than_the_pin(self):
         self.inventory()
         legacy.install_bridge(self.paths,self.brew)

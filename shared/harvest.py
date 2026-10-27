@@ -126,10 +126,11 @@ def apply_receipts(entries, proposal):
             raise Unavailable('receipt has an unapproved or duplicate destination')
         receipt_pairs.add(pair)
         url = urlsplit(receipt['url'])
-        expected = ('seankoji-com/.agents/issues' if pair[1] == 'upstream'
-                    else draft.get('project_slug', '') + '/pull')
+        # Upstream receipts recorded before the #198 rename name seankoji-com/t3-plugins.
+        expected = (['seankoji-com/.agents/issues', 'seankoji-com/t3-plugins/issues'] if pair[1] == 'upstream'
+                    else [draft.get('project_slug', '') + '/pull'])
         if (url.scheme != 'https' or url.netloc != 'github.com' or url.query or url.fragment
-                or not re.fullmatch('/' + re.escape(expected) + r'/[1-9]\d*', url.path)):
+                or not any(re.fullmatch('/' + re.escape(e) + r'/[1-9]\d*', url.path) for e in expected)):
             raise Unavailable('receipt URL does not match its approved destination')
     for entry in entries:
         entry_id = entry['id']

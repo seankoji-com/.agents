@@ -54,17 +54,13 @@ PRESERVE=0
 # An absolute XDG_STATE_HOME wins, as in the printed `agents permissions` grants;
 # the XDG spec ignores a relative value.
 ROOT="${BABYSITTER_HOME:-}"
+DEFAULT_ROOT=0
+[ -n "$ROOT" ] || DEFAULT_ROOT=1
 STATE_HOME="${XDG_STATE_HOME:-}"
 if [ -z "$ROOT" ] && [ "$STATE_HOME" != "${STATE_HOME#/}" ]; then
   ROOT="${STATE_HOME}/agents/jobs/babysitter"
 elif [ -z "$ROOT" ] && [ -n "${HOME:-}" ]; then
   ROOT="${HOME}/.local/state/agents/jobs/babysitter"
-fi
-# Existing PR worktrees (possibly holding uncommitted work) stay in use: the pre-#198
-# cache (always under HOME) keeps serving until it is moved, so no PR gets a second one.
-if [ -z "${BABYSITTER_HOME:-}" ] && [ -n "$ROOT" ] && [ ! -e "$ROOT" ] && [ -n "${HOME:-}" ] &&
-  [ -d "${HOME}/.local/state/t3-plugins/babysitter" ]; then
-  ROOT="${HOME}/.local/state/t3-plugins/babysitter"
 fi
 
 die() {
@@ -131,6 +127,7 @@ while [ $# -gt 0 ]; do
   --root)
     [ $# -ge 2 ] || die "--root requires a value"
     ROOT="$2"
+    DEFAULT_ROOT=0
     shift 2
     ;;
   --remove)
@@ -183,6 +180,19 @@ for component in "$OWNER" "$NAME"; do
   esac
 done
 SLUG="${OWNER}__${NAME}"
+# This repository's pre-#198 clone and PR worktrees (possibly holding uncommitted
+# work) stay in use: they were always under HOME. Decide by this repository's own
+# cache, never by the shared parent other babysitter state may have created.
+holds_repo() { [ -e "$1/repos/${SLUG}" ] || [ -e "$1/worktrees/${SLUG}__pr-${PR_NUMBER}" ]; }
+if [ "$DEFAULT_ROOT" = "1" ] && [ -n "${HOME:-}" ]; then
+  LEGACY_ROOT="${HOME}/.local/state/t3-plugins/babysitter"
+  if [ "$LEGACY_ROOT" != "$ROOT" ] && holds_repo "$LEGACY_ROOT"; then
+    if holds_repo "$ROOT"; then
+      die "${REPO} has workspaces at both the pre-#198 and current locations; reconcile them first"
+    fi
+    ROOT="$LEGACY_ROOT"
+  fi
+fi
 CLONE="${ROOT}/repos/${SLUG}"
 WORKTREE="${ROOT}/worktrees/${SLUG}__pr-${PR_NUMBER}"
 
