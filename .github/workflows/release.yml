@@ -45,6 +45,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Fetch pinned retention evidence
+        run: git fetch --no-tags --depth=1 origin 1bc352ec059a80799bc9881dcb2f222d910fffe3 32bf69d9d5a2db7cb87be3e196110ead32214835 4fc614b363a147c4f3220176607156be52941fa9
+
       - name: Run test shard
         env:
           PYTHONDONTWRITEBYTECODE: '1'
