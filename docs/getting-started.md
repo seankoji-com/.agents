@@ -88,6 +88,10 @@ Save T3's live capabilities response and run routing commands through an explici
 source pin, as the selected workflow instructs. The manifest owns operation routes;
 skill frontmatter owns names, descriptions and portable metadata. Frozen model and
 agreement records remain bound to the job. No model broker or scheduler is added.
+OpenCode defaults to `full-access` with `"requireRuntimeMode": true`, because its
+children otherwise stall on permission prompts. An explicit lower OpenCode mode is
+accepted when T3 advertises it and the parent permits it. This does not change the
+defaults or override a configured required mode.
 
 ## Homebrew release channel
 

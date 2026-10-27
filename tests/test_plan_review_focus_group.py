@@ -72,7 +72,7 @@ class FocusPlanningContract:
         dispatched=models.dispatch(selected,role='participant-01')
         self.assertEqual(dispatched['target']['runtimeMode'],'full-access')
         bad=deepcopy(selected);bad['work']['participant-01'].pop('runtimeMode')
-        with self.assertRaisesRegex(ValueError,'explicit full-access'):approved_selection(bad)
+        with self.assertRaisesRegex(ValueError,'explicit runtime mode'):approved_selection(bad)
 
     def test_explicit_runtime_mode_binds_cell_job_brief_recovery_report_and_revision(self):
         draft=deepcopy(self.h.draft());draft['personas']=draft['personas'][:1]

@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 from shared import model_selection as models
 from shared import planning_review as planning
 from tests.upfront_fixtures import approved_selection, agree
-from tests.model_selection_fixtures import selection_input, canonical_selection_input, answer
+from tests.model_selection_fixtures import selection_input, canonical_selection_input, opencode_selection_input, answer
 from tests.test_rebuild_installed import Sandbox
 
 
@@ -23,6 +23,20 @@ class InstalledSelectionTests(unittest.TestCase):
             package, _ = box.install('imps')
             relocated = box.base / 'relocated-imps'
             shutil.copytree(package, relocated)
+            # Reuse this real installed artifact for the runtime contract as well.
+            helper = relocated / 'shared/model_selection_cli.py'
+            runtime = opencode_selection_input()
+            frozen = box.run([sys.executable, helper, 'freeze', '--input', box.payload(runtime)])
+            frozen_record = json.loads(frozen.stdout)
+            dispatched = box.run([sys.executable, helper, 'dispatch', '--input', box.payload({
+                'record': frozen_record, 'role': 'reviewer', 'slot_id': 'review',
+                'expected': frozen_record['selection_sha256'],
+            })])
+            self.assertEqual(json.loads(dispatched.stdout)['target'], runtime['review_panel'][0]['target'])
+            runtime['review_panel'][0]['target']['runtimeMode'] = 'full-access'
+            rejected = box.run([sys.executable, helper, 'freeze', '--input', box.payload(runtime)], check=False)
+            self.assertEqual(rejected.returncode, 2, rejected.stderr)
+            self.assertIn('runtime mode exceeds parent', rejected.stderr)
             data = canonical_selection_input()
             work = data['work']['workhorse']
             data['routing'] = {'roles': {'workhorse': [{**work, 'lineage': 'openai'}],
