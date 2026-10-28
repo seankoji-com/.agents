@@ -349,9 +349,20 @@ def protect_policy(adapter, old, new):
         for name in new.get('profiles', {}).keys() - old.get('profiles', {}).keys():
             protect_policy('codex', {}, new['profiles'][name])
     elif adapter == 'opencode':
+        for data in (old, new):
+            legacy = data.get('permission')
+            if isinstance(legacy, dict) and {'bash', 'shell'} <= set(legacy):
+                raise ValueError('unsupported_permissions')
+        before_rules = [r for r, _ in audit.opencode_rules(old)]
+        after_rules = [r for r, _ in audit.opencode_rules(new)]
+        if ('permissions' not in old and 'permissions' not in new and
+                any(r['effect'] in ('ask', 'deny') for r in before_rules) and
+                any(r['effect'] == 'allow' and r not in before_rules for r in after_rules)):
+            # A guard in one legacy action also protects other action subtrees.
+            # Broad-risk counts cannot detect changed narrow allow identities.
+            raise ValueError('protective_setting_weakened')
         if 'permissions' in old or 'permissions' in new:
-            before = [r for r, _ in audit.opencode_rules(old)]
-            after = [r for r, _ in audit.opencode_rules(new)]
+            before, after = before_rules, after_rules
             # Without proving arbitrary glob equivalence, preserve every rule
             # around a guard. Only in-place tightening of allows is provable.
             if any(r['effect'] in ('ask', 'deny') for r in before) and before != after:

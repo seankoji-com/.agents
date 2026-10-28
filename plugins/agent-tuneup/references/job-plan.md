@@ -64,7 +64,9 @@ New report recipes put this coordinator-authored value in
 
 Both stages use audit criteria with `findings_allowed` exactly `true` and no changes.
 The worker stage adds `validator_contract.report_stage: "research"`; the final
-direct stage adds `report_stage: "integrated"` and depends on every research stage.
+direct stage adds `report_stage: "integrated"` and depends on every research and
+proposal stage. Admission identifies proposals by the `proposal` stage ID or
+`config-verifier` slots, including renamed verifier stages.
 Each observation repeats `report_stage`. Reports follow the declared researcher
 slot order. Only non-review `config-researcher` slots with their own worker-evidence
 subtree may produce them. The final contract lists every report in research-stage
@@ -137,6 +139,10 @@ producing `adopter_output` planning review, even with zero findings. Include ori
 target artifacts in that review's `evidence_paths`; every required review pass
 must list those paths in its actual `inspected_paths`. It reviews report quality, not
 whether the target is defect-free. Adverse or incomplete quality review refuses.
+For a proposal, also include its exact accepted published observation in the final
+review's evidence and every pass's inspected paths. The pinned job contract binds
+the dependency and its acceptance; final report input hashes bind the observation's
+path, bytes and SHA-256. Unaccepted or altered proposal observations refuse.
 Legacy contracts retain generic adverse behavior. Apply and config-verifier gates
 remain separate and cannot use this target-report contract.
 Each proposal with `config-verifier` slots requires its own producing

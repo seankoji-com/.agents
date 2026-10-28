@@ -318,7 +318,8 @@ def ralph_admission(data):
 
 
 def review_existing_tuneup_report(package,manifest,env,state_root,job_id,data,base, *, adverse=False,
-                                 target_evidence=True, target_inspected=True, review_name=None):
+                                 target_evidence=True, target_inspected=True, review_name=None,
+                                 proposal_evidence=True):
     """Old synthesis fixture now completes the real shared planning contract."""
     from tests.imps_plan_review_fixtures import legacy_box
     from core.jobs.store import canonical
@@ -344,6 +345,11 @@ def review_existing_tuneup_report(package,manifest,env,state_root,job_id,data,ba
         'requirements':f.requirements,'load_bearing_decisions':[],'repository_root':str(f.project),'evidence_paths':[]}
     if data.get('target_report') and target_evidence:
         f.inputs['evidence_paths'] = [str(job_file.parent / r['path']) for r in data['target_report']['reports']]
+    if data.get('target_report') and data.get('report_stage') == 'integrated' and proposal_evidence:
+        verifier_stages = {t['stage_id'] for t in job['tasks']
+                           if t['worker_id'] == 'agent-tuneup/config-verifier'}
+        f.inputs['evidence_paths'].extend(s['observation_ref']['path'] for s in job['stages']
+                                         if s['id'] == 'proposal' or s['id'] in verifier_stages)
     def assessment():
         target_paths = {str(job_file.parent / r['path']) for r in data.get('target_report', {}).get('reports', [])}
         inspected = [p for p in f.snapshot['declared_paths'] if target_inspected or p not in target_paths]

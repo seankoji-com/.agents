@@ -400,6 +400,40 @@ class AlignmentTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'protective_setting_weakened'):
                     align.protect_policy('opencode', before, changed)
 
+        # Legacy guards cover the whole ordered policy, including a separate
+        # action's narrow allow subtree that broad-risk counts cannot see.
+        for effect in ('ask', 'deny'):
+            before = {'permission': {'bash': {'rm*': effect}, 'read': {'old*': 'allow'}}}
+            for after in (
+                    {'permission': {'bash': {'rm*': effect, 'git*': 'allow'}, 'read': {'old*': 'allow'}}},
+                    {'permission': {'bash': {'rm*': effect}, 'read': {'new*': 'allow'}}},
+                    {'permission': {'bash': {'rm*': effect}, 'read': {'old*': 'allow', 'new*': 'allow'}}}):
+                with self.subTest(global_guard=effect, after=after):
+                    self.assertFalse(align.risk_locations('opencode', after) -
+                                     align.risk_locations('opencode', before))
+                    with self.assertRaisesRegex(ValueError, 'protective_setting_weakened'):
+                        self.proposal('opencode', json.dumps(before), json.dumps(after),
+                                      [align.pointer(p) for p in align.changed_paths(before, after, adapter='opencode')])
+            align.protect_policy('opencode', before, before)
+            tightened = {'permission': {'bash': {'rm*': 'deny'}, 'read': {'old*': 'ask'}}}
+            align.protect_policy('opencode', before, tightened)
+
+        # Normalization must not let an earlier alias supply the identity for
+        # a fresh allow after a wildcard guard. Mixed spellings are unverified.
+        mixed = {'permission': {'shell': {'git*': 'allow'}, '*': 'ask', 'bash': {'x': 'allow'}}}
+        added = {'permission': {'shell': {'git*': 'allow'}, '*': 'ask',
+                                'bash': {'x': 'allow', 'git*': 'allow'}}}
+        moved = {'permission': {'shell': {}, '*': 'ask', 'bash': {'x': 'allow', 'git*': 'allow'}}}
+        single = {'permission': {'*': 'ask', 'bash': {'x': 'allow'}}}
+        for before, after in ((mixed, added), (mixed, moved), (single, added)):
+            with self.subTest(alias_before=before, alias_after=after):
+                with self.assertRaisesRegex(ValueError, 'unsupported_permissions'):
+                    self.proposal('opencode', json.dumps(before), json.dumps(after),
+                                  [align.pointer(p) for p in align.changed_paths(before, after, adapter='opencode')])
+        for key in ('bash', 'shell'):
+            align.protect_policy('opencode', {'permission': {key: {'rm*': 'ask'}}},
+                                 {'permission': {key: {'rm*': 'deny'}}})
+
     def test_native_plugins_inventory_shapes_and_change_roots(self):
         data = {'plugins': ['fixture-plugin@1.0', {'package': '@fixture/plugin', 'options': {'strict': True}}]}
         parsed = align.parse('opencode', json.dumps(data).encode())

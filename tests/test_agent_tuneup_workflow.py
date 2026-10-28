@@ -603,9 +603,17 @@ class SyntheticJobTest(unittest.TestCase):
     def test_target_report_successor_does_not_waive_proposal_review(self):
         job, report = self.report_job('proposal-before-report')
         job['stages'].insert(1, self.stage('proposal', 'R-PROPOSAL', AUDIT_CRITERIA, depends=['semantics']))
-        job['stages'][-1]['depends_on'].append('proposal')
         job['requirements']['R-PROPOSAL'] = 'Review the candidate conclusions independently'
         job['tasks'].append(self.slot('verify', 'proposal', WORKERS[1], VERIFY_TARGET))
+        for name in ('proposal', 'candidate-check'):
+            omitted = json.loads(json.dumps(job))
+            omitted['stages'][1]['id'] = name
+            omitted['tasks'][1]['stage_id'] = name
+            refused = self.inst.job('create', omitted['job_id'], omitted, check=False,
+                prefix=self.inst.prefix, agents_root=self.inst.agents, config=self.base / 'config/workers.json')
+            self.assertIsInstance(refused, subprocess.CompletedProcess)
+            self.assert_refused(refused, 'final integration must depend on every proposal stage')
+        job['stages'][-1]['depends_on'].append('proposal')
         caller = self.create(job)
         self.run_worker(job['job_id'], caller, 'research', target_findings=report['findings'])
         observed = self.publish(job['job_id'], caller, 'semantics', report)
@@ -622,6 +630,14 @@ class SyntheticJobTest(unittest.TestCase):
         observed = self.publish(job['job_id'], caller, 'proposal', proposal)
         accepted = self.accept(job['job_id'], caller, 'proposal', observed)
         self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+        final_data = {**report, 'report_stage': 'integrated'}
+        final_data['adopter_output'] = review_existing_tuneup_report(self.inst.pkg, self.inst.manifest, self.inst.env,
+            self.inst.state, job['job_id'], final_data, self.base, review_name='omitted-proposal',
+            proposal_evidence=False)
+        missing = self.inst.job('observation', job['job_id'], {'caller': caller, 'stage_id': 'report',
+            'input_file': str(self.inst.payload('missing-proposal-evidence.json', final_data))})['path']
+        refused = self.accept(job['job_id'], caller, 'report', missing)
+        self.assert_refused(refused, 'quality review must declare the original target artifacts as evidence')
         observed = self.publish(job['job_id'], caller, 'report', {**report, 'report_stage': 'integrated'})
         accepted = self.accept(job['job_id'], caller, 'report', observed)
         self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
@@ -629,6 +645,23 @@ class SyntheticJobTest(unittest.TestCase):
             'validator_argv_by_stage': {s: self.final_argv(job['job_id'], s) for s in ('semantics', 'proposal', 'report')},
             'input_file_by_stage': {s: self.observed(job['job_id'], s) for s in ('semantics', 'proposal', 'report')}})
         self.assertEqual(final.returncode, 0, final.stdout + final.stderr)
+        state = self.state(job['job_id'])
+        proposal_path = next(s for s in state['stages'] if s['id'] == 'proposal')['observation_ref']['path']
+        adapter = tuneup_report_adapter(self.inst.pkg)
+        integrated = json.loads(Path(observed).read_text())
+        _, research_inputs = adapter.artifacts(state, self.inst.state / job['job_id'], report['target_report'])
+        proposal_inputs = adapter.proposal_artifacts(state, self.inst.state / job['job_id'])
+        self.assertEqual([d['path'] for d in proposal_inputs], [proposal_path])
+        with self.assertRaisesRegex(ValueError, 'every required quality-review pass must inspect'):
+            adapter.quality_evidence(integrated, integrated['adopter_output'],
+                {'snapshot': {'evidence_paths': research_inputs + proposal_inputs}},
+                [{'inspected_paths': [d['path'] for d in research_inputs]}])
+        Path(proposal_path).write_bytes(Path(proposal_path).read_bytes() + b' ')
+        with self.assertRaisesRegex(ValueError, 'proposal observation changed since acceptance'):
+            adapter.validate_observation(state, state['stages'][-1], integrated, self.inst.state / job['job_id'])
+        stale = self.inst.accept('validate', job['job_id'], {'caller': caller, 'stage_id': 'report'})
+        self.assertTrue(stale.stdout, stale.stderr)
+        self.assertFalse(json.loads(stale.stdout)['accepted'])
 
     def test_muse_inspect_gaps_are_consumed_preserved_and_reviewed_in_final_report(self):
         settings = self.inst.payload('muse-settings.json', {'permissions': {'profiles': {}}})

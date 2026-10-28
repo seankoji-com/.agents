@@ -129,6 +129,32 @@ def validate_job(job):
     need(set(research) <= set(final.get('depends_on', [])) and
          final['validator_contract']['target_report']['reports'] == reports,
          'final integration must depend on and preserve every ordered research report')
+    need({s['id'] for s in proposal_stages(job)} <= set(final.get('depends_on', [])),
+         'final integration must depend on every proposal stage')
+
+
+def proposal_stages(job):
+    """The admitted recipe and verifier slots identify candidate conclusions."""
+    verifier_stages = {t['stage_id'] for t in job['tasks']
+                       if t['worker_id'] == 'agent-tuneup/config-verifier'}
+    return [s for s in job['stages'] if s['id'] == 'proposal' or s['id'] in verifier_stages]
+
+
+def proposal_artifacts(job, root):
+    """Use accepted coordinator observations, never an unbound candidate copy."""
+    descriptors = []
+    for stage in proposal_stages(job):
+        need(stage.get('status') == 'accepted-at-snapshot' and bool(stage.get('acceptance')),
+             'proposal requires current acceptance before final integration')
+        ref = stage.get('observation_ref', {})
+        path = Path(ref.get('path', ''))
+        need(path.is_absolute() and path.parent == Path(root) / 'observations',
+             'proposal requires its owned published observation')
+        raw = _regular(path, max_bytes=job['policy']['max_artifact_bytes'])
+        need(digest(raw) == ref.get('sha256') and len(raw) == ref.get('bytes'),
+             'proposal observation changed since acceptance')
+        descriptors.append({'path': str(path), 'sha256': digest(raw), 'bytes': len(raw)})
+    return descriptors
 
 
 def artifacts(job, root, value):
@@ -171,6 +197,8 @@ def validate_observation(job, stage, data, root):
         need(data['adopter_output'].get('job_file') == str(Path(root) / 'job.json'),
              'quality receipt belongs to another producing job')
     findings, descriptors = artifacts(job, root, c['target_report'])
+    if data['report_stage'] == 'integrated':
+        descriptors.extend(proposal_artifacts(job, root))
     need(canonical(findings) == canonical(data.get('findings')), 'omitted, substituted or reordered original findings')
     return {d['path']: d['sha256'] for d in descriptors}
 
@@ -184,6 +212,7 @@ def quality_evidence(data, desc, metadata, passes):
     job = strict_load(_regular(path))
     validate_job(job)
     findings, descriptors = artifacts(job, path.parent, data['target_report'])
+    descriptors.extend(proposal_artifacts(job, path.parent))
     need(canonical(findings) == canonical(data['findings']), 'review omitted original findings')
     evidence = metadata['snapshot']['evidence_paths']
     need(all(any(all(e.get(k) == d[k] for k in ('path', 'sha256', 'bytes')) for e in evidence)
