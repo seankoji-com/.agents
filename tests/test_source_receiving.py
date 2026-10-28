@@ -200,6 +200,16 @@ class ReceivingTest(unittest.TestCase):
         # Same source HEAD deliberately revalidates/reactivates after a hold.
         self.assertEqual(self.run_sync()['active']['commit'],self.new)
 
+    def test_status_shows_when_the_active_runtime_differs_from_the_source_head(self):
+        # status reports the installed updater revision; this fixture has no self-install.
+        write_json(self.paths.control/'bootstrap-active.json',{'schema_version':1,'revision':'fixture-updater'})
+        self.run_sync()
+        transaction.execute(self.paths,'rollback',self.old_active['pin'])
+        status = cli.status(self.paths)
+        self.assertEqual(status['source_head'],self.new)
+        self.assertEqual(status['active']['commit'],self.old)
+        self.assertEqual(status['installed_revision'],'fixture-updater')
+
     def test_offline_auth_and_timeout_leave_source_runtime_unchanged(self):
         for message in ('offline','authentication failed','bounded fetch timeout'):
             with self.subTest(message=message):

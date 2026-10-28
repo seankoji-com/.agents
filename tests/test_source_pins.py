@@ -1,6 +1,7 @@
 """Local source coherence, installed resolver integrity and dirty-edit behavior."""
 import copy
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -272,6 +273,63 @@ class SourcePinsTest(unittest.TestCase):
         self.assertNotEqual(refused.returncode, 0)
         self.assertIn('integrity failure', refused.stderr)
         self.assertNotIn('must never execute', refused.stderr)
+
+    def test_launcher_refuses_an_interpreter_other_than_the_installed_one(self):
+        bootstrap.self_install(ROOT, self.paths, source=self.source)
+        control = self.paths.control / 'bootstrap-active.json'
+        record = load(control)
+        manifest_file = Path(record['installation']) / 'installation.json'
+        # Simulate an installation recorded by another interpreter, with a consistent control record.
+        raw = canonical({**load(manifest_file), 'interpreter': str(self.box / 'other/bin/python3')})
+        manifest_file.chmod(0o644)
+        manifest_file.write_bytes(raw)
+        write_json(control, {**record, 'manifest_sha256': hashlib.sha256(raw).hexdigest()})
+        refused = subprocess.run([str(self.paths.launcher), 'status'], capture_output=True, text=True)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn('interpreter mismatch', refused.stderr)
+
+    def test_candidate_reporting_another_interpreter_or_protocol_is_refused(self):
+        bootstrap.self_install(ROOT, self.paths, source=self.source)
+        files = (self.paths.launcher, self.paths.control / 'bootstrap-active.json', self.paths.control / 'launcher.json')
+        before = {file: read(file) for file in files}
+        original = bootstrap.subprocess.run
+        for report in ({'ok': True, 'protocol': bootstrap.PROTOCOL, 'interpreter': str(self.box / 'other/bin/python3')},
+                       {'ok': True, 'protocol': bootstrap.PROTOCOL + 1, 'interpreter': sys.executable}):
+            with self.subTest(report=report):
+                observed = subprocess.CompletedProcess([], 0, json.dumps(report), '')
+                def candidate(argv, *args, **kwargs):
+                    return observed if argv[-1:] == ['self-test'] else original(argv, *args, **kwargs)
+                with patch.object(bootstrap.subprocess, 'run', side_effect=candidate):
+                    with self.assertRaisesRegex(SourceError, 'candidate interpreter/protocol mismatch'):
+                        bootstrap.self_install(ROOT, self.paths, source=self.source)
+                self.assertEqual(before, {file: read(file) for file in files})
+
+    def test_permissions_grant_only_data_subtrees_and_never_a_protected_path(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(cli.main(['permissions'], home=self.home), 0)
+        result = json.loads(out.getvalue())
+        roots = [Path(root) for root in result['write_roots']]
+        self.assertEqual({root.name for root in roots}, {'jobs', 'snapshots', 'locks'})
+        self.assertEqual(result['codex']['sandbox_workspace_write']['writable_roots'], result['write_roots'])
+        self.assertEqual(result['claude']['sandbox']['filesystem']['allowWrite'], result['write_roots'])
+        self.assertIn(str(self.paths.launcher), result['protected'])
+        for protected in map(Path, result['protected']):
+            for root in roots:
+                self.assertFalse(protected == root or root in protected.parents or protected in root.parents,
+                                 (root, protected))
+
+    def test_unwritable_snapshot_root_fails_explicitly_without_a_partial_pin(self):
+        if os.geteuid() == 0:
+            self.skipTest('root ignores directory write permissions')
+        self.paths.snapshots.mkdir(parents=True)
+        self.paths.snapshots.chmod(0o500)
+        self.addCleanup(self.paths.snapshots.chmod, 0o700)
+        error = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
+            self.assertEqual(cli.main(['start', 'demo'], home=self.home), 2)
+        self.assertTrue(error.getvalue().startswith('agents: '), error.getvalue())
+        self.assertEqual(list(self.paths.snapshots.iterdir()), [])
 
     def test_launcher_keeps_paths_that_contain_placeholder_words(self):
         home = self.box / 'HOME-CONTROL-INTERPRETER'
