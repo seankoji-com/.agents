@@ -4,7 +4,7 @@ import datetime
 from pathlib import Path
 
 from . import bootstrap, discovery, pins
-from .io import atomic, canonical, git, load, no_links, read, relative, require, source_lock, tracked_clean, write_json
+from .io import atomic, canonical, git, index_matches_head, load, no_links, read, relative, require, source_lock, tracked_clean, write_json
 
 # The same canonical spellings the dotfiles cutover guard accepts (seankoji-com/.dotfiles#576),
 # so the adopter and the guard agree on one checkout identity.
@@ -65,7 +65,7 @@ def preflight(root, config):
     # Configured filters (git-lfs installs filter.lfs.* globally) stay inert: no receiving
     # step runs a Git command that converts worktree content.
     require(tracked_clean(root), 'tracked source is dirty')
-    require(git(root, 'diff', '--cached', '--no-ext-diff', '--no-textconv', '--quiet', check=False).returncode == 0, 'source index is staged')
+    require(index_matches_head(root), 'source index is staged')
     return oid(root, 'HEAD')
 
 

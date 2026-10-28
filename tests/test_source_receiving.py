@@ -129,6 +129,16 @@ class ReceivingTest(unittest.TestCase):
             self.run_sync()
         self.assertEqual(load(self.paths.control/'active.json'),self.old_active)
 
+    def test_empty_intent_to_add_entry_refuses_and_keeps_its_index_entry(self):
+        # Its index blob is the empty blob, so the raw-byte check alone accepts it.
+        self.put('skills/demo/owner-empty.txt','')
+        git(self.source,'add','-N','skills/demo/owner-empty.txt')
+        self.assertTrue(tracked_clean(self.source))
+        with self.assertRaisesRegex(SourceError,'staged'):
+            self.run_sync()
+        self.assertIn(b'skills/demo/owner-empty.txt',git(self.source,'ls-files','-z').stdout)
+        self.assertEqual(load(self.paths.control/'active.json'),self.old_active)
+
     def test_candidate_untracked_collision_and_alias_collision_preserve_both(self):
         collision = self.put('skills/demo/new.txt','owner file\n')
         with self.assertRaisesRegex(SourceError,'collision'):

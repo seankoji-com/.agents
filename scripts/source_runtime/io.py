@@ -132,6 +132,15 @@ def git(root, *argv, timeout=20, check=True, input=None):
     return result
 
 
+def index_matches_head(root):
+    """Whether the index holds exactly HEAD's paths and blobs. `git diff --cached` exits 0
+    for an intent-to-add entry (an empty blob), so the path sets are compared as well."""
+    listed = set(git(root, 'ls-files', '-z').stdout.split(b'\0'))
+    committed = set(git(root, 'ls-tree', '-r', '--name-only', '-z', 'HEAD').stdout.split(b'\0'))
+    return listed == committed and git(root, 'diff', '--cached', '--no-ext-diff', '--no-textconv', '--quiet',
+                                       check=False).returncode == 0
+
+
 def tracked_clean(root):
     """Whether every tracked file's raw bytes and mode match the index.
 
