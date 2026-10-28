@@ -303,6 +303,15 @@ def create(data, state_root, prefix, agents_root, environ=None):
                             'attempts_per_candidate': 2, 'explicit_data_classes': explicit_classes,
                             'data_classes': classes}}
         with locked(registry_root(agents_root)):
+            # Installed helpers carry shared/ directly in the package. Resolve the
+            # physical runtime root, including after explicit relocation/adoption,
+            # rather than selecting prefix/plugin/current. The registry verifies
+            # this locator's receipt, files, bundle and installation ownership.
+            # Source entry points retain active-package resolution and the strict
+            # acceptance-byte equality check in manifest_policy below.
+            runtime = Path(__file__).resolve().parents[1]
+            if not (runtime / 'plugins' / data['plugin'] / 'plugin.json').is_file():
+                job['dependencies'][0]['package_dir'] = str(runtime)
             pins = verified_pins(job, state_root, prefix, agents_root)
             freeze_provider_limits(job, pins)
             job['pins'] = pins
