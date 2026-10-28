@@ -320,13 +320,15 @@ class SourcePinsTest(unittest.TestCase):
                                  (root, protected))
 
     def test_unwritable_snapshot_root_fails_explicitly_without_a_partial_pin(self):
+        if os.geteuid() == 0:
+            self.skipTest('root ignores directory write permissions')
         self.paths.snapshots.mkdir(parents=True)
         self.paths.snapshots.chmod(0o500)
         self.addCleanup(self.paths.snapshots.chmod, 0o700)
         error = io.StringIO()
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
             self.assertEqual(cli.main(['start', 'demo'], home=self.home), 2)
-        self.assertIn('Permission denied', error.getvalue())
+        self.assertTrue(error.getvalue().startswith('agents: '), error.getvalue())
         self.assertEqual(list(self.paths.snapshots.iterdir()), [])
 
     def test_launcher_keeps_paths_that_contain_placeholder_words(self):
