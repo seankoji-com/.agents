@@ -299,10 +299,14 @@ def _receipt(desc, meta, package):
 
 def validate_observation(data, desc, package):
     """The accepted integrated report must publish the reviewed conclusions."""
-    validate(desc, package)
+    reviewed = validate(desc, package)
     planning.need(desc['admission']['plugin'] == 'agent-tuneup' and
                   desc['observation_conclusions'] == {k: data.get(k) for k in ('findings', 'changes')},
                   'published observation findings/changes differ from reviewed conclusions')
+    if 'target_report' in data:
+        planning.need(not reviewed['degraded_panel'], 'target report requires independent cross-lineage quality review')
+        meta = strict_load(_regular(Path(desc['planning_review']['path'])))
+        tuneup_report_adapter(package).quality_evidence(data, desc, meta, reviewed['passes'])
 
 
 def validate(desc, package):
@@ -421,8 +425,30 @@ def transaction_guard(job, operation, *, proposed=None, caller=None, job_file=No
     return guard
 
 
+def tuneup_report_adapter(package):
+    from importlib.util import spec_from_file_location, module_from_spec
+    spec = spec_from_file_location('tuneup_target_report', Path(package) / 'scripts/target_report.py')
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def validate_job(job, stage_id=None, *, previous=None, creating=False):
     workflow = job.get('workflow',''); plugin, _, op = workflow.partition('/')
+    if any('target_report' in s.get('validator_contract', {}) for s in job.get('stages', [])):
+        planning.need(plugin == 'agent-tuneup', 'target report belongs only to agent-tuneup')
+        dependency = next((d for d in job['dependencies'] if d['plugin'] == plugin), None)
+        pin = job.get('pins', {}).get(dependency['key']) if dependency else None
+        if pin:
+            from shared.job_coordinator import verify_pinned_dependency
+            verify_pinned_dependency(dependency, pin)
+            package = Path(pin['package_dir'])
+        else:
+            runtime = Path(__file__).resolve().parents[1]
+            package = runtime if (runtime / 'plugin.json').is_file() else runtime / 'plugins/agent-tuneup'
+            planning.need(strict_load(_regular(package / 'plugin.json'))['name'] == plugin,
+                          'use the packaged tuneup coordinator helper')
+        tuneup_report_adapter(package).validate_job(job)
     if plugin == 'focus-group' and op in ('run', 'resume'):
         dependency = next((d for d in job.get('dependencies', []) if d['plugin'] == plugin), None)
         pin = job.get('pins', {}).get(dependency['key']) if dependency else None

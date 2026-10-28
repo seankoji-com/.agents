@@ -20,6 +20,7 @@ object the published observation must repeat exactly.
 |---|---|---|---|
 | `inspect` | direct | none | `{"operation": "audit", "findings_allowed": true, "live_enforcement_required": false}` |
 | `semantics` | workers | `config-researcher`, one per provider or scope group | audit, as above |
+| `report` | direct | none | audit, with integrated independent report-quality review |
 | `proposal` | workers | `config-verifier` for proposed candidates | audit, as above |
 | `apply` | workers | `config-verifier` for applied files | `{"operation": "apply", "findings_allowed": true, "live_enforcement_required": <task>}` |
 
@@ -32,7 +33,8 @@ second model chooser. A declined proposal finalizes the existing report stages
 with no settings writes. There is no synthetic conditional-stage status. Internal
 validator modes remain unchanged.
 
-For narrowly scoped internal stages, `audit` uses `inspect` and `semantics`, plus `proposal` when changes were requested.
+For narrowly scoped internal stages, `audit` uses `inspect`, `semantics` and a final
+direct `report`, plus `proposal` when changes were requested.
 `align` uses `inspect` for the inventory and comparison receipts, `semantics` for
 precedence and syntax questions, and `proposal`. `apply` gets its own job, or a declared
 `apply` stage when the owner asked for it in the original request. Adding `apply` to an
@@ -45,6 +47,100 @@ with provider instance, model and lineage, and either a coordinator-only scope o
 evidence directory under `artifacts/tasks/<task-id>/`. No slot gets settings-write
 authority. The job `authorization.actions` lists `read`, and `settings-apply` only when
 the owner approved a concrete plan.
+
+### Explicit audited-target reports
+
+New report recipes put this coordinator-authored value in
+`validator_contract.target_report`, repeated unchanged in both observations:
+
+```json
+{
+  "schema_version": 1,
+  "finding_scope": "audited-target",
+  "reports": [{"task_id": "research-1", "path": "artifacts/tasks/research-1/target-findings.json"}],
+  "quality_review": "integrated-adopter-planning"
+}
+```
+
+Both stages use audit criteria with `findings_allowed` exactly `true` and no changes.
+The worker stage adds `validator_contract.report_stage: "research"`; the final
+direct stage adds `report_stage: "integrated"` and depends on every research stage.
+Each observation repeats `report_stage`. Reports follow the declared researcher
+slot order. Only non-review `config-researcher` slots with their own worker-evidence
+subtree may produce them. The final contract lists every report in research-stage
+order. This final stage is required by admission for an explicit report contract.
+
+For each opt-in research stage, the coordinator must also set
+`stage.resources.target_report` to the exact `validator_contract.target_report`,
+and `stage.resources.target_report_instructions` to the literal text below.
+Copy it before creating or revising the job. Admission compares both resources
+without changing job state. Prepare carries them through the existing immutable
+brief resources in full and compact transport. These per-invocation instructions
+specialize the unchanged canonical researcher only for this declared contract.
+The same text is `RESEARCH_INSTRUCTIONS` in `PKG/scripts/target_report.py`.
+
+```text
+The coordinator assigned the explicit audited-target contract in resources.target_report.
+Do not choose this scope yourself. Write original target findings to your assigned
+target-findings.json under artifacts/tasks/<task-id>/, using the exact path in that
+contract. The artifact is {"schema_version":1,"findings":[...]} in discovery order.
+Each finding needs a stable id, severity (blocker, major, minor, note), code,
+redacted location, concrete scenario and source_evidence (URL and version, or the
+command and an excerpt). Preserve whole objects, severity and order. Include the
+artifact's exact path, SHA-256 and byte count in worker-result artifacts.
+
+Carry every assigned deterministic inspect finding and gap from consumed_outputs
+or the brief's explicit inputs into that artifact. Preserve assigned IDs,
+severities and whole objects in their assigned order. If an inspect row lacks the
+required fields, have the coordinator assign them before dispatch. Add research
+findings after those rows. Keep coverage_gap and unsupported intact; Muse native
+approval-policy-store coverage remains unsupported. Never omit or demote a gap
+because its underlying semantics could not be verified.
+
+Worker-result findings describe defects in your delivered report, including
+missing evidence. Any major or blocker there requires review_verdict: adverse
+and fails acceptance. Otherwise review_verdict is null. List gaps, uncertainties
+and exact commands. The later integrated quality review is not a prerequisite
+for research completion.
+
+Never return secrets, tokens, headers, private URLs, hostnames, home paths or
+settings values. Refer to settings by scope and JSON pointer. Excerpt output;
+do not paste it whole. Never fetch raw remote settings for local redaction or
+transfer raw/aggregate transcripts. Do not bypass a guard refusal or
+install/execute a remote extractor. If safe extraction is unsupported, report a
+coverage gap.
+```
+
+Researchers write `{"schema_version":1,"findings":[...]}` to the assigned artifact
+and include its exact path, SHA-256 and byte count in worker-result `artifacts`.
+Each original finding has a stable `id`, `severity`, `code`, redacted `location`,
+concrete `scenario` and `source_evidence`. The coordinator preserves whole objects,
+all severities and their order in observation `findings`. It cannot omit, rename,
+reclassify or reorder them. Duplicate IDs, changed bytes and unsafe paths refuse.
+Assign every deterministic inspect finding/gap to a researcher through accepted
+`inspect.outputs` (consumed by its dependent stage) or explicit brief inputs.
+Assign missing IDs, severity, scenario and source evidence before dispatch; retain
+existing IDs/severities/objects. Researchers copy those rows into their artifacts
+before adding research findings. This includes Muse `coverage_gap`/`unsupported`;
+exact final aggregation cannot add an omitted inspect row later.
+
+Worker-result `findings` still mean report-quality defects. A major or blocker there
+requires `review_verdict: "adverse"` and fails acceptance. Research otherwise uses
+null. Workers cannot opt into target scope. The independent quality review checks
+classification against original evidence as well as report correctness. Do not
+turn a target major into a note to satisfy generic acceptance.
+
+Research has no prerequisite for its subsequent report review. Do not set generic
+`review_required` on its slot to represent that later gate; if explicitly requested,
+same-stage generic review remains mandatory. The final report requires actual
+producing `adopter_output` planning review, even with zero findings. Include original
+target artifacts in that review's `evidence_paths`; every required review pass
+must list those paths in its actual `inspected_paths`. It reviews report quality, not
+whether the target is defect-free. Adverse or incomplete quality review refuses.
+Legacy contracts retain generic adverse behavior. Apply and config-verifier gates
+remain separate and cannot use this target-report contract.
+Each proposal with `config-verifier` slots requires its own producing
+`adopter_output` review even when a final report follows it.
 
 ## Observation input
 

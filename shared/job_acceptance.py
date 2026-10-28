@@ -575,13 +575,22 @@ def _adapter(job, stage, argv, input_file):
                 raise AcceptanceError('ape planning metadata belongs to another producing job/stage')
     from shared.adopter_planning import validate_job as validate_adopter_job, validate as validate_adopter_output
     validate_adopter_job(job, stage['id'])
+    target_inputs = {}
+    if 'target_report' in contract or 'target_report' in data:
+        if dep['plugin'] != 'agent-tuneup' or 'target_report' not in contract:
+            raise AcceptanceError('target report requires the pinned tuneup audit contract')
+        from shared.adopter_planning import tuneup_report_adapter
+        target_inputs = tuneup_report_adapter(Path(pin['package_dir'])).validate_observation(
+            job, stage, data, inp.parent.parent)
     if dep['plugin'] == 'agent-tuneup':
-        # The last integrated audit/proposal always reviews even no-change output.
+        # Proposals retain their own review even with a final report successor.
         successors = [s for s in job['stages'] if stage['id'] in s['depends_on']]
         integrated_audit = (job['workflow'] in ('agent-tuneup/align', 'agent-tuneup/audit') or
                             (job['workflow'] == 'agent-tuneup/tuneup' and
                              contract.get('criteria', {}).get('operation') == 'audit'))
-        if not successors and integrated_audit:
+        proposal = any(t['stage_id'] == stage['id'] and t['worker_id'] == 'agent-tuneup/config-verifier'
+                       for t in job['tasks'])
+        if integrated_audit and (not successors or proposal):
             desc = data.get('adopter_output')
             if not isinstance(desc, dict) or desc.get('admission') != job.get('adopter_admission'):
                 raise AcceptanceError('integrated tuneup conclusions require the producing planning descriptor')
@@ -599,7 +608,7 @@ def _adapter(job, stage, argv, input_file):
     if len(args) % 2 or len(set(args[::2])) != len(args[::2]):
         raise AcceptanceError('validator options must be unique flag/value pairs')
     flags = dict(zip(args[::2], args[1::2]))
-    extra = {}
+    extra = dict(target_inputs)
     if dep['plugin'] in ('ape', 'babysitter', 'agent-tuneup', 'focus-group', 'tests-omg'):
         if flags != {'--input': str(inp)}:
             raise AcceptanceError('validator input differs from the pre-check input')

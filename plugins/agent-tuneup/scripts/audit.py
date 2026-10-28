@@ -21,6 +21,129 @@ def jsonc(text):
                   lambda m: '' if m[0].startswith(',') else m[0], clean)
 
 
+def opencode_rules(data):
+    """Known v2.2.0 native/legacy forms; mixed policy containers need review.
+
+    Rules are never sorted. See references/native-agent-formats-v1.json for the
+    versioned schema, normalizer and last-match evaluator sources.
+    """
+    if 'permission' in data and 'permissions' in data:
+        raise ValueError('unsupported_mixed_permissions')
+    key = 'permissions' if 'permissions' in data else 'permission'
+    value = data.get(key, [] if key == 'permissions' else {})
+    if key == 'permissions':
+        if not isinstance(value, list) or any(not isinstance(r, dict) or
+                set(r) != {'action', 'resource', 'effect'} or
+                not all(isinstance(r[k], str) for k in r) or
+                r['effect'] not in ('allow', 'ask', 'deny') for r in value):
+            raise ValueError('unsupported_permissions')
+        return [(r, f'permissions[{i}]') for i, r in enumerate(value)]
+    result = []
+
+    def add(action, resource, effect, location):
+        if not isinstance(effect, str) or effect not in ('allow', 'ask', 'deny'):
+            raise ValueError('unsupported_permissions')
+        result.append(({'action': 'shell' if action == 'bash' else action,
+                        'resource': resource, 'effect': effect}, location))
+    if isinstance(value, str):
+        add('*', '*', value, 'permission')
+    elif isinstance(value, dict):
+        for i, (action, effect) in enumerate(value.items()):
+            # Only fixed public keys can appear in redacted receipts.
+            loc = 'permission.' + action if action in ('*', 'bash', 'external_directory') else f'permission[{i}]'
+            if isinstance(effect, dict):
+                for j, (resource, nested) in enumerate(effect.items()):
+                    add(action, resource, nested, loc + f'[{j}]')
+            else:
+                add(action, '*', effect, loc)
+    else:
+        raise ValueError('unsupported_permissions')
+    return result
+
+
+def opencode_agents(data):
+    if 'agent' in data and 'agents' in data:
+        raise ValueError('unsupported_mixed_agents')
+    key = 'agents' if 'agents' in data else 'agent'
+    agents = data.get(key, {})
+    if not isinstance(agents, dict) or any(not isinstance(a, dict) for a in agents.values()):
+        raise ValueError('unsupported_agents')
+    if any(('permission' if key == 'agents' else 'permissions') in a for a in agents.values()):
+        raise ValueError('unsupported_mixed_agents')
+    return key, agents
+
+
+def opencode_servers(data):
+    mcp = data.get('mcp', {})
+    if not isinstance(mcp, dict):
+        raise ValueError('unsupported_mcp')
+    # Reserved names may also be typed legacy server names. Untyped objects
+    # never become servers, including a future native container we do not know.
+    native = any(k in mcp and not (isinstance(mcp[k], dict) and
+                 mcp[k].get('type') in ('local', 'remote')) for k in ('servers', 'timeout'))
+
+    def timeout(value):
+        if not isinstance(value, dict) or set(value) - {'startup', 'catalog', 'execution'} or any(
+                type(v) is not int or v <= 0 for v in value.values()):
+            raise ValueError('unsupported_mcp_timeout')
+    if native:
+        if set(mcp) - {'servers', 'timeout'}:
+            raise ValueError('unsupported_mixed_mcp')
+        if 'timeout' in mcp:
+            timeout(mcp['timeout'])
+        servers = mcp.get('servers', {})
+    else:
+        servers = mcp
+    if not isinstance(servers, dict):
+        raise ValueError('unsupported_mcp')
+    for server in servers.values():
+        if not isinstance(server, dict) or server.get('type') not in ('local', 'remote'):
+            raise ValueError('unsupported_mcp_server')
+        if server['type'] == 'local' and (not isinstance(server.get('command'), list) or
+                not server['command'] or any(not isinstance(v, str) for v in server['command'])):
+            raise ValueError('unsupported_mcp_server')
+        if server['type'] == 'remote' and not isinstance(server.get('url'), str):
+            raise ValueError('unsupported_mcp_server')
+        for k in ('disabled', 'enabled'):
+            if k in server and (type(server[k]) is not bool or
+                                native and k == 'enabled' or not native and k == 'disabled'):
+                raise ValueError('unsupported_mcp_server')
+        if 'timeout' in server:
+            if native and isinstance(server['timeout'], dict):
+                timeout(server['timeout'])
+            elif type(server['timeout']) is not int or server['timeout'] <= 0:
+                raise ValueError('unsupported_mcp_timeout')
+    return servers
+
+
+def opencode_plugins(data):
+    """V2.2.0 package declarations only; enablement directives need runtime IDs."""
+    if 'plugin' in data and 'plugins' in data:
+        raise ValueError('unsupported_mixed_plugins')
+    native = 'plugins' in data
+    entries = data.get('plugins' if native else 'plugin', [])
+    if not isinstance(entries, list):
+        raise ValueError('unsupported_plugins')
+    result = {}
+    for entry in entries:
+        if isinstance(entry, str):
+            package = entry
+        elif native and isinstance(entry, dict) and 'package' in entry and not set(entry) - {'package', 'options'}:
+            package = entry['package']
+            if 'options' in entry and not isinstance(entry['options'], dict):
+                raise ValueError('unsupported_plugins')
+        else:
+            raise ValueError('unsupported_plugins')
+        if not isinstance(package, str) or not package.strip():
+            raise ValueError('unsupported_plugins')
+        # Package specs are not runtime plugin IDs. Do not pretend a removal or
+        # wildcard directive proves package installation/disablement.
+        if package.startswith('-') or '*' in package:
+            raise ValueError('unsupported_plugin_directive')
+        result[package] = 'configured'
+    return result
+
+
 def inspect(provider, data):
     if not isinstance(data, dict):
         raise ValueError("settings must be an object")
@@ -63,19 +186,28 @@ def inspect(provider, data):
             for finding in inspect(provider, {k: v for k, v in profile.items() if k != "profiles"}):
                 add(finding["code"], f"profiles[{index}].{finding['location']}")
     elif provider == "opencode":
-        permission = data.get("permission", {})
-        if permission == "allow":
-            add("all_tools_allowed", "permission")
-        elif isinstance(permission, dict):
-            if permission.get("*") == "allow":
-                add("all_tools_allowed", "permission.*")
-            for key in ("bash", "external_directory"):
-                value = permission.get(key)
-                if value == "allow" or isinstance(value, dict) and value.get("*") == "allow":
-                    add("broad_tool_allow", f"permission.{key}")
-        elif permission not in ("ask", "deny"):
-            raise ValueError("permission must be an object or allow/ask/deny")
+        rules = opencode_rules(data)
+        opencode_servers(data)
+        opencode_plugins(data)
+        for i, (rule, location) in enumerate(rules):
+            if rule['effect'] != 'allow' or rule['resource'] != '*' or rule['action'] not in (
+                    '*', 'shell', 'external_directory', 'execute'):
+                continue
+            later = [r for r, _ in rules[i + 1:]]
+            # Only exact or universal coverage proves this broad rule superseded.
+            covers = lambda r: all(r[k] == '*' or r[k] == rule[k] for k in ('action', 'resource'))
+            if any(covers(r) for r in later):
+                continue  # The covering rule is classified in its own position.
+            constrained = any(r['effect'] in ('ask', 'deny') for r in later)
+            add('constrained_broad_allow' if constrained else
+                'all_tools_allowed' if rule['action'] == '*' else 'broad_tool_allow', location)
+        key, agents = opencode_agents(data)
+        for i, agent in enumerate(agents.values()):
+            for f in inspect(provider, {k: v for k, v in agent.items() if k not in ('agent', 'agents', 'mcp')}):
+                add(f['code'], f"{key}[{i}].{f['location']}")
     elif provider == "muse":
+        add('coverage_gap', 'approval-policy-store')
+        add('unsupported', 'approval-policy-store')
         # Muse's flat settings.json carries named permission profiles under
         # `permissions.profiles`; each profile states approval, filesystem,
         # network and reviewer dimensions (verified against Muse 1.4.7).

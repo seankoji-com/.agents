@@ -82,6 +82,7 @@ def attach_selection(job, coordinator=None):
     """
     if job.get('model_selection'):
         return job
+    target_report = any('target_report' in s.get('validator_contract', {}) for s in job['stages'])
     from copy import deepcopy
     from shared.lineage import lineage
     fallback = {'providerInstanceId': 'fixture-provider', 'model': 'fixture-worker', 'options': {}}
@@ -156,11 +157,15 @@ def attach_selection(job, coordinator=None):
             register(factual, 'fixture-factual')
             data['work']['fixture-factual'] = factual
         if job['workflow'] in ('agent-tuneup/align','agent-tuneup/audit','elephant-goldfish/elephant'):
-            chosen = deepcopy(fallback)
+            chosen = ({'providerInstanceId': 'fixture-quality', 'model': 'claude-fixture', 'options': {}}
+                      if target_report else deepcopy(fallback))
             register(chosen,'reviewer')
+            if target_report:
+                data['sharing'].append({'target': deepcopy(chosen), 'data_classes': ['private-settings'],
+                    'source': answer('Permit the isolated independent target-report quality review.')})
             data['profiles']['roles']['reviewer'] = {'minimum':2,'judgement':True}
             data['review_panel'].append({'slot_id':'planning','role':'reviewer','coverage':list(job['requirements']),
-                'required':True,'independent':False,'target':chosen})
+                'required':True,'independent':target_report,'target':chosen})
     data['capabilities'] = {'providers': list(catalog.values()), 'runtimeMode': 'full-access',
                             'inheritedProviderInstanceId': 'fixture-provider'}
     data['source'] = answer('Explicit synthetic targets for domain fixture: ' + models.digest(data['work']))
