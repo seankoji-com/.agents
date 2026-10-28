@@ -5,7 +5,7 @@ from pathlib import Path
 import uuid
 
 from . import discovery, layout, pins, transaction
-from .io import atomic, canonical, digest, git, load, no_links, read, relative, require, source_lock, write_json
+from .io import atomic, canonical, digest, git, load, no_links, read, index_matches_head, relative, require, source_lock, tracked_clean, write_json
 
 
 def legacy_owned(folder):
@@ -35,8 +35,8 @@ def prepare(paths, source):
             'adoption source must be a standalone checkout')
     require(git(source,'remote','get-url','origin').stdout.decode().strip() in transaction.ORIGINS,
             'adoption source must have the expected canonical origin')
-    require(git(source,'diff','--no-ext-diff','--no-textconv','--quiet',check=False).returncode == 0 and
-            git(source,'diff','--cached','--no-ext-diff','--no-textconv','--quiet',check=False).returncode == 0,
+    require(tracked_clean(source) and
+            index_matches_head(source),
             'adoption requires reviewed committed source, not dirty infrastructure')
     values = pins.commit_files(source,commit,runtime_only=False)
     require('.agents-source.json' in values, 'adoption commit has no source identity')
@@ -189,8 +189,8 @@ def apply(paths,journal,hook=None):
     git(root,'symbolic-ref','HEAD','refs/heads/main')
     transaction.phase(paths,journal,'ref',hook)
     discovery.apply(paths,journal['links'])
-    require(git(root,'diff','--no-ext-diff','--no-textconv','--quiet',check=False).returncode == 0 and
-            git(root,'diff','--cached','--no-ext-diff','--no-textconv','--quiet',check=False).returncode == 0,
+    require(tracked_clean(root) and
+            index_matches_head(root),
             'adopted source/index differs; preserve owner edits and recover explicitly')
     # Untracked residues must be the inventoried ignored paths or foreign skills.
     layout.validate(root)

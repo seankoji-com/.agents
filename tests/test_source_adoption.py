@@ -70,6 +70,14 @@ class AdoptionTest(unittest.TestCase):
         self.assertEqual(custom.read_text(),'owner custom picker\n')
         self.assertTrue((self.paths.home/'.fixture/skills/t3-demo').is_symlink())
 
+    def test_empty_intent_to_add_entry_in_reviewed_source_refuses_adoption(self):
+        (self.donor/'skills/demo/owner-empty.txt').write_bytes(b'')
+        git(self.donor,'add','-N','skills/demo/owner-empty.txt')
+        with self.assertRaisesRegex(SourceError,'dirty infrastructure'):
+            adoption.adopt(self.paths,self.donor)
+        self.assertFalse((self.root/'.git').exists())
+        self.assertIn(b'skills/demo/owner-empty.txt',git(self.donor,'ls-files','-z').stdout)
+
     def test_owner_source_collision_stops_without_initializing_git(self):
         conflict = self.root/'scripts/agents_bootstrap.py'
         conflict.parent.mkdir()

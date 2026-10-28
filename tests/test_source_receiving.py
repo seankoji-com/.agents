@@ -14,7 +14,7 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 from source_runtime import cli, discovery, pins, transaction
-from source_runtime.io import Paths, SourceError, canonical, git, load, read, source_lock, write_json
+from source_runtime.io import Paths, SourceError, canonical, git, load, read, source_lock, tracked_clean, write_json
 
 
 class ReceivingTest(unittest.TestCase):
@@ -99,6 +99,25 @@ class ReceivingTest(unittest.TestCase):
         self.assertIn('Version two',Path(cli.start(self.paths,'demo')['skill_file']).read_text())
         self.assertIn('Version one',Path(cli.start(self.paths,'demo',pin=self.old_active['pin'])['skill_file']).read_text())
 
+    def test_tracked_clean_sees_bytes_mode_deletion_and_links_like_git_diff(self):
+        helper = self.source/'skills/demo/helper.py'
+        original = helper.read_bytes()
+        self.assertTrue(tracked_clean(self.source))
+        def link():
+            helper.unlink()
+            helper.symlink_to('helper.txt')
+        for change in (lambda: helper.chmod(0o755), helper.unlink, link, lambda: helper.write_bytes(b'print("one")\r\n')):
+            change()
+            self.assertFalse(tracked_clean(self.source))
+            helper.unlink(missing_ok=True)
+            helper.write_bytes(original)
+            helper.chmod(0o644)
+            self.assertTrue(tracked_clean(self.source))
+        demo = self.source/'skills/demo'
+        demo.rename(self.box/'moved')
+        demo.symlink_to(self.box/'moved',target_is_directory=True)
+        self.assertFalse(tracked_clean(self.source))
+
     def test_dirty_and_staged_source_refuse_without_fetch(self):
         self.put('skills/demo/helper.py','owner edit\n')
         with patch.object(transaction,'prepare') as prepared:
@@ -108,6 +127,16 @@ class ReceivingTest(unittest.TestCase):
         git(self.source,'add','.')
         with self.assertRaisesRegex(SourceError,'staged'):
             self.run_sync()
+        self.assertEqual(load(self.paths.control/'active.json'),self.old_active)
+
+    def test_empty_intent_to_add_entry_refuses_and_keeps_its_index_entry(self):
+        # Its index blob is the empty blob, so the raw-byte check alone accepts it.
+        self.put('skills/demo/owner-empty.txt','')
+        git(self.source,'add','-N','skills/demo/owner-empty.txt')
+        self.assertTrue(tracked_clean(self.source))
+        with self.assertRaisesRegex(SourceError,'staged'):
+            self.run_sync()
+        self.assertIn(b'skills/demo/owner-empty.txt',git(self.source,'ls-files','-z').stdout)
         self.assertEqual(load(self.paths.control/'active.json'),self.old_active)
 
     def test_candidate_untracked_collision_and_alias_collision_preserve_both(self):
@@ -204,16 +233,24 @@ class ReceivingTest(unittest.TestCase):
                 with source_lock(self.paths,timeout=0.05):
                     self.fail('second lock acquired')
 
-    def test_configured_filters_run_nowhere_and_a_selected_filter_is_refused(self):
-        # git-lfs installs filter.lfs.* for every repository; it runs only where attributes select it.
-        git(self.source,'config','filter.lfs.clean','false')
-        git(self.source,'config','filter.lfs.required','true')
-        self.assertEqual(self.run_sync()['active']['commit'],self.new)
+    def test_selected_filters_never_run_during_receiving(self):
+        # git-lfs installs filter.lfs.* globally. Names that read like inactive attribute
+        # states and a path only the incoming commit adds must stay inert as well.
+        marker = self.box/'filter-ran'
+        command = 'sh -c "echo %f >> ' + str(marker) + '; cat"'
+        for name in ('lfs','unset','unspecified','probe'):
+            git(self.source,'config','--global','filter.'+name+'.clean',command)
+            git(self.source,'config','--global','filter.'+name+'.smudge',command)
         attributes = self.home/'.config/git/attributes'
         attributes.parent.mkdir(parents=True)
-        attributes.write_text('*.md filter=lfs\n')
-        with self.assertRaisesRegex(SourceError,'selects a filter'):
-            self.run_sync()
+        attributes.write_text('*.json filter=lfs\n*.py filter=unset\n*.md filter=unspecified\n'
+                              'skills/demo/new.txt filter=probe\n')
+        self.assertEqual(self.run_sync()['active']['commit'],self.new)
+        self.assertFalse(marker.exists())
+        # The fixture is live: an ordinary worktree diff on the unstat'd index runs them.
+        git(self.source,'read-tree',self.new)
+        git(self.source,'diff','--quiet',check=False)
+        self.assertIn('skills/demo/new.txt',marker.read_text())
 
     def test_index_flags_and_executable_checkout_hooks_are_refused_without_disabling_them(self):
         file = 'skills/demo/helper.py'
