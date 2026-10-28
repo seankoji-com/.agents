@@ -22,7 +22,8 @@ from shared.job_coordination import freeze_provider_limits, require_admission, o
 from shared.job_coordinator import (verified_pins, verify_job_pins, pinned_store,
                                     verify_all_pins, verify_pinned_dependency)
 from shared.lineage import lineage
-from shared.worker_registry import locked, registry_root, record_job_root, job_agents_roots
+from shared.worker_registry import (locked, registry_root, record_job_root, job_agents_roots,
+                                    installation_marker)
 
 
 class PlanningError(JobError):
@@ -310,7 +311,12 @@ def create(data, state_root, prefix, agents_root, environ=None):
             # Source entry points retain active-package resolution and the strict
             # acceptance-byte equality check in manifest_policy below.
             runtime = Path(__file__).resolve().parents[1]
-            if not (runtime / 'plugins' / data['plugin'] / 'plugin.json').is_file():
+            # Bundled assets may mimic a source subtree. Package-root markers
+            # and the owning prefix take precedence, even with a missing receipt.
+            installed = any(os.path.lexists(marker) for marker in (
+                runtime / 'plugin.json', runtime / 'install-manifest.json',
+                installation_marker(runtime.parent.parent)))
+            if installed or not (runtime / 'plugins' / data['plugin'] / 'plugin.json').is_file():
                 job['dependencies'][0]['package_dir'] = str(runtime)
             pins = verified_pins(job, state_root, prefix, agents_root)
             freeze_provider_limits(job, pins)
