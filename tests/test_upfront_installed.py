@@ -39,10 +39,10 @@ class InstalledAgreementTests(unittest.TestCase):
 
     def test_relocated_imps_source_gate_requires_actual_current_endpoint_observations(self):
         from tests.imps_plan_review_fixtures import ImpsPlanFixture
+        from tests.test_plan_review_installed_matrix import relocate
         with tempfile.TemporaryDirectory() as tmp:
             box = Sandbox(Path(tmp)); package, manifest = box.install('imps')
-            moved = box.base / 'relocated-imps'
-            shutil.copytree(package, moved)
+            moved, manifest = relocate(box, {'imps': (package, manifest)})['imps']
             f = ImpsPlanFixture(box, moved, manifest, op='run', write=True, code_review=True, work_backup=True)
             f.approve(); f.init()
             box.run(['git', '-C', f.project, 'add', 'source.py'])

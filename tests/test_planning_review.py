@@ -834,9 +834,14 @@ class PlanningReviewTests(unittest.TestCase):
         self.assertEqual(out['outcome'],'adverse');self.finish(accepted=False)
 
     def test_repeated_agreement_keeps_original_clearing_on_unchanged_content(self):
-        relocated = self.box.private / ('relocated-carry-' + self.job_id)
-        shutil.copytree(self.package, relocated)
-        self.package, self.installed_only = relocated, True
+        from tests.test_plan_review_installed_matrix import relocate
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.box = Sandbox(Path(temporary.name))
+        package, manifest = self.box.install('imps')
+        self.package, self.manifest = relocate(self.box, {'imps': (package, manifest)})['imps']
+        self.installed_only = True
+        self.setUp()
         for index, severity in enumerate(('major', 'minor', 'note')):
             with self.subTest(severity=severity):
                 if index:
