@@ -43,17 +43,22 @@ def prepare(paths, source):
     selection = pins.capture_receiver(paths,source,commit)
     candidate = pins.verify(paths,selection['pin'])
     info = layout.validate(candidate)
+    rows = []
     for name in info['skills']:
         existing = root/'skills'/name
         if existing.is_dir() and layout.skill(candidate,name)['exempt']:
             extras = [p for p in existing.rglob('*') if p.is_file() and p.relative_to(existing).as_posix() != 'SKILL.md']
+            # A dotfiles ownership receipt that still matches its body is retired with a backup.
+            marker = existing/'.dotfiles-skill.json'
+            if extras == [marker] and legacy_owned(existing) == ['.dotfiles-skill.json','SKILL.md']:
+                rows.append({'path':str(marker.relative_to(paths.home)),'before':transaction.observed(marker),'after':None})
+                extras = []
             require(not extras, 'custom picker/helper files require explicit reconciliation for an exempt skill: ' + name)
     provenance_name = 'migration/issue-198-source-provenance.json'
     provenance = {}
     if provenance_name in values:
         import json
         provenance = json.loads(values[provenance_name][0])['files']
-    rows = []
     old_discovery = discovery.receipt(paths)
     imported = {row['path']:row['target'] for row in old_discovery['links']}
     old_names = ['t3-'+name for name in info['skills'] if name != 'unslop']

@@ -105,6 +105,32 @@ class AdoptionTest(unittest.TestCase):
         self.assertFalse((self.root/'.git').exists())
         self.assertFalse((self.paths.control/'cutover.json').exists())
 
+    def test_exempt_skill_dotfiles_receipt_is_retired_with_backup_only_while_it_matches(self):
+        identity = load(self.donor/'.agents-source.json')
+        identity['required_skills'].append('unslop')
+        write_json(self.donor/'.agents-source.json',identity)
+        body = '---\nname: unslop\ndescription: Prose\nmetadata:\n  agents-bootstrap-exempt: "true"\n---\nProse.\n'
+        source = self.donor/'skills/unslop/SKILL.md'
+        source.parent.mkdir()
+        source.write_text(body)
+        self.commit = self.fixture.commit('single-file prose source')
+        installed = self.root/'skills/unslop/SKILL.md'
+        installed.parent.mkdir(parents=True)
+        installed.write_text(body)
+        marker = installed.parent/'.dotfiles-skill.json'
+        write_json(marker,{'schema_version':1,'name':'unslop','files':{'SKILL.md':digest(body.encode())}})
+        receipt = marker.read_bytes()
+        installed.write_text(body+'owner edit\n')
+        with self.assertRaisesRegex(SourceError,'modified old skill'):
+            adoption.adopt(self.paths,self.donor)
+        self.assertFalse((self.root/'.git').exists())
+        installed.write_text(body)
+        result = adoption.adopt(self.paths,self.donor)
+        self.assertEqual(result['status'],'adopted')
+        self.assertFalse(marker.exists())
+        self.assertEqual(installed.read_text(),body)
+        self.assertEqual((Path(result['backup'])/'files/.agents/skills/unslop/.dotfiles-skill.json').read_bytes(),receipt)
+
     def test_interrupted_adoption_is_pending_and_can_resume_exactly(self):
         def crash(phase):
             if phase == 'files':
