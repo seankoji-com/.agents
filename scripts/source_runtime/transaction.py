@@ -4,7 +4,7 @@ import datetime
 from pathlib import Path
 
 from . import bootstrap, discovery, pins
-from .io import atomic, canonical, git, index_matches_head, load, no_links, read, relative, require, source_lock, tracked_clean, write_json
+from .io import atomic, canonical, git, index_matches_head, load, load_journal, no_links, read, relative, require, source_lock, tracked_clean, write_json
 
 # The same canonical spellings the dotfiles cutover guard accepts (seankoji-com/.dotfiles#576),
 # so the adopter and the guard agree on one checkout identity.
@@ -23,7 +23,7 @@ def oid(root, name):
 
 def pending(paths):
     file = paths.control / 'journal.json'
-    return file.exists() and load(file).get('phase') != 'complete'
+    return file.exists() and load_journal(paths).get('phase') != 'complete'
 
 
 def index_tree(root):
@@ -251,7 +251,7 @@ def execute(paths, action, pin=None, restore=False, fetcher=None, hook=None):
                 result = sync(paths,config,fetcher,hook)
             elif action == 'recover':
                 require(pending(paths), 'no pending transaction to recover')
-                result = apply(paths,load(paths.control/'journal.json'),reverse=restore,hook=hook)
+                result = apply(paths,load_journal(paths),reverse=restore,hook=hook)
             else:
                 require(not pending(paths), 'recover the pending source transaction before runtime rollback')
                 if pin == 'follow-source':

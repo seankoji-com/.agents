@@ -5,7 +5,7 @@ from pathlib import Path
 import uuid
 
 from . import discovery, layout, pins, transaction
-from .io import atomic, canonical, digest, git, load, no_links, read, index_matches_head, relative, require, source_lock, tracked_clean, write_json
+from .io import atomic, canonical, digest, git, load, load_journal, no_links, read, index_matches_head, relative, require, source_lock, tracked_clean, write_json
 
 
 def legacy_owned(folder):
@@ -211,6 +211,12 @@ def apply(paths,journal,hook=None):
         config['receive_enabled'] = False
     write_json(paths.control/'profile.json',config)
     transaction.phase(paths,journal,'complete',hook)
+    # The full journal stays in the backup's restore map. A compact completion record keeps
+    # every later start from re-reading every adopted file's bytes.
+    write_json(paths.control/'journal.json',{'schema_version':1,'kind':'adoption','phase':'complete',
+        'source_root':journal['source_root'],'commit':journal['commit'],'pin':journal['pin'],
+        'backup':journal['backup'],'restore_map':str(Path(journal['backup'])/'restore-map.json'),
+        'completed_at':transaction.now()})
     return {'status':'adopted','source_root':str(root),'commit':journal['commit'],'pin':journal['pin'],
         'backup':journal['backup'],'profile':config['profile'],'receive_enabled':config['receive_enabled']}
 
@@ -219,7 +225,7 @@ def adopt(paths,source=None,hook=None):
     with source_lock(paths):
         file = paths.control/'journal.json'
         if transaction.pending(paths):
-            journal = load(file)
+            journal = load_journal(paths)
             require(journal.get('kind') == 'adoption', 'recover the pending receiver transaction first')
             require(source is None or str(no_links(source)) == journal['donor'], 'pending adoption has a different donor')
         else:

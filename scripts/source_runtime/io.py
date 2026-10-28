@@ -82,14 +82,23 @@ def read(path, maximum=16 * 1024 * 1024):
     return data
 
 
-def load(path):
+def load(path, maximum=16 * 1024 * 1024):
     def pairs(items):
         result = {}
         for key, value in items:
             require(key not in result, 'duplicate JSON key: ' + key)
             result[key] = value
         return result
-    return json.loads(read(path), object_pairs_hook=pairs)
+    return json.loads(read(path, maximum), object_pairs_hook=pairs)
+
+
+# An adoption journal carries every adopted file's bytes, so it grows with the source.
+# It must stay readable for recovery even when that exceeds the ordinary capture limit.
+JOURNAL_LIMIT = 256 * 1024 * 1024
+
+
+def load_journal(paths):
+    return load(paths.control / 'journal.json', JOURNAL_LIMIT)
 
 
 def atomic(path, data, mode=0o600):
