@@ -10,7 +10,7 @@ import sys
 import uuid
 
 from . import bootstrap, layout, pins
-from .io import Paths, SourceError, git, load, no_links, read, require, run_verified, source_lock, write_json
+from .io import Paths, SourceError, git, load, load_journal, no_links, read, require, run_verified, source_lock, write_json
 
 
 def configuration(paths):
@@ -31,7 +31,7 @@ def status(paths):
     installed = load(paths.control / 'bootstrap-active.json')
     upstream = git(root, 'rev-list', '--left-right', '--count', 'HEAD...refs/remotes/origin/' + config['branch'], check=False)
     counts = upstream.stdout.decode().split() if upstream.returncode == 0 else []
-    journal = load(paths.control / 'journal.json') if (paths.control / 'journal.json').exists() else None
+    journal = load_journal(paths) if (paths.control / 'journal.json').exists() else None
     history = load(paths.control / 'last-sync.json') if (paths.control / 'last-sync.json').exists() else None
     return {'profile': config['profile'], 'source_root': str(root),
         'source_head': head.stdout.decode().strip() if head.returncode == 0 else None,
@@ -48,7 +48,7 @@ def status(paths):
 def select(paths, config, explicit_source=None):
     root = no_links(explicit_source or config['source_root'])
     journal = paths.control / 'journal.json'
-    require(not journal.exists() or load(journal).get('phase') == 'complete',
+    require(not journal.exists() or load_journal(paths).get('phase') == 'complete',
             'source update has pending recovery; existing explicit pins remain usable')
     if config['profile'] == 'author':
         return pins.capture_author(paths, root)
@@ -222,7 +222,7 @@ def main(argv=None, home=None, infrastructure_source=None):
                 return 0
             elif args.command in ('sync', 'recover', 'rollback'):
                 from . import transaction
-                if args.command == 'recover' and transaction.pending(paths) and load(paths.control/'journal.json').get('kind') == 'adoption':
+                if args.command == 'recover' and transaction.pending(paths) and load_journal(paths).get('kind') == 'adoption':
                     from . import adoption
                     require(not args.restore, 'adoption restore requires its private restore map; preserve the initialized Git metadata')
                     result = adoption.adopt(paths)

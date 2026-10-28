@@ -59,6 +59,26 @@ class AdoptionTest(unittest.TestCase):
         self.assertTrue((backup/'restore-map.json').is_file())
         self.assertIn('Version one',Path(cli.start(self.paths,'demo')['skill_file']).read_text())
 
+    def test_completed_adoption_leaves_a_compact_journal_and_the_full_restore_map(self):
+        result = adoption.adopt(self.paths,self.donor)
+        journal = load(self.paths.control/'journal.json')
+        self.assertEqual(journal['phase'],'complete')
+        self.assertNotIn('files',journal)
+        restore = load(Path(journal['restore_map']))
+        self.assertEqual(Path(journal['restore_map']).parent,Path(result['backup']))
+        self.assertTrue(restore['files'])
+        self.assertEqual(restore['commit'],journal['commit'])
+
+    def test_a_complete_journal_beyond_the_capture_limit_does_not_block_start_or_status(self):
+        adoption.adopt(self.paths,self.donor)
+        # A real source's adoption journal carries every file's bytes and exceeds 16 MiB.
+        write_json(self.paths.control/'journal.json',{'schema_version':1,'kind':'adoption','phase':'complete',
+                                                      'padding':'x'*(17*1024*1024)})
+        self.assertIn('Version one',Path(cli.start(self.paths,'demo')['skill_file']).read_text())
+        # status reports the installed updater revision; this fixture has no self-install.
+        write_json(self.paths.control/'bootstrap-active.json',{'schema_version':1,'revision':'fixture-updater'})
+        self.assertIsNone(cli.status(self.paths)['pending_recovery'])
+
     def test_modified_or_custom_old_picker_stops_before_any_live_mutation(self):
         custom = self.root/'skills/t3-demo/agents/openai.yaml'
         custom.parent.mkdir()
