@@ -132,6 +132,36 @@ def git(root, *argv, timeout=20, check=True, input=None):
     return result
 
 
+def tracked_clean(root):
+    """Whether every tracked file's raw bytes and mode match the index.
+
+    A worktree `git diff` runs any configured clean filter (git-lfs installs one
+    globally) that an attribute from any source selects, so receiving and adoption
+    compare blobs here and never ask Git to convert worktree content.
+    """
+    for row in git(root, 'ls-files', '--stage', '-z').stdout.split(b'\0'):
+        if not row:
+            continue
+        meta, name = row.split(b'\t', 1)
+        mode, oid, stage = meta.decode().split()
+        path = Path(root) / os.fsdecode(name)
+        try:
+            no_links(path.parent)
+            info = os.lstat(path)
+        except (OSError, SourceError):
+            return False
+        if mode == '120000' and stat.S_ISLNK(info.st_mode):
+            data = os.fsencode(os.readlink(path))
+        elif mode in ('100644', '100755') and stat.S_ISREG(info.st_mode) and bool(info.st_mode & 0o100) == (mode == '100755'):
+            data = path.read_bytes()
+        else:
+            return False
+        blob = (hashlib.sha1 if len(oid) == 40 else hashlib.sha256)(b'blob %d\0' % len(data) + data)
+        if stage != '0' or blob.hexdigest() != oid:
+            return False
+    return True
+
+
 class Paths:
     def __init__(self, home=None):
         self.home = no_links(Path.home() if home is None else home)

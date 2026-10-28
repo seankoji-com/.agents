@@ -4,7 +4,7 @@ import datetime
 from pathlib import Path
 
 from . import bootstrap, discovery, pins
-from .io import atomic, canonical, git, load, no_links, read, relative, require, source_lock, write_json
+from .io import atomic, canonical, git, load, no_links, read, relative, require, source_lock, tracked_clean, write_json
 
 # The same canonical spellings the dotfiles cutover guard accepts (seankoji-com/.dotfiles#576),
 # so the adopter and the guard agree on one checkout identity.
@@ -57,19 +57,14 @@ def preflight(root, config):
         hook = hooks/name
         require(not hook.exists() or not hook.stat().st_mode & 0o111,
                 'executable Git hook is unsupported during receiving: '+name)
-    transport = git(root, 'config', '--get-regexp', r'^(remote\.origin\.(uploadpack|fetch)|core\.attributesfile)', check=False)
+    transport = git(root, 'config', '--get-regexp', r'^remote\.origin\.(uploadpack|fetch)', check=False)
     for line in transport.stdout.decode().splitlines():
-        require(line == 'remote.origin.fetch +refs/heads/*:refs/remotes/origin/*', 'unsupported Git filter/transport configuration')
-    # A configured filter (git-lfs installs filter.lfs.* for every repository) runs only
-    # for paths whose attributes select it, so refuse any tracked path that does. This
-    # covers the global attributes file; prepare() limits incoming .gitattributes.
-    listed = git(root, 'ls-files', '-z').stdout
-    selected = git(root, 'check-attr', '--stdin', '-z', 'filter', input=listed).stdout.split(b'\0')
-    require(all(value in (b'unspecified', b'unset') for value in selected[2::3]),
-            'unsupported Git filter/transport configuration: a tracked path selects a filter')
+        require(line == 'remote.origin.fetch +refs/heads/*:refs/remotes/origin/*', 'unsupported Git transport configuration')
     require(not (git_dir / 'info/attributes').exists() or not read(git_dir / 'info/attributes').strip(),
             'custom Git attributes are unsupported')
-    require(git(root, 'diff', '--no-ext-diff', '--no-textconv', '--quiet', check=False).returncode == 0, 'tracked source is dirty')
+    # Configured filters (git-lfs installs filter.lfs.* globally) stay inert: no receiving
+    # step runs a Git command that converts worktree content.
+    require(tracked_clean(root), 'tracked source is dirty')
     require(git(root, 'diff', '--cached', '--no-ext-diff', '--no-textconv', '--quiet', check=False).returncode == 0, 'source index is staged')
     return oid(root, 'HEAD')
 
@@ -184,7 +179,7 @@ def apply(paths, journal, reverse=False, hook=None):
     require(all(observed(root/relative(row['path'])) == row[desired] for row in journal['files']),
             'source changed before activation')
     require(oid(root,'HEAD') == target and index_tree(root) == oid(root,target+'^{tree}'), 'source/index/ref mismatch')
-    require(git(root,'diff','--no-ext-diff','--no-textconv','--quiet',check=False).returncode == 0, 'source changed before activation')
+    require(tracked_clean(root), 'source changed before activation')
     active = journal['old_active'] if reverse else journal['new_active']
     if active is None:
         file = paths.control/'active.json'
