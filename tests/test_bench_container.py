@@ -2900,6 +2900,8 @@ class Pass14ContainerRepairTest(unittest.TestCase):
             with self.subTest(case=label), tempfile.TemporaryDirectory() as temp:
                 workspace, _results, inputs, _digest = self.seeded_canary_tree(temp)
                 target = workspace / relative
+                (workspace / '.git' / 'config').chmod(0o644)
+                (workspace / '.git' / 'refs' / 'tags').chmod(0o755)
                 original = stat.S_IMODE(target.stat().st_mode)
                 self.assertNotEqual(original, mode)
                 before = benchctl.workspace_inventory(workspace)
@@ -2948,6 +2950,9 @@ class Pass14ContainerRepairTest(unittest.TestCase):
             (assigned / 'notes').mkdir(parents=True)
             (assigned / 'notes' / 'other.txt').write_text('earlier\n', encoding='utf-8')
             (assigned / 'helper.json').write_text('{"stale": true}\n', encoding='utf-8')
+            assigned.chmod(0o755)
+            (assigned / 'notes').chmod(0o755)
+            (assigned / 'notes' / 'other.txt').chmod(0o644)
             before = benchctl.workspace_inventory(workspace)
             self.run_helper(workspace, inputs / 'brief.txt', assigned / 'helper.json')
             return workspace, assigned, before
@@ -2978,6 +2983,7 @@ class Pass14ContainerRepairTest(unittest.TestCase):
             (workspace / 'smoke' / 'task-1').mkdir(parents=True)
             (workspace / 'smoke' / 'task-1' / 'earlier.txt').write_text('x\n', encoding='utf-8')
             (workspace / output).write_text('{}\n', encoding='utf-8')
+            (workspace / '.git' / 'config').chmod(0o644)
             before = smoke.workspace_snapshot(workspace)
             (workspace / output).write_text('{"input_sha256": "x"}\n', encoding='utf-8')
             return workspace, before
