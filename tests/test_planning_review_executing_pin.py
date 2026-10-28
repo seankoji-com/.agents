@@ -10,11 +10,17 @@ from tests.test_plan_review_installed_matrix import relocate
 
 
 class ExecutingPackagePinTests(unittest.TestCase):
+    nested_source_asset = False
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.box = Sandbox(Path(temporary.name))
         source_a = self.box.source_copy('imps')
+        if self.nested_source_asset:
+            asset = source_a / 'plugins/imps/plugins/imps/plugin.json'
+            asset.parent.mkdir(parents=True)
+            asset.write_text('{"name":"imps","version":"0.0.0"}\n')
         worker = source_a / 'plugins/imps/agents/reviewer.md'
         worker.write_text(worker.read_text() + '\nSynthetic executing package A worker.\n')
         self.a, self.manifest = self.box.install('imps', source=source_a)
@@ -65,6 +71,17 @@ class ExecutingPackagePinTests(unittest.TestCase):
         current.symlink_to(self.a.name)
         self.exercise()
 
+    def test_source_below_installation_prefix_uses_active_package(self):
+        current = self.box.prefix / 'imps/current'
+        current.unlink()
+        current.symlink_to(self.a.name)
+        source = self.box.source_copy('imps', name=str(self.box.prefix / 'sources/checkout'))
+        self.f.package = source
+        self.f.create()
+        job = self.box.state_of(self.f.job_id)
+        self.assertEqual(job['dependencies'][0].get('package_dir'), None)
+        self.assertEqual(Path(job['pins']['workflow']['package_dir']), self.a)
+
     def refused(self, message):
         with self.assertRaises(AssertionError) as caught:
             self.f.create()
@@ -105,6 +122,11 @@ class ExecutingPackagePinTests(unittest.TestCase):
 
     def test_persistent_history_and_round_limits(self):
         self.f.test_persistent_budget_new_jobs_and_explicit_owner_limit()
+
+
+class NestedSourceAssetPinTests(ExecutingPackagePinTests):
+    """A valid installed asset must not identify the executing helper as source."""
+    nested_source_asset = True
 
 
 if __name__ == '__main__':
