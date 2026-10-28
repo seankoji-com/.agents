@@ -33,6 +33,8 @@ try:
     if hashlib.sha256(raw).hexdigest()!=record['manifest_sha256']: raise ValueError('bootstrap manifest integrity failure')
     manifest=json.loads(raw)
     if manifest['protocol']!=1: raise ValueError('unsupported bootstrap protocol; explicit self-install required')
+    if os.path.realpath(sys.executable)!=manifest['interpreter']:
+        raise ValueError('interpreter mismatch: run the launcher directly or self-install with this interpreter')
     expected={'installation.json'}
     for row in manifest['files']:
         name=row['path']; rel=Path(name)

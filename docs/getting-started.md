@@ -13,8 +13,8 @@ python3 "$HOME/.agents/bin/agents" self-install --profile author
 "$HOME/.local/bin/agents" status
 ```
 
-The launcher records the absolute interpreter and verifies its XDG installation
-before importing code. `~/.agents` stays the editable source. Infrastructure edits
+The launcher records the absolute interpreter, refuses to run under any other, and
+verifies its XDG installation before importing code. `~/.agents` stays the editable source. Infrastructure edits
 need an explicit `self-install`; ordinary skills, shared instructions and helpers
 need no install, release, version bump or commit.
 
