@@ -61,10 +61,13 @@ def inventory(paths, roots, job_files=(), run_roots=()):
     for file,row in records.items():
         category,job,error = classify(file)
         row.update(path=file,classification=category,error=error)
-        row['pins'] = job.get('pins',{}) if job else {}
+        pins = job.get('pins',{}) if job else {}
+        # A digest, not the pins: full pins reach hundreds of KiB per job, and the bridge
+        # must read the whole inventory within the 16 MiB capture limit.
+        row['pins_sha256'] = digest(canonical(pins))
         row['job_id'] = job.get('job_id') if job else None
         row['stored_commands'] = []
-        for pin in row['pins'].values():
+        for pin in pins.values():
             for field in ('compatible_pinned_argv','compatible_pinned_invocation'):
                 if field in pin:
                     row['stored_commands'].append({'field':field,'value':pin[field]})
@@ -228,7 +231,8 @@ def dispatch(paths,argv):
             'legacy job is not inventoried; preserve unknowns and reconcile before executing')
     category,job,error = classify(file)
     require(job is not None and job['job_id'] == indexed[str(file)]['job_id'], 'inventoried job identity differs')
-    require(job['pins'] == indexed[str(file)]['pins'], 'legacy job pins changed; re-inventory without substituting dependencies')
+    require(digest(canonical(job['pins'])) == indexed[str(file)]['pins_sha256'],
+            'legacy job pins changed; re-inventory without substituting dependencies')
     action = arguments[2]
     allowed = {'path','agents','selection','agreement','planning-review','resolve','doctor'}
     require(action in allowed, 'legacy compatibility cannot create/register/install/uninstall/activate new workflows')

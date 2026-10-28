@@ -13,7 +13,7 @@ from support import CoreTestCase, ROOT
 
 sys.path.insert(0,str(ROOT/'scripts'))
 from source_runtime import bootstrap, legacy, pins
-from source_runtime.io import Paths, SourceError, canonical, git, load, read, write_json
+from source_runtime.io import Paths, SourceError, canonical, digest, git, load, read, write_json
 
 
 class LegacyTest(CoreTestCase):
@@ -65,12 +65,25 @@ class LegacyTest(CoreTestCase):
         result = self.inventory()
         self.assertEqual(result['classifications'],{'resumable':1,'missing/unknown':1})
         report = load(self.paths.control/'legacy-inventory.json')
-        self.assertEqual(report['jobs'][str(self.job)]['pins'],self.record['pins'])
+        self.assertEqual(report['jobs'][str(self.job)]['pins_sha256'],digest(canonical(self.record['pins'])))
+        self.assertNotIn('pins',report['jobs'][str(self.job)])
         self.assertEqual(report['jobs'][str(self.job)]['stored_commands'][0]['value'],
             self.record['pins']['workflow']['compatible_pinned_argv'])
         self.assertGreater(result['claims_preserved'],0)
         self.assertTrue(all(row['classification'] == 'missing/unknown' for row in report['claims']))
         self.assertFalse((self.state/'missing').exists())
+
+    def test_large_pins_stay_out_of_the_inventory_and_the_job_still_dispatches(self):
+        # Real hosts carry hundreds of jobs with pins of several hundred KiB each; the
+        # bridge reads the whole inventory under the 16 MiB capture limit.
+        self.record['pins']['workflow']['retained_notes'] = 'x' * (1 << 20)
+        write_json(self.job,self.record)
+        self.inventory()
+        self.assertLess((self.paths.control/'legacy-inventory.json').stat().st_size,64 * 1024)
+        installed = legacy.install_bridge(self.paths,self.brew)
+        resolved = subprocess.run([installed['bridge'],'--job',str(self.job),'path','imps'],capture_output=True,text=True)
+        self.assertEqual(resolved.returncode,0,resolved.stdout+resolved.stderr)
+        self.assertEqual(resolved.stdout.strip(),str(self.package/'entry.md'))
 
     def test_real_old_pin_and_core_status_work_after_brew_runtime_removal(self):
         self.inventory()
