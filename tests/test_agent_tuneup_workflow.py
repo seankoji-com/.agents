@@ -656,12 +656,17 @@ class SyntheticJobTest(unittest.TestCase):
             adapter.quality_evidence(integrated, integrated['adopter_output'],
                 {'snapshot': {'evidence_paths': research_inputs + proposal_inputs}},
                 [{'inspected_paths': [d['path'] for d in research_inputs]}])
-        Path(proposal_path).write_bytes(Path(proposal_path).read_bytes() + b' ')
-        with self.assertRaisesRegex(ValueError, 'proposal observation changed since acceptance'):
-            adapter.validate_observation(state, state['stages'][-1], integrated, self.inst.state / job['job_id'])
-        stale = self.inst.accept('validate', job['job_id'], {'caller': caller, 'stage_id': 'report'})
-        self.assertTrue(stale.stdout, stale.stderr)
-        self.assertFalse(json.loads(stale.stdout)['accepted'])
+        original_proposal_bytes = Path(proposal_path).read_bytes()
+        try:
+            Path(proposal_path).write_bytes(original_proposal_bytes + b' ')
+            with self.assertRaisesRegex(ValueError, 'proposal observation changed since acceptance'):
+                adapter.validate_observation(state, state['stages'][-1], integrated, self.inst.state / job['job_id'])
+            stale = self.inst.accept('validate', job['job_id'], {'caller': caller, 'stage_id': 'report'})
+            self.assertTrue(stale.stdout, stale.stderr)
+            self.assertFalse(json.loads(stale.stdout)['accepted'])
+        finally:
+            Path(proposal_path).write_bytes(original_proposal_bytes)
+        self.assertEqual(Path(proposal_path).read_bytes(), original_proposal_bytes)
 
     def test_muse_inspect_gaps_are_consumed_preserved_and_reviewed_in_final_report(self):
         settings = self.inst.payload('muse-settings.json', {'permissions': {'profiles': {}}})

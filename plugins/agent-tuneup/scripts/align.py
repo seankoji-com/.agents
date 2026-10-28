@@ -52,7 +52,7 @@ SAFE_ERRORS = {
     'changed_keys_do_not_match', 'stale_or_unapproved_plan', 'stale_plan',
     'invalid_backup', 'protective_setting_weakened', 'reviewed_proposal_and_owner_approval_required',
     'invalid_batch', 'overlapping_batch', 'destination_not_writable', 'destination_readiness_unknown',
-    'private_plan_too_large', 'unsupported_policy_coverage',
+    'private_plan_too_large', 'unsupported_policy_coverage', 'unsupported_permissions',
 }
 
 

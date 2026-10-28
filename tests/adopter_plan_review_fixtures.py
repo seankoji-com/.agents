@@ -323,6 +323,7 @@ def review_existing_tuneup_report(package,manifest,env,state_root,job_id,data,ba
     """Old synthesis fixture now completes the real shared planning contract."""
     from tests.imps_plan_review_fixtures import legacy_box
     from core.jobs.store import canonical
+    from shared.adopter_planning import tuneup_report_adapter
     job_file=Path(state_root)/job_id/'job.json';job=json.loads(job_file.read_text())
     review_name = review_name or job_id
     box=legacy_box(Path(base)/('planning-'+review_name),package,manifest,env);box.jobs=Path(state_root)
@@ -346,10 +347,10 @@ def review_existing_tuneup_report(package,manifest,env,state_root,job_id,data,ba
     if data.get('target_report') and target_evidence:
         f.inputs['evidence_paths'] = [str(job_file.parent / r['path']) for r in data['target_report']['reports']]
     if data.get('target_report') and data.get('report_stage') == 'integrated' and proposal_evidence:
-        verifier_stages = {t['stage_id'] for t in job['tasks']
-                           if t['worker_id'] == 'agent-tuneup/config-verifier'}
-        f.inputs['evidence_paths'].extend(s['observation_ref']['path'] for s in job['stages']
-                                         if s['id'] == 'proposal' or s['id'] in verifier_stages)
+        # Declare only exact, accepted proposal observations. Missing or stale references
+        # must refuse here; silently skipping them would hide a fixture's missing evidence.
+        descriptors = tuneup_report_adapter(package).proposal_artifacts(job, job_file.parent)
+        f.inputs['evidence_paths'].extend(d['path'] for d in descriptors)
     def assessment():
         target_paths = {str(job_file.parent / r['path']) for r in data.get('target_report', {}).get('reports', [])}
         inspected = [p for p in f.snapshot['declared_paths'] if target_inspected or p not in target_paths]

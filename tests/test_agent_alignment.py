@@ -1,5 +1,7 @@
 """Provider coverage, private comparison receipts, and approved native writes."""
+from contextlib import redirect_stdout
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -430,6 +432,21 @@ class AlignmentTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'unsupported_permissions'):
                     self.proposal('opencode', json.dumps(before), json.dumps(after),
                                   [align.pointer(p) for p in align.changed_paths(before, after, adapter='opencode')])
+                receipt_output = io.StringIO()
+                plan_path = self.root / 'refused-alias-plan.json'
+                argv = ['plan', '--adapter', 'opencode', '--target', str(self.target),
+                        '--candidate', str(self.candidate), '--out', str(plan_path)]
+                for changed in align.changed_paths(before, after, adapter='opencode'):
+                    argv.extend(['--allow-key', align.pointer(changed)])
+                with redirect_stdout(receipt_output):
+                    exit_code = align.main(argv)
+                receipt = json.loads(receipt_output.getvalue())
+                self.assertEqual(exit_code, 2)
+                self.assertEqual(receipt['error'], 'unsupported_permissions')
+                self.assertEqual(receipt['settings_writes'], 0)
+                self.assertFalse(plan_path.exists())
+                self.assertEqual(self.target.read_bytes(), json.dumps(before).encode())
+                self.assertEqual(self.candidate.read_bytes(), json.dumps(after).encode())
         for key in ('bash', 'shell'):
             align.protect_policy('opencode', {'permission': {key: {'rm*': 'ask'}}},
                                  {'permission': {key: {'rm*': 'deny'}}})
