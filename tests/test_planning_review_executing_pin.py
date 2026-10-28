@@ -71,6 +71,17 @@ class ExecutingPackagePinTests(unittest.TestCase):
         current.symlink_to(self.a.name)
         self.exercise()
 
+    def test_source_below_installation_prefix_uses_active_package(self):
+        current = self.box.prefix / 'imps/current'
+        current.unlink()
+        current.symlink_to(self.a.name)
+        source = self.box.source_copy('imps', name=str(self.box.prefix / 'sources/checkout'))
+        self.f.package = source
+        self.f.create()
+        job = self.box.state_of(self.f.job_id)
+        self.assertEqual(job['dependencies'][0].get('package_dir'), None)
+        self.assertEqual(Path(job['pins']['workflow']['package_dir']), self.a)
+
     def refused(self, message):
         with self.assertRaises(AssertionError) as caught:
             self.f.create()

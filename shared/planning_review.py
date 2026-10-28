@@ -312,10 +312,14 @@ def create(data, state_root, prefix, agents_root, environ=None):
             # acceptance-byte equality check in manifest_policy below.
             runtime = Path(__file__).resolve().parents[1]
             # Bundled assets may mimic a source subtree. Package-root markers
-            # and the owning prefix take precedence, even with a missing receipt.
-            installed = any(os.path.lexists(marker) for marker in (
-                runtime / 'plugin.json', runtime / 'install-manifest.json',
-                installation_marker(runtime.parent.parent)))
+            # take precedence, even after relocation. A prefix marker applies
+            # only within its plugin/version namespace, not to source checkouts.
+            package_marked = any(os.path.lexists(marker) for marker in (
+                runtime / 'plugin.json', runtime / 'install-manifest.json'))
+            installed_namespace = (runtime.parent.name == data['plugin']
+                and re.fullmatch(r'\d+\.\d+\.\d+(?:\+[A-Za-z0-9._-]+)?', runtime.name)
+                and os.path.lexists(installation_marker(runtime.parent.parent)))
+            installed = package_marked or installed_namespace
             if installed or not (runtime / 'plugins' / data['plugin'] / 'plugin.json').is_file():
                 job['dependencies'][0]['package_dir'] = str(runtime)
             pins = verified_pins(job, state_root, prefix, agents_root)

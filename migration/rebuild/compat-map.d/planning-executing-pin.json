@@ -9,7 +9,12 @@
       "reason": "Executing immutable package pinning through public installed and relocated planning helpers, with distinct active acceptance bytes and fail-closed installation checks.",
       "assertions": [{
         "selector": "test_planning_review_executing_pin.ExecutingPackagePinTests",
-        "tests": 10,
+        "tests": 11,
+        "coverage": ["REQ-DELIVERY", "REQ-LIFECYCLE"],
+        "survives": true
+      }, {
+        "selector": "test_planning_review_executing_pin.NestedSourceAssetPinTests",
+        "tests": 11,
         "coverage": ["REQ-DELIVERY", "REQ-LIFECYCLE"],
         "survives": true
       }]
