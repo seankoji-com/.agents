@@ -18,12 +18,19 @@ def main():
             raise ValueError('audit findings are malformed')
         if not isinstance(criteria, dict) or criteria.get('operation') not in ('audit', 'apply'):
             raise ValueError('explicit audit/apply criteria are required')
-        if data.get('audit_exit_code') not in (0, 1) or data.get('audit_exit_code') == 1 and not criteria.get('findings_allowed'):
+        if (type(data.get('audit_exit_code')) is not int or data['audit_exit_code'] not in (0, 1) or
+                (data['audit_exit_code'] == 1 or findings) and criteria.get('findings_allowed') is not True):
             raise ValueError('audit result does not meet the task exit-code criteria')
         if not isinstance(changes, list) or criteria['operation'] == 'audit' and changes:
             raise ValueError('report-only audit cannot accept settings changes')
         if criteria['operation'] == 'apply' and not changes and criteria.get('allow_noop_apply') is not True:
             raise ValueError('apply requires a recorded change or explicit no-op criteria')
+        if criteria['operation'] == 'apply' and any(f.get('severity') in ('major', 'blocker') or
+                f.get('code') in ('coverage_gap', 'unsupported') for f in findings):
+            raise ValueError('apply has unresolved safety findings or unsupported policy coverage')
+        if 'target_report' in data:
+            from shared.adopter_planning import tuneup_report_adapter
+            tuneup_report_adapter(Path(__file__).resolve().parents[1]).criteria(data)
         if criteria['operation'] == 'apply':
             from shared.adopter_planning import apply_ready
             apply_ready(data['apply_context'], data['applied_plan'], Path(__file__).resolve().parents[1])

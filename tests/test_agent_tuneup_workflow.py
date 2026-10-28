@@ -22,9 +22,11 @@ from support import skill_manifest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from core.jobs.store import canonical  # noqa: E402
+from shared.adopter_planning import tuneup_report_adapter  # noqa: E402
 from tests.test_model_ids import MODEL_ID  # noqa: E402
 
 PLUGIN = ROOT / 'plugins' / 'agent-tuneup'
+REPORT_INSTRUCTIONS = tuneup_report_adapter(PLUGIN).RESEARCH_INSTRUCTIONS
 OPERATIONS = ['tuneup']
 WORKERS = ('agent-tuneup/config-researcher', 'agent-tuneup/config-verifier')
 # Synthetic routing records; the coordinator's record, not proof of the model that ran.
@@ -53,12 +55,19 @@ class Installed:
         self.base = base
         self.home = base / 'home'
         self.home.mkdir()
-        self.env = {**os.environ, 'HOME': str(self.home), 'XDG_CONFIG_HOME': str(base / 'config'),
-                    'XDG_STATE_HOME': str(base / 'xdg-state')}
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(('AGENTS_', 'XDG_',
+                    'OPENAI_', 'ANTHROPIC_', 'GEMINI_', 'GOOGLE_', 'CODEX_', 'CLAUDE_',
+                    'OPENCODE_', 'MUSE_', 'AWS_', 'AZURE_', 'GROQ_', 'HF_', 'GH_', 'GITHUB_')) and
+                    k not in ('PYTHONPATH', 'PYTHONHOME', 'SSH_AUTH_SOCK') and
+                    not any(s in k for s in ('TOKEN', 'SECRET', 'KEY', 'PASSWORD', 'CREDENTIAL'))}
+        self.env.update(HOME=str(self.home), XDG_CONFIG_HOME=str(base / 'config'),
+                        XDG_STATE_HOME=str(base / 'xdg-state'), XDG_DATA_HOME=str(base / 'data'),
+                        XDG_CACHE_HOME=str(base / 'cache'), TMPDIR=str(base / 'scratch'))
+        (base / 'scratch').mkdir()
         self.prefix, self.agents, self.state = base / 'prefix', base / 'agents', base / 'jobs'
         proc = subprocess.run([sys.executable, str(ROOT / 'scripts/install.py'), '--plugin', 'agent-tuneup',
                                '--prefix', str(self.prefix), '--agents-root', str(self.agents)],
-                              capture_output=True, text=True, env=self.env, timeout=60)
+                              capture_output=True, text=True, env=self.env, cwd=base, timeout=60)
         if proc.returncode:
             raise AssertionError(proc.stdout + proc.stderr)
         self.pkg = Path(json.loads(proc.stdout)['data']['version_dir'])
@@ -106,6 +115,114 @@ class Installed:
                         '--input', self.payload(f'{job_id}-{action}-{len(os.listdir(self.base))}.json', data),
                         check=False)
         return proc
+
+
+class NativeReportRegressionTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.inst = Installed(Path(self.tmp.name).resolve())
+
+    def audit(self, provider, data):
+        return self.inst.run('scripts/audit.py', '--provider', provider, '--settings',
+                             self.inst.payload('settings.json', data), check=False)
+
+    def test_native_ordered_permissions_and_agents_are_audited(self):
+        data = {'permissions': [{'action': '*', 'resource': '*', 'effect': 'allow'},
+                                {'action': 'shell', 'resource': 'git push *', 'effect': 'deny'}],
+                'agents': {'fixture-secret': {'permissions': [
+                    {'action': 'shell', 'resource': '*', 'effect': 'allow'}]}}}
+        p = self.audit('opencode', data)
+        self.assertEqual(p.returncode, 1, p.stdout)
+        findings = json.loads(p.stdout)['findings']
+        self.assertIn('constrained_broad_allow', {f['code'] for f in findings})
+        self.assertTrue(any(f['location'].startswith('agents[0]') for f in findings))
+        self.assertNotIn('fixture-secret', p.stdout + p.stderr)
+
+    def test_native_mcp_is_not_a_server_named_servers_or_timeout(self):
+        data = {'permissions': [], 'mcp': {'timeout': {'startup': 45000}, 'servers': {
+            'fixture-secret': {'type': 'remote', 'url': 'https://example.invalid', 'disabled': True}}}}
+        settings = self.inst.payload('native.json', data)
+        catalog = self.inst.payload('catalog.json', {'providers': [{'providerInstanceId': 'oc'}]})
+        inventory = self.inst.payload('inventory.json', {'version': 1, 'providers': [
+            {'provider_instance_id': 'oc', 'adapter': 'opencode', 'sources': [
+                {'path': str(settings), 'scope': 'global'}]}], 'capabilities': [
+            {'kind': 'mcp', 'members': {'oc': 'fixture-secret'}}]})
+        p = self.inst.run('scripts/align.py', 'audit', '--catalog', catalog, '--inventory', inventory, check=False)
+        self.assertEqual(json.loads(p.stdout)['capabilities'][0]['states'], ['disabled'])
+        self.assertNotIn('fixture-secret', p.stdout + p.stderr)
+
+    def test_unknown_and_mixed_opencode_shapes_do_not_pass(self):
+        for data in ({'permissions': {'fixture-secret': 'allow'}},
+                     {'permission': 'allow', 'permissions': []},
+                     {'agents': {'fixture-secret': {'permission': 'allow'}}},
+                     {'agent': {'fixture-secret': {'permissions': []}}},
+                     {'mcp': {'servers': {}, 'other': {'type': 'local', 'command': ['true']}}}):
+            with self.subTest(data=data):
+                p = self.audit('opencode', data)
+                self.assertEqual(p.returncode, 2, p.stdout)
+                self.assertNotIn('fixture-secret', p.stdout + p.stderr)
+
+    def test_installed_native_plugin_inventory_and_unsupported_forms(self):
+        settings = self.inst.payload('plugin-settings.json', {'plugins': [
+            {'package': 'fixture-secret', 'options': {'credential': 'invented-credential'}}]})
+        catalog = self.inst.payload('plugin-catalog.json', {'providers': [{'providerInstanceId': 'oc'}]})
+        inventory = self.inst.payload('plugin-inventory.json', {'version': 1, 'providers': [
+            {'provider_instance_id': 'oc', 'adapter': 'opencode', 'sources': [
+                {'path': str(settings), 'scope': 'global'}]}], 'capabilities': [
+            {'kind': 'plugin', 'members': {'oc': 'fixture-secret'}}]})
+        proc = self.inst.run('scripts/align.py', 'audit', '--catalog', catalog, '--inventory', inventory, check=False)
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)  # Wiring remains unverified.
+        self.assertTrue(json.loads(proc.stdout)['ok'])
+        self.assertEqual(json.loads(proc.stdout)['capabilities'][0]['states'], ['configured'])
+        for secret in ('fixture-secret', 'invented-credential', str(settings)):
+            self.assertNotIn(secret, proc.stdout + proc.stderr)
+        for data in ({'plugin': [], 'plugins': ['fixture-secret']},
+                     {'plugins': [{'package': 'fixture-secret', 'enabled': False}]},
+                     {'plugins': ['-fixture-secret']}):
+            proc = self.audit('opencode', data)
+            self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+            self.assertEqual(json.loads(proc.stdout)['error'], 'settings_unreadable_or_invalid')
+            self.assertNotIn('fixture-secret', proc.stdout + proc.stderr)
+
+    def test_muse_gap_survives_validator_and_cannot_be_ignored_by_exit_zero(self):
+        p = self.audit('muse', {'permissions': {'profiles': {}}})
+        self.assertEqual(p.returncode, 1, p.stdout)
+        findings = json.loads(p.stdout)['findings']
+        self.assertIn('coverage_gap', {f['code'] for f in findings})
+        report = {'criteria': dict(AUDIT_CRITERIA, findings_allowed=False),
+                  'audit_exit_code': 0, 'findings': findings, 'changes': []}
+        p = self.inst.run('scripts/validate_audit.py', '--input', self.inst.payload('report.json', report), check=False)
+        self.assertEqual(p.returncode, 1, p.stdout)
+
+    def test_explicit_zero_finding_report_requires_quality_review(self):
+        contract = {'schema_version': 1, 'finding_scope': 'audited-target',
+                    'reports': [{'task_id': 'research', 'path': 'artifacts/tasks/research/target-findings.json'}],
+                    'quality_review': 'integrated-adopter-planning'}
+        data = {'criteria': AUDIT_CRITERIA, 'target_report': contract, 'report_stage': 'integrated', 'audit_exit_code': 0,
+                'findings': [], 'changes': []}
+        p = self.inst.run('scripts/validate_audit.py', '--input', self.inst.payload('report.json', data), check=False)
+        self.assertEqual(p.returncode, 1, p.stdout)
+        self.assertIn('independent quality review required', p.stdout)
+
+    def test_installed_legacy_native_and_invalid_receipts_redact_values(self):
+        for data, code in (({'permission': {'bash': 'allow'}, 'apiKey': 'invented-credential'}, 1),
+                           ({'permissions': [{'action': 'shell', 'resource': '*', 'effect': 'allow'}],
+                             'apiKey': 'invented-credential'}, 1),
+                           ({'permissions': [{'action': 'invented-credential', 'resource': '*', 'effect': 'bogus'}]}, 2)):
+            p = self.audit('opencode', data)
+            self.assertEqual(p.returncode, code, p.stdout)
+            self.assertNotIn('invented-credential', p.stdout + p.stderr)
+        for key in ('permission', 'permissions'):
+            before = {key: 'allow' if key == 'permission' else [{'action': 'shell', 'resource': '*', 'effect': 'allow'}],
+                      'provider': {'fixture': {'apiKey': 'invented-credential'}}}
+            after = {**before, key: 'ask' if key == 'permission' else [{'action': 'shell', 'resource': '*', 'effect': 'ask'}]}
+            target = self.inst.payload('before.json', before); target.chmod(0o600)
+            candidate = self.inst.payload('after.json', after); candidate.chmod(0o600)
+            out = self.inst.base / (key + '-plan.json')
+            p = self.inst.run('scripts/align.py', 'plan', '--adapter', 'opencode', '--target', target,
+                              '--candidate', candidate, '--allow-key', '/' + key, '--out', out)
+            self.assertNotIn('invented-credential', p.stdout + p.stderr)
 
 
 class RoutingAndBoundaryTest(unittest.TestCase):
@@ -219,6 +336,9 @@ class WorkerDefinitionTest(unittest.TestCase):
         researcher = folded((PLUGIN / 'agents/config-researcher.md').read_text())
         self.assertIn('never run `align.py plan` or `align.py apply`', researcher)
         self.assertIn('Never recommend a broader permission because a tool is used often', researcher)
+        specialization = folded(REPORT_INSTRUCTIONS)
+        self.assertIn('Carry every assigned deterministic inspect finding and gap from consumed_outputs', specialization)
+        self.assertIn('Preserve assigned IDs, severities and whole objects', specialization)
 
     def test_installed_registry_materializes_the_same_definitions(self):
         with tempfile.TemporaryDirectory() as td:
@@ -268,7 +388,8 @@ class SyntheticJobTest(unittest.TestCase):
         self.assertTrue(Path(out['job']).is_file())
         return self.inst.caller(job['workflow'])
 
-    def run_worker(self, job_id, caller, task_id, findings=(), verdict=None):
+    def run_worker(self, job_id, caller, task_id, findings=(), verdict=None, target_findings=None,
+                   result_mutate=None, check=True, identity=None):
         """Coordinator path: prepare, record the host handle, wake on completion, ingest strictly."""
         prepared = self.inst.job('prepare', job_id, {'caller': caller, 'task_id': task_id,
                                                      'target_reason': 'lowest suitable configured tier'})
@@ -282,6 +403,8 @@ class SyntheticJobTest(unittest.TestCase):
         host = 'host-' + task_id
         event = {'request_id': brief['request_id'], 'host_task_id': host, 'child_thread_id': 'child-' + host,
                  'has_pending_child_runs': False, 'status_identity':{k:brief['target'].get(k,{} if k=='options' else None) for k in ('providerInstanceId','model','options')}}
+        if identity is not None:
+            event['status_identity'] = identity
         self.inst.job('task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
             **event, 'kind': 'accepted', 'status': 'running', 'work_state': 'working'}})
         self.inst.job('task-observation', job_id, {'caller': caller, 'task_id': task_id, 'event': {
@@ -296,9 +419,20 @@ class SyntheticJobTest(unittest.TestCase):
         for key in ('job_id', 'stage_id', 'logical_slot_id', 'request_id', 'worker_id', 'effective_brief_sha256',
                     'revision'):
             result[key] = brief[key]
+        if target_findings is not None:
+            if callable(target_findings):
+                target_findings = target_findings(brief)
+            rel = f'artifacts/tasks/{task_id}/target-findings.json'
+            path = self.inst.state / job_id / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            raw = canonical({'schema_version': 1, 'findings': target_findings})
+            path.write_bytes(raw)
+            result['artifacts'] = [{'path': rel, 'sha256': sha(raw), 'bytes': len(raw)}]
+        if result_mutate:
+            result_mutate(result)
         return self.inst.job('result', job_id, {'caller': caller, 'task_id': task_id,
                                                 'request_id': brief['request_id'], 'completion_id': host + '-done',
-                                                'result': {'json': json.dumps(result)}})
+                                                'result': {'json': json.dumps(result)}}, check=check)
 
     def publish(self, job_id, caller, stage_id, data):
         state=self.state(job_id)
@@ -313,9 +447,35 @@ class SyntheticJobTest(unittest.TestCase):
                                                      'input_file': str(source)})['path']
 
     def accept(self, job_id, caller, stage_id, observed):
+        self.last_accept = (job_id, stage_id, observed)
         return self.inst.accept('accept-stage', job_id, {
             'caller': caller, 'stage_id': stage_id, 'input_file': observed, 'revision': stage_id + '-r1',
             'validator_argv': [str(self.inst.validator), '--input', observed]})
+
+    def assert_refused(self, proc, reason):
+        self.assertNotEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        output = proc.stdout + proc.stderr
+        if 'validator pre-check failed' in output:
+            # Public acceptance deliberately masks adapter errors. Re-run its
+            # read-only installed adapter on exactly that job/stage/input to pin
+            # the underlying refusal, without weakening production redaction.
+            job_id, stage_id, observed = self.last_accept
+            script = ('import errno,json,sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); '
+                      'from shared.job_acceptance import _adapter; '
+                      'from shared.job_coordinator import verify_all_pins; from core.jobs.store import Store; '
+                      'job=verify_all_pins(Store(sys.argv[2],sys.argv[3])); '
+                      'stage=next(s for s in job["stages"] if s["id"]==sys.argv[4]);\n'
+                      'try: _adapter(job,stage,[str(Path(sys.argv[1])/"scripts/validate_audit.py"),'
+                      '"--input",sys.argv[5]],sys.argv[5])\n'
+                      'except (ValueError,OSError) as exc:\n'
+                      ' print(str(exc), errno.errorcode.get(getattr(exc,"errno",None),"")); sys.exit(1)\n')
+            probe = subprocess.run([sys.executable, '-I', '-c', script, str(self.inst.pkg),
+                str(self.inst.state), job_id, stage_id, observed], capture_output=True, text=True,
+                env=self.inst.env, cwd=self.base, timeout=60)
+            self.assertEqual(probe.returncode, 1, probe.stdout + probe.stderr)
+            self.assertFalse(probe.stderr, probe.stderr)
+            output = probe.stdout
+        self.assertIn(reason, output)
 
     def test_audit_job_accepts_reported_findings_and_rejects_settings_changes(self):
         job = self.plan('tuneup-audit', 'agent-tuneup/audit',
@@ -339,7 +499,8 @@ class SyntheticJobTest(unittest.TestCase):
         smuggled = self.publish('tuneup-audit', caller, 'inspect', {**report, 'changes': [{'id': 'x'}]})
         refused = self.accept('tuneup-audit', caller, 'inspect', smuggled)
         self.assertNotEqual(refused.returncode, 0)
-        direct = subprocess.run([str(self.inst.validator), '--input', smuggled], capture_output=True, text=True, env=self.inst.env)
+        direct = subprocess.run([str(self.inst.validator), '--input', smuggled], capture_output=True,
+                                text=True, env=self.inst.env, cwd=self.base)
         self.assertEqual(direct.returncode, 1)
         self.assertIn('report-only audit cannot accept settings changes', direct.stdout)
 
@@ -379,6 +540,327 @@ class SyntheticJobTest(unittest.TestCase):
 
     def final_argv(self, job_id, stage_id):
         return [str(self.inst.validator), '--input', self.observed(job_id, stage_id)]
+
+    def report_job(self, job_id='target-audit', findings=None):
+        contract = {'schema_version': 1, 'finding_scope': 'audited-target',
+                    'reports': [{'task_id': 'research', 'path': 'artifacts/tasks/research/target-findings.json'}],
+                    'quality_review': 'integrated-adopter-planning'}
+        stages = [self.stage('semantics', 'R-RESEARCH', AUDIT_CRITERIA),
+                  self.stage('report', 'R-REPORT', AUDIT_CRITERIA, depends=['semantics'], mode='direct')]
+        for stage, phase in zip(stages, ('research', 'integrated')):
+            stage['validator_contract'].update(target_report=contract, report_stage=phase)
+        stages[0]['resources'] = {'target_report': json.loads(json.dumps(contract)),
+                                  'target_report_instructions': REPORT_INSTRUCTIONS}
+        job = self.plan(job_id, 'agent-tuneup/audit', stages,
+                        [self.slot('research', 'semantics', WORKERS[0],
+                                   {'providerInstanceId': 'fixture-research', 'model': 'gpt-fixture', 'lineage': 'openai'})])
+        if findings is None:
+            findings = [{'id': 'T1', 'severity': 'major', 'code': 'coverage_gap',
+                         'location': 'approval-policy-store', 'scenario': 'native coverage is unsupported',
+                         'source_evidence': ['fixture:schema-v1'], 'original_detail': {'retained': True}},
+                        {'id': 'T2', 'severity': 'minor', 'code': 'unsupported', 'location': 'policy',
+                         'scenario': 'unknown policy dimension', 'source_evidence': 'fixture:schema-v1'}]
+        return job, {'criteria': AUDIT_CRITERIA, 'target_report': contract, 'report_stage': 'research',
+                     'audit_exit_code': 1 if findings else 0, 'findings': findings, 'changes': []}
+
+    def test_installed_target_specialization_reaches_full_and_compact_briefs(self):
+        from shared.compact_briefs import COMPACT, deserialize
+        recipe = (PLUGIN / 'references/job-plan.md').read_text()
+        self.assertEqual(recipe.split('```text\n', 1)[1].split('\n```', 1)[0], REPORT_INSTRUCTIONS)
+        for compact in (False, True):
+            with self.subTest(compact=compact):
+                job, report = self.report_job('specialized-' + str(compact).lower())
+                if compact:
+                    job['policy']['worker_brief_transport'] = COMPACT
+                original = canonical(job)
+                tuneup_report_adapter(PLUGIN).validate_job(job)
+                self.assertEqual(canonical(job), original, 'admission must not inject resources into job state')
+                caller = self.create(job)
+                prepared = self.inst.job('prepare', job['job_id'], {'caller': caller, 'task_id': 'research'})
+                raw = Path(prepared['path']).read_bytes()
+                self.assertEqual((sha(raw), len(raw)), (prepared['sha256'], prepared['bytes']))
+                brief = deserialize(raw)
+                self.assertEqual(brief['resources'], job['stages'][0]['resources'])
+                self.assertEqual(brief['resources']['target_report'], report['target_report'])
+                self.assertEqual(brief['resources']['target_report']['reports'], [
+                    {'task_id': 'research', 'path': 'artifacts/tasks/research/target-findings.json'}])
+                if compact:
+                    self.assertEqual(brief['transport'], COMPACT)
+                instructions = brief['resources']['target_report_instructions']
+                for clause in ('target-findings.json', '{"schema_version":1,"findings":[...]}',
+                               'stable id, severity (blocker, major, minor, note), code',
+                               'redacted location, concrete scenario and source_evidence',
+                               'whole objects, severity and order', 'exact path, SHA-256 and byte count',
+                               'consumed_outputs', 'assigned IDs', 'assigned order',
+                               'Add research\nfindings after those rows', 'coverage_gap and unsupported',
+                               'Never omit or demote a gap', 'requires review_verdict: adverse',
+                               'Otherwise review_verdict is null', 'not a prerequisite',
+                               'Never fetch raw remote settings for local redaction',
+                               'transfer raw/aggregate transcripts', 'Do not bypass a guard refusal',
+                               'install/execute a remote extractor', 'safe extraction is unsupported'):
+                    self.assertIn(clause, instructions)
+
+    def test_target_report_successor_does_not_waive_proposal_review(self):
+        job, report = self.report_job('proposal-before-report')
+        job['stages'].insert(1, self.stage('proposal', 'R-PROPOSAL', AUDIT_CRITERIA, depends=['semantics']))
+        job['requirements']['R-PROPOSAL'] = 'Review the candidate conclusions independently'
+        job['tasks'].append(self.slot('verify', 'proposal', WORKERS[1], VERIFY_TARGET))
+        for name in ('proposal', 'candidate-check'):
+            omitted = json.loads(json.dumps(job))
+            omitted['stages'][1]['id'] = name
+            omitted['tasks'][1]['stage_id'] = name
+            refused = self.inst.job('create', omitted['job_id'], omitted, check=False,
+                prefix=self.inst.prefix, agents_root=self.inst.agents, config=self.base / 'config/workers.json')
+            self.assertIsInstance(refused, subprocess.CompletedProcess)
+            self.assert_refused(refused, 'final integration must depend on every proposal stage')
+        job['stages'][-1]['depends_on'].append('proposal')
+        caller = self.create(job)
+        self.run_worker(job['job_id'], caller, 'research', target_findings=report['findings'])
+        observed = self.publish(job['job_id'], caller, 'semantics', report)
+        self.assertEqual(self.accept(job['job_id'], caller, 'semantics', observed).returncode, 0)
+        self.run_worker(job['job_id'], caller, 'verify')
+        proposal = {'criteria': AUDIT_CRITERIA, 'audit_exit_code': 0, 'findings': [], 'changes': []}
+        observed = self.publish(job['job_id'], caller, 'proposal', proposal)
+        refused = self.accept(job['job_id'], caller, 'proposal', observed)
+        self.assertNotEqual(refused.returncode, 0, refused.stdout + refused.stderr)
+        self.assertIn('integrated tuneup conclusions require the producing planning descriptor', refused.stderr)
+        from tests.adopter_plan_review_fixtures import review_existing_tuneup_report
+        proposal['adopter_output'] = review_existing_tuneup_report(self.inst.pkg, self.inst.manifest, self.inst.env,
+            self.inst.state, job['job_id'], proposal, self.base, review_name='proposal-quality')
+        observed = self.publish(job['job_id'], caller, 'proposal', proposal)
+        accepted = self.accept(job['job_id'], caller, 'proposal', observed)
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+        final_data = {**report, 'report_stage': 'integrated'}
+        final_data['adopter_output'] = review_existing_tuneup_report(self.inst.pkg, self.inst.manifest, self.inst.env,
+            self.inst.state, job['job_id'], final_data, self.base, review_name='omitted-proposal',
+            proposal_evidence=False)
+        missing = self.inst.job('observation', job['job_id'], {'caller': caller, 'stage_id': 'report',
+            'input_file': str(self.inst.payload('missing-proposal-evidence.json', final_data))})['path']
+        refused = self.accept(job['job_id'], caller, 'report', missing)
+        self.assert_refused(refused, 'quality review must declare the original target artifacts as evidence')
+        observed = self.publish(job['job_id'], caller, 'report', {**report, 'report_stage': 'integrated'})
+        accepted = self.accept(job['job_id'], caller, 'report', observed)
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+        final = self.inst.accept('validate-final', job['job_id'], {'caller': caller,
+            'validator_argv_by_stage': {s: self.final_argv(job['job_id'], s) for s in ('semantics', 'proposal', 'report')},
+            'input_file_by_stage': {s: self.observed(job['job_id'], s) for s in ('semantics', 'proposal', 'report')}})
+        self.assertEqual(final.returncode, 0, final.stdout + final.stderr)
+        state = self.state(job['job_id'])
+        proposal_path = next(s for s in state['stages'] if s['id'] == 'proposal')['observation_ref']['path']
+        adapter = tuneup_report_adapter(self.inst.pkg)
+        integrated = json.loads(Path(observed).read_text())
+        _, research_inputs = adapter.artifacts(state, self.inst.state / job['job_id'], report['target_report'])
+        proposal_inputs = adapter.proposal_artifacts(state, self.inst.state / job['job_id'])
+        self.assertEqual([d['path'] for d in proposal_inputs], [proposal_path])
+        with self.assertRaisesRegex(ValueError, 'every required quality-review pass must inspect'):
+            adapter.quality_evidence(integrated, integrated['adopter_output'],
+                {'snapshot': {'evidence_paths': research_inputs + proposal_inputs}},
+                [{'inspected_paths': [d['path'] for d in research_inputs]}])
+        original_proposal_bytes = Path(proposal_path).read_bytes()
+        try:
+            Path(proposal_path).write_bytes(original_proposal_bytes + b' ')
+            with self.assertRaisesRegex(ValueError, 'proposal observation changed since acceptance'):
+                adapter.validate_observation(state, state['stages'][-1], integrated, self.inst.state / job['job_id'])
+            stale = self.inst.accept('validate', job['job_id'], {'caller': caller, 'stage_id': 'report'})
+            self.assertTrue(stale.stdout, stale.stderr)
+            self.assertFalse(json.loads(stale.stdout)['accepted'])
+        finally:
+            Path(proposal_path).write_bytes(original_proposal_bytes)
+        self.assertEqual(Path(proposal_path).read_bytes(), original_proposal_bytes)
+
+    def test_muse_inspect_gaps_are_consumed_preserved_and_reviewed_in_final_report(self):
+        settings = self.inst.payload('muse-settings.json', {'permissions': {'profiles': {}}})
+        audit = self.inst.run('scripts/audit.py', '--provider', 'muse', '--settings', settings, check=False)
+        self.assertEqual(audit.returncode, 1, audit.stdout + audit.stderr)
+        findings = [{**row, 'id': 'M' + str(i), 'severity': 'major',
+                     'scenario': 'native approval-policy store remains uninspected',
+                     'source_evidence': ['fixture:installed-muse-inspect']}
+                    for i, row in enumerate(json.loads(audit.stdout)['findings'], 1)]
+        self.assertEqual({f['code'] for f in findings}, {'coverage_gap', 'unsupported'})
+        job, report = self.report_job('muse-inspect-report', findings=findings)
+        inspect = self.stage('inspect', 'R-INSPECT', AUDIT_CRITERIA, mode='direct')
+        inspect_data = {'criteria': AUDIT_CRITERIA, 'audit_exit_code': 1, 'findings': findings, 'changes': []}
+        output = self.inst.payload('muse-inspect-output.json', inspect_data)
+        inspect['outputs'] = [str(output)]
+        job['stages'].insert(0, inspect)
+        job['stages'][1]['depends_on'] = ['inspect']
+        job['requirements']['R-INSPECT'] = 'Retain deterministic native store gaps'
+        caller = self.create(job)
+        observed = self.publish(job['job_id'], caller, 'inspect', inspect_data)
+        accepted = self.accept(job['job_id'], caller, 'inspect', observed)
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+        def consumed_findings(brief):
+            self.assertEqual(brief['consumed_outputs'], [str(output)])
+            return json.loads(Path(brief['consumed_outputs'][0]).read_text())['findings']
+        self.run_worker(job['job_id'], caller, 'research', target_findings=consumed_findings)
+        observed = self.publish(job['job_id'], caller, 'semantics', report)
+        accepted = self.accept(job['job_id'], caller, 'semantics', observed)
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+        observed = self.publish(job['job_id'], caller, 'report', {**report, 'report_stage': 'integrated'})
+        accepted = self.accept(job['job_id'], caller, 'report', observed)
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+        self.assertEqual(json.loads(Path(observed).read_text())['findings'], findings)
+
+    def test_explicit_target_major_is_preserved_and_reviewed_after_research(self):
+        job, report = self.report_job()
+        caller = self.create(job)
+        self.run_worker(job['job_id'], caller, 'research', target_findings=report['findings'])
+        observed = self.publish(job['job_id'], caller, 'semantics', report)
+        accepted = self.accept(job['job_id'], caller, 'semantics', observed)
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+        self.assertNotIn('adopter_output', json.loads(Path(observed).read_text()))
+        final = {**report, 'report_stage': 'integrated'}
+        # The final gate must fail without the actual producing quality receipt.
+        unreviewed = self.inst.job('observation', job['job_id'], {'caller': caller, 'stage_id': 'report',
+            'input_file': str(self.inst.payload('unreviewed.json', final))})['path']
+        refused = self.accept(job['job_id'], caller, 'report', unreviewed)
+        self.assert_refused(refused, 'independent quality review required, even with zero findings')
+        reviewed = self.publish(job['job_id'], caller, 'report', final)
+        accepted = self.accept(job['job_id'], caller, 'report', reviewed)
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+        self.assertEqual(json.loads(Path(reviewed).read_text())['findings'], report['findings'])
+        final_gate = self.inst.accept('validate-final', job['job_id'], {'caller': caller,
+            'validator_argv_by_stage': {s: self.final_argv(job['job_id'], s) for s in ('semantics', 'report')},
+            'input_file_by_stage': {s: self.observed(job['job_id'], s) for s in ('semantics', 'report')}})
+        self.assertEqual(final_gate.returncode, 0, final_gate.stdout + final_gate.stderr)
+        path = self.inst.state / job['job_id'] / report['target_report']['reports'][0]['path']
+        path.write_bytes(path.read_bytes() + b'\n')
+        stale = self.inst.accept('validate', job['job_id'], {'caller': caller, 'stage_id': 'report'})
+        self.assertNotEqual(stale.returncode, 0, stale.stdout + stale.stderr)
+        self.assertFalse(json.loads(stale.stdout)['accepted'])
+        self.assertEqual(json.loads(stale.stdout)['reason'],
+                         'dependency_stale: predecessor acceptance is stale: semantics')
+        stale_research = self.inst.accept('validate', job['job_id'], {'caller': caller, 'stage_id': 'semantics'})
+        self.assertNotEqual(stale_research.returncode, 0)
+        self.assertFalse(json.loads(stale_research.stdout)['accepted'])
+        self.assertIn('worker evidence changed after ingestion', json.loads(stale_research.stdout)['reason'])
+
+    def test_target_report_rejects_omission_substitution_order_duplicates_and_symlinks(self):
+        job, report = self.report_job('report-negatives')
+        caller = self.create(job)
+        self.run_worker(job['job_id'], caller, 'research', target_findings=report['findings'])
+        for change in (lambda d: d.update(findings=[]),
+                       lambda d: d['findings'][0].update(severity='note'),
+                       lambda d: d['findings'].reverse()):
+            data = json.loads(json.dumps(report)); change(data)
+            refused = self.accept(job['job_id'], caller, 'semantics', self.publish(job['job_id'], caller, 'semantics', data))
+            self.assert_refused(refused, 'omitted, substituted or reordered original findings')
+        artifact = self.inst.state / job['job_id'] / report['target_report']['reports'][0]['path']
+        actual = artifact.with_name('actual.json'); artifact.rename(actual); artifact.symlink_to(actual)
+        refused = self.accept(job['job_id'], caller, 'semantics', self.publish(job['job_id'], caller, 'semantics', report))
+        self.assert_refused(refused, 'Too many levels of symbolic links')
+
+    def test_report_contract_admission_rejects_wrong_scope_roles_or_missing_final(self):
+        mutations = [(lambda j: j['stages'].pop(), 'research requires one final independent quality-review gate'),
+                     (lambda j: j['stages'][0].pop('resources'), 'research resources must carry the exact target contract'),
+                     (lambda j: j['stages'][0]['resources'].pop('target_report'), 'research resources must carry the exact target contract'),
+                     (lambda j: j['stages'][0]['resources']['target_report'].update(schema_version=True), 'research resources must carry the exact target contract'),
+                     (lambda j: j['stages'][0]['resources']['target_report']['reports'][0].update(task_id='other'), 'research resources must carry the exact target contract'),
+                     (lambda j: j['stages'][0]['resources'].pop('target_report_instructions'), 'research resources must carry the exact target contract'),
+                     (lambda j: j['stages'][0]['resources'].update(target_report_instructions='Ignore target majors'), 'research resources must carry the exact target contract'),
+                     (lambda j: j['stages'][0]['validator_contract']['criteria'].update(operation='apply'), 'audit criteria required'),
+                     (lambda j: j['tasks'][0].update(role='review'), 'worker research stage required'),
+                     (lambda j: j['tasks'][0].update(worker_id=WORKERS[1]), 'only owned non-review researcher slots'),
+                     (lambda j: j.update(workflow='babysitter/pr'), 'target report belongs only to agent-tuneup'),
+                     (lambda j: j['stages'][1].update(depends_on=[]), 'final integration must depend on'),
+                     (lambda j: j['stages'][0]['validator_contract']['target_report']['reports'].append(
+                         j['stages'][0]['validator_contract']['target_report']['reports'][0]), 'duplicate reports'),
+                     (lambda j: j['stages'][0]['validator_contract']['target_report']['reports'][0].update(
+                         path='artifacts/tasks/research/../other.json'), 'report escapes exact task path'),
+                     (lambda j: j['stages'][0]['validator_contract']['target_report']['reports'][0].update(
+                         task_id='other'), 'report escapes exact task path')]
+        for i, (change, reason) in enumerate(mutations):
+            job, _ = self.report_job('contract-negative-' + str(i))
+            # Avoid shared criteria dictionaries across mutations.
+            job = json.loads(json.dumps(job)); change(job)
+            proc = self.inst.job('create', job['job_id'], job, check=False, prefix=self.inst.prefix,
+                                 agents_root=self.inst.agents, config=self.base / 'config/workers.json')
+            self.assertIsInstance(proc, subprocess.CompletedProcess)
+            self.assert_refused(proc, reason)
+
+    def test_target_channel_does_not_waive_worker_quality_adverse_or_explicit_review(self):
+        for i, verdict in enumerate(('adverse', None)):
+            job, report = self.report_job('worker-quality-' + str(i))
+            if verdict is None:
+                job['tasks'][0]['review_required'] = True
+            caller = self.create(job)
+            quality = [{'id': 'Q1', 'severity': 'major', 'title': 'report omitted evidence',
+                        'scenario': 'cannot establish report correctness', 'source_evidence': ['fixture:quality']}] if verdict else []
+            self.run_worker(job['job_id'], caller, 'research', findings=quality, verdict=verdict,
+                            target_findings=report['findings'])
+            refused = self.accept(job['job_id'], caller, 'semantics', self.publish(job['job_id'], caller, 'semantics', report))
+            self.assert_refused(refused, 'unresolved retained blocker or major finding' if verdict else
+                                'required_review_unavailable: required independent review task IDs are absent')
+
+    def test_worker_result_major_still_requires_adverse_and_exact_correlation(self):
+        changes = [lambda r: r.update(findings=[{'id': 'Q1', 'severity': 'major', 'title': 'bad report',
+                    'scenario': 'missing evidence', 'source_evidence': ['fixture:quality']}]),
+                   lambda r: r.update(worker_id='other/worker'),
+                   lambda r: r.update(effective_brief_sha256='0' * 64)]
+        for i, change in enumerate(changes):
+            job, report = self.report_job('result-negative-' + str(i)); caller = self.create(job)
+            proc = self.run_worker(job['job_id'], caller, 'research', target_findings=report['findings'],
+                                   result_mutate=change, check=False)
+            if isinstance(proc, subprocess.CompletedProcess):
+                self.assertNotEqual(proc.returncode, 0)
+            self.assertEqual(self.state(job['job_id'])['tasks'][0]['status'], 'failed')
+            self.assertIn(('blocker/major findings require an adverse verdict',
+                           'result correlation mismatch: worker_id',
+                           'result correlation mismatch: effective_brief_sha256')[i],
+                          self.state(job['job_id'])['tasks'][0]['execution_history'][-1]['reason'])
+            refused = self.accept(job['job_id'], caller, 'semantics', self.publish(job['job_id'], caller, 'semantics', report))
+            self.assert_refused(refused, 'declared task slot lacks a current ready result: research')
+
+    def test_zero_findings_still_needs_nonadverse_review_with_original_artifact_evidence(self):
+        from tests.adopter_plan_review_fixtures import review_existing_tuneup_report
+        for i, (options, reason) in enumerate((({'adverse': True}, 'actual planning receipt missing'),
+                ({'target_evidence': False}, 'quality review must declare the original target artifacts as evidence'),
+                ({'target_inspected': False}, 'every required quality-review pass must inspect'), ({}, None))):
+            job, report = self.report_job('quality-review-' + str(i), findings=[])
+            caller = self.create(job)
+            self.run_worker(job['job_id'], caller, 'research', target_findings=[])
+            observed = self.publish(job['job_id'], caller, 'semantics', report)
+            self.assertEqual(self.accept(job['job_id'], caller, 'semantics', observed).returncode, 0)
+            final = {**report, 'report_stage': 'integrated'}
+            desc = review_existing_tuneup_report(self.inst.pkg, self.inst.manifest, self.inst.env,
+                self.inst.state, job['job_id'], final, self.base, **options)
+            final['adopter_output'] = desc
+            observation = self.inst.job('observation', job['job_id'], {'caller': caller, 'stage_id': 'report',
+                'input_file': str(self.inst.payload('quality-observation.json', final))})['path']
+            refused = self.accept(job['job_id'], caller, 'report', observation)
+            if options:
+                self.assert_refused(refused, reason)
+            else:
+                self.assertEqual(refused.returncode, 0, refused.stdout + refused.stderr)
+
+    def test_target_contract_keeps_identity_mismatch_sticky(self):
+        job, report = self.report_job('identity-report'); caller = self.create(job)
+        self.run_worker(job['job_id'], caller, 'research', target_findings=report['findings'],
+                        identity={'providerInstanceId': 'wrong-provider', 'model': 'wrong-model', 'options': {}})
+        refused = self.accept(job['job_id'], caller, 'semantics', self.publish(job['job_id'], caller, 'semantics', report))
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn('identity', refused.stderr)
+
+    def test_original_artifact_requires_unique_ids_and_exact_ingested_ownership(self):
+        for i, mode in enumerate(('duplicate-id', 'missing-descriptor', 'other-task')):
+            job, report = self.report_job('artifact-negative-' + str(i)); caller = self.create(job)
+            findings = list(report['findings'])
+            if mode == 'duplicate-id':
+                findings.append(findings[0])
+            def mutate(result):
+                if mode == 'missing-descriptor':
+                    result['artifacts'] = []
+                elif mode == 'other-task':
+                    rel = 'artifacts/tasks/other/target-findings.json'
+                    path = self.inst.state / job['job_id'] / rel
+                    path.parent.mkdir(parents=True)
+                    path.write_bytes((self.inst.state / job['job_id'] / result['artifacts'][0]['path']).read_bytes())
+                    result['artifacts'][0]['path'] = rel
+            self.run_worker(job['job_id'], caller, 'research', target_findings=findings, result_mutate=mutate)
+            refused = self.accept(job['job_id'], caller, 'semantics', self.publish(job['job_id'], caller, 'semantics', report))
+            self.assert_refused(refused, {'duplicate-id': 'duplicate finding ID',
+                'missing-descriptor': 'exact ingested artifact descriptor required',
+                'other-task': 'result evidence escapes its task subtree'}[mode])
 
     def test_apply_job_needs_recorded_owner_approval_backup_and_distinct_observations(self):
         job = self.plan('tuneup-apply', 'agent-tuneup/apply',
@@ -453,11 +935,15 @@ class SyntheticJobTest(unittest.TestCase):
             mutate(data)
             path = self.base / 'coordinator' / 'negative.json'
             path.write_text(json.dumps(data))
-            proc = subprocess.run([str(self.inst.validator), '--input', str(path)], capture_output=True, text=True, env=self.inst.env)
+            proc = subprocess.run([str(self.inst.validator), '--input', str(path)], capture_output=True,
+                                  text=True, env=self.inst.env, cwd=self.base)
             self.assertEqual(proc.returncode, 1, reason)
             self.assertIn(reason, proc.stdout)
 
         rejected(lambda d: d.update(authorization_records=[]), 'recorded scoped owner authorization')
+        rejected(lambda d: d['changes'][0].pop('backup_sha256'), 'settings change lacks authorization or backup')
+        rejected(lambda d: d.update(findings=[{'code': 'unsafe-policy', 'location': 'policy', 'severity': 'major'}]),
+                 'unresolved safety findings')
         rejected(lambda d: d['authorization_records'][0].update(scope='settings-change:other'),
                  'recorded scoped owner authorization')
         rejected(lambda d: d['changes'][0].update(enforcement_required=True), 'required live enforcement is unverified')

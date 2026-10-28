@@ -56,16 +56,20 @@ class AuditTest(unittest.TestCase):
             'private-profile': {'approval': 'allow_all', 'filesystem': 'unrestricted',
                                 'network': {'mode': 'enabled'}, 'reviewer': 'none'}}}})
         self.assertEqual(findings, [
+            {'code': 'coverage_gap', 'location': 'approval-policy-store'},
+            {'code': 'unsupported', 'location': 'approval-policy-store'},
             {'code': 'approvals_disabled', 'location': 'permissions.profiles[0].approval'},
             {'code': 'sandbox_disabled', 'location': 'permissions.profiles[0].filesystem'},
             {'code': 'network_unrestricted', 'location': 'permissions.profiles[0].network.mode'},
         ])
 
-    def test_muse_restrictive_profile_and_absent_permissions_are_clean(self):
-        self.assertEqual(audit.inspect('muse', {'model': 'synthetic'}), [])
+    def test_muse_restrictive_profile_and_absent_permissions_keep_native_coverage_gap(self):
+        gap = [{'code': 'coverage_gap', 'location': 'approval-policy-store'},
+               {'code': 'unsupported', 'location': 'approval-policy-store'}]
+        self.assertEqual(audit.inspect('muse', {'model': 'synthetic'}), gap)
         self.assertEqual(audit.inspect('muse', {'permissions': {'schema_version': 1, 'profiles': {
             'safe': {'approval': 'on_request', 'filesystem': {'allow': []},
-                     'network': {'mode': 'proxy_only'}, 'reviewer': 'human'}}}}), [])
+                     'network': {'mode': 'proxy_only'}, 'reviewer': 'human'}}}}), gap)
 
     def test_muse_malformed_types_fail(self):
         for data in ({'permissions': []}, {'permissions': {'profiles': []}},
@@ -86,7 +90,7 @@ class AuditTest(unittest.TestCase):
             result = subprocess.run([sys.executable, str(SCRIPT), '--provider', 'muse', '--settings', str(path)],
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 1)
-            self.assertEqual(json.loads(result.stdout)['findings'][0]['code'], 'approvals_disabled')
+            self.assertIn('approvals_disabled', {f['code'] for f in json.loads(result.stdout)['findings']})
 
 
 def git(root, *args):

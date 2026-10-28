@@ -317,21 +317,26 @@ def ralph_admission(data):
         'invocation_id':s['invocation_id'],'selection':s,'selection_sha256':s['selection_sha256']})
 
 
-def review_existing_tuneup_report(package,manifest,env,state_root,job_id,data,base):
+def review_existing_tuneup_report(package,manifest,env,state_root,job_id,data,base, *, adverse=False,
+                                 target_evidence=True, target_inspected=True, review_name=None,
+                                 proposal_evidence=True):
     """Old synthesis fixture now completes the real shared planning contract."""
     from tests.imps_plan_review_fixtures import legacy_box
     from core.jobs.store import canonical
+    from shared.adopter_planning import tuneup_report_adapter
     job_file=Path(state_root)/job_id/'job.json';job=json.loads(job_file.read_text())
-    box=legacy_box(Path(base)/('planning-'+job_id),package,manifest,env);box.jobs=Path(state_root)
+    review_name = review_name or job_id
+    box=legacy_box(Path(base)/('planning-'+review_name),package,manifest,env);box.jobs=Path(state_root)
     f=AdopterFixture.__new__(AdopterFixture)
     f.box=box;f.package=Path(package);f.manifest=manifest;f.runtime=Path(package);f.plugin=Path(package);f.plugin_name='agent-tuneup'
     f.id=job['invocation_id'];f.op=job['workflow'].split('/')[1];f.admission=job['adopter_admission']
     f.selection=job['model_selection'];f.scope=job['scope_id'];f.reference=f.admission['request_reference']
     f.output_name=f.admission['output_name'];f.base=box.private;f.snapshot=None;f.direct_mode=False
-    f.review_id=job_id+'-planning';f.final_rid=next(iter(job['requirements']));f.requirements=job['requirements']
+    f.review_id=review_name+'-planning';f.final_rid=next(iter(job['requirements']));f.requirements=job['requirements']
     f.project=box.private/'project';f.project.mkdir();box.run(['git','init','-q',f.project])
     f.request=box.private/'request.txt';f.request.write_text(job['objective'])
     f.answer=box.private/'report.json';f.answer.write_bytes(canonical(data))
+    f.record_author(f.answer)
     f.metadata=box.private/'review.json'
     f.descriptor={'kind':'conclusions','admission':f.admission,'document':planning.file_descriptor(f.answer),
                   'requirements':f.requirements,'job_file':str(job_file),
@@ -339,12 +344,28 @@ def review_existing_tuneup_report(package,manifest,env,state_root,job_id,data,ba
     f.inputs={'requests':[{'path':str(f.request),'reference':f.reference,'clauses':[
         {'start':0,'end':len(f.request.read_text()),'requirement':f.final_rid}]}],'decisions':[],
         'requirements':f.requirements,'load_bearing_decisions':[],'repository_root':str(f.project),'evidence_paths':[]}
-    f.assessment=lambda:{'coverage':[{'id':rid,'outcome':'supported','evidence':'fixture:scope-precedence-recovery'}
-        for rid in f.requirements],'inspected_paths':f.snapshot['declared_paths'],'responses':[]}
+    if data.get('target_report') and target_evidence:
+        f.inputs['evidence_paths'] = [str(job_file.parent / r['path']) for r in data['target_report']['reports']]
+    if data.get('target_report') and data.get('report_stage') == 'integrated' and proposal_evidence:
+        # Declare only exact, accepted proposal observations. Missing or stale references
+        # must refuse here; silently skipping them would hide a fixture's missing evidence.
+        descriptors = tuneup_report_adapter(package).proposal_artifacts(job, job_file.parent)
+        f.inputs['evidence_paths'].extend(d['path'] for d in descriptors)
+    def assessment():
+        target_paths = {str(job_file.parent / r['path']) for r in data.get('target_report', {}).get('reports', [])}
+        inspected = [p for p in f.snapshot['declared_paths'] if target_inspected or p not in target_paths]
+        for path in inspected:
+            Path(path).read_bytes()
+        return {'coverage':[{'id':rid,'outcome':'supported','evidence':'fixture:scope-precedence-recovery'}
+            for rid in f.requirements],'inspected_paths':inspected,'responses':[]}
+    f.assessment=assessment
     f.begin_review()
     for slot in f.selection['review_panel']:
-        if slot['required']:f.review_pass(slot=slot['slot_id'])
-    f.finish();return f.descriptor
+        if slot['required']:f.review_pass(slot=slot['slot_id'], adverse=adverse)
+    if adverse:
+        f.descriptor['planning_review'] = planning.file_descriptor(f.metadata)
+        return f.descriptor
+    f.finish();f.review('release');return f.descriptor
 
 
 def ensure_legacy_elephant_design(case,job_id):

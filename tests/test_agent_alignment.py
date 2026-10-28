@@ -1,5 +1,7 @@
 """Provider coverage, private comparison receipts, and approved native writes."""
+from contextlib import redirect_stdout
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -71,8 +73,8 @@ class AlignmentTest(unittest.TestCase):
             self.assertNotIn(secret, rendered)
 
     def test_conflicting_scopes_and_failed_layers_do_not_claim_alignment(self):
-        enabled = self.file('global', '{"mcp":{"repo":{"enabled":true}}}')
-        disabled = self.file('project', '{"mcp":{"repo":{"enabled":false}}}')
+        enabled = self.file('global', '{"mcp":{"repo":{"type":"local","command":["fixture"],"enabled":true}}}')
+        disabled = self.file('project', '{"mcp":{"repo":{"type":"local","command":["fixture"],"enabled":false}}}')
         catalog = {'providers': [{'providerInstanceId': 'oc'}]}
         inventory = {'version': 1, 'providers': [{'provider_instance_id': 'oc', 'adapter': 'opencode',
                      'sources': [{'path': str(enabled), 'scope': 'global'}, {'path': str(disabled), 'scope': 'project'}]}],
@@ -292,11 +294,11 @@ class AlignmentTest(unittest.TestCase):
                 after = {'agent': {'build': after}}
             before['mcp'] = {}
             after['mcp'] = {'fixture': {'type': 'local', 'command': ['fixture-command']}}
-            with self.subTest(prefix=prefix), self.assertRaisesRegex(ValueError, 'changed_keys_do_not_match'):
+            with self.subTest(prefix=prefix), self.assertRaisesRegex(ValueError, 'protective_setting_weakened'):
                 self.proposal('opencode', json.dumps(before), json.dumps(after), ['/mcp/fixture'])
             policy_key = '/agent/build/permission/bash' if prefix else '/permission/bash'
-            plan = self.proposal('opencode', json.dumps(before), json.dumps(after), ['/mcp/fixture', policy_key])
-            self.assertIn(policy_key, plan['changed_keys'])
+            with self.assertRaisesRegex(ValueError, 'protective_setting_weakened'):
+                self.proposal('opencode', json.dumps(before), json.dumps(after), ['/mcp/fixture', policy_key])
         # Reordering retained patterns must remain visible alongside a new pattern.
         before = {'permission': {'bash': {'*': 'allow', 'rm *': 'deny'}}}
         after = {'permission': {'bash': {'rm *': 'deny', '*': 'allow', 'git *': 'ask'}}}
@@ -345,6 +347,168 @@ class AlignmentTest(unittest.TestCase):
                     align.parse('opencode', json.dumps(data).encode())
         align.parse('opencode', b'{"permission":{"bash":{"*":"ask","git *":"allow"}}}')
 
+    def test_native_order_partial_constraints_full_guards_and_override_identity(self):
+        allow = {'action': 'shell', 'resource': '*', 'effect': 'allow'}
+        deny = {'action': 'shell', 'resource': 'git push *', 'effect': 'deny'}
+        ask = {'action': 'shell', 'resource': '*', 'effect': 'ask'}
+        policy = {'permissions': [allow, deny]}
+        self.assertEqual(align.parse('opencode', json.dumps(policy).encode()), policy)
+        self.assertEqual(align.audit.inspect('opencode', policy)[0]['code'], 'constrained_broad_allow')
+        self.assertEqual(align.audit.inspect('opencode', {'permissions': [allow, ask]}), [])
+        self.assertEqual(align.audit.inspect('opencode', {'permissions': [ask, allow]})[0]['code'], 'broad_tool_allow')
+        for after in ([allow], [deny, allow], [ask, deny]):
+            if after == [ask, deny]:
+                align.protect_policy('opencode', policy, {'permissions': after})
+            else:
+                with self.assertRaises(ValueError):
+                    align.protect_policy('opencode', policy, {'permissions': after})
+        for key in ('agents', 'agent'):
+            allowed = {'permissions': [ask, allow]} if key == 'agents' else {'permission': {'*': 'ask', 'bash': 'allow'}}
+            guarded = {'permissions': [ask]} if key == 'agents' else {'permission': 'ask'}
+            old = {key: {'a': allowed, 'b': guarded}}
+            new = {key: {'a': guarded, 'b': allowed}}
+            self.assertTrue(align.risk_locations('opencode', new) - align.risk_locations('opencode', old))
+        self.assertEqual(align.changed_paths(policy, {'permissions': [deny, allow]}, adapter='opencode'), [('permissions',)])
+
+    def test_global_guards_refuse_changed_or_new_agent_allows(self):
+        for native in (True, False):
+            for effect in ('deny', 'ask'):
+                guard = {'action': 'shell', 'resource': 'rm*', 'effect': effect}
+                allow = {**guard, 'effect': 'allow'}
+                root, key = ('agents', 'permissions') if native else ('agent', 'permission')
+                policy = lambda rules: {key: rules if native else {'bash': {
+                    r['resource']: r['effect'] for r in rules}}}
+                before = {**policy([guard]), root: {'x': policy([])}}
+                for name in ('x', 'y'):
+                    after = json.loads(json.dumps(before))
+                    after[root][name] = policy([allow])
+                    with self.subTest(native=native, effect=effect, agent=name):
+                        # This narrow rule deliberately evades the broad-risk counter.
+                        self.assertFalse(align.risk_locations('opencode', after) -
+                                         align.risk_locations('opencode', before))
+                        with self.assertRaisesRegex(ValueError, 'protective_setting_weakened'):
+                            align.protect_policy('opencode', before, after)
+                unchanged = {**policy([guard]), root: {'x': policy([allow])}}
+                align.protect_policy('opencode', unchanged, unchanged)
+                tightened = {**policy([guard]), root: {'x': policy([{**allow, 'effect': 'ask'}])}}
+                align.protect_policy('opencode', unchanged, tightened)
+                two_allows = [allow, {**allow, 'resource': 'git*'}]
+                before = {**policy([guard]), root: {'x': policy(two_allows)}}
+                tightened = {**policy([guard]), root: {'x': policy([
+                    {**allow, 'effect': 'deny'}, two_allows[1]])}}
+                align.protect_policy('opencode', before, tightened)
+                changed = {**policy([guard]), root: {'x': policy([
+                    {**allow, 'resource': 'mv*'}, two_allows[1]])}}
+                with self.assertRaisesRegex(ValueError, 'protective_setting_weakened'):
+                    align.protect_policy('opencode', before, changed)
+
+        # Legacy guards cover the whole ordered policy, including a separate
+        # action's narrow allow subtree that broad-risk counts cannot see.
+        for effect in ('ask', 'deny'):
+            before = {'permission': {'bash': {'rm*': effect}, 'read': {'old*': 'allow'}}}
+            for after in (
+                    {'permission': {'bash': {'rm*': effect, 'git*': 'allow'}, 'read': {'old*': 'allow'}}},
+                    {'permission': {'bash': {'rm*': effect}, 'read': {'new*': 'allow'}}},
+                    {'permission': {'bash': {'rm*': effect}, 'read': {'old*': 'allow', 'new*': 'allow'}}}):
+                with self.subTest(global_guard=effect, after=after):
+                    self.assertFalse(align.risk_locations('opencode', after) -
+                                     align.risk_locations('opencode', before))
+                    with self.assertRaisesRegex(ValueError, 'protective_setting_weakened'):
+                        self.proposal('opencode', json.dumps(before), json.dumps(after),
+                                      [align.pointer(p) for p in align.changed_paths(before, after, adapter='opencode')])
+            align.protect_policy('opencode', before, before)
+            tightened = {'permission': {'bash': {'rm*': 'deny'}, 'read': {'old*': 'ask'}}}
+            align.protect_policy('opencode', before, tightened)
+
+        # Normalization must not let an earlier alias supply the identity for
+        # a fresh allow after a wildcard guard. Mixed spellings are unverified.
+        mixed = {'permission': {'shell': {'git*': 'allow'}, '*': 'ask', 'bash': {'x': 'allow'}}}
+        added = {'permission': {'shell': {'git*': 'allow'}, '*': 'ask',
+                                'bash': {'x': 'allow', 'git*': 'allow'}}}
+        moved = {'permission': {'shell': {}, '*': 'ask', 'bash': {'x': 'allow', 'git*': 'allow'}}}
+        single = {'permission': {'*': 'ask', 'bash': {'x': 'allow'}}}
+        for before, after in ((mixed, added), (mixed, moved), (single, added)):
+            with self.subTest(alias_before=before, alias_after=after):
+                with self.assertRaisesRegex(ValueError, 'unsupported_permissions'):
+                    self.proposal('opencode', json.dumps(before), json.dumps(after),
+                                  [align.pointer(p) for p in align.changed_paths(before, after, adapter='opencode')])
+                receipt_output = io.StringIO()
+                plan_path = self.root / 'refused-alias-plan.json'
+                argv = ['plan', '--adapter', 'opencode', '--target', str(self.target),
+                        '--candidate', str(self.candidate), '--out', str(plan_path)]
+                for changed in align.changed_paths(before, after, adapter='opencode'):
+                    argv.extend(['--allow-key', align.pointer(changed)])
+                with redirect_stdout(receipt_output):
+                    exit_code = align.main(argv)
+                receipt = json.loads(receipt_output.getvalue())
+                self.assertEqual(exit_code, 2)
+                self.assertEqual(receipt['error'], 'unsupported_permissions')
+                self.assertEqual(receipt['settings_writes'], 0)
+                self.assertFalse(plan_path.exists())
+                self.assertEqual(self.target.read_bytes(), json.dumps(before).encode())
+                self.assertEqual(self.candidate.read_bytes(), json.dumps(after).encode())
+        for key in ('bash', 'shell'):
+            align.protect_policy('opencode', {'permission': {key: {'rm*': 'ask'}}},
+                                 {'permission': {key: {'rm*': 'deny'}}})
+
+    def test_native_plugins_inventory_shapes_and_change_roots(self):
+        data = {'plugins': ['fixture-plugin@1.0', {'package': '@fixture/plugin', 'options': {'strict': True}}]}
+        parsed = align.parse('opencode', json.dumps(data).encode())
+        self.assertEqual(align.resources('opencode', parsed)['plugin'],
+                         {'fixture-plugin@1.0': 'configured', '@fixture/plugin': 'configured'})
+        self.assertEqual(align.audit.inspect('opencode', parsed), [])
+        self.assertEqual(align.changed_paths({}, data, adapter='opencode'), [('plugins',)])
+        self.assertTrue(align.allowed_change('opencode', ('plugins',), {}, data))
+        for value, reason in [({'plugin': [], **data}, 'unsupported_mixed_plugins'),
+                              ({'plugins': {}}, 'unsupported_plugins'),
+                              ({'plugins': [['fixture', {}]]}, 'unsupported_plugins'),
+                              ({'plugins': [{'package': 'fixture', 'enabled': True}]}, 'unsupported_plugins'),
+                              ({'plugins': [{'package': 'fixture', 'options': []}]}, 'unsupported_plugins'),
+                              ({'plugins': [False]}, 'unsupported_plugins'),
+                              ({'plugins': ['-fixture']}, 'unsupported_plugin_directive'),
+                              ({'plugins': ['*']}, 'unsupported_plugin_directive')]:
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, reason):
+                align.parse('opencode', json.dumps(value).encode())
+        path = self.file('native-plugin-settings', json.dumps(data))
+        compared = align.compare({'providers': [{'providerInstanceId': 'oc'}]}, {'version': 1,
+            'providers': [{'provider_instance_id': 'oc', 'adapter': 'opencode',
+                           'sources': [{'path': str(path), 'scope': 'global'}]}],
+            'capabilities': [{'kind': 'plugin', 'members': {'oc': 'fixture-plugin@1.0'}}]})
+        self.assertEqual(compared['capabilities'][0]['states'], ['configured'])
+
+    def test_unverified_native_equivalences_still_fail_closed(self):
+        ask = {'action': 'shell', 'resource': 'rm*', 'effect': 'ask'}
+        with self.assertRaisesRegex(ValueError, 'protective_setting_weakened'):
+            align.protect_policy('opencode', {'permissions': [ask]},
+                                 {'permissions': [{**ask, 'effect': 'deny'}]})
+        with self.assertRaisesRegex(ValueError, 'protective_setting_weakened'):
+            align.protect_policy('opencode', {'permission': {'bash': {'rm*': 'ask'}}},
+                                 {'permissions': [ask]})
+        with self.assertRaisesRegex(ValueError, 'unsupported_mcp_server'):
+            align.parse('opencode', b'{"mcp":{"servers":{"fixture":{"type":"local","command":[]}}}}')
+
+    def test_typed_legacy_mcp_reserved_names_and_native_timeouts(self):
+        server = {'type': 'local', 'command': ['fixture'], 'enabled': False, 'timeout': 30000}
+        legacy = {'permission': {'bash': 'ask'}, 'mcp': {'servers': server, 'timeout': server}}
+        self.assertEqual(align.resources('opencode', align.parse('opencode', json.dumps(legacy).encode()))['mcp'],
+                         {'servers': 'disabled', 'timeout': 'disabled'})
+        native = {'permissions': [], 'mcp': {'timeout': {'startup': 5, 'catalog': 10, 'execution': 20},
+                  'servers': {'fixture': {'type': 'local', 'command': ['fixture'], 'timeout': {'startup': 50}}}}}
+        self.assertEqual(align.resources('opencode', align.parse('opencode', json.dumps(native).encode()))['mcp'],
+                         {'fixture': 'configured'})
+        for mcp in ({'x': {}}, {'servers': [], 'timeout': {}}, {'timeout': {'startup': True}},
+                    {'servers': {'x': {'type': 'new'}}},
+                    {'x': {'type': 'local', 'command': ['fixture'], 'disabled': True}}):
+            with self.subTest(mcp=mcp), self.assertRaises(ValueError):
+                align.parse('opencode', json.dumps({'mcp': mcp}).encode())
+
+    def test_muse_native_coverage_gap_is_in_comparison_findings(self):
+        path = self.file('muse', '{"permissions":{"profiles":{}}}')
+        result = align.compare({'providers': [{'providerInstanceId': 'm'}]}, {'version': 1, 'providers': [
+            {'provider_instance_id': 'm', 'adapter': 'muse', 'sources': [{'path': str(path), 'scope': 'global'}]}]})
+        self.assertIn('coverage_gap', {f['code'] for f in result['findings']})
+        self.assertIn('unsupported', {f['code'] for f in result['findings']})
+
     def test_project_scope_conflicts_are_never_overwritten_by_disable_markers(self):
         data = {'projects': {'/fixture/project': {'mcpServers': {'fixture': {'command': 'fixture-command'}}}},
                 'disabledMcpServers': ['fixture'], 'enabledMcpjsonServers': ['fixture'],
@@ -376,8 +540,8 @@ class AlignmentTest(unittest.TestCase):
         risky = ('{"permissions":{"schema_version":1,"profiles":{"work":{"approval":"allow_all",'
                  '"network":{"mode":"enabled"}}}}}')
         keys = ['/permissions/profiles/work/approval', '/permissions/profiles/work/network/mode']
-        plan = self.proposal('muse', risky, safe, keys)
-        self.assertEqual(plan['risk_patterns_after'], {})
+        with self.assertRaisesRegex(ValueError, 'unsupported_policy_coverage'):
+            self.proposal('muse', risky, safe, keys)
         with self.assertRaises(ValueError):
             self.proposal('muse', safe, risky, keys)
         # Removing a stated protective dimension is a weakening, not a no-op.

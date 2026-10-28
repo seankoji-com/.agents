@@ -73,6 +73,8 @@ INVENTORY_ADDITIONS = {
     'scripts/agent_inventory.py', 'references/native-agent-formats-v1.json',
     'fixtures/agent-inventory-v1.json', 'fixtures/agent-inventory-v2.json',
 }
+# Explicit opt-in report helper delivery; retained worker sources stay unchanged.
+TARGET_REPORT_ADDITIONS = {'scripts/target_report.py'}
 KINDS = {
     'agent-tuneup/config-researcher': 'configuration',
     'agent-tuneup/config-verifier': 'configuration',
@@ -1050,6 +1052,7 @@ class WorkerRetentionTest(unittest.TestCase):
                                 if p.startswith('plugins/' + plugin + '/'))
                 if plugin == 'agent-tuneup':
                     expected.update(INVENTORY_ADDITIONS)
+                    expected.update(TARGET_REPORT_ADDITIONS)
                 files = {r['path']: r for r in receipt['files']}
                 # Since #198 packages derive entry.md and SKILL.md from the canonical
                 # skills/<name>/SKILL.md; additions tracked at the pinned revision are in `expected`.
@@ -1058,6 +1061,11 @@ class WorkerRetentionTest(unittest.TestCase):
                 self.assertEqual(set(files) - expected, (PACKAGE_ADDITIONS - set(current_tracked)) | derived)
                 self.assertEqual(expected - set(files), set())
                 registry.verify_package_files(package, receipt)
+                if plugin == 'agent-tuneup':
+                    for path in TARGET_REPORT_ADDITIONS:
+                        raw = (ROOT / 'plugins' / plugin / path).read_bytes()
+                        self.assertEqual(files[path]['sha256'], sha(raw))
+                        self.assertEqual((package / path).read_bytes(), raw)
                 for path in PACKAGE_ADDITIONS:
                     self.assertEqual(files[path]['sha256'], sha((ROOT / path).read_bytes()))
                     self.assertEqual((package / path).read_bytes(), (ROOT / path).read_bytes())

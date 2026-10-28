@@ -38,7 +38,7 @@ ROOTS = {
     'claude': {'permissions', 'mcpServers', 'enabledPlugins', 'enabledMcpjsonServers',
                'disabledMcpjsonServers', 'disabledMcpServers', 'enableAllProjectMcpServers', 'sandbox'},
     'codex': {'approval_policy', 'sandbox_mode', 'sandbox_workspace_write', 'mcp_servers', 'plugins'},
-    'opencode': {'permission', 'mcp', 'plugin'},
+    'opencode': {'permission', 'permissions', 'mcp', 'plugin', 'plugins'},
     'antigravity': {'mcpServers'},
     # Only the known permission-profile shape is writable here. MCP storage
     # varies with the Muse runtime; unknown versions require separate evidence.
@@ -52,7 +52,7 @@ SAFE_ERRORS = {
     'changed_keys_do_not_match', 'stale_or_unapproved_plan', 'stale_plan',
     'invalid_backup', 'protective_setting_weakened', 'reviewed_proposal_and_owner_approval_required',
     'invalid_batch', 'overlapping_batch', 'destination_not_writable', 'destination_readiness_unknown',
-    'private_plan_too_large',
+    'private_plan_too_large', 'unsupported_policy_coverage', 'unsupported_permissions',
 }
 
 
@@ -61,6 +61,9 @@ def sha(raw):
 
 
 def validate_permission(value, depth=0):
+    if isinstance(value, list) and depth == 0:
+        audit.opencode_rules({'permissions': value})
+        return
     if isinstance(value, dict):
         if depth >= 2:
             raise ValueError('invalid_settings')
@@ -87,14 +90,10 @@ def parse(adapter, raw):
     if adapter != 'antigravity':
         audit.inspect(adapter, data)
     if adapter == 'opencode':
-        validate_permission(data.get('permission', {}))
-        agents = data.get('agent', {})
-        if not isinstance(agents, dict):
-            raise ValueError('invalid_settings')
+        audit.opencode_rules(data)
+        _, agents = audit.opencode_agents(data)
         for agent in agents.values():
-            if not isinstance(agent, dict):
-                raise ValueError('invalid_settings')
-            validate_permission(agent.get('permission', {}))
+            audit.opencode_rules(agent)
     resources(adapter, data)  # Validate fields used by the inventory.
     return data
 
@@ -115,6 +114,8 @@ def resources(adapter, data):
     # No version-independent Muse MCP parser is claimed. Do not mistake an
     # unrelated/changed settings key for a verified native definition.
     servers = {} if adapter == 'muse' else data.get(key, {})
+    if adapter == 'opencode':
+        servers = audit.opencode_servers(data)
     if not isinstance(servers, dict):
         raise ValueError('invalid_mcp')
     if adapter == 'claude':
@@ -153,10 +154,7 @@ def resources(adapter, data):
             raise ValueError('invalid_plugins')
         result['plugin'] = {name: 'configured' if enabled else 'disabled' for name, enabled in plugins.items()}
     elif adapter == 'opencode':
-        plugins = data.get('plugin', [])
-        if not isinstance(plugins, list) or any(not isinstance(v, str) for v in plugins):
-            raise ValueError('invalid_plugins')
-        result['plugin'] = dict.fromkeys(plugins, 'configured')
+        result['plugin'] = audit.opencode_plugins(data)
     # Codex plugin identity policies are not proof of installed/enabled plugins.
     return result
 
@@ -202,7 +200,10 @@ def compare(catalog, inventory, private=None):
                      'adapter': adapter if adapter in ADAPTERS else 'manual',
                      'catalog_constraints': 'present_review_private_catalog' if provider.get('constraints') else 'none_reported',
                      'sources': source_rows, 'coverage': 'supplied_sources_only' if source_rows else 'unconfigured_inventory'})
-    gaps, findings = [], []
+    gaps = []
+    findings = [dict(f, location=f"providers[{i}].sources[{j}].{f['location']}")
+                for i, row in enumerate(rows) for j, source in enumerate(row['sources'])
+                for f in source.get('findings', [])]
     for number, capability in enumerate(inventory.get('capabilities', [])):
         kind = capability.get('kind')
         members = capability.get('members')
@@ -264,6 +265,8 @@ def read_source(path):
 def risk_counts(adapter, data):
     if adapter == 'antigravity':
         return Counter()
+    if adapter == 'opencode':
+        return Counter(code for _, code, _ in risk_locations(adapter, data))
     findings = audit.inspect(adapter, data)
     if adapter == 'claude':
         sandbox = data.get('sandbox', {})
@@ -271,14 +274,6 @@ def risk_counts(adapter, data):
             raise ValueError('invalid_sandbox')
         if sandbox.get('enabled') is False:
             findings.append({'code': 'sandbox_disabled'})
-    if adapter == 'opencode':
-        agents = data.get('agent', {})
-        if not isinstance(agents, dict):
-            raise ValueError('invalid_agents')
-        for agent in agents.values():
-            if not isinstance(agent, dict):
-                raise ValueError('invalid_agents')
-            findings.extend(audit.inspect(adapter, {'permission': agent.get('permission', {})}))
     return Counter(f['code'] for f in findings if f['code'] != 'duplicate_rule')
 
 
@@ -286,7 +281,8 @@ def risk_locations(adapter, data, prefix=()):
     """Keep native override identities internally; public receipts expose codes only."""
     if adapter == 'antigravity':
         return set()
-    local = {k: v for k, v in data.items() if k != 'profiles'} if adapter == 'codex' else data
+    local = {k: v for k, v in data.items() if k not in (
+        ('profiles',) if adapter == 'codex' else ('agent', 'agents') if adapter == 'opencode' else ())}
     result = {(prefix, f['code'], 'permission' if adapter == 'opencode' and
                f['code'] == 'all_tools_allowed' else f['location'])
               for f in audit.inspect(adapter, local)
@@ -298,8 +294,17 @@ def risk_locations(adapter, data, prefix=()):
         for name, profile in data.get('profiles', {}).items():
             result |= risk_locations(adapter, profile, prefix + ('profiles', name))
     elif adapter == 'opencode':
-        for name, agent in data.get('agent', {}).items():
-            result |= risk_locations(adapter, {'permission': agent.get('permission', {})}, prefix + ('agent', name))
+        # Public locations are redacted indices. Safety compares exact private
+        # action/resource identities so moving risks across overrides cannot hide.
+        result = set()
+        for f in audit.inspect(adapter, local):
+            rule = next(r for r, loc in audit.opencode_rules(local) if loc == f['location'])
+            code = 'all_tools_allowed' if rule['action'] == '*' else 'broad_tool_allow'
+            identity = 'permission' if rule['action'] == '*' else (rule['action'], rule['resource'])
+            result.add((prefix, code, identity))
+        key, agents = audit.opencode_agents(data)
+        for name, agent in agents.items():
+            result |= risk_locations(adapter, agent, prefix + (key, name))
     return result
 
 
@@ -344,17 +349,57 @@ def protect_policy(adapter, old, new):
         for name in new.get('profiles', {}).keys() - old.get('profiles', {}).keys():
             protect_policy('codex', {}, new['profiles'][name])
     elif adapter == 'opencode':
+        for data in (old, new):
+            legacy = data.get('permission')
+            if isinstance(legacy, dict) and {'bash', 'shell'} <= set(legacy):
+                raise ValueError('unsupported_permissions')
+        before_rules = [r for r, _ in audit.opencode_rules(old)]
+        after_rules = [r for r, _ in audit.opencode_rules(new)]
+        if ('permissions' not in old and 'permissions' not in new and
+                any(r['effect'] in ('ask', 'deny') for r in before_rules) and
+                any(r['effect'] == 'allow' and r not in before_rules for r in after_rules)):
+            # A guard in one legacy action also protects other action subtrees.
+            # Broad-risk counts cannot detect changed narrow allow identities.
+            raise ValueError('protective_setting_weakened')
+        if 'permissions' in old or 'permissions' in new:
+            before, after = before_rules, after_rules
+            # Without proving arbitrary glob equivalence, preserve every rule
+            # around a guard. Only in-place tightening of allows is provable.
+            if any(r['effect'] in ('ask', 'deny') for r in before) and before != after:
+                if len(before) != len(after) or any(a != b and not (
+                        a['effect'] == 'allow' and b['effect'] in ('ask', 'deny') and
+                        all(a[k] == b[k] for k in ('action', 'resource'))) for a, b in zip(before, after)):
+                    raise ValueError('protective_setting_weakened')
         def protect_actions(before, after):
             rank = {'deny': 0, 'ask': 1, 'allow': 2}
             if isinstance(before, dict):
+                if isinstance(after, dict) and list(before) != list(after) and any(
+                        r['effect'] in ('ask', 'deny') for r, _ in audit.opencode_rules({'permission': before})):
+                    raise ValueError('protective_setting_weakened')
                 for key, value in before.items():
                     protect_actions(value, after.get(key) if isinstance(after, dict) else after)
             elif before in ('ask', 'deny'):
                 if not isinstance(after, str) or after not in rank or rank[after] > rank[before]:
                     raise ValueError('protective_setting_weakened')
         protect_actions(old.get('permission', {}), new.get('permission', {}))
-        for name, agent in old.get('agent', {}).items():
-            protect_policy('opencode', agent, new.get('agent', {}).get(name, {}))
+        old_key, agents = audit.opencode_agents(old)
+        new_key, next_agents = audit.opencode_agents(new)
+        if old_key != new_key and agents:
+            raise ValueError('protective_setting_weakened')
+        if any(r['effect'] in ('ask', 'deny') for r, _ in audit.opencode_rules(old)):
+            # Global-vs-agent precedence is unverified. An added narrow allow
+            # can defeat a global guard without increasing broad-risk counts.
+            for name, agent in next_agents.items():
+                before = [r for r, _ in audit.opencode_rules(agents.get(name, {}))]
+                after = [r for r, _ in audit.opencode_rules(agent)]
+                if before == after or not any(r['effect'] == 'allow' for r in after):
+                    continue
+                if len(before) != len(after) or any(a != b and not (
+                        a['effect'] == 'allow' and b['effect'] in ('ask', 'deny') and
+                        all(a[k] == b[k] for k in ('action', 'resource'))) for a, b in zip(before, after)):
+                    raise ValueError('protective_setting_weakened')
+        for name, agent in agents.items():
+            protect_policy('opencode', agent, next_agents.get(name, {}))
     elif adapter == 'muse':
         # Dimension ranks verified against Muse 1.4.7. A stated protective
         # value may tighten or stay; loosening or deleting it is refused.
@@ -389,10 +434,10 @@ def allowed_change(adapter, parts, old, new):
     if parts[0] in ROOTS[adapter]:
         return True
     # Nested policy overrides are supported; model/agent identity edits are not.
-    root = 'profiles' if adapter == 'codex' else 'agent' if adapter == 'opencode' else None
+    root = 'profiles' if adapter == 'codex' else parts[0] if adapter == 'opencode' and parts[0] in ('agent', 'agents') else None
     if parts[0] != root or len(parts) < 2:
         return False
-    allowed = ROOTS['codex'] - {'plugins'} if adapter == 'codex' else {'permission'}
+    allowed = ROOTS['codex'] - {'plugins'} if adapter == 'codex' else {'permission', 'permissions'}
     if len(parts) >= 3:
         return parts[2] in allowed
     sections = [data.get(root, {}).get(parts[1], {}) for data in (old, new)]
@@ -497,6 +542,8 @@ def prepare(adapter, target, candidate, allowed):
     if after_risks - before_risks or risk_locations(adapter, new) - risk_locations(adapter, old):
         raise ValueError('new_risky_permission_patterns')
     protect_policy(adapter, old, new)
+    if adapter == 'muse':
+        raise ValueError('unsupported_policy_coverage')
     actual = sorted(pointer(p) for p in changes)
     if sorted(set(allowed)) != actual:
         raise ValueError('changed_keys_do_not_match')
