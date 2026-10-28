@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "stage": 5,
+  "inventory": {
+    "tests": [{
+      "path": "tests/test_planning_review_executing_pin.py",
+      "stage": 5,
+      "disposition": "change",
+      "reason": "Executing immutable package pinning through public installed and relocated planning helpers, with distinct active acceptance bytes and fail-closed installation checks.",
+      "assertions": [{
+        "selector": "test_planning_review_executing_pin.ExecutingPackagePinTests",
+        "tests": 10,
+        "coverage": ["REQ-DELIVERY", "REQ-LIFECYCLE"],
+        "survives": true
+      }]
+    }]
+  }
+}

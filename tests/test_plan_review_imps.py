@@ -294,10 +294,14 @@ class ImpsReviewTests(unittest.TestCase):
         refused=self.box.job(self.package,'prepare',job['job_id'],{'caller':caller,'task_id':'work'},check=False)
         self.assertNotEqual(refused.returncode,0)
     def test_relocated_helpers_consume_real_receipts_and_bound_templates(self):
-        import shutil
+        from tests.test_plan_review_installed_matrix import relocate
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        box = Sandbox(Path(temporary.name))
+        package, manifest = box.install('imps')
+        moved, manifest = relocate(box, {'imps': (package, manifest)})['imps']
         for op in ('audit','run','verification-init'):
-            f=self.fixture(op=op,write=op=='run')
-            moved=f.base/'relocated';shutil.copytree(self.package,moved)
+            f=ImpsPlanFixture(box,moved,manifest,op=op,write=op=='run')
             f.plugin=moved;f.runtime=moved
             f.approve();f.init();f.evidence()
             if op=='audit':f.finalize()
