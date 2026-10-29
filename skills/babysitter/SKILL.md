@@ -73,8 +73,9 @@ used up, the REST limit is separate and usually still has room. Use
 
 ## Reviews
 
-Only act on checks and comments newer than the latest push. Verify every bot
-finding against the source before changing code. Fix real findings and CI
+Assess checks on the current head and all unresolved feedback, including older
+or outdated threads. Verify every bot finding against the current source before
+changing code. Fix real findings and CI
 failures, distinguish repository failures from infrastructure flakes, and reply
 with a written reason when dismissing false positives.
 
@@ -92,7 +93,7 @@ narrows code.
 
 ## Base branch and merging
 
-Always ensure branches are set to auto-merge
+Enable auto-merge only when merging is authorized and the repository supports it.
 
 Keep an eye on changes to `main` and rebase when needed. `pr-wait` reports when
 new base commits touch this PR's files, and when the PR becomes BEHIND or DIRTY.

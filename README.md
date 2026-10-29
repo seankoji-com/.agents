@@ -27,10 +27,11 @@ skill discovery. Each folder can be copied independently. Preserve existing and
 vendor skills when configuring discovery. Native tool and delegation support varies
 by host; report unavailable capabilities. Optional helpers need Python 3.10+ only.
 
-Imported skills retain upstream text and invocation names. Their prerequisites vary:
+Skills use their own section layouts; validation checks metadata and nonempty
+instructions rather than fixed headings. Their prerequisites vary:
 
-- `full-send` expects `sol-loop`, `file-pr` and `babysit-pr`. This library supplies
-  `sol-loop` and a watcher named `babysitter`; `file-pr` must come from the host.
+- `full-send` uses the included `review-loop` and `babysitter`, with native tools
+  to create the PR.
 - `sol-loop` needs a host route to Sol through T3 delegation or a native Sol agent.
   It reports a blocker when neither route is available.
 - `ketchup` uses the included `bro` and host-provided visualization tools. It reuses

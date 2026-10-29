@@ -1,18 +1,23 @@
 """Synthetic library/helper contracts. No provider or network access."""
 import importlib.util
+from importlib.machinery import SourceFileLoader
+from contextlib import contextmanager, redirect_stdout, redirect_stderr
+import io
 import json
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def load(relative):
-    spec = importlib.util.spec_from_file_location(Path(relative).stem, ROOT / relative)
+    loader = SourceFileLoader(Path(relative).stem, str(ROOT / relative))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -21,6 +26,7 @@ def load(relative):
 checker = load('scripts/check_library.py')
 timings = load('skills/test-writer/scripts/summarize_timings.py')
 scanner = load('skills/agent-tuneup/scripts/scan_config.py')
+waiter = load('skills/babysitter/scripts/pr-wait')
 
 
 class Helpers(unittest.TestCase):
@@ -78,6 +84,90 @@ class Helpers(unittest.TestCase):
                 self.assertNotIn('secret-like', failed.stderr)
 
 
+class Watcher(unittest.TestCase):
+    @contextmanager
+    def fixture(self, checks=None, merge_state='CLEAN', unresolved=False, review=False):
+        pr = {'state': 'OPEN', 'headRefOid': 'a' * 40, 'baseRefName': 'main',
+              'baseRef': {'target': {'oid': 'b' * 40}},
+              'author': {'login': 'author'}, 'viewer': 'owner',
+              'comments': {'nodes': []}, 'reviews': {'nodes': []},
+              'reviewThreads': {'nodes': []}, 'mergeStateStatus': merge_state}
+        if unresolved:
+            pr['reviewThreads']['nodes'].append({
+                'isResolved': False, 'path': 'app.py', 'line': 1,
+                'comments': {'nodes': [{'id': 'finding', 'url': 'https://example.invalid/review',
+                                       'body': 'A real finding', 'author': {'login': 'reviewer'}}]}})
+        if review:
+            pr['reviews']['nodes'].append({
+                'id': 'review', 'url': 'https://example.invalid/review',
+                'state': 'APPROVED', 'body': 'Review completed',
+                'commit': {'oid': 'c' * 40},
+                'author': {'login': 'greptile[bot]', '__typename': 'Bot'}})
+        if checks is None:
+            checks = {'gate': {'bucket': 'pass', 'link': 'https://example.invalid/check'}}
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(waiter, 'STATE_DIR', Path(tmp)), \
+                mock.patch.object(waiter, 'required_checks', return_value={'gate'}), \
+                mock.patch.object(waiter, 'gh', side_effect=AssertionError('network forbidden')), \
+                redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            watcher = waiter.Watcher('example/repo', 1, 'ready', 20)
+            watcher.fetch_pr = mock.Mock(return_value=pr)
+            watcher.fetch_checks = mock.Mock(return_value=checks)
+            watcher.behind = mock.Mock(return_value='')
+            yield watcher, pr
+
+    def test_ready_without_optional_review_bots(self):
+        with self.fixture() as (watcher, _):
+            watcher.poll()
+            watcher.baseline = False
+            with self.assertRaises(SystemExit) as done:
+                watcher.poll()
+            self.assertEqual(done.exception.code, 0)
+
+    def test_missing_required_check_and_blocked_merge_stay_pending(self):
+        for kwargs in ({'checks': {}}, {'merge_state': 'BLOCKED'}, {'merge_state': 'UNKNOWN'}):
+            with self.subTest(kwargs=kwargs), self.fixture(**kwargs) as (watcher, _):
+                watcher.poll()
+                watcher.baseline = False
+                watcher.poll()
+
+    def test_failed_required_check_needs_action(self):
+        checks = {'gate': {'bucket': 'fail', 'link': 'https://example.invalid/check'}}
+        with self.fixture(checks=checks) as (watcher, _):
+            with self.assertRaises(SystemExit) as stopped:
+                watcher.poll()
+            self.assertEqual(stopped.exception.code, 1)
+
+    def test_unresolved_thread_blocks_readiness(self):
+        with self.fixture(unresolved=True) as (watcher, _):
+            watcher.poll()
+            watcher.baseline = False
+            with self.assertRaises(SystemExit) as stopped:
+                watcher.poll()
+            self.assertEqual(stopped.exception.code, 1)
+
+    def test_observed_review_bot_must_review_current_head(self):
+        with self.fixture(review=True) as (watcher, pr):
+            watcher.poll()
+            watcher.baseline = False
+            watcher.poll()
+            pr['reviews']['nodes'][0]['commit']['oid'] = pr['headRefOid']
+            with self.assertRaises(SystemExit) as done:
+                watcher.poll()
+            self.assertEqual(done.exception.code, 0)
+
+    def test_copied_watcher_runs_from_foreign_cwd(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copied = root / 'babysitter'
+            shutil.copytree(ROOT / 'skills/babysitter', copied,
+                            ignore=shutil.ignore_patterns('__pycache__'))
+            result = subprocess.run([sys.executable, str(copied / 'scripts/pr-wait'), '--help'],
+                                    cwd=root, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('--until', result.stdout)
+
+
 class Library(unittest.TestCase):
     def fixture(self, root):
         subprocess.run(['git', 'init', '-q', str(root)], check=True)
@@ -114,10 +204,22 @@ class Library(unittest.TestCase):
             vendor.mkdir()
             (vendor / 'SKILL.md').write_text('PKG/shared/private.md')
             self.assertEqual(checker.check(root), [])
-            p = root / 'skills/imps/scripts/bad.py'
-            p.parent.mkdir()
-            p.write_text('import external_provider_sdk\n')
-            self.assertIn('non-stdlib import', '\n'.join(checker.check(root)))
+            folder = root / 'skills/imps/scripts'
+            folder.mkdir()
+            for name in ('bad.py', 'bad-script'):
+                with self.subTest(name=name):
+                    p = folder / name
+                    p.write_text('#!/usr/bin/env python3\nimport external_provider_sdk\n')
+                    self.assertIn('non-stdlib import', '\n'.join(checker.check(root)))
+                    p.unlink()
+
+    def test_metadata_without_instructions_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.fixture(root)
+            p = root / 'skills/bro/SKILL.md'
+            p.write_text('---\nname: bro\ndescription: Restate text.\n---\n')
+            self.assertIn('bro: missing instructions', checker.check(root))
 
     def test_retired_tracked_container_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
