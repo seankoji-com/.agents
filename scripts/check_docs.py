@@ -119,8 +119,11 @@ def check_page(path: Path, root: Path, anchor_cache: dict) -> list:
 
 def check(root=ROOT):
     errors = []
+    # Direct skill roots own their references; nested vendor stores are independent.
+    skill_pages = [page for entry in (root / 'skills').glob('*/SKILL.md')
+                   for page in entry.parent.rglob('*.md')]
     pages = [*root.glob('*.md'), *(root / 'docs').rglob('*.md'), *(root / 'plugins').rglob('*.md'),
-             *(root / 'skills').rglob('*.md'), *(root / 'roles').rglob('*.md'), *(root / 'references').rglob('*.md')]
+             *skill_pages, *(root / 'roles').rglob('*.md'), *(root / 'references').rglob('*.md')]
     anchor_cache = {}
     for path in sorted(pages):
         errors.extend(check_page(path, root, anchor_cache))

@@ -1,7 +1,7 @@
 ---
 template: home.html
 title: Overview
-description: "Eight workflows for coding agents in T3 Code: fix a bug with checks tied to the files you receive, write a plan, cite another repo, finish a PR. Install with Homebrew on macOS or Linux."
+description: "Editable workflows for coding agents in T3 Code: fix a bug with revision-bound checks, write a plan, study another repo, or finish a PR. Install from source on macOS or Linux."
 hide:
   - toc
   - navigation
@@ -29,8 +29,8 @@ reads the job overview and checks every recorded task before starting anything n
 
 The workflows are Markdown files any T3 provider can read, plus Python helpers that use
 only the standard library. T3 owns delegated tasks, previews and PR watches. Skill
-discovery differs between providers. The catalog offers installed-package diagnostics
-and a prompt you can paste when the slash menu isn't available.
+discovery differs between providers. The stable launcher captures the selected
+source and pins the skill, helpers and worker definitions for each invocation.
 
 The test suite exercises the helpers without calling a model. The published live
 results cover an earlier imps gate and do **not** certify imps 1.0;

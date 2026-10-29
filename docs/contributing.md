@@ -18,9 +18,12 @@ fixtures at production systems or authenticated model endpoints.
 
 ## Add or change a plugin
 
-Use `plugins/<kebab-case-name>/` with `plugin.json` and `entry.md`. Route operations to
-small files under `playbooks/`; put deterministic helpers in `scripts/` and optional
-detail in `references/`. A plugin must install and run outside the source checkout.
+Write the canonical body and frontmatter in `skills/<kebab-case-name>/SKILL.md`.
+Put its routing manifest in `plugins/<kebab-case-name>/plugin.json`, operations in
+`playbooks/`, deterministic helpers in `scripts/`, and optional detail in
+`references/` under that plugin. The source resolver materializes the pinned skill
+and its package for execution outside the source checkout. Do not maintain a second
+source entry body in the plugin directory.
 
 Keep entries under 1,500 words. Load only the requested playbook. Put shared T3
 instructions in `shared/t3-runtime.md`, not repeated paragraphs in every entry.

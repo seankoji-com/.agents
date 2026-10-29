@@ -1,11 +1,10 @@
-# The release tarball (git archive) carries only what the Homebrew formula installs.
-# Tests, documentation, conformance evidence, and design notes stay in the repository.
+# Retain the runtime archive layout for historical packaging compatibility.
+# Current setup uses the source checkout; see docs/releasing.md.
 tests/ export-ignore
 conformance/ export-ignore
 docs/ export-ignore
 overrides/ export-ignore
 migration/ export-ignore
-launch/ export-ignore
 .github/ export-ignore
 mkdocs.yml export-ignore
 requirements-docs.txt export-ignore
