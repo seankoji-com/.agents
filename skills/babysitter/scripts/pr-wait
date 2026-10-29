@@ -58,6 +58,7 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, NoReturn
+from urllib.parse import quote
 
 GATING_BOTS = ("greptile", "macroscope")
 ADVISORY_BOTS = ("coderabbit",)
@@ -86,14 +87,16 @@ query($owner: String!, $name: String!, $number: Int!) {
       url state headRefOid baseRefName mergeStateStatus
       author { login }
       baseRef { target { oid } }
-      comments(last: 100) { nodes { id url body author { login __typename } } }
+      comments(last: 100) { pageInfo { hasPreviousPage } nodes { id url body author { login __typename } } }
       reviews(last: 100) {
+        pageInfo { hasPreviousPage }
         nodes { id url state body commit { oid } author { login __typename } }
       }
       reviewThreads(last: 100) {
+        pageInfo { hasPreviousPage }
         nodes {
           isResolved path line
-          comments(first: 100) { nodes { id url body author { login __typename } } }
+          comments(first: 100) { pageInfo { hasNextPage } nodes { id url body author { login __typename } } }
         }
       }
     }
@@ -228,6 +231,7 @@ def required_checks(repo: str, base: str) -> set[str]:
     """Required check names for the base branch, from rulesets and classic branch
     protection. Knowing them up front means a required check that has not started
     yet counts as pending, instead of green by omission."""
+    base = quote(base, safe='')
     sources = (
         (
             f"repos/{repo}/rules/branches/{base}",
@@ -300,9 +304,24 @@ class Watcher:
             "api", "graphql", "-f", f"query={QUERY}",
             "-f", f"owner={self.owner}", "-f", f"name={self.name}", "-F", f"number={self.pr}",
         ])
-        data = json.loads(proc.stdout)["data"]
-        pr = data["repository"]["pullRequest"]
-        pr["viewer"] = data["viewer"]["login"]
+        try:
+            payload = json.loads(proc.stdout)
+            if not isinstance(payload, dict) or payload.get("errors"):
+                raise ValueError
+            data = payload["data"]
+            pr = data["repository"]["pullRequest"]
+            if not isinstance(pr, dict):
+                raise ValueError
+            pr["viewer"] = data["viewer"]["login"]
+            truncated = any(pr[key].get("pageInfo", {}).get("hasPreviousPage")
+                            for key in ("comments", "reviews", "reviewThreads"))
+            truncated = truncated or any(
+                thread["comments"].get("pageInfo", {}).get("hasNextPage")
+                for thread in pr["reviewThreads"]["nodes"])
+        except (ValueError, TypeError, KeyError, AttributeError):
+            raise GhError("GitHub returned inaccessible or invalid pull request data", False) from None
+        if truncated:
+            raise GhError("PR history exceeds the single-page limit; inspect all feedback manually", False)
         return pr
 
     def fetch_checks(self) -> dict[str, Json]:
@@ -314,17 +333,27 @@ class Watcher:
                 return {}
             raise GhError(proc.stderr.strip() or f"gh pr checks exited {proc.returncode}", False)
         checks: dict[str, Json] = {}
-        for row in json.loads(proc.stdout):
-            current = checks.get(row["name"])
-            if current is None or RANK.get(row["bucket"], 2) > RANK.get(current["bucket"], 2):
-                checks[row["name"]] = row
+        try:
+            rows = json.loads(proc.stdout)
+            if not isinstance(rows, list):
+                raise ValueError
+            for row in rows:
+                if not isinstance(row["name"], str) or not row["name"] or row["bucket"] not in RANK:
+                    raise ValueError
+                row.setdefault("link", "")
+                row.setdefault("description", "")
+                current = checks.get(row["name"])
+                if current is None or RANK[row["bucket"]] > RANK[current["bucket"]]:
+                    checks[row["name"]] = row
+        except (ValueError, TypeError, KeyError):
+            raise GhError("GitHub CLI returned invalid check data", False) from None
         return checks
 
     def base_overlap(self, head: str, old: str, new: str) -> list[str]:
         """Files this PR touches that the new base commits also touch."""
         try:
             if head not in self.pr_files:
-                self.pr_files[head] = set(gh_lines(["pr", "diff", str(self.pr), "-R", self.repo, "--name-only"]))
+                self.pr_files = {head: set(gh_lines(["pr", "diff", str(self.pr), "-R", self.repo, "--name-only"]))}
             moved = gh_lines(["api", f"repos/{self.repo}/compare/{old}...{new}", "--jq", ".files[].filename"])
         except GhError as error:
             log(f"could not compare base commits: {error}")
@@ -425,7 +454,7 @@ class Watcher:
             if own_checks:
                 done = all(c["bucket"] != "pending" for c in own_checks.values())
             else:
-                done = on_head or any(short in s["body"] for s in summaries)
+                done = on_head or any(re.search(rf"\b(?:{head}|{short})\b", s["body"]) for s in summaries)
             seen = bool(own_checks or summaries or own_reviews)
             if bot in GATING_BOTS and seen and not done:
                 pending_review = True

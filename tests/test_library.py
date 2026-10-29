@@ -167,6 +167,60 @@ class Watcher(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('--until', result.stdout)
 
+    def test_fetch_checks_uses_cli_fields_and_worst_duplicate(self):
+        rows = [{'name': 'gate', 'bucket': 'pass', 'link': 'pass-link', 'description': 'ok'},
+                {'name': 'gate', 'bucket': 'fail', 'link': 'fail-link', 'description': 'failed'}]
+        with self.fixture() as (watcher, _), mock.patch.object(
+                waiter, 'gh', return_value=subprocess.CompletedProcess([], 1, json.dumps(rows), '')) as gh:
+            result = waiter.Watcher.fetch_checks(watcher)
+            self.assertEqual(result['gate']['bucket'], 'fail')
+            self.assertEqual(result['gate']['link'], 'fail-link')
+            args = gh.call_args.args[0]
+            self.assertEqual(set(args[args.index('--json') + 1].split(',')),
+                             {'name', 'bucket', 'link', 'description'})
+
+    def test_invalid_check_payload_needs_action(self):
+        for payload in ('not JSON', '{}', '[{}]', '[{"name":"gate","bucket":"unknown"}]'):
+            with self.subTest(payload=payload), self.fixture() as (watcher, _), mock.patch.object(
+                    waiter, 'gh', return_value=subprocess.CompletedProcess([], 0, payload, '')):
+                with self.assertRaises(waiter.GhError):
+                    waiter.Watcher.fetch_checks(watcher)
+
+    def test_fetch_pr_handles_lost_access_invalid_json_and_truncated_history(self):
+        with self.fixture() as (watcher, pr):
+            payload = {'data': {'repository': {'pullRequest': pr}, 'viewer': {'login': 'owner'}}}
+            with mock.patch.object(waiter, 'gh', return_value=subprocess.CompletedProcess(
+                    [], 0, json.dumps(payload), '')):
+                self.assertEqual(waiter.Watcher.fetch_pr(watcher)['headRefOid'], 'a' * 40)
+            pr['reviewThreads']['pageInfo'] = {'hasPreviousPage': True}
+            cases = ('not JSON', 'null', '{"data":{"repository":null}}',
+                     '{"errors":[{"message":"access denied"}]}', json.dumps(payload))
+            for body in cases:
+                with self.subTest(body=body), mock.patch.object(waiter, 'gh', return_value=(
+                        subprocess.CompletedProcess([], 0, body, ''))):
+                    with self.assertRaises(waiter.GhError):
+                        waiter.Watcher.fetch_pr(watcher)
+
+    def test_required_check_branch_is_url_encoded(self):
+        with mock.patch.object(waiter, 'gh_lines', side_effect=[['gate'], []]) as gh:
+            self.assertEqual(waiter.required_checks('example/repo', 'release/a#b?c%'), {'gate'})
+            paths = [call.args[0][1] for call in gh.call_args_list]
+            self.assertTrue(all('release%2Fa%23b%3Fc%25' in path for path in paths))
+
+    def test_embedded_sha_in_stale_summary_does_not_mark_review_complete(self):
+        with self.fixture(review=True) as (watcher, pr):
+            summary = {'id': 'summary', 'url': 'https://example.invalid/review',
+                       'body': '0' + pr['headRefOid'][:7] + '0',
+                       'author': {'login': 'greptile[bot]', '__typename': 'Bot'}}
+            pr['comments']['nodes'].append(summary)
+            watcher.poll()
+            watcher.baseline = False
+            watcher.poll()
+            summary['body'] = 'Reviewed commit ' + pr['headRefOid']
+            with self.assertRaises(SystemExit) as done:
+                watcher.poll()
+            self.assertEqual(done.exception.code, 0)
+
 
 class Library(unittest.TestCase):
     def fixture(self, root):

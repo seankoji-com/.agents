@@ -61,6 +61,9 @@ It remembers what it already reported, so nothing that arrived in between is
 lost. If it says another pid already watches the PR, do not start a second one.
 Kill the old one only if its events do not reach you.
 
+If history exceeds the helper's single-page limit, it stops for manual inspection
+rather than reporting readiness with feedback missing.
+
 With either watcher: when an event needs no action, end your turn without a
 message. Never post or say "still waiting".
 
