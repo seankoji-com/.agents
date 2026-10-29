@@ -129,14 +129,19 @@ If your manager forwards to the common Git hooks directory, as dotfiles' t3-guar
 does, use `install-hook --forwarded-hooks`. This preserves the global dispatcher
 and its push guard. Never use this flag for a manager that does not forward there.
 
-The repository now publishes `main`; `master` is historical. Direct pushing
-requires an explicit policy decision. Repository admin access alone does not
-establish bypass of inherited organization rulesets. This script neither changes
+Owner maintenance publishes directly to `main`; `master` is historical. Pull
+requests are disabled for this repository. Direct publication needs the owner-run
+`.agents` exceptions in GitHub's inherited PR, gatekeeper and CodeQL rulesets,
+with repository-level history protections retained. Repository admin access alone
+does not establish bypass of every inherited rule. This script neither changes
 rules nor attempts an override, and stops on push rejection. Keep mandatory
-organization workflows. Local validation is separate from hosted CI and review.
-The dotfiles t3-guard currently rejects direct default-branch pushes independently
-of GitHub. An owner-approved change through dotfiles is needed for this direct-push
-workflow on such hosts. Installing the validation hook does not lift that guard.
+organization workflows. Local validation is separate from hosted CI.
+
+The dotfiles t3-guard also needs its exact `.agents` fast-forward exception.
+That exception accepts only existing `main` from checked-out `main` at the
+canonical GitHub endpoint. It retains the other environment, URL and hook checks
+and does not allow force pushes, deletion or creation. Installing the validation
+hook alone does not change push policy.
 
 ## Security
 

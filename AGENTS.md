@@ -17,6 +17,11 @@ Run `python3 scripts/check_library.py` and
 GitHub. Run changed skill helpers from a foreign working directory. Keep mandatory
 organization workflows; no package or documentation build is needed.
 
+Owner maintenance publishes by fast-forward pushes to `main`. Do not create pull
+requests for this repository. Use `python3 scripts/maintain.py` for validation,
+commit-message generation, committing, pushing and configured host delivery.
+Keep the repository-only direct-publish exceptions narrow; never force-push.
+
 Dotfiles owns external configuration. Preserve installed skills, active jobs,
 credentials, ignored settings and marketplace state until their callers are migrated
 through that owner. Source cleanup does not change the published website. Report
