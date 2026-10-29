@@ -1,4 +1,5 @@
 .DS_Store
+/.maintain.json
 __pycache__/
 .claude/.cc-writes/
 .repos/
