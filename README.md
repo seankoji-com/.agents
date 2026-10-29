@@ -8,7 +8,7 @@ its instructions and any supporting references, templates or helpers.
 | [imps](skills/imps/SKILL.md) | Implementation, investigation, audits and reviews |
 | [plan](skills/plan/SKILL.md) | Planning, specifications and handoffs |
 | [babysitter](skills/babysitter/SKILL.md) | PR review, CI repairs and native watches |
-| [ralph](skills/ralph/SKILL.md) | Bounded implementation and independent evaluation loops |
+| [review-loop](skills/review-loop/SKILL.md) | Implementation with bounded independent review and repair |
 | [focus-group](skills/focus-group/SKILL.md) | Synthetic persona studies |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Agent configuration, permissions and discovery |
 | [test-writer](skills/test-writer/SKILL.md) | High-value tests and CI feedback within ten minutes |

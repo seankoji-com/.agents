@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-SKILLS = ('imps', 'plan', 'babysitter', 'ralph', 'focus-group',
+SKILLS = ('imps', 'plan', 'babysitter', 'review-loop', 'focus-group',
           'agent-tuneup', 'test-writer', 'file-upstream-bug', 'unslop', 'full-send',
           'sol-loop', 'grilling', 'ketchup', 'bro')
 # Verbatim upstream imports retain their own section layouts.

@@ -5,11 +5,6 @@ description: "Use when the user asks to audit, troubleshoot or change agent conf
 
 # Inspect and align agent wiring
 
-## Triggers
-
-Use for agent configuration and discovery work. Audits remain read-only unless
-changes are authorized; reuse authority already supplied.
-
 ## Workflow
 
 1. Inspect the affected host, versions, configuration files and working tree.
