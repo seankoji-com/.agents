@@ -46,11 +46,10 @@ one appears.
    smallest change that works. Fix the case that happened, not every case
    that could. If you are on the default branch, create a branch first.
 2. **Prove it.** Get proof for every change you made. See "Proof".
-3. **Get feedback.** Use the `sol-loop` skill to verify changes.
-4. **File the PR** with the `file-pr` skill. Rebase onto the latest default
-   branch first. Add one short line to the description that says how you proved
-   the change.
-5. **Babysit the PR** with the `babysit-pr` skill. Fix real findings and CI
+3. **Get feedback.** Use the `review-loop` skill to verify changes.
+4. **File the PR.** Rebase onto the latest default branch first. Add one short
+   line to the description that says how you proved the change.
+5. **Babysit the PR** with the `babysitter` skill. Fix real findings and CI
    failures. Get proof for each fix before you push it.
 6. **Merge** when the merge gate passes.
 7. **Report** in your final message: the PR link, the merge commit, your proof,
@@ -58,9 +57,9 @@ one appears.
 
 Stay active from step 1 to step 7. If you end your turn while checks or bots are
 pending, the work stops, because nobody will prompt you again. Wait with the
-watcher from `babysit-pr`, so something wakes you when the PR changes. In T3
-Code that is `watch_pull_request`. If you stop before the merge, call
-`unwatch_pull_request` first.
+watcher from `babysitter`, so something wakes you when the PR changes. In T3
+Code that is `watch_pull_request`; elsewhere use `babysitter`'s `scripts/pr-wait`.
+If you stop before the merge in T3, call `unwatch_pull_request` first.
 
 ## Proof
 
@@ -84,9 +83,8 @@ Ask the user.
 Full confidence means all of these are true on the latest commit:
 
 - Your proof covers every change in the diff.
-- Required checks are green.
-- Review bots have finished, and each finding is fixed or dismissed with a
-  written reason.
+- Required checks are green
+- Review bot comments are fixed or dismissed with a written reason.
 - No human review still requests changes.
 - The branch is up to date with the default branch, and GitHub reports it as
   mergeable.

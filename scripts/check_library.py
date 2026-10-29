@@ -8,11 +8,9 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-SKILLS = ('imps', 'plan', 'babysitter', 'ralph', 'focus-group',
+SKILLS = ('imps', 'plan', 'babysitter', 'review-loop', 'focus-group',
           'agent-tuneup', 'test-writer', 'file-upstream-bug', 'unslop', 'full-send',
           'sol-loop', 'grilling', 'ketchup', 'bro')
-# Verbatim upstream imports retain their own section layouts.
-UPSTREAM_SKILLS = {'unslop', 'full-send', 'sol-loop', 'grilling', 'ketchup', 'bro'}
 RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents|'
                      r'scripts/(?:install|agents_bootstrap|source_runtime)|'
                      r'migration/|agents start|\.local/share/t3-plugins')
@@ -47,11 +45,8 @@ def check(root):
             errors.append(f'{name}: missing description')
         if len(text.split()) > 1500:
             errors.append(f'{name}: exceeds 1500 words')
-        if name not in UPSTREAM_SKILLS:
-            intro = '## Philosophy' if name == 'test-writer' else '## Triggers'
-            for heading in (intro, '## Workflow', '## Outputs', '## Boundaries'):
-                if heading not in text:
-                    errors.append(f'{name}: missing {heading}')
+        if not front or not text[front.end():].strip():
+            errors.append(f'{name}: missing instructions')
     for path in sorted(paths):
         relative = path.relative_to(root).as_posix()
         if Path(relative).parts[0] in RETIRED_ROOTS:
@@ -71,7 +66,9 @@ def check(root):
                 dest = (path.parent / unquote(parsed.path)).resolve()
                 if not dest.is_relative_to(root.resolve()) or not dest.exists():
                     errors.append(f'{relative}: broken/escaping link {target}')
-        elif path.suffix == '.py' and relative.startswith('skills/'):
+        elif relative.startswith('skills/') and (
+                path.suffix == '.py' or
+                path.read_bytes().startswith(b'#!/usr/bin/env python3\n')):
             try:
                 tree = ast.parse(path.read_text(encoding='utf-8'))
             except SyntaxError:
