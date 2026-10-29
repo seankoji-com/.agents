@@ -19,7 +19,7 @@ def load(relative):
 
 
 checker = load('scripts/check_library.py')
-timings = load('skills/tests-omg/scripts/summarize_timings.py')
+timings = load('skills/test-writer/scripts/summarize_timings.py')
 scanner = load('skills/agent-tuneup/scripts/scan_config.py')
 
 
@@ -58,7 +58,7 @@ class Helpers(unittest.TestCase):
             foreign = root / 'foreign'
             foreign.mkdir()
             for name, helper, data, expected in (
-                ('tests-omg', 'summarize_timings.py',
+                ('test-writer', 'summarize_timings.py',
                  [{'seconds': 3, 'outcome': 'failed'}], 'runner_seconds'),
                 ('agent-tuneup', 'scan_config.py', {'allow': ['*']},
                  'broad_permission_pointers')):
@@ -81,8 +81,9 @@ class Helpers(unittest.TestCase):
 class Library(unittest.TestCase):
     def fixture(self, root):
         subprocess.run(['git', 'init', '-q', str(root)], check=True)
-        shutil.copytree(ROOT / 'skills', root / 'skills',
-                        ignore=shutil.ignore_patterns('__pycache__'))
+        for name in checker.SKILLS:
+            shutil.copytree(ROOT / 'skills' / name, root / 'skills' / name,
+                            ignore=shutil.ignore_patterns('__pycache__'))
         subprocess.run(['git', '-C', str(root), 'add', 'skills'], check=True)
 
     def test_library_and_independent_folders(self):
@@ -96,12 +97,12 @@ class Library(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.fixture(root)
-            (root / 'skills/ape/SKILL.md').unlink()
+            (root / 'skills/plan/SKILL.md').unlink()
             p = root / 'skills/imps/SKILL.md'
             p.write_text(p.read_text().replace('name: imps', 'name: wrong') +
                          '\n[missing](missing.md)\nPKG/shared/contract.md\n')
             errors = '\n'.join(checker.check(root))
-            for expected in ('missing skill: ape', 'mismatched name',
+            for expected in ('missing skill: plan', 'mismatched name',
                              'retired dependency', 'broken/escaping link'):
                 self.assertIn(expected, errors)
 

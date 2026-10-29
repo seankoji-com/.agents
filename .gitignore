@@ -1,12 +1,8 @@
-.claude/.cc-writes/
 .DS_Store
 __pycache__/
-site/
-.venv-docs/
-.coverage
-htmlcov/
+.claude/.cc-writes/
 .repos/
-# Exact legacy/vendor residues inventoried for issue #198; no new runtime state.
+# Host-managed local state; keep out of library source.
 /agents/t3-plugins/
 /.t3-plugins-registry.lock
 /.dotfiles-wiring.json
