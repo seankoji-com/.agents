@@ -1,9 +1,0 @@
-{
-  "stage": 6,
-  "added": [
-    {"path": "shared/compact_briefs.py", "stage": 6, "kind": "helper", "coverage": ["REQ-COMPAT", "REQ-BOUNDARIES"], "reason": "Explicit compact-v2 projection, approved retention binding and authoritative installed admission. No dispatcher."},
-    {"path": "shared/agents/worker-brief-compact-v2.schema.json", "stage": 6, "kind": "schema", "coverage": ["REQ-COMPAT", "REQ-BOUNDARIES"], "reason": "Dedicated version dispatch without changing any original v1 schema or worker_shared list."},
-    {"path": "tests/test_compact_briefs.py", "stage": 6, "kind": "test", "coverage": ["REQ-COMPAT", "REQ-BOUNDARIES"], "reason": "Installed public transport, security refusals, old pinned runtime and exact serialized byte controls."},
-    {"path": "migration/rebuild/compat-map.d/issue96-compact.json", "stage": 6, "kind": "reference", "coverage": ["REQ-COMPAT", "REQ-BOUNDARIES"], "reason": "Registers the exact compact delivery additions; supplies no engineering acceptance."}
-  ]
-}

@@ -1,7 +1,0 @@
-# tuneup-audit: Audit a synthetic Claude settings file with the installed helper; no model call.
-# recorded 2026-10-13 at commit c93f8a7 on Linux x86_64, Python 3.15.0, empty temporary home directory, shown as ~
-$ printf '%s\n' '{"permissions":{"allow":["Bash(*)"]}}' > example-settings.json
-# exit 0 after 0.00s
-$ python3 "$(dirname "$(t3-plugins path agent-tuneup)")/scripts/audit.py" --provider claude --settings example-settings.json
-{"ok": true, "provider": "claude", "findings": [{"code": "broad_execution_allow", "location": "permissions.allow[0]"}], "scope": "known-pattern audit; not a complete permission evaluation", "writes": 0}
-# exit 1 after 0.07s
