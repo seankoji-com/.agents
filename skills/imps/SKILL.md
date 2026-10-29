@@ -11,6 +11,12 @@ Use for implementation, investigation, audits, diff review, issue/PR work,
 blast-radius analysis and checklists. Inspection/review remain read-only unless
 changes are authorized. Resolve the requested mode from context.
 
+Former controls use the same native workflow: `doctor` checks the task's tools
+and access without edits; `verification-init` means writing a verification
+checklist with commands and observable outcomes. `--personas` has no automatic
+panel replacement. Request named review perspectives explicitly when needed;
+their delegation and model choices still follow the host's contract.
+
 ## Workflow
 
 1. Read repository instructions, relevant code, callers, tests and dirty changes.

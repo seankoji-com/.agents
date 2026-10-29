@@ -48,6 +48,9 @@ change through its owning repository with required review/checks. The companion
 dotfiles change replaces acquisition/registration with Git/native discovery and
 removes live role dependencies; pair those reviewed changes in delivery. The small
 [planning reference](references/planning.md) remains for global callers.
+The root `.agents-source.json` is retained byte-for-byte as compatibility data for
+existing dotfiles ownership guards. Standalone skills do not read it or use its
+historical bootstrap fields. Remove it only after those guards no longer need it.
 
 Checkpoint source HEAD/status and tracked patches plus selected untracked source
 files before cutover. Verify reconstruction, including Git archive exclusions.
