@@ -9,7 +9,10 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 SKILLS = ('imps', 'plan', 'babysitter', 'ralph', 'focus-group',
-          'agent-tuneup', 'test-writer', 'file-upstream-bug', 'unslop')
+          'agent-tuneup', 'test-writer', 'file-upstream-bug', 'unslop', 'full-send',
+          'sol-loop', 'grilling', 'ketchup', 'bro')
+# Verbatim upstream imports retain their own section layouts.
+UPSTREAM_SKILLS = {'unslop', 'full-send', 'sol-loop', 'grilling', 'ketchup', 'bro'}
 RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents|'
                      r'scripts/(?:install|agents_bootstrap|source_runtime)|'
                      r'migration/|agents start|\.local/share/t3-plugins')
@@ -44,7 +47,7 @@ def check(root):
             errors.append(f'{name}: missing description')
         if len(text.split()) > 1500:
             errors.append(f'{name}: exceeds 1500 words')
-        if name != 'unslop':
+        if name not in UPSTREAM_SKILLS:
             intro = '## Philosophy' if name == 'test-writer' else '## Triggers'
             for heading in (intro, '## Workflow', '## Outputs', '## Boundaries'):
                 if heading not in text:
