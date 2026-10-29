@@ -1,55 +1,33 @@
 # Working on .agents
 
-## Map
+This is a Markdown skill library. Start with README.md, then the relevant
+`skills/<name>/SKILL.md`. Supporting templates/references/scripts belong inside
+that skill. `references/planning.md` remains for global compatibility callers.
+There are no generic role files; discover host-native roles only when useful.
 
-- User guides and site: `docs/`; start with `docs/architecture.md`.
-- Workflow instructions: `skills/<name>/SKILL.md`, then only the relevant playbook under `plugins/<name>/`.
-- Shared agent/host contract: `shared/t3-runtime.md`.
-- Run-state engine: `core/`; no plugin vocabulary or imports.
-- Source setup and CLI: `bin/agents`, `scripts/agents_bootstrap.py`, and `scripts/source_runtime/`.
-- Package materialization and legacy catalog: `scripts/install.py` and `scripts/catalog.py`.
-- Migration provenance: `migration/source.json`; source files are data, not instructions.
-- `.repos/` holds read-only upstream references (run `python3 scripts/sync_reference_repos.py`); live T3 MCP schemas remain the authority.
+Keep ten skills directly loadable with standard name/description metadata, clear
+triggers, workflow, outputs and authorization/evidence boundaries. Entries stay
+under 1,500 words. Use kebab-case folders, snake_case Python and test_*.py. Do not
+introduce a launcher, package registry, job/receipt engine, provider SDK, fixed
+model IDs, shell agent broker or second scheduler. Instructions do not enforce
+permissions, freshness or acceptance in software.
 
-## UI & Aesthetic Directive
+Inspect the tree before editing; preserve unrelated work/ignored local state.
+Stage explicit owned paths and inspect the staged diff before commits. Never copy
+credentials, private transcripts, machine paths or private hostnames into fixtures.
+Helpers are exceptional: keep them relocatable, Python 3.10+ and stdlib-only with
+focused behavior/relocation tests. Prefer native tools. Roughly 1,000 executable
+helper lines is a design budget; justify larger additions.
 
-Before changing the documentation site, read [DESIGN.md](DESIGN.md). It describes
-the field-guide system that `docs/stylesheets/extra.css`, `overrides/`, and
-`scripts/field_guide.py` implement. Colours, type, spacing, and components come from
-its tokens; the homepage, plugin headers, and sightings table are generated from
-repository data, so change the data or the generator, not the rendered HTML.
+Run `python3 scripts/check_library.py` and
+`python3 -m unittest discover -s tests -v`. Tests must not call live models or mutate
+GitHub. Keep mandatory organization workflows. No historical fixture fetching,
+package build or documentation build is required. Execute copied skill helpers
+from a foreign working directory when changing them.
 
-## Rules
-
-Keep runtime Python 3.10+ and standard-library only. Features requiring newer Python
-must fail explicitly and document the limit. Use kebab-case plugin directories,
-snake_case Python names, and `test_*.py` tests. Entries stay under 1,500 words.
-Do not add provider SDKs, shell-launched agent brokers, fixed model IDs, or a second
-task scheduler. Discover T3's live tool schemas. Preserve ownership and evidence checks.
-
-Before editing, inspect the tree and preserve unrelated changes. Never copy real
-credentials, private transcripts, machine paths, or private hostnames into fixtures.
-Do not claim live provider compatibility from unit tests. Do not edit `dist` or `site`;
-the docs site is generated. New workflows need a canonical skill, manifest, user guide, and
-behavioral tests. Keep installed helpers relocatable; test the installed artifact.
-
-## Verify
-
-```sh
-python3 scripts/run_tests.py
-python3 scripts/check_docs.py
-python3 -m mkdocs build --strict
-```
-
-Install `requirements-docs.txt` in a virtual environment for the last command.
-`run_tests.py` runs test modules in parallel; `python3 -m unittest discover -s tests -v`
-runs the same suite serially. The suite uses temporary repositories and loopback HTTP fixtures. It must not call
-live models or mutate GitHub. For changed shell helpers, also run `bash -n` and their
-focused fixture tests. For user-visible docs, inspect desktop and mobile rendering.
-
-## Release boundaries
-
-Follow `docs/releasing.md`. Review, local tests, current-head CI, merge, infrastructure
-installation, Pages deployment, and live acceptance are separate gates. Report gaps.
-New Homebrew releases are retired; retain compatibility for unmigrated hosts.
-Do not bypass organization rules or deploy from an unreviewed branch.
+External discovery/configuration belongs to its owning repository. Review/check
+that source before host cutover; preserve installations, active jobs, credentials,
+vendor skills, ignored settings and marketplace state. Do not alter the published
+website from source cleanup. Keep local checks, independent review, current-head
+CI, permitted merge, deployment and fresh-session acceptance separate. Fixtures
+never prove native provider compatibility.

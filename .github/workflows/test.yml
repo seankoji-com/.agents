@@ -1,10 +1,8 @@
-# Byte-compiles the stdlib-only Python and runs the unittest suite, one module per process.
-# No secrets or model calls. setup-python selects the supported runtime matrix.
 name: Test
 
 on:
   push:
-    branches: [master, main]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -13,54 +11,30 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  library:
     strategy:
       fail-fast: false
       matrix:
-        runtime:
+        include:
           - os: ubuntu-latest
             python: '3.10'
           - os: ubuntu-latest
             python: '3.14'
           - os: macos-latest
             python: '3.12'
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
-    name: test (${{ matrix.runtime.os }}, ${{ matrix.runtime.python }}, shard ${{ matrix.shard }})
-    runs-on: ${{ matrix.runtime.os }}
-    # Size 24 complete shards from measured module durations, with setup headroom.
-    # Run 40184849090 had successful four-shard jobs lasting up to 1,282 seconds.
-    # Keep the job budget and per-module 600-second failure limit unchanged.
-    timeout-minutes: 30
-    # Disposable hosted runners also test fork contributions without secrets.
-    defaults:
-      run:
-        shell: bash
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: ${{ matrix.runtime.python }}
-
-      - name: Python version
-        run: python3 -c 'import sys; print(sys.version); raise SystemExit(sys.version_info < (3, 10))'
-
-      - name: Byte-compile core, plugins and scripts
-        run: git ls-files -z -- 'core/*.py' 'plugins/*.py' 'scripts/*.py' | xargs -0 python3 -m py_compile
-
-      - name: Fetch pinned retention evidence
-        run: git fetch --no-tags --depth=1 origin 1bc352ec059a80799bc9881dcb2f222d910fffe3 32bf69d9d5a2db7cb87be3e196110ead32214835 4fc614b363a147c4f3220176607156be52941fa9 f76e352df2d36e90eb9d49d1e46c8d9013a778f6
-
-      - name: Unit tests
+          python-version: ${{ matrix.python }}
+      - run: python3 scripts/check_library.py
+      - run: python3 -m unittest discover -s tests -v
         env:
           PYTHONDONTWRITEBYTECODE: '1'
-          TEST_SHARD_INDEX: ${{ matrix.shard }}
-        run: python3 scripts/run_tests.py --shard-index "$TEST_SHARD_INDEX" --shard-count 24
-
-      - name: Documentation contracts
-        run: python3 scripts/check_docs.py

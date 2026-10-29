@@ -1,74 +1,92 @@
 # .agents
 
-Editable skills and workflows for [T3 Code](https://github.com/pingdotgg/t3code).
-The canonical bodies are `skills/<name>/SKILL.md`. Edit a body or helper, then start
-a new invocation to try the uncommitted change. Existing jobs keep their pins.
+Ten Markdown skills for engineering and agent workflows. Read a skill's `SKILL.md`
+directly or expose its folder through native skill discovery. Each folder carries
+its instructions and local helpers. No launcher, installed workflow package, job
+engine, provider SDK or documentation build is needed.
 
-## Install
+| Skill | Use it for |
+| --- | --- |
+| [imps](skills/imps/SKILL.md) | Implementation, investigation, audits and reviews |
+| [plan](skills/plan/SKILL.md) | Discovery, specification and reviewed handoff |
+| [ape](skills/ape/SKILL.md) | Commit-pinned open-source research |
+| [babysitter](skills/babysitter/SKILL.md) | Authorized PR repairs and native watches |
+| [ralph](skills/ralph/SKILL.md) | Bounded implementation/evaluation cycles |
+| [focus-group](skills/focus-group/SKILL.md) | Synthetic persona studies |
+| [agent-tuneup](skills/agent-tuneup/SKILL.md) | Configuration and permission inspection |
+| [tests-omg](skills/tests-omg/SKILL.md) | Test protection and validation cost |
+| [bug-report](skills/bug-report/SKILL.md) | Reproduction and upstream reporting |
+| [unslop](skills/unslop/SKILL.md) | Plain, specific writing |
 
-Use Python 3.10+; native TOML configuration helpers need 3.11+. For a new home:
+## Direct use and updates
+
+Clone `https://github.com/seankoji-com/.agents.git` into your chosen source location.
+Open the Markdown and follow it using native tools. For discovery configure the
+host's documented skill root or link individual folders into it. Invocation names
+and support vary by host. Never overwrite existing skills or vendor directories
+to make an alias. Each skill folder can also be copied elsewhere independently.
+
+Use needs a Markdown-capable agent and the task's native tools, such as Git/GitHub
+access. Delegated workflows need authorized native tasks; Ralph also needs distinct
+verified work/review lineages. Report unavailable capabilities rather than silently
+substituting a broker. Python 3.10+ is needed only for optional stdlib helpers and
+library checks. Helper input formats are in `--help`. The JSON configuration scanner
+omits values but its key pointers can still be private; the timing summarizer reads
+attempts without executing tests. Planning templates need no renderer.
+
+For updates inspect `git status`, preserve local changes/untracked skills, fetch
+the intended remote and review the incoming revision. Use an ordinary fast-forward
+Git update only when compatible with the checkout. There is no automatic receiver
+or self-update. Record `git rev-parse HEAD` when provenance matters.
+
+## Cutover and rollback
+
+This source retires the runtime and site build. Before updating an active checkout,
+inventory native roots/aliases, generated registrations, shell startup, bootstrap,
+receiver services, context pins and live role callers. External configuration must
+change through its owning repository with required review/checks. The companion
+dotfiles change replaces acquisition/registration with Git/native discovery and
+removes live role dependencies; pair those reviewed changes in delivery. The small
+[planning reference](references/planning.md) remains for global callers.
+
+Checkpoint source HEAD/status and tracked patches plus selected untracked source
+files before cutover. Verify reconstruction, including Git archive exclusions.
+Back up each changed managed configuration/alias host-locally with restricted
+access, before revision/target, restore location and exact restore map. Record
+service enabled/active state without enabling disabled receivers. Coordinate
+active jobs before changing callers. Preserve old installations, jobs, credentials,
+vendor skills, synchronized skill buckets, ignored settings, registry locks and
+marketplace metadata in place. Source deletion authorizes no local-state deletion.
+Never blanket-copy an archive over a live checkout.
+
+Deploy only reviewed merged source through permitted checks/merge paths. Then
+confirm source revision and all ten folders in fresh native sessions on each
+target, run helper/relocation checks, inspect remaining managed callers and verify
+preserved state. Static aliases and fixtures do not prove this. Rollback restores
+only recorded managed files/aliases and reviewed source revision, preserving
+unrelated/ignored state and prior service status. Retain old installations until
+rollback needs are resolved; never blindly invoke retired bootstrap machinery.
+Removing site source does not alter the published website; its disposition needs
+a separate owner decision.
+
+## Retired guarantees
+
+Git history replaces immutable package pinning; readable notes/native handles
+replace opaque jobs/receipts. Native capabilities replace a model registry; normal
+Git updates replace source receiving. Software-enforced evidence freshness,
+acceptance and historical runtime compatibility are gone. Markdown does not retain
+these guarantees. Host permissions, organization reviews, current-head checks and
+honest evidence remain necessary.
+
+## Verification
 
 ```sh
-git clone --branch main https://github.com/seankoji-com/.agents.git "$HOME/.agents"
-python3 "$HOME/.agents/bin/agents" self-install --profile author
-"$HOME/.local/bin/agents" adopt --from-source "$HOME/.agents"
-"$HOME/.local/bin/agents" status
+python3 scripts/check_library.py
+python3 -m unittest discover -s tests -v
 ```
 
-An existing nonempty `~/.agents` needs the [inventory and adoption procedure](docs/getting-started.md),
-including the companion dotfiles guard. Do not replace the directory or clone over it.
-This project no longer publishes Homebrew releases. Its retained compatibility runtime
-serves inventoried old jobs; the tap remains available for unmigrated hosts. The
-[quickstart recording](docs/assets/quickstart.mp4) ([transcript](docs/assets/recordings/quickstart.txt))
-shows that former Homebrew `t3-plugins` flow, recorded 13 Oct 2026; the steps above replace it.
-
-In T3, enable **Show skills in slash menu**, restart the agent session, then send
-`$imps doctor`. Use an explicit skill mention to disambiguate `plan` from a builtin.
-The agent first runs the stable launcher, then reads the returned immutable body,
-manifest, helpers and worker definitions.
-
-## Pick a workflow
-
-| When you want to… | Send in T3 | You get back |
-| --- | --- | --- |
-| Fix a bug you can describe | `$imps run fix the date parser: reject 31 April` | The diff, a run ID, and checks and review tied to that revision |
-| Turn a vague idea into a task | `$plan retry-policy` | `discovery.md`, `spec.md` with acceptance criteria, and `handoff.md` |
-| See how another repo solved it | `$ape https://github.com/python/cpython how are parser errors tested?` | A report pinned to a commit, with line citations and one small experiment |
-| Get a PR through review and CI | `$babysitter pr https://github.com/OWNER/REPO/pull/12` | Fixes pushed to the PR branch, an independent review at the final head, then a merge, plus a table of what still blocks each PR |
-| Check and align all agent wiring | `$agent-tuneup` | A complete audit, private usage analysis, reviewed proposals and verification of approved changes |
-| Have one model build and another grade | `$ralph fix the parser and add regression coverage` | Fresh attempts until the grader has no feedback (five by default), then a PR |
-| Try a product on invented personas | `$focus-group plan https://staging.example/welcome first-run experience for busy parents` | A reviewed report of synthetic hypotheses, a ranked backlog and local issue drafts; nothing is posted |
-| Inspect test protection and validation cost | `$tests-omg audit` | Twelve findings, ranked recommendations and private HTML/JSON; unknown evidence stays visible |
-| Report a suspected upstream defect | `$bug-report investigate the error above` | Evidence, routing, a separate reporting thread and a fixed 30-minute follow-up window; uncertain cases stay private |
-
-Each workflow has a guide with a full example:
-[imps](docs/plugins/imps.md) ·
-[plan](docs/plugins/plan.md) ·
-[ape](docs/plugins/ape.md) ·
-[babysitter](docs/plugins/babysitter.md) ·
-[agent-tuneup](docs/plugins/agent-tuneup.md) ·
-[ralph](docs/plugins/ralph.md) ·
-[focus-group](docs/plugins/focus-group.md) ·
-[bug-report](docs/plugins/bug-report.md) ·
-[tests-omg](docs/plugins/tests-omg.md).
-For a one-line edit, skip all of this and ask the agent directly.
-
-## Verify and recover
-
-`agents status` reports the source and installed infrastructure separately.
-`agents permissions` prints grants for jobs, snapshots and locks. Updater code,
-active pointers, ownership receipts, launchers and service units stay outside them.
-The Mac uses the author profile with automatic receiving disabled. Linux receivers
-use exact commits and an optional systemd user timer. See the [CLI](docs/cli.md).
-
-Local tests, independent review, hosted CI, merge, installation and live provider
-loading are separate observations. The [compatibility ledger](docs/compatibility.md)
-retains historical results; a unit test is not a live provider result.
-
-```sh
-python3 scripts/run_tests.py
-python3 scripts/check_docs.py
-```
-
-[Architecture](docs/architecture.md) · [Safety](docs/safety.md) ·
-[Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
+CI checks the library/helpers on supported Python versions and retains organization
+readiness, gatekeeper, static-analysis and Dependabot controls. Tests use synthetic
+fixtures, never live models or GitHub writes. Local checks, independent review,
+current-head CI, merge, installed revision and fresh-session live acceptance are
+separate gates. See [contributing](CONTRIBUTING.md) and [security](SECURITY.md).

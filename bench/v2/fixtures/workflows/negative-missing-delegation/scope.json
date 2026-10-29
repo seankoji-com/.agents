@@ -1,1 +1,0 @@
-{"budgets":{"stages":{"s1":1,"s2":1,"s3":1,"s4":1,"s5":1},"tokens":{"total":5000}},"counters":{"max_direct_fallback_stages":5,"max_stage_attempts":1,"max_worker_dispatches":12},"gates":["scope","budget","evidence","review"],"scope_id":"scope-frozen-1"}

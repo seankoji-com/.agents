@@ -1,14 +1,11 @@
 # Contributing
 
-Start with [the architecture](docs/architecture.md) and [contributor guide](docs/contributing.md).
-Small fixes, stronger failure-path tests, and reproducible provider results are welcome.
+Read [the library guide](README.md) and [repository instructions](AGENTS.md).
+Change the canonical skill folder, keeping it independently usable. Supporting
+code needs a concrete benefit, stdlib-only Python 3.10+ and focused behavior and
+relocation tests. Run the checker and unittest commands in the README.
 
-Run the standard-library suite with `python3 scripts/run_tests.py` (parallel), or
-`python3 -m unittest discover -s tests -v` (serial, same tests).
-For documentation, install `requirements-docs.txt` in a virtual environment and run
-`python3 scripts/check_docs.py` and `python3 -m mkdocs build --strict`.
-
+Use synthetic fixtures. Never publish private transcripts, credentials or personal
+configuration. Report the smallest reproduction, changed behavior and actual checks.
 Issue forms and the PR template are inherited from
-[seankoji-com/.github](https://github.com/seankoji-com/.github). Include what failed,
-the smallest reproduction, and how you verified the change. Do not publish private
-transcripts, credentials, or personal configuration.
+[seankoji-com/.github](https://github.com/seankoji-com/.github).

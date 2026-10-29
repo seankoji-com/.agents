@@ -22,7 +22,7 @@ blockers. A plan does not require another approval for work already authorized.
 
 ## Review
 
-Use the installed `imps` workflow for substantial plan or diff review when
+Use the directly loaded `imps` skill for substantial plan or diff review when
 delegation is enabled. Discover current roles and models; do not assume a named
 reviewer, persona panel or legacy `/imps` command exists. Follow T3's delegation
 contract in T3 sessions. Outside T3, use only tools the active workflow supports.

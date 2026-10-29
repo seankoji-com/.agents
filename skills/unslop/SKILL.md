@@ -1,8 +1,6 @@
 ---
 name: unslop
 description: Cut AI tells from any writing. Must always apply.
-metadata:
-  agents-bootstrap-exempt: "true"
 ---
 
 # Unslop
@@ -80,3 +78,9 @@ Removing patterns is half the job. Sterile, voiceless writing is just as obvious
 29. Prefer active voice and name the actor when it matters.
 30. Cut adverbs or use a stronger verb. Prefer measured changes to words such as "significantly".
 31. Prefer plain words: "use" instead of "utilize" or "leverage", and "help" instead of "facilitate".
+
+## Output and boundaries
+
+Return edited prose preserving meaning, citations and requested tone. Keep code,
+logs, literal quotations and exact-format content unchanged. Editing a draft
+does not authorize sending or publishing it.
