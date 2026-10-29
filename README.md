@@ -59,89 +59,24 @@ report local validation, hosted CI, review and delivery separately.
 
 ## Local maintenance
 
-Edit in VS Code, then validate without committing:
+Edit in VS Code, then run:
 
 ```sh
-python3 scripts/maintain.py check
+python3 scripts/maintain.py        # Test, AI commit message, commit, push, update hosts
+python3 scripts/maintain.py check  # Tests only
+python3 scripts/maintain.py sync   # Retry host updates only
 ```
 
-For one-command publishing, copy `scripts/maintain.example.json` to the ignored
-`.maintain.json`. An empty `message_command` uses your authenticated Codex CLI in
-an ephemeral, read-only session outside the checkout, with user configuration,
-project instructions, shell, apps and delegation disabled. No model is pinned.
-To use another AI tool, set `message_command` to its argv array. It receives a
-prompt and the complete staged diff on stdin and must print
-only a commit message to stdout. Configure that tool for text generation without
-tools or file writes. Its normal authentication and billing apply. No model or
-provider is selected by this repository. Do not put secrets in command arguments.
-Diffs larger than 1 MiB need splitting. Binary content is included in the diff.
+The script stages all nonignored changes, uses your authenticated Codex CLI for
+the message, and pushes `main`. It then updates `~/.agents` through `ssh wsl` and
+`ssh mint`, runs their tests and refreshes skill discovery through dotfiles.
+It stops on failed checks, changed files, push rejection or dirty host checkouts.
+A failed push keeps the local commit; rerunning retries without another commit.
+The existing local pre-commit hook remains supported.
 
-Add each receiver to `hosts`, for example
-`{"ssh": "receiver-alias", "path": "/srv/skill-library"}`. Use aliases from your
-SSH config and absolute POSIX paths for the existing WSL and Mint checkouts.
-The hosts need Python 3.10+, Git, noninteractive SSH/Git authentication, the same
-origin URL as this checkout, and a clean `main` branch. Configure host aliases and
-native skill discovery through dotfiles. To refresh discovery after delivery, add
-`"refresh_skills": true` to the host. This requires its checkout at `~/.agents`
-and runs `~/.dotfiles/scripts/t3-workflow-skills.py install` followed by `check`.
-It preserves the registrar's existing ownership checks and vendor-skill handling.
-There is no plugin package to reinstall.
-
-```sh
-python3 scripts/maintain.py
-```
-
-This validates, stages **all nonignored edits, additions and deletions**, generates
-and prints the AI message, commits with your existing Git identity/hooks/signing,
-pushes `HEAD` to `origin/main`, and fast-forwards each configured host to that exact
-commit. Running `publish` is authorization for all those actions; there is no
-second confirmation. Review your diff and ignored files first. The AI receives
-the staged diff through the command you configured. Failed generation retains
-staging. Files changed during validation or generation stop publication.
-
-Resolve a behind or diverged author branch yourself, then rerun. A rejected push
-retains the local commit; rerunning `publish` retries it without another message
-or commit when the tree is clean. Delivery attempts every host and reports partial
-failure. Retry host delivery alone with:
-
-```sh
-python3 scripts/maintain.py sync
-```
-
-Receivers reject dirty trees, another origin, another branch or a moved remote
-tip. They never stash, reset, force-push or reinstall anything. After updating, each
-host runs the checker and tests. A host check failure leaves the received commit
-in place and returns failure. Empty `hosts` means no delivery. Host checks do not
-prove that fresh agent sessions loaded the skills.
-
-Optional local pre-commit validation:
-
-```sh
-python3 scripts/maintain.py install-hook
-```
-
-This installs the same checks for fully staged changes, using the current
-Python interpreter. It refuses existing hooks or a custom hooks directory. Add
-`python3 scripts/maintain.py hook` to your existing manager instead. Reinstall if
-the interpreter moves. Remove the generated `pre-commit` file to uninstall it.
-Publishing with the hook installed runs validation again at commit time.
-If your manager forwards to the common Git hooks directory, as dotfiles' t3-guard
-does, use `install-hook --forwarded-hooks`. This preserves the global dispatcher
-and its push guard. Never use this flag for a manager that does not forward there.
-
-Owner maintenance publishes directly to `main`; `master` is historical. Pull
-requests are disabled for this repository. Direct publication needs the owner-run
-`.agents` exceptions in GitHub's inherited PR, gatekeeper and CodeQL rulesets,
-with repository-level history protections retained. Repository admin access alone
-does not establish bypass of every inherited rule. This script neither changes
-rules nor attempts an override, and stops on push rejection. Keep mandatory
-organization workflows. Local validation is separate from hosted CI.
-
-The dotfiles t3-guard also needs its exact `.agents` fast-forward exception.
-That exception accepts only existing `main` from checked-out `main` at the
-canonical GitHub endpoint. It retains the other environment, URL and hook checks
-and does not allow force pushes, deletion or creation. Installing the validation
-hook alone does not change push policy.
+Pull requests are disabled. The repo-only dotfiles and GitHub rule exceptions
+must permit direct fast-forward pushes. Mandatory organization workflows remain;
+local tests do not establish hosted CI or fresh-session skill loading.
 
 ## Security
 
