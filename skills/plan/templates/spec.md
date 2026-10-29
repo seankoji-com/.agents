@@ -1,34 +1,33 @@
-# spec.md — required structure
+# Specification template
 
-A grading rubric a stranger could apply, not a wishlist. The test for every line: could
-someone who was not in the conversation mark this pass or fail without asking anyone?
+Define criteria someone can assess without the conversation. Adapt the sections to
+the task and repository format.
 
 ## 1. Pass/fail criteria
-Itemised. Give each requirement a stable ID such as `[REQ-LOGIN]`, retain it through the handoff and implementation task, and specify its verification method (`inspection`, `command`, `runtime`, or `manual`). Each one checkable cold. For implementation, use `[verify:runtime]` for user journeys and `[verify:command]` for executable checks. Record the observable outcome, environment, failure/recovery cases and evidence needed. Unverified is incomplete; an implementer may not weaken a criterion to pass it. Cross-reference discovery.md where it sharpens the
-criterion — "per the budget ceiling in discovery.md §2, no recommended option above £X".
+Give each requirement a stable ID such as `[REQ-LOGIN]`, retained through handoff and
+implementation. Specify its verification method (`inspection`, `command`, `runtime` or
+`manual`), observable outcome, relevant environment and evidence needed. Include
+failure/recovery cases where they affect acceptance. Cross-reference discovery when it
+clarifies a constraint or decision.
 
-Reject anything that cannot be marked without judgement calls the grader hasn't been given.
-"Well researched" is not a criterion. "Every load-bearing claim cites a primary source with a
-working URL" is.
+Make judgement criteria explicit. For research, define source standards and which
+claims require citations; "well researched" alone is not assessable.
 
 ## 2. Auto-reject conditions
-A short list of things that fail the entire deliverable immediately, regardless of other
-merits. Keep it short — if everything is auto-reject, nothing is. Typical members:
+Include only conditions that justify rejecting the whole deliverable. Select those
+relevant to this task, such as:
 
-- Re-proposes an alternative discovery.md rules out
-- Missing a section listed as non-negotiable
-- A load-bearing claim with no source (research) or an untested code path (implementation)
-- Touches a file the brief puts out of scope
+- Ignores an accepted constraint or reintroduces a rejected alternative without new evidence
+- Omits content explicitly required by the brief
+- Leaves a required research claim unsupported or a required behavior unverified
+- Changes files or systems outside the authorized scope
 
 ## 3. Quality bar
-What separates an expert result from a fluent, plausible, mediocre one *on this specific
-topic*. Phrase it as concretely as the interview allowed. This section is the one a grader
-uses to break ties, so vagueness here costs less than vagueness in §1 — but it still costs.
+Describe task-specific qualities beyond minimum acceptance when useful. Separate
+preferences from mandatory criteria; do not introduce hidden requirements here.
 
 ## 4. Grading notes
-How to handle partial credit, source disagreement, and unresolvable open questions carried
-over from discovery.md §7. State whether an honest "not knowable" is an acceptable answer; if
-the interview never settled that, say it never settled.
-Retain named execution blockers, their owners and next actions. Routine nonblocking
-choices permit stated assumptions; dependent work stays held at unresolved licence,
-budget, identity, credential, or authorisation gates.
+Explain how to handle partial results, source disagreement and unresolved questions.
+State where an honest "not knowable" is acceptable. Record blockers and owners,
+next actions, review status and finding dispositions, actual reviewers and the
+source version for handoff.

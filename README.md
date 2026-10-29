@@ -1,95 +1,48 @@
 # .agents
 
-Ten Markdown skills for engineering and agent workflows. Read a skill's `SKILL.md`
-directly or expose its folder through native skill discovery. Each folder carries
-its instructions and local helpers. No launcher, installed workflow package, job
-engine, provider SDK or documentation build is needed.
+Nine standalone skills for engineering and agent workflows. Each folder contains
+its instructions and any supporting references, templates or helpers.
 
 | Skill | Use it for |
 | --- | --- |
 | [imps](skills/imps/SKILL.md) | Implementation, investigation, audits and reviews |
-| [plan](skills/plan/SKILL.md) | Discovery, specification and reviewed handoff |
-| [ape](skills/ape/SKILL.md) | Commit-pinned open-source research |
-| [babysitter](skills/babysitter/SKILL.md) | Authorized PR repairs and native watches |
-| [ralph](skills/ralph/SKILL.md) | Bounded implementation/evaluation cycles |
+| [plan](skills/plan/SKILL.md) | Planning, specifications and handoffs |
+| [babysitter](skills/babysitter/SKILL.md) | PR review, CI repairs and native watches |
+| [ralph](skills/ralph/SKILL.md) | Bounded implementation and independent evaluation loops |
 | [focus-group](skills/focus-group/SKILL.md) | Synthetic persona studies |
-| [agent-tuneup](skills/agent-tuneup/SKILL.md) | Configuration and permission inspection |
-| [tests-omg](skills/tests-omg/SKILL.md) | Test protection and validation cost |
-| [bug-report](skills/bug-report/SKILL.md) | Reproduction and upstream reporting |
+| [agent-tuneup](skills/agent-tuneup/SKILL.md) | Agent configuration, permissions and discovery |
+| [test-writer](skills/test-writer/SKILL.md) | High-value tests and CI feedback within ten minutes |
+| [file-upstream-bug](skills/file-upstream-bug/SKILL.md) | Reproduction and upstream reporting |
 | [unslop](skills/unslop/SKILL.md) | Plain, specific writing |
 
-## Direct use and updates
+## Use
 
-Clone `https://github.com/seankoji-com/.agents.git` into your chosen source location.
-Open the Markdown and follow it using native tools. For discovery configure the
-host's documented skill root or link individual folders into it. Invocation names
-and support vary by host. Never overwrite existing skills or vendor directories
-to make an alias. Each skill folder can also be copied elsewhere independently.
+Read a skill's `SKILL.md` directly or expose its folder through the host's native
+skill discovery. Each folder can be copied independently. Preserve existing and
+vendor skills when configuring discovery. Native tool and delegation support varies
+by host; report unavailable capabilities. Optional helpers need Python 3.10+ only.
 
-Use needs a Markdown-capable agent and the task's native tools, such as Git/GitHub
-access. Delegated workflows need authorized native tasks; Ralph also needs distinct
-verified work/review lineages. Report unavailable capabilities rather than silently
-substituting a broker. Python 3.10+ is needed only for optional stdlib helpers and
-library checks. Helper input formats are in `--help`. The JSON configuration scanner
-omits values but its key pointers can still be private; the timing summarizer reads
-attempts without executing tests. Planning templates need no renderer.
+Dotfiles owns host configuration and skill registration. Its migration to the revised
+library is tracked in [dotfiles#601](https://github.com/seankoji-com/.dotfiles/issues/601).
+Preserve ignored local settings and active jobs.
 
-For updates inspect `git status`, preserve local changes/untracked skills, fetch
-the intended remote and review the incoming revision. Use an ordinary fast-forward
-Git update only when compatible with the checkout. There is no automatic receiver
-or self-update. Record `git rev-parse HEAD` when provenance matters.
+## Contribute and verify
 
-## Cutover and rollback
-
-This source retires the runtime and site build. Before updating an active checkout,
-inventory native roots/aliases, generated registrations, shell startup, bootstrap,
-receiver services, context pins and live role callers. External configuration must
-change through its owning repository with required review/checks. The companion
-dotfiles change replaces acquisition/registration with Git/native discovery and
-removes live role dependencies; pair those reviewed changes in delivery. The small
-[planning reference](references/planning.md) remains for global callers.
-The root `.agents-source.json` is retained byte-for-byte as compatibility data for
-existing dotfiles ownership guards. Standalone skills do not read it or use its
-historical bootstrap fields. Remove it only after those guards no longer need it.
-
-Checkpoint source HEAD/status and tracked patches plus selected untracked source
-files before cutover. Verify reconstruction, including Git archive exclusions.
-Back up each changed managed configuration/alias host-locally with restricted
-access, before revision/target, restore location and exact restore map. Record
-service enabled/active state without enabling disabled receivers. Coordinate
-active jobs before changing callers. Preserve old installations, jobs, credentials,
-vendor skills, synchronized skill buckets, ignored settings, registry locks and
-marketplace metadata in place. Source deletion authorizes no local-state deletion.
-Never blanket-copy an archive over a live checkout.
-
-Deploy only reviewed merged source through permitted checks/merge paths. Then
-confirm source revision and all ten folders in fresh native sessions on each
-target, run helper/relocation checks, inspect remaining managed callers and verify
-preserved state. Static aliases and fixtures do not prove this. Rollback restores
-only recorded managed files/aliases and reviewed source revision, preserving
-unrelated/ignored state and prior service status. Retain old installations until
-rollback needs are resolved; never blindly invoke retired bootstrap machinery.
-Removing site source does not alter the published website; its disposition needs
-a separate owner decision.
-
-## Retired guarantees
-
-Git history replaces immutable package pinning; readable notes/native handles
-replace opaque jobs/receipts. Native capabilities replace a model registry; normal
-Git updates replace source receiving. Software-enforced evidence freshness,
-acceptance and historical runtime compatibility are gone. Markdown does not retain
-these guarantees. Host permissions, organization reviews, current-head checks and
-honest evidence remain necessary.
-
-## Verification
+Read [AGENTS.md](AGENTS.md), edit the owning skill and keep helpers relocatable and
+stdlib-only. Use synthetic fixtures. Run:
 
 ```sh
-python3 scripts/check_library.py
-python3 -m unittest discover -s tests -v
+python3 -B scripts/check_library.py
+python3 -B -m unittest discover -s tests -v
 ```
 
-CI checks the library/helpers on supported Python versions and retains organization
-readiness, gatekeeper, static-analysis and Dependabot controls. Tests use synthetic
-fixtures, never live models or GitHub writes. Local checks, independent review,
-current-head CI, merge, installed revision and fresh-session live acceptance are
-separate gates. See [contributing](CONTRIBUTING.md) and [security](SECURITY.md).
+Checks cover metadata, links, helper behavior and relocation. They do not establish
+native provider compatibility or live acceptance. Keep organization workflows and
+report local validation, hosted CI, review and delivery separately.
+
+## Security
+
+Report vulnerabilities through the repository's
+[private advisory form](https://github.com/seankoji-com/.agents/security/advisories/new).
+If unavailable, follow the [organization security policy](https://github.com/seankoji-com/.github/blob/main/SECURITY.md).
+Keep secrets and private logs out of public reports.
