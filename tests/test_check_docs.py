@@ -73,6 +73,19 @@ class CheckDocsTest(unittest.TestCase):
         self.write('[a](https://example.invalid/x) [b](mailto:someone@example.invalid) [c]({{ site_url }}/x) [d](<path>)\n')
         self.assertEqual(self.errors(), [])
 
+    def test_skill_roots_include_their_references_but_not_nested_vendor_stores(self):
+        skill = self.root / 'skills' / 'demo'
+        (skill / 'references').mkdir(parents=True)
+        (skill / 'SKILL.md').write_text('[missing](references/missing.md)\n')
+        (skill / 'references' / 'guide.md').write_text('[missing](absent.md)\n')
+        vendor = self.root / 'skills' / 'synced' / 'vendor' / 'foreign'
+        vendor.mkdir(parents=True)
+        (vendor / 'SKILL.md').write_text('[placeholder](URL)\n')
+        self.assertEqual(self.errors(), [
+            'skills/demo/SKILL.md: missing link references/missing.md',
+            'skills/demo/references/guide.md: missing link absent.md',
+        ])
+
     def test_ids_in_code_samples_are_not_anchors(self):
         self.write('```html\n<a id="sample"></a>\n```\n\n[s](#sample)\n')
         self.assertEqual(self.errors(), ['docs/page.md: missing anchor #sample'])

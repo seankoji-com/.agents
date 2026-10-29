@@ -1,6 +1,6 @@
 # DESIGN.md
 
-The visual system for the t3-plugins documentation site. It is implemented in
+The visual system for the .agents documentation site. It is implemented in
 `docs/stylesheets/extra.css`, `overrides/`, and `docs/assets/`, and generated from
 repository data by `scripts/field_guide.py`. This document describes what is built
 so the next change stays consistent with it. Where the site and this file disagree,
@@ -14,7 +14,7 @@ Lead with the task a new visitor wants to finish, then prove it: the install com
 and a real recording of them sit above the fold. Provider portability supports that
 benefit; repository history stays out of the primary reading path.
 
-The site is a naturalist's field guide to eight workflows. The metaphor is chosen
+The site is a naturalist's field guide to the active workflows. The metaphor is chosen
 because it is literally true of the project: most plugins have creature names, the
 catalog is a numbered set of specimens, and the compatibility ledger records
 sightings rather than promises. The structure carries the idea. The prose stays
@@ -22,7 +22,7 @@ plain.
 
 What that means in practice:
 
-- **Plates.** Each plugin is Plate I to VIII, in the order the homepage key lists them. The numeral is decoration only when it is not also the order, so the order is enforced by `tests/test_field_guide.py`.
+- **Plates.** Each active plugin has a consecutive plate number, in the order the homepage key lists them. The order is enforced by `tests/test_field_guide.py`.
 - **Specimen marks.** One two-ink silhouette per plugin under `docs/assets/specimens/`, drawn once in `<defs>` and printed twice: a fern copy offset by 2.5 units behind the ink copy, like a misregistered print. Marks use CSS custom properties with hex fallbacks, so they recolour in dark mode when inlined and still render inside a README `<img>`.
 - **One binomial per plugin.** A short italic Latin-style name beside the plugin name, once on the homepage key and once on the plugin page. Nowhere else. It is the single quiet joke; do not add more.
 - **Sightings.** The live conformance ledger is rendered as a table of filled and empty marks with the numbers beside them. A unit test is not a sighting. "not run" is a result.
@@ -128,8 +128,8 @@ disables all animation and transitions globally.
 
 The site is generated from the repository, never hand-copied:
 
-- `plugins/*/plugin.json` supplies name, description, version, operations.
-- `docs/field-guide.json` supplies plate, binomial, summary, use_when, try, habitat, diet, field marks. `try` must start with the plugin's own `$t3-<name>` mention. Every active plugin needs an entry and every entry needs an active plugin; plates run I to N without gaps; each plugin needs a mark. The build fails otherwise.
+- `plugins/*/plugin.json` supplies name, version and operations; `skills/<name>/SKILL.md` supplies the description and invocation metadata.
+- `docs/field-guide.json` supplies plate, binomial, summary, use_when, try, habitat, diet, field marks. `try` must start with the plugin's own `$<name>` mention. Every active plugin needs an entry and every entry needs an active plugin; plates run I to N without gaps; each plugin needs a mark. The build fails otherwise.
 - `conformance/compatibility.json` supplies the sightings table and the version caption.
 - `docs/assets/demo.svg` supplies the homepage recording; the hook refuses it if it contains a script, event handler, embedded document, import or external reference.
 - `scripts/field_guide.py` assembles these in `on_config`, renders the specimen header after each plugin page's h1, expands `<!-- sightings-matrix -->`, and inlines SVGs from `docs/assets/` only.
