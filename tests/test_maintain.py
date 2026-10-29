@@ -204,13 +204,15 @@ class Maintenance(unittest.TestCase):
         command = tools / 'codex'
         command.write_text('#!' + sys.executable + '\nimport pathlib, sys\n'
                            'assert not (pathlib.Path.cwd() / "scripts/maintain.py").exists()\n'
-                           'assert "diff --git" in sys.stdin.read()\nprint("Default CLI message")\n')
+                           'assert "diff --git" in sys.stdin.read()\n'
+                           'print("Synthetic prompt echo", file=sys.stderr)\nprint("Default CLI message")\n')
         command.chmod(0o755)
         self.settings['message_command'] = []
         self.save_config()
         self.edit()
         with patch.dict(os.environ, {'PATH': str(tools) + os.pathsep + os.environ['PATH']}):
-            self.command('publish')
+            output = self.command('publish')
+        self.assertNotIn('Synthetic prompt echo', output)
         self.assertEqual(self.git('log', '-1', '--format=%s'), 'Default CLI message')
 
     def test_receiver_refreshes_native_discovery_through_dotfiles(self):
