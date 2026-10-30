@@ -91,16 +91,23 @@ prepared checkout or child exit is not proof of a running agent or accepted PR.
    mark ready only after the hold's acceptance conditions and authority are satisfied.
    Never bypass protection, manufacture approval or change repository settings.
 6. Handle actionable failures before waiting: repair or dispatch the owner.
-   Pending CI/review uses the coordinator's one native watch per PR, then yield.
+   While requested babysitting continues on an open PR, retain the coordinator's
+   one native watch per PR, then yield. Green CI, no remaining repairs, an identical
+   source tree on main, or a merge/approval blocker does not end monitoring.
+   Repair-only and no-merge limits restrict writes, not watching for new feedback.
    Children never watch. Follow host linking, wake and watch-cleanup rules. No
    extra scheduler, shell poller or future-PR sweep unless requested. If watching
    is unavailable, report it. A watch is not a repair worker. On each wake, act
    on the current head and discard superseded results.
-7. Finish each PR as merged, closed, explicitly limited to readiness, or concretely
-   blocked with evidence and an unblock action. Pending supported tasks/watches
+7. Report blockers with evidence and an unblock action while preserving requested
+   monitoring. A status reply, completed repair pass or turn ending is a yield,
+   not final handback. End monitoring only after merge/closure, an explicit user
+   stop or one-shot endpoint, a confirmed transfer to another watch owner, or a
+   host requirement/capability failure that prevents continuation. State which
+   condition applies before releasing a watch. Pending supported tasks/watches
    are a continuation, not completion. Budget exhaustion is partial work. A
-   credential or approval blocker on one PR must not stop unrelated PRs. Release
-   watches at handback and clean task-owned artifacts/worktrees by host rules.
+   credential or approval blocker on one PR must not stop unrelated PRs. At final
+   handback, release watches and clean task-owned artifacts/worktrees by host rules.
 
 ## Outputs
 
