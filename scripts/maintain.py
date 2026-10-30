@@ -21,7 +21,8 @@ def run(*args, **kwargs):
     capture = kwargs.pop('capture', False)
     check_result = kwargs.pop('check', True)
     cwd = kwargs.pop('cwd', ROOT)
-    LOG.write(f'\n$ {shlex.join(str(arg) for arg in args)}\n')
+    logged_args = (*args[:-1], '<remote script>') if args and args[0] == 'ssh' else args
+    LOG.write(f'\n$ {shlex.join(str(arg) for arg in logged_args)}\n')
     LOG.flush()
     try:
         result = subprocess.run(args, cwd=cwd, stdout=subprocess.PIPE if capture else LOG,
@@ -29,6 +30,8 @@ def run(*args, **kwargs):
     except subprocess.TimeoutExpired as error:
         if capture and error.output:
             LOG.write(error.output.decode(errors='replace') if isinstance(error.output, bytes) else error.output)
+        LOG.write(f'\nTimed out after {error.timeout}s\n')
+        LOG.flush()
         raise
     if capture and result.stdout:
         LOG.write(result.stdout)
@@ -71,9 +74,12 @@ def stage(title):
         yield
     except BaseException as error:
         outcome = 'FAIL'
-        code = f' (exit {error.returncode})' if isinstance(error, subprocess.CalledProcessError) else ''
-        command = (['ssh', error.cmd[-2]] if isinstance(error, subprocess.CalledProcessError)
-                   and error.cmd[0] == 'ssh' else getattr(error, 'cmd', [])[:4])
+        code = (f' (exit {error.returncode})' if isinstance(error, subprocess.CalledProcessError)
+                else f' (timed out after {error.timeout}s)' if isinstance(error, subprocess.TimeoutExpired)
+                else '')
+        command = getattr(error, 'cmd', [])
+        command = ['ssh', command[-2]] if command and command[0] == 'ssh' else command[:4]
+        show_tail = not isinstance(error, RuntimeError)
         raise
     else:
         outcome, code = 'OK', ''
@@ -90,7 +96,8 @@ def stage(title):
         if outcome == 'FAIL':
             if command:
                 print('  Command: ' + shlex.join(command)[:100], file=sys.stderr)
-            error_tail()
+            if show_tail:
+                error_tail()
         LOG.write(summary + '\n')
 
 
@@ -150,7 +157,7 @@ def sync():
     require(git('ls-remote', 'origin', 'refs/heads/main').split()[0] == sha, 'Push main before syncing.')
     remote = f'''set -eu
 step=preflight
-trap 'status=$?; if [ "$status" -ne 0 ]; then printf "FAILED [%s] exit %s\\n" "$step" "$status" >&2; fi' EXIT
+trap 'publish_exit_code=$?; if [ "$publish_exit_code" -ne 0 ]; then printf "FAILED [%s] exit %s\\n" "$step" "$publish_exit_code" >&2; fi' EXIT
 cd "$HOME/.agents"
 test "$(git rev-parse --show-toplevel)" = "$(pwd -P)" || {{ echo 'Not the source checkout root' >&2; exit 1; }}
 test "$(git symbolic-ref --short HEAD)" = main || {{ echo 'Receiver must be on main' >&2; exit 1; }}
@@ -222,7 +229,12 @@ if __name__ == '__main__':
         main()
     except (RuntimeError, OSError, subprocess.SubprocessError, IndexError, KeyboardInterrupt) as error:
         if isinstance(error, subprocess.CalledProcessError):
-            message = f'Command exited {error.returncode}. See the failed stage and log.'
+            command = error.cmd
+            command = ['ssh', command[-2]] if command and command[0] == 'ssh' else command[:4]
+            message = f'Command {shlex.join(command)} exited {error.returncode}.'
+            if LOG_PATH:
+                message += ' See log.'
+            error_tail()
         elif isinstance(error, subprocess.TimeoutExpired):
             message = f'Command timed out after {error.timeout}s. See log.'
         elif isinstance(error, KeyboardInterrupt):

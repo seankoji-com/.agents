@@ -53,7 +53,9 @@ class Maintenance(unittest.TestCase):
                      'with (Path(os.environ["FIXTURE"])/"messages").open("a") as out: out.write("message\\n")\n'
                      'print("Update fixture")\n',
             'ssh': 'home=Path(os.environ["FIXTURE"])/sys.argv[-2]\n'
-                   'sys.exit(subprocess.call(["bash", "-c", sys.argv[-1]], env=dict(os.environ, HOME=str(home))))\n',
+                   'shell=os.environ.get("FIXTURE_SSH_SHELL", "bash")\n'
+                   'shell_args=[shell, "-f", "-c"] if Path(shell).name=="zsh" else [shell, "-c"]\n'
+                   'sys.exit(subprocess.call(shell_args+[sys.argv[-1]], env=dict(os.environ, HOME=str(home))))\n',
         }.items():
             command = tools / name
             command.write_text('#!' + sys.executable + '\nimport os, sys, subprocess\nfrom pathlib import Path\n' + body)
@@ -140,6 +142,38 @@ class Maintenance(unittest.TestCase):
         self.assertIn('OK Update mint', output)
         self.assertEqual(self.call(self.base / 'wsl/.agents', 'git', 'rev-parse', 'HEAD'),
                          self.call(self.root, 'git', 'rev-parse', 'HEAD'))
+
+    @unittest.skipUnless(shutil.which('zsh'), 'zsh is not installed')
+    def test_zsh_receivers_succeed_and_label_discovery_failure(self):
+        with patch.dict(os.environ, {'FIXTURE_SSH_SHELL': shutil.which('zsh')}):
+            (self.root / 'new.txt').touch()
+            self.assertIn('Deployment complete.', self.publish())
+            registrar = self.base / 'wsl/.dotfiles/scripts/t3-workflow-skills.py'
+            registrar.write_text('import sys\nsys.exit("Synthetic discovery failure")\n')
+            output = self.call(self.base, sys.executable, '-B',
+                               str(self.root / 'scripts/maintain.py'), 'sync', expected=1)
+            self.assertIn('discovery refresh; source updated and tests passed', output)
+            self.assertIn('OK Update mint', output)
+            self.assertNotIn('read-only variable', self.log(output))
+
+    def test_ssh_timeout_names_host_and_reason_without_script_noise(self):
+        script = self.root / 'scripts/maintain.py'
+        script.write_text(script.read_text().replace('timeout=300', 'timeout=0.05'))
+        (self.base / 'tools/ssh').write_text(
+            '#!' + sys.executable + '\nimport time\ntime.sleep(5)\n')
+        output = self.publish(expected=1)
+        self.assertIn('FAIL Update wsl (timed out after 0.05s)', output)
+        self.assertIn('Command: ssh wsl', output)
+        self.assertIn('FAIL Update mint (timed out after 0.05s)', output)
+        self.assertIn('Timed out after 0.05s', self.log(output))
+        self.assertNotIn('step=preflight', output)
+
+    def test_detached_head_failure_has_command_and_diagnostic(self):
+        self.call(self.root, 'git', 'checkout', '--detach', '-q')
+        output = self.publish(expected=1)
+        self.assertIn('git symbolic-ref --short HEAD', output)
+        self.assertIn('not a symbolic ref', output)
+        self.assertNotIn('See the failed stage', output)
 
 
 if __name__ == '__main__':
