@@ -73,6 +73,7 @@ the message, and pushes `main`. It then updates `~/.agents` through `ssh wsl` an
 It stops on failed checks, changed files, push rejection or dirty host checkouts.
 A failed push keeps the local commit; rerunning retries without another commit.
 The existing local pre-commit hook remains supported.
+In T3's project Actions settings, import `t3.json`, then click **Publish**.
 
 Pull requests are disabled. The repo-only dotfiles and GitHub rule exceptions
 must permit direct fast-forward pushes. Mandatory organization workflows remain;
