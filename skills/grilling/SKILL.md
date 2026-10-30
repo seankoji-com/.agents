@@ -11,6 +11,7 @@ before asking the user. Look up small facts directly; delegate substantial,
 independent investigations only when the host supports them and scope permits.
 
 Ask the currently answerable questions together through the host's question tool,
+or numbered text questions when no question tool is available,
 with one decision per question, your recommendation first and its tradeoff.
 Defer questions that depend on an unanswered decision. Do not turn routine,
 reversible choices into owner decisions.

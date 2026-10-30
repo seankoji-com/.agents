@@ -39,6 +39,8 @@ a PR contrary to that policy or broaden this grant to production deployment.
 
 Proof must cover the current behavior diff, required checks must pass, material
 review findings must be addressed, and required human approval must be satisfied.
+No outstanding human review may still request changes, even when branch protection
+does not require that review.
 Check the current head and base before merging, including relevant intervening
 base changes. Honor merge queues and repository protections; never bypass them
 or dismiss a required human gate because a model is confident.

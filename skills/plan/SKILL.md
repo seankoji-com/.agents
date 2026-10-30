@@ -62,11 +62,12 @@ Planning or discovery acceptance alone grants no implementation authority. If th
 existing request already authorizes implementation, continue within that scope
 after required gates are met; planning does not revoke prior authority. Preserve
 the execution request's source and scope. Save drafts when the user stops.
-In T3 Code, present substantive options and handoffs with `html_preview` then
-`html_render`; retain any requested file deliverable. Use readable text when
+In T3 Code, present user-facing substantive options and handoffs with `html_preview`
+then `html_render`; retain any requested file deliverable. Use readable text when
 native HTML is unavailable or the result is brief.
 
 ## Boundaries
 
 Follow host tools, permissions and sharing limits. Preserve unrelated work and
 private inputs. This skill adds no execution or publication authority.
+Preserve explicit user choices and keep secrets out of reports.

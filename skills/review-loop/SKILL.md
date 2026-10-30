@@ -20,8 +20,8 @@ from the request; ordinary engineering work does not automatically need this loo
    diagnose the cause or report the blocker. Allow at most three evaluation
    rounds for a bounded change, including the first. For larger goals, allocate
    review budgets to milestones before dispatch; do not reset them by relabeling
-   work. Extend a review phase
-   to five rounds only while an evidenced blocker or major finding remains in
+   work. Extend a review phase to five rounds only while an evidenced blocker or
+   major finding remains in
    security, permissions, authentication, data loss or state/concurrency, or when
    the user requests it. Record the reason and count failed attempts.
 2. Discover supported native tasks and exact model identities. Preserve explicit
@@ -34,12 +34,16 @@ from the request; ordinary engineering work does not automatically need this loo
    lineage is unknown or no eligible evaluator is available, report the blocker.
    Never silently use a different preference order or same-lineage review.
 3. Implement directly unless substantial independent work warrants delegation;
-   make small review repairs directly when authorized. Keep concise notes in a verified ignored
-   task directory: goal, authority, scope, milestones, base/head, exact models and
+   make small review repairs directly when authorized. Keep concise notes in a
+   verified ignored task directory: goal, authority, scope, milestones, base/head,
+   exact models and
    options, remaining budgets, task handles, stable finding IDs, dispositions,
    checks and next action. Use one cross-lineage evaluator per round. Add another
    opinion only for a concrete unresolved risk or disagreement, within the same
-   phase's round budget. Do not require scores or unanimous satisfaction.
+   phase's round budget. For that additional opinion, select the next eligible
+   unused reviewer lineage in the ordered list unless explicitly named; report
+   unavailable choices. Routine rechecks can use the original reviewer's lineage.
+   Do not require scores or unanimous satisfaction.
    In T3 Code, discover models with `orchestrator_capabilities` and use a fresh
    `delegate_task` for each review or recheck. Record its `taskId` and follow the
    returned `next`; do not poll or replace it with a top-level thread. Follow
@@ -50,6 +54,9 @@ from the request; ordinary engineering work does not automatically need this loo
    diff, surrounding callers and every acceptance criterion. Supply intent,
    exclusions, version, checks and evaluation criteria. Ask for consequential
    bugs, broken callers and unnecessary code, tests, guards or procedure.
+   Require a complete plain-text final report with stable finding IDs, severity,
+   file:line, evidence and impact. Delegates must not use `html_render`; findings
+   must reach the coordinator, not only a child-thread presentation.
    Do not edit scoped files while evaluation runs. A timeout, error, missing reply
    or task completion status is not approval. Cancel failed work and verify it
    stopped before retrying within the remaining budget.
@@ -93,8 +100,9 @@ Keep updates brief: result, material findings and next action. Final handoff inc
 revision, implementation attempts and evaluation rounds used/limits, exact work and
 review models, checks, finding dispositions, deferrals and endpoint evidence or
 remaining blockers. Report usage only when exposed. Separate local validation,
-hosted checks, independent review, merge and deployment. In T3 Code, use
-`html_preview` then `html_render` for substantive findings and disposition reports;
+hosted checks, independent review, merge and deployment. Delegated agents return
+complete plain-text results. In T3 Code, the coordinator uses `html_preview` then
+`html_render` for user-facing substantive findings and disposition reports;
 use readable text when native HTML is unavailable or the result is brief.
 
 ## Boundaries

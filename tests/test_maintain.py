@@ -24,6 +24,7 @@ class Maintenance(unittest.TestCase):
             'GIT_AUTHOR_NAME': 'Fixture', 'GIT_AUTHOR_EMAIL': 'fixture@example.invalid',
             'GIT_COMMITTER_NAME': 'Fixture', 'GIT_COMMITTER_EMAIL': 'fixture@example.invalid',
             'PATH': str(tools) + os.pathsep + os.environ['PATH'], 'FIXTURE': str(self.base),
+            'TMPDIR': str(self.base),
         })
         environment.start()
         self.addCleanup(environment.stop)
@@ -66,12 +67,20 @@ class Maintenance(unittest.TestCase):
     def publish(self, expected=0):
         return self.call(self.base, sys.executable, '-B', str(self.root / 'scripts/maintain.py'), expected=expected)
 
+    def log(self, output):
+        path = Path(next(line[5:] for line in output.splitlines() if line.startswith('Log: ')))
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        return path.read_text()
+
     def test_rejected_push_retries_without_another_commit_then_updates_both_hosts(self):
         hook = self.remote / 'hooks/pre-receive'
         hook.write_text('#!/bin/sh\nexit 1\n')
         hook.chmod(0o755)
         (self.root / 'new.txt').write_text('edit\n')
-        self.publish(expected=1)
+        output = self.publish(expected=1)
+        self.assertIn('FAIL Push main (exit 1)', output)
+        self.assertIn('Log: ', output)
+        self.assertIn('git push origin HEAD:refs/heads/main', self.log(output))
         head = self.call(self.root, 'git', 'rev-parse', 'HEAD')
         self.assertNotEqual(head, self.initial)
         self.assertEqual(self.call(self.base, 'git', '--git-dir', str(self.remote), 'rev-parse', 'main'), self.initial)
@@ -85,7 +94,9 @@ class Maintenance(unittest.TestCase):
 
     def test_failed_validation_does_not_commit_or_generate_a_message(self):
         (self.root / 'fail-check').touch()
-        self.publish(expected=1)
+        output = self.publish(expected=1)
+        self.assertIn('FAIL Validate local changes (exit 1)', output)
+        self.assertIn('Command:', output)
         self.assertEqual(self.call(self.root, 'git', 'rev-parse', 'HEAD'), self.initial)
         self.assertFalse((self.base / 'messages').exists())
 
@@ -93,10 +104,41 @@ class Maintenance(unittest.TestCase):
         dirty = self.base / 'wsl/.agents/local.txt'
         dirty.write_text('local work')
         (self.root / 'new.txt').touch()
-        self.assertIn('Host updates failed: wsl', self.publish(expected=1))
+        output = self.publish(expected=1)
+        self.assertIn('Host updates failed: wsl', output)
+        self.assertIn('Published ', output)
+        self.assertIn('Receiver has local edits; left untouched', output)
+        self.assertIn('OK Update mint', output)
+        self.assertIn('FAILED [preflight]', self.log(output))
         self.assertEqual(dirty.read_text(), 'local work')
         self.assertEqual(self.call(dirty.parent, 'git', 'rev-parse', 'HEAD'), self.initial)
         self.assertEqual(self.call(self.base / 'mint/.agents', 'git', 'rev-parse', 'HEAD'),
+                         self.call(self.root, 'git', 'rev-parse', 'HEAD'))
+
+    def test_noisy_commands_are_logged_in_full_and_panel_stays_compact(self):
+        (self.root / 'scripts/check_library.py').write_text(
+            'import sys\nprint("NOISY_STDOUT\\n"*200); print("NOISY_STDERR", file=sys.stderr)\n')
+        output = self.publish()
+        self.assertNotIn('NOISY_', output)
+        self.assertNotIn('Ran 1 test', output)
+        self.assertLess(len(output.splitlines()), 30)
+        log = self.log(output)
+        self.assertGreaterEqual(log.count('NOISY_STDOUT'), 600)  # Author plus both receivers.
+        self.assertIn('NOISY_STDERR', log)
+        self.assertIn('Ran 1 test', log)
+        self.assertIn('Update fixture', log)  # Captured Codex output.
+        self.assertIn('Deployment complete.', output)
+
+    def test_discovery_failure_reports_source_success_and_continues_other_host(self):
+        registrar = self.base / 'wsl/.dotfiles/scripts/t3-workflow-skills.py'
+        registrar.write_text('import sys\nsys.exit("Existing cutover receipt blocks discovery")\n')
+        (self.root / 'new.txt').touch()
+        output = self.publish(expected=1)
+        self.assertIn('FAIL Update wsl', output)
+        self.assertIn('discovery refresh; source updated and tests passed', output)
+        self.assertIn('Existing cutover receipt blocks discovery', self.log(output))
+        self.assertIn('OK Update mint', output)
+        self.assertEqual(self.call(self.base / 'wsl/.agents', 'git', 'rev-parse', 'HEAD'),
                          self.call(self.root, 'git', 'rev-parse', 'HEAD'))
 
 

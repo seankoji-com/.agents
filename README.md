@@ -78,6 +78,14 @@ A failed push keeps the local commit; rerunning retries without another commit.
 The existing local pre-commit hook remains supported.
 In T3's project Actions settings, import `t3.json`, then click **Publish**.
 
+The panel shows named stages and timings. Charm's `gum` adds spinners when installed
+and running in a terminal; otherwise progress stays plain. Full command output goes
+to a private temporary `agents-publish-*.log` file whose path appears at startup and
+on completion or failure. Share that file here for diagnosis. Logs include staged
+diffs and commit messages, so review them before sharing elsewhere. Failed stages
+show a short error excerpt; host errors distinguish source updates from discovery
+refresh failures. Retry source delivery with `python3 scripts/maintain.py sync`.
+
 Pull requests are disabled. The repo-only dotfiles and GitHub rule exceptions
 must permit direct fast-forward pushes. Mandatory organization workflows remain;
 local tests do not establish hosted CI or fresh-session skill loading.
