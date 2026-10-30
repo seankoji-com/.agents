@@ -69,7 +69,10 @@ prepared checkout or child exit is not proof of a running agent or accepted PR.
    Assign an owner and next action to each outstanding acceptance gate. Execute
    already-authorized acceptance work, including visual or smoke checks where
    required. Missing access or authority needs a specific unblock action.
-2. Verify findings against the source. Fix real problems within scope, run
+2. Verify findings against the source. Apply
+   [review-evidence](../review-evidence/SKILL.md) for review evidence, screenshots
+   and SEV1–SEV3 classification. Keep release exceptions with the user.
+   Fix real problems within scope, run
    repository-required checks, inspect the staged diff, commit explicit paths and push
    the repairs to the explicit PR remote and branch. Inspect failure logs;
    distinguish code defects from infrastructure failures. Bound retries. An

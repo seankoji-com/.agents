@@ -33,7 +33,9 @@ stated scope; reuse that authority without asking again.
      dependencies. A supported diagnosis or a precise unresolved question can
      complete the task without a patch.
    - **Review:** Assess the requested plan or diff against its requirements and
-     current intended base. Findings need severity, location, impact and reproduction
+     current intended base. Apply [review-evidence](../review-evidence/SKILL.md)
+     for screenshots, SEV1–SEV3 severity and reviewer/parent responsibilities.
+     Findings need severity, location, impact and reproduction
      steps or supporting evidence. A read-only review returns findings. For
      authorized review-and-fix work, repair actionable findings, verify the changes
      and resolve addressed threads when authorized; review is intermediate.

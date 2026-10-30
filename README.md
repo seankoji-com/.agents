@@ -1,6 +1,6 @@
 # .agents
 
-Fourteen skills for engineering and agent workflows. Each folder contains
+Fifteen skills for engineering and agent workflows. Each folder contains
 its instructions and any supporting references, templates or helpers.
 
 | Skill | Use it for |
@@ -9,6 +9,7 @@ its instructions and any supporting references, templates or helpers.
 | [plan](skills/plan/SKILL.md) | Planning, specifications and handoffs |
 | [babysitter](skills/babysitter/SKILL.md) | PR review, CI repairs and native watches |
 | [review-loop](skills/review-loop/SKILL.md) | Implementation with bounded independent review and repair |
+| [review-evidence](skills/review-evidence/SKILL.md) | Review screenshots, evidence and SEV1–SEV3 findings |
 | [challenge](skills/challenge/SKILL.md) | Read-only cross-lineage pressure testing of ideas and designs |
 | [focus-group](skills/focus-group/SKILL.md) | Synthetic persona studies |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Agent configuration, permissions and discovery |

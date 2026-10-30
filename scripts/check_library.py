@@ -10,7 +10,7 @@ from urllib.parse import unquote, urlsplit
 
 SKILLS = ('imps', 'plan', 'babysitter', 'review-loop', 'challenge', 'focus-group',
           'agent-tuneup', 'test-writer', 'file-upstream-bug', 'unslop', 'full-send',
-          'grilling', 'ketchup', 'bro')
+          'grilling', 'ketchup', 'bro', 'review-evidence')
 RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents|'
                      r'scripts/(?:install|agents_bootstrap|source_runtime)|'
                      r'migration/|agents start|\.local/share/t3-plugins')

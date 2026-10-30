@@ -54,6 +54,10 @@ from the request; ordinary engineering work does not automatically need this loo
    diff, surrounding callers and every acceptance criterion. Supply intent,
    exclusions, version, checks and evaluation criteria. Ask for consequential
    bugs, broken callers and unnecessary code, tests, guards or procedure.
+   Apply [review-evidence](../review-evidence/SKILL.md) and include it in the
+   review brief. Require key-state screenshots for visible behavior and every
+   visible finding; the reviewer reports bugs and SEV1–SEV3 severity to the parent,
+   which owns repair, deferral and issue-filing decisions within its authority.
    Require a complete plain-text final report with stable finding IDs, severity,
    file:line, evidence and impact. Delegates must not use `html_render`; findings
    must reach the coordinator, not only a child-thread presentation.
@@ -62,8 +66,11 @@ from the request; ordinary engineering work does not automatically need this loo
    stopped before retrying within the remaining budget.
 5. Verify each finding using severity, location, reproduction or supporting evidence,
    and impact. Rare failures can still be serious; judge consequence and evidence,
-   not frequency alone. Repair blocker/major findings and unmet criteria within
-   scope. Prefer deleting or narrowing over adding machinery when it fixes the
+   not frequency alone. SEV1 blocks release unless the user explicitly approves
+   an exception. The parent assesses SEV2 against release requirements and its
+   workaround; SEV3 normally allows release. Repair findings selected by the
+   parent and unmet criteria within scope. Capture fresh evidence for visible
+   fixes and preserve original findings. Prefer deleting or narrowing when it fixes the
    cause. Challenge incorrect or unnecessary requests with evidence rather than
    appeasing the reviewer. Preserve original finding IDs and append fixed,
    rejected or deferred evidence. Track diff growth as a prompt to examine scope,
@@ -76,10 +83,12 @@ from the request; ordinary engineering work does not automatically need this loo
    Re-review material behavior changes, unresolved consequential findings or gaps
    in acceptance coverage. Editorial corrections and declined nits need no new
    round. Never transfer approval across unreviewed behavior or shop for reviewers.
-7. Accept when evidence covers the current behavior, consequential findings and
-   required criteria are addressed, and no supported substantive concern remains.
-   Reviewer verdicts inform that decision; agreement alone does not prove it. Defer
-   minor/info findings unless they pose an actual handoff, merge or launch risk.
+7. Accept when evidence covers the current behavior, required criteria are met
+   and remaining findings have explicit dispositions consistent with the release
+   rules above. An approved exception does not mean the bug is fixed. Incomplete
+   visual review remains an evidence gap in the release recommendation.
+   Reviewer verdicts inform that decision; agreement alone does not prove it.
+   The parent decides deferrals and retains severity and supporting evidence.
    Keep reasons in the handoff; file issues only when authorized. Stop circular
    debate or repeated attempts without progress. Escalate only material decisions
    the user must make; budget exhaustion is not approval. Continue independent
