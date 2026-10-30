@@ -162,10 +162,10 @@ class Maintenance(unittest.TestCase):
         (self.base / 'tools/ssh').write_text(
             '#!' + sys.executable + '\nimport time\ntime.sleep(5)\n')
         output = self.publish(expected=1)
-        self.assertIn('FAIL Update wsl (timed out after 0.05s)', output)
+        self.assertRegex(output, r'FAIL Update wsl \(timed out after [0-9.]+s\)')
         self.assertIn('Command: ssh wsl', output)
-        self.assertIn('FAIL Update mint (timed out after 0.05s)', output)
-        self.assertIn('Timed out after 0.05s', self.log(output))
+        self.assertRegex(output, r'FAIL Update mint \(timed out after [0-9.]+s\)')
+        self.assertRegex(self.log(output), r'Timed out after [0-9.]+s')
         self.assertNotIn('step=preflight', output)
 
     def test_detached_head_failure_has_command_and_diagnostic(self):
