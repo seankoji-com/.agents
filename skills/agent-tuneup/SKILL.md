@@ -37,6 +37,9 @@ Scale the report to the task: result, affected paths, checks and unresolved gaps
 For audits, include evidence and failure scenarios; for live changes, include
 rollback details. Mark unknown precedence, semantics and unverified runtime behavior
 plainly. Keep source validation, rollout and fresh-session acceptance separate.
+In T3 Code, use `html_preview` then `html_render` for substantive audit findings
+and configuration comparisons; use readable text when native HTML is unavailable
+or the result is brief.
 
 ## Boundaries
 

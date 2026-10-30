@@ -3,8 +3,9 @@
 Read for comprehensive test audits or changes that reduce suite coverage, replace
 expensive checks or restructure CI. Ordinary test writing does not need this checklist.
 Agree the question, history access and finite investigation budget. Keep the core
-ten-minute CI feedback ceiling; strong protection should guide a cheaper design,
-not become an excuse for routine slow feedback.
+hard 600-second CI execution ceiling across setup, build, checks and reporting on
+the required critical path. Queue delay is measured separately. Strong protection
+should guide a cheaper design, not become an excuse to exceed the cap.
 
 ## Scope and evidence
 
@@ -37,8 +38,10 @@ inapplicable, with reasons and reusable evidence IDs:
 ## Measurement
 
 Include setup, build, test and report stages, dependencies, workers and shards.
-Measure each job from start to completion and the overall required CI path; report
-queue delay separately. Preserve failures, cancellations, timeouts, retries and
+Measure each job from start to completion and execution along the overall required
+critical path against the hard 600-second cap. Exclude queue delay from execution
+and report it separately alongside total elapsed feedback. Preserve failures,
+cancellations, timeouts, retries and
 outliers. Declare timing boundaries and environments before comparing observations.
 Do not sum parallel durations to claim elapsed time. A timeout or failed upload
 does not turn an attempt into a pass or erase its cost.

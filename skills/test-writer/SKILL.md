@@ -11,10 +11,11 @@ Prefer high-value tests over high coverage. Every test should catch a plausible,
 consequential failure and justify its runtime, maintenance and debugging cost.
 Coverage percentages, test counts and test-level ratios are not quality targets.
 
-Fast feedback is part of code quality. Tests that push routine CI feedback past
-ten minutes (600 seconds) defeat their purpose by delaying correction and
-discouraging frequent validation. Treat that as a design problem to solve, not an
-acceptable price for more coverage.
+Required CI execution has a hard ten-minute (600-second) cap. It covers setup,
+build, checks and reporting along the pipeline's critical path, excluding queue
+delay. Measure queue delay separately and report its effect on total feedback
+time. Treat execution over the cap as a design problem, not an acceptable price
+for more coverage.
 
 ## Workflow
 
@@ -30,10 +31,12 @@ acceptable price for more coverage.
    Run required checks and relevant failure cases. Investigate flakes instead of
    hiding them with retries, longer timeouts or weaker assertions. Report verification
    gaps plainly.
-4. Keep required CI feedback within ten minutes, including setup, build, tests and
-   reporting. Measure per-job runtime, elapsed time, queue delay and total runner cost
-   separately; do not sum parallel durations as elapsed time. If over budget, repair
-   the bottleneck within authority. Preserve meaningful assertions and required gates.
+4. Enforce the 600-second execution cap across the required dependency path,
+   including setup, build, checks and reporting. Measure per-job runtime, critical
+   path execution, queue delay, total elapsed feedback and runner cost separately;
+   do not sum parallel jobs as elapsed execution. If over budget, repair the
+   bottleneck within authority or report the blocker. Never weaken assertions,
+   skip required checks or treat a timed-out run as a pass to meet the cap.
 
 Read the [audit reference](references/suite-audit.md) for suite-wide reviews or costly
 test removal; establish retained and lost detection before recommending removal.
@@ -45,6 +48,9 @@ not elapsed CI time or causal speedup.
 Report protection added, checks/results, runtime impact and gaps in the requested
 format. A short answer can stay in chat. Distinguish local timings, current-head
 hosted CI and estimates. Unmeasured CI cost does not prove budget compliance.
+In T3 Code, use `html_preview` then `html_render` for substantive suite audits and
+timing comparisons; use readable text when native HTML is unavailable or the
+result is brief.
 
 ## Boundaries
 

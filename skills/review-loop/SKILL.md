@@ -15,10 +15,12 @@ from the request; ordinary engineering work does not automatically need this loo
 1. Inspect the request, repository rules, working tree and existing progress.
    Establish scope, observable acceptance criteria and the authorized endpoint,
    which may be a verified local change. Ask only about material unresolved choices.
-   Separate implementation and evaluation budgets. Default to at most 20 implementation
-   attempts for the goal and three evaluation rounds for a bounded change, including
-   the first. For larger goals, name milestones and allocate their review budgets
-   before dispatch. Do not reset budgets by relabeling work. Extend a review phase
+   Preserve user-set implementation limits. Retry only with new evidence or a
+   changed hypothesis; stop repeating an approach that makes no progress and
+   diagnose the cause or report the blocker. Allow at most three evaluation
+   rounds for a bounded change, including the first. For larger goals, allocate
+   review budgets to milestones before dispatch; do not reset them by relabeling
+   work. Extend a review phase
    to five rounds only while an evidenced blocker or major finding remains in
    security, permissions, authentication, data loss or state/concurrency, or when
    the user requests it. Record the reason and count failed attempts.
@@ -31,12 +33,17 @@ from the request; ordinary engineering work does not automatically need this loo
    Account for every model that materially authored the reviewed change. If work
    lineage is unknown or no eligible evaluator is available, report the blocker.
    Never silently use a different preference order or same-lineage review.
-3. Use fresh implementation tasks for substantial units of work; make small review
-   repairs directly when authorized. Keep concise notes in a verified ignored
+3. Implement directly unless substantial independent work warrants delegation;
+   make small review repairs directly when authorized. Keep concise notes in a verified ignored
    task directory: goal, authority, scope, milestones, base/head, exact models and
    options, remaining budgets, task handles, stable finding IDs, dispositions,
-   checks and next action. Use one evaluator per round. Follow host orchestration;
-   children do not start further reviewers or subagents.
+   checks and next action. Use one cross-lineage evaluator per round. Add another
+   opinion only for a concrete unresolved risk or disagreement, within the same
+   phase's round budget. Do not require scores or unanimous satisfaction.
+   In T3 Code, discover models with `orchestrator_capabilities` and use a fresh
+   `delegate_task` for each review or recheck. Record its `taskId` and follow the
+   returned `next`; do not poll or replace it with a top-level thread. Follow
+   host orchestration elsewhere. Children do not start further agents.
 4. Run covering checks before review and report missing or pre-failing checks.
    Establish the merge-base and owned paths, including untracked source, for the
    review phase. Round one uses a fresh read-only evaluator on the full scoped
@@ -62,8 +69,9 @@ from the request; ordinary engineering work does not automatically need this loo
    Re-review material behavior changes, unresolved consequential findings or gaps
    in acceptance coverage. Editorial corrections and declined nits need no new
    round. Never transfer approval across unreviewed behavior or shop for reviewers.
-7. Stop review when the current behavior is approved, consequential findings and
-   required criteria are addressed, and no substantive concern remains. Defer
+7. Accept when evidence covers the current behavior, consequential findings and
+   required criteria are addressed, and no supported substantive concern remains.
+   Reviewer verdicts inform that decision; agreement alone does not prove it. Defer
    minor/info findings unless they pose an actual handoff, merge or launch risk.
    Keep reasons in the handoff; file issues only when authorized. Stop circular
    debate or repeated attempts without progress. Escalate only material decisions
@@ -85,7 +93,9 @@ Keep updates brief: result, material findings and next action. Final handoff inc
 revision, implementation attempts and evaluation rounds used/limits, exact work and
 review models, checks, finding dispositions, deferrals and endpoint evidence or
 remaining blockers. Report usage only when exposed. Separate local validation,
-hosted checks, independent review, merge and deployment.
+hosted checks, independent review, merge and deployment. In T3 Code, use
+`html_preview` then `html_render` for substantive findings and disposition reports;
+use readable text when native HTML is unavailable or the result is brief.
 
 ## Boundaries
 

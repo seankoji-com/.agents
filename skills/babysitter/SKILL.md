@@ -149,6 +149,9 @@ wait for green again.
 
 Report PR URL/head, readiness or blocker, material repairs, auto-merge state
 and the next action. Claim continued monitoring only while a supported watch is active.
+In T3 Code, use `html_preview` then `html_render` for substantive multi-PR reports
+and repair summaries; use readable text when native HTML is unavailable or the
+result is brief.
 
 ## Boundaries
 

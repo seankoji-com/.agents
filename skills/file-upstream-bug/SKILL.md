@@ -43,7 +43,9 @@ clean up/report. Keep replies within the evidence and remaining diagnostic budge
 Return the diagnosis, supporting evidence, draft or verified report URL, limitations
 and next action. Include follow-up status/deadline only when arranged. Filing is not
 maintainer acceptance; distinguish a claimed fix, merged source, release and verified
-installed behavior.
+installed behavior. In T3 Code, use `html_preview` then `html_render` for
+substantive investigation reports; retain the upstream's required format for
+submissions. Use readable text when native HTML is unavailable or the result is brief.
 
 ## Boundaries
 

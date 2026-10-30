@@ -9,13 +9,13 @@ its instructions and any supporting references, templates or helpers.
 | [plan](skills/plan/SKILL.md) | Planning, specifications and handoffs |
 | [babysitter](skills/babysitter/SKILL.md) | PR review, CI repairs and native watches |
 | [review-loop](skills/review-loop/SKILL.md) | Implementation with bounded independent review and repair |
+| [challenge](skills/challenge/SKILL.md) | Read-only cross-lineage pressure testing of ideas and designs |
 | [focus-group](skills/focus-group/SKILL.md) | Synthetic persona studies |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Agent configuration, permissions and discovery |
-| [test-writer](skills/test-writer/SKILL.md) | High-value tests and CI feedback within ten minutes |
+| [test-writer](skills/test-writer/SKILL.md) | High-value tests and a hard ten-minute CI execution cap |
 | [file-upstream-bug](skills/file-upstream-bug/SKILL.md) | Reproduction and upstream reporting |
 | [unslop](skills/unslop/SKILL.md) | Plain, specific writing |
 | [full-send](skills/full-send/SKILL.md) | Autonomous implementation, verification, PR review and merge |
-| [sol-loop](skills/sol-loop/SKILL.md) | Bounded Sol review and repair loops |
 | [grilling](skills/grilling/SKILL.md) | Stress-testing plans, decisions and ideas through questions |
 | [ketchup](skills/ketchup/SKILL.md) | Catching up on chat progress and pending decisions |
 | [bro](skills/bro/SKILL.md) | Restating the last response in plain language |
@@ -32,10 +32,13 @@ instructions rather than fixed headings. Their prerequisites vary:
 
 - `full-send` uses the included `review-loop` and `babysitter`, with native tools
   to create the PR.
-- `sol-loop` needs a host route to Sol through T3 delegation or a native Sol agent.
-  It reports a blocker when neither route is available.
-- `ketchup` uses the included `bro` and host-provided visualization tools. It reuses
-  existing captures and marks missing screenshots rather than starting an app.
+- `review-loop` and `challenge` need native delegation to a model from another
+  lineage. They preserve explicit choices and otherwise select in this order:
+  Sol, Opus, Wonder Full, Argon, Grok 4.7. Model IDs come from host discovery.
+- `ketchup` uses the included `bro` and native presentation tools. In T3 Code,
+  catch-ups and substantive reports use `html_preview` then `html_render` for
+  readable comparisons, findings and decisions. Other hosts use their native
+  presentation tools or readable text. No rendering server is needed.
 
 Slash-command invocation syntax depends on the host's native skill discovery.
 
