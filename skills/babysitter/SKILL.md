@@ -1,12 +1,32 @@
 ---
 name: babysitter
-description: Monitor a pull request through review and CI. Use when the user asks to monitor, watch, or babysit a PR.
+description: "Repair and push pull request fixes through review and CI until merge-ready or concretely blocked. Use when asked to babysit, watch or monitor PRs; honor explicit read-only limits."
 ---
 
 # Babysit PR
 
 Many repos have AI review bots. They're helpful, even if they are not always
 right.
+
+## Default authority and outcome
+
+The user's standing instruction for this skill is that invoking it authorizes
+diagnosing and fixing every verified problem relevant to the requested PR,
+running the required checks, committing the repairs and pushing them to that
+PR's branch. Work toward merge readiness without asking again for routine repair
+or push permission. This includes failing checks, review findings, conflicts and
+missing PR acceptance work that can be completed within that scope. Continue
+after each push until the latest head passes the applicable gates or a concrete
+blocker needs user input.
+
+Explicit instructions such as read-only, report-only, no edits or no push override
+this default. A blocker report must identify what prevents further work and what
+action or missing authority will unblock it. A failing check alone is work to
+repair, not a reason to stop.
+
+When delegating repairs, pass the authorized edit, commit and push scope to the
+child. Do not turn an authorized repair assignment into a report-only brief.
+Children still never watch PRs or exceed their assigned scope.
 
 ## Waiting
 
@@ -76,14 +96,19 @@ used up, the REST limit is separate and usually still has room. Use
 
 ## Reviews
 
+Confirm the target repository and work from its checkout. For repairs, run the
+required checks, inspect the staged diff, commit explicit paths and push to the
+explicit PR remote and branch. Distinguish code defects from infrastructure
+failures and bound retries.
+
 Assess checks on the current head and all unresolved feedback, including older
 or outdated threads. Verify every bot finding against the current source before
 changing code. Fix real findings and CI
 failures, distinguish repository failures from infrastructure flakes, and reply
-with a written reason when dismissing false positives.
+with a written reason when authorized to dismiss false positives.
 
 If a review bot leaves feedback you believe is not worth addressing, reply with
-a written reason and resolve the comment.
+a written reason and resolve the comment when authorized.
 
 Screenshots and videos help as well, when you have a way to upload them.
 
@@ -96,7 +121,13 @@ narrows code.
 
 ## Base branch and merging
 
-Enable auto-merge only when merging is authorized and the repository supports it.
+Set every open PR in the babysitting scope to GitHub auto-merge when repository
+rules and existing merge authority permit it, using the permitted merge method.
+Keep required human approval and explicit no-merge limits in force. Do not promote
+drafts merely to enable auto-merge. If enabling it could merge immediately, verify
+that merge is already authorized before proceeding. Verify and report the resulting
+auto-merge state or the specific blocker; do not silently omit a PR. Never bypass
+protection or change repository settings to enable auto-merge.
 
 Keep an eye on changes to `main` and rebase when needed. `pr-wait` reports when
 new base commits touch this PR's files, and when the PR becomes BEHIND or DIRTY.
@@ -113,3 +144,18 @@ otherwise report that the PR is ready. Right before a merge, run `git fetch` and
 check the PR again. Never merge when it is BEHIND or DIRTY, or when base commits
 that landed after the last green run touch this PR's files. Rebase, push, and
 wait for green again.
+
+## Outputs
+
+Report PR URL/head, readiness or blocker, material repairs, auto-merge state
+and the next action. Claim continued monitoring only while a supported watch is active.
+
+## Boundaries
+
+Preserve unrelated work and repository protections. Fix verified PR-related
+problems; do not sweep unrelated improvements into the branch or weaken checks
+to obtain a pass. Explicit status-only requests remain read-only. Respect
+delegated child boundaries. This default does not authorize publishing comments,
+merging, spending or infrastructure changes; reuse separate authority when it
+exists and report any missing authority that blocks readiness. Follow the active
+host's tooling and permission rules.
