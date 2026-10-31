@@ -1,8 +1,6 @@
 ---
 name: babysitter
-description: "Autonomously repair and merge requested PRs, dispatching concurrent
-T3 agents across many PRs. Use when asked to babysit, watch or monitor PRs;
-honour explicit read-only and no-merge limits."
+description: "Repair and merge requested pull requests. Use when asked to babysit, watch or monitor PRs, and honour explicit read-only and no-merge limits."
 ---
 
 # Babysit pull requests
