@@ -1,6 +1,6 @@
 # .agents
 
-Fifteen skills for coding agents. Each skill is a folder. The agent reads
+Sixteen skills for coding agents. Each skill is a folder. The agent reads
 `SKILL.md`, and any notes, templates or helpers live in that same folder.
 
 ## Use a skill
@@ -35,6 +35,10 @@ family to review the work. They try Sol, then Opus, Wonder Full, Argon and
 Grok 4.7, and they take the model id from the host. They do not swap in a
 model from the same family.
 
+`design-chooser` asks one to three models, each from a different family, for two
+or three mockups each. It uses the same model order and shows each mockup inline
+in T3 Code, then waits for you to pick one.
+
 `full-send` and `babysitter` may commit, push and merge after you invoke them.
 Read those two before you use them. Limits you set in the request still apply.
 
@@ -52,6 +56,7 @@ content as text.
 | [review-evidence](skills/review-evidence/SKILL.md) | Record what a review saw, and rate findings SEV1, SEV2 or SEV3 |
 | [challenge](skills/challenge/SKILL.md) | Ask another model family to pressure-test an idea, without implementing it |
 | [focus-group](skills/focus-group/SKILL.md) | Run a product study with invented personas |
+| [design-chooser](skills/design-chooser/SKILL.md) | Compare mockups from up to three model families and pick one before building |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Inspect or change agent configuration, permissions and skill discovery |
 | [test-writer](skills/test-writer/SKILL.md) | Add tests that catch real failures, and keep required CI under ten minutes |
 | [file-upstream-bug](skills/file-upstream-bug/SKILL.md) | Reproduce a defect and report it to the project that owns it |
