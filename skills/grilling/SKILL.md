@@ -21,6 +21,19 @@ uncertainty cannot materially change the next implementation step. Summarize the
 choices, assumptions and any unresolved gate; do not exhaust every possible branch.
 If the user requests an exhaustive interview, continue to that endpoint instead.
 
+After summarizing, use the host's ask-user-question tool to ask what the user
+wants to create:
+
+1. An issue, with sub-issues when the work warrants them.
+2. A Markdown file in a temporary location outside the worktree.
+
+Use numbered text questions only when no question tool is available. Wait for the
+user's choice before creating either artifact. Carry the settled decisions,
+assumptions and unresolved gates into the chosen artifact. Confirm a missing issue
+destination only if it cannot be inferred from context. For the Markdown option,
+honor any supplied path; otherwise choose a temporary location outside the
+worktree and report the file's absolute path.
+
 Grilling alone does not authorize implementation. If implementation is already
 requested, continue within that authority once material decisions are settled.
 Use native host tools and preserve explicit constraints.
