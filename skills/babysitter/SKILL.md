@@ -71,8 +71,16 @@ prepared checkout or child exit is not proof of a running agent or accepted PR.
    [review-evidence](../review-evidence/SKILL.md) for review evidence, screenshots
    and SEV1–SEV3 classification. Keep release exceptions with the user.
    Fix real problems within scope, run
-   repository-required checks, inspect the staged diff, commit explicit paths and push
-   the repairs to the explicit PR remote and branch. Inspect failure logs;
+   repository-required checks and apply
+   [raise-pr](../raise-pr/SKILL.md) to PR updates for templates, screenshots,
+   agent attribution and independent review. Inspect the staged diff, commit
+   explicit paths and push repairs to the explicit PR remote and branch. Before
+   pushing material changes with review pending, apply raise-pr's auto-merge and
+   merge-queue hold; if the hold cannot be verified, stop before pushing.
+   Material repairs may be pushed for existing human or agent reviewers to
+   evaluate before merge; disclose pending review. If no eligible reviewer is
+   available under this skill's delegation limits, report the merge gate and
+   the owner action needed to supply review. Inspect failure logs;
    distinguish code defects from infrastructure failures. Bound retries. An
    authorized rerun can address a transient failure; repeated failures need diagnosis.
 3. Address review threads when authorized. Explain rejected findings briefly.
@@ -83,7 +91,8 @@ prepared checkout or child exit is not proof of a running agent or accepted PR.
    repository's permitted method, preserve others' commits, and rerun affected
    checks/review. Do not rewrite shared history without authority. Re-evaluate
    dependents after prerequisite merges instead of leaving them indefinitely deferred.
-5. Merge when latest-head checks, required reviews, thread dispositions and release
+5. Merge when latest-head checks, required reviews, raise-pr's current-diff
+   independent review gate, thread dispositions and release
    acceptance pass, using the permitted merge method and expected head SHA where
    supported. Verify GitHub reports merged. Enable auto-merge when supported and
    authorized, after non-CI acceptance gates pass. Verify its state for each PR;

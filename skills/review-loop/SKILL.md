@@ -33,7 +33,9 @@ from the request; ordinary engineering work does not automatically need this loo
    Account for every model that materially authored the reviewed change. If work
    lineage is unknown or no eligible evaluator is available, report the blocker.
    Never silently use a different preference order or same-lineage review.
-3. Implement directly unless substantial independent work warrants delegation;
+3. For UI work likely to end in a PR, apply [raise-pr](../raise-pr/SKILL.md) early
+   to capture practical mobile and desktop before screenshots.
+   Implement directly unless substantial independent work warrants delegation;
    make small review repairs directly when authorized. Keep concise notes in a
    verified ignored task directory: goal, authority, scope, milestones, base/head,
    exact models and
@@ -93,10 +95,16 @@ from the request; ordinary engineering work does not automatically need this loo
    debate or repeated attempts without progress. Escalate only material decisions
    the user must make; budget exhaustion is not approval. Continue independent
    authorized work while dependent work is blocked.
-8. Complete the agreed endpoint with its required evidence. A source fix does not
+8. Complete the agreed endpoint with its required evidence. For PR creation or
+   updates, apply [raise-pr](../raise-pr/SKILL.md) for templates, screenshots,
+   agent attribution and independent review. A source fix does not
    complete a requested merge or deployment. Bundle local review repairs before
-   pushing when practical; push earlier when authorized hosted checks or previews
-   are needed for proof. Refresh current-head checks/reviews before merging.
+   pushing when practical; an authorized branch push or existing-PR update may
+   happen earlier when hosted checks or previews are needed for proof. New PR
+   creation still requires completed independent review under raise-pr. If proof
+   requires creating a PR before review, report that dependency and seek an
+   explicit user waiver rather than infer one. Refresh current-head
+   checks/reviews before merging.
    Verify the deployed revision and actual behavior on each requested target.
    At a concrete blocker or exhausted budget, report what remains incomplete.
 

@@ -18,15 +18,18 @@ other branches remain outside this grant without separate authority.
 
 ## Finish the endpoint
 
-1. Finish the smallest change that meets the request. Preserve unrelated work.
+1. For UI changes, apply [raise-pr](../raise-pr/SKILL.md) before editing to capture
+   practical mobile and desktop before screenshots.
+   Finish the smallest change that meets the request. Preserve unrelated work.
    Follow the repository's branch and delivery policy.
 2. Observe direct proof: reproduce and verify the fix, run covering checks, and
    inspect UI or runtime behavior when affected. Add regression protection when
    it catches a meaningful failure. Mocked tests alone do not prove visible behavior.
 3. Use [review-loop](../review-loop/SKILL.md) for independent review and repair.
    That skill owns reviewer selection, budgets, findings and rechecks.
-4. Create or update the PR against the intended current base, with concise proof
-   in its description. Follow host creation and linking requirements.
+4. Create or update the PR against the intended current base using
+   [raise-pr](../raise-pr/SKILL.md) for templates, screenshots, agent attribution
+   and independent review. Follow host creation and linking requirements.
 5. Use [babysitter](../babysitter/SKILL.md) to resolve verified findings and CI
    failures through current-head readiness. Merge with the repository's permitted
    method once the gate below passes; verify the resulting merge.
@@ -38,7 +41,8 @@ a PR contrary to that policy or broaden this grant to production deployment.
 ## Merge gate
 
 Proof must cover the current behavior diff, required checks must pass, material
-review findings must be addressed, and required human approval must be satisfied.
+review findings must be addressed, raise-pr's current-diff independent review
+gate must pass, and required human approval must be satisfied.
 No outstanding human review may still request changes, even when branch protection
 does not require that review.
 Check the current head and base before merging, including relevant intervening

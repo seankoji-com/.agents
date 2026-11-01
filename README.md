@@ -1,6 +1,6 @@
 # .agents
 
-Sixteen skills for coding agents. Each skill is a folder. The agent reads
+Seventeen skills for coding agents. Each skill is a folder. The agent reads
 `SKILL.md`, and any notes, templates or helpers live in that same folder.
 
 ## Use a skill
@@ -21,6 +21,7 @@ Keep the `skills` directory together. A few skills link to siblings:
 - `ketchup` links to `bro`
 - `imps`, `babysitter` and `review-loop` link to `review-evidence`
 - `full-send` links to `review-loop` and `babysitter`
+- `imps`, `review-loop`, `full-send` and `babysitter` link to `raise-pr`
 
 Helpers, where a skill has one, need Python 3.10 or newer and the standard
 library only. Reading a skill needs no install step.
@@ -52,6 +53,7 @@ content as text.
 | [imps](skills/imps/SKILL.md) | Implement, investigate, audit or review a scoped change |
 | [plan](skills/plan/SKILL.md) | Write a specification and a handoff |
 | [babysitter](skills/babysitter/SKILL.md) | Watch pull requests, repair them, and merge when the gates pass |
+| [raise-pr](skills/raise-pr/SKILL.md) | Create or update PRs with templates, screenshots, agent attribution and independent review |
 | [review-loop](skills/review-loop/SKILL.md) | Implement, then repeat an independent review and repair within a set limit |
 | [review-evidence](skills/review-evidence/SKILL.md) | Record what a review saw, and rate findings SEV1, SEV2 or SEV3 |
 | [challenge](skills/challenge/SKILL.md) | Ask another model family to pressure-test an idea, without implementing it |
