@@ -1,11 +1,11 @@
 ---
 name: design-chooser
-description: Use before building or changing anything that needs a visual design decision, such as a screen, page, component, layout, colour, type or restyle. Gets mockup options from one to three model lineages and has the user choose before building.
+description: Use before building or changing anything that needs a visual design decision, such as a screen, page, component, layout, colour, type or restyle.
 ---
 
 # Choose a visual design
 
-Use this skill whenever a build needs a visual decision. Mockups come from
+Mockups come from
 independent designers in different model lineages. The user chooses before
 anything is built. The coordinator writes the brief, checks the mockups and
 presents them. It does not design.

@@ -10,11 +10,14 @@ from urllib.parse import unquote, urlsplit
 
 SKILLS = ('imps', 'plan', 'babysitter', 'review-loop', 'challenge', 'focus-group',
           'agent-tuneup', 'test-writer', 'file-upstream-bug', 'unslop', 'full-send',
-          'grilling', 'ketchup', 'bro', 'review-evidence', 'design-chooser', 'raise-pr')
+          'grilling', 'ketchup', 'bro', 'review-evidence', 'design-chooser', 'raise-pr',
+          'agent-docs')
 RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents|'
                      r'scripts/(?:install|agents_bootstrap|source_runtime)|'
                      r'migration/|agents start|\.local/share/t3-plugins')
 LINK = re.compile(r'\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
+# Skills stand alone, so the reviewer order is copied; every bold copy must match.
+ORDER = re.compile(r'\*\*([^*,\n]+(?:, [^*,\n]+){3,})\*\*')
 RETIRED_ROOTS = {'core', 'shared', 'plugins', 'bin', 'bench', 'conformance',
                  'migration', 'docs', 'overrides', 'roles', 'packaging'}
 
@@ -28,6 +31,7 @@ def check(root):
     except (OSError, subprocess.CalledProcessError):
         return ['library root must be a Git checkout']
     paths = {root / p for p in tracked if p and (root / p).is_file()}
+    orders = {}
     for name in SKILLS:
         folder = root / 'skills' / name
         entry = folder / 'SKILL.md'
@@ -56,6 +60,9 @@ def check(root):
             continue
         if path.suffix == '.md':
             text = path.read_text(encoding='utf-8')
+            if not relative.startswith('skills/synced/'):
+                for order in ORDER.findall(text):
+                    orders.setdefault(order, []).append(relative)
             for number, line in enumerate(text.splitlines(), 1):
                 if RETIRED.search(line):
                     errors.append(f'{relative}:{number}: retired dependency')
@@ -80,6 +87,10 @@ def check(root):
                 for module in imports:
                     if module.split('.')[0] not in sys.stdlib_module_names:
                         errors.append(f'{relative}: non-stdlib import {module}')
+    if len(orders) > 1:
+        found = '; '.join(f'{order} in {", ".join(sorted(files))}'
+                          for order, files in sorted(orders.items()))
+        errors.append(f'reviewer order differs: {found}')
     return errors
 
 

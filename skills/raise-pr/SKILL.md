@@ -1,6 +1,6 @@
 ---
 name: raise-pr
-description: Use whenever creating or updating a pull request, including during implementation, review-loop, full-send and PR maintenance. Prepare template-compliant descriptions with screenshots, agent attribution and independent code review.
+description: Use whenever creating or updating a pull request, including during implementation, review-loop, full-send and PR maintenance.
 ---
 
 # Raise a pull request

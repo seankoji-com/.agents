@@ -54,6 +54,6 @@ result is brief.
 
 ## Boundaries
 
-Reuse existing authority and follow repository and host rules. Auditing alone does
+Reuse existing authority. Auditing alone does
 not authorize test deletion, runner spending, CI policy changes or publication.
 Preserve unrelated work. Efficiency must preserve useful protection.

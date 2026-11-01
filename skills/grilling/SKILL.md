@@ -36,4 +36,4 @@ worktree and report the file's absolute path.
 
 Grilling alone does not authorize implementation. If implementation is already
 requested, continue within that authority once material decisions are settled.
-Use native host tools and preserve explicit constraints.
+Preserve explicit constraints.

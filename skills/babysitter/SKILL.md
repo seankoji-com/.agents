@@ -5,10 +5,9 @@ description: "Repair and merge requested pull requests. Use when asked to babysi
 
 # Babysit pull requests
 
-## Triggers
+## Scope
 
-Use when asked to watch, monitor or babysit PRs. For an organization or batch,
-inventory the full requested scope. Otherwise use the named PR or current branch's PR.
+For an organization or batch, inventory the full requested scope. Otherwise use the named PR or current branch's PR.
 
 ## Default authority and outcome
 
@@ -77,8 +76,7 @@ prepared checkout or child exit is not proof of a running agent or accepted PR.
    explicit paths and push repairs to the explicit PR remote and branch. Before
    pushing material changes with review pending, apply raise-pr's auto-merge and
    merge-queue hold; if the hold cannot be verified, stop before pushing.
-   Material repairs may be pushed for existing human or agent reviewers to
-   evaluate before merge; disclose pending review. If no eligible reviewer is
+   If no eligible reviewer is
    available under this skill's delegation limits, report the merge gate and
    the owner action needed to supply review. Inspect failure logs;
    distinguish code defects from infrastructure failures. Bound retries. An

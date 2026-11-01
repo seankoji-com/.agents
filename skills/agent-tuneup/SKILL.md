@@ -43,6 +43,6 @@ or the result is brief.
 
 ## Boundaries
 
-Use native tools and follow host permissions and sharing rules. Keep private
+Use native tools. Keep private
 configuration out of reports and external prompts without sharing authority.
 This skill grants no extra authority to edit, publish, broaden access or deploy.

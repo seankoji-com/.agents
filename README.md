@@ -1,6 +1,6 @@
 # .agents
 
-Seventeen skills for coding agents. Each skill is a folder. The agent reads
+Eighteen skills for coding agents. Each skill is a folder. The agent reads
 `SKILL.md`, and any notes, templates or helpers live in that same folder.
 
 ## Use a skill
@@ -32,8 +32,8 @@ skill names. If a named tool is missing, the skill says to report that and use
 the host's own equivalent, or plain text.
 
 `review-loop` and `challenge` ask a second model from a different provider
-family to review the work. They try Sol, then Opus, Wonder Full, Argon and
-Grok 4.7, and they take the model id from the host. They do not swap in a
+family to review the work. They try these in order:
+**Sol, Opus, Wonder Full, Argon, Grok 4.7**. They take the model id from the host. They do not swap in a
 model from the same family.
 
 `design-chooser` asks one to three models, each from a different family, for two
@@ -60,6 +60,7 @@ content as text.
 | [focus-group](skills/focus-group/SKILL.md) | Run a product study with invented personas |
 | [design-chooser](skills/design-chooser/SKILL.md) | Compare mockups from up to three model families and pick one before building |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Inspect or change agent configuration, permissions and skill discovery |
+| [agent-docs](skills/agent-docs/SKILL.md) | Write, edit or audit skills and AGENTS.md/CLAUDE.md so agents follow them the same way each run |
 | [test-writer](skills/test-writer/SKILL.md) | Add tests that catch real failures, and keep required CI under ten minutes |
 | [file-upstream-bug](skills/file-upstream-bug/SKILL.md) | Reproduce a defect and report it to the project that owns it |
 | [unslop](skills/unslop/SKILL.md) | Rewrite text that reads like model output |

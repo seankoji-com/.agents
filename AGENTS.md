@@ -23,7 +23,6 @@ commit-message generation, committing, pushing and configured host delivery.
 Keep the repository-only direct-publish exceptions narrow; never force-push.
 
 Dotfiles owns external configuration. Preserve installed skills, active jobs,
-credentials, ignored settings and marketplace state until their callers are migrated
-through that owner. The README is the public documentation. Do not republish the
+credentials, ignored settings and marketplace state. The README is the public documentation. Do not republish the
 retired website. Report
 local checks, hosted CI, review, merge, deployment and fresh-session acceptance separately.

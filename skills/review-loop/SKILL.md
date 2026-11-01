@@ -7,8 +7,8 @@ description: "Use when the user requests an iterative implementation, independen
 
 ## Triggers
 
-Use for requested implementation and review loops. Infer the goal and endpoint
-from the request; ordinary engineering work does not automatically need this loop.
+Infer the goal and endpoint from the request; ordinary engineering work does not
+automatically need this loop.
 
 ## Workflow
 
@@ -67,10 +67,8 @@ from the request; ordinary engineering work does not automatically need this loo
    or task completion status is not approval. Cancel failed work and verify it
    stopped before retrying within the remaining budget.
 5. Verify each finding using severity, location, reproduction or supporting evidence,
-   and impact. Rare failures can still be serious; judge consequence and evidence,
-   not frequency alone. SEV1 blocks release unless the user explicitly approves
-   an exception. The parent assesses SEV2 against release requirements and its
-   workaround; SEV3 normally allows release. Repair findings selected by the
+   and impact, and apply review-evidence's release treatment for its SEV level.
+   Repair findings selected by the
    parent and unmet criteria within scope. Capture fresh evidence for visible
    fixes and preserve original findings. Prefer deleting or narrowing when it fixes the
    cause. Challenge incorrect or unnecessary requests with evidence rather than
@@ -86,8 +84,8 @@ from the request; ordinary engineering work does not automatically need this loo
    in acceptance coverage. Editorial corrections and declined nits need no new
    round. Never transfer approval across unreviewed behavior or shop for reviewers.
 7. Accept when evidence covers the current behavior, required criteria are met
-   and remaining findings have explicit dispositions consistent with the release
-   rules above. An approved exception does not mean the bug is fixed. Incomplete
+   and remaining findings have explicit dispositions consistent with
+   review-evidence's release treatment. An approved exception does not mean the bug is fixed. Incomplete
    visual review remains an evidence gap in the release recommendation.
    Reviewer verdicts inform that decision; agreement alone does not prove it.
    The parent decides deferrals and retains severity and supporting evidence.
@@ -117,8 +115,7 @@ Keep updates brief: result, material findings and next action. Final handoff inc
 revision, implementation attempts and evaluation rounds used/limits, exact work and
 review models, checks, finding dispositions, deferrals and endpoint evidence or
 remaining blockers. Report usage only when exposed. Separate local validation,
-hosted checks, independent review, merge and deployment. Delegated agents return
-complete plain-text results. In T3 Code, the coordinator uses `html_preview` then
+hosted checks, independent review, merge and deployment. In T3 Code, the coordinator uses `html_preview` then
 `html_render` for user-facing substantive findings and disposition reports;
 use readable text when native HTML is unavailable or the result is brief.
 

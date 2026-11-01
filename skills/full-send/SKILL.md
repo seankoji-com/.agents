@@ -51,10 +51,8 @@ or dismiss a required human gate because a model is confident.
 
 ## Waiting and blockers
 
-Use babysitter's native watcher. In T3 Code, register `watch_pull_request` and
-end the turn while checks or review are pending so the host can wake the thread.
-This is a pending continuation, not a handback. Unwatch when handing back ready,
-blocked or cancelled work. Never add a second watcher or polling loop.
+Use babysitter's native watcher and its rules for when monitoring ends. Never
+add a second watcher or polling loop.
 
 Continue authorized work until the endpoint or a concrete blocker. Ask through
 the host's question tool only for a material ambiguity, missing authority or

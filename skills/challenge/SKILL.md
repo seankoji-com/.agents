@@ -58,8 +58,7 @@ Report unresolved decisions after that; do not loop to unanimity. Follow explici
 user limits and stop task-owned work when complete or cancelled.
 
 Return the recommendation, assumptions, supported findings, simpler alternative,
-discriminating next check, reviewer identity and material gaps. Delegated agents
-return complete plain-text results. In T3 Code, the coordinator checks user-facing
+discriminating next check, reviewer identity and material gaps. In T3 Code, the coordinator checks user-facing
 substantive reports with `html_preview`, inspects them and shows with `html_render`.
 Use readable text when native HTML is unavailable or the result is brief.
 Pressure testing alone does not authorize implementation.

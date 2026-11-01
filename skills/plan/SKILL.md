@@ -7,9 +7,8 @@ description: "Use when the user requests planning, discovery, requirements, a sp
 
 ## Triggers
 
-Use when the user requests planning, discovery, requirements, a specification or
-a planning handoff. Uncertainty during ordinary engineering work does not by itself
-require this workflow. Resume existing notes and decisions rather than restart
+Uncertainty during ordinary engineering work does not by itself require this
+workflow. Resume existing notes and decisions rather than restart
 discovery.
 
 ## Workflow
@@ -68,6 +67,5 @@ native HTML is unavailable or the result is brief.
 
 ## Boundaries
 
-Follow host tools, permissions and sharing limits. Preserve unrelated work and
-private inputs. This skill adds no execution or publication authority.
-Preserve explicit user choices and keep secrets out of reports.
+Preserve unrelated work, and keep private inputs within sharing limits. This skill
+adds no execution or publication authority. Preserve explicit user choices.
