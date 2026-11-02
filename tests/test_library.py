@@ -29,6 +29,16 @@ scanner = load('skills/agent-tuneup/scripts/scan_config.py')
 waiter = load('skills/babysitter/scripts/pr-wait')
 
 
+def library_fixture(root):
+    subprocess.run(['git', 'init', '-q', str(root)], check=True)
+    for name in checker.SKILLS:
+        shutil.copytree(ROOT / 'skills' / name, root / 'skills' / name,
+                        ignore=shutil.ignore_patterns('__pycache__'))
+    for name in ('README.md', 'AGENTS.md', 'LICENSE'):
+        shutil.copy2(ROOT / name, root / name)
+    subprocess.run(['git', '-C', str(root), 'add', 'skills'], check=True)
+
+
 class Helpers(unittest.TestCase):
     def test_timing_includes_failures_and_nearest_rank(self):
         rows = [{'seconds': n, 'outcome': 'failed' if n == 20 else 'passed'}
@@ -223,12 +233,7 @@ class Watcher(unittest.TestCase):
 
 
 class Library(unittest.TestCase):
-    def fixture(self, root):
-        subprocess.run(['git', 'init', '-q', str(root)], check=True)
-        for name in checker.SKILLS:
-            shutil.copytree(ROOT / 'skills' / name, root / 'skills' / name,
-                            ignore=shutil.ignore_patterns('__pycache__'))
-        subprocess.run(['git', '-C', str(root), 'add', 'skills'], check=True)
+    fixture = staticmethod(library_fixture)
 
     def test_library_and_independent_folders(self):
         self.assertEqual(checker.check(ROOT), [])
@@ -295,6 +300,145 @@ class Library(unittest.TestCase):
             (retired / 'engine.py').write_text('pass\n')
             subprocess.run(['git', '-C', str(root), 'add', 'core/engine.py'], check=True)
             self.assertIn('retired source container', '\n'.join(checker.check(root)))
+
+
+class Documentation(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        library_fixture(self.root)
+        self.readme = self.root / 'README.md'
+
+    def errors(self):
+        return '\n'.join(checker.check(self.root))
+
+    def test_missing_duplicate_renamed_and_edited_catalog_entries_fail(self):
+        original = self.readme.read_text()
+        row = next(line for line in original.splitlines() if line.startswith('| [bro]'))
+        for replacement in ('', row + '\n' + row,
+                            row.replace('skills/bro/', 'skills/old-bro/'),
+                            row.replace(' | ', ' | Outdated. ', 1)):
+            with self.subTest(replacement=replacement):
+                self.readme.write_text(original.replace(row, replacement))
+                self.assertIn('stale skill catalog', self.errors())
+
+    def test_metadata_change_requires_catalog_refresh_and_docs_review(self):
+        source = self.root / 'skills/bro/SKILL.md'
+        lines = source.read_text().splitlines()
+        index = next(i for i, line in enumerate(lines) if line.startswith('description: '))
+        lines[index] = 'description: Explain a difficult idea clearly.'
+        source.write_text('\n'.join(lines) + '\n')
+        errors = self.errors()
+        self.assertIn('stale skill catalog', errors)
+        self.assertIn('skill instructions changed', errors)
+        self.assertEqual(checker.check(self.root, True, True), [])
+        self.assertIn('| Explain a difficult idea clearly. |', self.readme.read_text())
+
+    def test_instruction_and_reference_changes_require_review_without_catalog_drift(self):
+        for relative in ('skills/ship/SKILL.md',
+                         'skills/review/references/deferred-bugs.md'):
+            with self.subTest(relative=relative):
+                source = self.root / relative
+                original = source.read_text()
+                source.write_text(original + '\nA synthetic instruction change.\n')
+                errors = self.errors()
+                self.assertIn('skill instructions changed', errors)
+                self.assertNotIn('stale skill catalog', errors)
+                source.write_text(original)
+
+    def test_new_and_renamed_source_skills_cannot_escape_registration(self):
+        extra = self.root / 'skills/fixture-new'
+        extra.mkdir()
+        (extra / 'SKILL.md').write_text(
+            '---\nname: fixture-new\ndescription: A synthetic skill.\n---\nDo the task.\n')
+        self.assertIn('unregistered skill: fixture-new', self.errors())
+        (self.root / 'skills/bro').rename(self.root / 'skills/renamed-bro')
+        self.assertIn('missing skill: bro', self.errors())
+        self.assertIn('unregistered skill: renamed-bro', self.errors())
+
+    def test_mermaid_skill_nodes_reject_retired_names_and_invalid_annotations(self):
+        original = self.readme.read_text()
+        self.readme.write_text(original.replace('"review<br/>', '"retired-review<br/>'))
+        self.assertIn('unknown Mermaid skill: retired-review', self.errors())
+        self.readme.write_text(original.replace(':::skill', ':::skill-extra', 1))
+        self.assertIn('malformed Mermaid skill node', self.errors())
+
+    def test_refresh_refuses_ambiguous_markers_without_overwriting_prose(self):
+        original = self.readme.read_text()
+        for bad in (original.replace('<!-- skill-catalog:start -->', ''),
+                    original + '\n<!-- skill-catalog:end -->\n',
+                    original.replace('<!-- skill-catalog:start -->', '<!-- swapped -->')
+                    .replace('<!-- skill-catalog:end -->', '<!-- skill-catalog:start -->')
+                    .replace('<!-- swapped -->', '<!-- skill-catalog:end -->'),
+                    original + '\n<!-- skills-review: duplicate -->\n'):
+            with self.subTest(bad=bad[-70:]):
+                self.readme.write_text(bad)
+                self.assertTrue(checker.check(self.root, True, True))
+                self.assertEqual(self.readme.read_text(), bad)
+
+    def test_heading_rename_cannot_silently_break_readme_navigation(self):
+        self.readme.write_text(self.readme.read_text().replace(
+            '## Skill catalog', '## Available skills'))
+        self.assertIn('broken heading link: #skill-catalog', self.errors())
+
+    def test_generated_descriptions_preserve_quotes_and_escape_table_pipes(self):
+        source = self.root / 'skills/bro/SKILL.md'
+        original = source.read_text()
+        description = next(line for line in original.splitlines()
+                           if line.startswith('description: '))
+        for scalar, expected in (
+                ('"Say \\"hello\\" | keep it short."', 'Say "hello" \\| keep it short.'),
+                ("'Say ''hello'' | keep it short.'", "Say 'hello' \\| keep it short.")):
+            with self.subTest(scalar=scalar):
+                source.write_text(original.replace(description, 'description: ' + scalar))
+                self.assertEqual(checker.check(self.root, True, True), [])
+                self.assertIn(expected, self.readme.read_text())
+
+    def test_ignored_notes_do_not_affect_checks_or_receipt_but_tracked_sources_do(self):
+        ignore = self.root / '.gitignore'
+        ignore.write_text('skills/bro/local-notes.md\n'
+                          'skills/review/references/deferred-bugs.md\n')
+        (self.root / 'skills/bro/local-notes.md').write_text(
+            '# Synthetic local draft\n[unfinished](missing.md)\nPKG/shared/retired.md\n')
+        before = self.readme.read_bytes()
+        self.assertEqual(checker.check(self.root), [])
+        self.assertEqual(checker.check(self.root, True, True), [])
+        self.assertEqual(self.readme.read_bytes(), before)
+        tracked = self.root / 'skills/review/references/deferred-bugs.md'
+        tracked.write_text(tracked.read_text() + '\nA changed tracked instruction.\n')
+        self.assertIn('skill instructions changed', self.errors())
+
+    def test_malformed_or_multiline_descriptions_cannot_enter_catalog(self):
+        source = self.root / 'skills/bro/SKILL.md'
+        original = source.read_text()
+        description = next(line for line in original.splitlines()
+                           if line.startswith('description: '))
+        before = self.readme.read_bytes()
+        for scalar in ('>-', '|-', '>+', "'unfinished", "'", "''", '""',
+                       '"   "', '"One\\nTwo"'):
+            with self.subTest(scalar=scalar):
+                source.write_text(original.replace(description, 'description: ' + scalar))
+                self.assertIn('bro: invalid single-line description',
+                              '\n'.join(checker.check(self.root, True, True)))
+                self.assertEqual(self.readme.read_bytes(), before)
+
+    def test_relocated_cli_preserves_prose_and_refresh_is_idempotent(self):
+        script = self.root / 'scripts/check_library.py'
+        script.parent.mkdir()
+        shutil.copy2(ROOT / 'scripts/check_library.py', script)
+        foreign = self.root / 'elsewhere'
+        foreign.mkdir()
+        prose = 'A synthetic portfolio introduction.\n\n'
+        self.readme.write_text(prose + self.readme.read_text())
+        command = [sys.executable, str(script), '--update-readme', '--acknowledge-docs']
+        result = subprocess.run(command, cwd=foreign, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        first = self.readme.read_bytes()
+        self.assertTrue(first.decode().startswith(prose))
+        result = subprocess.run(command, cwd=foreign, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.readme.read_bytes(), first)
 
 
 if __name__ == '__main__':
