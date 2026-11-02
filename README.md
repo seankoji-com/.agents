@@ -20,6 +20,7 @@ Keep the `skills` directory together. A few skills link to siblings:
 
 - `ketchup` links to `bro`
 - `grilling` links to `review` for its stop-condition check and `design-chooser` for UI implementation
+- `grilling` and review's deferred-bug procedure use `raise-issue` for issue filing
 - `review-loop`, `raise-pr`, `babysitter`, `challenge` and `focus-group` use `review`
 - `ship` links to `review-loop` and `babysitter`
 - `review-loop`, `ship` and `babysitter` link to `raise-pr`
@@ -30,8 +31,9 @@ library only. Reading a skill needs no install step.
 
 These instructions were written against T3 Code and Codex. Another host can
 follow them when it can read files, run commands, and perform the actions the
-skill names. If a named tool is missing, the skill says to report that and use
-the host's own equivalent, or plain text.
+skill names. Follow each skill's fallback rules when a named tool is missing.
+`implement` and asynchronous `raise-issue` require T3 delegation; an unavailable
+route is a reported blocker unless the user explicitly requests inline issue work.
 
 `review` selects a reviewer from a different model family than the coordinator
 and every model that materially authored the reviewed work. It tries these in
@@ -40,6 +42,19 @@ the host. A named same-family reviewer is a conflict, not an exception.
 `review-loop` participants apply that shared rule and the evidence requirements
 on every review round. `grilling` obtains a second opinion on its stop condition
 before handing off; unresolved material decisions return to the interview.
+
+Confirmed bugs left unfixed must have verified tracking issues, including
+non-blocking SEV3 bugs. The coordinator validates and files them under review's
+shared rules; reviewers return findings. Invoking `implement`, `ship` or
+`babysitter` includes this task-related issue filing unless explicitly limited.
+Final handoffs link each deferred bug to its issue or identify blocked tracking.
+
+`raise-issue` delegates preparation and authorised filing asynchronously through
+T3. The top-level workflow owner owns those jobs, including an independently
+launched repository or PR owner; child delegates return filing requests to it.
+Already non-blocking bugs may merge while filing is pending, and the overall
+workflow remains active until the issue URLs are verified. Issue writers reuse
+validated evidence rather than restarting a thorough investigation by default.
 
 `implement` moves coding into a working-lead T3 delegate in an isolated
 worktree. It selects task-appropriate models for expected total cost, with one
@@ -55,8 +70,9 @@ in T3 Code, then waits for you to pick one.
 `ship` and `babysitter` may commit, push and merge after you invoke them.
 Read those two before you use them. Limits you set in the request still apply.
 
-In T3 Code, longer reports use the host HTML preview. Other hosts get the same
-content as text.
+In T3 Code, the main thread presents longer reports through the host HTML preview.
+Delegates return complete plain text to their coordinator. Other hosts get the
+same content as text.
 
 ## Skills
 
@@ -73,7 +89,7 @@ content as text.
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Inspect or change agent configuration, permissions and skill discovery |
 | [agent-docs](skills/agent-docs/SKILL.md) | Write, edit or audit skills and AGENTS.md/CLAUDE.md so agents follow them the same way each run |
 | [test-writer](skills/test-writer/SKILL.md) | Add tests that catch real failures, and keep required CI under ten minutes |
-| [file-upstream-bug](skills/file-upstream-bug/SKILL.md) | Reproduce a defect and report it to the project that owns it |
+| [raise-issue](skills/raise-issue/SKILL.md) | Prepare, file or follow up on bugs, features and tasks in owned, organisation or upstream repositories |
 | [unslop](skills/unslop/SKILL.md) | Rewrite text that reads like model output |
 | [ship](skills/ship/SKILL.md) | Carry an explicit "ship" through tests, review and a merged pull request |
 | [grilling](skills/grilling/SKILL.md) | Settle decisions through questions and produce an implementation brief |

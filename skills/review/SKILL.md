@@ -134,6 +134,19 @@ The parent checks current labels and
 maps equivalent meanings; do not equate SEV1 with priority:P1 or invent a label
 mapping. Label creation and migration belong to separately authorized work.
 
+## Track deferred bugs
+
+For every confirmed bug intentionally left unfixed, the coordinator must obtain
+a verified issue URL before declaring an execution workflow complete. Apply
+[deferred-bug tracking](references/deferred-bugs.md) for deduplication, issue
+contents and read-back verification. This includes non-blocking SEV3 bugs and
+approved release exceptions. Issue creation does not lower severity or waive
+a blocking finding. Reviewers report findings; the coordinator files within its
+authority. If filing is blocked, preserve the draft and report tracking as
+incomplete. Rejected findings and stylistic preferences require no issue.
+Already non-blocking bugs may ship while filing is pending under that procedure;
+the workflow stays open until required issue URLs are verified.
+
 ## Return a usable report
 
 Include scope, revision, checks, reviewed flows and coverage gaps, even when no

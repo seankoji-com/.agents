@@ -64,8 +64,9 @@ Use when asked to audit, prune or trim agent docs.
    evidence, then always-loaded words before and after. Apply edits only within
    granted authority, and only those whose A/B result held.
 
-In T3 Code, use `html_preview` then `html_render` for the audit report; use
-readable text elsewhere.
+Delegates return complete plain-text reports to their coordinator. In T3 Code,
+only the main-thread coordinator uses `html_preview` then `html_render` for the
+audit report; use readable text elsewhere.
 
 ## Boundaries
 

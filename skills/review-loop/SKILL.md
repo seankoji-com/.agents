@@ -87,7 +87,10 @@ automatically need this loop.
    visual review remains an evidence gap in the release recommendation.
    Reviewer verdicts inform that decision; agreement alone does not prove it.
    The parent decides deferrals and retains severity and supporting evidence.
-   Keep reasons in the handoff; file issues only when authorized. Stop circular
+   Apply review's deferred-bug tracking rule: hand off verified issue URLs or
+   owned asynchronous filing requests for already non-blocking bugs. Filing
+   remains within authority and tracking stays incomplete until URLs are verified.
+   Stop circular
    debate or repeated attempts without progress. Escalate only material decisions
    the user must make; budget exhaustion is not approval. Continue independent
    authorized work while dependent work is blocked.

@@ -10,7 +10,7 @@ codes directly, delegates substantial independent parts when useful, and runs
 [review-loop](../review-loop/SKILL.md) before returning reviewed commits. The
 main thread owns acceptance, integration and shipping.
 
-## Main-thread handoff
+## Main-thread responsibilities
 
 1. Read the repository rules and working tree. Give the lead a compact brief:
    request and authority, scope and exclusions, settled product/design decisions,
@@ -29,6 +29,12 @@ main thread owns acceptance, integration and shipping.
    dispatch scoped worker and reviewer children. Follow the returned `next`.
    If the required T3 route is unavailable, report it without substituting a
    shell launcher, native agent or top-level thread.
+4. On return, verify the worktree, exact HEAD, checks, review and remaining gates
+   against the brief before acceptance or integration. Record every deferred-bug
+   packet under [tracking](../review/references/deferred-bugs.md), dispatch it
+   through raise-issue and retain ownership until its issue URL is verified.
+   Code readiness and tracking completion are separate states. Continue
+   independent work under the caller's authority.
 
 ## Model and effort selection
 
@@ -131,25 +137,34 @@ revision. Ready means the agreed criteria, required checks and applicable
 runtime/UI evidence are met, with an eligible completed cross-lineage review
 and finding dispositions allowed by review. Missing material evidence or
 unresolved gates must be reported as incomplete.
+Apply review's deferred-bug tracking rule. Code-ready work may return with
+non-blocking filing requests for the main thread to dispatch through
+[raise-issue](../raise-issue/SKILL.md). Include the evidence, finding IDs, source
+revision and posting authority, and mark tracking pending until URLs are verified.
 
 Return a compact plain-text handoff containing:
 
 - Repository, worktree, branch, exact base and reviewed HEAD, and commit IDs.
 - Implemented scope, checks and evidence, findings and dispositions, remaining
   limitations and the next integration action.
-- Lead, worker and reviewer identities/lineages, model-selection reasons, upgrade
-  use, review rounds used/remaining and usage or cost only where exposed.
+- Model identities/lineages, selection reasons, upgrade use, review budget
+  used/remaining and usage or cost only where exposed.
 - Review eligibility for main-thread reuse and any integration/base changes
   that would require affected behavior to be reviewed again.
 - Owned task handles, worker worktree paths and cleanup status.
+- Verified deferred-bug issue URLs or pending filing requests and their owner.
 
 Stop owned workers, servers and monitoring when finished. Keep the lead worktree
 and commits available for parent integration. Remove integrated worker worktrees
 only through T3 tooling when supported; otherwise report them for T3 cleanup.
 Preserve evidence needed by the handoff before removing task artifacts.
+Keep source/evidence required for pending issue filing accessible to the main
+thread and issue writer; a code-ready handoff does not complete that tracking.
 
 Invoking implement authorises scoped local commits by the lead and its workers
-in their T3 worktrees. It does not authorise committing prerequisites in the
-parent checkout, parent integration, pushing, PR creation, merging or deployment.
+in their T3 worktrees, and filing of confirmed deferred bugs arranged by the
+main thread in the task's repository. Explicit no-post limits apply. It does not authorise committing
+prerequisites in the parent checkout, parent integration, pushing, PR creation,
+merging or deployment.
 Explicit narrower limits still apply; if they prevent the requested commit
 handoff, report that conflict.

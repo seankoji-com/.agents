@@ -48,9 +48,10 @@ not elapsed CI time or causal speedup.
 Report protection added, checks/results, runtime impact and gaps in the requested
 format. A short answer can stay in chat. Distinguish local timings, current-head
 hosted CI and estimates. Unmeasured CI cost does not prove budget compliance.
-In T3 Code, use `html_preview` then `html_render` for substantive suite audits and
-timing comparisons; use readable text when native HTML is unavailable or the
-result is brief.
+Delegates return complete plain-text reports to their coordinator. In T3 Code,
+only the main-thread coordinator uses `html_preview` then `html_render` for
+substantive suite audits and timing comparisons; use readable text when native
+HTML is unavailable or the result is brief.
 
 ## Boundaries
 

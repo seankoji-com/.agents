@@ -18,6 +18,10 @@ dispatch, green checks or merge readiness. Reuse this authority across wakes and
 include it explicitly in initial babysitter assignments. Do not ask again for routine actions
 already covered by the request.
 
+This authority includes coordinator filing of confirmed deferred bugs in the
+task's repository under [review](../review/SKILL.md)'s tracking rules. Explicit
+no-post limits apply; report verified issue URLs with each deferred finding.
+
 The user explicitly includes the repository's existing automatic post-merge
 deployment workflows in this standing merge authorization. Inspect and identify
 those effects before dispatch, carry that authority into each brief, and merge
@@ -37,12 +41,16 @@ work, not itself an external blocker.
 ## Concurrent ownership in T3
 
 Read [references/t3.md](references/t3.md) before T3 inventory or dispatch.
-Babysitters must not create delegates or subagents through T3, native tools,
-other providers, or helper CLIs, including for reviews and tests. Do assigned
+Only the main-thread coordinator, including an independent top-level PR owner,
+may dispatch asynchronous issue writers under [raise-issue](../raise-issue/SKILL.md).
+Child babysitters return filing requests to their owning coordinator.
+For all other work, babysitters must not create delegates
+or subagents through T3, native tools, other providers, or helper CLIs, including
+for reviews and tests. Do assigned
 work directly. If independent review is mandatory and unavailable, report that
 gate without creating a reviewer or presenting self-review as independent.
 Only a dispatcher explicitly asked by the user to assign babysitters may create
-the initial assignments; assigned babysitters cannot dispatch further agents.
+the initial babysitter assignments; child babysitters cannot dispatch further agents.
 
 Prefer existing repository owners. Do not create
 one top-level thread per PR by default. A separate clone may provide a clean
@@ -92,8 +100,8 @@ prepared checkout or child exit is not proof of a running agent or accepted PR.
    checks/review. Do not rewrite shared history without authority. Re-evaluate
    dependents after prerequisite merges instead of leaving them indefinitely deferred.
 5. Merge when latest-head checks, required reviews, raise-pr's current-diff
-   independent review gate, thread dispositions and release
-   acceptance pass, using the permitted merge method and expected head SHA where
+   independent review gate, owned deferred-bug tracking requests, thread dispositions and
+   release acceptance pass, using the permitted merge method and expected head SHA where
    supported. Verify GitHub reports merged. Enable auto-merge when supported and
    authorized, after non-CI acceptance gates pass. Verify its state for each PR;
    re-enable it after resolved holds when eligible. Auto-merge enabled is not merged.
@@ -118,6 +126,8 @@ prepared checkout or child exit is not proof of a running agent or accepted PR.
    are a continuation, not completion. Budget exhaustion is partial work. A
    credential or approval blocker on one PR must not stop unrelated PRs. At final
    handback, release watches and clean task-owned artifacts/worktrees by host rules.
+   After merge, pending issue filing remains the main coordinator's responsibility;
+   preserve its evidence and jobs until the URLs are verified.
 
 ## Outputs
 
@@ -125,9 +135,10 @@ Report each PR's URL/head, owner, repairs, local checks, current-head hosted CI,
 review/merge and auto-merge state, and next action or exact blocker. Distinguish
 source edits from installed or fresh-session behavior.
 Claim continued monitoring only while a supported watch is active.
-In T3 Code, use `html_preview` then `html_render` for substantive multi-PR reports
-and repair summaries. Use readable text when native HTML is unavailable or the
-result is brief.
+Child babysitters return complete plain-text reports to their coordinator.
+In T3 Code, only the main-thread coordinator uses `html_preview` then `html_render`
+for substantive multi-PR reports and repair summaries. Use readable text when
+native HTML is unavailable or the result is brief.
 
 ## Outside T3 and API limits
 

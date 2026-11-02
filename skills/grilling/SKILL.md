@@ -48,15 +48,19 @@ implementation endpoint. Otherwise use the host's ask-user-question tool to ask
 what the user wants to create:
 
 1. An issue, with sub-issues when the work warrants them.
-2. A Markdown file in a temporary location outside the worktree.
+2. A Markdown brief saved to a file.
 3. Complete the work now in the same session
+
+For a chosen issue endpoint, apply [raise-issue](../raise-issue/SKILL.md) to
+prepare and file the accepted brief in the owning repository.
 
 Use numbered text questions only when no question tool is available. Wait for the
 user's choice before creating either artifact. Carry the settled decisions,
 assumptions and unresolved gates into the chosen artifact. Confirm a missing issue
 destination only if it cannot be inferred from context. For the Markdown option,
-honour any supplied path; otherwise choose a temporary location outside the
-worktree and report the file's absolute path.
+honour any supplied path. Otherwise use the host-approved artifact location,
+verifying an ignored directory inside the session worktree when required.
+Report the file's absolute path and preserve it for the user's handoff.
 
 Grilling alone does not authorize implementation. If implementation is already
 requested, continue within that authority once material decisions are settled

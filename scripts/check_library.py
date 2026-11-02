@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 SKILLS = ('babysitter', 'review-loop', 'challenge', 'focus-group',
-          'agent-tuneup', 'test-writer', 'file-upstream-bug', 'unslop', 'ship',
+          'agent-tuneup', 'test-writer', 'raise-issue', 'unslop', 'ship',
           'grilling', 'ketchup', 'bro', 'review', 'design-chooser', 'raise-pr',
           'agent-docs', 'implement')
 RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents|'
