@@ -41,8 +41,9 @@ work, not itself an external blocker.
 ## Concurrent ownership in T3
 
 Read [references/t3.md](references/t3.md) before T3 inventory or dispatch.
-Only the main-thread coordinator, including an independent top-level PR owner,
-may dispatch asynchronous issue writers under [raise-issue](../raise-issue/SKILL.md).
+Only the main-thread coordinator, including an independent top-level repository
+or PR owner, may dispatch asynchronous issue writers under
+[raise-issue](../raise-issue/SKILL.md).
 Child babysitters return filing requests to their owning coordinator.
 For all other work, babysitters must not create delegates
 or subagents through T3, native tools, other providers, or helper CLIs, including
