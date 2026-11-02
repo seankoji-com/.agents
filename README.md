@@ -1,31 +1,238 @@
 # .agents
 
-A personal skill library for taking coding agents from an idea to a reviewed,
-merged change.
+[![skills.sh](https://skills.sh/b/seankoji-com/.agents)](https://skills.sh/seankoji-com/.agents)
 
-The interesting part of agent-assisted development is deciding what deserves a
-question, what can run independently, and what evidence is enough to ship.
-This library makes those decisions explicit. Product interviews, UI choices,
-isolated implementation, independent review and issue tracking each have a
-small, readable skill with a clear handoff.
+*Give your coding agent a way to finish the job.*
 
-The main thread keeps the goal and owns the result. Delegates receive bounded
-jobs. Review comes from a different model family. Confirmed bugs left for later
-get tracking issues, even when they do not block the release.
-Shipping also keeps a visible parent task list and ends with a retrospective
-that proposes reusable workflow improvements as issues in this repository.
+A collection of skills for the work around writing code. Decide what to build,
+choose how it should work, get an independent review, and carry a change through
+to delivery with evidence that it works.
 
-[Explore the skills](#skill-catalog) · [Try it](#use-the-library) · [Keep docs current](#documentation-that-tracks-the-code)
+You describe the outcome. The skills give your agent a repeatable way to work
+toward it, and give you a way to see what is decided, what is checked, and what
+still needs your attention.
 
-## Start with the outcome
+[Find a skill](#find-your-starting-point) · [See an example](#what-it-looks-like-in-practice) · [Get started](#use-the-library) · [All skills](#skill-catalog)
+
+> [!NOTE]
+> **Looking for the website?** This README is the public documentation. The
+> former GitHub Pages site is retired. Use the
+> [repository](https://github.com/seankoji-com/.agents#readme) as your bookmark.
+
+## Why these skills exist
+
+A coding agent can produce a patch while leaving the important work unfinished.
+It may solve the wrong problem, make a product decision you wanted to make,
+review its own assumptions, or stop while checks are still running.
+
+This library gives those parts of the job names and instructions. You can ask
+for a focused interview before building anything. You can get a second opinion
+without asking for edits. You can hand over a change for delivery and expect the
+agent to track it through review and the repository's release gates.
+
+The aim is to spend your attention on decisions that change the result. Routine
+work continues within the scope you gave; consequential unanswered questions
+come back to you.
+
+## What is a skill?
+
+A skill is a small written guide that your coding agent reads when it needs to
+perform a particular kind of work. Each folder has a `SKILL.md` file with the
+purpose, steps, evidence to collect, and conditions for finishing.
+
+The names describe jobs. `grilling` helps you decide what you mean. `review`
+checks work against the goal. `ship` owns delivery. You can use one skill on its
+own or combine several in a request.
+
+Your agent host supplies the models, tools, permissions, and any background
+workers. This repository supplies their working instructions. There is no
+service to start or separate scheduler to run.
+
+## Find your starting point
+
+Choose a skill by the job you want done. Each link opens the instructions your
+agent will follow.
+
+[Product and design](#product-and-design) · [Engineering](#engineering) · [Writing and conversation](#writing-and-conversation) · [Agent setup](#agent-setup)
+
+### Product and design
+
+Settle what to build and how people will use it before implementation.
+
+- [grilling](skills/grilling/SKILL.md): Turn an idea into a buildable brief through focused questions and a check for unresolved decisions.
+- [challenge](skills/challenge/SKILL.md): Get an independent critique of a proposal, a simpler alternative, and evidence that would help you choose. No implementation.
+- [design-chooser](skills/design-chooser/SKILL.md): Compare visual options for a new interface or a material interaction change, then choose before building.
+- [focus-group](skills/focus-group/SKILL.md): Explore a product through fictional participants in a clearly labelled synthetic study. Model responses are not human research.
+
+### Engineering
+
+Build, check, and deliver changes with evidence of what works and what remains.
+
+- [ship](skills/ship/SKILL.md): Carry a change through implementation, checks, independent review, and delivery, with visible progress and a final workflow retrospective.
+- [implement](skills/implement/SKILL.md): Move substantial coding into a separate workspace and return reviewed commits to the main conversation for integration. Requires T3 delegation.
+- [review](skills/review/SKILL.md): Evaluate a plan, change, or release using an independent model family. Return findings tied to evidence without changing code.
+- [review-loop](skills/review-loop/SKILL.md): Alternate repairs and independent review until the agreed criteria hold or a bounded review limit is reached.
+- [test-writer](skills/test-writer/SKILL.md): Choose tests that catch consequential failures, with attention to reliability, maintenance, and CI time.
+- [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
+- [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
+- [raise-issue](skills/raise-issue/SKILL.md): Prepare and file a bug, feature, or task asynchronously, preserving the evidence and returning a verified issue URL. Requires T3 delegation.
+
+### Writing and conversation
+
+Understand the work and communicate it clearly.
+
+- [ketchup](skills/ketchup/SKILL.md): Catch up on what happened in this conversation and which decisions still need you.
+- [bro](skills/bro/SKILL.md): Restate the last answer in plain language without changing its meaning.
+- [unslop](skills/unslop/SKILL.md): Remove formulaic AI phrasing and make writing concrete and direct.
+- [github-writing](skills/github-writing/SKILL.md): Credit AI-written GitHub prose with a visible byline naming the actual writer and represented operator.
+
+### Agent setup
+
+Maintain the instructions and configuration your agents depend on.
+
+- [agent-docs](skills/agent-docs/SKILL.md): Write agent instructions with clear triggers, ordered steps, and checkable completion conditions.
+- [agent-tuneup](skills/agent-tuneup/SKILL.md): Diagnose settings, permissions, connections, or missing skills. Separate saved configuration from observed behavior.
+
+## What it looks like in practice
+
+Suppose you want to add a replay to a browser game. You know the outcome, but
+have not decided how replay timing should work.
 
 ```text
-Ship a post-game replay for typing.football that plays the match in real time.
-Grill me on unresolved product decisions and help me choose the UI.
+Add a post-game replay that plays the match in real time.
+Use grilling to settle the timing decisions before implementation.
+Keep the game's existing visual style.
 ```
 
-That request gives the agent an outcome. It can choose the skills that help,
-reuse decisions already made and skip unnecessary ceremony.
+The interview should resolve questions that change the implementation. Does
+pausing the replay pause the whole game? What happens if someone leaves? It
+should use facts already available in the project and reuse decisions you have
+made.
+
+If the replay needs a new control that the existing design does not answer,
+`design-chooser` can help you choose it. If the current interface already gives
+a clear answer, the agent can preserve it and continue.
+
+For delivery, you can be explicit about the endpoint:
+
+```text
+Ship the agreed replay. Verify playback in the browser, get an independent
+review, and take it through the repository's checks and merge gates.
+```
+
+You should receive the result and its evidence, with any unfinished work named.
+A passing local test, a merged PR, and a working production replay are separate
+claims. Each needs its own verification.
+
+You can also keep the job narrow:
+
+```text
+Challenge this replay proposal. Return findings without editing code.
+```
+
+That request ends with an evaluation. It does not start implementation.
+
+## What you stay in control of
+
+Skills carry different scopes. Read the linked instructions before handing over
+a job, especially one that can publish or merge changes.
+
+- **Decisions.** The agent asks about missing choices that could materially
+  change the next step. Settled choices stay settled unless new evidence affects them.
+- **Authority.** `ship` and `babysitter` include scoped commits, pushes, and
+  merges through repository protections. Explicit limits in your request still apply.
+  `ship` also permits rebasing its own PR branch with `--force-with-lease`, filing
+  deferred-bug issues, and proposing workflow improvements as issues in your
+  explicitly configured skill repository. These skills do not bypass protections.
+- **Sharing.** Invoking `design-chooser` permits sending the minimal design
+  brief to the selected providers, subject to your sharing limits. Broader raw-file
+  sharing needs separate authority.
+- **Review.** Independent review uses a different model family from the
+  coordinator and material authors. Another version of the same family does not count.
+- **Evidence.** The agent reports checks against the revision it actually tested.
+  Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
+- **Follow-through.** Confirmed bugs deliberately left unfixed need tracking.
+  The workflow records what remains rather than treating a passing check as the end.
+
+These are instructions for agents to follow. The library's own tests check its
+structure and helper behavior; they do not establish how reliably a live model
+will follow every instruction or prove a cost or quality advantage.
+
+## Use the library
+
+Pick the skills you need. You can install one or more through
+[skills.sh](https://skills.sh/seankoji-com/.agents) without adopting this owner's
+whole setup. Run this from your project and choose the skills and agents:
+
+```sh
+npx skills add seankoji-com/.agents
+```
+
+Or select a single skill:
+
+```sh
+npx skills add seankoji-com/.agents --skill unslop
+```
+
+The [Skills CLI](https://github.com/vercel-labs/skills#install-a-skill) requires
+Node.js 22.20 or later. Workflow skills can reference other skills in this
+library; install their supporting skills too. Installation does not supply the
+host capabilities described below.
+
+### Use an installed skill
+
+Invoke a skill using the convention your host supports, such as its name in a
+request or a slash command. Start with a bounded job:
+
+```text
+Use review to evaluate this implementation against the brief. Do not edit files.
+```
+
+`bro`, `ketchup`, `focus-group`, and `unslop` disable automatic model invocation.
+Use your host's explicit skill invocation for these, such as `/ketchup` or `/bro`
+where slash commands are supported.
+
+### Work from a clone
+
+To edit the skills or maintain your own copy, clone the repository:
+
+```sh
+git clone https://github.com/seankoji-com/.agents.git
+```
+
+Point your host's native skill discovery at the clone's `skills` directory,
+using that host's configuration. Keep the directory together because skills
+link to sibling skills and references. You can read every skill directly on
+GitHub before configuring discovery.
+
+### Host requirements
+
+The library is written for **T3 Code and Codex**. Other hosts can use skills whose
+required capabilities they provide. Isolated `implement` and asynchronous
+`raise-issue` require T3 delegation. Follow each skill's own fallback when a
+required capability is missing. Inline issue work requires an explicit request.
+
+Reading the instructions needs no running service. Python helpers require Python
+3.10+ and the standard library. Owner host-delivery configuration is only for
+maintaining this repository, not for using skills from a clone.
+
+Older releases through v0.13.2 contain archives from the previous package.
+Use the current `skills` tree for the library described here.
+
+## How the workflows fit together
+
+Use the skills that help with the current task. You do not need to run the whole
+library for every change. The guide below explains the handoffs, review rules,
+issue tracking, and T3-specific details.
+
+<details>
+<summary><strong>Workflow guide</strong> · decisions, implementation, review, and delivery</summary>
+
+### Start with the outcome
+
+The [replay example above](#what-it-looks-like-in-practice) gives the agent an
+outcome. It can choose the skills that help, reuse decisions already made and
+skip unnecessary ceremony. This diagram shows how a delivery request can proceed.
 
 ```mermaid
 flowchart TD
@@ -117,7 +324,7 @@ Existing human text, code-author credits and reviewer disclosures remain
 distinct. Commit attribution keeps its existing policy; the byline contains no
 private session links.
 
-## Keep implementation off the main thread
+### Keep implementation off the main thread
 
 Use [implement](skills/implement/SKILL.md) when moving substantial coding into a
 T3 delegate is worth the coordination cost. Its working lead codes directly and
@@ -162,7 +369,7 @@ The main thread can reuse an eligible completed review at the handoff. Integrati
 changes or a moved base require reassessing the affected evidence and review.
 No measured cost or quality advantage is claimed by these instructions alone.
 
-## Let non-blocking issue filing run alongside shipping
+### Let non-blocking issue filing run alongside shipping
 
 Every confirmed bug intentionally left unfixed needs a verified issue URL before
 the execution workflow is complete. That includes minor SEV3 bugs. Rejected
@@ -204,7 +411,7 @@ agent to yield, hosted checks can continue, but the main agent does not keep
 executing. For an otherwise-ready merge, it may merge first and dispatch filing
 immediately afterward. The owner keeps tracking active until the URLs are verified.
 
-## Make progress visible and learn from the run
+### Make progress visible and learn from the run
 
 `ship` owns the operator-visible task list in the parent context. It discovers
 the native plan/todo tool, or a T3 MCP API that writes the same parent panel,
@@ -230,7 +437,7 @@ publish transcripts or manufacture proposals to meet a quota. Shipping ends
 when the retrospective and any proposal issue URLs are verified, or with an
 evidenced no-change result. Blocked stages stay visible in the task list.
 
-## T3 permission compatibility
+### T3 permission compatibility
 
 The shared [dispatch preflight](skills/agent-tuneup/references/t3-dispatch.md)
 records an owner-reported T3 workaround. OpenCode, Grok and Muse must start with
@@ -244,43 +451,12 @@ Codex/ChatGPT in full access may instead encounter an approval route mapped to
 is reported as a blocker. The workaround does not authorise changing global
 permissions, bypassing host policy or silently switching a named model.
 
-## Use the library
-
-```sh
-git clone https://github.com/seankoji-com/.agents.git
-```
-
-Point your host's native skill discovery at the clone's `skills` directory.
-Keep that directory together: skills link to shared review rules and sibling
-skills. Invoke a skill using the naming convention your host supports, such as
-a slash command or its name in a request.
-
-```text
-Use grilling to help me settle how replay timing should work.
-Use review to independently evaluate this implementation against the brief.
-Ship this change through tests, review and merge.
-```
-
-Each skill is a folder with a `SKILL.md` entry point. Supporting references,
-templates and helpers stay inside that folder. There is no install step to read
-the instructions; Python helpers require Python 3.10+ and the standard library.
-
-The library is written for T3 Code and Codex. Other hosts can use skills whose
-required capabilities they provide. Isolated `implement` and asynchronous
-`raise-issue` require T3 delegation. A missing route is reported as a blocker;
-inline issue work requires an explicit request. Follow each skill's own fallback.
-
-Read authority-bearing skills before invoking them. `ship` and `babysitter`
-include scoped commits, pushes and protected merges. `implement` returns local
-commits for the main thread to integrate. Explicit narrower limits always apply.
-None of these grants permission to bypass repository protections.
-
-Older releases through v0.13.2 contain archives from the previous package.
-Use the current `skills` tree for the library described here.
+</details>
 
 ## Skill catalog
 
-Descriptions below come directly from each skill's metadata.
+The complete index below uses each skill's own metadata. Use the grouped list above
+for a human introduction, or open a skill here to read its exact instructions.
 
 <!-- skill-catalog:start -->
 
@@ -307,7 +483,15 @@ Descriptions below come directly from each skill's metadata.
 
 <!-- skill-catalog:end -->
 
-## Documentation that tracks the code
+## Maintaining this library
+
+The instructions below are for people changing or publishing this repository.
+They cover documentation checks and the owner's direct-publication workflow.
+
+<details>
+<summary><strong>Contributor and owner guide</strong> · checks, publication, and host delivery</summary>
+
+### Documentation that tracks the code
 
 ```sh
 python3 -B scripts/check_library.py
@@ -340,7 +524,7 @@ People changing the library should also read [AGENTS.md](AGENTS.md).
 
 <!-- skills-review: 8336dbc8a530a88b92b25cb196ad40465566ad719c791f48be0affa9f4572af1 -->
 
-## Owner maintenance
+### Owner maintenance
 
 This repository publishes by fast-forward updates to `main`; it does not use PRs
 for its own maintenance. That repository policy is separate from the PR workflow
@@ -349,7 +533,7 @@ the skills support in other projects.
 These commands are for the repository owner. Using the skills from a clone does
 not require host-delivery configuration.
 
-### Configure host delivery
+#### Configure host delivery
 
 Copy [.env.example](.env.example) to `.env` in the repository root, then replace
 its synthetic destinations with SSH aliases or `user@host` destinations you control:
@@ -377,7 +561,7 @@ or export settings to subprocesses. Other settings are ignored. Missing, empty,
 invalid or duplicate destinations stop publication before commits or pushes.
 Validation and commit hooks need no local host configuration.
 
-### Publish and retry delivery
+#### Publish and retry delivery
 
 ```sh
 python3 scripts/maintain.py check  # validate only
@@ -400,7 +584,7 @@ the same local `.env` setup. It does not supply destinations or bypass checks.
 Organisation workflows remain in place. Publishing, receiver tests, discovery
 refresh and fresh-session acceptance are separate results.
 
-### Keep maintenance logs local
+#### Keep maintenance logs local
 
 For a worktree-owned log, pass `--log-file` with a new path in an existing ignored
 directory. The helper creates the file with owner-only permissions and refuses
@@ -409,6 +593,8 @@ directory.
 
 Local MCP settings, synced skill copies, marketplace state and machine wiring
 are ignored. Keep them out of the public source; do not force-add ignored paths.
+
+</details>
 
 ## License and security
 
