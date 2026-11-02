@@ -34,7 +34,7 @@ def library_fixture(root):
     for name in checker.SKILLS:
         shutil.copytree(ROOT / 'skills' / name, root / 'skills' / name,
                         ignore=shutil.ignore_patterns('__pycache__'))
-    for name in ('README.md', 'AGENTS.md', 'LICENSE'):
+    for name in ('README.md', 'AGENTS.md', 'LICENSE', '.env.example'):
         shutil.copy2(ROOT / name, root / name)
     subprocess.run(['git', '-C', str(root), 'add', 'skills'], check=True)
 

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Validate, commit with Codex, push main, and update WSL/Mint."""
+"""Validate, commit with Codex, push main, and update configured SSH destinations."""
 import argparse
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import os
 from pathlib import Path
+import re
 import shlex
 import shutil
 import subprocess
@@ -151,7 +152,38 @@ def publish():
     print('Published ' + git('rev-parse', '--short', 'HEAD'), flush=True)
 
 
-def sync():
+def load_sync_hosts():
+    """Read the supported local setting as data, without sourcing a shell."""
+    path = ROOT / '.env'
+    require(path.is_file(), 'Configure MAINTAIN_SYNC_HOSTS in .env; see .env.example.')
+    try:
+        lines = path.read_text(encoding='utf-8-sig').splitlines()
+    except UnicodeDecodeError:
+        raise RuntimeError('.env: MAINTAIN_SYNC_HOSTS configuration must be valid UTF-8.') from None
+    hosts = None
+    for number, line in enumerate(lines, 1):
+        key, separator, value = line.strip().partition('=')
+        words = key.split()
+        if len(words) == 2 and words[0] == 'export':
+            key = words[1]
+        if key.strip() != 'MAINTAIN_SYNC_HOSTS':
+            continue
+        require(hosts is None and separator, f'.env:{number}: duplicate or invalid MAINTAIN_SYNC_HOSTS.')
+        try:
+            # A quoted setting holds a whitespace-separated destination list.
+            # An inline hash must fail validation, not silently shorten a host.
+            value = re.split(r'\s+#', value, maxsplit=1)[0]
+            hosts = ' '.join(shlex.split(value, comments=False)).split()
+        except ValueError:
+            raise RuntimeError(f'.env:{number}: invalid quoting in MAINTAIN_SYNC_HOSTS.') from None
+        require(hosts and all(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.@-]*', host) for host in hosts),
+                f'.env:{number}: MAINTAIN_SYNC_HOSTS requires SSH aliases or user@host destinations.')
+        require(len(set(hosts)) == len(hosts), f'.env:{number}: duplicate MAINTAIN_SYNC_HOSTS destinations.')
+    require(hosts is not None, 'Configure MAINTAIN_SYNC_HOSTS in .env; see .env.example.')
+    return hosts
+
+
+def sync(hosts):
     require(not git('status', '--porcelain'), 'Commit and push local changes before syncing.')
     sha, origin = git('rev-parse', 'HEAD'), git('remote', 'get-url', 'origin')
     require(git('ls-remote', 'origin', 'refs/heads/main').split()[0] == sha, 'Push main before syncing.')
@@ -177,7 +209,7 @@ python3 "$HOME/.dotfiles/scripts/t3-workflow-skills.py" install
 python3 "$HOME/.dotfiles/scripts/t3-workflow-skills.py" check
 '''
     failed = []
-    for host in ('wsl', 'mint'):
+    for host in hosts:
         try:
             with stage(f'Update {host}'):
                 run('ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', host, remote, timeout=300)
@@ -198,6 +230,7 @@ def main():
         unchanged(git('write-tree'))
         check()
         return
+    hosts = load_sync_hosts() if args.command in ('publish', 'sync') else []
     if args.log_file:
         path = str(args.log_file.resolve())
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -223,7 +256,7 @@ def main():
                     capture=True, check=False).returncode == 0, 'Author checkout is behind or diverged; reconcile main first.')
     if args.command == 'publish':
         publish()
-    sync()
+    sync(hosts)
     print('Deployment complete. Log: ' + path, flush=True)
     LOG.write('COMPLETE: deployment finished\n')
 

@@ -342,7 +342,38 @@ This repository publishes by fast-forward updates to `main`; it does not use PRs
 for its own maintenance. That repository policy is separate from the PR workflow
 the skills support in other projects.
 
-The following commands are for the repository owner, not a fork or fresh clone:
+These commands are for the repository owner. Using the skills from a clone does
+not require host-delivery configuration.
+
+### Configure host delivery
+
+Copy [.env.example](.env.example) to `.env` in the repository root, then replace
+its synthetic destinations with SSH aliases or `user@host` destinations you control:
+
+```sh
+cp .env.example .env
+```
+
+Set `MAINTAIN_SYNC_HOSTS` to a whitespace-separated list. The loader reads this
+setting from the file, not from shell environment variables. Real destinations
+belong only in the local `.env`. Files matching `.env*`, including local variants
+and editor backups, are ignored; `.env.example` is the sole checked-in exception.
+Keep that example generic.
+
+Each receiver keeps its source checkout at `~/.agents` and its discovery refresh script at
+`~/.dotfiles/scripts/t3-workflow-skills.py`. Configure SSH keys, ports and jump
+hosts through your SSH configuration. The receiving checkout must be clean, on
+`main` and use the same origin as the publishing checkout.
+
+`maintain.py` reads `.env` beside the script's repository, regardless of the
+working directory. It accepts UTF-8 with or without a byte-order mark, quoted
+values, comments beginning after whitespace and an optional `export` prefix for
+`MAINTAIN_SYNC_HOSTS`. It does not execute shell code, expand variables
+or export settings to subprocesses. Other settings are ignored. Missing, empty,
+invalid or duplicate destinations stop publication before commits or pushes.
+Validation and commit hooks need no local host configuration.
+
+### Publish and retry delivery
 
 ```sh
 python3 scripts/maintain.py check  # validate only
@@ -352,9 +383,20 @@ python3 scripts/maintain.py sync   # retry configured host delivery
 
 The publication command stages current changes, obtains a commit message from
 the local Codex CLI and pushes `main`. It then updates the owner's configured
-checkouts. It stops on failed checks, a changing working tree, a rejected push
-or a dirty receiving checkout. In T3, the Publish action in `t3.json` runs the
-same owner workflow. Organisation workflows remain in place.
+checkouts with fast-forward updates, runs their tests and refreshes skill
+discovery. It stops publication on failed local checks, a changing working tree
+or a rejected push. A dirty receiver is left untouched, and delivery continues
+to the other configured destinations. A partial delivery reports failure while
+preserving the source commit, successful push and completed receiver updates.
+Fix the reported receiver problem, then use `maintain.py sync` to retry delivery
+without generating another commit.
+
+In T3, the Publish action in `t3.json` runs the same owner workflow and requires
+the same local `.env` setup. It does not supply destinations or bypass checks.
+Organisation workflows remain in place. Publishing, receiver tests, discovery
+refresh and fresh-session acceptance are separate results.
+
+### Keep maintenance logs local
 
 For a worktree-owned log, pass `--log-file` with a new path in an existing ignored
 directory. The helper creates the file with owner-only permissions and refuses
