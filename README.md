@@ -71,7 +71,13 @@ about uncertainty that could change the next implementation step. It obtains
 a cross-lineage readiness review before handing off. For unresolved visual or
 interaction choices, [design-chooser](skills/design-chooser/SKILL.md) presents
 mockups after product decisions are settled. The user chooses before UI work
-begins. An established design that answers the question needs no new selection.
+begins. It defaults to two designer lineages, or three for a new screen, app or
+unconstrained redesign. A missing lineage leaves the comparison incomplete
+unless the user accepts a smaller set. An established design that answers the
+question needs no new selection. Invoking the chooser authorises sharing its
+minimal design brief with the selected providers, subject to standing limits.
+Delegates receive that authority source. Broader raw-file sharing and host
+approvals remain separate gates.
 
 **Bring evidence to the review.** [review-loop](skills/review-loop/SKILL.md)
 uses [review](skills/review/SKILL.md) for independent evaluation, evidence,
@@ -79,6 +85,13 @@ severity and finding dispositions. Visible changes need observed UI evidence.
 For work headed to a PR, [raise-pr](skills/raise-pr/SKILL.md) applies early enough
 to capture practical mobile and desktop before screenshots. Its placement near
 the end of the diagram represents PR preparation, not its first invocation.
+
+Review limits trigger a [progress diagnosis](skills/review/references/budget-exhaustion.md),
+not an automatic request for more rounds. The coordinator checks whether repairs
+are converging, stalled or cycling and recommends a concrete alternative, such
+as a targeted reproduction, a different repair or a smaller proposed delivery.
+An extension needs a specific purpose and stop condition. Existing review gates
+and the user's scope still apply.
 
 **Finish the authorised endpoint.** [ship](skills/ship/SKILL.md) carries the
 change through checks, review and merge. [babysitter](skills/babysitter/SKILL.md)
@@ -306,7 +319,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 567a3d5250f7a354f97b06d40b500f31594ae4cf1a03ad257906d17d526ffc75 -->
+<!-- skills-review: 37f14db4c75110bf5c91c078ac9acab6f1234d31df825cfe9406c53290024482 -->
 
 ## Owner maintenance
 

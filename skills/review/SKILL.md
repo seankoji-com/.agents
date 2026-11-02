@@ -51,6 +51,7 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    Otherwise report the specific review gate.
 4. Keep the calling workflow's review budget across repairs and resumes. A
    standalone review allows at most three rounds, including failed attempts.
+   On stalling or exhaustion, apply the [budget diagnosis](references/budget-exhaustion.md).
    Recheck material changes or unresolved findings; do not seek unanimity or
    restart budgets by changing reviewer. Receive the complete report before
    treating the review as completed. A timeout, missing reply or task status

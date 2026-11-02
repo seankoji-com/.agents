@@ -5,31 +5,46 @@ description: Use after product decisions are sufficiently settled and before imp
 
 # Choose a visual design
 
-Mockups come from
-independent designers in different model lineages. The user chooses before
-anything is built. The coordinator writes the brief, checks the mockups and
-presents them. It does not design.
+Mockups come from independent designers in different model lineages. Invoking
+this skill, directly or through an authorised workflow, requests that delegation.
+The user chooses before anything is built. The coordinator writes the brief,
+checks the mockups and presents them. It does not design.
 
 ## Size the run
 
-Pick how many designers to use from the scope of the change:
+By default, use at least two distinct lineages whenever a material design choice
+needs this skill. Routine changes determined by the existing system need no chooser.
+Pick the count from the remaining choice:
 
-- **1** for a change inside an existing visual system, such as restyling a
-  control or adjusting spacing.
 - **2** for a new component, or a change the existing system only partly
   constrains.
 - **3** for a new screen, page or app, or a redesign with no established system.
 
-A count or model the user names overrides this table. Before dispatch, state the
-count and the reason in one line. Do not wait for confirmation.
+A count or explicit model-only roster overrides these defaults. A named model
+fills one planned slot; fill the remaining slots from the order below. A model
+mention alone does not increase the count or mean "only this model".
+For a single unnamed designer, prefer a lineage outside the coordinator's.
+Label an explicitly constrained single-lineage run honestly. Do not infer that
+constraint from a small task or familiar visual system.
 
 ## Write the brief
 
 Read the request and the code before writing. Record the product, the audience,
 the screen or component, the real content it shows, its states, the target
 platforms and the existing design tokens, components or screenshots. Ask only
-about missing intent that would change the design. Share repository content with
-another provider only where host permissions and sharing limits allow it.
+about missing intent that would change the design.
+
+A direct invocation, or an authorised workflow selecting this skill, authorises
+sending the minimal design brief to the selected roster's providers. That brief
+may contain written intent, design tokens, task-relevant non-secret excerpts
+and redacted screenshots. User and standing restrictions on providers or content
+take precedence. Raw files beyond this brief need explicit sharing scope.
+Record this bounded grant and the invoking request as the authority source in
+child briefs. Use the sharing-authority procedure in
+[T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md)
+for T3 delegates. Carry existing consent into child briefs instead of asking
+again for the same authorised context. Prefer a minimal design brief over raw
+repository files; host approval and explicit sharing limits still apply.
 
 All designers get the same brief. Do not suggest a direction or style, and do not
 show one designer another's work.
@@ -39,17 +54,37 @@ show one designer another's work.
 Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before selecting T3 routes.
 Discover the host's delegation capabilities and exact model identities. Keep any
 named models and settings. Otherwise go through this order and take the first
-available models, one per lineage: **Sol, Opus, Wonder Full, Argon, Grok 4.7**.
+compatible models, one per lineage: **Sol, Opus, Wonder Full, Argon, Grok 4.7**.
+For unnamed slots, skip unavailable or preflight-incompatible routes and continue
+down the order. A named unavailable or incompatible model remains a conflict
+under the preflight; do not substitute for it without the user's acceptance.
+An unnamed route rejected as unavailable or incompatible before the designer
+starts counts as unavailable; continue down the order. A sharing-authority
+rejection follows the preflight's sharing procedure, not model substitution to
+avoid the rejection. A designer that fails after starting is reported, not replaced.
 Two aliases, versions or effort settings of the same model are one lineage. The
 coordinator's own lineage is eligible, because the coordinator does not design.
-If fewer lineages are available than the run needs, use the ones you have and
-report the gap. Never fill a slot with a second model from a lineage already in
-use.
+Before dispatch, state the planned count, exact models and verified lineages,
+with the reason for the count. Check permission and sharing compatibility for
+the whole roster. Start compatible authorised designers without another
+confirmation. Never fill an unnamed slot with a second model from the same
+lineage. If the order runs out before the planned count, or a named-model conflict
+remains, retain partial results and report an incomplete comparison.
+The user must explicitly accept a smaller set before it counts as the completed
+run.
 
 Label designers A, B and C in dispatch order. In T3 Code, resolve models with
-`orchestrator_capabilities`, start one `delegate_task` per designer, record each
-`taskId` and follow the returned `next`. Use native delegation elsewhere. Do not
-poll, open top-level threads or let a designer start further agents.
+`orchestrator_capabilities` subject to the host's discovery frequency. Start one
+`delegate_task` per designer and record each `taskId`. Submit independent launches
+together where supported. Follow the returned `next`; if it requires yielding
+before all launches, preserve and resume the pending roster. The first launch
+or completion does not satisfy the whole roster. Use native delegation elsewhere.
+Do not poll, open top-level threads or let a designer start further agents.
+
+A delegated coordinator may start designers only when its assignment permits
+children. Otherwise return the brief and planned roster to the parent. Return
+all options, HTML, identities and dispatch gaps to the main thread. Only the
+main thread presents choices and obtains the user's selection.
 
 ## Designer instructions
 

@@ -38,7 +38,10 @@ Verify material gaps, investigate available facts and ask only the affected
 questions that need the user. Revise the brief and obtain a fresh readiness
 review when material gaps change it. Allow at most three readiness reviews,
 including failed attempts, across the interview and its resumes. If the budget
-is exhausted or cross-lineage review is unavailable, report readiness as
+is exhausted or reviews stall, apply review's
+[budget diagnosis](../review/references/budget-exhaustion.md) within this
+three-review limit. If readiness remains unverified or cross-lineage review is
+unavailable, report readiness as
 incomplete and hold implementation. Still provide the brief in the requested
 format, or offer the artifact choices below, marked not ready with the review
 gate and next action. A reviewer verdict without supporting reasoning does not

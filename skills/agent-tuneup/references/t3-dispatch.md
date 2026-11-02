@@ -50,6 +50,28 @@ or resume work in an appropriate session through T3's supported controls.
 After dispatch, verify any exposed effective mode; record unavailable verification
 instead of treating a successful launch as proof of usable permissions.
 
+## Carry sharing authority with the task
+
+Runtime permissions and authority to share context are separate. Before sending
+private material to another provider, check the user's task and standing sharing
+instructions for the intended recipients and content. Record the actual source
+of authority, its scope and any limits in the delegation brief. A child receives
+only its task, so a parent saying "authorised" without that source can lose the
+evidence needed by approval review.
+
+Reuse consent that covers this task, provider and material. Do not ask again
+merely because the repository is private or a new child receives the same
+approved brief. Send the minimum necessary context; prefer a design or review
+brief and relevant snippets to whole files. Exclude secrets and unrelated data.
+The workflow's delegation request does not authorise unrestricted repository
+sharing. A clone's presence or a model's availability does not establish consent.
+
+If authority is missing, prepare the concrete minimal packet and intended
+provider roster, then ask once for that scope. A child returns that gap to its
+parent. If host approval rejects a dispatch, report the action and stated reason;
+use an authorised lower-disclosure brief where sufficient, or obtain the missing
+authority. Do not change runtime mode or bypass the host to defeat a rejection.
+
 ## Keep the execution trace addressable
 
 Record returned task and child-thread IDs, provider/model/options, requested and

@@ -23,7 +23,10 @@ automatically need this loop.
    work. Extend a review phase to five rounds only while an evidenced blocker or
    major finding remains in
    security, permissions, authentication, data loss or state/concurrency, or when
-   the user requests it. Record the reason and count failed attempts.
+   the user requests it. Before any extension or exhausted-budget handoff, apply
+   [budget diagnosis](../review/references/budget-exhaustion.md). Severity alone
+   is insufficient: identify progress, the cause of stalling and a credible
+   alternative to more rounds. Record the reason and count failed attempts.
 2. Apply [review](../review/SKILL.md) for cross-lineage eligibility, reviewer
    selection and dispatch. Every loop participant reads and applies that skill
    for its assigned role: the coordinator obtains review and owns dispositions,
@@ -90,8 +93,7 @@ automatically need this loop.
    Apply review's deferred-bug tracking rule: hand off verified issue URLs or
    owned asynchronous filing requests for already non-blocking bugs. Filing
    remains within authority and tracking stays incomplete until URLs are verified.
-   Stop circular
-   debate or repeated attempts without progress. Escalate only material decisions
+   Apply budget diagnosis when attempts stall, even before the limit. Escalate only material decisions
    the user must make; budget exhaustion is not approval. Continue independent
    authorized work while dependent work is blocked.
 8. Complete the agreed endpoint with its required evidence. For PR creation or
