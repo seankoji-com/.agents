@@ -283,13 +283,55 @@ class Library(unittest.TestCase):
             p.write_text(text.replace('**Sol, Opus,', '**Sol, Argon, Opus,', 1))
             self.assertIn('reviewer order differs', '\n'.join(checker.check(root)))
 
+    def test_external_installs_stay_local_but_force_added_copies_fail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.fixture(root)
+            shutil.copy2(ROOT / '.gitignore', root / '.gitignore')
+            before = (root / 'README.md').read_bytes()
+            for name in ('bro', 'unslop'):
+                folder = root / 'skills' / name
+                folder.mkdir()
+                (folder / 'SKILL.md').write_text(
+                    f'---\nname: {name}\ndescription: Synthetic external skill.\n---\n'
+                    '[upstream-only link](not-in-this-library.md)\n')
+            (root / '.skill-lock.json').write_text('{"skills": {}}\n')
+            for relative in ('skills/bro/SKILL.md', 'skills/unslop/SKILL.md',
+                             '.skill-lock.json'):
+                subprocess.run(['git', '-C', str(root), 'check-ignore', '-q', relative],
+                               check=True)
+            self.assertEqual(checker.check(root), [])
+            self.assertEqual(checker.check(root, True, True), [])
+            self.assertEqual((root / 'README.md').read_bytes(), before)
+            subprocess.run(['git', '-C', str(root), 'add', '-f', 'skills/bro/SKILL.md'],
+                           check=True)
+            self.assertIn('unregistered skill: bro', '\n'.join(checker.check(root)))
+
+    def test_upstream_urls_do_not_hide_retired_local_dependencies(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.fixture(root)
+            readme = root / 'README.md'
+            readme.write_text(readme.read_text() +
+                             '\n[Upstream](https://github.com/cursor/plugins/blob/main/pstack/skills/example/SKILL.md)\n')
+            self.assertEqual(checker.check(root), [])
+            original = readme.read_text()
+            for retired in (
+                    '[Upstream](https://github.com/cursor/plugins/tree/main/pstack) plugins/old-adapter',
+                    'curl -fsSL https://raw.githubusercontent.com/seankoji-com/.agents/main/scripts/install.sh | sh',
+                    'Run https://github.com/seankoji-com/.agents/blob/main/bin/agents',
+                    '[Other](https://example.com/plugins/old-adapter)'):
+                with self.subTest(retired=retired):
+                    readme.write_text(original + '\n' + retired + '\n')
+                    self.assertIn('retired dependency', '\n'.join(checker.check(root)))
+
     def test_metadata_without_instructions_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.fixture(root)
-            p = root / 'skills/bro/SKILL.md'
-            p.write_text('---\nname: bro\ndescription: Restate text.\n---\n')
-            self.assertIn('bro: missing instructions', checker.check(root))
+            p = root / 'skills/agent-docs/SKILL.md'
+            p.write_text('---\nname: agent-docs\ndescription: Write instructions.\n---\n')
+            self.assertIn('agent-docs: missing instructions', checker.check(root))
 
     def test_retired_tracked_container_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -315,16 +357,16 @@ class Documentation(unittest.TestCase):
 
     def test_missing_duplicate_renamed_and_edited_catalog_entries_fail(self):
         original = self.readme.read_text()
-        row = next(line for line in original.splitlines() if line.startswith('| [bro]'))
+        row = next(line for line in original.splitlines() if line.startswith('| [agent-docs]'))
         for replacement in ('', row + '\n' + row,
-                            row.replace('skills/bro/', 'skills/old-bro/'),
+                            row.replace('skills/agent-docs/', 'skills/old-agent-docs/'),
                             row.replace(' | ', ' | Outdated. ', 1)):
             with self.subTest(replacement=replacement):
                 self.readme.write_text(original.replace(row, replacement))
                 self.assertIn('stale skill catalog', self.errors())
 
     def test_metadata_change_requires_catalog_refresh_and_docs_review(self):
-        source = self.root / 'skills/bro/SKILL.md'
+        source = self.root / 'skills/agent-docs/SKILL.md'
         lines = source.read_text().splitlines()
         index = next(i for i, line in enumerate(lines) if line.startswith('description: '))
         lines[index] = 'description: Explain a difficult idea clearly.'
@@ -362,9 +404,9 @@ class Documentation(unittest.TestCase):
         (extra / 'SKILL.md').write_text(
             '---\nname: fixture-new\ndescription: A synthetic skill.\n---\nDo the task.\n')
         self.assertIn('unregistered skill: fixture-new', self.errors())
-        (self.root / 'skills/bro').rename(self.root / 'skills/renamed-bro')
-        self.assertIn('missing skill: bro', self.errors())
-        self.assertIn('unregistered skill: renamed-bro', self.errors())
+        (self.root / 'skills/agent-docs').rename(self.root / 'skills/renamed-agent-docs')
+        self.assertIn('missing skill: agent-docs', self.errors())
+        self.assertIn('unregistered skill: renamed-agent-docs', self.errors())
 
     def test_mermaid_skill_nodes_reject_retired_names_and_invalid_annotations(self):
         original = self.readme.read_text()
@@ -392,7 +434,7 @@ class Documentation(unittest.TestCase):
         self.assertIn('broken heading link: #skill-catalog', self.errors())
 
     def test_generated_descriptions_preserve_quotes_and_escape_table_pipes(self):
-        source = self.root / 'skills/bro/SKILL.md'
+        source = self.root / 'skills/agent-docs/SKILL.md'
         original = source.read_text()
         description = next(line for line in original.splitlines()
                            if line.startswith('description: '))
@@ -406,9 +448,9 @@ class Documentation(unittest.TestCase):
 
     def test_ignored_notes_do_not_affect_checks_or_receipt_but_tracked_sources_do(self):
         ignore = self.root / '.gitignore'
-        ignore.write_text('skills/bro/local-notes.md\n'
+        ignore.write_text('skills/agent-docs/local-notes.md\n'
                           'skills/review/references/deferred-bugs.md\n')
-        (self.root / 'skills/bro/local-notes.md').write_text(
+        (self.root / 'skills/agent-docs/local-notes.md').write_text(
             '# Synthetic local draft\n[unfinished](missing.md)\nPKG/shared/retired.md\n')
         before = self.readme.read_bytes()
         self.assertEqual(checker.check(self.root), [])
@@ -419,7 +461,7 @@ class Documentation(unittest.TestCase):
         self.assertIn('skill instructions changed', self.errors())
 
     def test_malformed_or_multiline_descriptions_cannot_enter_catalog(self):
-        source = self.root / 'skills/bro/SKILL.md'
+        source = self.root / 'skills/agent-docs/SKILL.md'
         original = source.read_text()
         description = next(line for line in original.splitlines()
                            if line.startswith('description: '))
@@ -428,7 +470,7 @@ class Documentation(unittest.TestCase):
                        '"   "', '"One\\nTwo"'):
             with self.subTest(scalar=scalar):
                 source.write_text(original.replace(description, 'description: ' + scalar))
-                self.assertIn('bro: invalid single-line description',
+                self.assertIn('agent-docs: invalid single-line description',
                               '\n'.join(checker.check(self.root, True, True)))
                 self.assertEqual(self.readme.read_bytes(), before)
 

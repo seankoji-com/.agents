@@ -106,6 +106,38 @@ class Maintenance(unittest.TestCase):
         self.assertEqual(self.call(self.root, 'git', 'rev-parse', 'HEAD'), self.initial)
         self.assertFalse((self.base / 'messages').exists())
 
+    def test_receiver_retiring_external_skills_stops_before_deleting_them(self):
+        for name in ('bro', 'unslop'):
+            folder = self.root / 'skills' / name
+            folder.mkdir(parents=True)
+            (folder / 'SKILL.md').write_text(
+                f'---\nname: {name}\ndescription: Synthetic legacy copy.\n---\nDo the task.\n')
+        self.call(self.root, 'git', 'add', '-f', 'skills/bro', 'skills/unslop')
+        self.call(self.root, 'git', 'commit', '-qm', 'Legacy skill copies')
+        self.call(self.root, 'git', 'push', '-q', 'origin', 'main')
+        legacy = self.call(self.root, 'git', 'rev-parse', 'HEAD')
+        for host in ('receiver-a', 'receiver-b'):
+            self.call(self.base / host / '.agents', 'git', 'pull', '--ff-only')
+        self.call(self.root, 'git', 'rm', '--cached', '--',
+                  'skills/bro/SKILL.md', 'skills/unslop/SKILL.md')
+        output = self.publish(expected=1)
+        self.assertIn('external skill migration preflight', self.log(output))
+        self.assertIn('left untouched', self.log(output))
+        for host in ('receiver-a', 'receiver-b'):
+            receiver = self.base / host / '.agents'
+            self.assertEqual(self.call(receiver, 'git', 'rev-parse', 'HEAD'), legacy)
+            self.assertFalse((self.base / host / 'actions').exists())
+            for name in ('bro', 'unslop'):
+                self.assertEqual((receiver / 'skills' / name / 'SKILL.md').read_bytes(),
+                                 (self.root / 'skills' / name / 'SKILL.md').read_bytes())
+            # Simulate the documented update and reinstall using local fixtures.
+            self.call(receiver, 'git', 'pull', '--ff-only')
+            for name in ('bro', 'unslop'):
+                shutil.copytree(self.root / 'skills' / name, receiver / 'skills' / name)
+        self.call(self.base, sys.executable, '-B', str(self.root / 'scripts/maintain.py'), 'sync')
+        for host in ('receiver-a', 'receiver-b'):
+            self.assertEqual((self.base / host / 'actions').read_text(), 'install\ncheck\n')
+
     def test_explicit_log_is_private_relocatable_and_never_overwrites(self):
         log = self.root / 'owned.log'
         args = (sys.executable, '-B', str(self.root / 'scripts/maintain.py'),

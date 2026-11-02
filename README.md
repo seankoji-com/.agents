@@ -82,8 +82,6 @@ Build, check, and deliver changes with evidence of what works and what remains.
 Understand the work and communicate it clearly.
 
 - [ketchup](skills/ketchup/SKILL.md): Catch up on what happened in this conversation and which decisions still need you.
-- [bro](skills/bro/SKILL.md): Restate the last answer in plain language without changing its meaning.
-- [unslop](skills/unslop/SKILL.md): Remove formulaic AI phrasing and make writing concrete and direct.
 - [github-writing](skills/github-writing/SKILL.md): Credit AI-written GitHub prose with a visible byline naming the actual writer and represented operator.
 
 ### Agent setup
@@ -171,7 +169,7 @@ npx skills add seankoji-com/.agents
 Or select a single skill:
 
 ```sh
-npx skills add seankoji-com/.agents --skill unslop
+npx skills add seankoji-com/.agents --skill agent-docs
 ```
 
 The [Skills CLI](https://github.com/vercel-labs/skills#install-a-skill) requires
@@ -188,8 +186,8 @@ request or a slash command. Start with a bounded job:
 Use review to evaluate this implementation against the brief. Do not edit files.
 ```
 
-`bro`, `ketchup`, `focus-group`, and `unslop` disable automatic model invocation.
-Use your host's explicit skill invocation for these, such as `/ketchup` or `/bro`
+`ketchup` and `focus-group` disable automatic model invocation.
+Use your host's explicit skill invocation for these, such as `/ketchup`
 where slash commands are supported.
 
 ### Work from a clone
@@ -218,6 +216,28 @@ maintaining this repository, not for using skills from a clone.
 
 Older releases through v0.13.2 contain archives from the previous package.
 Use the current `skills` tree for the library described here.
+
+## Other skills I use
+
+These skills come from [pstack](https://github.com/cursor/plugins/tree/main/pstack).
+Install them from upstream rather than from this repository:
+
+- [bro](https://github.com/cursor/plugins/blob/main/pstack/skills/bro/SKILL.md): Restate the last answer in plain language.
+- [unslop](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md): Remove formulaic AI phrasing from writing.
+
+```sh
+npx skills add cursor/plugins --skill bro unslop --global
+```
+
+Both require explicit invocation on hosts that respect
+`disable-model-invocation`, such as `/bro` or `/unslop` where supported.
+
+This library maintains its own versions of several workflow skills inspired by
+other libraries. They remain here because their instructions differ from
+upstream. Third-party installations are local state, excluded from the generated
+catalog and from Git. The owner checkout ignores the installed `bro` and `unslop`
+folders and the Skills CLI's global lock file. A fresh checkout does not install
+these optional skills automatically.
 
 ## How the workflows fit together
 
@@ -465,7 +485,6 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [agent-docs](skills/agent-docs/SKILL.md) | Use when creating, editing or auditing a skill, AGENTS.md, CLAUDE.md or a doc they point to. |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Use when the user asks to audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery. |
 | [babysitter](skills/babysitter/SKILL.md) | Repair and merge requested pull requests. Use when asked to babysit, watch or monitor PRs, and honour explicit read-only and no-merge limits. |
-| [bro](skills/bro/SKILL.md) | Restate the last message in plain human language, with no jargon. |
 | [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion or to challenge assumptions; return findings without implementation. |
 | [design-chooser](skills/design-chooser/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
 | [focus-group](skills/focus-group/SKILL.md) | Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study. |
@@ -479,7 +498,6 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [review-loop](skills/review-loop/SKILL.md) | Use when the user requests an iterative implementation, independent review and repair loop, or invokes review-loop to carry a goal to an agreed endpoint. |
 | [ship](skills/ship/SKILL.md) | Use when the user explicitly asks to ship a change through delivery, visible progress tracking and a final workflow retrospective. |
 | [test-writer](skills/test-writer/SKILL.md) | Use when writing or reviewing tests, choosing regression coverage, or assessing test value, reliability and CI runtime. |
-| [unslop](skills/unslop/SKILL.md) | Cut AI tells from any writing. |
 
 <!-- skill-catalog:end -->
 
@@ -522,7 +540,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 8336dbc8a530a88b92b25cb196ad40465566ad719c791f48be0affa9f4572af1 -->
+<!-- skills-review: cde3d6eddfcd70f41fe1ddfa8a5e74e0a060153a839d661a68b76b05dc2c4115 -->
 
 ### Owner maintenance
 
@@ -578,6 +596,33 @@ to the other configured destinations. A partial delivery reports failure while
 preserving the source commit, successful push and completed receiver updates.
 Fix the reported receiver problem, then use `maintain.py sync` to retry delivery
 without generating another commit.
+
+#### One-time external skill migration on receivers
+
+An older checkout tracks `bro` and `unslop`. Updating it removes those tracked
+files, even if you installed identical upstream copies beforehand. Sync detects
+this transition and leaves that receiver's checkout untouched. Migrate each
+affected receiver once, then retry delivery from the publishing checkout.
+
+On a clean receiver checkout on `main` with the expected origin, first check
+that the Skills CLI is available. Then update and immediately reinstall the two
+skills before refreshing discovery:
+
+```sh
+cd ~/.agents
+npx skills --version
+git pull --ff-only origin main
+npx skills add cursor/plugins --skill bro unslop --global --agent codex --yes
+python3 scripts/check_library.py
+python3 ~/.dotfiles/scripts/t3-workflow-skills.py install
+python3 ~/.dotfiles/scripts/t3-workflow-skills.py check
+```
+
+Run the update and reinstall while no agent is using those skills. If the
+installation fails, keep that receiver out of use and rerun the installation
+before refreshing discovery. Sync does not install third-party skills or change
+provider settings automatically. A sync run can update other receivers while
+reporting this receiver's migration hold.
 
 In T3, the Publish action in `t3.json` runs the same owner workflow and requires
 the same local `.env` setup. It does not supply destinations or bypass checks.

@@ -11,8 +11,8 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 SKILLS = ('babysitter', 'review-loop', 'challenge', 'focus-group',
-          'agent-tuneup', 'test-writer', 'raise-issue', 'unslop', 'ship',
-          'grilling', 'ketchup', 'bro', 'review', 'design-chooser', 'raise-pr',
+          'agent-tuneup', 'test-writer', 'raise-issue', 'ship',
+          'grilling', 'ketchup', 'review', 'design-chooser', 'raise-pr',
           'agent-docs', 'implement', 'github-writing')
 RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents|'
                      r'scripts/(?:install|agents_bootstrap|source_runtime)|'
@@ -169,7 +169,9 @@ def check(root, update_readme=False, acknowledge_docs=False):
                 for order in ORDER.findall(text):
                     orders.setdefault(order, []).append(relative)
             for number, line in enumerate(text.splitlines(), 1):
-                if RETIRED.search(line):
+                # pstack's public repository name overlaps a retired local folder.
+                local_text = re.sub(r'https://github\.com/cursor/plugins/[^\s<>)]+', '', line)
+                if RETIRED.search(local_text):
                     errors.append(f'{relative}:{number}: retired dependency')
             for target in LINK.findall(text):
                 parsed = urlsplit(target)

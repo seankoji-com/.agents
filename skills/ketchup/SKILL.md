@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Catch up
 
-Use the plain voice of [bro](../bro/SKILL.md). Assume the user remembers their
+Use plain, concise language without jargon. Assume the user remembers their
 last message before `/ketchup`, but nothing after it. Notifications and child
 results are not user messages.
 
