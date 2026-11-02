@@ -35,8 +35,8 @@ unavailable" instead of guessing.
 
 ## Add a visible byline
 
-End each new prose body with a blank line and this GitHub NOTE block. Preserve
-its Markdown and substitute the verified writer and operator:
+Start each new prose body with this GitHub NOTE block, followed by a blank line.
+Preserve its Markdown and substitute the verified writer and operator:
 
 ```markdown
 > [!NOTE]
@@ -56,15 +56,17 @@ a bot posts. It authorises no other mentions or notifications. Carry the writer
 identities and this skill's path in delegated writing assignments and returns.
 The parent preserves those identities when posting or merging drafts.
 
-For a rewrite, update the applicable AI byline once, preserving still-applicable
-writer credits and human signatures. In a wholly AI-written body, use the
-template's attribution field when available; otherwise append the NOTE.
-Preserve required headings and checklist answers.
+For a rewrite, move the applicable AI byline to the top of its scope and update
+it once, preserving still-applicable writer credits and human signatures.
+In a wholly AI-written body, put the NOTE before the body and its template
+headings. Preserve required headings and checklist answers. If a required
+repository format conflicts with this placement, preserve the draft and report
+the conflict.
 
 In a mixed human/AI body, section scope takes precedence over that placement.
-Put the NOTE immediately after each added or rewritten passage. Precede it with
+Put the NOTE immediately before each added or rewritten passage. Follow it with
 a plain scope sentence, such as "This byline covers only the Verification section
-above." Keep the NOTE wording unchanged. Distinct passages may have distinct
+below." Keep the NOTE wording unchanged. Distinct passages may have distinct
 bylines; they are not duplicates. Preserve untouched human text and historical
 evidence without attributing it to a model.
 

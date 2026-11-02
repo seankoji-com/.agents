@@ -1,16 +1,26 @@
 ---
 name: design-chooser
-description: Use after product decisions are sufficiently settled and before implementing UI work that leaves a material visual or interaction choice unresolved.
+description: Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser.
 ---
 
 # Choose a visual design
 
 Mockups come from independent designers in different model lineages. Invoking
-this skill, directly or through an authorised workflow, requests that delegation.
+this skill requests that delegation when a material choice remains.
 The user chooses before anything is built. The coordinator writes the brief,
 checks the mockups and presents them. It does not design.
 
 ## Size the run
+
+Classify the request before choosing designers. New UI permits exploration;
+an explicit redesign permits exploration within its stated boundary. For edits
+to existing UI, use the current screen as the baseline. Preserve its visual
+identity, content, components and interactions outside the requested change.
+A layout, spacing or small feature request alone does not authorise a redesign.
+When the existing system determines the edit, implement it directly if requested.
+When a material choice remains, compare only alternatives for that choice.
+An explicit chooser request keeps this scope. If no choice remains, report that
+and implement only if requested; do not invent options.
 
 By default, use at least two distinct lineages whenever a material design choice
 needs this skill. Routine changes determined by the existing system need no chooser.
@@ -46,8 +56,12 @@ for T3 delegates. Carry existing consent into child briefs instead of asking
 again for the same authorised context. Prefer a minimal design brief over raw
 repository files; host approval and explicit sharing limits still apply.
 
-All designers get the same brief. Do not suggest a direction or style, and do not
-show one designer another's work.
+All designers get the same brief, including the request type, existing baseline,
+allowed changes and what must stay fixed. For existing UI, include enough visual
+evidence to preserve it; inspect missing evidence before dispatch or report the
+gap. Separate requirements from user preferences. Add no style direction beyond
+these constraints. Leave the unresolved choice to the designers. Do not show
+one designer another's work.
 
 ## Pick designers
 
@@ -89,16 +103,21 @@ main thread presents choices and obtains the user's selection.
 ## Designer instructions
 
 Ask each designer for 2 options, or 3 when the brief supports three distinct
-directions. For each option, the designer returns:
+directions. For existing UI, vary the requested decision while keeping the
+rest of the baseline consistent across options. Do not broaden the scope to
+make options look different. For each option, the designer returns:
 
 - A short, memorable name.
 - A blurb of two to four sentences giving the intent of the design and why it
   fits the brief.
 - One sentence on how it differs from the designer's other options.
 - One complete, self-contained HTML document of the main screen. It needs inline
-  CSS, no external fonts, scripts or images, and realistic content in place of
+  CSS, no remote fonts, scripts or images, and realistic content in place of
   lorem ipsum. It must render well at 728px wide. If the real target is wider,
   the blurb says how the layout changes there.
+- Visible feature IDs and an annotation legend, following
+  [report requirements](references/reports.md). Read these requirements before
+  briefing designers and apply them when checking and presenting every option.
 
 Designers must not edit the repository. They return HTML in the final report, or
 write it to a task-owned artifact path the coordinator names and report the
@@ -108,14 +127,17 @@ options came back.
 
 ## Check the options
 
-Open every option. Reject or repair any that breaks the brief, fails to render,
-loads remote assets or copies a sibling. If two designers return
-near-identical directions, ask the later designer for one redo with the same
-brief and a note to avoid that direction. Do not loop beyond that. Report a
-designer that failed with its error; do not substitute.
+Open every option and check its controls and annotations against the report
+requirements. Reject or repair any that breaks the brief, fails to render,
+loads remote assets or copies a sibling. For existing UI, check each change
+against the allowed scope. Shared baseline elements are expected, not copied
+directions. If two designers make the same unresolved choice, ask the later
+designer for one redo within the same scope. Do not loop beyond that or invent
+a broader redesign to force variety. Report a designer that failed with its
+error; do not substitute.
 
-Do not change a design's look while checking it. Correct a blurb only where it
-misstates the mockup or the brief.
+Preserve the design while checking it, except to apply the report's static
+fallback and note it in the blurb. Correct inaccurate blurbs.
 
 ## Present
 
@@ -127,7 +149,7 @@ Below the header, put the mockup in its own box with its own colours, 16px of
 padding and `var(--radius)` corners. Title each frame with its label and name.
 
 After the frames, list the labels and names in one line. Ask the user to pick an
-option or describe a hybrid, such as "A1's layout with C2's type". On hosts
+option or describe a hybrid using feature IDs, such as "A1-F1 with B2-F3". On hosts
 without inline HTML, write each mockup to a task-owned file and give the label,
 model, name, blurb and absolute path for each one.
 

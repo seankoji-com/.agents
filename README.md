@@ -74,8 +74,12 @@ mockups after product decisions are settled. The user chooses before UI work
 begins. It defaults to two designer lineages, or three for a new screen, app or
 unconstrained redesign. A missing lineage leaves the comparison incomplete
 unless the user accepts a smaller set. An established design that answers the
-question needs no new selection. Invoking the chooser authorises sharing its
-minimal design brief with the selected providers, subject to standing limits.
+question needs no new selection. Layout and minor edits preserve the existing
+design and compare only the unresolved change. Reports give key decisions
+stable feature IDs and keep options visible in separate frames. Controls must
+work in the presentation host or show labelled static states. Invoking the
+chooser authorises sharing its minimal design brief with the selected providers,
+subject to standing limits.
 Delegates receive that authority source. Broader raw-file sharing and host
 approvals remain separate gates.
 
@@ -99,7 +103,7 @@ handles current-head CI and review gates. A merge is evidence of a merge;
 deployment and live acceptance need their own verification and authority.
 Required human approvals and repository protections remain merge gates.
 
-GitHub prose also carries a visible AI byline. [github-writing](skills/github-writing/SKILL.md)
+AI-written GitHub passages open with a visible byline. [github-writing](skills/github-writing/SKILL.md)
 credits the model that drafted an issue, PR description, comment, review,
 discussion or release note, even when another agent posts it:
 
@@ -287,7 +291,7 @@ Descriptions below come directly from each skill's metadata.
 | [babysitter](skills/babysitter/SKILL.md) | Repair and merge requested pull requests. Use when asked to babysit, watch or monitor PRs, and honour explicit read-only and no-merge limits. |
 | [bro](skills/bro/SKILL.md) | Restate the last message in plain human language, with no jargon. |
 | [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion or to challenge assumptions; return findings without implementation. |
-| [design-chooser](skills/design-chooser/SKILL.md) | Use after product decisions are sufficiently settled and before implementing UI work that leaves a material visual or interaction choice unresolved. |
+| [design-chooser](skills/design-chooser/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
 | [focus-group](skills/focus-group/SKILL.md) | Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study. |
 | [github-writing](skills/github-writing/SKILL.md) | Use whenever drafting or editing LLM-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
 | [grilling](skills/grilling/SKILL.md) | Stress-test a plan, decision or idea through questions. Use when the user asks to be grilled or wants an interview to clarify their thinking. |
@@ -334,7 +338,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 5b08af0571945dae007ddb40cddebe07b12af3758f40f7ee1587ecb241c4e888 -->
+<!-- skills-review: 8336dbc8a530a88b92b25cb196ad40465566ad719c791f48be0affa9f4572af1 -->
 
 ## Owner maintenance
 
