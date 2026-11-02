@@ -241,12 +241,12 @@ class Library(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.fixture(root)
-            (root / 'skills/plan/SKILL.md').unlink()
-            p = root / 'skills/imps/SKILL.md'
-            p.write_text(p.read_text().replace('name: imps', 'name: wrong') +
+            (root / 'skills/grilling/SKILL.md').unlink()
+            p = root / 'skills/challenge/SKILL.md'
+            p.write_text(p.read_text().replace('name: challenge', 'name: wrong') +
                          '\n[missing](missing.md)\nPKG/shared/contract.md\n')
             errors = '\n'.join(checker.check(root))
-            for expected in ('missing skill: plan', 'mismatched name',
+            for expected in ('missing skill: grilling', 'mismatched name',
                              'retired dependency', 'broken/escaping link'):
                 self.assertIn(expected, errors)
 
@@ -258,7 +258,7 @@ class Library(unittest.TestCase):
             vendor.mkdir()
             (vendor / 'SKILL.md').write_text('PKG/shared/private.md')
             self.assertEqual(checker.check(root), [])
-            folder = root / 'skills/imps/scripts'
+            folder = root / 'skills/challenge/scripts'
             folder.mkdir()
             for name in ('bad.py', 'bad-script'):
                 with self.subTest(name=name):
@@ -272,7 +272,7 @@ class Library(unittest.TestCase):
             root = Path(tmp)
             self.fixture(root)
             self.assertEqual(checker.check(root), [])
-            p = root / 'skills/challenge/SKILL.md'
+            p = root / 'skills/review/SKILL.md'
             text = p.read_text()
             self.assertIn('**Sol, Opus,', text)
             p.write_text(text.replace('**Sol, Opus,', '**Sol, Argon, Opus,', 1))

@@ -12,19 +12,10 @@ publication or external mutations. Observe host permissions and sharing limits.
 
 ## Independent challenge
 
-Discover host delegation capabilities and exact model identities. Preserve named
-models and settings. Otherwise choose the first available reviewer in this order
-whose verified lineage differs from both the coordinating model and the proposal's
-material model authors:
-**Sol, Opus, Wonder Full, Argon, Grok 4.7**. Another provider alias, version or
-effort of the same lineage is not independent. If authorship or reviewer lineage
-cannot be established, or a required choice is unavailable, report the gap rather
-than claiming cross-lineage review or silently substituting.
-
-Use one fresh reviewer. In T3 Code, resolve models with
-`orchestrator_capabilities`, dispatch with `delegate_task`, record `taskId` and
-follow the returned `next`. Use native delegation elsewhere. Do not poll, create
-a top-level thread, or let the child start further agents.
+Apply [review](../review/SKILL.md) for cross-lineage eligibility, reviewer
+selection, dispatch and evidence. Use one fresh reviewer and require it to read
+and apply review in the assigned-reviewer role. Follow review's rule for named
+models, settings and conflicts.
 
 Give the reviewer the problem, constraints, proposal, source/version and raw
 evidence. Do not prime it with the parent's preferred conclusion or earlier
@@ -53,7 +44,7 @@ discard a finding because of its reviewer or rarity.
 
 Default to one pass. Add one fresh, targeted second opinion only for a concrete
 unresolved consequential risk or disagreement. Unless explicitly named, choose the
-next eligible unused reviewer lineage in the ordered list; report unavailable choices.
+next eligible unused reviewer lineage in review's ordered list; report unavailable choices.
 Report unresolved decisions after that; do not loop to unanimity. Follow explicit
 user limits and stop task-owned work when complete or cancelled.
 

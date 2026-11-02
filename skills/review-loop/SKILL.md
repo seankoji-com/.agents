@@ -24,15 +24,11 @@ automatically need this loop.
    major finding remains in
    security, permissions, authentication, data loss or state/concurrency, or when
    the user requests it. Record the reason and count failed attempts.
-2. Discover supported native tasks and exact model identities. Preserve explicit
-   model and option choices. Otherwise select the first available evaluator in
-   this order whose verified lineage differs from the work being reviewed:
-   **Sol, Opus, Wonder Full, Argon, Grok 4.7**. These are preferences, not hardcoded
-   provider IDs; resolve them from current capabilities. A different version,
-   effort setting or provider alias of the same lineage does not qualify.
-   Account for every model that materially authored the reviewed change. If work
-   lineage is unknown or no eligible evaluator is available, report the blocker.
-   Never silently use a different preference order or same-lineage review.
+2. Apply [review](../review/SKILL.md) for cross-lineage eligibility, reviewer
+   selection and dispatch. Every loop participant reads and applies that skill
+   for its assigned role: the coordinator obtains review and owns dispositions,
+   implementers repair selected findings, and evaluators return evidence without
+   further delegation. Follow review's rule for named reviewers and conflicts.
 3. For UI work likely to end in a PR, apply [raise-pr](../raise-pr/SKILL.md) early
    to capture practical mobile and desktop before screenshots.
    Implement directly unless substantial independent work warrants delegation;
@@ -42,21 +38,23 @@ automatically need this loop.
    options, remaining budgets, task handles, stable finding IDs, dispositions,
    checks and next action. Use one cross-lineage evaluator per round. Add another
    opinion only for a concrete unresolved risk or disagreement, within the same
-   phase's round budget. For that additional opinion, select the next eligible
-   unused reviewer lineage in the ordered list unless explicitly named; report
-   unavailable choices. Routine rechecks can use the original reviewer's lineage.
+   phase's round budget. For that additional opinion, apply review's selection
+   policy to eligible unused reviewer lineages unless explicitly named; report
+   unavailable choices. Inside [implement](../implement/SKILL.md), that policy
+   remains cost-aware across all rounds and additional opinions. Routine rechecks
+   can use the original reviewer's lineage
+   while it remains eligible under review, including after repairs by new authors.
    Do not require scores or unanimous satisfaction.
-   In T3 Code, discover models with `orchestrator_capabilities` and use a fresh
-   `delegate_task` for each review or recheck. Record its `taskId` and follow the
-   returned `next`; do not poll or replace it with a top-level thread. Follow
-   host orchestration elsewhere. Children do not start further agents.
+   Follow review's dispatch rules for every round. All loop briefs include
+   review's path and require the participant to read and apply it in its assigned
+   role, including implementation participants and assigned reviewers.
 4. Run covering checks before review and report missing or pre-failing checks.
    Establish the merge-base and owned paths, including untracked source, for the
    review phase. Round one uses a fresh read-only evaluator on the full scoped
    diff, surrounding callers and every acceptance criterion. Supply intent,
    exclusions, version, checks and evaluation criteria. Ask for consequential
    bugs, broken callers and unnecessary code, tests, guards or procedure.
-   Apply [review-evidence](../review-evidence/SKILL.md) and include it in the
+   Apply [review](../review/SKILL.md) and include it in the
    review brief. Require key-state screenshots for visible behavior and every
    visible finding; the reviewer reports bugs and SEV1–SEV3 severity to the parent,
    which owns repair, deferral and issue-filing decisions within its authority.
@@ -67,7 +65,7 @@ automatically need this loop.
    or task completion status is not approval. Cancel failed work and verify it
    stopped before retrying within the remaining budget.
 5. Verify each finding using severity, location, reproduction or supporting evidence,
-   and impact, and apply review-evidence's release treatment for its SEV level.
+   and impact, and apply review's release treatment for its SEV level.
    Repair findings selected by the
    parent and unmet criteria within scope. Capture fresh evidence for visible
    fixes and preserve original findings. Prefer deleting or narrowing when it fixes the
@@ -85,7 +83,7 @@ automatically need this loop.
    round. Never transfer approval across unreviewed behavior or shop for reviewers.
 7. Accept when evidence covers the current behavior, required criteria are met
    and remaining findings have explicit dispositions consistent with
-   review-evidence's release treatment. An approved exception does not mean the bug is fixed. Incomplete
+   review's release treatment. An approved exception does not mean the bug is fixed. Incomplete
    visual review remains an evidence gap in the release recommendation.
    Reviewer verdicts inform that decision; agreement alone does not prove it.
    The parent decides deferrals and retains severity and supporting evidence.
@@ -115,8 +113,10 @@ Keep updates brief: result, material findings and next action. Final handoff inc
 revision, implementation attempts and evaluation rounds used/limits, exact work and
 review models, checks, finding dispositions, deferrals and endpoint evidence or
 remaining blockers. Report usage only when exposed. Separate local validation,
-hosted checks, independent review, merge and deployment. In T3 Code, the coordinator uses `html_preview` then
-`html_render` for user-facing substantive findings and disposition reports;
+hosted checks, independent review, merge and deployment. Delegated coordinators
+return complete plain-text reports; only the main thread presents them. In T3
+Code, the main-thread coordinator uses `html_preview` then `html_render` for
+user-facing substantive findings and disposition reports;
 use readable text when native HTML is unavailable or the result is brief.
 
 ## Boundaries

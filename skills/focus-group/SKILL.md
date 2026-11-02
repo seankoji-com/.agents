@@ -1,6 +1,7 @@
 ---
 name: focus-group
 description: "Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study."
+disable-model-invocation: true
 ---
 
 # Synthetic product study
@@ -30,6 +31,8 @@ observations are not human research or population estimates.
    ceilings, actions or sharing; hold dependent work where authority is missing.
    Silence grants none. Use independent planning and fidelity reviews when requested,
    required by the active workflow, or warranted by study risk and authorized.
+   Apply [review](../review/SKILL.md) for every independent model review and
+   require assigned reviewers to read and apply it; retain the study's limits.
    Record which reviews are planned; unavailable required review remains a gate.
 5. Pilot image/browser/isolation capabilities before dependent cells. Record gaps;
    never silently replace live journeys with screenshot critique. Use native tasks

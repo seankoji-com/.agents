@@ -1,24 +1,84 @@
 ---
-name: review-evidence
-description: Use during engineering reviews to capture visible behavior, report evidence-backed findings and assign SEV1–SEV3 severity. Applies to direct reviews and dispatched reviewers.
+name: review
+description: Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and grilling's stop-condition check.
 ---
 
-# Review evidence and severity
+# Cross-lineage review
 
-Use for code, UI, backend and release reviews. Review the requested scope against
-its requirements. This skill standardises evidence and findings; it does not
-require delegation or grant authority to repair, file issues or release.
+Review the requested scope against its requirements. Independent model review
+must be cross-lineage. This skill also owns review evidence and severity; it
+grants no authority to repair, file issues or release.
+
+## Obtain an independent review
+
+The coordinator obtains the review. An assigned reviewer follows the reviewer
+role below and does not dispatch another reviewer.
+
+1. Identify the scope, exact revision or decision brief, acceptance criteria,
+   coordinating model and every model that materially authored the reviewed work.
+   Distinguish human authors from unknown model identities.
+2. Discover supported host tasks and exact model identities. A named reviewer
+   must have a verified lineage differing from both the coordinating model and
+   every material model author. Preserve eligible named models and options.
+   If a named reviewer is ineligible or unavailable, report the conflict,
+   recommend the first eligible alternative and hold dependent review until
+   the user accepts it or names an eligible reviewer. Do not substitute.
+   Only inside [implement](../implement/SKILL.md), when no reviewer is named,
+   use its cost-aware model-selection policy for every round and additional
+   opinion, preserving all cross-lineage eligibility requirements. Otherwise
+   select the first available reviewer in this order whose verified lineage
+   differs from both the coordinating model and every material model author:
+   **Sol, Opus, Wonder Full, Argon, Grok 4.7**. Another version, effort setting
+   or provider alias of the same family does not qualify. An explicitly named
+   same-lineage reviewer is ineligible. Record the exact identities and the basis
+   for their lineages.
+3. Reuse a completed eligible review only when it covers the current behavior or
+   decisions. Otherwise obtain a fresh read-only review through authorized host
+   orchestration. Give the reviewer the request, scope, source/version, raw
+   evidence, criteria and coordinator/author identities. Include this skill's
+   path and explicitly instruct the reviewer to read and apply it in the
+   assigned-reviewer role. In T3 Code, discover models with
+   `orchestrator_capabilities`, use a new `delegate_task` for every review or
+   recheck that the coordinator dispatches, record its `taskId` and follow its
+   returned `next`. Use native
+   orchestration elsewhere. Respect the calling workflow's delegation limits;
+   an existing review may qualify without new dispatch only when its reviewer's
+   identity and lineage are verified as differing from the coordinator and every
+   material author, including the repairing agent, and it covers the current
+   head or decision brief. Assigned reviewers must receive this skill; external
+   reviews must provide evidence meeting its identity, scope and reporting rules.
+   Otherwise report the specific review gate.
+4. Keep the calling workflow's review budget across repairs and resumes. A
+   standalone review allows at most three rounds, including failed attempts.
+   Recheck material changes or unresolved findings; do not seek unanimity or
+   restart budgets by changing reviewer. Receive the complete report before
+   treating the review as completed. A timeout, missing reply or task status
+   alone is not a review.
+
+If identities cannot be verified, no cross-lineage reviewer is available, or
+required dispatch is prohibited, report the specific review gate and hold work
+that depends on it. Finish independent preparation. Self-review and same-family
+agents cannot satisfy the gate. Required human approval remains a separate gate.
 
 ## Reviewer and parent responsibilities
 
-A dispatched reviewer inspects behavior, describes bugs and assigns severity.
+Every assigned reviewer reads this skill, checks the supplied coordinator and
+author identities against its own lineage, and reports a missing or conflicting
+identity instead of claiming cross-lineage review. Perform the assigned review
+directly; do not dispatch agents, including another reviewer of this review.
+
+Implementation participants apply the parent's selected dispositions and these
+evidence rules. They do not claim independent review or dispatch reviewers.
+
+A reviewer inspects the work, describes consequential findings and assigns severity.
 Return findings and evidence to the parent. Do not fix code, decide deferrals,
 file GitHub issues or change labels as part of the review assignment. A later
 explicit repair assignment is separate work.
 
 The parent validates findings and decides whether to fix, defer, reject or raise
-issues within its existing authorization. For a direct review, the reviewing
-agent reports findings to the user and performs only separately authorized work.
+issues within its existing authorization. Validating findings and repairing code
+does not make the parent an independent reviewer. For a direct user request,
+the coordinator obtains the independent review and reports it to the user.
 
 ## Capture what was evaluated
 
@@ -77,7 +137,8 @@ mapping. Label creation and migration belong to separately authorized work.
 ## Return a usable report
 
 Include scope, revision, checks, reviewed flows and coverage gaps, even when no
-bugs are found. For each finding provide:
+bugs are found. Record coordinator, material author and reviewer model identities,
+verified lineages and any unknowns. For each finding provide:
 
 - Stable finding ID, SEV level and rationale.
 - Location, expected versus observed behavior and user impact.

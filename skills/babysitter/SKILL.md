@@ -67,8 +67,10 @@ prepared checkout or child exit is not proof of a running agent or accepted PR.
    already-authorized acceptance work, including visual or smoke checks where
    required. Missing access or authority needs a specific unblock action.
 2. Verify findings against the source. Apply
-   [review-evidence](../review-evidence/SKILL.md) for review evidence, screenshots
-   and SEV1–SEV3 classification. Keep release exceptions with the user.
+   [review](../review/SKILL.md)'s evidence, screenshot and SEV1–SEV3 rules when
+   validating feedback. Independent model review must meet its cross-lineage
+   rule within this skill's delegation limits; feedback validation is not an
+   independent review. Keep release exceptions with the user.
    Fix real problems within scope, run
    repository-required checks and apply
    [raise-pr](../raise-pr/SKILL.md) to PR updates for templates, screenshots,

@@ -1,11 +1,11 @@
 ---
-name: full-send
-description: Trigger this if the user says 'full send'.
+name: ship
+description: Use when the user explicitly asks to ship a change through tests, review and merge.
 ---
 
-# Full send
+# Ship
 
-An explicit "full send" request authorizes completing the requested change through
+An explicit "ship" request authorizes completing the requested change through
 a merged PR while the user is away. It includes task-related tests, committing,
 pushing, merging through repository protections and rebasing the PR's own branch
 with `--force-with-lease`. Explicit narrower limits still apply.

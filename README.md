@@ -1,6 +1,6 @@
 # .agents
 
-Eighteen skills for coding agents. Each skill is a folder. The agent reads
+Seventeen skills for coding agents. Each skill is a folder. The agent reads
 `SKILL.md`, and any notes, templates or helpers live in that same folder.
 
 ## Use a skill
@@ -19,9 +19,11 @@ the request.
 Keep the `skills` directory together. A few skills link to siblings:
 
 - `ketchup` links to `bro`
-- `imps`, `babysitter` and `review-loop` link to `review-evidence`
-- `full-send` links to `review-loop` and `babysitter`
-- `imps`, `review-loop`, `full-send` and `babysitter` link to `raise-pr`
+- `grilling` links to `review` for its stop-condition check and `design-chooser` for UI implementation
+- `review-loop`, `raise-pr`, `babysitter`, `challenge` and `focus-group` use `review`
+- `ship` links to `review-loop` and `babysitter`
+- `review-loop`, `ship` and `babysitter` link to `raise-pr`
+- `implement` uses `review-loop` and `review` before returning reviewed commits
 
 Helpers, where a skill has one, need Python 3.10 or newer and the standard
 library only. Reading a skill needs no install step.
@@ -31,16 +33,26 @@ follow them when it can read files, run commands, and perform the actions the
 skill names. If a named tool is missing, the skill says to report that and use
 the host's own equivalent, or plain text.
 
-`review-loop` and `challenge` ask a second model from a different provider
-family to review the work. They try these in order:
-**Sol, Opus, Wonder Full, Argon, Grok 4.7**. They take the model id from the host. They do not swap in a
-model from the same family.
+`review` selects a reviewer from a different model family than the coordinator
+and every model that materially authored the reviewed work. It tries these in
+order: **Sol, Opus, Wonder Full, Argon, Grok 4.7**, using exact identities from
+the host. A named same-family reviewer is a conflict, not an exception.
+`review-loop` participants apply that shared rule and the evidence requirements
+on every review round. `grilling` obtains a second opinion on its stop condition
+before handing off; unresolved material decisions return to the interview.
+
+`implement` moves coding into a working-lead T3 delegate in an isolated
+worktree. It selects task-appropriate models for expected total cost, with one
+evidenced automatic model/effort upgrade across the task. Its reviews use the
+same cost-aware selection while preserving cross-lineage eligibility; other
+workflows keep the reviewer order above. It returns reviewed local commits for
+the main thread to integrate and ship. It requires T3 delegation support.
 
 `design-chooser` asks one to three models, each from a different family, for two
 or three mockups each. It uses the same model order and shows each mockup inline
 in T3 Code, then waits for you to pick one.
 
-`full-send` and `babysitter` may commit, push and merge after you invoke them.
+`ship` and `babysitter` may commit, push and merge after you invoke them.
 Read those two before you use them. Limits you set in the request still apply.
 
 In T3 Code, longer reports use the host HTML preview. Other hosts get the same
@@ -50,22 +62,21 @@ content as text.
 
 | Skill | What you use it for |
 | --- | --- |
-| [imps](skills/imps/SKILL.md) | Implement, investigate, audit or review a scoped change |
-| [plan](skills/plan/SKILL.md) | Write a specification and a handoff |
+| [implement](skills/implement/SKILL.md) | Delegate implementation into an isolated T3 worktree and return reviewed commits |
 | [babysitter](skills/babysitter/SKILL.md) | Watch pull requests, repair them, and merge when the gates pass |
 | [raise-pr](skills/raise-pr/SKILL.md) | Create or update PRs with templates, screenshots, agent attribution and independent review |
 | [review-loop](skills/review-loop/SKILL.md) | Implement, then repeat an independent review and repair within a set limit |
-| [review-evidence](skills/review-evidence/SKILL.md) | Record what a review saw, and rate findings SEV1, SEV2 or SEV3 |
+| [review](skills/review/SKILL.md) | Obtain cross-lineage review, record evidence and classify consequential findings |
 | [challenge](skills/challenge/SKILL.md) | Ask another model family to pressure-test an idea, without implementing it |
 | [focus-group](skills/focus-group/SKILL.md) | Run a product study with invented personas |
-| [design-chooser](skills/design-chooser/SKILL.md) | Compare mockups from up to three model families and pick one before building |
+| [design-chooser](skills/design-chooser/SKILL.md) | Choose between UI designs when settled product decisions leave a material visual or interaction choice unresolved |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Inspect or change agent configuration, permissions and skill discovery |
 | [agent-docs](skills/agent-docs/SKILL.md) | Write, edit or audit skills and AGENTS.md/CLAUDE.md so agents follow them the same way each run |
 | [test-writer](skills/test-writer/SKILL.md) | Add tests that catch real failures, and keep required CI under ten minutes |
 | [file-upstream-bug](skills/file-upstream-bug/SKILL.md) | Reproduce a defect and report it to the project that owns it |
 | [unslop](skills/unslop/SKILL.md) | Rewrite text that reads like model output |
-| [full-send](skills/full-send/SKILL.md) | Carry an explicit "full send" through tests, review and a merged pull request |
-| [grilling](skills/grilling/SKILL.md) | Interview you about the decisions that would change the plan |
+| [ship](skills/ship/SKILL.md) | Carry an explicit "ship" through tests, review and a merged pull request |
+| [grilling](skills/grilling/SKILL.md) | Settle decisions through questions and produce an implementation brief |
 | [ketchup](skills/ketchup/SKILL.md) | Catch you up on this chat, including decisions still waiting on you |
 | [bro](skills/bro/SKILL.md) | Restate the last reply in plain language |
 

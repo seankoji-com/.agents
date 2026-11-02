@@ -1,6 +1,6 @@
 ---
 name: design-chooser
-description: Use before building or changing anything that needs a visual design decision, such as a screen, page, component, layout, colour, type or restyle.
+description: Use after product decisions are sufficiently settled and before implementing UI work that leaves a material visual or interaction choice unresolved.
 ---
 
 # Choose a visual design

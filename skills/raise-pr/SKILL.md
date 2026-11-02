@@ -1,6 +1,6 @@
 ---
 name: raise-pr
-description: Use whenever creating or updating a pull request, including during implementation, review-loop, full-send and PR maintenance.
+description: Use whenever creating or updating a pull request, including during implementation, review-loop, ship and PR maintenance.
 ---
 
 # Raise a pull request
@@ -67,11 +67,10 @@ screenshots of code or terminals are not a substitute for UI evidence.
 
 Before creating a PR, obtain a completed independent code review covering the
 proposed diff. Reuse an existing review only when it covers the current behavior.
-A reviewer must be a separate agent or human who did not author the code being
-reviewed. Self-review is not independent review. Follow repository and host rules
-for reviewer selection and delegation. A separate same-model agent qualifies
-unless the repository or invoked review workflow requires another model lineage.
-Give the reviewer the diff, relevant context and acceptance criteria. Bound a
+Apply [review](../review/SKILL.md) for cross-lineage eligibility, reviewer
+selection, dispatch, evidence and findings. Self-review and a separate same-family
+agent do not qualify. Give the reviewer the diff, relevant context and acceptance
+criteria and require it to read and apply review in the assigned-reviewer role. Bound a
 standalone review/repair cycle to three rounds; report unresolved gates when
 exhausted. Honour explicit model choices. If an
 eligible reviewer is unavailable or delegation is prohibited, finish independent
@@ -84,16 +83,16 @@ is not a review waiver. Waivers do not bypass repository protections.
 Address actionable findings within authorization and obtain review of material
 code changes made afterward. For existing PRs, material changes may be pushed
 for hosted checks, previews and independent review. Disclose pending review and
-require it before merge. Existing human or agent reviewers can review after the
+require it before merge. Existing eligible agent reviewers can review after the
 push; this does not require the repairing agent to dispatch a reviewer. If no
 eligible reviewer is available, report the merge gate and who must supply review.
 Treat changes to tests, CI workflows and configuration as material when they
 affect verification or runtime semantics, even if product code is unchanged.
 Description-only corrections and changes demonstrated to preserve the reviewed
 semantics may reuse the review; explain reuse and rerun affected checks.
-A non-author human review covering the current diff may satisfy both this gate
-and repository approval rules. Agent review cannot replace a required human
-approval, and no review replaces required CI.
+A human review may satisfy repository approval rules; it does not replace this
+skill's required cross-lineage model review. Agent review cannot replace a
+required human approval, and no review replaces required CI.
 
 Before pushing material changes with review pending, check existing auto-merge
 and merge-queue enrollment. Within authorization, hold automatic merging before
