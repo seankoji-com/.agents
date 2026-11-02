@@ -13,6 +13,7 @@ grants no authority to repair, file issues or release.
 
 The coordinator obtains the review. An assigned reviewer follows the reviewer
 role below and does not dispatch another reviewer.
+Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before T3 dispatch.
 
 1. Identify the scope, exact revision or decision brief, acceptance criteria,
    coordinating model and every model that materially authored the reviewed work.

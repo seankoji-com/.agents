@@ -36,6 +36,7 @@ show one designer another's work.
 
 ## Pick designers
 
+Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before selecting T3 routes.
 Discover the host's delegation capabilities and exact model identities. Keep any
 named models and settings. Otherwise go through this order and take the first
 available models, one per lineage: **Sol, Opus, Wonder Full, Argon, Grok 4.7**.

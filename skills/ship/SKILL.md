@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Use when the user explicitly asks to ship a change through tests, review and merge.
+description: Use when the user explicitly asks to ship a change through delivery, visible progress tracking and a final workflow retrospective.
 ---
 
 # Ship
@@ -13,12 +13,43 @@ with `--force-with-lease`. Explicit narrower limits still apply.
 It also authorises the coordinator to file confirmed deferred bugs in the task's
 repository under [review](../review/SKILL.md)'s tracking rules. Include the
 verified issue URLs in the PR and final handoff; explicit no-post limits apply.
+The final retrospective may file workflow-amendment proposals in the operator's
+configured skill repository. This owner's destination is `seankoji-com/.agents`;
+the automatic grant applies only to a destination named or configured in the
+operator's instructions. Account/repository evidence verifies ownership of that
+chosen destination; it cannot establish consent, and collaborator access is
+not ownership. Other users must name or configure their own destination before
+posting; a clone's origin alone is not consent.
 
 Task-related browser, app, simulator, device and visual testing need no additional
 user permission under this request, even if a project ordinarily asks first.
 Follow the host's tool and approval rules and the repository's test methods.
 Production changes, data deletion, unrelated changes, closing PRs and force-pushing
 other branches remain outside this grant without separate authority.
+
+## Make the work visible
+
+Use T3's parent plan/todo panel before implementation, through the host's native
+plan/todo tool or an exposed T3 MCP API that writes that list. Discover the
+actual tools; a separate MCP checklist API is not required. Reuse the list on resumes.
+Record item IDs only where returned. Put owner, dependency and evidence references
+in item text when the tool has no fields for them. For whole-list updates,
+resend the complete current list with its existing statuses; never invent IDs.
+Include the task's decisions/design, implementation, checks/review, delivery,
+deferred-bug tracking and final retrospective as applicable. Keep completed,
+active and blocked work current at handoffs, failures and phase changes. A
+delegate's internal plan does not replace the parent's list.
+
+If neither a native plan tool nor a checklist API is exposed, report the gap
+and maintain a concise parent-message status list at each phase change. Do not
+claim a panel or MCP list was updated when only text was posted. Never invent
+tools or create delegate jobs, schedules or threads merely as checklist items.
+Outside T3 use the host's visible planning mechanism with the same text fallback.
+
+Before T3 dispatch apply the shared
+[permission preflight](../agent-tuneup/references/t3-dispatch.md).
+Record the execution boundary and task/thread manifest required by the
+[retrospective](references/retrospective.md) from the start, not only at handback.
 
 ## Choose supporting skills
 
@@ -50,6 +81,14 @@ evidence. These are options, not a required sequence:
 5. Use [babysitter](../babysitter/SKILL.md) to resolve verified findings and CI
    failures through current-head readiness. Merge with the repository's permitted
    method once the gate below passes; verify the resulting merge.
+6. After delivery and required deferred-bug tracking, perform the final
+   [workflow retrospective](references/retrospective.md) across the parent and
+   every delegate's operational logs. Pitch supported, broadly applicable skill
+   amendments through [raise-issue](../raise-issue/SKILL.md) in the authorised
+   skill repository, `seankoji-com/.agents` for this owner.
+   Complete log coverage is required. Record verified proposal URLs, or evidence
+   that no amendment is warranted. Missing logs or blocked filing remain explicit
+   incomplete stages. This is the last stage, not an automatic edit-and-ship loop.
 
 Where repository policy requires direct publication instead of PRs, use its
 prescribed delivery path through the same proof and review gates. Do not create
@@ -89,8 +128,10 @@ leave dependent work incomplete and report the specific next action.
 ## Report
 
 Return the delivery link and revision, observed proof, review status, decisions
-made and any unmet endpoint. Delegates return complete plain-text reports to
-their coordinator. In T3 Code, only the main-thread coordinator uses
+made and any unmet endpoint. Delegates return complete plain-text reports with
+descendant task/thread IDs and operational evidence to their coordinator.
+The parent includes task-list status, history coverage and amendment issue URLs
+or the no-change rationale. In T3 Code, only the main-thread coordinator uses
 `html_preview` then `html_render` for a substantive report; use readable text when
 native HTML is unavailable or the result is brief. Do not claim deployment or
 live acceptance from a merge.

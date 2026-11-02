@@ -12,6 +12,8 @@ small, readable skill with a clear handoff.
 The main thread keeps the goal and owns the result. Delegates receive bounded
 jobs. Review comes from a different model family. Confirmed bugs left for later
 get tracking issues, even when they do not block the release.
+Shipping also keeps a visible parent task list and ends with a retrospective
+that proposes reusable workflow improvements as issues in this repository.
 
 [Explore the skills](#skill-catalog) · [Try it](#use-the-library) · [Keep docs current](#documentation-that-tracks-the-code)
 
@@ -29,6 +31,7 @@ reuse decisions already made and skip unnecessary ceremony.
 flowchart TD
     classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
     ship["ship<br/>Own the outcome"]:::skill
+    plan["Parent task list<br/>Plan and track progress"]
     grilling["grilling<br/>Settle product decisions"]:::skill
     design["design-chooser<br/>Choose the UI"]:::skill
     implementation["Implementation<br/>Direct or delegated"]
@@ -36,17 +39,25 @@ flowchart TD
     raise_pr["raise-pr<br/>PR and evidence"]:::skill
     babysitter["babysitter<br/>CI and merge gates"]:::skill
     merge(["Verified merge"])
+    retrospective["Final retrospective<br/>Parent and delegate logs"]
+    proposals["raise-issue<br/>Workflow proposals in .agents"]:::skill
+    finished(["Ship complete"])
 
-    ship -. "Product unclear" .-> grilling
-    ship -. "UI choice unresolved" .-> design
+    ship --> plan
+    plan -. "Product unclear" .-> grilling
+    plan -. "UI choice unresolved" .-> design
     grilling -. "UI choice remains" .-> design
-    ship --> implementation
+    plan --> implementation
     grilling --> implementation
     design --> implementation
     implementation --> review_loop
     review_loop --> raise_pr
     raise_pr --> babysitter
     babysitter --> merge
+    merge -->|"Required bug tracking complete"| retrospective
+    retrospective -. "Supported amendments" .-> proposals
+    retrospective -->|"No change warranted"| finished
+    proposals -->|"Issue URLs verified"| finished
 ```
 
 Blue boxes name skills; other boxes show steps or outcomes. Dashed branches are
@@ -141,7 +152,7 @@ flowchart TD
     url["Verified issue URL"]
     gates["Required checks and review pass"]
     merge["Merge may proceed"]
-    done(["Workflow complete<br/>Merge AND every issue URL verified"])
+    done(["Ready for final retrospective<br/>Merge AND every bug issue URL verified"])
 
     bug --> packet
     packet --> issue
@@ -152,8 +163,8 @@ flowchart TD
     url --> done
 ```
 
-Completion needs both the delivery endpoint and verified tracking for every
-deferred bug. A pending task handle is not an issue URL. The shared
+The delivery endpoint and verified tracking for every deferred bug must both
+finish before the final retrospective. A pending task handle is not an issue URL. The shared
 [deferred-bug procedure](skills/review/references/deferred-bugs.md) owns the
 details, including deduplication and evidence preservation.
 
@@ -161,6 +172,46 @@ Async dispatch follows the host's continuation rules. When T3 requires the main
 agent to yield, hosted checks can continue, but the main agent does not keep
 executing. For an otherwise-ready merge, it may merge first and dispatch filing
 immediately afterward. The owner keeps tracking active until the URLs are verified.
+
+## Make progress visible and learn from the run
+
+`ship` owns the operator-visible task list in the parent context. It discovers
+the native plan/todo tool, or a T3 MCP API that writes the same parent panel,
+and records work, owners, dependencies, evidence and status there. It updates
+the same list through handoffs and resumes. If neither tool is available, it
+reports the gap and posts a concise parent-message status list at each phase change.
+Delegate jobs and scheduled work are not substitutes for checklist items.
+
+The last stage reads the ship invocation's operational activity across the
+parent and every owned delegate, including descendants, failed attempts, reviews
+and issue writers. The [retrospective procedure](skills/ship/references/retrospective.md)
+defines the execution boundary, pagination, coverage record and bounded cutoff.
+Missing logs remain an explicit gap; a summary alone is not full log coverage.
+
+Supported amendments are pitched through `raise-issue` in the operator's
+configured skill repository. For this owner that is `seankoji-com/.agents`.
+Users of a clone or fork must explicitly name or configure their destination
+before anything is posted; cloning this library grants no consent to publish
+their project evidence in this owner's tracker.
+Each needs redacted execution evidence, a broadly useful proposed rule, tradeoffs
+and a validation case. The retrospective does not automatically change skills,
+publish transcripts or manufacture proposals to meet a quota. Shipping ends
+when the retrospective and any proposal issue URLs are verified, or with an
+evidenced no-change result. Blocked stages stay visible in the task list.
+
+## T3 permission compatibility
+
+The shared [dispatch preflight](skills/agent-tuneup/references/t3-dispatch.md)
+records an owner-reported T3 workaround. OpenCode, Grok and Muse must start with
+explicit `full-access` for unattended work while their `auto` route falls back
+to `ask`. T3 does not allow a child to exceed its parent's permissions, so a
+parent in `auto`, including Codex/ChatGPT, cannot create those full-access delegates. Skills
+filter incompatible routes before launch and preserve named-model constraints.
+
+Codex/ChatGPT in full access may instead encounter an approval route mapped to
+`never`. Operator questions use supported input tools; an impossible tool approval
+is reported as a blocker. The workaround does not authorise changing global
+permissions, bypassing host policy or silently switching a named model.
 
 ## Use the library
 
@@ -218,7 +269,7 @@ Descriptions below come directly from each skill's metadata.
 | [raise-pr](skills/raise-pr/SKILL.md) | Use whenever creating or updating a pull request, including during implementation, review-loop, ship and PR maintenance. |
 | [review](skills/review/SKILL.md) | Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and grilling's stop-condition check. |
 | [review-loop](skills/review-loop/SKILL.md) | Use when the user requests an iterative implementation, independent review and repair loop, or invokes review-loop to carry a goal to an agreed endpoint. |
-| [ship](skills/ship/SKILL.md) | Use when the user explicitly asks to ship a change through tests, review and merge. |
+| [ship](skills/ship/SKILL.md) | Use when the user explicitly asks to ship a change through delivery, visible progress tracking and a final workflow retrospective. |
 | [test-writer](skills/test-writer/SKILL.md) | Use when writing or reviewing tests, choosing regression coverage, or assessing test value, reliability and CI runtime. |
 | [unslop](skills/unslop/SKILL.md) | Cut AI tells from any writing. |
 
@@ -255,7 +306,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 890c293b8f100a6ef341a26759a450393d2361c149f0425a8be26a5e8d406f6e -->
+<!-- skills-review: 567a3d5250f7a354f97b06d40b500f31594ae4cf1a03ad257906d17d526ffc75 -->
 
 ## Owner maintenance
 

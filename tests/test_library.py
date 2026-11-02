@@ -347,6 +347,15 @@ class Documentation(unittest.TestCase):
                 self.assertNotIn('stale skill catalog', errors)
                 source.write_text(original)
 
+    def test_new_skill_reference_requires_docs_review_before_it_is_staged(self):
+        reference = self.root / 'skills/ship/references/fixture-new-rule.md'
+        reference.parent.mkdir(exist_ok=True)
+        reference.write_text('# Synthetic workflow rule\nRecord an observable outcome.\n')
+        errors = self.errors()
+        self.assertIn('skill instructions changed', errors)
+        self.assertNotIn('stale skill catalog', errors)
+        self.assertEqual(checker.check(self.root, True, True), [])
+
     def test_new_and_renamed_source_skills_cannot_escape_registration(self):
         extra = self.root / 'skills/fixture-new'
         extra.mkdir()

@@ -10,6 +10,8 @@ description: "Use when the user asks to audit, troubleshoot or change agent conf
 1. Inspect the affected host, versions, configuration files and working tree.
    Follow relevant instruction roots, aliases, MCP settings and precedence; expand
    the inventory only as needed to answer the request. Preserve unrelated work.
+   For T3 startup or permission diagnosis, read the shared
+   [dispatch preflight](references/t3-dispatch.md).
 2. Trace effective settings to their owning source or generator. Distinguish the
    user's intended policy, configured permissions and observed runtime behavior.
    Consult current official formats where needed; do not assume provider semantics

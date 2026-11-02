@@ -19,6 +19,7 @@ worktree/revision, related PR and required completion criteria. Keep one owner
 per filing request and reuse an existing task instead of duplicating it. Related
 filing requests can share a delegate while distinct bugs retain separate issues.
 
+Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md).
 Use `orchestrator_capabilities` under the host's discovery rules, then
 `delegate_task` with `mode: 'async'` and shared isolation for source inspection.
 State explicitly that the issue writer may prepare and perform the authorised

@@ -9,6 +9,7 @@ Find the decisions whose answers could materially change the goal, design, risk
 or next implementation step. Reuse settled decisions and inspect available facts
 before asking the user. Look up small facts directly; delegate substantial,
 independent investigations only when the host supports them and scope permits.
+Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before those T3 investigations.
 
 Ask the currently answerable questions together through the host's question tool,
 or numbered text questions when no question tool is available,

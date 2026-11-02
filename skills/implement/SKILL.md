@@ -43,7 +43,8 @@ repairs while meeting the quality bar. Apply this policy to the lead, workers
 and every review round or additional opinion inside implement. Other workflows
 retain review's default preferences.
 
-- Discover current provider/model identities, options and tool support. Preserve
+- Discover provider/model identities, options and tool support; apply
+  [T3 preflight](../agent-tuneup/references/t3-dispatch.md) before dispatch. Preserve
   explicit model choices subject to review's cross-lineage eligibility rules.
 - Match capability to the work. A bounded mechanical edit with deterministic
   checks can use a smaller model and lower supported effort. Ambiguous behavior,
@@ -151,7 +152,8 @@ Return a compact plain-text handoff containing:
   used/remaining and usage or cost only where exposed.
 - Review eligibility for main-thread reuse and any integration/base changes
   that would require affected behavior to be reviewed again.
-- Owned task handles, worker worktree paths and cleanup status.
+- Task/thread manifest including descendants, failures and cancellations; worker
+  worktree paths, evidence locations and cleanup status.
 - Verified deferred-bug issue URLs or pending filing requests and their owner.
 
 Stop owned workers, servers and monitoring when finished. Keep the lead worktree

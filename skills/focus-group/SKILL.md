@@ -19,6 +19,7 @@ observations are not human research or population estimates.
    with goals, experience and constraints. Do not invent traits from demographic
    generalizations. Discover native models and record exact participant/analyst
    choices and options, plus reviewers when used.
+   Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) for T3 participants.
 3. Inspect every stimulus image/text and record source/revision, capture time,
    limitations and recipient. Keep mandatory harness instructions separate from
    product stimulus. No personal browser profiles or credential entry. Establish
