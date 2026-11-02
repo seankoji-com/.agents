@@ -93,6 +93,7 @@ prepared checkout or child exit is not proof of a running agent or accepted PR.
    distinguish code defects from infrastructure failures. Bound retries. An
    authorized rerun can address a transient failure; repeated failures need diagnosis.
 3. Address review threads when authorized. Explain rejected findings briefly.
+   Apply [GitHub writing](../github-writing/SKILL.md) to replies and status comments.
    Keep unrelated improvements out of the PR. Earlier unresolved feedback still
    matters after a push; old checks do not prove the new head passes. Resolve
    verified fixes or inapplicable findings with evidence, never solely to clear gates.

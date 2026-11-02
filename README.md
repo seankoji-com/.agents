@@ -99,6 +99,20 @@ handles current-head CI and review gates. A merge is evidence of a merge;
 deployment and live acceptance need their own verification and authority.
 Required human approvals and repository protections remain merge gates.
 
+GitHub prose also carries a visible AI byline. [github-writing](skills/github-writing/SKILL.md)
+credits the model that drafted an issue, PR description, comment, review,
+discussion or release note, even when another agent posts it:
+
+```markdown
+> [!NOTE]
+> _Written by **GPT-6.1 Sol** on behalf of @seankoji_
+```
+
+The model and handle reflect the actual writer and represented operator.
+Existing human text, code-author credits and reviewer disclosures remain
+distinct. Commit attribution keeps its existing policy; the byline contains no
+private session links.
+
 ## Keep implementation off the main thread
 
 Use [implement](skills/implement/SKILL.md) when moving substantial coding into a
@@ -275,6 +289,7 @@ Descriptions below come directly from each skill's metadata.
 | [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion or to challenge assumptions; return findings without implementation. |
 | [design-chooser](skills/design-chooser/SKILL.md) | Use after product decisions are sufficiently settled and before implementing UI work that leaves a material visual or interaction choice unresolved. |
 | [focus-group](skills/focus-group/SKILL.md) | Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study. |
+| [github-writing](skills/github-writing/SKILL.md) | Use whenever drafting or editing LLM-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
 | [grilling](skills/grilling/SKILL.md) | Stress-test a plan, decision or idea through questions. Use when the user asks to be grilled or wants an interview to clarify their thinking. |
 | [implement](skills/implement/SKILL.md) | Use when the user invokes implement or requests implementation through T3 delegates, returning reviewed commits for the main thread to integrate and ship. |
 | [ketchup](skills/ketchup/SKILL.md) | Catch the user up on changes in this chat and every decision still waiting on them. Use for /ketchup. |
@@ -319,7 +334,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 37f14db4c75110bf5c91c078ac9acab6f1234d31df825cfe9406c53290024482 -->
+<!-- skills-review: 5b08af0571945dae007ddb40cddebe07b12af3758f40f7ee1587ecb241c4e888 -->
 
 ## Owner maintenance
 
@@ -340,6 +355,11 @@ the local Codex CLI and pushes `main`. It then updates the owner's configured
 checkouts. It stops on failed checks, a changing working tree, a rejected push
 or a dirty receiving checkout. In T3, the Publish action in `t3.json` runs the
 same owner workflow. Organisation workflows remain in place.
+
+For a worktree-owned log, pass `--log-file` with a new path in an existing ignored
+directory. The helper creates the file with owner-only permissions and refuses
+to overwrite an existing file. Without this option it uses the system temporary
+directory.
 
 Local MCP settings, synced skill copies, marketplace state and machine wiring
 are ignored. Keep them out of the public source; do not force-add ignored paths.

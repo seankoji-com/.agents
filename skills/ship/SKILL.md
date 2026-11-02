@@ -21,6 +21,9 @@ chosen destination; it cannot establish consent, and collaborator access is
 not ownership. Other users must name or configure their own destination before
 posting; a clone's origin alone is not consent.
 
+Apply [GitHub writing](../github-writing/SKILL.md) to authored GitHub prose,
+including authorised release notes and delegated drafts.
+
 Task-related browser, app, simulator, device and visual testing need no additional
 user permission under this request, even if a project ordinarily asks first.
 Follow the host's tool and approval rules and the repository's test methods.

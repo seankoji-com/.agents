@@ -102,6 +102,20 @@ class Maintenance(unittest.TestCase):
         self.assertEqual(self.call(self.root, 'git', 'rev-parse', 'HEAD'), self.initial)
         self.assertFalse((self.base / 'messages').exists())
 
+    def test_explicit_log_is_private_relocatable_and_never_overwrites(self):
+        log = self.root / 'owned.log'
+        args = (sys.executable, '-B', str(self.root / 'scripts/maintain.py'),
+                'check', '--log-file', str(log))
+        output = self.call(self.base, *args)
+        self.assertIn('Checks passed.', output)
+        self.assertIn('COMPLETE: checks passed', self.log(output))
+        self.assertIn(f'Log: {log.resolve()}', output)
+        original = log.read_bytes()
+        self.call(self.base, *args, expected=1)
+        self.assertEqual(log.read_bytes(), original)
+        self.assertEqual(self.call(self.root, 'git', 'rev-parse', 'HEAD'), self.initial)
+        self.assertFalse((self.base / 'messages').exists())
+
     def test_dirty_receiver_is_preserved_and_other_host_still_updates(self):
         dirty = self.base / 'wsl/.agents/local.txt'
         dirty.write_text('local work')

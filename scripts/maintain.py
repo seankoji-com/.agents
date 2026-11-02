@@ -190,13 +190,19 @@ def main():
     global LOG, LOG_PATH
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', nargs='?', default='publish', choices=('publish', 'check', 'sync', 'hook'))
+    parser.add_argument('--log-file', type=Path,
+                        help='Create a private log at this new path; parent directory must exist')
     args = parser.parse_args()
     if args.command == 'hook':
         # A parent publish captures the entire hook in its existing log.
         unchanged(git('write-tree'))
         check()
         return
-    descriptor, path = tempfile.mkstemp(prefix='agents-publish-', suffix='.log')
+    if args.log_file:
+        path = str(args.log_file.resolve())
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    else:
+        descriptor, path = tempfile.mkstemp(prefix='agents-publish-', suffix='.log')
     LOG_PATH = path
     LOG = os.fdopen(descriptor, 'w', buffering=1)
     print('Log: ' + path, flush=True)

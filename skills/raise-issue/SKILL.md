@@ -5,6 +5,9 @@ description: Use when the user or an authorised workflow asks to investigate, pr
 
 # Raise an issue
 
+Apply [GitHub writing](../github-writing/SKILL.md) to issue bodies, updates and
+follow-up comments, including its path in writer assignments.
+
 ## Dispatch asynchronously
 
 The main-thread coordinator is the top-level thread owning the workflow,

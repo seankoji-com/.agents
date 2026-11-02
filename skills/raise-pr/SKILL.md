@@ -10,6 +10,9 @@ repository's delivery policy; a repository that requires direct publication
 does not get a PR. This skill adds no authority to commit, push, upload private
 artifacts, create PRs, merge or deploy.
 
+Apply [GitHub writing](../github-writing/SKILL.md) to descriptions and comments,
+including drafts and later edits.
+
 ## Prepare the description
 
 Inspect the actual repository, intended base, current head and scoped diff.

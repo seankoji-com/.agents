@@ -72,8 +72,9 @@ directly; do not dispatch agents, including another reviewer of this review.
 Implementation participants apply the parent's selected dispositions and these
 evidence rules. They do not claim independent review or dispatch reviewers.
 
-A reviewer inspects the work, describes consequential findings and assigns severity.
-Return findings and evidence to the parent. Do not fix code, decide deferrals,
+Inspect the work, assign severity and return findings with evidence to the parent.
+For separately authorised GitHub reviews, apply [GitHub writing](../github-writing/SKILL.md).
+Do not fix code, decide deferrals,
 file GitHub issues or change labels as part of the review assignment. A later
 explicit repair assignment is separate work.
 
