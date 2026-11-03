@@ -107,19 +107,31 @@ class Maintenance(unittest.TestCase):
         self.assertFalse((self.base / 'messages').exists())
 
     def test_receiver_retiring_external_skills_stops_before_deleting_them(self):
-        for name in ('bro', 'unslop'):
+        self.assert_receiver_migration_hold(('bro', 'unslop'))
+
+    def test_receiver_retiring_ketchup_requires_migration(self):
+        self.assert_receiver_migration_hold(('ketchup',))
+
+    def test_receiver_retiring_agent_docs_requires_migration(self):
+        self.assert_receiver_migration_hold(('agent-docs',))
+
+    def assert_receiver_migration_hold(self, names):
+        originals = {}
+        for name in names:
             folder = self.root / 'skills' / name
             folder.mkdir(parents=True)
             (folder / 'SKILL.md').write_text(
                 f'---\nname: {name}\ndescription: Synthetic legacy copy.\n---\nDo the task.\n')
-        self.call(self.root, 'git', 'add', '-f', 'skills/bro', 'skills/unslop')
+            originals[name] = (folder / 'SKILL.md').read_bytes()
+        self.call(self.root, 'git', 'add', '-f',
+                  *(f'skills/{name}' for name in names))
         self.call(self.root, 'git', 'commit', '-qm', 'Legacy skill copies')
         self.call(self.root, 'git', 'push', '-q', 'origin', 'main')
         legacy = self.call(self.root, 'git', 'rev-parse', 'HEAD')
         for host in ('receiver-a', 'receiver-b'):
             self.call(self.base / host / '.agents', 'git', 'pull', '--ff-only')
-        self.call(self.root, 'git', 'rm', '--cached', '--',
-                  'skills/bro/SKILL.md', 'skills/unslop/SKILL.md')
+        self.call(self.root, 'git', 'rm', '--',
+                  *(f'skills/{name}/SKILL.md' for name in names))
         output = self.publish(expected=1)
         self.assertIn('external skill migration preflight', self.log(output))
         self.assertIn('left untouched', self.log(output))
@@ -127,13 +139,17 @@ class Maintenance(unittest.TestCase):
             receiver = self.base / host / '.agents'
             self.assertEqual(self.call(receiver, 'git', 'rev-parse', 'HEAD'), legacy)
             self.assertFalse((self.base / host / 'actions').exists())
-            for name in ('bro', 'unslop'):
+            for name in names:
                 self.assertEqual((receiver / 'skills' / name / 'SKILL.md').read_bytes(),
-                                 (self.root / 'skills' / name / 'SKILL.md').read_bytes())
+                                 originals[name])
             # Simulate the documented update and reinstall using local fixtures.
             self.call(receiver, 'git', 'pull', '--ff-only')
-            for name in ('bro', 'unslop'):
-                shutil.copytree(self.root / 'skills' / name, receiver / 'skills' / name)
+            for name in names:
+                installed_name = 'writing-for-agents' if name == 'agent-docs' else name
+                folder = receiver / 'skills' / installed_name
+                folder.mkdir(parents=True)
+                (folder / 'SKILL.md').write_bytes(originals[name].replace(
+                    f'name: {name}\n'.encode(), f'name: {installed_name}\n'.encode()))
         self.call(self.base, sys.executable, '-B', str(self.root / 'scripts/maintain.py'), 'sync')
         for host in ('receiver-a', 'receiver-b'):
             self.assertEqual((self.base / host / 'actions').read_text(), 'install\ncheck\n')

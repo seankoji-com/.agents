@@ -14,4 +14,6 @@ __pycache__/
 # Upstream skills installed locally through the Skills CLI, not library source.
 /skills/bro/
 /skills/unslop/
+/skills/ketchup/
+/skills/writing-for-agents/
 /.skill-lock.json

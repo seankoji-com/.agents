@@ -59,9 +59,9 @@ Record the execution boundary and task/thread manifest required by the
 Choose skills that help the current task, reusing settled decisions and existing
 evidence. These are options, not a required sequence:
 
-- [grilling](../grilling/SKILL.md) for unresolved product decisions that could
+- [interrogate](../interrogate/SKILL.md) for unresolved product decisions that could
   materially change implementation.
-- [design-chooser](../design-chooser/SKILL.md) when product decisions are settled
+- [choose-design](../choose-design/SKILL.md) when product decisions are settled
   but a material UI or interaction choice remains.
 - [implement](../implement/SKILL.md) when moving coding into an isolated T3
   delegate is worthwhile, particularly for substantial implementation work.

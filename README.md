@@ -40,7 +40,7 @@ A skill is a small written guide that your coding agent reads when it needs to
 perform a particular kind of work. Each folder has a `SKILL.md` file with the
 purpose, steps, evidence to collect, and conditions for finishing.
 
-The names describe jobs. `grilling` helps you decide what you mean. `review`
+The names describe jobs. `interrogate` helps you decide what you mean. `review`
 checks work against the goal. `ship` owns delivery. You can use one skill on its
 own or combine several in a request.
 
@@ -59,9 +59,9 @@ agent will follow.
 
 Settle what to build and how people will use it before implementation.
 
-- [grilling](skills/grilling/SKILL.md): Turn an idea into a buildable brief through focused questions and a check for unresolved decisions.
+- [interrogate](skills/interrogate/SKILL.md): Turn an idea into a buildable brief through focused questions and a check for unresolved decisions.
 - [challenge](skills/challenge/SKILL.md): Get an independent critique of a proposal, a simpler alternative, and evidence that would help you choose. No implementation.
-- [design-chooser](skills/design-chooser/SKILL.md): Compare visual options for a new interface or a material interaction change, then choose before building.
+- [choose-design](skills/choose-design/SKILL.md): Compare visual options for a new interface or a material interaction change, then choose before building.
 - [focus-group](skills/focus-group/SKILL.md): Explore a product through fictional participants in a clearly labelled synthetic study. Model responses are not human research.
 
 ### Engineering
@@ -81,14 +81,12 @@ Build, check, and deliver changes with evidence of what works and what remains.
 
 Understand the work and communicate it clearly.
 
-- [ketchup](skills/ketchup/SKILL.md): Catch up on what happened in this conversation and which decisions still need you.
 - [github-writing](skills/github-writing/SKILL.md): Credit AI-written GitHub prose with a visible byline naming the actual writer and represented operator.
 
 ### Agent setup
 
 Maintain the instructions and configuration your agents depend on.
 
-- [agent-docs](skills/agent-docs/SKILL.md): Write agent instructions with clear triggers, ordered steps, and checkable completion conditions.
 - [agent-tuneup](skills/agent-tuneup/SKILL.md): Diagnose settings, permissions, connections, or missing skills. Separate saved configuration from observed behavior.
 
 ## What it looks like in practice
@@ -98,7 +96,7 @@ have not decided how replay timing should work.
 
 ```text
 Add a post-game replay that plays the match in real time.
-Use grilling to settle the timing decisions before implementation.
+Use interrogate to settle the timing decisions before implementation.
 Keep the game's existing visual style.
 ```
 
@@ -108,7 +106,7 @@ should use facts already available in the project and reuse decisions you have
 made.
 
 If the replay needs a new control that the existing design does not answer,
-`design-chooser` can help you choose it. If the current interface already gives
+`choose-design` can help you choose it. If the current interface already gives
 a clear answer, the agent can preserve it and continue.
 
 For delivery, you can be explicit about the endpoint:
@@ -142,7 +140,7 @@ a job, especially one that can publish or merge changes.
   `ship` also permits rebasing its own PR branch with `--force-with-lease`, filing
   deferred-bug issues, and proposing workflow improvements as issues in your
   explicitly configured skill repository. These skills do not bypass protections.
-- **Sharing.** Invoking `design-chooser` permits sending the minimal design
+- **Sharing.** Invoking `choose-design` permits sending the minimal design
   brief to the selected providers, subject to your sharing limits. Broader raw-file
   sharing needs separate authority.
 - **Review.** Independent review uses a different model family from the
@@ -169,7 +167,7 @@ npx skills add seankoji-com/.agents
 Or select a single skill:
 
 ```sh
-npx skills add seankoji-com/.agents --skill agent-docs
+npx skills add seankoji-com/.agents --skill interrogate
 ```
 
 The [Skills CLI](https://github.com/vercel-labs/skills#install-a-skill) requires
@@ -186,8 +184,8 @@ request or a slash command. Start with a bounded job:
 Use review to evaluate this implementation against the brief. Do not edit files.
 ```
 
-`ketchup` and `focus-group` disable automatic model invocation.
-Use your host's explicit skill invocation for these, such as `/ketchup`
+`focus-group` disables automatic model invocation.
+Use your host's explicit skill invocation, such as `/focus-group`
 where slash commands are supported.
 
 ### Work from a clone
@@ -224,20 +222,30 @@ Install them from upstream rather than from this repository:
 
 - [bro](https://github.com/cursor/plugins/blob/main/pstack/skills/bro/SKILL.md): Restate the last answer in plain language.
 - [unslop](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md): Remove formulaic AI phrasing from writing.
+- [ketchup](https://github.com/cursor/plugins/blob/main/pstack/skills/ketchup/SKILL.md): Catch up on changes in a conversation and decisions waiting on you.
 
 ```sh
-npx skills add cursor/plugins --skill bro unslop --global
+npx skills add cursor/plugins --skill bro unslop ketchup --global
 ```
 
-Both require explicit invocation on hosts that respect
-`disable-model-invocation`, such as `/bro` or `/unslop` where supported.
+These require explicit invocation on hosts that respect
+`disable-model-invocation`, such as `/bro`, `/unslop` or `/ketchup` where supported.
+
+For writing skills and agent instructions, install
+[writing-for-agents](https://github.com/mattpocock/skills/tree/main/skills/productivity/writing-for-agents)
+from Matt Pocock's library. It replaces this repository's former `agent-docs` skill
+and keeps its upstream name:
+
+```sh
+npx skills add mattpocock/skills --skill writing-for-agents --global
+```
 
 This library maintains its own versions of several workflow skills inspired by
 other libraries. They remain here because their instructions differ from
 upstream. Third-party installations are local state, excluded from the generated
-catalog and from Git. The owner checkout ignores the installed `bro` and `unslop`
-folders and the Skills CLI's global lock file. A fresh checkout does not install
-these optional skills automatically.
+catalog and from Git. The owner checkout ignores the installed `bro`, `unslop`,
+`ketchup` and `writing-for-agents` folders and the Skills CLI's global lock file.
+A fresh checkout does not install these optional skills automatically.
 
 ## How the workflows fit together
 
@@ -259,8 +267,8 @@ flowchart TD
     classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
     ship["ship<br/>Own the outcome"]:::skill
     plan["Parent task list<br/>Plan and track progress"]
-    grilling["grilling<br/>Settle product decisions"]:::skill
-    design["design-chooser<br/>Choose the UI"]:::skill
+    interrogate["interrogate<br/>Settle product decisions"]:::skill
+    design["choose-design<br/>Choose the UI"]:::skill
     implementation["Implementation<br/>Direct or delegated"]
     review_loop["review-loop<br/>Evaluate and repair"]:::skill
     raise_pr["raise-pr<br/>PR and evidence"]:::skill
@@ -271,11 +279,11 @@ flowchart TD
     finished(["Ship complete"])
 
     ship --> plan
-    plan -. "Product unclear" .-> grilling
+    plan -. "Product unclear" .-> interrogate
     plan -. "UI choice unresolved" .-> design
-    grilling -. "UI choice remains" .-> design
+    interrogate -. "UI choice remains" .-> design
     plan --> implementation
-    grilling --> implementation
+    interrogate --> implementation
     design --> implementation
     implementation --> review_loop
     review_loop --> raise_pr
@@ -293,10 +301,10 @@ executable router. The skills are instructions the agent selects for the task.
 This example follows a repository that uses PRs; a repository with a direct
 publication policy keeps its prescribed delivery path.
 
-**Settle the consequential choices.** [grilling](skills/grilling/SKILL.md) asks
+**Settle the consequential choices.** [interrogate](skills/interrogate/SKILL.md) asks
 about uncertainty that could change the next implementation step. It obtains
 a cross-lineage readiness review before handing off. For unresolved visual or
-interaction choices, [design-chooser](skills/design-chooser/SKILL.md) presents
+interaction choices, [choose-design](skills/choose-design/SKILL.md) presents
 mockups after product decisions are settled. The user chooses before UI work
 begins. It defaults to two designer lineages, or three for a new screen, app or
 unconstrained redesign. A missing lineage leaves the comparison incomplete
@@ -324,11 +332,27 @@ as a targeted reproduction, a different repair or a smaller proposed delivery.
 An extension needs a specific purpose and stop condition. Existing review gates
 and the user's scope still apply.
 
+For PR maintenance, `babysitter` supplies the actors needed to finish: its
+coordinator can obtain independent reviewers and delegate isolated repairs or
+tests. Children return results without creating more agents or watches. A
+three-attempt review budget permits one diagnosed extension of up to two attempts
+when a changed approach can produce new evidence; stricter caller limits win.
+
 **Finish the authorised endpoint.** [ship](skills/ship/SKILL.md) carries the
 change through checks, review and merge. [babysitter](skills/babysitter/SKILL.md)
 handles current-head CI and review gates. A merge is evidence of a merge;
 deployment and live acceptance need their own verification and authority.
 Required human approvals and repository protections remain merge gates.
+
+Babysitting resumes from an owned record of unfinished feedback, reviewed
+revision, next action and confirmed native watch. The coordinator repairs,
+supplies fresh review, attempts the permitted merge as soon as gates pass and
+reads back GitHub's merged state. Green checks, queue enrollment, auto-merge
+and a completed repair pass remain intermediate. Older unresolved feedback
+survives a push or interruption. Its
+[continuation guide](skills/babysitter/references/continuation.md) defines recovery,
+bounded retries and lifecycle acceptance scenarios. Those scenarios are a
+verification plan, not evidence of a live successful run.
 
 AI-written GitHub passages open with a visible byline. [github-writing](skills/github-writing/SKILL.md)
 credits the model that drafted an issue, PR description, comment, review,
@@ -482,19 +506,17 @@ for a human introduction, or open a skill here to read its exact instructions.
 
 | Skill | When to use it |
 | --- | --- |
-| [agent-docs](skills/agent-docs/SKILL.md) | Use when creating, editing or auditing a skill, AGENTS.md, CLAUDE.md or a doc they point to. |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Use when the user asks to audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery. |
-| [babysitter](skills/babysitter/SKILL.md) | Repair and merge requested pull requests. Use when asked to babysit, watch or monitor PRs, and honour explicit read-only and no-merge limits. |
+| [babysitter](skills/babysitter/SKILL.md) | Autonomously repair requested pull requests through verified merge. Use when asked to babysit, watch or monitor PRs; honour explicit read-only and no-merge limits. |
 | [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion or to challenge assumptions; return findings without implementation. |
-| [design-chooser](skills/design-chooser/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
+| [choose-design](skills/choose-design/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
 | [focus-group](skills/focus-group/SKILL.md) | Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study. |
 | [github-writing](skills/github-writing/SKILL.md) | Use whenever drafting or editing LLM-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
-| [grilling](skills/grilling/SKILL.md) | Stress-test a plan, decision or idea through questions. Use when the user asks to be grilled or wants an interview to clarify their thinking. |
 | [implement](skills/implement/SKILL.md) | Use when the user invokes implement or requests implementation through T3 delegates, returning reviewed commits for the main thread to integrate and ship. |
-| [ketchup](skills/ketchup/SKILL.md) | Catch the user up on changes in this chat and every decision still waiting on them. Use for /ketchup. |
+| [interrogate](skills/interrogate/SKILL.md) | Stress-test a plan, decision or idea through questions. Use when the user asks to interrogate a plan or wants an interview to clarify their thinking. |
 | [raise-issue](skills/raise-issue/SKILL.md) | Use when the user or an authorised workflow asks to investigate, prepare, file or follow up on a bug, feature or task issue in an owned, organisation or external repository, using an asynchronous T3 delegate. |
 | [raise-pr](skills/raise-pr/SKILL.md) | Use whenever creating or updating a pull request, including during implementation, review-loop, ship and PR maintenance. |
-| [review](skills/review/SKILL.md) | Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and grilling's stop-condition check. |
+| [review](skills/review/SKILL.md) | Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and interrogate's stop-condition check. |
 | [review-loop](skills/review-loop/SKILL.md) | Use when the user requests an iterative implementation, independent review and repair loop, or invokes review-loop to carry a goal to an agreed endpoint. |
 | [ship](skills/ship/SKILL.md) | Use when the user explicitly asks to ship a change through delivery, visible progress tracking and a final workflow retrospective. |
 | [test-writer](skills/test-writer/SKILL.md) | Use when writing or reviewing tests, choosing regression coverage, or assessing test value, reliability and CI runtime. |
@@ -540,7 +562,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: cde3d6eddfcd70f41fe1ddfa8a5e74e0a060153a839d661a68b76b05dc2c4115 -->
+<!-- skills-review: 91da3aa8311332a5443a71d18823d78d06fb437b352b7421d17657b282fe733d -->
 
 ### Owner maintenance
 
@@ -599,20 +621,22 @@ without generating another commit.
 
 #### One-time external skill migration on receivers
 
-An older checkout tracks `bro` and `unslop`. Updating it removes those tracked
-files, even if you installed identical upstream copies beforehand. Sync detects
+Older checkouts track `bro`, `unslop`, `ketchup` or `agent-docs`. Updating removes
+those tracked files, even if you installed identical upstream copies beforehand.
+The upstream replacement for `agent-docs` is named `writing-for-agents`. Sync detects
 this transition and leaves that receiver's checkout untouched. Migrate each
 affected receiver once, then retry delivery from the publishing checkout.
 
 On a clean receiver checkout on `main` with the expected origin, first check
-that the Skills CLI is available. Then update and immediately reinstall the two
+that the Skills CLI is available. Then update and immediately reinstall the upstream
 skills before refreshing discovery:
 
 ```sh
 cd ~/.agents
 npx skills --version
 git pull --ff-only origin main
-npx skills add cursor/plugins --skill bro unslop --global --agent codex --yes
+npx skills add cursor/plugins --skill bro unslop ketchup --global --agent codex --yes
+npx skills add mattpocock/skills --skill writing-for-agents --global --agent codex --yes
 python3 scripts/check_library.py
 python3 ~/.dotfiles/scripts/t3-workflow-skills.py install
 python3 ~/.dotfiles/scripts/t3-workflow-skills.py check

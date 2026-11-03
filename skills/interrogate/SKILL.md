@@ -1,9 +1,9 @@
 ---
-name: grilling
-description: Stress-test a plan, decision or idea through questions. Use when the user asks to be grilled or wants an interview to clarify their thinking.
+name: interrogate
+description: Stress-test a plan, decision or idea through questions. Use when the user asks to interrogate a plan or wants an interview to clarify their thinking.
 ---
 
-# Grill the decisions that matter
+# Interrogate the decisions that matter
 
 Find the decisions whose answers could materially change the goal, design, risk
 or next implementation step. Reuse settled decisions and inspect available facts
@@ -66,9 +66,9 @@ honour any supplied path. Otherwise use the host-approved artifact location,
 verifying an ignored directory inside the session worktree when required.
 Report the file's absolute path and preserve it for the user's handoff.
 
-Grilling alone does not authorize implementation. If implementation is already
+Interrogate alone does not authorize implementation. If implementation is already
 requested, continue within that authority once material decisions are settled
 and the readiness review establishes the stop condition.
-For UI implementation, apply [design-chooser](../design-chooser/SKILL.md) after
+For UI implementation, apply [choose-design](../choose-design/SKILL.md) after
 settling product decisions and before editing when its trigger applies.
 Preserve explicit constraints.

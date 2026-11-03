@@ -1,6 +1,6 @@
 ---
 name: review
-description: Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and grilling's stop-condition check.
+description: Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and interrogate's stop-condition check.
 ---
 
 # Cross-lineage review

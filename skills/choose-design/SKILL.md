@@ -1,5 +1,5 @@
 ---
-name: design-chooser
+name: choose-design
 description: Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser.
 ---
 

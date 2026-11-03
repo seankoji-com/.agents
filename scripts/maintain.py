@@ -199,7 +199,7 @@ step=fetch
 git fetch origin main
 test "$(git rev-parse FETCH_HEAD)" = {sha} || {{ echo 'Remote main moved; update author checkout' >&2; exit 1; }}
 step='external skill migration preflight'
-for skill in bro unslop; do
+for skill in bro unslop ketchup agent-docs; do
     if git cat-file -e "HEAD:skills/$skill/SKILL.md" 2>/dev/null && ! git cat-file -e "{sha}:skills/$skill/SKILL.md" 2>/dev/null; then
         echo "Receiver still tracks $skill; left untouched. Follow README's one-time external skill migration, then retry sync." >&2
         exit 1

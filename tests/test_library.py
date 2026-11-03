@@ -98,6 +98,8 @@ class Watcher(unittest.TestCase):
     @contextmanager
     def fixture(self, checks=None, merge_state='CLEAN', unresolved=False, review=False):
         pr = {'state': 'OPEN', 'headRefOid': 'a' * 40, 'baseRefName': 'main',
+              'url': 'https://github.com/example/repo/pull/1',
+              'isDraft': False, 'reviewDecision': 'APPROVED',
               'baseRef': {'target': {'oid': 'b' * 40}},
               'author': {'login': 'author'}, 'viewer': 'owner',
               'comments': {'nodes': []}, 'reviews': {'nodes': []},
@@ -130,6 +132,227 @@ class Watcher(unittest.TestCase):
         with self.fixture() as (watcher, _):
             watcher.poll()
             watcher.baseline = False
+            with self.assertRaises(SystemExit) as done:
+                watcher.poll()
+            self.assertEqual(done.exception.code, 0)
+
+    def test_new_head_requires_two_samples_of_that_head(self):
+        with self.fixture() as (watcher, pr):
+            watcher.poll()
+            watcher.baseline = False
+            pr['headRefOid'] = 'd' * 40
+            watcher.poll()
+            with self.assertRaises(SystemExit) as done:
+                watcher.poll()
+            self.assertEqual(done.exception.code, 0)
+
+    def test_head_changed_during_check_collection_cannot_be_ready(self):
+        with self.fixture() as (watcher, pr):
+            newer = dict(pr, headRefOid='d' * 40)
+            watcher.fetch_pr.side_effect = [pr, pr, newer]
+            watcher.poll()
+            watcher.baseline = False
+            watcher.poll()
+            watcher.fetch_pr.side_effect = None
+            watcher.fetch_pr.return_value = newer
+            watcher.poll()
+            with self.assertRaises(SystemExit) as done:
+                watcher.poll()
+            self.assertEqual(done.exception.code, 0)
+
+    def test_ready_waits_for_pending_nonrequired_check(self):
+        checks = {'gate': {'bucket': 'pass', 'link': 'gate-link'},
+                  'extra': {'bucket': 'pending', 'link': 'extra-link'}}
+        with self.fixture(checks=checks) as (watcher, _):
+            watcher.poll()
+            watcher.baseline = False
+            watcher.poll()
+            checks['extra']['bucket'] = 'pass'
+            watcher.poll()
+            with self.assertRaises(SystemExit) as done:
+                watcher.poll()
+            self.assertEqual(done.exception.code, 0)
+
+    def test_new_feedback_during_final_refresh_cannot_be_ready(self):
+        with self.fixture() as (watcher, pr):
+            newer = dict(pr, reviewThreads={'nodes': [{
+                'isResolved': False, 'path': 'app.py', 'line': 1,
+                'comments': {'nodes': [{'id': 'late-finding',
+                    'url': 'https://example.invalid/review', 'body': 'A late finding',
+                    'author': {'login': 'reviewer'}}]}}]})
+            watcher.fetch_pr.side_effect = [pr, pr, newer]
+            watcher.poll()
+            watcher.baseline = False
+            watcher.poll()
+            watcher.fetch_pr.side_effect = None
+            watcher.fetch_pr.return_value = newer
+            watcher.poll()
+            with self.assertRaises(SystemExit) as stopped:
+                watcher.poll()
+            self.assertEqual(stopped.exception.code, 1)
+
+    def test_draft_or_missing_approval_cannot_be_ready(self):
+        for field, value in (('isDraft', True), ('reviewDecision', 'REVIEW_REQUIRED'),
+                             ('reviewDecision', 'CHANGES_REQUESTED')):
+            with self.subTest(field=field, value=value), self.fixture() as (watcher, pr):
+                pr[field] = value
+                if value == 'REVIEW_REQUIRED':
+                    watcher.poll()
+                    watcher.baseline = False
+                    watcher.poll()
+                else:
+                    with self.assertRaises(SystemExit) as stopped:
+                        watcher.poll()
+                    self.assertEqual(stopped.exception.code, 1)
+
+    def test_no_check_repository_can_be_ready_after_stable_samples(self):
+        with self.fixture(checks={}) as (watcher, pr), mock.patch.object(
+                waiter, 'required_checks', return_value=set()):
+            watcher.allow_no_checks = True
+            pr['reviewDecision'] = None
+            watcher.poll()
+            watcher.baseline = False
+            with self.assertRaises(SystemExit) as done:
+                watcher.poll()
+            self.assertEqual(done.exception.code, 0)
+
+    def test_empty_checks_wait_for_late_registration(self):
+        with self.fixture(checks={}) as (watcher, _), mock.patch.object(
+                waiter, 'required_checks', return_value=set()), mock.patch.object(
+                waiter.time, 'monotonic', return_value=0) as clock:
+            watcher.poll()
+            watcher.baseline = False
+            clock.return_value = 20
+            watcher.poll()
+            watcher.fetch_checks.return_value = {'late-ci': {'bucket': 'pending', 'link': 'ci-link'}}
+            clock.return_value = 40
+            watcher.poll()
+            watcher.fetch_checks.return_value['late-ci']['bucket'] = 'pass'
+            watcher.poll()
+            with self.assertRaises(SystemExit) as done:
+                watcher.poll()
+            self.assertEqual(done.exception.code, 0)
+
+    def test_empty_checks_expire_as_action_not_success(self):
+        with self.fixture(checks={}) as (watcher, _), mock.patch.object(
+                waiter, 'required_checks', return_value=set()), mock.patch.object(
+                waiter.time, 'monotonic', return_value=0) as clock:
+            watcher.poll()
+            watcher.baseline = False
+            clock.return_value = 20
+            watcher.poll()
+            clock.return_value = 181
+            with self.assertRaises(SystemExit) as stopped:
+                watcher.poll()
+            self.assertEqual(stopped.exception.code, 1)
+
+    def test_review_bot_check_does_not_substitute_for_ci_registration(self):
+        checks = {'Greptile Review': {'bucket': 'pass', 'link': 'review-link'}}
+        for until in ('ready', 'green'):
+            with self.subTest(until=until), self.fixture(checks=checks) as (watcher, _), \
+                    mock.patch.object(waiter, 'required_checks', return_value=set()), \
+                    mock.patch.object(waiter.time, 'monotonic', return_value=0) as clock:
+                watcher.until = until
+                watcher.poll()
+                watcher.baseline = False
+                clock.return_value = 20
+                watcher.poll()
+                clock.return_value = 181
+                with self.assertRaises(SystemExit) as stopped:
+                    watcher.poll()
+                self.assertEqual(stopped.exception.code, 1)
+
+    def test_older_change_request_waits_for_rereview_then_becomes_ready(self):
+        with self.fixture() as (watcher, pr):
+            pr['reviewDecision'] = 'CHANGES_REQUESTED'
+            pr['reviews']['nodes'] = [{
+                'id': 'request', 'url': 'https://example.invalid/review',
+                'state': 'CHANGES_REQUESTED', 'body': 'Fix the bug',
+                'commit': {'oid': 'c' * 40}, 'author': {'login': 'reviewer'}}]
+            watcher.poll()
+            watcher.baseline = False
+            watcher.poll()
+            watcher.poll()
+            self.assertEqual(watcher.fetch_pr.call_count, 3)
+            pr['reviews']['nodes'].append({
+                'id': 'approval', 'url': 'https://example.invalid/review',
+                'state': 'APPROVED', 'body': 'Fixed',
+                'commit': {'oid': pr['headRefOid']}, 'author': {'login': 'reviewer'}})
+            pr['reviewDecision'] = 'APPROVED'
+            with self.assertRaises(SystemExit) as done:
+                watcher.poll()
+            self.assertEqual(done.exception.code, 0)
+
+    def test_current_head_change_request_returns_action(self):
+        with self.fixture() as (watcher, pr):
+            pr['reviewDecision'] = 'CHANGES_REQUESTED'
+            pr['reviews']['nodes'] = [{
+                'id': 'request', 'url': 'https://example.invalid/review',
+                'state': 'CHANGES_REQUESTED', 'body': 'Fix the bug',
+                'commit': {'oid': pr['headRefOid']}, 'author': {'login': 'reviewer'}}]
+            with self.assertRaises(SystemExit) as stopped:
+                watcher.poll()
+            self.assertEqual(stopped.exception.code, 1)
+
+    def test_required_approval_hold_is_named_in_status(self):
+        with self.fixture(merge_state='BLOCKED') as (watcher, pr):
+            pr['reviewDecision'] = 'REVIEW_REQUIRED'
+            output = io.StringIO()
+            with redirect_stdout(output):
+                watcher.poll()
+            self.assertIn('waiting for required approval', output.getvalue())
+
+    def test_required_check_read_failure_does_not_mean_no_protection(self):
+        for transient in (True, False):
+            with self.subTest(transient=transient), mock.patch.object(
+                    waiter, 'gh_lines', side_effect=waiter.GhError('HTTP 403: rate limit', transient)):
+                with self.assertRaises(waiter.GhError) as stopped:
+                    waiter.required_checks('example/repo', 'main')
+                self.assertEqual(stopped.exception.transient, transient)
+
+    def test_failed_gate_refresh_preserves_previous_requirements(self):
+        with self.fixture() as (watcher, pr):
+            watcher.poll()
+            previous_target = watcher.required_target
+            pr['baseRef']['target']['oid'] = 'e' * 40
+            with mock.patch.object(waiter, 'required_checks', side_effect=waiter.GhError(
+                    'HTTP 403: rate limit', True)), self.assertRaises(waiter.GhError):
+                watcher.poll()
+            self.assertEqual(watcher.required, {'gate'})
+            self.assertEqual(watcher.required_target, previous_target)
+
+    def test_approval_hold_does_not_double_graphql_reads(self):
+        with self.fixture(merge_state='BLOCKED') as (watcher, _):
+            watcher.poll()
+            watcher.baseline = False
+            watcher.poll()
+            self.assertEqual(watcher.fetch_pr.call_count, 2)
+
+    def test_long_pending_checks_emit_one_actionable_notice(self):
+        checks = {'gate': {'bucket': 'pending', 'link': 'gate-link'}}
+        with self.fixture(checks=checks) as (watcher, _), mock.patch.object(
+                waiter.time, 'monotonic', return_value=0) as clock:
+            watcher.poll()
+            watcher.baseline = False
+            clock.return_value = 601
+            output = io.StringIO()
+            with redirect_stdout(output):
+                watcher.poll()
+                watcher.poll()
+            self.assertEqual(output.getvalue().count('check still pending after ten minutes: gate'), 1)
+
+    def test_base_change_during_collection_invalidates_readiness(self):
+        with self.fixture() as (watcher, pr):
+            watcher.base_overlap = mock.Mock(return_value=[])
+            newer = dict(pr, baseRefName='release',
+                         baseRef={'target': {'oid': 'e' * 40}})
+            watcher.fetch_pr.side_effect = [pr, pr, newer]
+            watcher.poll()
+            watcher.baseline = False
+            watcher.poll()
+            watcher.fetch_pr.side_effect = None
+            watcher.fetch_pr.return_value = newer
+            watcher.poll()
             with self.assertRaises(SystemExit) as done:
                 watcher.poll()
             self.assertEqual(done.exception.code, 0)
@@ -246,12 +469,12 @@ class Library(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.fixture(root)
-            (root / 'skills/grilling/SKILL.md').unlink()
+            (root / 'skills/interrogate/SKILL.md').unlink()
             p = root / 'skills/challenge/SKILL.md'
             p.write_text(p.read_text().replace('name: challenge', 'name: wrong') +
                          '\n[missing](missing.md)\nPKG/shared/contract.md\n')
             errors = '\n'.join(checker.check(root))
-            for expected in ('missing skill: grilling', 'mismatched name',
+            for expected in ('missing skill: interrogate', 'mismatched name',
                              'retired dependency', 'broken/escaping link'):
                 self.assertIn(expected, errors)
 
@@ -289,7 +512,7 @@ class Library(unittest.TestCase):
             self.fixture(root)
             shutil.copy2(ROOT / '.gitignore', root / '.gitignore')
             before = (root / 'README.md').read_bytes()
-            for name in ('bro', 'unslop'):
+            for name in ('bro', 'unslop', 'ketchup', 'writing-for-agents'):
                 folder = root / 'skills' / name
                 folder.mkdir()
                 (folder / 'SKILL.md').write_text(
@@ -297,6 +520,7 @@ class Library(unittest.TestCase):
                     '[upstream-only link](not-in-this-library.md)\n')
             (root / '.skill-lock.json').write_text('{"skills": {}}\n')
             for relative in ('skills/bro/SKILL.md', 'skills/unslop/SKILL.md',
+                             'skills/ketchup/SKILL.md', 'skills/writing-for-agents/SKILL.md',
                              '.skill-lock.json'):
                 subprocess.run(['git', '-C', str(root), 'check-ignore', '-q', relative],
                                check=True)
@@ -329,9 +553,9 @@ class Library(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.fixture(root)
-            p = root / 'skills/agent-docs/SKILL.md'
-            p.write_text('---\nname: agent-docs\ndescription: Write instructions.\n---\n')
-            self.assertIn('agent-docs: missing instructions', checker.check(root))
+            p = root / 'skills/interrogate/SKILL.md'
+            p.write_text('---\nname: interrogate\ndescription: Ask questions.\n---\n')
+            self.assertIn('interrogate: missing instructions', checker.check(root))
 
     def test_retired_tracked_container_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -357,16 +581,16 @@ class Documentation(unittest.TestCase):
 
     def test_missing_duplicate_renamed_and_edited_catalog_entries_fail(self):
         original = self.readme.read_text()
-        row = next(line for line in original.splitlines() if line.startswith('| [agent-docs]'))
+        row = next(line for line in original.splitlines() if line.startswith('| [interrogate]'))
         for replacement in ('', row + '\n' + row,
-                            row.replace('skills/agent-docs/', 'skills/old-agent-docs/'),
+                            row.replace('skills/interrogate/', 'skills/old-interrogate/'),
                             row.replace(' | ', ' | Outdated. ', 1)):
             with self.subTest(replacement=replacement):
                 self.readme.write_text(original.replace(row, replacement))
                 self.assertIn('stale skill catalog', self.errors())
 
     def test_metadata_change_requires_catalog_refresh_and_docs_review(self):
-        source = self.root / 'skills/agent-docs/SKILL.md'
+        source = self.root / 'skills/interrogate/SKILL.md'
         lines = source.read_text().splitlines()
         index = next(i for i, line in enumerate(lines) if line.startswith('description: '))
         lines[index] = 'description: Explain a difficult idea clearly.'
@@ -404,9 +628,9 @@ class Documentation(unittest.TestCase):
         (extra / 'SKILL.md').write_text(
             '---\nname: fixture-new\ndescription: A synthetic skill.\n---\nDo the task.\n')
         self.assertIn('unregistered skill: fixture-new', self.errors())
-        (self.root / 'skills/agent-docs').rename(self.root / 'skills/renamed-agent-docs')
-        self.assertIn('missing skill: agent-docs', self.errors())
-        self.assertIn('unregistered skill: renamed-agent-docs', self.errors())
+        (self.root / 'skills/interrogate').rename(self.root / 'skills/renamed-interrogate')
+        self.assertIn('missing skill: interrogate', self.errors())
+        self.assertIn('unregistered skill: renamed-interrogate', self.errors())
 
     def test_mermaid_skill_nodes_reject_retired_names_and_invalid_annotations(self):
         original = self.readme.read_text()
@@ -434,7 +658,7 @@ class Documentation(unittest.TestCase):
         self.assertIn('broken heading link: #skill-catalog', self.errors())
 
     def test_generated_descriptions_preserve_quotes_and_escape_table_pipes(self):
-        source = self.root / 'skills/agent-docs/SKILL.md'
+        source = self.root / 'skills/interrogate/SKILL.md'
         original = source.read_text()
         description = next(line for line in original.splitlines()
                            if line.startswith('description: '))
@@ -448,9 +672,9 @@ class Documentation(unittest.TestCase):
 
     def test_ignored_notes_do_not_affect_checks_or_receipt_but_tracked_sources_do(self):
         ignore = self.root / '.gitignore'
-        ignore.write_text('skills/agent-docs/local-notes.md\n'
+        ignore.write_text('skills/interrogate/local-notes.md\n'
                           'skills/review/references/deferred-bugs.md\n')
-        (self.root / 'skills/agent-docs/local-notes.md').write_text(
+        (self.root / 'skills/interrogate/local-notes.md').write_text(
             '# Synthetic local draft\n[unfinished](missing.md)\nPKG/shared/retired.md\n')
         before = self.readme.read_bytes()
         self.assertEqual(checker.check(self.root), [])
@@ -461,7 +685,7 @@ class Documentation(unittest.TestCase):
         self.assertIn('skill instructions changed', self.errors())
 
     def test_malformed_or_multiline_descriptions_cannot_enter_catalog(self):
-        source = self.root / 'skills/agent-docs/SKILL.md'
+        source = self.root / 'skills/interrogate/SKILL.md'
         original = source.read_text()
         description = next(line for line in original.splitlines()
                            if line.startswith('description: '))
@@ -470,7 +694,7 @@ class Documentation(unittest.TestCase):
                        '"   "', '"One\\nTwo"'):
             with self.subTest(scalar=scalar):
                 source.write_text(original.replace(description, 'description: ' + scalar))
-                self.assertIn('agent-docs: invalid single-line description',
+                self.assertIn('interrogate: invalid single-line description',
                               '\n'.join(checker.check(self.root, True, True)))
                 self.assertEqual(self.readme.read_bytes(), before)
 
