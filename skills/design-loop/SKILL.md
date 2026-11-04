@@ -142,10 +142,16 @@ the final revision under the round rules before requesting final code review.
 Apply [raise-pr](../raise-pr/SKILL.md), including independent code review of the
 actual diff, templates, screenshots, attribution and verified PR creation. A design
 judge can perform code review in a separate task if eligible. Design scores alone
-are not code review. Address confirmed bugs under `review`'s disposition/tracking
-rules within authority. Missing code review blocks PR creation unless the user
-explicitly waives that gate under `raise-pr`; absent a waiver, preserve the prepared
-body, branch and artifacts and report that gate rather than infer a waiver.
+are not code review. Without code review or an explicit waiver under `raise-pr`,
+preserve the prepared body, branch and artifacts and report PR creation blocked.
+
+Before concluding any run, reconcile all identified bugs against the final revision.
+Invoking this skill authorises filing confirmed bugs left unfixed in the task's
+repository, subject to explicit no-post limits. Apply [deferred-bug tracking](../review/references/deferred-bugs.md)
+through `raise-issue`, including deduplication and verified issue URLs. Record
+those URLs in the run record, PR and final handoff. Pending or blocked filing
+leaves tracking incomplete, even when the design target passes. Rejected findings
+and design preferences require no issue.
 
 For success, raise the product PR with current evidence. For an incomplete run,
 raise a **draft** with `GOAL NOT MET` in its title and description, identifying

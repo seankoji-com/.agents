@@ -361,6 +361,12 @@ under `raise-pr`; explicit limits that prevent endpoint work also remain a block
 retaining finding dispositions and release gates. `choose-design` keeps its
 operator-selected options.
 
+Before any design-loop run concludes, reconcile identified bugs against the final
+revision. Invoking the skill authorises filing confirmed bugs left unfixed in the
+task's repository, subject to explicit no-post limits. Reuse matching issues under
+the deferred-bug procedure and return verified issue URLs. Pending or blocked
+filing leaves tracking incomplete, even if the design target passes.
+
 Review limits trigger a [progress diagnosis](skills/review/references/budget-exhaustion.md),
 not an automatic request for more rounds. The coordinator checks whether repairs
 are converging, stalled or cycling and recommends a concrete alternative, such
@@ -601,7 +607,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 4743ec936dce9e83a6c8aef33991a8672ab279490c7711f252e393d57dcf1713 -->
+<!-- skills-review: 87c99fe3cb0755f162c26e529babdb20c2d4e727adc37ccb4db391a4ab654e97 -->
 
 ### Owner maintenance
 
