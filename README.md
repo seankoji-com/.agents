@@ -328,11 +328,17 @@ to capture practical mobile and desktop before screenshots. Its placement near
 the end of the diagram represents PR preparation, not its first invocation.
 
 For autonomous design iteration, [design-loop](skills/design-loop/SKILL.md) adds
-reference research, a fixed design rubric and required measurable checks. Select
-the implementor, primary judge, extra judges and target at setup. No round cap
+reference research, a fixed design rubric and required measurable checks. Its
+rubric covers task value, clarity, efficiency, control, visual craft, emotional
+appeal and brand fit. Choose product-specific anchors and justify weight changes
+from the scoped user outcome and intended emotional response before scoring.
+Select the implementor, primary judge, extra judges and target at setup. No round cap
 or other ceiling is required; explicit user limits still apply.
-Every judge must directly view and interact with the candidate; all judge access
-pilots launch concurrently before scoring, with isolated sessions where possible.
+Every judge must directly view and interact with the candidate. The primary's
+baseline evaluation verifies access before scoring against the frozen rubric.
+Additional judges' access pilots launch concurrently and may overlap the baseline;
+all routes must pass before implementation or panel entry, with isolated sessions
+where possible.
 While pilots run, the coordinator researches references, captures the baseline,
 runs independent checks and prepares the rubric, briefs and evidence storage.
 Panel judges also run concurrently where sessions and data can be isolated.
@@ -595,7 +601,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 4abf4c2f72cd0db185a94d026db3acc612855d475e0356fcba4541494ad2fa83 -->
+<!-- skills-review: 4743ec936dce9e83a6c8aef33991a8672ab279490c7711f252e393d57dcf1713 -->
 
 ### Owner maintenance
 

@@ -22,12 +22,13 @@ that repository-local storage is ignored. Track setup, candidate revisions, mode
 identities/options, task handles, scores, findings, checks, counters and next action.
 On resume, reconcile this record rather than reset budgets or discard evidence.
 
-Schedule by dependency rather than section order. Start all judge access pilots
-as soon as the roster, target environment and dispatch preflight are ready; they
-need not wait for reference research or the scoring rubric. While pilots run,
-research references, capture the baseline in an independent session, inspect the
-implementation, run independent existing checks, and prepare the rubric, task
-coverage, evaluation briefs and report storage. Freeze criteria before edits and
+Schedule by dependency rather than section order. Start additional judges' access
+pilots as soon as the roster, target environment and dispatch preflight are ready;
+they need not wait for reference research or the scoring rubric. The primary's
+baseline task verifies its access before scoring, once the rubric is frozen.
+While pilots run, research references, capture the baseline in an independent
+session, inspect the implementation, run independent existing checks, and prepare
+the rubric, task coverage, evaluation briefs and report storage. Freeze criteria before edits and
 scoring as required below. Wait only when no useful authorized work remains that
 is independent of pending results. Follow host continuation rules for live tasks.
 
@@ -37,14 +38,19 @@ capture dates, state, viewport and why each example is useful. Explain access ga
 do not replace observations with invented screenshots. Reference quality and
 interaction patterns without expanding scope or copying another product's identity.
 
-Read [rubric](references/rubric.md) before scoring. Fix the reference set, rubric,
-weights, precision, measurable checks and thresholds, and target score before edits.
+Read [rubric](references/rubric.md) to select dimensions and define their boundaries
+from the scoped user outcome and intended emotional response. Fix the reference
+set, rubric, weights, precision, measurable checks and thresholds, and target score
+before edits.
 Select the implementor, primary judge and at least one additional judge with the
 operator at setup, reusing explicit choices. No round cap, deadline, spend ceiling
 or endpoint allowance is required. Record and honour explicit user limits.
 Routine implementation decisions need
 no further approval. Changing criteria or roster requires explicit reconciliation
 with the operator, retaining the old run's incomplete result and consumed budget.
+When reconciling an additional-judge replacement before implementation, reuse a
+valid primary baseline only if its primary, rubric, candidate and evidence remain
+unchanged; retain consumed limits and failed attempts.
 
 ## Prepare independent judges
 
@@ -59,9 +65,13 @@ Apply [dispatch preflight](../agent-tuneup/references/t3-dispatch.md) for T3 tas
 including permission compatibility and the actual source of sharing authority.
 Send only task-relevant material within that authority.
 
-Before baseline scoring, dispatch all selected judges' access pilots concurrently
-using supported browser or device tools. Verify each route can view and interact
-with the target. Prefer isolated sessions to avoid interference; serialize only
+Dispatch additional judges' access pilots concurrently using supported browser or
+device tools. Combine the primary's access verification with its baseline task:
+first confirm the candidate identity, required interaction access and fresh capture
+capability, then continue into scoring against the frozen rubric. Access failure
+leaves the evaluation incomplete with no score. Additional pilots may run alongside
+the baseline; require all routes to pass before implementation or panel entry. Prefer
+isolated sessions to avoid interference; serialize only
 operations that cannot safely share a browser, device or test data. A route unable
 to do so is an unresolved roster conflict, not a screenshot-only substitute.
 Record access results and stop dependent evaluation when access is unavailable.
