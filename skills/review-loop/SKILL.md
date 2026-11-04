@@ -105,7 +105,8 @@ automatically need this loop.
    Apply review's deferred-bug tracking rule: hand off verified issue URLs or
    owned asynchronous filing requests for already non-blocking bugs. Filing
    remains within authority and tracking stays incomplete until URLs are verified.
-   On stagnation, apply [progress diagnosis](../review/references/budget-exhaustion.md)
+   On stagnation, explicit limits or extension requests, apply
+   [progress diagnosis](../review/references/budget-exhaustion.md)
    and report the unmet target and remaining gates. Stagnation is not approval.
    Escalate only material decisions the user must make. Continue independent
    authorized work while dependent work is blocked.

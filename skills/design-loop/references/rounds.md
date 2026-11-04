@@ -74,6 +74,13 @@ If an explicit limit prevents a required step, stop incomplete and report the
 blocked endpoint with preserved evidence. No limit implies approval or permission
 for more work.
 
+At stagnation, an explicit limit or before proposing an extension, apply
+review's [budget diagnosis](../../review/references/budget-exhaustion.md).
+Preserve the scoring and stagnation rules above. Any extension request carries the
+approval history, progress diagnosis, changed approach and finishing assessment
+to the operator under that procedure; additional rounds alone cannot restart
+the stopped run or reset its counters.
+
 ## Final candidate and PR
 
 For success use the accepted candidate, even on a score tie. For an incomplete run

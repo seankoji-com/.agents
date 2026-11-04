@@ -371,8 +371,12 @@ Review limits trigger a [progress diagnosis](skills/review/references/budget-exh
 not an automatic request for more rounds. The coordinator checks whether repairs
 are converging, stalled or cycling and recommends a concrete alternative, such
 as a targeted reproduction, a different repair or a smaller proposed delivery.
-An extension needs a specific purpose and stop condition. Existing review gates
-and the user's scope still apply.
+Every extension request includes the original allowance or stopping rule, prior
+user-approved and automatic extensions, total consumption and proposed addition.
+It explains why the limit was reached, what changes next, realistic finishing
+prospects, an alternative and a stop condition. Unknown history stays explicit.
+Without a justified changed approach, further review stays on hold while useful
+independent work continues. Existing review gates and the user's scope still apply.
 
 For PR maintenance, `babysitter` supplies the actors needed to finish: its
 coordinator can obtain independent reviewers and delegate isolated repairs or
@@ -607,7 +611,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 87c99fe3cb0755f162c26e529babdb20c2d4e727adc37ccb4db391a4ab654e97 -->
+<!-- skills-review: cf34bdd8872143f6b1fadb657ec8db833dd4ec10648b6b05e59fdaf345818444 -->
 
 ### Owner maintenance
 

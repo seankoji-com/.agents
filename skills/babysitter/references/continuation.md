@@ -55,6 +55,10 @@ approach, expected new evidence and a stop condition. Stricter caller budgets
 win. A new reviewer, push or phase never resets attempts. At exhaustion, retain
 the exact gate and monitoring, continue other work, and request only the concrete
 decision/access or bounded extension needed. Exhaustion is partial work.
+Record the automatic extension and its caller-rule authority in the shared
+procedure's history. Include it alongside any user-approved extensions when
+handing off or presenting a later extension request. Hold further review if the
+diagnosis cannot justify a changed approach; continue independent authorised work.
 
 ## Trigger actual review services
 
