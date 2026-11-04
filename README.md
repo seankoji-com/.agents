@@ -62,6 +62,7 @@ Settle what to build and how people will use it before implementation.
 - [interrogate](skills/interrogate/SKILL.md): Turn an idea into a buildable brief through focused questions and a check for unresolved decisions.
 - [challenge](skills/challenge/SKILL.md): Get an independent critique of a proposal, a simpler alternative, and evidence that would help you choose. No implementation.
 - [choose-design](skills/choose-design/SKILL.md): Compare visual options for a new interface or a material interaction change, then choose before building.
+- [design-loop](skills/design-loop/SKILL.md): Research comparable products and autonomously improve the real UI toward a fixed score target, with cross-lineage judges and annotated reports each round.
 - [focus-group](skills/focus-group/SKILL.md): Explore a product through fictional participants in a clearly labelled synthetic study. Model responses are not human research.
 
 ### Engineering
@@ -325,6 +326,26 @@ For work headed to a PR, [raise-pr](skills/raise-pr/SKILL.md) applies early enou
 to capture practical mobile and desktop before screenshots. Its placement near
 the end of the diagram represents PR preparation, not its first invocation.
 
+For autonomous design iteration, [design-loop](skills/design-loop/SKILL.md) adds
+reference research, a fixed design rubric and required measurable checks. Select
+the implementor, primary judge, extra judges, target and design ceiling at setup,
+with a separate endpoint allowance inside any absolute time or spend limit.
+Every judge must directly view and interact with the candidate; access is piloted
+before scoring. The primary judge evaluates first, then the whole cross-lineage
+panel must pass the same candidate. Model scores remain judgments, separate from
+measured checks and human research.
+
+Each change round produces an HTML report with annotated before/after screenshots,
+reasons, scores and evidence gaps. Two consecutive rounds without exceeding the
+phase's best score stop the run. The panel uses its lowest judge score, and the
+design ceiling applies across both phases. A stopped run with changed code targets
+a draft product PR marked `GOAL NOT MET`, subject to independent code review and
+the repository's delivery policy. No-change runs return their reports without an
+empty PR. Unavailable code review blocks PR creation unless explicitly waived
+under `raise-pr`; exhausted endpoint resources also remain a blocker. This separate
+workflow keeps `review-loop`'s finding-based acceptance and `choose-design`'s
+operator-selected options intact; it does not add a runtime or scheduler.
+
 Review limits trigger a [progress diagnosis](skills/review/references/budget-exhaustion.md),
 not an automatic request for more rounds. The coordinator checks whether repairs
 are converging, stalled or cycling and recommends a concrete alternative, such
@@ -510,6 +531,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [babysitter](skills/babysitter/SKILL.md) | Autonomously repair requested pull requests through verified merge. Use when asked to babysit, watch or monitor PRs; honour explicit read-only and no-merge limits. |
 | [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion or to challenge assumptions; return findings without implementation. |
 | [choose-design](skills/choose-design/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
+| [design-loop](skills/design-loop/SKILL.md) | Improve a product's UI through reference research, direct interaction and scored cross-lineage judging, with annotated HTML reports each round and a final PR. Use for autonomous design iteration toward a score target, rather than operator-selected mockup options. |
 | [focus-group](skills/focus-group/SKILL.md) | Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study. |
 | [github-writing](skills/github-writing/SKILL.md) | Use whenever drafting or editing LLM-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
 | [implement](skills/implement/SKILL.md) | Use when the user invokes implement or requests implementation through T3 delegates, returning reviewed commits for the main thread to integrate and ship. |
@@ -562,7 +584,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 91da3aa8311332a5443a71d18823d78d06fb437b352b7421d17657b282fe733d -->
+<!-- skills-review: 7d02554daeb61d8441ad50f3ff5109a5b3775286c07c4eecbd6bd9f7ba074891 -->
 
 ### Owner maintenance
 

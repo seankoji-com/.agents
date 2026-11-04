@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlsplit
 SKILLS = ('babysitter', 'review-loop', 'challenge', 'focus-group',
           'agent-tuneup', 'test-writer', 'raise-issue', 'ship',
           'interrogate', 'review', 'choose-design', 'raise-pr',
-          'implement', 'github-writing')
+          'implement', 'github-writing', 'design-loop')
 RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents|'
                      r'scripts/(?:install|agents_bootstrap|source_runtime)|'
                      r'migration/|agents start|\.local/share/t3-plugins')
