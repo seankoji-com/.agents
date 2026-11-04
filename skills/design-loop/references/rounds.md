@@ -3,8 +3,7 @@
 ## Preserve the run
 
 Record run ID, authority, scope, frozen evaluation contract, model identities and
-options, task handles, phase, design ceiling, endpoint allowance, absolute limits
-and their consumption. Each candidate
+options, task handles, phase, any explicit user limits and their consumption. Each candidate
 needs an exact source identity, build/environment identity, parent candidate,
 check results, judge results, finding dispositions and report path. Preserve owned
 local commits where authorized, or exact patches/snapshots otherwise. Keep this
@@ -49,9 +48,9 @@ The panel includes the primary plus the extra judges selected at setup. Every
 panel repair round re-evaluates the entire panel on the same frozen candidate;
 historical passes cannot fill its cells. Use the rubric's fixed precision for all
 comparisons. The phase change seeds a different metric; it does not reset the
-design ceiling, erase findings or restart the separate code-review budget.
+explicit user limits, erase findings or restart the separate code-review budget.
 
-## Failures and ceilings
+## Failures and explicit limits
 
 If the candidate cannot build or run, allow one in-round repair attempt, then
 count the round as non-improving if evaluation remains blocked by that candidate.
@@ -61,24 +60,19 @@ candidate retains its observed scores, but prevents acceptance.
 
 A judge timeout, missing score, infrastructure outage or changed build makes the
 evaluation incomplete. It does not advance the score counter. Allow at most one
-retry of the failed operation after diagnosing the cause, within the design ceiling.
+retry of the failed operation after diagnosing the cause, within explicit user limits.
 Then stop incomplete if still blocked. Do not rerun a valid low score to shop for
 a higher one. Bound setup/access pilots by the same retry rule. Record failed
-attempts and ceiling consumption even when no score exists.
+attempts and consumption of explicit limits even when no score exists.
 
-The design ceiling applies across both design phases, including design repairs,
-judge dispatches and retries. A round ceiling counts attempted design repair rounds;
-deadline and spend ceilings also include setup and evaluation. Use observable spend
-only; choose rounds or a deadline when spend is unavailable. Exhausting this ceiling
-stops design repairs and design judging, not the separately budgeted PR code review.
-
-At setup reserve an endpoint allowance for reports, code review, required code
-repairs/rechecks and PR preparation. Code review keeps `raise-pr`'s normal review
-budget and uses that allowance. Any operator-set absolute deadline/spend limit
-covers both design and endpoint work and must never be exceeded. If the remaining
-allowance cannot complete a required step, stop that work and report the blocked
-endpoint with preserved evidence. Neither cancellation nor any limit implies
-success or permission for more work. Reporting the blocker uses available resources.
+No design ceiling or endpoint allowance is required. Continue until the target
+and required gates pass or two consecutive rounds fail to improve the best score.
+Honour any operator-set round, deadline or observable spend limit across both
+phases without resetting it. An absolute deadline/spend limit also covers endpoint
+work. Independent PR code review keeps its normal budget and release gates.
+If an explicit limit prevents a required step, stop incomplete and report the
+blocked endpoint with preserved evidence. No limit implies approval or permission
+for more work.
 
 ## Final candidate and PR
 
@@ -91,7 +85,7 @@ not justify an empty PR: return the baseline/report and explain that limitation.
 
 Freeze the selected final revision before independent code review. Confirm that
 its actual diff, screenshots and check results match; any repairs after review
-need reassessed review coverage. Code-review repairs use the endpoint allowance;
+need reassessed review coverage. Code-review repairs honour explicit user limits;
 they cannot inherit design approval for changed UI.
 
 After required code-review fixes, select the repaired candidate as the new repair
@@ -112,12 +106,12 @@ from the historical best, without changing the score-based stagnation rule.
 If the repair changes UI and design has not stopped for stagnation,
 cancellation or an unresolved blocker, evaluate it as a panel repair round when
 the run has entered panel, otherwise as a primary repair round. It counts against the
-remaining design ceiling; apply the same stage gates, metric and counter rules.
-If design has stopped or evaluation cannot run within its remaining ceiling, use the repaired
+explicit user limits; apply the same stage gates, metric and counter rules.
+If design has stopped or evaluation cannot run within explicit user limits, use the repaired
 candidate as draft head with GOAL NOT MET, scores unavailable for that head and the
 old design evidence labelled stale. Never pretend that the historical metric scores
 the repaired head. Code review and required rechecks still gate PR creation; if
-endpoint resources cannot cover them, hand back a blocked PR preparation instead.
+explicit limits prevent them, hand back a blocked PR preparation instead.
 
 ## Walkthrough cases
 
@@ -136,7 +130,7 @@ Use these synthetic cases to check the instructions without live models:
 | One panel result missing after retry | No minimum, no fabricated approval; stop incomplete without increment |
 | Candidate fails to build after one repair | Unavailable score, one non-improvement increment, report failure |
 | Judge captures a different build | Invalidate that evaluation; bounded recovery, never transfer approval |
-| Code-review UI repair S-prime after design ceiling reached; endpoint allowance remains | Code-review repaired head S-prime; draft GOAL NOT MET, old design evidence stale |
+| Code-review UI repair S-prime after an explicit design limit reached; endpoint work permitted | Code-review repaired head S-prime; draft GOAL NOT MET, old design evidence stale |
 | Code-review repair cannot fit absolute deadline or spend cap | Stop with endpoint blocked; no overrun or inferred PR review waiver |
 | Historical panel best 9.4 lacks required fixes; repaired minima 8.8 then 9.0; target 9.2 | Counter advances twice against 9.4; draft head is fix-retaining 9.0 candidate |
 | Code-review fix changes button copy or focus-ring colour | UI changed; renew design judging if allowed, otherwise mark changed-head approval unavailable |

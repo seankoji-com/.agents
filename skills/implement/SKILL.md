@@ -45,7 +45,7 @@ retain review's default preferences.
 
 - Discover provider/model identities, options and tool support; apply
   [T3 preflight](../agent-tuneup/references/t3-dispatch.md) before dispatch. Preserve
-  explicit model choices subject to review's cross-lineage eligibility rules.
+  explicit model choices subject to review's eligibility rules.
 - Match capability to the work. A bounded mechanical edit with deterministic
   checks can use a smaller model and lower supported effort. Ambiguous behavior,
   shared interfaces, security or state/concurrency work needs stronger reasoning
@@ -55,7 +55,8 @@ retain review's default preferences.
   performance are unavailable, state the heuristic and uncertainty. Do not invent
   prices, claim a measured optimum or build a model registry.
 - Reserve an eligible reviewer route before assigning coding workers. The reviewer
-  must differ in lineage from the lead/coordinator and every material model author.
+  must differ in lineage from the lead/coordinator and every material model author
+  for primary review; additional judges may use review's higher-reasoning exception.
   When cost is comparable, prefer eligibility against the main thread too, so
   shipping can reuse the review. Report when that later eligibility is absent.
   Reassess eligibility after repairs or model changes. Record each model, effort,
@@ -82,18 +83,17 @@ retain review's default preferences.
    selection context in every review brief. Reviewers work read-only against the
    lead's frozen current state; they do not need a separate coding worktree.
    Include all integrated changes and acceptance criteria. Preserve findings,
-   dispositions and the existing review budget across repairs and resumes.
+   dispositions, scores, best candidate and stagnation counter across repairs and resumes.
 
 ## Pause and resume
 
-Before returning for a decision, preserve safe scoped work in a local checkpoint
-commit. Report the child thread/task handles, worktree, branch, exact HEAD,
-remaining dirty paths, finding ledger location and remaining budgets. Mark work
-incomplete; never commit secrets or unrelated changes merely to checkpoint.
+Before returning for a decision, checkpoint scoped work locally. Report task
+handles, worktree, branch, HEAD, dirty paths, ledger, scores, counters and explicit
+limits. Mark work incomplete; exclude secrets and unrelated changes.
 
 The main thread returns the settled answer to the same lead child thread through
-`t3_thread_send`, restating the coordinator role, dispatch authority and remaining
-budgets, and recording the returned task handle. Before resuming, the lead
+`t3_thread_send`, restating the coordinator role, dispatch authority, scores,
+counters and explicit limits, and recording the returned task handle. Before resuming, the lead
 verifies its existing worktree, branch, HEAD and ledger against the handoff.
 Do not launch a new isolated lead from the main thread's original base as a
 resume route. If the bound checkout cannot be recovered, report the blocker;
@@ -101,7 +101,7 @@ do not set up a replacement checkout in the shell or a child's prompt.
 
 If nested reviewer dispatch is unavailable, the lead returns checkpointed work
 marked review-pending. The main thread obtains review against that worktree's
-exact committed HEAD using the same remaining review-loop budget and selection
+exact committed HEAD using the same preserved review-loop progress and selection
 policy and rechecks eligibility against its own lineage. Give the reviewer the
 lead worktree's absolute path and exact HEAD; require it to verify that HEAD
 before reading the scoped source there. Do not review the main checkout as a
@@ -118,7 +118,7 @@ failing regression test alone is not an escalation reason. Start high-risk work
 at a suitable level rather than relying on a cheap failed attempt.
 
 Record the consumed upgrade before dispatching it. Preserve the worktree state,
-author identities, findings and remaining review-loop rounds; changing models
+author identities, findings, review-loop scores and stagnation counter; changing models
 does not reset any budget. Stop replaced tasks through T3 before handing their
 ownership to another writer. Cancelling a lead also stops its descendants.
 For stronger implementation, the lead may use the upgrade on a worker launched
@@ -148,8 +148,8 @@ Return a compact plain-text handoff containing:
 - Repository, worktree, branch, exact base and reviewed HEAD, and commit IDs.
 - Implemented scope, checks and evidence, findings and dispositions, remaining
   limitations and the next integration action.
-- Model identities/lineages, selection reasons, upgrade use, review budget
-  used/remaining and usage or cost only where exposed.
+- Models/lineages, selection reasons, upgrade use, scores, stagnation counter,
+  explicit limits and exposed usage/cost.
 - Review eligibility for main-thread reuse and any integration/base changes
   that would require affected behavior to be reviewed again.
 - Task/thread manifest including descendants, failures and cancellations; worker

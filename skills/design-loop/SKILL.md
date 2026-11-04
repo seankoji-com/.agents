@@ -22,6 +22,15 @@ that repository-local storage is ignored. Track setup, candidate revisions, mode
 identities/options, task handles, scores, findings, checks, counters and next action.
 On resume, reconcile this record rather than reset budgets or discard evidence.
 
+Schedule by dependency rather than section order. Start all judge access pilots
+as soon as the roster, target environment and dispatch preflight are ready; they
+need not wait for reference research or the scoring rubric. While pilots run,
+research references, capture the baseline in an independent session, inspect the
+implementation, run independent existing checks, and prepare the rubric, task
+coverage, evaluation briefs and report storage. Freeze criteria before edits and
+scoring as required below. Wait only when no useful authorized work remains that
+is independent of pending results. Follow host continuation rules for live tasks.
+
 Research leading examples relevant to the product's tasks and audience. Capture
 their actual UI and the product's baseline before editing. Record source URLs,
 capture dates, state, viewport and why each example is useful. Explain access gaps;
@@ -31,9 +40,9 @@ interaction patterns without expanding scope or copying another product's identi
 Read [rubric](references/rubric.md) before scoring. Fix the reference set, rubric,
 weights, precision, measurable checks and thresholds, and target score before edits.
 Select the implementor, primary judge and at least one additional judge with the
-operator at setup, reusing explicit choices. Record a design ceiling across both
-phases in rounds, deadline or observable spend, plus an endpoint allowance and any
-absolute limits; ask if none was supplied. Routine implementation decisions need
+operator at setup, reusing explicit choices. No round cap, deadline, spend ceiling
+or endpoint allowance is required. Record and honour explicit user limits.
+Routine implementation decisions need
 no further approval. Changing criteria or roster requires explicit reconciliation
 with the operator, retaining the old run's incomplete result and consumed budget.
 
@@ -41,15 +50,19 @@ with the operator, retaining the old run's incomplete result and consumed budget
 
 Use [review](../review/SKILL.md) for verified cross-lineage eligibility, dispatch,
 evidence, finding severity and reporting. Judges differ from the coordinator and
-all material implementors; panel judges also differ in lineage from one another. Discover
+all material implementors for the primary review. Additional judges may share
+a lineage under review's verified higher-reasoning exception; otherwise they
+differ from the coordinator, implementors and one another. Discover
 exact models/options through supported host tools and preserve named choices.
 Report unavailable models or lineage conflicts without silent substitution.
 Apply [dispatch preflight](../agent-tuneup/references/t3-dispatch.md) for T3 tasks,
 including permission compatibility and the actual source of sharing authority.
 Send only task-relevant material within that authority.
 
-Before baseline scoring, pilot each selected judge route's ability to view and
-interact with the target using supported browser or device tools. A route unable
+Before baseline scoring, dispatch all selected judges' access pilots concurrently
+using supported browser or device tools. Verify each route can view and interact
+with the target. Prefer isolated sessions to avoid interference; serialize only
+operations that cannot safely share a browser, device or test data. A route unable
 to do so is an unresolved roster conflict, not a screenshot-only substitute.
 Record access results and stop dependent evaluation when access is unavailable.
 
@@ -58,6 +71,15 @@ identity and task/state coverage. Require direct interaction with the actual UI,
 fresh screenshots and action/results evidence. Code inspection and coordinator
 captures alone do not satisfy this. Freeze the candidate during judging. Serialize
 sessions where browsers, devices or test data would interfere.
+
+Launch panel judges concurrently on the same frozen candidate using isolated
+sessions and data where supported. Run independent checks concurrently with one
+another, without changing the judged environment. During judging, organize
+evidence, prepare report structure and draft possible repair plans from known
+findings. Keep pending scores and verdicts explicitly unknown. Preserve the
+candidate's source, build, runtime and test data until judging completes; checks
+or captures that would alter them must use isolation or wait. Keep speculative
+repairs as notes until complete reports establish the next action.
 
 Judges may receive their own previous findings and a factual change summary.
 Keep other judges' scores/verdicts and the operator's round reports out of their
@@ -68,7 +90,7 @@ approval. Return consequential findings to the coordinator for disposition.
 
 Read [round accounting](references/rounds.md) before the first evaluation and on
 recovery. This skill's user-defined design acceptance requires every judge to
-pass. Its phase counters and run-wide ceiling govern design evaluation instead
+pass. Its score target and two-round stagnation counters govern design evaluation instead
 of `review`'s generic finding-based round limit or advice against unanimity.
 Independent code review at the PR endpoint keeps its normal budget and gates.
 
@@ -93,7 +115,7 @@ qualifying candidate scores below an earlier best. Retain its identity separatel
 from the historical best score. Follow the round reference for code-review repairs
 that change the repair base or invalidate design approval.
 
-Stop earlier for cancellation, the design ceiling or a blocker that bounded recovery
+Stop earlier for cancellation, an explicit user limit or a blocker that bounded recovery
 cannot resolve. A failed or missing evaluation never becomes a fabricated score.
 The round reference distinguishes candidate failures from infrastructure failures.
 

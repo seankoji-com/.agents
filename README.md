@@ -72,7 +72,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [ship](skills/ship/SKILL.md): Carry a change through implementation, checks, independent review, and delivery, with visible progress and a final workflow retrospective.
 - [implement](skills/implement/SKILL.md): Move substantial coding into a separate workspace and return reviewed commits to the main conversation for integration. Requires T3 delegation.
 - [review](skills/review/SKILL.md): Evaluate a plan, change, or release using an independent model family. Return findings tied to evidence without changing code.
-- [review-loop](skills/review-loop/SKILL.md): Alternate repairs and independent review until the agreed criteria hold or a bounded review limit is reached.
+- [review-loop](skills/review-loop/SKILL.md): Hill-climb through repairs and review until the score target and required gates pass or two consecutive rounds fail to improve the best score.
 - [test-writer](skills/test-writer/SKILL.md): Choose tests that catch consequential failures, with attention to reliability, maintenance, and CI time.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
@@ -145,7 +145,8 @@ a job, especially one that can publish or merge changes.
   brief to the selected providers, subject to your sharing limits. Broader raw-file
   sharing needs separate authority.
 - **Review.** Independent review uses a different model family from the
-  coordinator and material authors. Another version of the same family does not count.
+  coordinator and material authors. Additional loop judges may share a lineage
+  when their verified reasoning level is higher than every material implementor's.
 - **Evidence.** The agent reports checks against the revision it actually tested.
   Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
 - **Follow-through.** Confirmed bugs deliberately left unfixed need tracking.
@@ -328,23 +329,31 @@ the end of the diagram represents PR preparation, not its first invocation.
 
 For autonomous design iteration, [design-loop](skills/design-loop/SKILL.md) adds
 reference research, a fixed design rubric and required measurable checks. Select
-the implementor, primary judge, extra judges, target and design ceiling at setup,
-with a separate endpoint allowance inside any absolute time or spend limit.
-Every judge must directly view and interact with the candidate; access is piloted
-before scoring. The primary judge evaluates first, then the whole cross-lineage
+the implementor, primary judge, extra judges and target at setup. No round cap
+or other ceiling is required; explicit user limits still apply.
+Every judge must directly view and interact with the candidate; all judge access
+pilots launch concurrently before scoring, with isolated sessions where possible.
+While pilots run, the coordinator researches references, captures the baseline,
+runs independent checks and prepares the rubric, briefs and evidence storage.
+Panel judges also run concurrently where sessions and data can be isolated.
+During scoring, the candidate stays frozen while the coordinator organizes
+evidence, prepares reports and drafts repair options. Work waits only on actual
+dependencies or shared resources that would interfere.
+The primary judge evaluates first, then the whole eligible
 panel must pass the same candidate. Model scores remain judgments, separate from
 measured checks and human research.
 
 Each change round produces an HTML report with annotated before/after screenshots,
 reasons, scores and evidence gaps. Two consecutive rounds without exceeding the
 phase's best score stop the run. The panel uses its lowest judge score, and the
-design ceiling applies across both phases. A stopped run with changed code targets
+explicit user limits apply across both phases. A stopped run with changed code targets
 a draft product PR marked `GOAL NOT MET`, subject to independent code review and
 the repository's delivery policy. No-change runs return their reports without an
 empty PR. Unavailable code review blocks PR creation unless explicitly waived
-under `raise-pr`; exhausted endpoint resources also remain a blocker. This separate
-workflow keeps `review-loop`'s finding-based acceptance and `choose-design`'s
-operator-selected options intact; it does not add a runtime or scheduler.
+under `raise-pr`; explicit limits that prevent endpoint work also remain a blocker.
+`review-loop` uses the same target-or-two-round-stagnation stopping rule while
+retaining finding dispositions and release gates. `choose-design` keeps its
+operator-selected options.
 
 Review limits trigger a [progress diagnosis](skills/review/references/budget-exhaustion.md),
 not an automatic request for more rounds. The coordinator checks whether repairs
@@ -422,12 +431,14 @@ flowchart TD
 Model selection inside `implement` aims for the lowest expected total cost that
 meets the quality bar, including review, retries and repairs. A cheaper first
 attempt is useful only if it can do the job. One evidenced model or effort
-upgrade is allowed across the task; it does not reset the review budget.
+upgrade is allowed across the task; it does not reset scores or stagnation counters.
 If a material product or design decision emerges, the lead returns it to the
 main thread and continues only independent work.
 
 Independent review must use a lineage different from the coordinator and every
-material model author. A different version of the same family does not count.
+material model author for the primary review. Additional loop judges may share
+a lineage when their verified reasoning level is strictly higher than every
+material implementor's. Required independent code review keeps its lineage gate.
 Outside `implement`, the default preference order lives in
 [review](skills/review/SKILL.md). Named reviewer choices still have to be eligible.
 The main thread can reuse an eligible completed review at the handoff. Integration
@@ -584,7 +595,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 7d02554daeb61d8441ad50f3ff5109a5b3775286c07c4eecbd6bd9f7ba074891 -->
+<!-- skills-review: 4abf4c2f72cd0db185a94d026db3acc612855d475e0356fcba4541494ad2fa83 -->
 
 ### Owner maintenance
 

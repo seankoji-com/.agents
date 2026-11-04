@@ -37,8 +37,8 @@ IDs, severities and captures; append new results instead of rewriting history.
   model judgments. Distinguish local validation from hosted CI and live acceptance.
 - Current phase metric, historical best score and candidate identity, qualifying or
   accepted candidate and current repair base when different, consecutive
-  non-improvement count, consumed design ceiling, endpoint allowance and any
-  absolute limits, and next action. Explain why the counter changed or did not.
+  non-improvement count, any explicit user limits and their consumption, and next
+  action. Explain why the counter changed or did not.
 - Goal status, stop reason when relevant, unmet criteria, access/evidence gaps and
   links to original captures, reference gallery and prior reports.
 

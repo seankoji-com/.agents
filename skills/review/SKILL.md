@@ -6,50 +6,49 @@ description: Use for independent cross-lineage reviews of plans, code, UI, backe
 # Cross-lineage review
 
 Review the requested scope against its requirements. Independent model review
-must be cross-lineage. This skill also owns review evidence and severity; it
+uses cross-lineage reviewers, with the additional-judge exception below.
+This skill also owns review evidence and severity; it
 grants no authority to repair, file issues or release.
 
 ## Obtain an independent review
 
-The coordinator obtains the review. An assigned reviewer follows the reviewer
-role below and does not dispatch another reviewer.
+The coordinator obtains review; assigned reviewers never delegate.
 Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before T3 dispatch.
 
 1. Identify the scope, exact revision or decision brief, acceptance criteria,
    coordinating model and every model that materially authored the reviewed work.
    Distinguish human authors from unknown model identities.
-2. Discover supported host tasks and exact model identities. A named reviewer
-   must have a verified lineage differing from both the coordinating model and
-   every material model author. Preserve eligible named models and options.
-   If a named reviewer is ineligible or unavailable, report the conflict,
-   recommend the first eligible alternative and hold dependent review until
-   the user accepts it or names an eligible reviewer. Do not substitute.
-   Only inside [implement](../implement/SKILL.md), when no reviewer is named,
-   use its cost-aware model-selection policy for every round and additional
-   opinion, preserving all cross-lineage eligibility requirements. Otherwise
-   select the first available reviewer in this order whose verified lineage
-   differs from both the coordinating model and every material model author:
-   **Sol, Opus, Wonder Full, Argon, Grok 4.7**. Another version, effort setting
-   or provider alias of the same family does not qualify. An explicitly named
-   same-lineage reviewer is ineligible. Record the exact identities and the basis
-   for their lineages.
-3. Reuse a completed eligible review only when it covers the current behavior or
-   decisions. Otherwise obtain a fresh read-only review through authorized host
-   orchestration. Give the reviewer the request, scope, source/version, raw
-   evidence, criteria and coordinator/author identities. Include this skill's
-   path and explicitly instruct the reviewer to read and apply it in the
-   assigned-reviewer role. In T3 Code, discover models with
+2. Discover supported host tasks and exact model identities. Reviewers must have
+   a verified lineage differing from the coordinator and every material model
+   author, except for additional judges below. Versions, effort settings and
+   provider aliases do not change lineage. Record identities and lineage evidence.
+   Preserve eligible named models/options. For unavailable or ineligible choices,
+   report the conflict and first eligible alternative; hold dependent review
+   until the user accepts it or names another eligible reviewer.
+   With no named reviewer, use [implement](../implement/SKILL.md)'s cost-aware
+   selection inside implement; otherwise choose the first eligible available
+   reviewer in this order: **Sol, Opus, Wonder Full, Argon, Grok 4.7**.
+   **Additional-judge exception:** In review-loop and design-loop, an additional
+   judge may share the lineage of the coordinator, implementor or another judge
+   when its verified reasoning level is strictly higher than every material
+   implementor's. Record exact model/effort settings and supported ordering;
+   unknown or incomparable levels require cross-lineage judges. This includes
+   named additional judges, selection, reuse and identity checks. It never replaces
+   primary cross-lineage review or required independent code review.
+3. Reuse completed reviews only when eligible against all current authors,
+   including repairers, and covering the current head or decision brief.
+   Otherwise obtain a fresh read-only review through authorized host orchestration.
+   Supply the request, scope, source/version, raw evidence, criteria and all model
+   identities. Require reading this skill in the assigned-reviewer role.
+   In T3 Code, discover models with
    `orchestrator_capabilities`, use a new `delegate_task` for every review or
    recheck that the coordinator dispatches, record its `taskId` and follow its
-   returned `next`. Use native
-   orchestration elsewhere. Respect the calling workflow's delegation limits;
-   an existing review may qualify without new dispatch only when its reviewer's
-   identity and lineage are verified as differing from the coordinator and every
-   material author, including the repairing agent, and it covers the current
-   head or decision brief. Assigned reviewers must receive this skill; external
-   reviews must provide evidence meeting its identity, scope and reporting rules.
-   Otherwise report the specific review gate.
-4. Keep the calling workflow's review budget across repairs and resumes. A
+   returned `next`. Use native orchestration elsewhere. Respect caller delegation
+   limits. External reviews must meet these identity, scope and reporting rules;
+   otherwise report the specific review gate.
+4. Follow the caller's stopping rule across repairs and resumes. Review-loop
+   and design-loop use score targets and two-round stagnation without a required
+   cap; their evaluations do not inherit the standalone limit. A
    standalone review allows at most three rounds, including failed attempts.
    On stalling or exhaustion, apply the [budget diagnosis](references/budget-exhaustion.md).
    Recheck material changes or unresolved findings; do not seek unanimity or
@@ -57,16 +56,19 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    treating the review as completed. A timeout, missing reply or task status
    alone is not a review.
 
-If identities cannot be verified, no cross-lineage reviewer is available, or
+If identities cannot be verified, no eligible reviewer is available, or
 required dispatch is prohibited, report the specific review gate and hold work
-that depends on it. Finish independent preparation. Self-review and same-family
-agents cannot satisfy the gate. Required human approval remains a separate gate.
+that depends on it. Finish independent preparation. Self-review cannot satisfy
+the gate. Same-family agents qualify only under the additional-judge exception.
+Required human approval remains a separate gate.
 
 ## Reviewer and parent responsibilities
 
 Every assigned reviewer reads this skill, checks the supplied coordinator and
 author identities against its own lineage, and reports a missing or conflicting
-identity instead of claiming cross-lineage review. Perform the assigned review
+identity instead of claiming eligible review. Additional judges verify and report
+the higher-reasoning exception when using it rather than claim cross-lineage review.
+Perform the assigned review
 directly; do not dispatch agents, including another reviewer of this review.
 
 Implementation participants apply the parent's selected dispositions and these
