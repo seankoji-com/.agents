@@ -409,7 +409,9 @@ reference research, a fixed design rubric and required measurable checks. Its
 rubric covers task value, clarity, efficiency, control, visual craft, emotional
 appeal and brand fit. Choose product-specific anchors and justify weight changes
 from the scoped user outcome and intended emotional response before scoring.
-Select the implementor, primary judge, extra judges and target at setup. No round cap
+The operator chooses the implementor, the mandatory primary judge, any extra
+judges (one by default; none or several are allowed) and the target at setup. The
+agent asks for any it was not given before dispatching anyone. No round cap
 or other ceiling is required; explicit user limits still apply.
 Every judge must directly view and interact with the candidate. The primary's
 baseline evaluation verifies access before scoring against the frozen rubric.
@@ -423,7 +425,8 @@ During scoring, the candidate stays frozen while the coordinator organizes
 evidence, prepares reports and drafts repair options. Work waits only on actual
 dependencies or shared resources that would interfere.
 The primary judge evaluates first, then the whole eligible
-panel must pass the same candidate. Model scores remain judgments, separate from
+panel must pass the same candidate. Without extra judges, the primary's pass is
+acceptance. Model scores remain judgments, separate from
 measured checks and human research.
 
 Each change round produces an HTML report with annotated before/after screenshots,
@@ -705,7 +708,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 54cbfc09c3d91b1a681be58d5705f09e2bbef6409eac1a6730b2a71a325e9d1c -->
+<!-- skills-review: 1d6c0bf760e0163851670cb4cbd3a1fa9ad79d02c567d677882f3f5e10a70f3d -->
 
 ### Owner maintenance
 

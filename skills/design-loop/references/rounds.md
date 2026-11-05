@@ -22,7 +22,7 @@ overrides the repair base when necessary to retain required bug fixes.
 | --- | --- |
 | Baseline primary evaluation completes | Seed primary best from primary score; counter = 0 |
 | Primary repair round completes | Compare primary score with primary best |
-| Primary target, required checks and coverage all pass | Enter panel once; do not reopen primary |
+| Primary target, required checks and coverage all pass | Enter panel once; do not reopen primary. Primary-only roster: accept and stop successfully |
 | First complete panel evaluation | Seed panel best from minimum of all judge scores; counter = 0 |
 | Panel repair round completes | Compare minimum of all current judge scores with panel best |
 | Current phase metric strictly exceeds best | Replace best candidate and score; counter = 0 |
@@ -44,7 +44,8 @@ Check and coverage failures block transition and success even when the score
 reaches target. Save the exact panel-entry candidate for fallback, rather than
 assuming it is the primary phase's historical best.
 
-The panel includes the primary plus the extra judges selected at setup. Every
+The panel includes the primary plus the extra judges selected at setup. A
+primary-only roster skips the panel, so the primary gate is final acceptance. Every
 panel repair round re-evaluates the entire panel on the same frozen candidate;
 historical passes cannot fill its cells. Use the rubric's fixed precision for all
 comparisons. The phase change seeds a different metric; it does not reset the
