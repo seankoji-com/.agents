@@ -219,6 +219,11 @@ h3 { font-size: 1.3rem; letter-spacing: -0.015em; margin: 0 0 .35rem; }
 /* Requirements */
 .facts { display: grid; gap: 1.25rem 2.5rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
 .facts div p { margin: 0; color: var(--muted); }
+.facts div p + p { margin-top: .6rem; }
+.research { list-style: none; margin: 0 0 2rem; padding: 0; border-top: 1px solid var(--rule); max-width: 52rem; }
+.research li { padding: 1rem 0; border-bottom: 1px solid var(--rule); }
+.research p { margin: 0; max-width: var(--measure); }
+.research strong { color: var(--ink); }
 
 /* Tray: builds one install command from the picked skills */
 .tray {
@@ -235,6 +240,8 @@ h3 { font-size: 1.3rem; letter-spacing: -0.015em; margin: 0 0 .35rem; }
 .tray-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem 1.25rem; font-size: .95rem; }
 .tray-row strong { font-size: 1rem; }
 .tray-controls { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; align-items: center; }
+.tray-t3 { margin: 0; font-size: .92rem; color: var(--muted); }
+.tray-t3[hidden] { display: none; }
 .linkish { background: none; border: 0; padding: 0; color: var(--cobalt); font: inherit; text-decoration: underline; cursor: pointer; }
 
 footer { padding: 2.5rem 0 3rem; color: var(--muted); font-size: .95rem; border-top: 1px solid var(--rule); }
@@ -259,6 +266,7 @@ footer p { margin: 0 0 .5rem; max-width: var(--measure); }
     <nav aria-label="Site">
       <a href="#skills">Skills</a>
       <a class="optional" href="#how">How it works</a>
+      <a class="optional" href="#t3">T3 Code</a>
       <a href="https://github.com/seankoji-com/.agents">GitHub</a>
     </nav>
   </header>
@@ -266,7 +274,7 @@ footer p { margin: 0 0 .5rem; max-width: var(--measure); }
   <main>
     <div class="hero">
       <h1>Give your coding agent a way to finish the job.</h1>
-      <p class="lede">Free, readable instructions that teach your agent how to plan, check and deliver work. Pick the jobs you care about and install them with one command.</p>
+      <p class="lede">Free, readable instructions that teach your agent how to plan, check and deliver work. Made for <a href="#t3">T3 Code</a>, and usable in other agents that support skills. Pick the jobs you care about and install them with one command.</p>
 
       <fieldset class="picker" id="picker">
         <legend>I want my agent to&hellip;</legend>
@@ -294,6 +302,49 @@ footer p { margin: 0 0 .5rem; max-width: var(--measure); }
       </ol>
     </section>
 
+    <section id="t3" aria-labelledby="t3-title">
+      <h2 id="t3-title">Made for T3 Code</h2>
+      <p class="section-intro">The skills are written and tested in <a href="https://github.com/pingdotgg/t3code">T3 Code</a>, which runs agents from several providers, such as Codex, Claude and OpenCode, in one app. That lets the skills do things a single agent can't do on its own.</p>
+      <div class="facts">
+        <div>
+          <h3>A second opinion from another model</h3>
+          <p>A model checking its own work tends to share the blind spots that produced it. <code>review</code>, <code>think</code> and <code>challenge</code> ask a model from a different family instead, and T3 can start one on another provider without leaving the conversation. <a href="#why-review">Why this matters</a>.</p>
+        </div>
+        <div>
+          <h3>Big jobs in their own workspace</h3>
+          <p><code>implement</code> does the coding in a separate T3 worktree, so your main conversation stays free for decisions.</p>
+        </div>
+        <div>
+          <h3>Work that carries on in the background</h3>
+          <p><code>raise-issue</code> files issues in a background task while your change keeps moving.</p>
+        </div>
+        <div>
+          <h3>PRs watched for you</h3>
+          <p><code>babysitter</code> uses T3's pull request watch, so your agent wakes when checks finish or a reviewer comments.</p>
+        </div>
+        <div>
+          <h3>Progress and designs you can see</h3>
+          <p><code>ship</code> keeps its task list in T3's plan panel. <code>choose-design</code> shows mockups side by side in T3's preview frames.</p>
+        </div>
+        <div>
+          <h3>Other agents still work</h3>
+          <p>Most skills run in Claude Code, Codex and other agents, using what each one offers. Skills marked "Needs T3 Code" don't.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="why-review" aria-labelledby="why-review-title">
+      <h2 id="why-review-title">Why another model family checks the work</h2>
+      <p class="section-intro">A model reviewing its own work, or a close relative's, tends to rate it too kindly and to repeat its mistakes. Research on AI judges points the same way.</p>
+      <ul class="research">
+        <li><p><strong>Models favour their own writing.</strong> GPT-4 and Llama 2 can recognise their own text, and the better they recognise it, the more they prefer it (<a href="https://arxiv.org/abs/2404.13076">Panickssery, Bowman and Feng, 2024</a>). GPT-4 shows significant self-preference, linked to how familiar the text looks to it (<a href="https://arxiv.org/abs/2410.21819">Wataoka, Takahashi and Ri, 2024</a>).</p></li>
+        <li><p><strong>Related models make the same mistakes.</strong> When two models are both wrong, they pick the same wrong answer 60% of the time on one leaderboard dataset. A shared provider or architecture makes this more likely (<a href="https://arxiv.org/abs/2506.07962">Kim et al., ICML 2025</a>).</p></li>
+        <li><p><strong>Checking yourself doesn't fix much.</strong> Without outside feedback, models struggle to correct their own reasoning and sometimes make it worse (<a href="https://arxiv.org/abs/2310.01798">Huang et al., ICLR 2024</a>).</p></li>
+        <li><p><strong>Mixed panels judge better.</strong> A panel of smaller models from different families beat a single GPT-4 judge on six datasets, with less bias, at over seven times less cost (<a href="https://arxiv.org/abs/2404.18796">Verga et al., 2024</a>).</p></li>
+      </ul>
+      <p class="section-intro">So the skills always ask a model from a different family than the one that did the work, and they want evidence, not just a verdict. If no second family is available, your agent says so instead of reviewing its own work. These studies cover AI judges and reasoning tests, not these skills directly. <a href="https://github.com/seankoji-com/.agents#why-a-different-model-family-reviews-the-work">Read the full rationale</a>.</p>
+    </section>
+
     <section id="skills" aria-labelledby="skills-title">
       <h2 id="skills-title">Every skill in the library</h2>
       <p class="section-intro">Copy a command to install one skill, or tick the ones you like and copy a single command for all of them. Each name opens the exact instructions your agent will follow.</p>
@@ -304,8 +355,9 @@ footer p { margin: 0 0 .5rem; max-width: var(--measure); }
       <h2 id="needs-title">What you need</h2>
       <div class="facts">
         <div>
-          <h3>A coding agent</h3>
-          <p>The skills are written for T3 Code and Codex. Claude Code and other agents that support skills can use any skill whose tools they provide. A skill marked "Needs T3 Code" relies on T3's background workers.</p>
+          <h3>T3 Code, or another coding agent</h3>
+          <p><a href="#t3">T3 Code</a> gets the most out of these skills. Claude Code, Codex and other agents that support skills can use any skill whose tools they provide. A skill marked "Needs T3 Code" relies on T3's background workers. On T3, also install agent-tuneup. Several skills read its T3 permission check before they start helper sessions.</p>
+          <p>That check works around a known problem. In T3's Full access mode, Codex rejects any command that one of your Codex rules says to ask about, because Full access turns asking off (<a href="https://github.com/pingdotgg/t3code/issues/12248">T3 Code #12248</a>, tracked upstream in <a href="https://github.com/openai/codex/issues/41068">Codex #41068</a>).</p>
         </div>
         <div>
           <h3>Node.js for the installer</h3>
@@ -334,6 +386,7 @@ footer p { margin: 0 0 .5rem; max-width: var(--measure); }
         <button type="button" class="linkish" id="clear">Clear</button>
       </div>
     </div>
+    <p class="tray-t3" id="tray-t3" hidden>Using T3 Code? <button type="button" class="linkish" id="add-tuneup">Add agent-tuneup</button> too. Some of these skills read its T3 permission check before starting helper sessions.</p>
     <div class="term"><pre class="cmd" id="tray-cmd"></pre><button type="button" class="copy" data-copy-target="tray-cmd">Copy</button></div>
   </div>
 </div>
@@ -347,45 +400,46 @@ const REPO = "seankoji-com/.agents";
 const SOURCE = "https://github.com/seankoji-com/.agents/blob/main/skills/";
 
 // One entry per skill in skills/. scripts/check_library.py checks that this list
-// matches the registered skills. "uses" lists the skills each one links to.
+// matches the registered skills. "uses" lists the workflow skills each one calls;
+// t3prep marks skills that read agent-tuneup's T3 permission check.
 const SKILLS = [
-  { name: "think", group: "decide",
+  { name: "think", group: "decide", t3prep: true,
     text: "Talk an idea through before anyone writes code. Your agent looks up what it can, then asks only the questions whose answers would change what gets built, with its recommended answer for each. A reviewer from a different model family checks that nothing important is still open. You finish with a brief, an issue or the work itself.",
     try: "Use think on adding replays to the game before we build anything.",
-    uses: ["review", "choose-design", "raise-issue", "agent-tuneup"] },
+    uses: ["review", "choose-design", "raise-issue"] },
   { name: "challenge", group: "decide",
     text: "Get an honest second opinion. A reviewer from a different model family pushes back on your proposal, suggests a simpler option and names the evidence that would settle the question. It changes no code.",
     try: "Challenge this plan to split checkout into its own service.",
     uses: ["review"] },
-  { name: "choose-design", group: "decide",
+  { name: "choose-design", group: "decide", t3prep: true,
     text: "See real design options side by side before UI work starts, then pick one. Different model families draw the mockups: two by default, three for a new screen or a redesign. Small edits keep your existing design.",
     try: "Show me design options for the new settings page.",
-    uses: ["agent-tuneup"] },
-  { name: "design-loop", group: "decide",
+    uses: [] },
+  { name: "design-loop", group: "decide", t3prep: true,
     text: "Let your agent improve a real interface on its own. It studies comparable products, changes the UI, and has judges from other model families use it and score it each round. Every round leaves an HTML report with annotated before and after screenshots. It ends with a pull request.",
     try: "Run design-loop on the onboarding flow until it scores 8 out of 10.",
-    uses: ["review", "raise-pr", "agent-tuneup"] },
-  { name: "focus-group", group: "decide", explicit: true,
+    uses: ["review", "raise-pr"] },
+  { name: "focus-group", group: "decide", t3prep: true, explicit: true,
     text: "Explore a product idea with a panel of fictional participants. The study is clearly labelled as synthetic, because model answers are not research with real people.",
     try: "/focus-group on our pricing page with five first-time visitors.",
-    uses: ["review", "agent-tuneup"] },
+    uses: ["review"] },
 
-  { name: "ship", group: "build",
+  { name: "ship", group: "build", t3prep: true,
     text: "Hand over a change and have it delivered. Your agent builds it, runs the checks, gets an independent review and takes it through merge, keeping a task list you can watch. It ends with a short look back at what went well and what to change.",
     try: "Ship the agreed replay feature. Verify it in the browser first.",
-    uses: ["think", "choose-design", "implement", "review-loop", "review", "raise-pr", "babysitter", "raise-issue", "github-writing", "agent-tuneup"] },
-  { name: "review", group: "build",
+    uses: ["think", "choose-design", "implement", "review-loop", "review", "raise-pr", "babysitter", "raise-issue", "github-writing"] },
+  { name: "review", group: "build", t3prep: true,
     text: "Have work checked by a model from a different family than the one that wrote it. You get findings tied to evidence and ranked by severity. It changes no code.",
     try: "Use review to check this branch against the brief. Do not edit files.",
-    uses: ["implement", "raise-issue", "github-writing", "agent-tuneup"] },
+    uses: ["implement", "raise-issue", "github-writing"] },
   { name: "review-loop", group: "build",
     text: "Fix, review and repeat until the work hits the score you set and the required checks pass. It stops if two rounds in a row fail to improve on the best score so far, and tells you why.",
     try: "Use review-loop on the search fix until review scores it 9 or higher.",
     uses: ["review", "implement", "raise-pr"] },
-  { name: "implement", group: "build", t3: true,
+  { name: "implement", group: "build", t3prep: true, t3: true,
     text: "Move a large coding job into a separate workspace so your main conversation stays clear. You get back reviewed commits to accept and merge.",
     try: "Implement the export feature from this brief.",
-    uses: ["review-loop", "review", "raise-issue", "agent-tuneup"] },
+    uses: ["review-loop", "review", "raise-issue"] },
   { name: "test-writer", group: "build",
     text: "Choose tests that catch the failures that matter, without flaky runs or slow CI. Also useful for reviewing whether existing tests earn their keep.",
     try: "Use test-writer to add regression tests for the date parsing bug.",
@@ -394,14 +448,14 @@ const SKILLS = [
     text: "Write pull request descriptions with the evidence your repository asks for, such as desktop and mobile screenshots and check results.",
     try: "Open a PR for this branch.",
     uses: ["review", "github-writing"] },
-  { name: "babysitter", group: "build",
+  { name: "babysitter", group: "build", t3prep: true,
     text: "Look after an open pull request. Your agent fixes failing checks and works through review comments: it fixes what matters, pushes back on wrong or out-of-scope requests, and files minor findings as issues so the PR stays focused. It merges when it is allowed to. Limits such as “don’t merge” still apply.",
     try: "Babysit PR 42 through to merge.",
-    uses: ["review", "raise-pr", "github-writing", "agent-tuneup"] },
-  { name: "raise-issue", group: "build", t3: true,
+    uses: ["review", "raise-pr", "github-writing"] },
+  { name: "raise-issue", group: "build", t3prep: true, t3: true,
     text: "File a bug, feature request or task in the background, with the evidence attached. You get back a link to the issue once it exists.",
     try: "Raise an issue for the flaky login test with the failing logs.",
-    uses: ["github-writing", "agent-tuneup"] },
+    uses: ["github-writing"] },
 
   { name: "github-writing", group: "write",
     text: "Put a visible byline on AI-written issues, pull requests and comments that names the model that wrote them, so readers know who they are talking to.",
@@ -484,8 +538,8 @@ for (const g of GROUPS) {
     box.addEventListener("change", () => { box.checked ? picked.add(s.name) : picked.delete(s.name); renderTray(); });
     const notes = [];
     if (s.explicit) notes.push(`Runs only when you ask for it by name, for example /${s.name}.`);
-    const helpers = s.uses.filter(u => u !== "agent-tuneup");
-    if (helpers.length) notes.push(`Calls on ${helpers.join(", ")}. Install those too for the full workflow.`);
+    if (s.uses.length) notes.push(`Calls on ${s.uses.join(", ")}. Install those too for the full workflow.`);
+    if (s.t3prep) notes.push("On T3 Code, also install agent-tuneup. This skill reads its T3 permission check before it starts helper sessions.");
     list.append(el("li", { className: "skill", id: `skill-${s.name}` },
       el("h4", { className: "skill-name" },
         el("a", { href: `${SOURCE}${s.name}/SKILL.md`, textContent: s.name }),
@@ -520,10 +574,15 @@ function renderTray() {
   const extra = names.length - chosen.length;
   document.getElementById("tray-count").textContent =
     `${chosen.length} ${chosen.length === 1 ? "skill" : "skills"} picked` + (extra ? `, plus ${extra} they call` : "");
+  document.getElementById("tray-t3").hidden =
+    names.includes("agent-tuneup") || !names.some(n => byName[n].t3prep);
   const pre = document.getElementById("tray-cmd");
   pre.replaceChildren(`npx skills add ${REPO} --skill `, el("span", { className: "skill-arg", textContent: names.join(" ") }));
 }
 withHelpers.addEventListener("change", renderTray);
+document.getElementById("add-tuneup").addEventListener("click", () => {
+  catalogue.querySelector('input[type=checkbox][value="agent-tuneup"]').click();
+});
 document.getElementById("clear").addEventListener("click", () => {
   picked.clear();
   catalogue.querySelectorAll("input[type=checkbox]").forEach(b => { b.checked = false; });

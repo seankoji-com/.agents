@@ -3,7 +3,8 @@
 Read before starting a T3 session or delegate, including reviewers, designers,
 implementation workers and issue writers. This is a host workaround reported by
 the owner on 2 November 2026, not a general property of the underlying models.
-Retire it only after the affected routes have been verified fixed.
+Retire it only after the affected routes have been verified fixed. Check the
+linked issues below before relying on or retiring each rule.
 
 ## Choose a permitted permission mode
 
@@ -12,7 +13,8 @@ provider identity and supported modes through the exposed T3 contracts. Observe
 the host's discovery frequency. Availability is not authority to use a mode.
 
 - OpenCode, Grok and Muse can fall back from `auto` to `ask`, stopping unattended
-  work. For authorised new sessions on these providers, explicitly request
+  work. [pingdotgg/t3code#11458](https://github.com/pingdotgg/t3code/issues/11458)
+  tracks the OpenCode case. For authorised new sessions on these providers, explicitly request
   `runtimeMode: 'full-access'` when the parent and host permit it. Do not use
   `auto`, `inherit` or another narrower mode as a fallback. An explicit cap
   below full access makes the route incompatible; apply the filtering or
@@ -31,7 +33,13 @@ the host's discovery frequency. Availability is not authority to use a mode.
   session with sufficient permissions. Do not substitute silently or create a
   new top-level thread without the user's request.
 - Codex/ChatGPT in `full-access` can encounter an approval route mapped to
-  `never`. Human decisions and tool approvals are separate: use supported
+  `never`. T3 maps full access to Codex's `approvalPolicy: "never"`, so a command
+  matching a Codex rule with `decision = "prompt"` fails before it starts with
+  `approval required by policy, but AskForApproval is set to Never`. T3 closed
+  [pingdotgg/t3code#12248](https://github.com/pingdotgg/t3code/issues/12248) as
+  an upstream fault; [openai/codex#41068](https://github.com/openai/codex/issues/41068)
+  tracks it. Report the error as this gate; changing the user's Codex rules or
+  mode needs their authority. Human decisions and tool approvals are separate: use supported
   question tools, or plain text for non-secret decisions, then yield for the
   answer. Use the host's secret-input tool for secrets. If an action requires
   an approval the session cannot obtain, preserve progress and report that

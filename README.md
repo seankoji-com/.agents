@@ -12,7 +12,7 @@ You describe the outcome. The skills give your agent a repeatable way to work
 toward it, and give you a way to see what is decided, what is checked, and what
 still needs your attention.
 
-[Find a skill](#find-your-starting-point) · [See an example](#what-it-looks-like-in-practice) · [Get started](#use-the-library) · [All skills](#skill-catalog)
+[Find a skill](#find-your-starting-point) · [Why T3 Code](#built-for-t3-code) · [See an example](#what-it-looks-like-in-practice) · [Get started](#use-the-library) · [All skills](#skill-catalog)
 
 > [!TIP]
 > **New here?** The [skills site](https://seankoji-com.github.io/.agents/)
@@ -47,6 +47,82 @@ own or combine several in a request.
 Your agent host supplies the models, tools, permissions, and any background
 workers. This repository supplies their working instructions. There is no
 service to start or separate scheduler to run.
+
+## Built for T3 Code
+
+The skills are written and tested in [T3 Code](https://github.com/pingdotgg/t3code),
+which runs agents from several providers, such as Codex, Claude and OpenCode, in
+one app. They use what T3 provides:
+
+- **Reviewers from another model family.** `review`, `think`, `challenge`,
+  `review-loop` and `design-loop` have a model from a different family check the work. A model checking
+  its own work tends to share the blind spots that produced it
+  ([research](#why-a-different-model-family-reviews-the-work)). T3 can start that
+  reviewer on another provider from inside the same conversation.
+- **Separate workspaces.** `implement` runs coding in its own T3 worktree, so the
+  main conversation stays free for decisions and reviews.
+- **Background tasks.** `raise-issue` files issues in a background T3 task while
+  delivery carries on.
+- **PR watching without polling.** `babysitter` uses T3's pull request watch, which
+  wakes the agent when checks or reviews change.
+- **Progress and previews you can see.** `ship` keeps its task list in T3's plan
+  panel, and `choose-design` shows mockups side by side in T3's preview frames.
+
+Most skills still work in Claude Code, Codex or another host that supports
+skills, using what that host offers instead. Outside T3, `babysitter` waits with
+its bundled `scripts/pr-wait` helper, and `ship` posts status lists in the
+conversation. `implement` and asynchronous `raise-issue` need T3. Cross-family
+review needs a host that can reach a second model family; without one, the agent
+reports the review as unavailable instead of reviewing its own work.
+
+## Why a different model family reviews the work
+
+When a model reviews its own work, or work from a close relative, it tends to
+rate that work too kindly and to repeat its mistakes. Published research points
+the same way:
+
+- **Models recognise and favour their own output.** Panickssery, Bowman and Feng
+  found that GPT-4 and Llama 2 can tell their own text from other models' and
+  humans' at better than chance. The stronger that self-recognition, the stronger
+  the self-preference ([2024](https://arxiv.org/abs/2404.13076)). Wataoka,
+  Takahashi and Ri measured significant self-preference in GPT-4 and linked it
+  to familiarity: judges score low-perplexity text higher than human raters do
+  ([2024](https://arxiv.org/abs/2410.21819)). The MT-Bench study by Zheng et al.
+  lists self-enhancement among the biases of LLM judges
+  ([2023](https://arxiv.org/abs/2306.05685)).
+- **Related models make the same mistakes.** On one leaderboard dataset, Kim et
+  al. found that when two models are both wrong, they give the same wrong answer
+  60% of the time. A shared provider and a shared architecture are among the
+  causes ([ICML 2025](https://arxiv.org/abs/2506.07962)).
+- **Self-correction without outside feedback is unreliable.** Huang et al. found
+  that models struggle to fix their own reasoning without external feedback, and
+  sometimes get worse when they try ([ICLR 2024](https://arxiv.org/abs/2310.01798)).
+- **Mixing families helps.** Verga et al. replaced a single GPT-4 judge with a
+  panel of smaller models from different families. The panel did better across
+  six datasets, showed less bias towards any one model and cost over seven times
+  less ([2024](https://arxiv.org/abs/2404.18796)).
+
+The [review](skills/review/SKILL.md) skill applies this in a few rules:
+
+- The primary reviewer's lineage must differ from the coordinator's and from every
+  model that materially wrote the work. A new version, effort setting or provider
+  alias of the same model is still the same lineage.
+- Findings need evidence, such as a reproduction, test output, screenshot or
+  file and line. A verdict without supporting reasoning does not count. Kim et al.
+  also found that strong models from different providers still share many errors,
+  so a second family reduces shared blind spots without removing them.
+- When several judges score a loop round, the round takes the lowest score.
+- In `review-loop` and `design-loop`, an additional judge may share a lineage
+  when its reasoning level is strictly higher than every implementor's. That
+  exception is this library's own judgment, made to widen the judge pool. The
+  research above does not test it, and it never replaces the primary
+  cross-lineage review.
+- If no second family is reachable, the agent reports the review as unavailable.
+  It does not review its own work and call that independent.
+
+These studies measure LLM judges and reasoning benchmarks, not code review with
+these skills. They support the design choice. They do not show how much it
+improves results here.
 
 ## Find your starting point
 
@@ -205,8 +281,9 @@ GitHub before configuring discovery.
 
 ### Host requirements
 
-The library is written for **T3 Code and Codex**. Other hosts can use skills whose
-required capabilities they provide. Isolated `implement` and asynchronous
+The library is written for **T3 Code and Codex**, and optimised for T3 Code.
+[Built for T3 Code](#built-for-t3-code) explains what the skills use there. Other
+hosts can use skills whose required capabilities they provide. Isolated `implement` and asynchronous
 `raise-issue` require T3 delegation. Follow each skill's own fallback when a
 required capability is missing. Inline issue work requires an explicit request.
 
@@ -547,7 +624,13 @@ parent in `auto`, including Codex/ChatGPT, cannot create those full-access deleg
 filter incompatible routes before launch and preserve named-model constraints.
 
 Codex/ChatGPT in full access may instead encounter an approval route mapped to
-`never`. Operator questions use supported input tools; an impossible tool approval
+`never`. T3 sends Codex `approvalPolicy: "never"` for full access, so any command
+matching a Codex `prompt` rule is rejected before it runs. T3 closed
+[pingdotgg/t3code#12248](https://github.com/pingdotgg/t3code/issues/12248) as an
+upstream fault, and [openai/codex#41068](https://github.com/openai/codex/issues/41068)
+tracks it. The OpenCode `auto` fallback is
+[pingdotgg/t3code#11458](https://github.com/pingdotgg/t3code/issues/11458).
+Operator questions use supported input tools; an impossible tool approval
 is reported as a blocker. The workaround does not authorise changing global
 permissions, bypassing host policy or silently switching a named model.
 
@@ -622,7 +705,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 44aedf59855f82ee0b564fb46cc54e4aea8f3350c7d673c86272e969f81b670b -->
+<!-- skills-review: 54cbfc09c3d91b1a681be58d5705f09e2bbef6409eac1a6730b2a71a325e9d1c -->
 
 ### Owner maintenance
 
