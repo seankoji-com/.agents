@@ -123,7 +123,7 @@ policy, bot handling and lifecycle acceptance scenarios.
    that reason before releasing watches under host rules. Report budget
    exhaustion as partial work and preserve recovery evidence. Track required
    issue filing after merge until URLs are verified. Confirm the issues the PR
-   was meant to close are closed and others it mentions stayed open. Then clean
+   was meant to close are closed and it closed no others unintentionally. Then clean
    task-owned artifacts/worktrees without deleting needed evidence. Merge, deployment and
    live acceptance remain separate claims.
 
