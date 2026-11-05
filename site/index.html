@@ -244,6 +244,39 @@ h3 { font-size: 1.3rem; letter-spacing: -0.015em; margin: 0 0 .35rem; }
 .tray-t3[hidden] { display: none; }
 .linkish { background: none; border: 0; padding: 0; color: var(--cobalt); font: inherit; text-decoration: underline; cursor: pointer; }
 
+/* Anchor links beside headings */
+.anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-left: .4rem;
+  border-radius: 6px;
+  color: var(--muted);
+  opacity: .4;
+  vertical-align: middle;
+  text-decoration: none;
+  position: relative;
+}
+.anchor svg { width: 1rem; height: 1rem; }
+h2 .anchor svg { width: 1.2rem; height: 1.2rem; }
+.skill:hover .anchor, h2:hover .anchor, h3:hover .anchor { opacity: .8; }
+.anchor:hover, .anchor:focus-visible, .anchor[data-done] { opacity: 1; color: var(--cobalt); background: var(--cobalt-soft); }
+.anchor[data-done]::after {
+  content: "Link copied";
+  position: absolute;
+  left: calc(100% + .4rem);
+  white-space: nowrap;
+  font: 600 .8rem var(--sans);
+  letter-spacing: 0;
+  color: var(--cobalt);
+}
+@media (hover: none) { .anchor { opacity: .7; } }
+.skill, section, .group { scroll-margin-top: 1rem; }
+.skill:target { background: var(--sheet); box-shadow: inset 4px 0 0 var(--marker); padding-inline: 1rem; margin-inline: -1rem; border-radius: 4px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
 footer { padding: 2.5rem 0 3rem; color: var(--muted); font-size: .95rem; border-top: 1px solid var(--rule); }
 footer p { margin: 0 0 .5rem; max-width: var(--measure); }
 
@@ -391,6 +424,8 @@ footer p { margin: 0 0 .5rem; max-width: var(--measure); }
   </div>
 </div>
 
+<p class="visually-hidden" id="status" role="status" aria-live="polite"></p>
+
 <noscript>
   <div class="wrap" style="padding:1rem 0">The interactive list needs JavaScript. Every skill is also listed on <a href="https://github.com/seankoji-com/.agents#skill-catalog">GitHub</a>, and <code>npx skills add seankoji-com/.agents</code> lets you choose in the terminal.</div>
 </noscript>
@@ -505,6 +540,19 @@ function termFor(names, id) {
 
 function quote(text) { return el("q", { textContent: text }); }
 
+// Anchor links: clicking jumps to the heading and copies its full URL.
+const LINK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg>';
+function anchorFor(id, label) {
+  const link = el("a", { className: "anchor", href: `#${id}`, innerHTML: LINK_ICON });
+  link.dataset.anchor = id;
+  link.setAttribute("aria-label", `Copy link to ${label}`);
+  link.title = "Copy link";
+  return link;
+}
+document.querySelectorAll("main section[id] > h2").forEach(h => {
+  h.append(anchorFor(h.parentElement.id, h.textContent));
+});
+
 // Hero picker
 const jobs = document.getElementById("jobs");
 const answer = document.getElementById("answer");
@@ -543,6 +591,7 @@ for (const g of GROUPS) {
     list.append(el("li", { className: "skill", id: `skill-${s.name}` },
       el("h4", { className: "skill-name" },
         el("a", { href: `${SOURCE}${s.name}/SKILL.md`, textContent: s.name }),
+        anchorFor(`skill-${s.name}`, s.name),
         s.t3 ? el("span", { className: "tag", textContent: "Needs T3 Code" }) : null),
       el("div", { className: "skill-body" },
         el("p", { textContent: s.text }),
@@ -553,7 +602,9 @@ for (const g of GROUPS) {
           el("label", { className: "pick" }, box, `Pick ${s.name}`)))));
   }
   catalogue.append(el("div", { className: "group", id: `group-${g.id}` },
-    el("div", { className: "group-head" }, el("h3", { textContent: g.title }), el("p", { textContent: g.text })),
+    el("div", { className: "group-head" },
+      el("h3", {}, g.title, anchorFor(`group-${g.id}`, g.title)),
+      el("p", { textContent: g.text })),
     list));
 }
 
@@ -588,6 +639,30 @@ document.getElementById("clear").addEventListener("click", () => {
   catalogue.querySelectorAll("input[type=checkbox]").forEach(b => { b.checked = false; });
   renderTray();
 });
+
+// Anchor copy: let the link navigate, and put the full URL on the clipboard.
+const status = document.getElementById("status");
+document.addEventListener("click", async e => {
+  const link = e.target.closest("[data-anchor]");
+  if (!link) return;
+  const url = `${location.href.split("#")[0]}#${link.dataset.anchor}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    status.textContent = "Link copied";
+    link.dataset.done = "";
+    link.title = "Link copied";
+    clearTimeout(link._t);
+    link._t = setTimeout(() => { delete link.dataset.done; link.title = "Copy link"; status.textContent = ""; }, 1600);
+  } catch {
+    // Clipboard unavailable (for example on file:// pages); the address bar still has the link.
+  }
+});
+
+// The catalogue is built after load, so scroll to a deep link once it exists.
+if (location.hash) {
+  const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+  if (target) requestAnimationFrame(() => target.scrollIntoView());
+}
 
 // Copy buttons
 document.addEventListener("click", async e => {
