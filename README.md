@@ -14,10 +14,10 @@ still needs your attention.
 
 [Find a skill](#find-your-starting-point) · [See an example](#what-it-looks-like-in-practice) · [Get started](#use-the-library) · [All skills](#skill-catalog)
 
-> [!NOTE]
-> **Looking for the website?** This README is the public documentation. The
-> former GitHub Pages site is retired. Use the
-> [repository](https://github.com/seankoji-com/.agents#readme) as your bookmark.
+> [!TIP]
+> **New here?** The [skills site](https://seankoji-com.github.io/.agents/)
+> describes every skill in plain language, with a copy-ready install command
+> for each one. This README is the full reference.
 
 ## Why these skills exist
 
@@ -40,7 +40,7 @@ A skill is a small written guide that your coding agent reads when it needs to
 perform a particular kind of work. Each folder has a `SKILL.md` file with the
 purpose, steps, evidence to collect, and conditions for finishing.
 
-The names describe jobs. `interrogate` helps you decide what you mean. `review`
+The names describe jobs. `think` helps you decide what you mean. `review`
 checks work against the goal. `ship` owns delivery. You can use one skill on its
 own or combine several in a request.
 
@@ -59,7 +59,7 @@ agent will follow.
 
 Settle what to build and how people will use it before implementation.
 
-- [interrogate](skills/interrogate/SKILL.md): Turn an idea into a buildable brief through focused questions and a check for unresolved decisions.
+- [think](skills/think/SKILL.md): Turn an idea into a buildable brief through focused questions and a check for unresolved decisions.
 - [challenge](skills/challenge/SKILL.md): Get an independent critique of a proposal, a simpler alternative, and evidence that would help you choose. No implementation.
 - [choose-design](skills/choose-design/SKILL.md): Compare visual options for a new interface or a material interaction change, then choose before building.
 - [design-loop](skills/design-loop/SKILL.md): Research comparable products and autonomously improve the real UI toward a fixed score target, with cross-lineage judges and annotated reports each round.
@@ -97,7 +97,7 @@ have not decided how replay timing should work.
 
 ```text
 Add a post-game replay that plays the match in real time.
-Use interrogate to settle the timing decisions before implementation.
+Use think to settle the timing decisions before implementation.
 Keep the game's existing visual style.
 ```
 
@@ -169,7 +169,7 @@ npx skills add seankoji-com/.agents
 Or select a single skill:
 
 ```sh
-npx skills add seankoji-com/.agents --skill interrogate
+npx skills add seankoji-com/.agents --skill think
 ```
 
 The [Skills CLI](https://github.com/vercel-labs/skills#install-a-skill) requires
@@ -269,7 +269,7 @@ flowchart TD
     classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
     ship["ship<br/>Own the outcome"]:::skill
     plan["Parent task list<br/>Plan and track progress"]
-    interrogate["interrogate<br/>Settle product decisions"]:::skill
+    think["think<br/>Settle product decisions"]:::skill
     design["choose-design<br/>Choose the UI"]:::skill
     implementation["Implementation<br/>Direct or delegated"]
     review_loop["review-loop<br/>Evaluate and repair"]:::skill
@@ -281,11 +281,11 @@ flowchart TD
     finished(["Ship complete"])
 
     ship --> plan
-    plan -. "Product unclear" .-> interrogate
+    plan -. "Product unclear" .-> think
     plan -. "UI choice unresolved" .-> design
-    interrogate -. "UI choice remains" .-> design
+    think -. "UI choice remains" .-> design
     plan --> implementation
-    interrogate --> implementation
+    think --> implementation
     design --> implementation
     implementation --> review_loop
     review_loop --> raise_pr
@@ -303,7 +303,7 @@ executable router. The skills are instructions the agent selects for the task.
 This example follows a repository that uses PRs; a repository with a direct
 publication policy keeps its prescribed delivery path.
 
-**Settle the consequential choices.** [interrogate](skills/interrogate/SKILL.md) asks
+**Settle the consequential choices.** [think](skills/think/SKILL.md) asks
 about uncertainty that could change the next implementation step. It obtains
 a cross-lineage readiness review before handing off. For unresolved visual or
 interaction choices, [choose-design](skills/choose-design/SKILL.md) presents
@@ -399,6 +399,14 @@ survives a push or interruption. Its
 [continuation guide](skills/babysitter/references/continuation.md) defines recovery,
 bounded retries and lifecycle acceptance scenarios. Those scenarios are a
 verification plan, not evidence of a live successful run.
+
+Review feedback does not have to become code. Under the shared
+[feedback dispositions](skills/review/references/feedback-dispositions.md), the
+coordinator can decline an invalid or out-of-scope request with its reasons and
+resolve the thread. It can also agree with a minor SEV3 finding, file it as a
+linked issue and keep this PR focused. Required approvals and changes-requested
+reviews still block merge. A thread a human reopens goes to the owner instead of
+being resolved again.
 
 AI-written GitHub passages open with a visible byline. [github-writing](skills/github-writing/SKILL.md)
 credits the model that drafted an issue, PR description, comment, review,
@@ -562,13 +570,13 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [focus-group](skills/focus-group/SKILL.md) | Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study. |
 | [github-writing](skills/github-writing/SKILL.md) | Use whenever drafting or editing LLM-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
 | [implement](skills/implement/SKILL.md) | Use when the user invokes implement or requests implementation through T3 delegates, returning reviewed commits for the main thread to integrate and ship. |
-| [interrogate](skills/interrogate/SKILL.md) | Stress-test a plan, decision or idea through questions. Use when the user asks to interrogate a plan or wants an interview to clarify their thinking. |
 | [raise-issue](skills/raise-issue/SKILL.md) | Use when the user or an authorised workflow asks to investigate, prepare, file or follow up on a bug, feature or task issue in an owned, organisation or external repository, using an asynchronous T3 delegate. |
 | [raise-pr](skills/raise-pr/SKILL.md) | Use whenever creating or updating a pull request, including during implementation, review-loop, ship and PR maintenance. |
-| [review](skills/review/SKILL.md) | Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and interrogate's stop-condition check. |
+| [review](skills/review/SKILL.md) | Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and think's stop-condition check. |
 | [review-loop](skills/review-loop/SKILL.md) | Use when the user requests an iterative implementation, independent review and repair loop, or invokes review-loop to carry a goal to an agreed endpoint. |
 | [ship](skills/ship/SKILL.md) | Use when the user explicitly asks to ship a change through delivery, visible progress tracking and a final workflow retrospective. |
 | [test-writer](skills/test-writer/SKILL.md) | Use when writing or reviewing tests, choosing regression coverage, or assessing test value, reliability and CI runtime. |
+| [think](skills/think/SKILL.md) | Think a plan, decision or idea through with focused questions until it is ready to build. Use when the user says think or thinking about a plan, decision or idea, such as think this through, think about it or keep thinking, asks to interrogate or stress-test it, or wants an interview to clarify their thinking. |
 
 <!-- skill-catalog:end -->
 
@@ -592,6 +600,9 @@ The same checks run in CI and before owner publication. They enforce:
 - Every registered skill appears exactly once in the generated catalog, with
   its current description. New source skills must be registered.
 - Local Markdown links resolve, and annotated Mermaid skill nodes name real skills.
+- The [skills site](site/index.html) lists every registered skill once, and its
+  install commands, picker and related-skill lists name only registered skills.
+  Pushes to `main` that change `site/` deploy it to GitHub Pages.
 - Changes to skill instructions or their Markdown references invalidate the
   README's review receipt, requiring another look at the prose and diagrams.
 - Skill metadata, entry-point budgets, helper imports and relocation contracts
@@ -611,7 +622,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 340f59de2eec1b08dc99c34e8c48915a5b28fa6f3086d0e518f0348e69544110 -->
+<!-- skills-review: 44aedf59855f82ee0b564fb46cc54e4aea8f3350c7d673c86272e969f81b670b -->
 
 ### Owner maintenance
 

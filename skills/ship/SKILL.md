@@ -59,7 +59,7 @@ Record the execution boundary and task/thread manifest required by the
 Choose skills that help the current task, reusing settled decisions and existing
 evidence. These are options, not a required sequence:
 
-- [interrogate](../interrogate/SKILL.md) for unresolved product decisions that could
+- [think](../think/SKILL.md) for unresolved product decisions that could
   materially change implementation.
 - [choose-design](../choose-design/SKILL.md) when product decisions are settled
   but a material UI or interaction choice remains.

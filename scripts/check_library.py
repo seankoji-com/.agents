@@ -12,7 +12,7 @@ from urllib.parse import unquote, urlsplit
 
 SKILLS = ('babysitter', 'review-loop', 'challenge', 'focus-group',
           'agent-tuneup', 'test-writer', 'raise-issue', 'ship',
-          'interrogate', 'review', 'choose-design', 'raise-pr',
+          'think', 'review', 'choose-design', 'raise-pr',
           'implement', 'github-writing', 'design-loop')
 RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents|'
                      r'scripts/(?:install|agents_bootstrap|source_runtime)|'
@@ -113,6 +113,32 @@ def readme_contract(root, descriptions, paths, update=False, acknowledge=False):
     return errors
 
 
+def site_contract(root):
+    """Keep the Pages site's skill list and install commands in step with SKILLS."""
+    page = root / 'site' / 'index.html'
+    if not page.is_file():
+        return ['site/index.html: missing Pages site']
+    text = page.read_text(encoding='utf-8')
+    listed = re.findall(r'\{ name: "([a-z0-9-]+)", group:', text)
+    errors = [f'site/index.html: duplicate skill: {name}'
+              for name in sorted({n for n in listed if listed.count(n) > 1})]
+    errors += [f'site/index.html: missing skill: {name}'
+               for name in sorted(set(SKILLS) - set(listed))]
+    errors += [f'site/index.html: unknown skill: {name}'
+               for name in sorted(set(listed) - set(SKILLS))]
+    for name in re.findall(r'--skill ([a-z0-9-]+)', text):
+        if name not in SKILLS:
+            errors.append(f'site/index.html: install command names unknown skill: {name}')
+    for array in re.findall(r'uses: \[([^\]]*)\]', text):
+        for name in re.findall(r'"([^"]+)"', array):
+            if name not in SKILLS:
+                errors.append(f'site/index.html: unknown related skill: {name}')
+    for name in re.findall(r'^\s*\["[^"]+", "([^"]+)"\],$', text, re.M):
+        if name not in SKILLS:
+            errors.append(f'site/index.html: picker names unknown skill: {name}')
+    return errors
+
+
 def check(root, update_readme=False, acknowledge_docs=False):
     errors = []
     try:
@@ -156,6 +182,7 @@ def check(root, update_readme=False, acknowledge_docs=False):
             errors.append(f'{name}: missing instructions')
     if len(descriptions) == len(SKILLS):
         errors.extend(readme_contract(root, descriptions, paths, update_readme, acknowledge_docs))
+    errors.extend(site_contract(root))
     for path in sorted(paths):
         relative = path.relative_to(root).as_posix()
         if Path(relative).parts[0] in RETIRED_ROOTS:

@@ -1,6 +1,6 @@
 ---
 name: review
-description: Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and interrogate's stop-condition check.
+description: Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and think's stop-condition check.
 ---
 
 # Cross-lineage review
@@ -81,7 +81,7 @@ file GitHub issues or change labels as part of the review assignment. A later
 explicit repair assignment is separate work.
 
 The parent validates findings and decides whether to fix, defer, reject or raise
-issues within its existing authorization. Validating findings and repairing code
+issues within its existing authorization, under [feedback dispositions](references/feedback-dispositions.md). Validating findings and repairing code
 does not make the parent an independent reviewer. For a direct user request,
 the coordinator obtains the independent review and reports it to the user.
 

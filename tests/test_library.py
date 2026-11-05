@@ -36,6 +36,8 @@ def library_fixture(root):
                         ignore=shutil.ignore_patterns('__pycache__'))
     for name in ('README.md', 'AGENTS.md', 'LICENSE', '.env.example'):
         shutil.copy2(ROOT / name, root / name)
+    (root / 'site').mkdir()
+    shutil.copy2(ROOT / 'site/index.html', root / 'site/index.html')
     subprocess.run(['git', '-C', str(root), 'add', 'skills'], check=True)
 
 
@@ -469,12 +471,12 @@ class Library(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.fixture(root)
-            (root / 'skills/interrogate/SKILL.md').unlink()
+            (root / 'skills/think/SKILL.md').unlink()
             p = root / 'skills/challenge/SKILL.md'
             p.write_text(p.read_text().replace('name: challenge', 'name: wrong') +
                          '\n[missing](missing.md)\nPKG/shared/contract.md\n')
             errors = '\n'.join(checker.check(root))
-            for expected in ('missing skill: interrogate', 'mismatched name',
+            for expected in ('missing skill: think', 'mismatched name',
                              'retired dependency', 'broken/escaping link'):
                 self.assertIn(expected, errors)
 
@@ -553,9 +555,9 @@ class Library(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.fixture(root)
-            p = root / 'skills/interrogate/SKILL.md'
-            p.write_text('---\nname: interrogate\ndescription: Ask questions.\n---\n')
-            self.assertIn('interrogate: missing instructions', checker.check(root))
+            p = root / 'skills/think/SKILL.md'
+            p.write_text('---\nname: think\ndescription: Ask questions.\n---\n')
+            self.assertIn('think: missing instructions', checker.check(root))
 
     def test_retired_tracked_container_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -579,18 +581,43 @@ class Documentation(unittest.TestCase):
     def errors(self):
         return '\n'.join(checker.check(self.root))
 
+    def test_site_skill_list_tracks_registered_skills(self):
+        page = self.root / 'site/index.html'
+        original = page.read_text()
+        renamed = original.replace('{ name: "think", group:', '{ name: "ponder", group:')
+        cases = {
+            'missing skill: think': renamed,
+            'unknown skill: ponder': renamed,
+            'duplicate skill: think':
+                original.replace('{ name: "challenge", group:', '{ name: "think", group:'),
+            'install command names unknown skill: interrogate':
+                original + '<!-- npx skills add seankoji-com/.agents --skill interrogate -->\n',
+            'unknown related skill: interrogate':
+                original.replace('uses: ["review"] }', 'uses: ["interrogate"] }', 1),
+            'picker names unknown skill: interrogate':
+                original.replace('["argue with my idea", "challenge"],',
+                                 '["argue with my idea", "interrogate"],'),
+        }
+        for expected, text in cases.items():
+            with self.subTest(expected=expected):
+                self.assertNotEqual(text, original)
+                page.write_text(text)
+                self.assertIn(expected, self.errors())
+        page.unlink()
+        self.assertIn('site/index.html: missing Pages site', self.errors())
+
     def test_missing_duplicate_renamed_and_edited_catalog_entries_fail(self):
         original = self.readme.read_text()
-        row = next(line for line in original.splitlines() if line.startswith('| [interrogate]'))
+        row = next(line for line in original.splitlines() if line.startswith('| [think]'))
         for replacement in ('', row + '\n' + row,
-                            row.replace('skills/interrogate/', 'skills/old-interrogate/'),
+                            row.replace('skills/think/', 'skills/old-think/'),
                             row.replace(' | ', ' | Outdated. ', 1)):
             with self.subTest(replacement=replacement):
                 self.readme.write_text(original.replace(row, replacement))
                 self.assertIn('stale skill catalog', self.errors())
 
     def test_metadata_change_requires_catalog_refresh_and_docs_review(self):
-        source = self.root / 'skills/interrogate/SKILL.md'
+        source = self.root / 'skills/think/SKILL.md'
         lines = source.read_text().splitlines()
         index = next(i for i, line in enumerate(lines) if line.startswith('description: '))
         lines[index] = 'description: Explain a difficult idea clearly.'
@@ -628,9 +655,9 @@ class Documentation(unittest.TestCase):
         (extra / 'SKILL.md').write_text(
             '---\nname: fixture-new\ndescription: A synthetic skill.\n---\nDo the task.\n')
         self.assertIn('unregistered skill: fixture-new', self.errors())
-        (self.root / 'skills/interrogate').rename(self.root / 'skills/renamed-interrogate')
-        self.assertIn('missing skill: interrogate', self.errors())
-        self.assertIn('unregistered skill: renamed-interrogate', self.errors())
+        (self.root / 'skills/think').rename(self.root / 'skills/renamed-think')
+        self.assertIn('missing skill: think', self.errors())
+        self.assertIn('unregistered skill: renamed-think', self.errors())
 
     def test_mermaid_skill_nodes_reject_retired_names_and_invalid_annotations(self):
         original = self.readme.read_text()
@@ -658,7 +685,7 @@ class Documentation(unittest.TestCase):
         self.assertIn('broken heading link: #skill-catalog', self.errors())
 
     def test_generated_descriptions_preserve_quotes_and_escape_table_pipes(self):
-        source = self.root / 'skills/interrogate/SKILL.md'
+        source = self.root / 'skills/think/SKILL.md'
         original = source.read_text()
         description = next(line for line in original.splitlines()
                            if line.startswith('description: '))
@@ -672,9 +699,9 @@ class Documentation(unittest.TestCase):
 
     def test_ignored_notes_do_not_affect_checks_or_receipt_but_tracked_sources_do(self):
         ignore = self.root / '.gitignore'
-        ignore.write_text('skills/interrogate/local-notes.md\n'
+        ignore.write_text('skills/think/local-notes.md\n'
                           'skills/review/references/deferred-bugs.md\n')
-        (self.root / 'skills/interrogate/local-notes.md').write_text(
+        (self.root / 'skills/think/local-notes.md').write_text(
             '# Synthetic local draft\n[unfinished](missing.md)\nPKG/shared/retired.md\n')
         before = self.readme.read_bytes()
         self.assertEqual(checker.check(self.root), [])
@@ -685,7 +712,7 @@ class Documentation(unittest.TestCase):
         self.assertIn('skill instructions changed', self.errors())
 
     def test_malformed_or_multiline_descriptions_cannot_enter_catalog(self):
-        source = self.root / 'skills/interrogate/SKILL.md'
+        source = self.root / 'skills/think/SKILL.md'
         original = source.read_text()
         description = next(line for line in original.splitlines()
                            if line.startswith('description: '))
@@ -694,7 +721,7 @@ class Documentation(unittest.TestCase):
                        '"   "', '"One\\nTwo"'):
             with self.subTest(scalar=scalar):
                 source.write_text(original.replace(description, 'description: ' + scalar))
-                self.assertIn('interrogate: invalid single-line description',
+                self.assertIn('think: invalid single-line description',
                               '\n'.join(checker.check(self.root, True, True)))
                 self.assertEqual(self.readme.read_bytes(), before)
 

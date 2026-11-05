@@ -28,6 +28,7 @@ local host configuration.
 Keep the repository-only direct-publish exceptions narrow; never force-push.
 
 Dotfiles owns external configuration. Preserve installed skills, active jobs,
-credentials, ignored settings and marketplace state. The README is the public documentation. Do not republish the
-retired website. Report
+credentials, ignored settings and marketplace state. The README is the reference documentation. `site/index.html`
+is the user-facing GitHub Pages site; keep its skill list and plain-language copy in
+step with skill changes. Report
 local checks, hosted CI, review, merge, deployment and fresh-session acceptance separately.

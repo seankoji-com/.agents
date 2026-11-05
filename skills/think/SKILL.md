@@ -1,9 +1,9 @@
 ---
-name: interrogate
-description: Stress-test a plan, decision or idea through questions. Use when the user asks to interrogate a plan or wants an interview to clarify their thinking.
+name: think
+description: Think a plan, decision or idea through with focused questions until it is ready to build. Use when the user says think or thinking about a plan, decision or idea, such as think this through, think about it or keep thinking, asks to interrogate or stress-test it, or wants an interview to clarify their thinking.
 ---
 
-# Interrogate the decisions that matter
+# Think through the decisions that matter
 
 Find the decisions whose answers could materially change the goal, design, risk
 or next implementation step. Reuse settled decisions and inspect available facts
@@ -66,7 +66,7 @@ honour any supplied path. Otherwise use the host-approved artifact location,
 verifying an ignored directory inside the session worktree when required.
 Report the file's absolute path and preserve it for the user's handoff.
 
-Interrogate alone does not authorize implementation. If implementation is already
+This skill alone does not authorize implementation. If implementation is already
 requested, continue within that authority once material decisions are settled
 and the readiness review establishes the stop condition.
 For UI implementation, apply [choose-design](../choose-design/SKILL.md) after

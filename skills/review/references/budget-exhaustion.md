@@ -91,7 +91,7 @@ stop condition. Obtain any required extension authority before dispatch. The
 caller may allow an extension without a new question, but it still requires
 this diagnosis and a recorded authority source. A new reviewer or phase label
 never resets the budget.
-When the caller's limit admits no extension, as with interrogate's readiness
+When the caller's limit admits no extension, as with think's readiness
 limit, report the diagnosis and incomplete gate without proposing extra rounds.
 
 Assess whether the proposed allowance can plausibly finish the remaining work
@@ -144,7 +144,7 @@ Use these synthetic cases to check the instruction contract without live models:
 | Situation | Required assessment and action |
 | --- | --- |
 | First extension for a caller that permits extensions after a three-attempt allowance; a failed dispatch and two completed reviews used it | State no previous extensions, 3 authorised, 3 used, 0 remaining; propose 1 additional, total 4, pending approval. Explain each attempt, changed approach, likely outcome and stop condition before requesting it. |
-| Interrogate exhausts its hard three-readiness-review limit | Report the diagnosis and readiness incomplete. Hold implementation; do not propose a fourth review. |
+| Think exhausts its hard three-readiness-review limit | Report the diagnosis and readiness incomplete. Hold implementation; do not propose a fourth review. |
 | Resume after 3 original attempts, a user-approved addition of 2, then a separately approved addition of 1; 6 used | Show both approvals and their amounts, 6 authorised/used and 0 remaining. A proposed addition of 1 makes 7 only if approved. Resume and reviewer changes grant no fresh budget. |
 | Caller allowed one automatic addition of 2 after its original 3; all 5 used | Show the automatic addition and its caller-rule authority separately from user approvals. Any later request reports 5 used, not just the original 3. |
 | A finding survives successive repairs and the next proposal repeats the same repair without new evidence | Diagnose stalled or cycling using the attempts. Hold review, omit an extension request, and give a reproduction, different repair or concrete blocker while independent work continues. |

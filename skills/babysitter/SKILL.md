@@ -73,10 +73,12 @@ policy, bot handling and lifecycle acceptance scenarios.
    changes need review too. Reuse review only for unchanged semantics with
    recorded evidence. After push, trigger configured bot re-review through its
    supported mechanism when needed, verify registration, and bind review to
-   the new head. Inspect existing and newly arriving feedback, fix verified
-   findings and repeat affected checks/review. Explain rejected findings and
-   resolve only verified fixes or inapplicable threads. An approval does not
-   dispose of threads it adds; fix, reject with reasons or track each one before
+   the new head. Inspect existing and newly arriving feedback and choose each
+   item's disposition under [feedback dispositions](../review/references/feedback-dispositions.md):
+   fix it, decline invalid or out-of-scope requests with reasons, or defer
+   valid SEV3 findings to a linked issue. Resolve the thread once that
+   disposition is verified, and repeat affected checks/review after fixes. An
+   approval does not dispose of threads it adds; handle each one before
    treating an approved PR as ready. Missing reviewer access
    is a specific gate after supported routes are exhausted, not permission to
    claim self-review or drop monitoring.

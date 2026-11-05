@@ -32,7 +32,8 @@ automatically need this loop.
    candidate. Record any metric change explicitly; retain prior progress history.
 2. Apply [review](../review/SKILL.md) for cross-lineage eligibility, reviewer
    selection and dispatch. Every loop participant reads and applies that skill
-   for its assigned role: the coordinator obtains review and owns dispositions,
+   for its assigned role: the coordinator obtains review and owns
+   [feedback dispositions](../review/references/feedback-dispositions.md),
    implementers repair selected findings, and evaluators return evidence without
    further delegation. Follow review's rule for named reviewers and conflicts.
 3. For UI work likely to end in a PR, apply [raise-pr](../raise-pr/SKILL.md) early

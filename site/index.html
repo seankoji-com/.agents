@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>.agents: skills that help your coding agent finish the job</title>
+<meta name="description" content="Free skills for Claude Code, Codex, T3 Code and other coding agents. Think a plan through, get a second opinion, choose a design and ship with evidence. Install any skill with one npx command.">
+<link rel="canonical" href="https://seankoji-com.github.io/.agents/">
+<meta property="og:title" content=".agents: skills that help your coding agent finish the job">
+<meta property="og:description" content="Pick a job, copy one command, and your agent knows how to do it.">
+<meta property="og:url" content="https://seankoji-com.github.io/.agents/">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23233a8f'/%3E%3Cpath d='M9 21h14' stroke='%23f5c84c' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='11' cy='12' r='2.6' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #eef1ec;
+  --sheet: #f9faf7;
+  --ink: #1b2330;
+  --muted: #566070;
+  --rule: #cdd3ca;
+  --cobalt: #233a8f;
+  --cobalt-soft: #dfe5f7;
+  --marker: #f5c84c;
+  --marker-ink: #1b2330;
+  --term: #172033;
+  --term-ink: #e8ecf4;
+  --term-dim: #8f9bb3;
+  --sans: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --measure: 68ch;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #12161d;
+    --sheet: #181e27;
+    --ink: #e6e9ee;
+    --muted: #a3acba;
+    --rule: #2c3442;
+    --cobalt: #9fb2ff;
+    --cobalt-soft: #222c47;
+    --marker: #f5c84c;
+    --term: #0c1018;
+    --term-ink: #e8ecf4;
+    --term-dim: #8390a8;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 1rem; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.0625rem/1.55 var(--sans);
+  font-optical-sizing: auto;
+}
+a { color: var(--cobalt); text-underline-offset: 0.18em; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--cobalt); outline-offset: 3px; border-radius: 4px; }
+code, kbd, .cmd { font-family: var(--mono); font-size: 0.9em; }
+.wrap { width: min(72rem, 100% - 2.5rem); margin-inline: auto; }
+.skip { position: absolute; left: -999px; }
+.skip:focus { left: 1rem; top: 1rem; background: var(--sheet); padding: .5rem 1rem; z-index: 10; }
+
+/* Header */
+.top { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 0; }
+.mark { font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em; color: var(--ink); text-decoration: none; }
+.top nav { display: flex; gap: 1.25rem; font-size: .95rem; }
+.top nav a { color: var(--ink); text-decoration: none; }
+.top nav a:hover { text-decoration: underline; }
+
+/* Hero: the job picker is the one loud thing on the page */
+.hero { padding: clamp(2rem, 6vw, 5rem) 0 clamp(2.5rem, 6vw, 4.5rem); }
+.hero h1 {
+  font-size: clamp(2.4rem, 6.4vw, 5.2rem);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  font-weight: 800;
+  margin: 0 0 1.25rem;
+  max-width: 14ch;
+}
+.lede { font-size: clamp(1.1rem, 1.6vw, 1.3rem); color: var(--muted); max-width: 46ch; margin: 0 0 2.75rem; }
+.picker { border: 0; padding: 0; margin: 0; }
+.picker legend {
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+  padding: 0;
+}
+.jobs { display: flex; flex-wrap: wrap; gap: .35rem .9rem; max-width: 60rem; margin-bottom: 1.75rem; }
+.jobs label {
+  position: relative;
+  cursor: pointer;
+  font-size: clamp(1.15rem, 2.2vw, 1.6rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  padding: .05em .3em;
+  margin-left: -.3em;
+  border-radius: .25em;
+  color: var(--muted);
+  text-decoration: underline dotted var(--rule) 2px;
+  text-underline-offset: .22em;
+}
+.jobs label:hover { color: var(--ink); }
+.jobs input { position: absolute; opacity: 0; pointer-events: none; }
+.jobs input:focus-visible + span { outline: 3px solid var(--cobalt); outline-offset: 4px; border-radius: 4px; }
+.jobs input:checked + span {
+  color: var(--marker-ink);
+  text-decoration: none;
+  background: linear-gradient(transparent 8%, var(--marker) 8%, var(--marker) 92%, transparent 92%);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0 .2em;
+  margin: 0 -.2em;
+}
+.answer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  padding: clamp(1.1rem, 2.5vw, 1.75rem);
+  max-width: 52rem;
+}
+.answer-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .75rem; }
+.answer-name { font-family: var(--mono); font-weight: 600; font-size: 1.35rem; color: var(--cobalt); }
+.answer-text { margin: 0; max-width: var(--measure); }
+.answer-try { margin: 0; color: var(--muted); font-size: .98rem; }
+.answer-try q { color: var(--ink); quotes: "\201C" "\201D"; }
+.answer-more { font-size: .95rem; }
+
+/* Terminal command */
+.term {
+  display: flex;
+  align-items: stretch;
+  background: var(--term);
+  color: var(--term-ink);
+  border-radius: 10px;
+  overflow: hidden;
+  min-width: 0;
+}
+.term .cmd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: .85rem 1rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: .92rem;
+  line-height: 1.5;
+}
+.term .cmd::before { content: "$ "; color: var(--term-dim); }
+.term .skill-arg { color: var(--marker); }
+.skill-actions .skill-arg, .answer .skill-arg { white-space: nowrap; }
+.copy {
+  flex: none;
+  border: 0;
+  border-left: 1px solid #2b3550;
+  background: transparent;
+  color: var(--term-ink);
+  font: 600 .9rem var(--sans);
+  padding: 0 1.1rem;
+  cursor: pointer;
+  min-width: 5.5rem;
+}
+.copy:hover { background: #22304d; }
+.copy[data-done] { color: var(--marker); }
+
+/* Sections */
+section { padding: clamp(2.5rem, 5vw, 4rem) 0; border-top: 1px solid var(--rule); }
+h2 { font-size: clamp(1.7rem, 3.4vw, 2.5rem); line-height: 1.08; letter-spacing: -0.025em; font-weight: 800; margin: 0 0 .75rem; }
+.section-intro { color: var(--muted); max-width: var(--measure); margin: 0 0 2rem; }
+h3 { font-size: 1.3rem; letter-spacing: -0.015em; margin: 0 0 .35rem; }
+
+/* How it works: genuinely a sequence */
+.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 1.5rem 2.5rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); counter-reset: step; }
+.steps li { counter-increment: step; position: relative; padding-top: 2.6rem; }
+.steps li::before {
+  content: counter(step);
+  position: absolute; top: 0; left: 0;
+  width: 2rem; height: 2rem; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--cobalt); color: var(--sheet);
+  font-weight: 700;
+}
+.steps p { margin: 0; color: var(--muted); max-width: 40ch; }
+.steps p code { color: var(--ink); }
+
+/* Skill catalogue */
+.group { margin-bottom: 3rem; }
+.group-head { display: grid; gap: .25rem; margin-bottom: 1rem; }
+.group-head p { margin: 0; color: var(--muted); max-width: var(--measure); }
+.skills { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+.skill {
+  display: grid;
+  grid-template-columns: minmax(10rem, 15rem) minmax(0, 1fr);
+  gap: .5rem 2rem;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.skill-name { font-family: var(--mono); font-weight: 600; font-size: 1.15rem; margin: 0; }
+.skill-name a { color: var(--ink); text-decoration: none; }
+.skill-name a:hover { color: var(--cobalt); text-decoration: underline; }
+.skill-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: .7rem; min-width: 0; }
+.skill-body p { margin: 0; max-width: var(--measure); }
+.skill-body .try { color: var(--muted); font-size: .98rem; }
+.skill-body .try q { color: var(--ink); quotes: "\201C" "\201D"; }
+.skill-body .note { font-size: .92rem; color: var(--muted); }
+.skill-actions { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: center; }
+.skill-actions .term { flex: 1 1 100%; }
+.pick { display: inline-flex; align-items: center; gap: .5rem; font-size: .95rem; cursor: pointer; user-select: none; }
+.pick input { width: 1.15rem; height: 1.15rem; accent-color: var(--cobalt); margin: 0; }
+.tag { display: inline-block; font-size: .8rem; font-weight: 600; padding: .1rem .5rem; border-radius: 99px; background: var(--cobalt-soft); color: var(--cobalt); vertical-align: .15em; margin-left: .4rem; font-family: var(--sans); }
+
+/* Requirements */
+.facts { display: grid; gap: 1.25rem 2.5rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
+.facts div p { margin: 0; color: var(--muted); }
+
+/* Tray: builds one install command from the picked skills */
+.tray {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background: var(--sheet);
+  border-top: 2px solid var(--ink);
+  box-shadow: 0 -10px 30px rgba(20, 28, 40, .12);
+  padding: .9rem 0 1rem;
+}
+.tray[hidden] { display: none; }
+.tray-inner { display: grid; gap: .6rem; }
+.tray-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem 1.25rem; font-size: .95rem; }
+.tray-row strong { font-size: 1rem; }
+.tray-controls { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; align-items: center; }
+.linkish { background: none; border: 0; padding: 0; color: var(--cobalt); font: inherit; text-decoration: underline; cursor: pointer; }
+
+footer { padding: 2.5rem 0 3rem; color: var(--muted); font-size: .95rem; border-top: 1px solid var(--rule); }
+footer p { margin: 0 0 .5rem; max-width: var(--measure); }
+
+@media (max-width: 720px) {
+  .skill { grid-template-columns: minmax(0, 1fr); }
+  .top nav .optional { display: none; }
+  .copy { min-width: 4.5rem; padding: 0 .8rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .answer.swap { animation: settle .28s ease-out; }
+  @keyframes settle { from { opacity: .35; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#skills">Skip to the skill list</a>
+<div class="wrap">
+  <header class="top">
+    <a class="mark" href="./">.agents</a>
+    <nav aria-label="Site">
+      <a href="#skills">Skills</a>
+      <a class="optional" href="#how">How it works</a>
+      <a href="https://github.com/seankoji-com/.agents">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="hero">
+      <h1>Give your coding agent a way to finish the job.</h1>
+      <p class="lede">Free, readable instructions that teach your agent how to plan, check and deliver work. Pick the jobs you care about and install them with one command.</p>
+
+      <fieldset class="picker" id="picker">
+        <legend>I want my agent to&hellip;</legend>
+        <div class="jobs" id="jobs"></div>
+        <div class="answer" id="answer" aria-live="polite"></div>
+      </fieldset>
+    </div>
+
+    <section id="how" aria-labelledby="how-title">
+      <h2 id="how-title">From install to first run in a minute</h2>
+      <p class="section-intro">A skill is a short guide your agent reads when it does a particular kind of work. Nothing runs in the background and there is no account to make.</p>
+      <ol class="steps">
+        <li>
+          <h3>Install a skill</h3>
+          <p>From your project folder, run <code>npx skills add seankoji-com/.agents --skill think</code>. The installer asks which agents to add it to. It needs Node.js 22.20 or later.</p>
+        </li>
+        <li>
+          <h3>Ask for the job</h3>
+          <p>Name the skill in a normal request, such as <code>Use think on this plan before we build it</code>, or use a slash command like <code>/think</code> where your agent supports them.</p>
+        </li>
+        <li>
+          <h3>Get the result and its evidence</h3>
+          <p>Your agent follows the skill's steps and tells you what it decided, what it checked and what still needs you.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section id="skills" aria-labelledby="skills-title">
+      <h2 id="skills-title">Every skill in the library</h2>
+      <p class="section-intro">Copy a command to install one skill, or tick the ones you like and copy a single command for all of them. Each name opens the exact instructions your agent will follow.</p>
+      <div id="catalogue"></div>
+    </section>
+
+    <section id="needs" aria-labelledby="needs-title">
+      <h2 id="needs-title">What you need</h2>
+      <div class="facts">
+        <div>
+          <h3>A coding agent</h3>
+          <p>The skills are written for T3 Code and Codex. Claude Code and other agents that support skills can use any skill whose tools they provide. A skill marked "Needs T3 Code" relies on T3's background workers.</p>
+        </div>
+        <div>
+          <h3>Node.js for the installer</h3>
+          <p>The <a href="https://github.com/vercel-labs/skills#install-a-skill">Skills CLI</a> needs Node.js 22.20 or later. The skills themselves are Markdown, plus a few small Python 3.10 helpers.</p>
+        </div>
+        <div>
+          <h3>Your say on what happens</h3>
+          <p>Skills that commit, push or merge stay inside what you asked for. "Review it but don't merge" is a limit the agent keeps.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Install everything and choose in the terminal: <code>npx skills add seankoji-com/.agents</code></p>
+    <p>Source, issues and the full documentation are on <a href="https://github.com/seankoji-com/.agents">GitHub</a>. MIT licensed.</p>
+  </footer>
+</div>
+
+<div class="tray" id="tray" hidden>
+  <div class="wrap tray-inner">
+    <div class="tray-row">
+      <strong id="tray-count">0 skills picked</strong>
+      <div class="tray-controls">
+        <label class="pick"><input type="checkbox" id="with-helpers" checked> Include the skills they call directly</label>
+        <button type="button" class="linkish" id="clear">Clear</button>
+      </div>
+    </div>
+    <div class="term"><pre class="cmd" id="tray-cmd"></pre><button type="button" class="copy" data-copy-target="tray-cmd">Copy</button></div>
+  </div>
+</div>
+
+<noscript>
+  <div class="wrap" style="padding:1rem 0">The interactive list needs JavaScript. Every skill is also listed on <a href="https://github.com/seankoji-com/.agents#skill-catalog">GitHub</a>, and <code>npx skills add seankoji-com/.agents</code> lets you choose in the terminal.</div>
+</noscript>
+
+<script>
+const REPO = "seankoji-com/.agents";
+const SOURCE = "https://github.com/seankoji-com/.agents/blob/main/skills/";
+
+// One entry per skill in skills/. scripts/check_library.py checks that this list
+// matches the registered skills. "uses" lists the skills each one links to.
+const SKILLS = [
+  { name: "think", group: "decide",
+    text: "Talk an idea through before anyone writes code. Your agent looks up what it can, then asks only the questions whose answers would change what gets built, with its recommended answer for each. A reviewer from a different model family checks that nothing important is still open. You finish with a brief, an issue or the work itself.",
+    try: "Use think on adding replays to the game before we build anything.",
+    uses: ["review", "choose-design", "raise-issue", "agent-tuneup"] },
+  { name: "challenge", group: "decide",
+    text: "Get an honest second opinion. A reviewer from a different model family pushes back on your proposal, suggests a simpler option and names the evidence that would settle the question. It changes no code.",
+    try: "Challenge this plan to split checkout into its own service.",
+    uses: ["review"] },
+  { name: "choose-design", group: "decide",
+    text: "See real design options side by side before UI work starts, then pick one. Different model families draw the mockups: two by default, three for a new screen or a redesign. Small edits keep your existing design.",
+    try: "Show me design options for the new settings page.",
+    uses: ["agent-tuneup"] },
+  { name: "design-loop", group: "decide",
+    text: "Let your agent improve a real interface on its own. It studies comparable products, changes the UI, and has judges from other model families use it and score it each round. Every round leaves an HTML report with annotated before and after screenshots. It ends with a pull request.",
+    try: "Run design-loop on the onboarding flow until it scores 8 out of 10.",
+    uses: ["review", "raise-pr", "agent-tuneup"] },
+  { name: "focus-group", group: "decide", explicit: true,
+    text: "Explore a product idea with a panel of fictional participants. The study is clearly labelled as synthetic, because model answers are not research with real people.",
+    try: "/focus-group on our pricing page with five first-time visitors.",
+    uses: ["review", "agent-tuneup"] },
+
+  { name: "ship", group: "build",
+    text: "Hand over a change and have it delivered. Your agent builds it, runs the checks, gets an independent review and takes it through merge, keeping a task list you can watch. It ends with a short look back at what went well and what to change.",
+    try: "Ship the agreed replay feature. Verify it in the browser first.",
+    uses: ["think", "choose-design", "implement", "review-loop", "review", "raise-pr", "babysitter", "raise-issue", "github-writing", "agent-tuneup"] },
+  { name: "review", group: "build",
+    text: "Have work checked by a model from a different family than the one that wrote it. You get findings tied to evidence and ranked by severity. It changes no code.",
+    try: "Use review to check this branch against the brief. Do not edit files.",
+    uses: ["implement", "raise-issue", "github-writing", "agent-tuneup"] },
+  { name: "review-loop", group: "build",
+    text: "Fix, review and repeat until the work hits the score you set and the required checks pass. It stops if two rounds in a row fail to improve on the best score so far, and tells you why.",
+    try: "Use review-loop on the search fix until review scores it 9 or higher.",
+    uses: ["review", "implement", "raise-pr"] },
+  { name: "implement", group: "build", t3: true,
+    text: "Move a large coding job into a separate workspace so your main conversation stays clear. You get back reviewed commits to accept and merge.",
+    try: "Implement the export feature from this brief.",
+    uses: ["review-loop", "review", "raise-issue", "agent-tuneup"] },
+  { name: "test-writer", group: "build",
+    text: "Choose tests that catch the failures that matter, without flaky runs or slow CI. Also useful for reviewing whether existing tests earn their keep.",
+    try: "Use test-writer to add regression tests for the date parsing bug.",
+    uses: [] },
+  { name: "raise-pr", group: "build",
+    text: "Write pull request descriptions with the evidence your repository asks for, such as desktop and mobile screenshots and check results.",
+    try: "Open a PR for this branch.",
+    uses: ["review", "github-writing"] },
+  { name: "babysitter", group: "build",
+    text: "Look after an open pull request. Your agent fixes failing checks and works through review comments: it fixes what matters, pushes back on wrong or out-of-scope requests, and files minor findings as issues so the PR stays focused. It merges when it is allowed to. Limits such as “don’t merge” still apply.",
+    try: "Babysit PR 42 through to merge.",
+    uses: ["review", "raise-pr", "github-writing", "agent-tuneup"] },
+  { name: "raise-issue", group: "build", t3: true,
+    text: "File a bug, feature request or task in the background, with the evidence attached. You get back a link to the issue once it exists.",
+    try: "Raise an issue for the flaky login test with the failing logs.",
+    uses: ["github-writing", "agent-tuneup"] },
+
+  { name: "github-writing", group: "write",
+    text: "Put a visible byline on AI-written issues, pull requests and comments that names the model that wrote them, so readers know who they are talking to.",
+    try: "Use github-writing to draft the release notes.",
+    uses: [] },
+
+  { name: "agent-tuneup", group: "setup",
+    text: "Find out why a skill, permission or connection is not working. It separates what your settings say from what your agent actually does.",
+    try: "Use agent-tuneup: why doesn't my agent see the review skill?",
+    uses: [] },
+];
+
+const GROUPS = [
+  { id: "decide", title: "Decide what to build", text: "Settle the product and design questions before code exists." },
+  { id: "build", title: "Build, check and ship", text: "Get changes reviewed, tested and delivered, with proof of what works." },
+  { id: "write", title: "Write in public", text: "Keep AI-written text on GitHub honest about who wrote it." },
+  { id: "setup", title: "Set up your agent", text: "Fix the configuration your agent depends on." },
+];
+
+const JOBS = [
+  ["think a plan through before building", "think"],
+  ["argue with my idea", "challenge"],
+  ["show me design options", "choose-design"],
+  ["polish a UI on its own", "design-loop"],
+  ["review my work with another model", "review"],
+  ["ship this change", "ship"],
+  ["babysit my pull request", "babysitter"],
+  ["write better tests", "test-writer"],
+];
+
+const byName = Object.fromEntries(SKILLS.map(s => [s.name, s]));
+const command = names => `npx skills add ${REPO} --skill ${names.join(" ")}`;
+const el = (tag, props = {}, ...kids) => {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...kids.filter(k => k !== null && k !== undefined));
+  return node;
+};
+
+function termFor(names, id) {
+  const pre = el("pre", { className: "cmd", id });
+  pre.append(`npx skills add ${REPO} --skill `, el("span", { className: "skill-arg", textContent: names.join(" ") }));
+  const button = el("button", { type: "button", className: "copy", textContent: "Copy" });
+  button.dataset.copyTarget = id;
+  button.setAttribute("aria-label", `Copy install command for ${names.join(", ")}`);
+  return el("div", { className: "term" }, pre, button);
+}
+
+function quote(text) { return el("q", { textContent: text }); }
+
+// Hero picker
+const jobs = document.getElementById("jobs");
+const answer = document.getElementById("answer");
+JOBS.forEach(([phrase, name], i) => {
+  const input = el("input", { type: "radio", name: "job", value: name, checked: i === 0 });
+  jobs.append(el("label", {}, input, el("span", { textContent: phrase })));
+});
+function showAnswer(name, animate) {
+  const s = byName[name];
+  answer.replaceChildren(
+    el("div", { className: "answer-head" },
+      el("span", { className: "answer-name", textContent: s.name }),
+      s.t3 ? el("span", { className: "tag", textContent: "Needs T3 Code" }) : null),
+    el("p", { className: "answer-text", textContent: s.text }),
+    el("p", { className: "answer-try" }, "Try: ", quote(s.try)),
+    termFor([s.name], "hero-cmd"),
+    el("a", { className: "answer-more", href: `#skill-${s.name}`, textContent: `More about ${s.name}, and what it works with` }),
+  );
+  if (animate) { answer.classList.remove("swap"); void answer.offsetWidth; answer.classList.add("swap"); }
+}
+jobs.addEventListener("change", e => showAnswer(e.target.value, true));
+showAnswer(JOBS[0][1], false);
+
+// Catalogue
+const picked = new Set();
+const catalogue = document.getElementById("catalogue");
+for (const g of GROUPS) {
+  const list = el("ul", { className: "skills" });
+  for (const s of SKILLS.filter(s => s.group === g.id)) {
+    const box = el("input", { type: "checkbox", value: s.name });
+    box.addEventListener("change", () => { box.checked ? picked.add(s.name) : picked.delete(s.name); renderTray(); });
+    const notes = [];
+    if (s.explicit) notes.push(`Runs only when you ask for it by name, for example /${s.name}.`);
+    const helpers = s.uses.filter(u => u !== "agent-tuneup");
+    if (helpers.length) notes.push(`Calls on ${helpers.join(", ")}. Install those too for the full workflow.`);
+    list.append(el("li", { className: "skill", id: `skill-${s.name}` },
+      el("h4", { className: "skill-name" },
+        el("a", { href: `${SOURCE}${s.name}/SKILL.md`, textContent: s.name }),
+        s.t3 ? el("span", { className: "tag", textContent: "Needs T3 Code" }) : null),
+      el("div", { className: "skill-body" },
+        el("p", { textContent: s.text }),
+        el("p", { className: "try" }, "Try: ", quote(s.try)),
+        notes.length ? el("p", { className: "note", textContent: notes.join(" ") }) : null,
+        el("div", { className: "skill-actions" },
+          termFor([s.name], `cmd-${s.name}`),
+          el("label", { className: "pick" }, box, `Pick ${s.name}`)))));
+  }
+  catalogue.append(el("div", { className: "group", id: `group-${g.id}` },
+    el("div", { className: "group-head" }, el("h3", { textContent: g.title }), el("p", { textContent: g.text })),
+    list));
+}
+
+// Tray
+const tray = document.getElementById("tray");
+const withHelpers = document.getElementById("with-helpers");
+// Direct helpers only: following links transitively pulls in most of the library.
+function withDirectHelpers(names) {
+  const out = new Set(names);
+  names.forEach(n => byName[n].uses.forEach(u => out.add(u)));
+  return SKILLS.map(s => s.name).filter(n => out.has(n));
+}
+function renderTray() {
+  tray.hidden = picked.size === 0;
+  if (!picked.size) return;
+  const chosen = SKILLS.map(s => s.name).filter(n => picked.has(n));
+  const names = withHelpers.checked ? withDirectHelpers(chosen) : chosen;
+  const extra = names.length - chosen.length;
+  document.getElementById("tray-count").textContent =
+    `${chosen.length} ${chosen.length === 1 ? "skill" : "skills"} picked` + (extra ? `, plus ${extra} they call` : "");
+  const pre = document.getElementById("tray-cmd");
+  pre.replaceChildren(`npx skills add ${REPO} --skill `, el("span", { className: "skill-arg", textContent: names.join(" ") }));
+}
+withHelpers.addEventListener("change", renderTray);
+document.getElementById("clear").addEventListener("click", () => {
+  picked.clear();
+  catalogue.querySelectorAll("input[type=checkbox]").forEach(b => { b.checked = false; });
+  renderTray();
+});
+
+// Copy buttons
+document.addEventListener("click", async e => {
+  const button = e.target.closest("[data-copy-target]");
+  if (!button) return;
+  const text = document.getElementById(button.dataset.copyTarget).textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById(button.dataset.copyTarget));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    document.execCommand("copy");
+  }
+  button.textContent = "Copied";
+  button.dataset.done = "";
+  clearTimeout(button._t);
+  button._t = setTimeout(() => { button.textContent = "Copy"; delete button.dataset.done; }, 1600);
+});
+</script>
+</body>
+</html>
