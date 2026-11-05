@@ -465,15 +465,19 @@ three-attempt review budget permits one diagnosed extension of up to two attempt
 when a changed approach can produce new evidence; stricter caller limits win.
 
 **Finish the authorised endpoint.** [ship](skills/ship/SKILL.md) carries the
-change through checks, review and merge. [babysitter](skills/babysitter/SKILL.md)
-handles current-head CI and review gates. A merge is evidence of a merge;
+change through checks and review, then hands the PR to
+[babysitter](skills/babysitter/SKILL.md), which owns current-head CI, review
+gates and the merge itself. A merge is evidence of a merge;
 deployment and live acceptance need their own verification and authority.
 Required human approvals and repository protections remain merge gates.
 
 Babysitting resumes from an owned record of unfinished feedback, reviewed
-revision, next action and confirmed native watch. The coordinator repairs,
-supplies fresh review, attempts the permitted merge as soon as gates pass and
-reads back GitHub's merged state. Green checks, queue enrollment, auto-merge
+revision, next action and confirmed native watch. The coordinator clears the
+actionable issues — conflicts, behind-base branches, unresolved comments and
+fixable failing checks — before arming that watch, and records any diagnosed
+external hold with its owner and next trigger. It then repairs, supplies fresh
+review, attempts the permitted merge as soon as gates pass and reads back
+GitHub's merged state. Green checks, queue enrollment, auto-merge
 and a completed repair pass remain intermediate. Older unresolved feedback
 survives a push or interruption. Its
 [continuation guide](skills/babysitter/references/continuation.md) defines recovery,
@@ -649,8 +653,8 @@ for a human introduction, or open a skill here to read its exact instructions.
 | Skill | When to use it |
 | --- | --- |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Use when the user asks to audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery. |
-| [babysitter](skills/babysitter/SKILL.md) | Autonomously repair requested pull requests through verified merge. Use when asked to babysit, watch or monitor PRs; honour explicit read-only and no-merge limits. |
-| [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion or to challenge assumptions; return findings without implementation. |
+| [babysitter](skills/babysitter/SKILL.md) | Autonomously repair requested pull requests through verified merge. Use when asked to babysit, merge, watch or monitor PRs; honour explicit read-only and no-merge limits. |
+| [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation. |
 | [choose-design](skills/choose-design/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
 | [design-loop](skills/design-loop/SKILL.md) | Improve a product's UI through reference research, direct interaction and scored cross-lineage judging, with annotated HTML reports each round and a final PR. Use for autonomous design iteration toward a score target, rather than operator-selected mockup options. |
 | [focus-group](skills/focus-group/SKILL.md) | Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study. |
@@ -708,7 +712,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 1d6c0bf760e0163851670cb4cbd3a1fa9ad79d02c567d677882f3f5e10a70f3d -->
+<!-- skills-review: 46678309ce5aa192b279442ae556ae3c301db0b73e21e75b8e3a911ae5f0129a -->
 
 ### Owner maintenance
 

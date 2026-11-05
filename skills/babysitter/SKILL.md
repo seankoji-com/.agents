@@ -1,9 +1,13 @@
 ---
 name: babysitter
-description: "Autonomously repair requested pull requests through verified merge. Use when asked to babysit, watch or monitor PRs; honour explicit read-only and no-merge limits."
+description: "Autonomously repair requested pull requests through verified merge. Use when asked to babysit, merge, watch or monitor PRs; honour explicit read-only and no-merge limits."
 ---
 
 # Babysit pull requests through merge
+
+Requests to babysit, merge, watch or monitor an existing pull request select
+this workflow. A request to implement a change and deliver it end to end belongs
+to [ship](../ship/SKILL.md), which hands delivery here.
 
 ## Authority and endpoint
 
@@ -104,11 +108,22 @@ policy, bot handling and lifecycle acceptance scenarios.
    Never bypass protection, manufacture approval or change repository settings.
 
 5. **Continue through waiting.** Do all currently actionable work before
-   waiting. While an owned PR remains open, the sole coordinator retains one
-   confirmed native watch per PR, records its receipt and next trigger, then
-   yields under host rules. Children never watch. On each wake repeat step 1;
-   after a push or resume, verify/rearm the same watch rather than assuming
-   continuity. Recollect feedback before arming and follow the host's required
+   waiting. Arm a watch only after an explicit pre-watch audit of the current
+   head and base shows every known issue already fixed, disposed or diagnosed as
+   an external hold: no merge conflicts, and the branch merged up to date with
+   its base by the permitted method when behind; no unresolved review threads or
+   unanswered review comments, each handled per step 3; no failing, cancelled or
+   missing required checks that you can diagnose and repair now. An external
+   hold — a check waiting on human approval, missing reviewer access, an
+   unavailable runner — counts as diagnosed only with its owner and next trigger
+   recorded; it is what the watch waits on, not a reason to skip monitoring.
+   Fix and push what the audit finds instead of watching over it, then re-run the
+   audit. While an owned PR
+   remains open, the sole coordinator retains one confirmed native watch per PR,
+   records its receipt and next trigger, then yields under host rules. Children
+   never watch. On each wake repeat step 1; after a push or resume, re-run the
+   audit and verify/rearm the same watch rather than assuming continuity.
+   Recollect feedback before arming and follow the host's required
    yield; reconcile again on wake. A watch is a notification source, not a repair worker. Keep genuine
    approval/access holds visible while progressing other PRs. No duplicate
    watcher, shell poller or second scheduler in T3. Discover new PRs only through
@@ -139,7 +154,8 @@ Keep private records and secrets out of public comments.
 
 Outside T3, use this skill's absolute-path `scripts/pr-wait <pr> [--repo owner/name]
 [--until ready|green|any-change]`. Exit 0 means the requested intermediate
-condition or merge, 1 means action/closure, 2 means invalid input. After readiness,
+condition or merge, 1 means action/closure, 2 means invalid input. Run the same
+pre-watch audit before starting it. After readiness,
 refresh gates and merge within authority; after repair/resume restart monitoring.
 Never run it beside an existing/native watcher. Truncated feedback requires full
 inspection. For GitHub API exhaustion, use supported REST reads and reset

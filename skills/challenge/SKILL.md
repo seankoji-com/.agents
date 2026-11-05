@@ -1,6 +1,6 @@
 ---
 name: challenge
-description: Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion or to challenge assumptions; return findings without implementation.
+description: Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation.
 ---
 
 # Challenge a proposal
@@ -9,6 +9,9 @@ Frame the problem, proposal, constraints and decision to be made from the user's
 request and available evidence. Ask only about material missing intent. Keep this
 workflow read-only apart from task-owned probes and presentation; no source edits,
 publication or external mutations. Observe host permissions and sharing limits.
+
+Triggers such as "are you sure?", "challenge this" or a request for an adversarial
+second opinion select this workflow; implementation and repair requests do not.
 
 ## Independent challenge
 

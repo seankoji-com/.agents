@@ -78,8 +78,11 @@ Advisory status does not waive required review, approvals or release findings.
 ## Keep one continuation owner
 
 Reconcile feedback immediately before arming/rearming the sole native watch.
-Verify registration and follow the returned next action; end the turn immediately
-when required. On wake sweep existing feedback, not only the notification.
+Do not arm over fixable work: clear known conflicts, unresolved threads,
+undiagnosed failing checks and a branch behind its base first, then re-run the
+audit. Verify registration and follow the returned next action; end the turn
+immediately when required. On wake sweep existing feedback, not only the
+notification.
 When the host permits a post-registration reconciliation, inspect that gap;
 never ignore a required yield. Open PRs, merge queues and approval holds retain
 their watch. Report unavailable continuation rather than claiming monitoring.

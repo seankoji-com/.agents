@@ -81,9 +81,13 @@ evidence. These are options, not a required sequence:
 4. Create or update the PR against the intended current base using
    [raise-pr](../raise-pr/SKILL.md) for templates, screenshots, agent attribution
    and independent review. Follow host creation and linking requirements.
-5. Use [babysitter](../babysitter/SKILL.md) to resolve verified findings and CI
-   failures through current-head readiness. Merge with the repository's permitted
-   method once the gate below passes; verify the resulting merge.
+5. Use [babysitter](../babysitter/SKILL.md) as the sole owner of the PR's
+   delivery lifecycle: its pre-watch audit, repair and review rules, merge
+   eligibility, merge action, readback and watch rules apply unchanged. Supply
+   ship's own acceptance requirements — observed proof, retrospective and
+   deferred-bug tracking — to that owner rather than running a parallel merge
+   path. Merge with the repository's permitted method once the gate below passes;
+   verify the resulting merge.
 6. After delivery and required deferred-bug tracking, perform the final
    [workflow retrospective](references/retrospective.md) across the parent and
    every delegate's operational logs. Pitch supported, broadly applicable skill
@@ -103,20 +107,24 @@ workflow open and give the retry command.
 
 ## Merge gate
 
-Proof must cover the current behavior diff, required checks must pass, material
-review findings must be addressed, raise-pr's current-diff independent review
-gate must pass, and required human approval must be satisfied. Unreadable or
-absent current-head check runs do not count as passing; use babysitter's
-[continuation fallback](../babysitter/references/continuation.md).
-Every confirmed bug left unfixed must have a verified issue URL or an owned
-filing request under review's tracking rules. Pending filing for bugs already
-judged non-blocking does not block merge; keep the workflow open until required
-issue URLs are verified.
-No outstanding human review may still request changes, even when branch protection
-does not require that review.
-Check the current head and base before merging, including relevant intervening
-base changes. Honor merge queues and repository protections; never bypass them
-or dismiss a required human gate because a model is confident.
+Babysitter's merge-eligibility rules are this gate: current head and base,
+required checks, human approvals, thread dispositions, merge method, protections
+and readback all follow it, including its rule that unreadable or absent
+current-head check runs do not count as passing. Ship additionally requires:
+
+- Proof covering the current behavior diff, from observed behavior rather than
+  mocks alone.
+- raise-pr's current-diff independent review gate passes, and material review
+  findings are addressed.
+- Every confirmed bug left unfixed has a verified issue URL or an owned filing
+  request under review's tracking rules. Pending filing for bugs already judged
+  non-blocking does not block merge; keep the workflow open until required issue
+  URLs are verified.
+- No outstanding human review still requests changes, even when branch
+  protection does not require that review.
+
+Honor merge queues and intervening base changes; never bypass them or dismiss a
+required human gate because a model is confident.
 
 ## Waiting and blockers
 
