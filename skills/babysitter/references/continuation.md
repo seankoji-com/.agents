@@ -90,7 +90,9 @@ job queued without a runner for about 15 minutes needs diagnosis on the next
 wake: runner labels, concurrency groups, pending workflow approval and
 organization runner limits. Report the concrete blocker and its next check. Do
 not rerun, raise timeouts or weaken checks to show progress, and do not count an
-armed watch or enabled auto-merge as progress.
+armed watch or enabled auto-merge as progress. When no wake is guaranteed,
+because no event will fire and no authorised schedule exists, report that
+stall-detection gap at handback rather than claiming coverage.
 
 Transfers need the successor's accepted scope, live task/watch receipt and next
 action before releasing the old watch under host rules. Sending a message or
@@ -105,15 +107,20 @@ GraphQL is exhausted, REST may allow PR state at `repos/<owner>/<repo>/pulls/<n>
 and checks at `repos/<owner>/<repo>/commits/<sha>/check-runs`. Inspect reset
 evidence; do not add a second watcher or tightly retry an exhausted API.
 
+Before trusting a green required aggregate, compare the workflows expected for
+the current head with its observed runs. A missing expected workflow leaves the
+head unverified even when other workflows ran, for example a conflicting PR
+whose `pull_request` workflows never started while `pull_request_target` ones
+did; integrate the base and get runs on a real head.
+
 Some tokens cannot read check runs (fine-grained tokens lack `checks:read`). On
-a 403, read Actions runs for the exact head
+a 403, record the denied read, then read Actions runs for the exact head
 (`repos/<owner>/<repo>/actions/runs?head_sha=<sha>`), their jobs and failed
-logs, plus `commits/<sha>/status`. Map each required context to a run or job and
-report unmapped contexts as unverified. A green required aggregate does not
-count when the head has no workflow runs of its own, for example a conflicting
-PR whose `pull_request` workflows never started; integrate the base and get
-runs on a real head. After merge, read the default-branch push runs for the
-merge commit.
+logs, plus `commits/<sha>/status`. A workflow's conclusion is not a required
+context's result: a context passes only when the job that reports it succeeded
+on this head. Report unmapped or ambiguous contexts as unverified, keeping
+success, failure, skipped and unknown distinct. After merge, read the
+default-branch push runs for the merge commit.
 
 Zero observed CI checks do not establish that no CI is expected; a review-bot
 check alone does not establish CI registration either. The fallback
@@ -148,6 +155,8 @@ watch/review receipts and outcomes; listed scenarios are not executed evidence.
    registration is reported as a continuation failure, never active monitoring.
 8. An approval that arrives with new review threads leaves the PR unready until
    each thread is fixed, rejected with reasons or tracked.
+9. A job queued without a runner is diagnosed on the next wake, or reported as
+   a stall-detection gap when nothing will wake the coordinator.
 
 Fallback cases additionally cover two samples of the same head/base, a head
 changing during collection, pending checks, draft/approval holds, no-check repos

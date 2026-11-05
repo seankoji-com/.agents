@@ -110,8 +110,9 @@ policy, bot handling and lifecycle acceptance scenarios.
    yield; reconcile again on wake. A watch is a notification source, not a repair worker. Keep genuine
    approval/access holds visible while progressing other PRs. No duplicate
    watcher, shell poller or second scheduler in T3. Discover new PRs only through
-   a host-scheduled sweep the user explicitly requested, recording its scope,
-   cadence and stop condition; otherwise report coverage as linked PRs only.
+   a host-scheduled sweep the user explicitly requested. Record its verified
+   schedule ID, scope, cadence and stop condition, and have each run also check
+   stalled queued jobs. Otherwise report coverage as linked PRs only.
    If native watching is unavailable, report continuation as unavailable;
    do not claim active monitoring.
 
@@ -121,8 +122,9 @@ policy, bot handling and lifecycle acceptance scenarios.
    transfer to a live owner, or a host failure preventing continuation. State
    that reason before releasing watches under host rules. Report budget
    exhaustion as partial work and preserve recovery evidence. Track required
-   issue filing after merge until URLs are verified; then clean task-owned
-   artifacts/worktrees without deleting needed evidence. Merge, deployment and
+   issue filing after merge until URLs are verified. Confirm the issues the PR
+   was meant to close are closed and others it mentions stayed open. Then clean
+   task-owned artifacts/worktrees without deleting needed evidence. Merge, deployment and
    live acceptance remain separate claims.
 
 ## Report and external fallback
