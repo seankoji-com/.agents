@@ -75,7 +75,9 @@ policy, bot handling and lifecycle acceptance scenarios.
    supported mechanism when needed, verify registration, and bind review to
    the new head. Inspect existing and newly arriving feedback, fix verified
    findings and repeat affected checks/review. Explain rejected findings and
-   resolve only verified fixes or inapplicable threads. Missing reviewer access
+   resolve only verified fixes or inapplicable threads. An approval does not
+   dispose of threads it adds; fix, reject with reasons or track each one before
+   treating an approved PR as ready. Missing reviewer access
    is a specific gate after supported routes are exhausted, not permission to
    claim self-review or drop monitoring.
 
@@ -107,7 +109,9 @@ policy, bot handling and lifecycle acceptance scenarios.
    continuity. Recollect feedback before arming and follow the host's required
    yield; reconcile again on wake. A watch is a notification source, not a repair worker. Keep genuine
    approval/access holds visible while progressing other PRs. No duplicate
-   watcher, shell poller, second scheduler or future-PR sweep in T3.
+   watcher, shell poller or second scheduler in T3. Discover new PRs only through
+   a host-scheduled sweep the user explicitly requested, recording its scope,
+   cadence and stop condition; otherwise report coverage as linked PRs only.
    If native watching is unavailable, report continuation as unavailable;
    do not claim active monitoring.
 

@@ -117,8 +117,9 @@ timeout or empty response is not a completed review.
 Within existing authorization, use the host's GitHub API tools or authenticated
 CLI. Never use an interactive browser form for PR creation. Preserve the intended
 base, branch and draft status. Verify the returned PR URL and read back its
-description, template sections, evidence and attribution. After a transport error,
-check whether the PR already exists before retrying. Partial attachment failure
+description, template sections, evidence and attribution. Confirm the PR's
+closing-issue references match the issues it is meant to close. After a
+transport error, check whether the PR already exists before retrying. Partial attachment failure
 can create or update the PR despite a nonzero CLI exit; read back the returned
 URL and disclose missing images rather than creating a duplicate PR. Follow host
 PR linking rules.

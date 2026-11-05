@@ -84,6 +84,14 @@ When the host permits a post-registration reconciliation, inspect that gap;
 never ignore a required yield. Open PRs, merge queues and approval holds retain
 their watch. Report unavailable continuation rather than claiming monitoring.
 
+A native watch may stay silent while an unchanged job sits queued. Before
+yielding, record each pending current-head job's queue age and runner state. A
+job queued without a runner for about 15 minutes needs diagnosis on the next
+wake: runner labels, concurrency groups, pending workflow approval and
+organization runner limits. Report the concrete blocker and its next check. Do
+not rerun, raise timeouts or weaken checks to show progress, and do not count an
+armed watch or enabled auto-merge as progress.
+
 Transfers need the successor's accepted scope, live task/watch receipt and next
 action before releasing the old watch under host rules. Sending a message or
 creating a thread does not establish transfer. Status replies are yields; final
@@ -96,6 +104,16 @@ A ready/green exit requires fresh gates and the authorized next action. When
 GraphQL is exhausted, REST may allow PR state at `repos/<owner>/<repo>/pulls/<n>`
 and checks at `repos/<owner>/<repo>/commits/<sha>/check-runs`. Inspect reset
 evidence; do not add a second watcher or tightly retry an exhausted API.
+
+Some tokens cannot read check runs (fine-grained tokens lack `checks:read`). On
+a 403, read Actions runs for the exact head
+(`repos/<owner>/<repo>/actions/runs?head_sha=<sha>`), their jobs and failed
+logs, plus `commits/<sha>/status`. Map each required context to a run or job and
+report unmapped contexts as unverified. A green required aggregate does not
+count when the head has no workflow runs of its own, for example a conflicting
+PR whose `pull_request` workflows never started; integrate the base and get
+runs on a real head. After merge, read the default-branch push runs for the
+merge commit.
 
 Zero observed CI checks do not establish that no CI is expected; a review-bot
 check alone does not establish CI registration either. The fallback
@@ -128,6 +146,8 @@ watch/review receipts and outcomes; listed scenarios are not executed evidence.
    and release holds remain intact; other open PRs retain confirmed watches.
 7. Rejected merges are diagnosed/repaired within authority. Failed watch
    registration is reported as a continuation failure, never active monitoring.
+8. An approval that arrives with new review threads leaves the PR unready until
+   each thread is fixed, rejected with reasons or tracked.
 
 Fallback cases additionally cover two samples of the same head/base, a head
 changing during collection, pending checks, draft/approval holds, no-check repos

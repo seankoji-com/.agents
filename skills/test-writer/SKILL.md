@@ -26,7 +26,10 @@ for more coverage.
 2. Choose the cheapest level that detects the real failure. Use small, deterministic
    fixtures, observable assertions and independently derived expected results. Mock
    unstable boundaries without mocking away the behavior under test. Avoid duplicates,
-   implementation mirrors and snapshots that cannot be usefully reviewed.
+   implementation mirrors and snapshots that cannot be usefully reviewed. When a
+   fixture removes or shims executables, especially credential, network or deploy
+   tools, set a closed `PATH` or absolute commands before the first run so a
+   missing shim cannot fall through to the real host tool.
 3. For regressions, verify failure before the fix and success afterward when feasible.
    Run required checks and relevant failure cases. Investigate flakes instead of
    hiding them with retries, longer timeouts or weaker assertions. Report verification

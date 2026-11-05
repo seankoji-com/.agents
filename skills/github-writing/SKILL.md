@@ -95,6 +95,10 @@ calling workflow. If the destination forbids the submission or required
 disclosure, preserve the draft and report the conflict rather than silently
 removing the byline or disguising AI involvement.
 
+GitHub closes an issue referenced after a closing keyword (close, fix, resolve
+and their variants), even in a negated sentence. Use those keywords only for
+issues the change resolves; refer to others neutrally, such as "#N stays open".
+
 Read back each created or edited body and verify the content and byline are
 present, correctly attributed and not duplicated. Reconcile an uncertain write
 before retrying. A read-back failure remains a verification gap, not permission

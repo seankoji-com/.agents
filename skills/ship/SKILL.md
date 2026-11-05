@@ -96,12 +96,18 @@ evidence. These are options, not a required sequence:
 Where repository policy requires direct publication instead of PRs, use its
 prescribed delivery path through the same proof and review gates. Do not create
 a PR contrary to that policy or broaden this grant to production deployment.
+The pushed commit is the delivery revision. Report publication, propagation to
+each configured target and hosted CI on that commit as separate stages. A push
+whose propagation failed is published with propagation incomplete; keep the
+workflow open and give the retry command.
 
 ## Merge gate
 
 Proof must cover the current behavior diff, required checks must pass, material
 review findings must be addressed, raise-pr's current-diff independent review
-gate must pass, and required human approval must be satisfied.
+gate must pass, and required human approval must be satisfied. Unreadable or
+absent current-head check runs do not count as passing; use babysitter's
+[continuation fallback](../babysitter/references/continuation.md).
 Every confirmed bug left unfixed must have a verified issue URL or an owned
 filing request under review's tracking rules. Pending filing for bugs already
 judged non-blocking does not block merge; keep the workflow open until required
