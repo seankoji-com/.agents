@@ -19,7 +19,9 @@ the host's discovery frequency. Availability is not authority to use a mode.
   `auto`, `inherit` or another narrower mode as a fallback. An explicit cap
   below full access makes the route incompatible; apply the filtering or
   named-model conflict rules below. Read-only is a task constraint, not an
-  approval mode: brief reviewers to make no writes even on full-access routes.
+  approval mode: forbid reviewed-source, GitHub and live-system changes, while
+  explicitly scoping permitted tests and scratch writes under the
+  [reviewer brief](../../review/references/reviewer-brief.md).
   This owner-adopted workaround overrides the tool's default guidance to omit
   `runtimeMode`, for these affected routes only and within the parent's ceiling.
 - T3 forbids a child with broader permissions than its parent. In particular,

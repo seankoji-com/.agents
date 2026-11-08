@@ -16,6 +16,9 @@ including drafts and later edits.
 ## Prepare the description
 
 Inspect the actual repository, intended base, current head and scoped diff.
+Apply [delivery preflight](references/preflight.md) for effective rules, check
+producers, stacked-base validation, carried dependencies and credential-shaped
+examples before publication. Keep its unresolved gates in the PR and handoff.
 Find applicable PR templates and contribution instructions, including templates
 under `.github`, `docs` or the repository root and any organization defaults.
 Use the repository-designated template. If several apply and the choice is
@@ -93,6 +96,8 @@ Treat changes to tests, CI workflows and configuration as material when they
 affect verification or runtime semantics, even if product code is unchanged.
 Description-only corrections and changes demonstrated to preserve the reviewed
 semantics may reuse the review; explain reuse and rerun affected checks.
+After a rebase, apply [review reuse](references/review-reuse.md) to merge-base
+checks, patch comparisons and changes in the base's assumptions.
 A human review may satisfy repository approval rules; it does not replace this
 skill's required cross-lineage model review. Agent review cannot replace a
 required human approval, and no review replaces required CI.

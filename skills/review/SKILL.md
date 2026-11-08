@@ -38,8 +38,9 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
 3. Reuse completed reviews only when eligible against all current authors,
    including repairers, and covering the current head or decision brief.
    Otherwise obtain a fresh read-only review through authorized host orchestration.
-   Supply the request, scope, source/version, raw evidence, criteria and all model
-   identities. Require reading this skill in the assigned-reviewer role.
+   Supply the request, scope, source/version, evidence, criteria and model identities.
+   Apply the [reviewer brief](references/reviewer-brief.md) for fixed source,
+   permitted checks, scratch ownership and cleanup. Require reading this skill.
    In T3 Code, discover models with
    `orchestrator_capabilities`, use a new `delegate_task` for every review or
    recheck that the coordinator dispatches, record its `taskId` and follow its
@@ -104,10 +105,10 @@ When reviewing visible behavior:
   location, using a verified ignored directory when repository-local storage is
   required. Avoid secrets and personal data in captures and reports.
 
-Backend and code findings use appropriate evidence, such as a minimal input,
-test output, logs or a file/line explanation. Do not take screenshots of code or
-terminals merely to satisfy the visual requirement. Plan-only reviews need no
-screenshots of behavior that does not yet exist.
+For backend/code findings use reproductions, tests, logs or file/line evidence,
+not terminal screenshots. Apply [proof quality](references/proof-quality.md)
+when adopting bundles, claiming HTTP access or diagnosing unavailable tools.
+Plan-only reviews need no screenshots.
 
 If a required state cannot be captured, finish independent checks and identify
 the missing state, reason and remaining verification. Mark visual review

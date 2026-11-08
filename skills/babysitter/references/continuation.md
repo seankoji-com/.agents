@@ -17,16 +17,26 @@ For every requested PR retain:
   fixed, justified rejection or tracked deferral closes the item.
 - Reviewer task/receipt, identity/lineage, reviewed head or precise diff, findings,
   remaining acceptance and review/retry budget across pushes and resumes.
-- Watch owner/receipt, last reconciled head and pending jobs. Record merge or
+- Watch owner, returned `watching`/`wasWatching` values, observation time and
+  source call, last reconciled head and pending jobs. Record merge or
   closure only from a fresh GitHub read with its evidence.
 
-Update after material actions and before yielding. On resume reconcile the
+Update at phase changes, after material actions and before yielding. On resume reconcile the
 record with GitHub, including old/outdated unresolved feedback and review bodies.
 Notification delivery is not evidence that a repair happened. A failed child
 leaves its work pending; replace or perform it after confirming no old writer
 remains active. Duplicate wakes do not create competing workers, replies, issues
 or merges. A new head invalidates stale evidence unless semantic review reuse is
 justified. An old wake means refresh, not act on the old revision.
+
+If earlier context is missing, reconstruct it before asking the user to repeat
+the task. Read available own-thread history, linked/watched PRs, checkout/branch
+identity and the recovery note through supported host tools. Recover the actual
+authority and holds, not just the next command. A linked PR or local branch alone
+does not establish ownership or permission. Continue verified owned work and state
+specific unrecoverable gaps; do not invent authority or claim the tools are absent
+without checking. If one source is unavailable, use the others and report that
+limitation. Do not create another scheduler or permanent state store.
 
 Before dispatching review, identify an available eligible reviewer and who will
 receive its result. A repair child returns its exact diff/head and review packet;
@@ -77,6 +87,23 @@ Advisory status does not waive required review, approvals or release findings.
 
 ## Keep one continuation owner
 
+At each start, wake or resume, read native watch state once when the host exposes
+and permits that read. In T3 this may be `list_thread_pull_requests`; inspect its
+actual contract. Record the returned boolean, time and source, not a claim copied
+from an old wake banner. If absent, re-arm the same owned watch through the
+supported API before yielding again, subject to the audit below. If work is now
+terminal, release ownership instead. A re-arm returning `wasWatching: false`
+after an earlier arm proves registration was lost at that observation; record
+the coverage gap without inventing its start or duration.
+
+Registration and read receipts prove only the observed state. If the host
+requires an immediate yield, keep that receipt and yield; do not make an extra
+verification call. If a higher-priority host rule prohibits a read or re-arm,
+obey it and report verification unavailable. Do not override it with this skill.
+When no watch-state read exists, report that limitation rather than continuous
+coverage. Re-arming an observed missing registration is recovery of the sole
+watch, not authority for a second watcher or a polling loop.
+
 Reconcile feedback immediately before arming/rearming the sole native watch.
 Do not arm over fixable work: clear known conflicts, unresolved threads,
 undiagnosed failing checks and a branch behind its base first, then re-run the
@@ -115,6 +142,10 @@ the current head with its observed runs. A missing expected workflow leaves the
 head unverified even when other workflows ran, for example a conflicting PR
 whose `pull_request` workflows never started while `pull_request_target` ones
 did; integrate the base and get runs on a real head.
+Include validation gates discovered by
+[delivery preflight](../../raise-pr/references/preflight.md), especially workflows
+excluded by a stacked base. A green aggregate cannot clear those gates; record
+equivalent execution evidence or the operator's explicit waiver.
 
 Some tokens cannot read check runs (fine-grained tokens lack `checks:read`). On
 a 403, record the denied read, then read Actions runs for the exact head
@@ -160,6 +191,13 @@ watch/review receipts and outcomes; listed scenarios are not executed evidence.
    each thread is fixed, rejected with reasons or tracked.
 9. A job queued without a runner is diagnosed on the next wake, or reported as
    a stall-detection gap when nothing will wake the coordinator.
+10. A wake banner asserts monitoring but a permitted fresh read says
+    `watching: false`: record the loss, audit actionable work and re-arm before
+    yielding. Record `wasWatching: false` without claiming uninterrupted coverage.
+    If host rules prohibit verification, report that gap and follow their yield.
+11. After lost context, both a watch wake and an ambiguous user continuation
+    recover the owned task and authority from available host records. Continue
+    independent verified work; ask only for an unrecoverable material gap.
 
 Fallback cases additionally cover two samples of the same head/base, a head
 changing during collection, pending checks, draft/approval holds, no-check repos

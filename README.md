@@ -404,6 +404,20 @@ For work headed to a PR, [raise-pr](skills/raise-pr/SKILL.md) applies early enou
 to capture practical mobile and desktop before screenshots. Its placement near
 the end of the diagram represents PR preparation, not its first invocation.
 
+At delivery start, its [preflight](skills/raise-pr/references/preflight.md) checks
+effective branch rules and whether required checks can report. Stacked PRs also
+record relevant validation skipped by their base and make carried dependencies
+visible before merge. Credential-shaped examples use the repository's pinned
+scanner before pushing when one is configured.
+
+The [reviewer brief](skills/review/references/reviewer-brief.md) fixes the source
+revision and identifies permitted checks and cleanable scratch space. Read-only
+reviewers may run those checks without changing the reviewed source. The
+[proof guide](skills/review/references/proof-quality.md) separates current test
+bundles from stale output, API access from login redirects, and missing tools
+from denied or unhealthy ones. Test emulators cite their upstream revision and
+cover its special cases rather than validating an approximation alone.
+
 For autonomous design iteration, [design-loop](skills/design-loop/SKILL.md) adds
 reference research, a fixed design rubric and required measurable checks. Its
 rubric covers task value, clarity, efficiency, control, visual craft, emotional
@@ -471,8 +485,11 @@ gates and the merge itself. A merge is evidence of a merge;
 deployment and live acceptance need their own verification and authority.
 Required human approvals and repository protections remain merge gates.
 
-Babysitting resumes from an owned record of unfinished feedback, reviewed
-revision, next action and confirmed native watch. The coordinator clears the
+Babysitting recovers lost context from available host records and resumes from
+unfinished feedback, reviewed revision, authority and the next action. Native
+watch receipts record observed registration, not continuous coverage. On wakes,
+the coordinator reconciles watch state when host rules permit and reports gaps.
+The coordinator clears the
 actionable issues — conflicts, behind-base branches, unresolved comments and
 fixable failing checks — before arming that watch, and records any diagnosed
 external hold with its owner and next trigger. It then repairs, supplies fresh
@@ -490,7 +507,10 @@ coordinator can decline an invalid or out-of-scope request with its reasons and
 resolve the thread. It can also agree with a minor SEV3 finding, file it as a
 linked issue and keep this PR focused. Required approvals and changes-requested
 reviews still block merge. A thread a human reopens goes to the owner instead of
-being resolved again.
+being resolved again. A repeated bot claim can reuse an earlier reproduction
+only when the relevant code and evidence assumptions are unchanged. After a
+rebase, [review reuse](skills/raise-pr/references/review-reuse.md) requires checking
+the new base as well as the patch; equal patch IDs alone do not establish safety.
 
 AI-written GitHub passages open with a visible byline. [github-writing](skills/github-writing/SKILL.md)
 credits the model that drafted an issue, PR description, comment, review,
@@ -712,7 +732,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 46678309ce5aa192b279442ae556ae3c301db0b73e21e75b8e3a911ae5f0129a -->
+<!-- skills-review: 4adb38d1610d683c74398b0c959c207740fa127520463307e06d3af85c968dd3 -->
 
 ### Owner maintenance
 

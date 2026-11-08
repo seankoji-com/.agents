@@ -30,10 +30,18 @@ for more coverage.
    fixture removes or shims executables, especially credential, network or deploy
    tools, set a closed `PATH` or absolute commands before the first run so a
    missing shim cannot fall through to the real host tool.
+   When a test emulates another project's behavior, cite its upstream revision,
+   matching the deployed version. Derive fixtures from upstream special cases
+   and identify exclusions. Name that emulator and revision in the review brief.
+   Prefer testing the actual system when practical within the execution budget;
+   do not make a passing approximation the only oracle for production inputs.
 3. For regressions, verify failure before the fix and success afterward when feasible.
    Run required checks and relevant failure cases. Investigate flakes instead of
    hiding them with retries, longer timeouts or weaker assertions. Report verification
    gaps plainly.
+   Before adopting an existing test bundle, apply
+   [proof quality](../review/references/proof-quality.md); stale output after a
+   failed launch is not evidence for a new run.
 4. Enforce the 600-second execution cap across the required dependency path,
    including setup, build, checks and reporting. Measure per-job runtime, critical
    path execution, queue delay, total elapsed feedback and runner cost separately;

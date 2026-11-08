@@ -42,6 +42,8 @@ Include the task's decisions/design, implementation, checks/review, delivery,
 deferred-bug tracking and final retrospective as applicable. Keep completed,
 active and blocked work current at handoffs, failures and phase changes. A
 delegate's internal plan does not replace the parent's list.
+Keep the recovery record current at phase changes and use
+[continuation recovery](../babysitter/references/continuation.md) after lost context.
 
 If neither a native plan tool nor a checklist API is exposed, report the gap
 and maintain a concise parent-message status list at each phase change. Do not
@@ -70,11 +72,15 @@ evidence. These are options, not a required sequence:
 
 1. For UI changes, apply [raise-pr](../raise-pr/SKILL.md) before editing to capture
    practical mobile and desktop before screenshots.
+   At delivery start, apply its [preflight](../raise-pr/references/preflight.md)
+   to identify effective rules and validation gates early.
    Finish the smallest change that meets the request. Preserve unrelated work.
    Follow the repository's branch and delivery policy.
 2. Observe direct proof: reproduce and verify the fix, run covering checks, and
    inspect UI or runtime behavior when affected. Add regression protection when
    it catches a meaningful failure. Mocked tests alone do not prove visible behavior.
+   Apply [proof quality](../review/references/proof-quality.md) to bundle adoption,
+   HTTP access evidence and unavailable local tools before deferring proof.
 3. Use [review-loop](../review-loop/SKILL.md) for independent review and repair.
    That skill owns reviewer selection, budgets, findings and rechecks.
    Reuse eligible completed review under review's rules.

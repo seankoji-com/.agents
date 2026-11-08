@@ -48,6 +48,13 @@ workaround. A SEV1 finding cannot be deferred without the user's explicit approv
 
 ## Limits
 
+- Before re-investigating a bot finding, check the ledger for the same declined
+  claim. Reuse its reproduction only after comparing the declined and current
+  revisions and confirming the relevant code, dependencies, configuration and
+  evidence assumptions are unchanged, with no new evidence. Link the earlier
+  thread/reproduction, record that comparison and apply the existing Decline
+  rules. Otherwise validate afresh. Unchanged attached lines alone do not suffice;
+  human repeats and reopened threads follow the rule below.
 - Disagreement never bypasses a merge gate. A required human approval or a
   changes-requested review still blocks merge. Do not dismiss reviews.
 - Reassess when a human reviewer reopens or answers a declined or deferred thread

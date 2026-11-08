@@ -52,7 +52,8 @@ policy, bot handling and lifecycle acceptance scenarios.
 1. **Refresh and recover.** Inventory every requested PR, including paginated
    organization/batch scope, owners and dependencies. Confirm repository, clean
    or preserved checkout, remote, current head/base, applicable rules and merge
-   method. On every start, wake or resume, refresh GitHub and reconcile the
+   method under raise-pr's [preflight](../raise-pr/references/preflight.md).
+   On every start, wake or resume, refresh GitHub and reconcile the
    record; discard stale-head results. Collect all unresolved feedback,
    including older/outdated threads and review bodies, plus every current-head
    check and acceptance gate. An item observed or dispatched is still unfinished
@@ -63,7 +64,8 @@ policy, bot handling and lifecycle acceptance scenarios.
    configuration within scope. Handle comments and failing checks together;
    work around parked human decisions on independent work. Update behind or
    conflicting branches by the repository's permitted method, preserve others'
-   commits, and reassess dependents after prerequisite merges. Run focused and
+   commits; apply [rebase checks](../raise-pr/references/review-reuse.md) when rebasing, and
+   reconcile dependencies under preflight. Run focused and
    required checks, inspect the staged diff, commit explicit paths and push to
    the explicit remote/branch. Bound identical retries and change the diagnostic
    approach when they fail. A code failure, repair count or completed repair
@@ -74,8 +76,10 @@ policy, bot handling and lifecycle acceptance scenarios.
    raise-pr's auto-merge/queue hold so stale approvals cannot merge them.
    Obtain a reviewer yourself or dispatch the named owner of that gate; do not
    wait indefinitely for an unassigned reviewer. Material test, CI and config
-   changes need review too. Reuse review only for unchanged semantics with
-   recorded evidence. After push, trigger configured bot re-review through its
+   changes need review too. Reuse review only for evidenced unchanged semantics
+   under [raise-pr](../raise-pr/SKILL.md#require-independent-review-and-disclose-agents),
+   with its [additional rebase checks](../raise-pr/references/review-reuse.md) when applicable.
+   After push, trigger configured bot re-review through its
    supported mechanism when needed, verify registration, and bind review to
    the new head. Inspect existing and newly arriving feedback and choose each
    item's disposition under [feedback dispositions](../review/references/feedback-dispositions.md):
@@ -121,8 +125,10 @@ policy, bot handling and lifecycle acceptance scenarios.
    audit. While an owned PR
    remains open, the sole coordinator retains one confirmed native watch per PR,
    records its receipt and next trigger, then yields under host rules. Children
-   never watch. On each wake repeat step 1; after a push or resume, re-run the
-   audit and verify/rearm the same watch rather than assuming continuity.
+   never watch. On each wake repeat step 1 and
+   [reconcile watch state](references/continuation.md#keep-one-continuation-owner);
+   after a push or resume, repeat the audit. Receipts prove observed registration,
+   not continuous coverage.
    Recollect feedback before arming and follow the host's required
    yield; reconcile again on wake. A watch is a notification source, not a repair worker. Keep genuine
    approval/access holds visible while progressing other PRs. No duplicate
