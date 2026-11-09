@@ -514,7 +514,8 @@ class Library(unittest.TestCase):
             self.fixture(root)
             shutil.copy2(ROOT / '.gitignore', root / '.gitignore')
             before = (root / 'README.md').read_bytes()
-            for name in ('bro', 'unslop', 'ketchup', 'writing-for-agents'):
+            for name in ('bro', 'unslop', 'ketchup', 'writing-for-agents',
+                         'hindsight-coding-agent'):
                 folder = root / 'skills' / name
                 folder.mkdir()
                 (folder / 'SKILL.md').write_text(
@@ -523,15 +524,19 @@ class Library(unittest.TestCase):
             (root / '.skill-lock.json').write_text('{"skills": {}}\n')
             for relative in ('skills/bro/SKILL.md', 'skills/unslop/SKILL.md',
                              'skills/ketchup/SKILL.md', 'skills/writing-for-agents/SKILL.md',
+                             'skills/hindsight-coding-agent/SKILL.md',
                              '.skill-lock.json'):
                 subprocess.run(['git', '-C', str(root), 'check-ignore', '-q', relative],
                                check=True)
             self.assertEqual(checker.check(root), [])
             self.assertEqual(checker.check(root, True, True), [])
             self.assertEqual((root / 'README.md').read_bytes(), before)
-            subprocess.run(['git', '-C', str(root), 'add', '-f', 'skills/bro/SKILL.md'],
-                           check=True)
-            self.assertIn('unregistered skill: bro', '\n'.join(checker.check(root)))
+            for name in ('bro', 'hindsight-coding-agent'):
+                with self.subTest(force_added=name):
+                    subprocess.run(['git', '-C', str(root), 'add', '-f',
+                                    f'skills/{name}/SKILL.md'], check=True)
+                    self.assertIn(f'unregistered skill: {name}',
+                                  '\n'.join(checker.check(root)))
 
     def test_upstream_urls_do_not_hide_retired_local_dependencies(self):
         with tempfile.TemporaryDirectory() as tmp:

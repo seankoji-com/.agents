@@ -11,9 +11,10 @@ __pycache__/
 /mcp.json
 /plugins/marketplace.json
 /skills/synced/
-# Upstream skills installed locally through the Skills CLI, not library source.
+# Third-party skills installed locally, not library source.
 /skills/bro/
 /skills/unslop/
 /skills/ketchup/
 /skills/writing-for-agents/
+/skills/hindsight-coding-agent/
 /.skill-lock.json

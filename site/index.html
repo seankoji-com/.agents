@@ -484,7 +484,7 @@ const SKILLS = [
     try: "Open a PR for this branch.",
     uses: ["review", "github-writing"] },
   { name: "babysitter", group: "build", t3prep: true,
-    text: "Look after an open pull request. Your agent fixes failing checks, pushes back on wrong or out-of-scope review requests, files minor findings as issues and recovers unfinished work after interruptions. It verifies watch registration when the host permits and reports monitoring gaps. It merges when it is allowed to. Limits such as “don’t merge” still apply.",
+    text: "Look after an open pull request. Your agent fixes failing checks, pushes back on wrong or out-of-scope review requests, files minor findings as issues and recovers unfinished work after interruptions. It follows CI retries through their results and verifies who owns monitoring before handing off. It verifies watch registration when the host permits and reports monitoring gaps. It merges when it is allowed to. Limits such as “don’t merge” still apply.",
     try: "Babysit PR 42 through to merge.",
     uses: ["review", "raise-pr", "github-writing"] },
   { name: "raise-issue", group: "build", t3prep: true, t3: true,

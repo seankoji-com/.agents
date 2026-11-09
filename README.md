@@ -323,7 +323,8 @@ This library maintains its own versions of several workflow skills inspired by
 other libraries. They remain here because their instructions differ from
 upstream. Third-party installations are local state, excluded from the generated
 catalog and from Git. The owner checkout ignores the installed `bro`, `unslop`,
-`ketchup` and `writing-for-agents` folders and the Skills CLI's global lock file.
+`ketchup` and `writing-for-agents` folders, the Hindsight coding-agent plugin's
+generated `hindsight-coding-agent` folder and the Skills CLI's global lock file.
 A fresh checkout does not install these optional skills automatically.
 
 ## How the workflows fit together
@@ -500,6 +501,12 @@ survives a push or interruption. Its
 [continuation guide](skills/babysitter/references/continuation.md) defines recovery,
 bounded retries and lifecycle acceptance scenarios. Those scenarios are a
 verification plan, not evidence of a live successful run.
+
+On a fresh request, babysitting reconciles earlier assignments with current
+ownership and preserves each user limit for the action it covers. Merge and
+installation holds leave authorized repair and monitoring active. A queued CI
+retry remains unfinished until its result is checked; an earlier claim that
+another thread will monitor needs a verified handoff.
 
 Review feedback does not have to become code. Under the shared
 [feedback dispositions](skills/review/references/feedback-dispositions.md), the
@@ -732,7 +739,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 4adb38d1610d683c74398b0c959c207740fa127520463307e06d3af85c968dd3 -->
+<!-- skills-review: 35b5d27f2f567dac1f8c28d97e9897949ff7b47f288c7f386d656a2344b1644c -->
 
 ### Owner maintenance
 

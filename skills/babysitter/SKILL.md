@@ -16,8 +16,8 @@ commits, pushes, review replies, thread resolution, deferred-bug filing by the
 coordinator, necessary repair/test/review
 delegation and merging through repository gates. Carry that grant across wakes
 and into assignments. Do routine authorized work without asking again. The
-endpoint is GitHub-confirmed merged PRs. Explicit read-only, report-only,
-no-edit, no-post, no-push, no-merge, draft and release holds override these defaults;
+endpoint is GitHub-confirmed merged PRs. Explicit user or host read-only, report-only,
+no-edit, no-post, no-push, no-watch, no-merge, draft and release holds override these defaults;
 required human approvals remain gates.
 
 Existing automatic post-merge deployments are included: identify their effects
@@ -53,8 +53,10 @@ policy, bot handling and lifecycle acceptance scenarios.
    organization/batch scope, owners and dependencies. Confirm repository, clean
    or preserved checkout, remote, current head/base, applicable rules and merge
    method under raise-pr's [preflight](../raise-pr/references/preflight.md).
-   On every start, wake or resume, refresh GitHub and reconcile the
-   record; discard stale-head results. Collect all unresolved feedback,
+   On every start, wake or resume, refresh GitHub and reconcile the current
+   request, per-action holds and continuation owner under
+   [authority reconciliation](references/continuation.md#reconcile-authority-and-ownership);
+   discard stale-head results. Collect all unresolved feedback,
    including older/outdated threads and review bodies, plus every current-head
    check and acceptance gate. An item observed or dispatched is still unfinished
    until its action is verified. Assign each gate a next action and actor.
@@ -122,7 +124,8 @@ policy, bot handling and lifecycle acceptance scenarios.
    unavailable runner — counts as diagnosed only with its owner and next trigger
    recorded; it is what the watch waits on, not a reason to skip monitoring.
    Fix and push what the audit finds instead of watching over it, then re-run the
-   audit. While an owned PR
+   audit. A queued rerun is unfinished verification; retain continuation through
+   its result. While an owned PR
    remains open, the sole coordinator retains one confirmed native watch per PR,
    records its receipt and next trigger, then yields under host rules. Children
    never watch. On each wake repeat step 1 and

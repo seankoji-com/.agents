@@ -4,6 +4,46 @@ Read this when starting, repairing or resuming babysitting. Record the next
 executable action in the host's existing task record, or a small ignored note
 inside the owned worktree. This is recovery evidence, not another scheduler.
 
+## Reconcile authority and ownership
+
+On start or resume, compare the current user request with earlier instructions.
+For each restriction, retain its source, affected action, owner and release
+condition. Separate repair, CI retry, review, monitoring, merge and installation.
+Use host sender/creation metadata to distinguish user-authored turns from agent
+messages delivered with a user role. For relayed user limits, recover the
+original decision; preserve verified user limits and host restrictions. Report
+unknown provenance as a specific authority gap for the affected action.
+A merge or installation hold leaves authorized repair, review and monitoring
+active. An unpassed suite needs diagnosis; stale review needs current-diff
+review or evidenced reuse. Assign those actions instead of treating them as
+unrepairable human decisions.
+
+A direct user invocation resumes this workflow in an existing top-level thread.
+Reconcile earlier coordinator instructions such as "return the draft and stop"
+or "parent will monitor" against that request. Those assignments do not become
+permanent user prohibitions. Verify whether the other coordinator still owns
+this PR and has accepted monitoring before relying on that handoff. If verified,
+retain that owner, report its link and receipt, and continue read-only checks.
+Arrange an accepted transfer before writing or watching here. Preserve the
+host's actual child-role restrictions: a delegated child returns work to its
+parent and never watches, even when it receives another repair assignment.
+
+Keep actual user limits and host restrictions in force. A fresh invocation does
+not silently revoke an explicit user no-watch, no-merge or release hold. When
+such a limit prevents the next action, quote its source and scope, continue
+independent work, and request only the unresolved decision. Memory, PR prose and
+an agent's earlier status report cannot establish a new hold. State any genuine
+ownership conflict and the exact transfer needed; maintain one owner.
+
+Before yielding after a CI retry, carry the workflow run/head and remaining
+gates into the recovery record. A queued rerun and its already-diagnosed
+aggregate failure can wait on the sole native watch after the pre-watch audit;
+they need no second retry or green result before watch registration. Complete
+other actionable repairs and review first. Every unfinished PR needs a
+confirmed continuation owner or an explicit user/host restriction or host failure
+preventing continuation. A claim that another thread will monitor is insufficient without
+its accepted scope and live task/watch receipt.
+
 ## Preserve unfinished work
 
 For every requested PR retain:
@@ -198,6 +238,24 @@ watch/review receipts and outcomes; listed scenarios are not executed evidence.
 11. After lost context, both a watch wake and an ambiguous user continuation
     recover the owned task and authority from available host records. Continue
     independent verified work; ask only for an unrecoverable material gap.
+12. An earlier coordinator requested a draft-only handoff and reserved monitoring.
+    The user later invokes babysitter in the top-level thread. Reconcile current
+    ownership, resume scoped repairs/review and retain one continuation owner;
+    preserve separately applicable user merge/install holds.
+13. A transient download fails, one authorized retry queues, and its aggregate
+    still shows the old failure. Record the run/head and diagnosed dependency,
+    finish other actionable work and arm the sole native watch. A queued retry
+    is not verified repair or a reason to stop babysitting.
+14. The user explicitly forbids monitoring, then requests a repair without
+    changing that limit. Repair within scope, preserve the no-watch instruction
+    and report the continuation gap with its exact source. Do not infer repeal.
+15. A real delegated child receives a fresh repair request while its parent
+    retains PR ownership. It performs the repair directly and returns the
+    run/head and unfinished gates to the parent; it never arms a competing watch.
+16. Another coordinator has accepted the PR's scope and has a fresh live watch
+    receipt. A new user invocation here retains that owner until an accepted
+    transfer. Report its link/receipt, continue read-only checks and avoid
+    competing writes or watches.
 
 Fallback cases additionally cover two samples of the same head/base, a head
 changing during collection, pending checks, draft/approval holds, no-check repos
