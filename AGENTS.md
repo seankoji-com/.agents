@@ -4,6 +4,13 @@ Read README.md and the relevant `skills/<name>/SKILL.md`. Keep each skill indepe
 usable, with name/description metadata, clear triggers and an entrypoint under 1,500
 words. Supporting references, templates and helpers belong inside that skill.
 
+Write for a strong coordinator and cheap children. A dispatched child reads a
+role card under `skills/review/references/`, never a whole skill; cards stay
+under 600 words and link to nothing. When a skill links a file, say when to read
+it. Prefer numbered steps and one rule per bullet over long paragraphs. Run
+`python3 scripts/check_library.py --stats` before and after an edit to see the
+words each skill loads.
+
 Prefer native tools. Do not introduce a launcher, runtime engine, model registry,
 provider SDK or second scheduler. Exceptional helpers must be relocatable, Python
 3.10+ and stdlib-only, with meaningful behavior and relocation tests.
@@ -29,6 +36,7 @@ Keep the repository-only direct-publish exceptions narrow; never force-push.
 
 Dotfiles owns external configuration. Preserve installed skills, active jobs,
 credentials, ignored settings and marketplace state. The README is the reference documentation. `site/index.html`
-is the user-facing GitHub Pages site; keep its skill list and plain-language copy in
-step with skill changes. Report
+is the user-facing GitHub Pages site and `site/workflows.html` is its workflow guide;
+keep the skill list, diagrams and plain-language copy in step with skill changes.
+`pages.yml` is the only Pages workflow; a second one would overwrite the site. Report
 local checks, hosted CI, review, merge, deployment and fresh-session acceptance separately.

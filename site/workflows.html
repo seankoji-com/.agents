@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the .agents skills work together</title>
+<meta name="description" content="How think, choose-design, implement, review-loop, raise-pr and babysitter hand work to each other in T3 Code, from an idea to a verified merge.">
+<link rel="canonical" href="https://seankoji-com.github.io/.agents/workflows.html">
+<meta property="og:title" content="How the .agents skills work together">
+<meta property="og:description" content="The handoffs between skills, from an idea to a verified merge.">
+<meta property="og:url" content="https://seankoji-com.github.io/.agents/workflows.html">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23233a8f'/%3E%3Cpath d='M9 21h14' stroke='%23f5c84c' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='11' cy='12' r='2.6' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#outcome">Skip to the guide</a>
+<div class="wrap">
+  <header class="top">
+    <a class="mark" href="./">.agents</a>
+    <nav aria-label="Site">
+      <a href="./#skills">Skills</a>
+      <a href="workflows.html" aria-current="page">Workflows</a>
+      <a href="https://github.com/seankoji-com/.agents">GitHub</a>
+    </nav>
+  </header>
+
+  <main class="guide">
+    <div class="hero">
+      <h1>How the skills work together</h1>
+      <p class="lede">You do not need the whole library for every change. This page shows who hands what to whom when you do use several skills. Each skill's own file holds the exact rules.</p>
+    </div>
+
+    <section id="outcome" aria-labelledby="outcome-title">
+      <h2 id="outcome-title">Start with the outcome</h2>
+      <p class="section-intro">Ask for a result and let the agent pick the skills that help. The dashed arrows are choices the agent makes for the task. They are not a fixed sequence.</p>
+      <pre class="mermaid">
+flowchart TD
+    classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
+    ship["ship&lt;br/&gt;Own the outcome"]:::skill
+    plan["Parent task list&lt;br/&gt;Plan and track progress"]
+    think["think&lt;br/&gt;Settle product decisions"]:::skill
+    design["choose-design&lt;br/&gt;Choose the UI"]:::skill
+    implementation["Implementation&lt;br/&gt;Direct or delegated"]
+    review_loop["review-loop&lt;br/&gt;Evaluate and repair"]:::skill
+    raise_pr["raise-pr&lt;br/&gt;PR and evidence"]:::skill
+    babysitter["babysitter&lt;br/&gt;CI and merge gates"]:::skill
+    merge(["Verified merge"])
+    retrospective["Final retrospective&lt;br/&gt;Parent and delegate logs"]
+    proposals["raise-issue&lt;br/&gt;Workflow proposals"]:::skill
+    finished(["Ship complete"])
+
+    ship --&gt; plan
+    plan -. "Product unclear" .-&gt; think
+    plan -. "UI choice unresolved" .-&gt; design
+    think -. "UI choice remains" .-&gt; design
+    plan --&gt; implementation
+    think --&gt; implementation
+    design --&gt; implementation
+    implementation --&gt; review_loop
+    review_loop --&gt; raise_pr
+    raise_pr --&gt; babysitter
+    babysitter --&gt; merge
+    merge --&gt;|"Required bug tracking complete"| retrospective
+    retrospective -. "Supported amendments" .-&gt; proposals
+    retrospective --&gt;|"No change warranted"| finished
+    proposals --&gt;|"Issue URLs verified"| finished
+      </pre>
+      <div class="facts">
+        <div>
+          <h3>Settle the choices that change the build</h3>
+          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/think/SKILL.md">think</a> asks only the questions whose answers would change the next step, then has a reviewer from another model family confirm nothing important is open. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/choose-design/SKILL.md">choose-design</a> shows mockups from two model families, or three for a new screen, and you pick before UI work starts. An existing design that already answers the question needs no chooser.</p>
+        </div>
+        <div>
+          <h3>Bring evidence to the review</h3>
+          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/review-loop/SKILL.md">review-loop</a> repairs and re-reviews until the score target and required checks pass, or stops after two rounds that fail to beat the best score. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/SKILL.md">review</a> supplies the reviewer and the evidence and severity rules. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/design-loop/SKILL.md">design-loop</a> uses the same stopping rule for UI, with judges who use the real interface.</p>
+        </div>
+        <div>
+          <h3>Finish the endpoint you authorised</h3>
+          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/ship/SKILL.md">ship</a> hands the pull request to <a href="https://github.com/seankoji-com/.agents/blob/main/skills/babysitter/SKILL.md">babysitter</a>, which owns CI, review threads and the merge. Before it waits on a T3 pull request watch, it fixes conflicts, failing checks and open comments. A merge proves a merge. Deployment and live behaviour need their own check.</p>
+        </div>
+        <div>
+          <h3>Feedback does not have to become code</h3>
+          <p>The coordinator can fix a finding, decline an invalid or out-of-scope request with reasons, or file a minor one as a linked issue. Required approvals and changes-requested reviews still block the merge.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="cards" aria-labelledby="cards-title">
+      <h2 id="cards-title">Small models read a card, not a skill</h2>
+      <p class="section-intro">A strong model coordinates. The reviewers and workers it starts can be cheaper models, so they get a short card instead of a 1,500-word skill and its links.</p>
+      <div class="facts">
+        <div>
+          <h3>Assigned reviewer</h3>
+          <p>The <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/references/assigned-reviewer.md">assigned-reviewer card</a> covers the whole job in about 450 words: stay read-only, check your own model family, gather evidence, rate severity and return one report.</p>
+        </div>
+        <div>
+          <h3>Implementation participant</h3>
+          <p>The <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/references/implementation-participant.md">implementation-participant card</a> tells a worker to repair what it was given, prove each repair and hand decisions back to its parent.</p>
+        </div>
+        <div>
+          <h3>Measured, not guessed</h3>
+          <p><code>python3 scripts/check_library.py --stats</code> prints how many words each skill loads on its own, with its folder, and if an agent follows every link.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="implement" aria-labelledby="implement-title">
+      <h2 id="implement-title">Keep implementation off the main thread</h2>
+      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/implement/SKILL.md">implement</a> starts one lead in its own T3 worktree. The lead codes, adds workers only for large independent parts, and returns reviewed commits. Your main conversation keeps acceptance, integration and shipping.</p>
+      <pre class="mermaid">
+flowchart TD
+    classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
+    main["Main thread&lt;br/&gt;Brief and decisions"]
+    implement["implement&lt;br/&gt;Lead in an isolated worktree"]:::skill
+    workers["Optional coding workers&lt;br/&gt;Separate worktrees"]
+    integrate["Lead codes and integrates"]
+    loop["review-loop&lt;br/&gt;Check, evaluate and repair"]:::skill
+    reviewer["review&lt;br/&gt;Cross-lineage evaluator"]:::skill
+    handoff["Reviewed commits&lt;br/&gt;Exact revision and evidence"]
+    accepted["Main thread&lt;br/&gt;Acceptance, integration and shipping"]
+
+    main --&gt; implement
+    implement -. "Useful independent work" .-&gt; workers
+    workers --&gt;|"Scoped commits"| integrate
+    implement --&gt; integrate
+    integrate --&gt; loop
+    loop --&gt; reviewer
+    reviewer --&gt;|"Findings and evidence"| loop
+    loop --&gt;|"Criteria met"| handoff
+    handoff --&gt; accepted
+      </pre>
+      <div class="facts">
+        <div>
+          <h3>Cheapest route that does the job</h3>
+          <p>Model choice aims for the lowest total cost including review, retries and repairs. One evidenced model or effort upgrade is allowed per task. It does not reset scores or counters.</p>
+        </div>
+        <div>
+          <h3>Decisions come back to you</h3>
+          <p>If a product or design decision appears, the lead returns it to the main thread and continues only the work that does not depend on it.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="issues" aria-labelledby="issues-title">
+      <h2 id="issues-title">File deferred bugs without holding the merge</h2>
+      <p class="section-intro">Every confirmed bug left unfixed needs a verified issue link before the workflow is complete, including minor ones. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/raise-issue/SKILL.md">raise-issue</a> files them in a background T3 task. Filing does not lower severity or waive a blocker.</p>
+      <pre class="mermaid">
+flowchart TD
+    classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
+    bug["Confirmed bug&lt;br/&gt;Already judged non-blocking"]
+    packet["Main thread owns the filing packet"]
+    issue["raise-issue&lt;br/&gt;Async T3 issue writer"]:::skill
+    url["Verified issue URL"]
+    gates["Required checks and review pass"]
+    merge["Merge may proceed"]
+    done(["Ready for final retrospective&lt;br/&gt;Merge AND every bug issue URL verified"])
+
+    bug --&gt; packet
+    packet --&gt; issue
+    issue --&gt; url
+    packet --&gt;|"No filing hold on merge"| gates
+    gates --&gt; merge
+    merge --&gt; done
+    url --&gt; done
+      </pre>
+    </section>
+
+    <section id="progress" aria-labelledby="progress-title">
+      <h2 id="progress-title">Visible progress and a look back</h2>
+      <div class="facts">
+        <div>
+          <h3>One task list in the parent</h3>
+          <p>ship keeps its plan in T3's plan panel and updates the same list through handoffs and resumes. Without a plan tool it says so and posts a short status list at each phase change.</p>
+        </div>
+        <div>
+          <h3>A retrospective from the logs</h3>
+          <p>The last stage reads the run's activity across the parent and every delegate, including failed attempts. Missing logs are reported as a gap. Proposed skill changes go to the operator's own configured repository as issues, never automatically into the skills.</p>
+        </div>
+        <div>
+          <h3>AI-written text is labelled</h3>
+          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/github-writing/SKILL.md">github-writing</a> opens issues, pull requests and comments with a byline naming the model that wrote them and the person it wrote for.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="t3-permissions" aria-labelledby="t3-permissions-title">
+      <h2 id="t3-permissions-title">T3 permission workarounds</h2>
+      <p class="section-intro">Before starting a helper session, skills read the <a href="https://github.com/seankoji-com/.agents/blob/main/skills/agent-tuneup/references/t3-dispatch.md">T3 dispatch preflight</a>. It records two host problems reported on 2 November 2026.</p>
+      <div class="facts">
+        <div>
+          <h3>OpenCode, Grok and Muse fall back to asking</h3>
+          <p>Their <code>auto</code> mode can drop to <code>ask</code> and stall unattended work (<a href="https://github.com/pingdotgg/t3code/issues/11458">T3 Code #11458</a>). Skills start them with explicit full access when the parent session allows it. A parent in <code>auto</code> cannot start a full-access child, so skills filter those routes out first.</p>
+        </div>
+        <div>
+          <h3>Codex in full access rejects prompt rules</h3>
+          <p>T3 maps full access to Codex's <code>approvalPolicy: "never"</code>, so a command matching a Codex <code>prompt</code> rule fails before it runs (<a href="https://github.com/pingdotgg/t3code/issues/12248">T3 Code #12248</a>, <a href="https://github.com/openai/codex/issues/41068">Codex #41068</a>). The agent reports that gate. It does not change your rules or mode.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Back to the <a href="./">skill list</a>. Source and full documentation are on <a href="https://github.com/seankoji-com/.agents">GitHub</a>. MIT licensed.</p>
+  </footer>
+</div>
+
+<script type="module">
+// Diagrams stay readable as text if this import fails or scripts are off.
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });
+</script>
+</body>
+</html>

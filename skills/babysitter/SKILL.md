@@ -113,34 +113,40 @@ policy, bot handling and lifecycle acceptance scenarios.
    coordinator still owns verified issue URLs under review's tracking rules.
    Never bypass protection, manufacture approval or change repository settings.
 
-5. **Continue through waiting.** Do all currently actionable work before
-   waiting. Arm a watch only after an explicit pre-watch audit of the current
-   head and base shows every known issue already fixed, disposed or diagnosed as
-   an external hold: no merge conflicts, and the branch merged up to date with
-   its base by the permitted method when behind; no unresolved review threads or
-   unanswered review comments, each handled per step 3; no failing, cancelled or
-   missing required checks that you can diagnose and repair now. An external
-   hold — a check waiting on human approval, missing reviewer access, an
-   unavailable runner — counts as diagnosed only with its owner and next trigger
-   recorded; it is what the watch waits on, not a reason to skip monitoring.
-   Fix and push what the audit finds instead of watching over it, then re-run the
-   audit. A queued rerun is unfinished verification; retain continuation through
-   its result. While an owned PR
-   remains open, the sole coordinator retains one confirmed native watch per PR,
-   records its receipt and next trigger, then yields under host rules. Children
-   never watch. On each wake repeat step 1 and
-   [reconcile watch state](references/continuation.md#keep-one-continuation-owner);
-   after a push or resume, repeat the audit. Receipts prove observed registration,
-   not continuous coverage.
-   Recollect feedback before arming and follow the host's required
-   yield; reconcile again on wake. A watch is a notification source, not a repair worker. Keep genuine
-   approval/access holds visible while progressing other PRs. No duplicate
-   watcher, shell poller or second scheduler in T3. Discover new PRs only through
-   a host-scheduled sweep the user explicitly requested. Record its verified
-   schedule ID, scope, cadence and stop condition, and have each run also check
-   stalled queued jobs. Otherwise report coverage as linked PRs only.
-   If native watching is unavailable, report continuation as unavailable;
-   do not claim active monitoring.
+5. **Continue through waiting.** Do all currently actionable work first. Before
+   arming a watch, audit the current head and base. Every item must be fixed,
+   disposed or recorded as an external hold:
+   - No merge conflicts. A branch behind its base is updated by the permitted
+     method.
+   - No unresolved review threads or unanswered review comments; handle each
+     per step 3.
+   - No failing, cancelled or missing required checks that you can diagnose
+     and repair now.
+   - An external hold, such as a check awaiting human approval, missing
+     reviewer access or an unavailable runner, has its owner and next trigger
+     recorded. The watch waits on it; it is not a reason to skip monitoring.
+
+   Fix and push what the audit finds, then audit again. A queued rerun is
+   unfinished verification; keep continuation through its result. Recollect
+   feedback immediately before arming.
+
+   Then watch:
+   - The sole coordinator keeps one confirmed native watch per open owned PR,
+     records its receipt and next trigger, and yields under host rules.
+     Children never watch.
+   - On each wake repeat step 1 and
+     [reconcile watch state](references/continuation.md#keep-one-continuation-owner).
+     After a push or resume, repeat the audit. A receipt proves observed
+     registration, not continuous coverage.
+   - A watch is a notification source, not a repair worker. Keep approval and
+     access holds visible while progressing other PRs.
+   - In T3, add no duplicate watcher, shell poller or second scheduler.
+   - Discover new PRs only through a host-scheduled sweep the user explicitly
+     requested. Record its verified schedule ID, scope, cadence and stop
+     condition, and have each run check stalled queued jobs. Otherwise report
+     coverage as linked PRs only.
+   - If native watching is unavailable, report continuation as unavailable.
+     Do not claim active monitoring.
 
 6. **Verify the endpoint.** A status reply or turn end while a supported watch
    or task remains is a continuation, not final handback. Stop ownership only

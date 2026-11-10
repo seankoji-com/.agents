@@ -17,7 +17,7 @@ second opinion select this workflow; implementation and repair requests do not.
 
 Apply [review](../review/SKILL.md) for cross-lineage eligibility, reviewer
 selection, dispatch and evidence. Use one fresh reviewer and require it to read
-and apply review in the assigned-reviewer role. Follow review's rule for named
+review's [assigned-reviewer card](../review/references/assigned-reviewer.md). Follow review's rule for named
 models, settings and conflicts.
 
 Give the reviewer the problem, constraints, proposal, source/version and raw

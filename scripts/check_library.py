@@ -3,6 +3,7 @@
 import argparse
 import ast
 import hashlib
+import html
 import json
 import re
 import subprocess
@@ -22,6 +23,10 @@ LINK = re.compile(r'\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 ORDER = re.compile(r'\*\*([^*,\n]+(?:, [^*,\n]+){3,})\*\*')
 RETIRED_ROOTS = {'core', 'shared', 'plugins', 'bin', 'bench', 'conformance',
                  'migration', 'docs', 'overrides', 'roles', 'packaging'}
+# A dispatched child reads one card instead of a skill and everything it links to.
+CARDS = ('skills/review/references/assigned-reviewer.md',
+         'skills/review/references/implementation-participant.md')
+CARD_WORDS = 600
 CATALOG_START = '<!-- skill-catalog:start -->'
 CATALOG_END = '<!-- skill-catalog:end -->'
 DOC_REVIEW = re.compile(r'<!-- skills-review: ([^\s]+) -->')
@@ -40,6 +45,69 @@ def description_value(value):
     if not value.strip() or '\n' in value or '\r' in value:
         raise ValueError('description must be a single-line string')
     return value
+
+
+def mermaid_errors(label, diagrams, names):
+    """Every Mermaid node annotated as a skill must name a registered skill."""
+    errors = []
+    for diagram in diagrams:
+        nodes = re.findall(r'\w+\["([^"\n]+)"\]:::skill(?![\w-])', diagram)
+        if diagram.count(':::skill') != len(nodes):
+            errors.append(f'{label}: malformed Mermaid skill node')
+        for node in nodes:
+            name = node.split('<br/>', 1)[0]
+            if name not in names:
+                errors.append(f'{label}: unknown Mermaid skill: {name}')
+    return errors
+
+
+def local_links(path):
+    """Resolve the relative Markdown links in one file to existing .md files."""
+    found = set()
+    for target in LINK.findall(path.read_text(encoding='utf-8')):
+        parsed = urlsplit(target)
+        if parsed.scheme or not parsed.path:
+            continue
+        dest = (path.parent / unquote(parsed.path)).resolve()
+        if dest.suffix == '.md' and dest.is_file():
+            found.add(dest)
+    return found
+
+
+def load_stats(root):
+    """Words an agent reads per skill: the entry, its own folder, and every link followed."""
+    skills = (root / 'skills').resolve()
+    rows = []
+    for name in sorted(SKILLS):
+        entry = skills / name / 'SKILL.md'
+        if not entry.is_file():
+            continue
+        seen, stack = {entry}, [entry]
+        while stack:
+            for dest in local_links(stack.pop()):
+                if dest not in seen and skills in dest.parents:
+                    seen.add(dest)
+                    stack.append(dest)
+        words = {path: len(path.read_text(encoding='utf-8').split()) for path in seen}
+        own = sum(count for path, count in words.items() if skills / name in path.parents)
+        rows.append((name, words[entry], own, sum(words.values()), len(seen)))
+    return rows
+
+
+def card_contract(root):
+    """Role cards are the whole reading list for a child agent: short and link-free."""
+    errors = []
+    for relative in CARDS:
+        path = root / relative
+        if not path.is_file():
+            errors.append(f'{relative}: missing role card')
+            continue
+        text = path.read_text(encoding='utf-8')
+        if len(text.split()) > CARD_WORDS:
+            errors.append(f'{relative}: role card exceeds {CARD_WORDS} words')
+        if LINK.search(text):
+            errors.append(f'{relative}: role card must not link to other files')
+    return errors
 
 
 def readme_contract(root, descriptions, paths, update=False, acknowledge=False):
@@ -88,14 +156,8 @@ def readme_contract(root, descriptions, paths, update=False, acknowledge=False):
         errors.append('README.md: skill instructions changed; review prose and diagrams, '
                       'then run scripts/check_library.py --update-readme --acknowledge-docs')
 
-    for diagram in re.findall(r'```mermaid\n(.*?)\n```', text, re.S):
-        nodes = re.findall(r'\w+\["([^"\n]+)"\]:::skill(?![\w-])', diagram)
-        if diagram.count(':::skill') != len(nodes):
-            errors.append('README.md: malformed Mermaid skill node')
-        for label in nodes:
-            name = label.split('<br/>', 1)[0]
-            if name not in descriptions:
-                errors.append(f'README.md: unknown Mermaid skill: {name}')
+    errors.extend(mermaid_errors(
+        'README.md', re.findall(r'```mermaid\n(.*?)\n```', text, re.S), descriptions))
     anchors = set()
     for heading in re.findall(r'^#{1,6} (.+)$', text, re.M):
         slug = re.sub(r'[^\w -]', '', heading.lower()).replace(' ', '-')
@@ -136,6 +198,18 @@ def site_contract(root):
     for name in re.findall(r'^\s*\["[^"]+", "([^"]+)"\],$', text, re.M):
         if name not in SKILLS:
             errors.append(f'site/index.html: picker names unknown skill: {name}')
+    guide = root / 'site' / 'workflows.html'
+    if not guide.is_file():
+        return errors + ['site/workflows.html: missing workflow guide']
+    text = guide.read_text(encoding='utf-8')
+    diagrams = [html.unescape(body) for body in
+                re.findall(r'<pre class="mermaid">(.*?)</pre>', text, re.S)]
+    if not diagrams:
+        errors.append('site/workflows.html: missing Mermaid diagrams')
+    errors += mermaid_errors('site/workflows.html', diagrams, SKILLS)
+    for name in re.findall(r'/skills/([a-z0-9-]+)/', text):
+        if name not in SKILLS:
+            errors.append(f'site/workflows.html: links unknown skill: {name}')
     return errors
 
 
@@ -183,6 +257,7 @@ def check(root, update_readme=False, acknowledge_docs=False):
     if len(descriptions) == len(SKILLS):
         errors.extend(readme_contract(root, descriptions, paths, update_readme, acknowledge_docs))
     errors.extend(site_contract(root))
+    errors.extend(card_contract(root))
     for path in sorted(paths):
         relative = path.relative_to(root).as_posix()
         if Path(relative).parts[0] in RETIRED_ROOTS:
@@ -234,7 +309,16 @@ def main():
     parser.add_argument('--update-readme', action='store_true', help='regenerate the skill catalog')
     parser.add_argument('--acknowledge-docs', action='store_true',
                         help='record that prose and diagrams were reviewed against current skills')
+    parser.add_argument('--stats', action='store_true',
+                        help='print the words each skill loads, then exit')
     args = parser.parse_args()
+    if args.stats:
+        print(f'{"skill":<16}{"entry":>7}{"own folder":>12}{"all links":>11}{"files":>7}')
+        for name, entry, own, closure, files in load_stats(args.root.resolve()):
+            print(f'{name:<16}{entry:>7}{own:>12}{closure:>11}{files:>7}')
+        print('Words, not tokens. "all links" is the cost of following every link; '
+              f'a child reading a role card loads at most {CARD_WORDS}.')
+        return 0
     errors = check(args.root.resolve(), args.update_readme, args.acknowledge_docs)
     if errors:
         print('\n'.join(errors), file=sys.stderr)

@@ -67,8 +67,9 @@ retain review's default preferences.
 1. Work directly by default. Add a worker only for a substantial independent part
    whose expected benefit justifies startup, context and integration cost. Give
    each worker non-overlapping ownership, acceptance criteria, exact base, local
-   commit authority and instructions to read review as an implementation
-   participant. Workers and assigned reviewers do not delegate further.
+   commit authority and the absolute path of review's
+   [implementation-participant card](../review/references/implementation-participant.md)
+   to read. Workers and assigned reviewers do not delegate further.
 2. Use T3-isolated worktrees for coding workers. Commit required lead checkpoints
    before dispatch so workers inherit the intended state. Integrate their scoped
    commits into the lead's worktree through the repository's permitted method,

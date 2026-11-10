@@ -329,346 +329,27 @@ A fresh checkout does not install these optional skills automatically.
 
 ## How the workflows fit together
 
-Use the skills that help with the current task. You do not need to run the whole
-library for every change. The guide below explains the handoffs, review rules,
-issue tracking, and T3-specific details.
+Use the skills that help with the current task. You do not need the whole
+library for every change. The [workflow guide](https://seankoji-com.github.io/.agents/workflows.html)
+on the skills site shows the handoffs with diagrams: decisions, implementation
+in a separate worktree, review, delivery, deferred-bug filing and the T3
+permission workarounds. Each skill's own file holds the exact rules.
 
-<details>
-<summary><strong>Workflow guide</strong> · decisions, implementation, review, and delivery</summary>
+A strong model coordinates each workflow. The reviewers and workers it starts
+can be cheaper models. They read a short role card instead of a whole skill:
 
-### Start with the outcome
+- [assigned-reviewer card](skills/review/references/assigned-reviewer.md) for a
+  dispatched reviewer or judge.
+- [implementation-participant card](skills/review/references/implementation-participant.md)
+  for a dispatched coding or repair worker.
 
-The [replay example above](#what-it-looks-like-in-practice) gives the agent an
-outcome. It can choose the skills that help, reuse decisions already made and
-skip unnecessary ceremony. This diagram shows how a delivery request can proceed.
-
-```mermaid
-flowchart TD
-    classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
-    ship["ship<br/>Own the outcome"]:::skill
-    plan["Parent task list<br/>Plan and track progress"]
-    think["think<br/>Settle product decisions"]:::skill
-    design["choose-design<br/>Choose the UI"]:::skill
-    implementation["Implementation<br/>Direct or delegated"]
-    review_loop["review-loop<br/>Evaluate and repair"]:::skill
-    raise_pr["raise-pr<br/>PR and evidence"]:::skill
-    babysitter["babysitter<br/>CI and merge gates"]:::skill
-    merge(["Verified merge"])
-    retrospective["Final retrospective<br/>Parent and delegate logs"]
-    proposals["raise-issue<br/>Workflow proposals in .agents"]:::skill
-    finished(["Ship complete"])
-
-    ship --> plan
-    plan -. "Product unclear" .-> think
-    plan -. "UI choice unresolved" .-> design
-    think -. "UI choice remains" .-> design
-    plan --> implementation
-    think --> implementation
-    design --> implementation
-    implementation --> review_loop
-    review_loop --> raise_pr
-    raise_pr --> babysitter
-    babysitter --> merge
-    merge -->|"Required bug tracking complete"| retrospective
-    retrospective -. "Supported amendments" .-> proposals
-    retrospective -->|"No change warranted"| finished
-    proposals -->|"Issue URLs verified"| finished
-```
-
-Blue boxes name skills; other boxes show steps or outcomes. Dashed branches are
-conditional choices. They are not a required sequence or an
-executable router. The skills are instructions the agent selects for the task.
-This example follows a repository that uses PRs; a repository with a direct
-publication policy keeps its prescribed delivery path.
-
-**Settle the consequential choices.** [think](skills/think/SKILL.md) asks
-about uncertainty that could change the next implementation step. It obtains
-a cross-lineage readiness review before handing off. For unresolved visual or
-interaction choices, [choose-design](skills/choose-design/SKILL.md) presents
-mockups after product decisions are settled. The user chooses before UI work
-begins. It defaults to two designer lineages, or three for a new screen, app or
-unconstrained redesign. A missing lineage leaves the comparison incomplete
-unless the user accepts a smaller set. An established design that answers the
-question needs no new selection. Layout and minor edits preserve the existing
-design and compare only the unresolved change. Reports give key decisions
-stable feature IDs and keep options visible in separate frames. Controls must
-work in the presentation host or show labelled static states. Invoking the
-chooser authorises sharing its minimal design brief with the selected providers,
-subject to standing limits.
-Delegates receive that authority source. Broader raw-file sharing and host
-approvals remain separate gates.
-
-**Bring evidence to the review.** [review-loop](skills/review-loop/SKILL.md)
-uses [review](skills/review/SKILL.md) for independent evaluation, evidence,
-severity and finding dispositions. Visible changes need observed UI evidence.
-For work headed to a PR, [raise-pr](skills/raise-pr/SKILL.md) applies early enough
-to capture practical mobile and desktop before screenshots. Its placement near
-the end of the diagram represents PR preparation, not its first invocation.
-
-At delivery start, its [preflight](skills/raise-pr/references/preflight.md) checks
-effective branch rules and whether required checks can report. Stacked PRs also
-record relevant validation skipped by their base and make carried dependencies
-visible before merge. Credential-shaped examples use the repository's pinned
-scanner before pushing when one is configured.
-
-The [reviewer brief](skills/review/references/reviewer-brief.md) fixes the source
-revision and identifies permitted checks and cleanable scratch space. Read-only
-reviewers may run those checks without changing the reviewed source. The
-[proof guide](skills/review/references/proof-quality.md) separates current test
-bundles from stale output, API access from login redirects, and missing tools
-from denied or unhealthy ones. Test emulators cite their upstream revision and
-cover its special cases rather than validating an approximation alone.
-
-For autonomous design iteration, [design-loop](skills/design-loop/SKILL.md) adds
-reference research, a fixed design rubric and required measurable checks. Its
-rubric covers task value, clarity, efficiency, control, visual craft, emotional
-appeal and brand fit. Choose product-specific anchors and justify weight changes
-from the scoped user outcome and intended emotional response before scoring.
-The operator chooses the implementor, the mandatory primary judge, any extra
-judges (one by default; none or several are allowed) and the target at setup. The
-agent asks for any it was not given before dispatching anyone. No round cap
-or other ceiling is required; explicit user limits still apply.
-Every judge must directly view and interact with the candidate. The primary's
-baseline evaluation verifies access before scoring against the frozen rubric.
-Additional judges' access pilots launch concurrently and may overlap the baseline;
-all routes must pass before implementation or panel entry, with isolated sessions
-where possible.
-While pilots run, the coordinator researches references, captures the baseline,
-runs independent checks and prepares the rubric, briefs and evidence storage.
-Panel judges also run concurrently where sessions and data can be isolated.
-During scoring, the candidate stays frozen while the coordinator organizes
-evidence, prepares reports and drafts repair options. Work waits only on actual
-dependencies or shared resources that would interfere.
-The primary judge evaluates first, then the whole eligible
-panel must pass the same candidate. Without extra judges, the primary's pass is
-acceptance. Model scores remain judgments, separate from
-measured checks and human research.
-
-Each change round produces an HTML report with annotated before/after screenshots,
-reasons, scores and evidence gaps. Two consecutive rounds without exceeding the
-phase's best score stop the run. The panel uses its lowest judge score, and the
-explicit user limits apply across both phases. A stopped run with changed code targets
-a draft product PR marked `GOAL NOT MET`, subject to independent code review and
-the repository's delivery policy. No-change runs return their reports without an
-empty PR. Unavailable code review blocks PR creation unless explicitly waived
-under `raise-pr`; explicit limits that prevent endpoint work also remain a blocker.
-`review-loop` uses the same target-or-two-round-stagnation stopping rule while
-retaining finding dispositions and release gates. `choose-design` keeps its
-operator-selected options.
-
-Before any design-loop run concludes, reconcile identified bugs against the final
-revision. Invoking the skill authorises filing confirmed bugs left unfixed in the
-task's repository, subject to explicit no-post limits. Reuse matching issues under
-the deferred-bug procedure and return verified issue URLs. Pending or blocked
-filing leaves tracking incomplete, even if the design target passes.
-
-Review limits trigger a [progress diagnosis](skills/review/references/budget-exhaustion.md),
-not an automatic request for more rounds. The coordinator checks whether repairs
-are converging, stalled or cycling and recommends a concrete alternative, such
-as a targeted reproduction, a different repair or a smaller proposed delivery.
-Every extension request includes the original allowance or stopping rule, prior
-user-approved and automatic extensions, total consumption and proposed addition.
-It explains why the limit was reached, what changes next, realistic finishing
-prospects, an alternative and a stop condition. Unknown history stays explicit.
-Without a justified changed approach, further review stays on hold while useful
-independent work continues. Existing review gates and the user's scope still apply.
-
-For PR maintenance, `babysitter` supplies the actors needed to finish: its
-coordinator can obtain independent reviewers and delegate isolated repairs or
-tests. Children return results without creating more agents or watches. A
-three-attempt review budget permits one diagnosed extension of up to two attempts
-when a changed approach can produce new evidence; stricter caller limits win.
-
-**Finish the authorised endpoint.** [ship](skills/ship/SKILL.md) carries the
-change through checks and review, then hands the PR to
-[babysitter](skills/babysitter/SKILL.md), which owns current-head CI, review
-gates and the merge itself. A merge is evidence of a merge;
-deployment and live acceptance need their own verification and authority.
-Required human approvals and repository protections remain merge gates.
-
-Babysitting recovers lost context from available host records and resumes from
-unfinished feedback, reviewed revision, authority and the next action. Native
-watch receipts record observed registration, not continuous coverage. On wakes,
-the coordinator reconciles watch state when host rules permit and reports gaps.
-The coordinator clears the
-actionable issues — conflicts, behind-base branches, unresolved comments and
-fixable failing checks — before arming that watch, and records any diagnosed
-external hold with its owner and next trigger. It then repairs, supplies fresh
-review, attempts the permitted merge as soon as gates pass and reads back
-GitHub's merged state. Green checks, queue enrollment, auto-merge
-and a completed repair pass remain intermediate. Older unresolved feedback
-survives a push or interruption. Its
-[continuation guide](skills/babysitter/references/continuation.md) defines recovery,
-bounded retries and lifecycle acceptance scenarios. Those scenarios are a
-verification plan, not evidence of a live successful run.
-
-On a fresh request, babysitting reconciles earlier assignments with current
-ownership and preserves each user limit for the action it covers. Merge and
-installation holds leave authorized repair and monitoring active. A queued CI
-retry remains unfinished until its result is checked; an earlier claim that
-another thread will monitor needs a verified handoff.
-
-Review feedback does not have to become code. Under the shared
-[feedback dispositions](skills/review/references/feedback-dispositions.md), the
-coordinator can decline an invalid or out-of-scope request with its reasons and
-resolve the thread. It can also agree with a minor SEV3 finding, file it as a
-linked issue and keep this PR focused. Required approvals and changes-requested
-reviews still block merge. A thread a human reopens goes to the owner instead of
-being resolved again. A repeated bot claim can reuse an earlier reproduction
-only when the relevant code and evidence assumptions are unchanged. After a
-rebase, [review reuse](skills/raise-pr/references/review-reuse.md) requires checking
-the new base as well as the patch; equal patch IDs alone do not establish safety.
-
-AI-written GitHub passages open with a visible byline. [github-writing](skills/github-writing/SKILL.md)
-credits the model that drafted an issue, PR description, comment, review,
-discussion or release note, even when another agent posts it:
+AI-written GitHub passages open with a visible byline under
+[github-writing](skills/github-writing/SKILL.md):
 
 ```markdown
 > [!NOTE]
 > _Written by **GPT-6.1 Sol** on behalf of @seankoji_
 ```
-
-The model and handle reflect the actual writer and represented operator.
-Existing human text, code-author credits and reviewer disclosures remain
-distinct. Commit attribution keeps its existing policy; the byline contains no
-private session links.
-
-### Keep implementation off the main thread
-
-Use [implement](skills/implement/SKILL.md) when moving substantial coding into a
-T3 delegate is worth the coordination cost. Its working lead codes directly and
-delegates substantial independent parts when useful. Each coding worker has
-its own prepared worktree and a non-overlapping scope.
-
-```mermaid
-flowchart TD
-    classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
-    main["Main thread<br/>Brief and decisions"]
-    implement["implement<br/>Lead in an isolated worktree"]:::skill
-    workers["Optional coding workers<br/>Separate worktrees"]
-    integrate["Lead codes and integrates"]
-    loop["review-loop<br/>Check, evaluate and repair"]:::skill
-    reviewer["review<br/>Cross-lineage evaluator"]:::skill
-    handoff["Reviewed commits<br/>Exact revision and evidence"]
-    accepted["Main thread<br/>Acceptance, integration and shipping"]
-
-    main --> implement
-    implement -. "Useful independent work" .-> workers
-    workers -->|"Scoped commits"| integrate
-    implement --> integrate
-    integrate --> loop
-    loop --> reviewer
-    reviewer -->|"Findings and evidence"| loop
-    loop -->|"Criteria met"| handoff
-    handoff --> accepted
-```
-
-Model selection inside `implement` aims for the lowest expected total cost that
-meets the quality bar, including review, retries and repairs. A cheaper first
-attempt is useful only if it can do the job. One evidenced model or effort
-upgrade is allowed across the task; it does not reset scores or stagnation counters.
-If a material product or design decision emerges, the lead returns it to the
-main thread and continues only independent work.
-
-Independent review must use a lineage different from the coordinator and every
-material model author for the primary review. Additional loop judges may share
-a lineage when their verified reasoning level is strictly higher than every
-material implementor's. Required independent code review keeps its lineage gate.
-Outside `implement`, the default preference order lives in
-[review](skills/review/SKILL.md). Named reviewer choices still have to be eligible.
-The main thread can reuse an eligible completed review at the handoff. Integration
-changes or a moved base require reassessing the affected evidence and review.
-No measured cost or quality advantage is claimed by these instructions alone.
-
-### Let non-blocking issue filing run alongside shipping
-
-Every confirmed bug intentionally left unfixed needs a verified issue URL before
-the execution workflow is complete. That includes minor SEV3 bugs. Rejected
-findings and style preferences do not need issues, and filing does not lower
-severity or waive a release blocker.
-
-[raise-issue](skills/raise-issue/SKILL.md) prepares and files bugs, features and
-tasks in owned, organisation and upstream repositories. It uses an asynchronous
-T3 issue writer and reuses validated evidence. The top-level workflow owner
-owns the job; child delegates return filing packets to that owner.
-
-```mermaid
-flowchart TD
-    classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
-    bug["Confirmed bug<br/>Already judged non-blocking"]
-    packet["Main thread owns the filing packet"]
-    issue["raise-issue<br/>Async T3 issue writer"]:::skill
-    url["Verified issue URL"]
-    gates["Required checks and review pass"]
-    merge["Merge may proceed"]
-    done(["Ready for final retrospective<br/>Merge AND every bug issue URL verified"])
-
-    bug --> packet
-    packet --> issue
-    issue --> url
-    packet -->|"No filing hold on merge"| gates
-    gates --> merge
-    merge --> done
-    url --> done
-```
-
-The delivery endpoint and verified tracking for every deferred bug must both
-finish before the final retrospective. A pending task handle is not an issue URL. The shared
-[deferred-bug procedure](skills/review/references/deferred-bugs.md) owns the
-details, including deduplication and evidence preservation.
-
-Async dispatch follows the host's continuation rules. When T3 requires the main
-agent to yield, hosted checks can continue, but the main agent does not keep
-executing. For an otherwise-ready merge, it may merge first and dispatch filing
-immediately afterward. The owner keeps tracking active until the URLs are verified.
-
-### Make progress visible and learn from the run
-
-`ship` owns the operator-visible task list in the parent context. It discovers
-the native plan/todo tool, or a T3 MCP API that writes the same parent panel,
-and records work, owners, dependencies, evidence and status there. It updates
-the same list through handoffs and resumes. If neither tool is available, it
-reports the gap and posts a concise parent-message status list at each phase change.
-Delegate jobs and scheduled work are not substitutes for checklist items.
-
-The last stage reads the ship invocation's operational activity across the
-parent and every owned delegate, including descendants, failed attempts, reviews
-and issue writers. The [retrospective procedure](skills/ship/references/retrospective.md)
-defines the execution boundary, pagination, coverage record and bounded cutoff.
-Missing logs remain an explicit gap; a summary alone is not full log coverage.
-
-Supported amendments are pitched through `raise-issue` in the operator's
-configured skill repository. For this owner that is `seankoji-com/.agents`.
-Users of a clone or fork must explicitly name or configure their destination
-before anything is posted; cloning this library grants no consent to publish
-their project evidence in this owner's tracker.
-Each needs redacted execution evidence, a broadly useful proposed rule, tradeoffs
-and a validation case. The retrospective does not automatically change skills,
-publish transcripts or manufacture proposals to meet a quota. Shipping ends
-when the retrospective and any proposal issue URLs are verified, or with an
-evidenced no-change result. Blocked stages stay visible in the task list.
-
-### T3 permission compatibility
-
-The shared [dispatch preflight](skills/agent-tuneup/references/t3-dispatch.md)
-records an owner-reported T3 workaround. OpenCode, Grok and Muse must start with
-explicit `full-access` for unattended work while their `auto` route falls back
-to `ask`. T3 does not allow a child to exceed its parent's permissions, so a
-parent in `auto`, including Codex/ChatGPT, cannot create those full-access delegates. Skills
-filter incompatible routes before launch and preserve named-model constraints.
-
-Codex/ChatGPT in full access may instead encounter an approval route mapped to
-`never`. T3 sends Codex `approvalPolicy: "never"` for full access, so any command
-matching a Codex `prompt` rule is rejected before it runs. T3 closed
-[pingdotgg/t3code#12248](https://github.com/pingdotgg/t3code/issues/12248) as an
-upstream fault, and [openai/codex#41068](https://github.com/openai/codex/issues/41068)
-tracks it. The OpenCode `auto` fallback is
-[pingdotgg/t3code#11458](https://github.com/pingdotgg/t3code/issues/11458).
-Operator questions use supported input tools; an impossible tool approval
-is reported as a blocker. The workaround does not authorise changing global
-permissions, bypassing host policy or silently switching a named model.
-
-</details>
 
 ## Skill catalog
 
@@ -719,13 +400,28 @@ The same checks run in CI and before owner publication. They enforce:
 - Local Markdown links resolve, and annotated Mermaid skill nodes name real skills.
 - The [skills site](site/index.html) lists every registered skill once, and its
   install commands, picker and related-skill lists name only registered skills.
-  Pushes to `main` that change `site/` deploy it to GitHub Pages.
+  Its [workflow guide](site/workflows.html) links and diagrams name only
+  registered skills. Pushes to `main` that change `site/` deploy it to GitHub
+  Pages through `pages.yml`, the only Pages workflow.
+- Role cards stay under 600 words and contain no links, so a child agent that
+  reads one loads nothing else.
 - Changes to skill instructions or their Markdown references invalidate the
   README's review receipt, requiring another look at the prose and diagrams.
 - Skill metadata, entry-point budgets, helper imports and relocation contracts
   continue to pass the existing library checks.
 
-After reviewing the README against changed instructions, refresh it with:
+To see what each skill costs to load, in words:
+
+```sh
+python3 -B scripts/check_library.py --stats
+```
+
+"entry" is the `SKILL.md` alone, "own folder" adds its references, and "all
+links" is what an agent loads if it follows every link. Keep links conditional:
+say when the linked file must be read.
+
+After reviewing the README and the site's workflow guide against changed
+instructions, refresh the README with:
 
 ```sh
 python3 -B scripts/check_library.py --update-readme --acknowledge-docs
@@ -739,7 +435,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 35b5d27f2f567dac1f8c28d97e9897949ff7b47f288c7f386d656a2344b1644c -->
+<!-- skills-review: 640e7b7fb464556fcf8bc5058cb0a16019b62aed9c8673001065a24274c50f37 -->
 
 ### Owner maintenance
 

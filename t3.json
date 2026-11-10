@@ -2,6 +2,20 @@
   "$schema": "https://t3.codes/schema/t3.json",
   "scripts": [
     {
+      "name": "Check",
+      "command": "python3 scripts/maintain.py check",
+      "icon": "test",
+      "runOnWorktreeCreate": false,
+      "runOnSettle": false
+    },
+    {
+      "name": "Load stats",
+      "command": "python3 -B scripts/check_library.py --stats",
+      "icon": "configure",
+      "runOnWorktreeCreate": false,
+      "runOnSettle": false
+    },
+    {
       "name": "Publish",
       "command": "python3 scripts/maintain.py",
       "icon": "play",

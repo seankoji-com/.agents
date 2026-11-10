@@ -76,7 +76,8 @@ proposed diff. Reuse an existing review only when it covers the current behavior
 Apply [review](../review/SKILL.md) for cross-lineage eligibility, reviewer
 selection, dispatch, evidence and findings. Self-review and a separate same-family
 agent do not qualify. Give the reviewer the diff, relevant context and acceptance
-criteria and require it to read and apply review in the assigned-reviewer role. Bound a
+criteria and require it to read review's
+[assigned-reviewer card](../review/references/assigned-reviewer.md). Bound a
 standalone review/repair cycle to three rounds; report unresolved gates when
 exhausted. Honour explicit model choices. If an
 eligible reviewer is unavailable or delegation is prohibited, finish independent

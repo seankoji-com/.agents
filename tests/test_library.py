@@ -36,8 +36,7 @@ def library_fixture(root):
                         ignore=shutil.ignore_patterns('__pycache__'))
     for name in ('README.md', 'AGENTS.md', 'LICENSE', '.env.example'):
         shutil.copy2(ROOT / name, root / name)
-    (root / 'site').mkdir()
-    shutil.copy2(ROOT / 'site/index.html', root / 'site/index.html')
+    shutil.copytree(ROOT / 'site', root / 'site')
     subprocess.run(['git', '-C', str(root), 'add', 'skills'], check=True)
 
 
@@ -665,11 +664,70 @@ class Documentation(unittest.TestCase):
         self.assertIn('unregistered skill: renamed-think', self.errors())
 
     def test_mermaid_skill_nodes_reject_retired_names_and_invalid_annotations(self):
-        original = self.readme.read_text()
-        self.readme.write_text(original.replace('"review<br/>', '"retired-review<br/>'))
-        self.assertIn('unknown Mermaid skill: retired-review', self.errors())
-        self.readme.write_text(original.replace(':::skill', ':::skill-extra', 1))
-        self.assertIn('malformed Mermaid skill node', self.errors())
+        guide = self.root / 'site/workflows.html'
+        original = guide.read_text()
+        cases = {
+            'unknown Mermaid skill: retired-review':
+                original.replace('"review&lt;br/&gt;', '"retired-review&lt;br/&gt;'),
+            'malformed Mermaid skill node': original.replace(':::skill', ':::skill-extra', 1),
+            'links unknown skill: interrogate':
+                original.replace('/skills/think/SKILL.md', '/skills/interrogate/SKILL.md', 1),
+            'missing Mermaid diagrams': original.replace('<pre class="mermaid">', '<pre>'),
+        }
+        for expected, text in cases.items():
+            with self.subTest(expected=expected):
+                self.assertNotEqual(text, original)
+                guide.write_text(text)
+                self.assertIn(f'site/workflows.html: {expected}', self.errors())
+        guide.unlink()
+        self.assertIn('site/workflows.html: missing workflow guide', self.errors())
+        # README diagrams, if any return, are held to the same rule.
+        self.readme.write_text(self.readme.read_text() +
+                               '\n```mermaid\nflowchart TD\n    a["retired-review<br/>x"]:::skill\n```\n')
+        self.assertIn('README.md: unknown Mermaid skill: retired-review', self.errors())
+
+    def test_role_cards_stay_short_and_self_contained(self):
+        for relative in checker.CARDS:
+            with self.subTest(relative=relative):
+                card = self.root / relative
+                original = card.read_text()
+                card.write_text(original + '\nRead [review](../SKILL.md) too.\n')
+                self.assertIn(f'{relative}: role card must not link', self.errors())
+                card.write_text(original + ' word' * checker.CARD_WORDS)
+                self.assertIn(f'{relative}: role card exceeds', self.errors())
+                card.unlink()
+                self.assertIn(f'{relative}: missing role card', self.errors())
+                card.write_text(original)
+
+    def test_children_are_sent_to_role_cards_not_whole_skills(self):
+        # A child told to read a SKILL.md loads that skill and can follow its links.
+        for relative in ('skills/review/SKILL.md', 'skills/review-loop/SKILL.md',
+                         'skills/challenge/SKILL.md', 'skills/raise-pr/SKILL.md',
+                         'skills/focus-group/SKILL.md'):
+            with self.subTest(relative=relative):
+                self.assertIn('references/assigned-reviewer.md',
+                              (self.root / relative).read_text())
+        self.assertIn('references/implementation-participant.md',
+                      (self.root / 'skills/implement/SKILL.md').read_text())
+
+    def test_load_stats_follow_links_and_report_each_skill_once(self):
+        rows = {name: (entry, own, closure, files)
+                for name, entry, own, closure, files in checker.load_stats(self.root)}
+        self.assertEqual(set(rows), set(checker.SKILLS))
+        for name, (entry, own, closure, files) in rows.items():
+            with self.subTest(name=name):
+                self.assertLessEqual(entry, 1500)
+                self.assertLessEqual(entry, own)
+                self.assertLessEqual(own, closure)
+        self.assertEqual(rows['github-writing'][3], 1)
+        extra = self.root / 'skills/github-writing/references/fixture.md'
+        extra.parent.mkdir(exist_ok=True)
+        extra.write_text('one two three\n')
+        entry = self.root / 'skills/github-writing/SKILL.md'
+        entry.write_text(entry.read_text() + '\n[fixture](references/fixture.md)\n')
+        after = {row[0]: row for row in checker.load_stats(self.root)}['github-writing']
+        self.assertEqual(after[4], 2)
+        self.assertEqual(after[2], after[1] + 3)
 
     def test_refresh_refuses_ambiguous_markers_without_overwriting_prose(self):
         original = self.readme.read_text()

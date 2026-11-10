@@ -31,11 +31,14 @@ automatically need this loop.
    When additional judges score a round, use the lowest score on the same frozen
    candidate. Record any metric change explicitly; retain prior progress history.
 2. Apply [review](../review/SKILL.md) for cross-lineage eligibility, reviewer
-   selection and dispatch. Every loop participant reads and applies that skill
-   for its assigned role: the coordinator obtains review and owns
-   [feedback dispositions](../review/references/feedback-dispositions.md),
-   implementers repair selected findings, and evaluators return evidence without
-   further delegation. Follow review's rule for named reviewers and conflicts.
+   selection and dispatch. Only the coordinator reads that skill. It obtains
+   review and owns [feedback dispositions](../review/references/feedback-dispositions.md).
+   Evaluators read review's
+   [assigned-reviewer card](../review/references/assigned-reviewer.md) and
+   return evidence without further delegation. Implementers read its
+   [implementation-participant card](../review/references/implementation-participant.md)
+   and repair selected findings. Follow review's rule for named reviewers and
+   conflicts.
 3. For UI work likely to end in a PR, apply [raise-pr](../raise-pr/SKILL.md) early
    to capture practical mobile and desktop before screenshots.
    Implement directly unless substantial independent work warrants delegation;
@@ -47,14 +50,13 @@ automatically need this loop.
    checks and next action. Use one cross-lineage evaluator per round. Add another
    opinion only for a concrete unresolved risk or disagreement. Additional judges
    may share a lineage under review's higher-reasoning exception. Apply review's
-   selection policy; report unavailable choices. Inside [implement](../implement/SKILL.md), that policy
+   selection policy; report unavailable choices. Inside implement, that policy
    remains cost-aware across all rounds and additional opinions. Routine rechecks
    can use the original reviewer's lineage
    while it remains eligible under review, including after repairs by new authors.
    Keep the rubric and target fixed; agreement alone is not acceptance.
-   Follow review's dispatch rules for every round. All loop briefs include
-   review's path and require the participant to read and apply it in its assigned
-   role, including implementation participants and assigned reviewers.
+   Follow review's dispatch rules for every round. Every loop brief gives the
+   absolute path of the participant's role card and requires reading it.
    Schedule independent preparation and covering checks concurrently where their
    resources do not interfere. Dispatch multiple selected evaluators together
    once their prerequisites are met. While review runs, organize evidence,
@@ -69,8 +71,7 @@ automatically need this loop.
    exclusions, version, checks, rubric and target; require a score with evidence.
    Ask for consequential
    bugs, broken callers and unnecessary code, tests, guards or procedure.
-   Apply [review](../review/SKILL.md) and include it in the
-   review brief. Require key-state screenshots for visible behavior and every
+   Name the assigned-reviewer card in the review brief. Require key-state screenshots for visible behavior and every
    visible finding; the reviewer reports bugs and SEV1–SEV3 severity to the parent,
    which owns repair, deferral and issue-filing decisions within its authority.
    Require a complete plain-text final report with stable finding IDs, severity,

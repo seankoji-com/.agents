@@ -25,8 +25,8 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    Preserve eligible named models/options. For unavailable or ineligible choices,
    report the conflict and first eligible alternative; hold dependent review
    until the user accepts it or names another eligible reviewer.
-   With no named reviewer, use [implement](../implement/SKILL.md)'s cost-aware
-   selection inside implement; otherwise choose the first eligible available
+   With no named reviewer, use implement's cost-aware selection when running
+   inside implement; otherwise choose the first eligible available
    reviewer in this order: **Sol, Opus, Wonder Full, Argon, Grok 4.7**.
    **Additional-judge exception:** In review-loop and design-loop, an additional
    judge may share the lineage of the coordinator, implementor or another judge
@@ -40,7 +40,9 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    Otherwise obtain a fresh read-only review through authorized host orchestration.
    Supply the request, scope, source/version, evidence, criteria and model identities.
    Apply the [reviewer brief](references/reviewer-brief.md) for fixed source,
-   permitted checks, scratch ownership and cleanup. Require reading this skill.
+   permitted checks, scratch ownership and cleanup. Give the reviewer the
+   absolute path of the [assigned-reviewer card](references/assigned-reviewer.md)
+   and require reading it; a reviewer does not need this skill.
    In T3 Code, discover models with
    `orchestrator_capabilities`, use a new `delegate_task` for every review or
    recheck that the coordinator dispatches, record its `taskId` and follow its
@@ -65,21 +67,21 @@ Required human approval remains a separate gate.
 
 ## Reviewer and parent responsibilities
 
-Every assigned reviewer reads this skill, checks the supplied coordinator and
-author identities against its own lineage, and reports a missing or conflicting
-identity instead of claiming eligible review. Additional judges verify and report
-the higher-reasoning exception when using it rather than claim cross-lineage review.
-Perform the assigned review
-directly; do not dispatch agents, including another reviewer of this review.
+Children read a role card, not this skill. Each card restates these rules for
+one role and links to nothing else:
 
-Implementation participants apply the parent's selected dispositions and these
-evidence rules. They do not claim independent review or dispatch reviewers.
+- An assigned reviewer follows the [assigned-reviewer card](references/assigned-reviewer.md).
+  It checks the supplied identities against its own lineage, reports a missing
+  or conflicting identity instead of claiming eligible review, reviews directly
+  and never dispatches agents. It returns findings with severity and evidence;
+  it does not fix code, decide deferrals, file issues or change labels.
+- An implementation participant follows the
+  [implementation-participant card](references/implementation-participant.md).
+  It applies the parent's selected dispositions and never claims independent
+  review or dispatches reviewers.
 
-Inspect the work, assign severity and return findings with evidence to the parent.
+A later explicit repair assignment is separate work.
 For separately authorised GitHub reviews, apply [GitHub writing](../github-writing/SKILL.md).
-Do not fix code, decide deferrals,
-file GitHub issues or change labels as part of the review assignment. A later
-explicit repair assignment is separate work.
 
 The parent validates findings and decides whether to fix, defer, reject or raise
 issues within its existing authorization, under [feedback dispositions](references/feedback-dispositions.md). Validating findings and repairing code
