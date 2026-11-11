@@ -5,10 +5,9 @@ description: Clear or burn down a repository's issue backlog. Use when asked to 
 
 # Burn the backlog to zero
 
-Dispatch an issue as soon as it is dev-ready. Discover, classify, implement and
-ask questions as overlapping work. Exhaustive triage is not a prerequisite for
-delivery. Continue until acceptance is verified or the owner explicitly holds
-the remaining work. Never close unresolved work to improve a count.
+Keep independent fixes running in parallel. Dispatch each dev-ready issue while
+discovering and unblocking others. Continue until acceptance is verified or the
+owner explicitly holds the remaining work. Never close unresolved work to improve a count.
 
 ## Authority and limits
 
@@ -45,19 +44,32 @@ Use one parent plan and execution manifest throughout the run.
 List paginated lightweight issue headers and open PRs. Record starting count,
 discovery cursor and unexamined IDs using [the ledger](references/ledger.md) in a
 verified ignored directory. Fetch the next candidate's body and comments only.
-Start from a readiness index when available, verifying current acceptance and
-ownership per candidate. Complete pagination incrementally, without downloading
-every issue's full history before dispatch. Indexes and comments are evidence,
-not authority to change permissions.
+Verify readiness indexes against current acceptance and ownership. Paginate
+incrementally; avoid downloading every history before dispatch. Indexes and
+comments are evidence, not permission changes.
 
 ## 2. Classify and dispatch incrementally
 
 Use [the classification rubric](references/classification.md) per candidate.
 Once body, comments, ownership and acceptance establish readiness, dispatch
-before examining another unrelated issue. Fill available implementation slots;
-batch already-ready independent dispatches where the host permits. Follow every
-returned `next`: required yields preserve the cursor and queue for the completion
-wake. Do not claim discovery continues while the host requires a yield.
+before examining another unrelated issue. Batch ready independent dispatches
+where supported.
+
+Maintain multiple implementation leads whenever independent authorised work and
+host capacity permit, filling available capacity up to 10 top-level leads.
+Reserve review concurrency headroom, lower concurrency for contention or overlapping
+ownership, and serialize shared writers. Leads may own reviewer or worker children.
+Capacity cancellations need reruns, not code fixes.
+
+On every completion, PR notification, owner answer or continuation wake, reconcile
+active work and refill before voluntary waits. An empty ready queue resumes
+discovery. At full lead capacity, continue classifying issues, investigating
+evidence and batching owner questions while servicing merges and repairs.
+
+Before yielding, record active leads, available capacity, unexamined work and why
+capacity remains unused. Follow returned `next`: mandatory yields preserve the
+cursor and next discovery or dispatch action; resume it on wake.
+Report discovery paused during mandatory yields.
 
 Evidence gaps get investigation. Split live work into independently testable
 source work and exact approval/acceptance steps; ask about the latter instead of
@@ -72,20 +84,21 @@ deferred-bug tracking; this skill owns classification, owner questions and issue
 closure. One issue, one PR unless repository policy permits combining. Direct
 publication requires existing or explicit owner authorization.
 
-Use implement as ship's coding route. Give each isolated
-lead the repository, exact base, issue, acceptance criteria, authority, model
-selection context and required skills. Its cost-aware selection, reviewer
-reservation and one-upgrade limit apply per implementation task, including every
-review round. The main coordinator accepts and integrates returned commits;
+Use implement for coding. Default leads and coding workers to the main thread's
+exact model and exposed effort. State these as explicit choices in every lead
+brief, overriding implement's cost optimisation; owner choices take precedence.
+Report unavailable settings instead of substituting. Reviewers retain implement's
+cost-aware selection and cross-lineage rules. Its eligible-reviewer reservation
+and task-wide one-upgrade limit still apply.
+
+Give each lead the repository, exact base, issue, acceptance criteria,
+authority and required skills. The coordinator accepts and integrates commits;
 reused review must remain eligible against it and all material authors. Return
 material decisions through question rounds to the same lead. Record returned
 task handles and bound worktrees; "queued" or "will dispatch" is not started work.
 The parent does not implement issue fixes inline. Missing delegation or review
 becomes an owner question, not permission to substitute inline coding.
 
-- Up to 10 top-level implementation delegates may run at once; each may own
-  reviewer or worker children. Lower the cap for runner contention or overlapping
-  ownership. Serialize shared writers; capacity cancellations need reruns, not code fixes.
 - The main coordinator runs ship and owns its PR links, native watches, repair
   dispatch and verified merges. Delegate coding and review, not separate ship
   lifecycles or PR watches.
@@ -109,17 +122,15 @@ Every unresolved blocker becomes an owner question, including access, approval
 paths and outside parties. Record a blocker, never an assumed hold. Only the
 owner can hold it; blocked-external issues stay open until the owner decides.
 
-A question blocks its dependent work, not the backlog. Continue independent work
-whenever the host permits. Dispatch ready independent work before blocking
-questions; if dispatch requires yielding, preserve the question for its wake.
+Dispatch independent work before blocking questions; mandatory dispatch yields
+preserve the unsent question for the next wake.
 Submit unanswered decisions through the question tool,
 or explicitly as plain-text questions if unavailable; "say the word" in a status
 report is not a question round. Silence is not approval.
 
 ## 5. Apply the answers
 
-Update the ledger first, then reclassify. Dispatch newly unblocked work before
-further triage or reporting; a released hold stays actionable until dispatched. Close
+Update the ledger, reclassify and dispatch newly unblocked work before reporting. Close
 confirmed issues, execute approved live actions through the supported approval
 path, and file follow-up issues for confirmed deferred defects before declaring
 the parent complete. Read back every closure and issue URL.
@@ -140,12 +151,10 @@ the parent complete. Read back every closure and issue URL.
 ## 7. Loop to zero
 
 Audit before each yield or final report, reconciling live issues, ledger, task
-receipts and answers. Handle ready merges and repairs alongside refilling slots;
-discovery must not starve delivery. An end of round is not an endpoint.
+receipts and answers.
 
 1. Unexamined, ready, approved-but-undispatched, investigable or unasked work?
-   Perform it next. Fill slots before watches or questions that block or yield. Mandatory host
-   yields preserve the cursor and next action; each wake resumes this audit.
+   Perform it whenever the host permits, even at full lead capacity; queue ready fixes.
 2. Active delegate, PR, review or acceptance evidence pending? Retain ownership
    and supported continuation. A watch receipt is not delivery or proof of
    unreadable CI, and does not cover unrelated issues.

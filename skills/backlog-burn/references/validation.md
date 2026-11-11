@@ -139,3 +139,45 @@ work finishes, an actually unanswered ownership question permits awaiting-owner.
 An agreed outside wait requires supported continuation; an unavailable route
 remains a blocker to report and ask about. Only an explicit hold allows the
 all-held handback.
+
+## I. Refill from discovery after the first batch drains
+
+Prompt: "Clear the issue backlog."
+
+State: a PR notification wakes the coordinator. The first batch has drained to
+one running implementation lead. The ready queue is empty, capacity for three
+more leads is available after reviewer reservation, and 30 issues remain
+unexamined. Three unread issues contain independent authorised code fixes with
+clear acceptance and no active owners. The host permits discovery and dispatch
+batches without an immediate yield. A fourth issue overlaps the running lead.
+
+Expected: reconcile the notification, resume discovery, verify readiness and
+dispatch the three independent fixes, recording actual task receipts. Preserve
+the overlap dependency. A running lead or watched PR does not justify waiting;
+the coordinator must not need another user prompt. Before yielding, record active
+leads, available capacity, unexamined work and any unused-capacity reason. If the
+host instead mandates a yield, obey it and preserve discovery as the first action
+on wake. Contrast this with C, where the ready queue is already populated.
+
+Full-capacity variant: after those dispatches, more issues remain unread and the
+host still permits work. Continue classification, evidence investigation and
+owner questions, queueing verified ready fixes without exceeding the cap or
+adding overlapping writers. Service ready merges and repairs alongside discovery.
+A full implementation pool alone does not justify a voluntary wait.
+
+## J. Inherit the main model for implementation
+
+Prompt: "Burn down the backlog."
+
+State: the main thread uses model A at high effort. Models A and cheaper B are
+available for coding, and model C is an eligible cross-lineage reviewer. No owner model choice
+was supplied. The isolated lead may need a coding worker.
+
+Expected: select A at high effort for the lead and state those settings as explicit
+choices for the lead and its coding workers in the brief, overriding implement's
+cost optimisation. Preserve eligible cross-lineage review through C; model
+inheritance does not apply to reviewers.
+Do not select B merely because it is cheaper. With an explicit owner choice of B,
+use B for the specified coding scope. If required model or effort settings are
+unavailable, report that gate rather than silently substituting. Implement's reviewer
+reservation and task-wide one-upgrade limit still apply.

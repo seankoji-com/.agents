@@ -338,10 +338,15 @@ permission workarounds. Each skill's own file holds the exact rules.
 
 `backlog-burn` dispatches each verified ready issue before reading unrelated
 histories, while continuing discovery and owner questions where the host permits.
-It uses `ship` for delivery and isolated `implement` leads with cost-aware model
-selection. The main coordinator refills available slots after answers and task
-completions, retains PR delivery and watches, and finishes with one consolidated
-retrospective. Ready independent work starts before blocking questions.
+It uses `ship` for delivery and isolated `implement` leads. Coding leads and
+workers default to the main thread's model and effort unless the owner selects another;
+reviewers retain cost-aware selection and cross-lineage eligibility. The main
+coordinator refills available capacity on every completion, PR notification,
+answer or continuation wake. An empty ready queue resumes discovery. At full
+capacity, the coordinator continues classification and owner questions. It retains
+PR delivery and watches, records why capacity is unused, and finishes with one
+consolidated retrospective. Ready independent work
+starts before blocking questions.
 One unanswered question or watched PR cannot stop independent
 work. Awaiting-owner requires every remaining issue to be explicitly held or
 await an actual unanswered question; a host-required yield preserves the queue.
@@ -447,7 +452,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 55f38782b3691de8f70a982ff7f1df4660705639468bab94265f0f60d7df64dd -->
+<!-- skills-review: 528b514abfcdefae63b3ded45858a91adfbce60cb40976c5df222f3d82384556 -->
 
 ### Owner maintenance
 

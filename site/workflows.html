@@ -91,11 +91,11 @@ flowchart TD
 
     <section id="backlog" aria-labelledby="backlog-title">
       <h2 id="backlog-title">Deliver a backlog through ship</h2>
-      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> dispatches fixes as issues become ready, without waiting to classify the whole backlog. It uses ship for delivery, with one parent plan and one final retrospective across the run. Its approval limits still apply.</p>
+      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> keeps independent fixes running in parallel, refilling capacity on every wake and discovering more issues when the ready queue is empty. It uses ship for delivery, with one parent plan and one final retrospective across the run. Its approval limits still apply.</p>
       <pre class="mermaid">
 flowchart TD
     classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
-    backlog["backlog-burn&lt;br/&gt;Discover and refill available slots"]:::skill
+    backlog["backlog-burn&lt;br/&gt;Discover and refill on every wake"]:::skill
     candidate["Next candidate&lt;br/&gt;Verify acceptance and ownership"]
     questions["Owner decisions&lt;br/&gt;Pause dependent work"]
     ship["ship&lt;br/&gt;Proof, review and delivery"]:::skill
@@ -118,7 +118,7 @@ flowchart TD
     inventory --&gt;|"Zero or every remaining issue held"| retrospective
     retrospective --&gt;|"New target issues filed, preserve retrospective"| backlog
       </pre>
-      <p>The main coordinator owns PR delivery and native watches. Coding leads use implement's cost-aware model policy and return reviewed commits; the parent does not implement issue fixes inline. Ready independent work starts before blocking questions. A watched PR, one unanswered question or a blocked push does not finish other ready work. Unexamined issues and unasked live approvals still need action. Externally owned work gets an explicit hold, takeover or outside-trigger decision. Awaiting-owner applies only when all remaining work is explicitly held or awaits an actual unanswered question. A required host yield preserves the queue and its next action. A merge closes only issues whose acceptance is satisfied; direct publication needs authorization.</p>
+      <p>The main coordinator owns PR delivery and native watches. Coding leads and workers default to the main thread's model and effort unless the owner selects another. Reviewers retain implement's cost-aware selection and cross-lineage eligibility. Leads return reviewed commits; the parent does not implement issue fixes inline. The coordinator records why capacity is unused and continues classification, investigation and owner questions when coding slots are full. Ready independent work starts before blocking questions. A watched PR, one unanswered question or a blocked push does not finish other ready work. Unexamined issues and unasked live approvals still need action. Externally owned work gets an explicit hold, takeover or outside-trigger decision. Awaiting-owner applies only when all remaining work is explicitly held or awaits an actual unanswered question. A required host yield preserves the queue and its next action. A merge closes only issues whose acceptance is satisfied; direct publication needs authorization.</p>
     </section>
 
     <section id="cards" aria-labelledby="cards-title">

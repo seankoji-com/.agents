@@ -15,7 +15,10 @@ Current count: N
 Discovery cursor: <page/cursor or complete>
 Unexamined issue IDs: <IDs; never imply the backlog is fully classified>
 Ready queue: <issue IDs, acceptance scope and overlap constraints>
-Slots: <running/cap and any contention limit>
+Slots: <active implementation leads, available capacity, review concurrency headroom and contention limits>
+Unused capacity: <specific reason and next discovery or dispatch action>
+Implementation model and effort: <main thread's exact settings; explicit owner override if any>
+Eligible reviewer route: <provider/model and lineage eligibility>
 Board read: yes | no (<reason>)
 Authority: standing merge on gates; duplicate auto-close; other closures batched;
 live writes per action.
@@ -61,10 +64,13 @@ After each question round, record the decisions and their consequences:
 2. Reconcile the ledger against the live count; mark stale rows.
 3. Re-check every open PR's current head and base; discard stale-head results.
 4. Confirm one watch per open PR; release watches for merged or closed PRs.
-5. Apply settled answers and refill available slots from the ready queue before
-   deeper triage or submitting blocking questions. Record task receipts and any
-   question still unsent because dispatch required a yield. Resume discovery
-   from the cursor; keep the same issue owner.
+5. On every completion, PR notification, answer or continuation wake, reconcile
+   active leads and refill capacity. Apply settled answers and dispatch ready
+   work before submitting blocking questions. If the ready queue is empty,
+   resume discovery from the cursor. At full lead capacity, continue classification,
+   investigation and owner questions, queueing ready fixes. Record receipts,
+   unused-capacity reasons and questions unsent because dispatch required a yield.
+   Keep the same issue owner and preserve the implementation model policy.
 6. Report any ledger row that has no owner and no next action.
 7. Resume the same ship plan and manifest; preserve retrospective coverage,
    cursors and budgets. An owner-question pause does not finish that stage.
