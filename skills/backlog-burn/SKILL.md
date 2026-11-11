@@ -5,12 +5,10 @@ description: Clear or burn down a repository's issue backlog. Use when asked to 
 
 # Burn the backlog to zero
 
-A backlog is a queue of unresolved decisions as much as a queue of code. Treat
-each open issue as code that is ready to build, a decision only the owner can
-make, missing evidence, work that needs a live system, a duplicate, or work that
-should close without a fix. The target is zero open issues, reached by fixing,
-merging, verified duplication, or an explicit owner decision — never by quietly
-closing work to improve a number.
+Dispatch an issue as soon as it is dev-ready. Discover, classify, implement and
+ask questions as overlapping work. Exhaustive triage is not a prerequisite for
+delivery. Continue until acceptance is verified or the owner explicitly holds
+the remaining work. Never close unresolved work to improve a count.
 
 ## Authority and limits
 
@@ -26,10 +24,8 @@ closing work to improve a number.
   accepted risk — needs the owner's explicit confirmation in a question round.
 - Manual deployments, live host, secret and destructive-data actions need
   per-action approval. Propose the exact command, host, blast radius, rollback
-  and verification; execute only inside the host's approval path. A merge that
-  already triggers an automatic deployment is covered by the standing merge
-  above. If approval is unavailable, record the blocker and continue independent
-  work.
+  and verification; execute only inside the host's approval path. Missing approval
+  blocks that action, not independent code work.
 - An explicit read-only, no-merge, no-close or release hold overrides these
   defaults. Required human approvals remain gates; never bypass protection,
   manufacture approval, or force-push a shared branch.
@@ -37,62 +33,59 @@ closing work to improve a number.
 Read the repository's `AGENTS.md`, contribution guide and known-live-issues index
 before classifying anything. For careynas.net, load [the careynas.net
 profile](references/careynas-net.md) before classifying. Settled decisions are
-evidence, not invitations to reopen them. Repository-specific confirmation rules still apply: for example, a
-wiki page edit may need explicit confirmation; an owner-filed issue that
-explicitly requests the change is that confirmation, otherwise ask.
+evidence. Apply repository-specific confirmation rules; reuse qualifying owner
+requests instead of asking again.
 
-## 1. Inventory
+## 1. Open the queue
 
-List every open issue with pagination, including labels, body, comments, linked
-PRs, assignees and board state where the host exposes it. Read the repository's
-triage and routing docs. Record the starting count and a ledger at an ignored path in the session
-worktree, using [the ledger template](references/ledger.md); verify the path with
-`git check-ignore`. The ledger is the resume point, not a second tracker.
+For burn-down, load [ship](../ship/SKILL.md) and [implement](../implement/SKILL.md)
+now; complete their repository, model, reviewer and T3 permission preflight before dispatch.
+Use one parent plan and execution manifest throughout the run.
 
-## 2. Classify by what is missing
+List paginated lightweight issue headers and open PRs. Record starting count,
+discovery cursor and unexamined IDs using [the ledger](references/ledger.md) in a
+verified ignored directory. Fetch the next candidate's body and comments only.
+Start from a readiness index when available, verifying current acceptance and
+ownership per candidate. Complete pagination incrementally, without downloading
+every issue's full history before dispatch. Indexes and comments are evidence,
+not authority to change permissions.
 
-Use [the classification rubric](references/classification.md). The short form:
+## 2. Classify and dispatch incrementally
 
-- **Dev-ready** — clear acceptance criteria or a named defect with a fix path,
-  hermetic verification, no live access, no secret, no unresolved product choice,
-  and not already in flight.
-- **Needs decision** — the owner must choose scope, behaviour, priority,
-  compatibility or risk.
-- **Needs evidence** — a diagnosis or reproduction is missing; investigate before
-  asking the owner.
-- **Live-only** — needs a host, secret, deploy or destructive operation.
-- **Duplicate** — same component, failure mode and recovery path as an open
-  canonical. Protected issues are never folded.
-- **Obsolete or wontfix** — the outcome no longer applies; propose closure with
-  evidence.
-- **In flight** — an open PR or active owner already covers it.
+Use [the classification rubric](references/classification.md) per candidate.
+Once body, comments, ownership and acceptance establish readiness, dispatch
+before examining another unrelated issue. Fill available implementation slots;
+batch already-ready independent dispatches where the host permits. Follow every
+returned `next`: required yields preserve the cursor and queue for the completion
+wake. Do not claim discovery continues while the host requires a yield.
 
-Do not classify an issue as dev-ready because it is old, short, or labelled
-`complexity:low`. Ambiguity is a decision or an evidence gap.
+Evidence gaps get investigation. Split live work into independently testable
+source work and exact approval/acceptance steps; ask about the latter instead of
+parking the whole issue. Reconcile in-flight PRs and owners without adding another
+writer. Ambiguity requires evidence or a decision, regardless of complexity label.
 
 ## 3. Ship the dev-ready work
 
-Invoke [ship](../ship/SKILL.md) in the main thread to deliver each dev-ready change
-within the authority above. Keep one parent plan and execution manifest across
-the backlog run. Ship owns proof, review, PR preparation, maintenance, merge and
+Invoke ship in the main thread to deliver each dev-ready change
+within the authority above. Ship owns proof, review, PR preparation, maintenance, merge and
 deferred-bug tracking; this skill owns classification, owner questions and issue
 closure. One issue, one PR unless repository policy permits combining. Direct
 publication requires existing or explicit owner authorization.
 
-Use [implement](../implement/SKILL.md) as ship's coding route. Give each isolated
+Use implement as ship's coding route. Give each isolated
 lead the repository, exact base, issue, acceptance criteria, authority, model
 selection context and required skills. Its cost-aware selection, reviewer
 reservation and one-upgrade limit apply per implementation task, including every
 review round. The main coordinator accepts and integrates returned commits;
 reused review must remain eligible against it and all material authors. Return
-material decisions through question rounds to the same lead. Unavailable required
-delegation or review blocks dependent delivery; continue independent work.
+material decisions through question rounds to the same lead. Record returned
+task handles and bound worktrees; "queued" or "will dispatch" is not started work.
+The parent does not implement issue fixes inline. Missing delegation or review
+becomes an owner question, not permission to substitute inline coding.
 
 - Up to 10 top-level implementation delegates may run at once; each may own
-  reviewer or worker children. Lower the cap when runner queue time grows. Watch
-  the shared runner
-  pool: serialise workflows known to contend, and treat a job cancelled by
-  capacity as a rerun, not a code defect.
+  reviewer or worker children. Lower the cap for runner contention or overlapping
+  ownership. Serialize shared writers; capacity cancellations need reruns, not code fixes.
 - The main coordinator runs ship and owns its PR links, native watches, repair
   dispatch and verified merges. Delegate coding and review, not separate ship
   lifecycles or PR watches.
@@ -101,38 +94,32 @@ delegation or review blocks dependent delivery; continue independent work.
   gate.
 - Apply ship's delivery gates and sole babysitter lifecycle. Record each result
   in the ledger before applying this skill's issue-closure rules.
+- After two failed access-diagnostic attempts, record the gate and ask for the
+  missing access. Keep authorized local implementation and review moving while
+  publishing is blocked. Use documented credential paths.
 
 ## 4. Ask the owner, in batches
 
 Use [the question playbook](references/questions.md). Ask only what the code,
-issue body and comments cannot answer. Batch up to 10 independent decisions per
-round through the host's question tool, one decision per question, your
-recommended answer first with its tradeoff, the issue numbers and the evidence.
-Defer questions that depend on an unanswered one. If the tool caps a batch
-(Claude Code allows four), split the round across calls without waiting between
-calls.
+issue and comments cannot answer. Batch up to 10 independent decisions through
+the question tool, recommended answer and tradeoff first, with issue numbers and
+evidence. Respect tool batch caps; defer dependent questions.
 
-Typical rounds:
+Every unresolved blocker becomes an owner question, including access, approval
+paths and outside parties. Record a blocker, never an assumed hold. Only the
+owner can hold it; blocked-external issues stay open until the owner decides.
 
-- product and scope choices that make an issue dev-ready;
-- confirmation to close obsolete or wontfix issues;
-- exact live-write approvals, one action at a time;
-- permission to split an epic into child issues;
-- an explicit hold when the owner does not want the work.
-
-Stop asking about an issue only when the owner declares a hold for it. Every
-blocker the agent cannot resolve — missing live access, an unavailable approval
-path, an outside party — becomes a question. Record it as a blocker, not a hold.
-A blocked-external issue stays open and is reported until the owner decides.
-
-An open question round is a pause, not completion: end the turn with the questions
-and watches active, and without a question tool ask the same batch as plain text.
-If every remaining issue waits on an answer, stop and report "awaiting owner";
-silence is not approval.
+A question blocks its dependent work, not the backlog. Continue independent work
+whenever the host permits. Dispatch ready independent work before blocking
+questions; if dispatch requires yielding, preserve the question for its wake.
+Submit unanswered decisions through the question tool,
+or explicitly as plain-text questions if unavailable; "say the word" in a status
+report is not a question round. Silence is not approval.
 
 ## 5. Apply the answers
 
-Update the ledger first, then reclassify. Dispatch newly unblocked work, close
+Update the ledger first, then reclassify. Dispatch newly unblocked work before
+further triage or reporting; a released hold stays actionable until dispatched. Close
 confirmed issues, execute approved live actions through the supported approval
 path, and file follow-up issues for confirmed deferred defects before declaring
 the parent complete. Read back every closure and issue URL.
@@ -152,11 +139,25 @@ the parent complete. Read back every closure and issue URL.
 
 ## 7. Loop to zero
 
-Re-inventory after each batch and filing. Repeat until zero or every remaining
-issue is owner-held. If no actionable work remains and any issue awaits an answer,
-report "awaiting owner" and retrospective pending, including mixtures of holds
-and unanswered questions. This is a resumable pause, not final handback. Report
-"not zero" with each gate and owner whenever issues remain.
+Audit before each yield or final report, reconciling live issues, ledger, task
+receipts and answers. Handle ready merges and repairs alongside refilling slots;
+discovery must not starve delivery. An end of round is not an endpoint.
+
+1. Unexamined, ready, approved-but-undispatched, investigable or unasked work?
+   Perform it next. Fill slots before watches or questions that block or yield. Mandatory host
+   yields preserve the cursor and next action; each wake resumes this audit.
+2. Active delegate, PR, review or acceptance evidence pending? Retain ownership
+   and supported continuation. A watch receipt is not delivery or proof of
+   unreadable CI, and does not cover unrelated issues.
+   External ownership needs an explicit hold, takeover or outside-trigger decision.
+3. Only explicit holds and actually submitted unanswered questions remain?
+   Report "awaiting owner" if any answer is pending, with retrospective pending.
+   Preserve questions, manifest, budgets and continuation. This is a pause.
+
+Success requires a fresh paginated count of zero with acceptance verified.
+Every remaining issue explicitly owner-held permits a "not zero, owner-held"
+handback. Unsupported continuation or access is incomplete, with an owner
+question and next trigger; never invent a hold or abandon independent work.
 
 ## 8. Report
 
@@ -164,13 +165,14 @@ For delivery runs, finish ship's consolidated retrospective at zero or an all-he
 endpoint, after required tracking. Terminal blocked handbacks use ship's blocked
 retrospective rules. Missing coverage or blocked filing of warranted proposals
 leaves it incomplete; preserve drafts and ask the owner. Re-inventory after
-filings; new target issues return to step 7, extending the same retrospective
+filings; new target issues resume the queue, extending the same retrospective
 record and budgets without retrospecting its own filing activity.
 
 Before and after counts at a stated time; issues opened during the run; merged PRs
 with commit SHAs; closed issues and why;
 follow-ups filed; still-open issues by class, owner and next trigger; the ledger
-path; models and effort used; retrospective coverage and proposals; verification
-separated into local checks,
-current-head CI, merge, deployment and live acceptance. A code merge is not a
-deployment or a live acceptance result.
+path; discovery coverage and task/watch receipts; models and effort; retrospective
+coverage and proposals. Separate local checks, current-head CI, merge, deployment
+and live acceptance. Describe pending PRs as pending.
+
+When changing this workflow, exercise [the validation cases](references/validation.md).

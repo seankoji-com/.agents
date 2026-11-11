@@ -12,6 +12,10 @@ session-owned temporary directory and record its absolute path in the report.
 
 Start count: N
 Current count: N
+Discovery cursor: <page/cursor or complete>
+Unexamined issue IDs: <IDs; never imply the backlog is fully classified>
+Ready queue: <issue IDs, acceptance scope and overlap constraints>
+Slots: <running/cap and any contention limit>
 Board read: yes | no (<reason>)
 Authority: standing merge on gates; duplicate auto-close; other closures batched;
 live writes per action.
@@ -25,11 +29,18 @@ remaining read/time budget, proposal URLs or drafts>
 | Issue | Title | Class | Evidence / missing | PR | State | Next action | Owner |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
-Classes: `dev-ready`, `decision`, `evidence`, `live-only`, `duplicate`,
+Classes: `unexamined`, `dev-ready`, `decision`, `evidence`, `live-only`, `duplicate`,
 `obsolete`, `in-flight`, `hold` (owner-declared), `blocker` (agent cannot proceed).
 
-States: `dispatched`, `in-review`, `checks`, `mergeable`, `merged`, `closed`,
-`question`, `blocked`.
+States: `queued`, `dispatched`, `in-review`, `checks`, `mergeable`, `merged`,
+`acceptance-pending`, `closed`, `question`, `blocked`.
+
+For dispatched work record the task/thread handle, bound worktree, base/head,
+model/effort and scoped owner. For a question record the actual submitted prompt
+or request receipt, its affected issue/action and the answer when received.
+For pending PRs or runtime acceptance record the current gate and continuation
+receipt or the exact unsupported route. A plan entry is not a dispatch receipt;
+an assignee or stale branch is not verified active ownership.
 
 ## Round log
 
@@ -50,13 +61,31 @@ After each question round, record the decisions and their consequences:
 2. Reconcile the ledger against the live count; mark stale rows.
 3. Re-check every open PR's current head and base; discard stale-head results.
 4. Confirm one watch per open PR; release watches for merged or closed PRs.
-5. Continue the oldest actionable row first; do not re-ask a settled question.
+5. Apply settled answers and refill available slots from the ready queue before
+   deeper triage or submitting blocking questions. Record task receipts and any
+   question still unsent because dispatch required a yield. Resume discovery
+   from the cursor; keep the same issue owner.
 6. Report any ledger row that has no owner and no next action.
 7. Resume the same ship plan and manifest; preserve retrospective coverage,
    cursors and budgets. An owner-question pause does not finish that stage.
    Record it as pending; missing authority or blocked filing for warranted
    proposals is incomplete, with drafts and an owner question. Newly filed target issues
    re-enter the queue without starting another retrospective or resetting budgets.
+
+## Yield and completion audit
+
+Record the reason for each yield: host-required continuation, actual unanswered
+owner questions, or a terminal blocker. Preserve cursor, queued issue IDs, active
+receipts and the first action on wake. Voluntary awaiting-owner requires no
+unexamined, ready, approved-but-undispatched, investigable, unasked or owned in-flight
+work. External work needs an actual ownership question or an agreed outside
+trigger with supported continuation, not an assumed watch or hold.
+Every residual issue must instead have an explicit hold or an actual
+unanswered question; silence and a status recommendation do not qualify.
+
+Zero requires a fresh paginated issue list and verified acceptance. An all-held
+handback stays "not zero". A watched PR, an acceptance-pending issue or an
+unavailable continuation remains unfinished and retains its owner and next trigger.
 
 ## Handoff
 

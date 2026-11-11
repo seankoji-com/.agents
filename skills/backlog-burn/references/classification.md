@@ -58,6 +58,11 @@ approval path, an outside party, missing evidence. A blocker becomes a question,
 not a hold. A `blocked-external` issue stays open and is reported until the owner
 decides.
 
+Classifications describe the next action, not a reason to stop. A live-only issue
+needs an exact approval question and any independent source work dispatched.
+An evidence gap needs an investigation or a precise question for inaccessible
+evidence. An unasked question or unexamined issue cannot justify awaiting-owner.
+
 ## Obsolete or wontfix
 
 The outcome no longer applies, the component is retired, or the owner has
@@ -67,9 +72,18 @@ same as a fix.
 
 ## In flight
 
-An open PR, an assigned owner, or an active branch already covers it. Reconcile
-the PR state instead of dispatching a second writer. If the PR is abandoned,
-record that and reclassify.
+An open PR or verified active owner already covers it. Record current ownership,
+task/PR evidence and its next trigger, then reconcile delivery instead of adding
+a second writer. An assignee or old remote branch alone does not prove activity.
+If work is abandoned, record that and reclassify. An open PR is unfinished work,
+not a completed issue or an owner hold.
+
+If the coordinator cannot own that work, ask the owner to hold it, authorize
+takeover, or wait for a named outside trigger. Do not assume ownership or add a
+competing watch. An unanswered ownership question can pause this issue; an
+agreed outside wait stays unfinished with supported continuation. If that route
+is unavailable, report it and ask how to proceed. Only an explicit hold permits
+an all-held handback.
 
 ## Protected issues
 

@@ -153,7 +153,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
 - [raise-issue](skills/raise-issue/SKILL.md): Prepare and file a bug, feature, or task asynchronously, preserving the evidence and returning a verified issue URL. Requires T3 delegation.
-- [backlog-burn](skills/backlog-burn/SKILL.md): Classify open issues, use ship to deliver dev-ready changes, ask batched owner questions, and drive the open count toward zero. Requires T3 delegation.
+- [backlog-burn](skills/backlog-burn/SKILL.md): Dispatch fixes as issues become ready, use ship for delivery, and keep investigating and asking owner questions until acceptance or explicit holds. Requires T3 delegation.
 
 ### Writing and conversation
 
@@ -336,11 +336,15 @@ on the skills site shows the handoffs with diagrams: decisions, implementation
 in a separate worktree, review, delivery, deferred-bug filing and the T3
 permission workarounds. Each skill's own file holds the exact rules.
 
-`backlog-burn` manages triage, owner decisions and issue closure. It uses `ship`
-for delivery, with isolated `implement` leads and their cost-aware model policy.
-The main coordinator owns PR delivery and watches across the run, keeps the
-backlog's approval limits, and finishes with one consolidated retrospective.
-An unanswered owner question pauses the run; it does not complete it.
+`backlog-burn` dispatches each verified ready issue before reading unrelated
+histories, while continuing discovery and owner questions where the host permits.
+It uses `ship` for delivery and isolated `implement` leads with cost-aware model
+selection. The main coordinator refills available slots after answers and task
+completions, retains PR delivery and watches, and finishes with one consolidated
+retrospective. Ready independent work starts before blocking questions.
+One unanswered question or watched PR cannot stop independent
+work. Awaiting-owner requires every remaining issue to be explicitly held or
+await an actual unanswered question; a host-required yield preserves the queue.
 
 A strong model coordinates each workflow. The reviewers and workers it starts
 can be cheaper models. They read a short role card instead of a whole skill:
@@ -443,7 +447,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: d7c99a6e54a665016836fa0a38367e5867fd51006a23bf85bb44bcfc6b914a23 -->
+<!-- skills-review: 55f38782b3691de8f70a982ff7f1df4660705639468bab94265f0f60d7df64dd -->
 
 ### Owner maintenance
 

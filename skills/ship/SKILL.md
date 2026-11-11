@@ -39,6 +39,10 @@ merge gates to each change, then perform one consolidated retrospective at final
 handback. Question-round pauses leave it pending. Missing authority for warranted
 proposals leaves it incomplete with drafts and an owner question. Backlog-burn retains
 owner decisions, issue closure and the queue's stop condition.
+Backlog discovery and dispatch continue across PR deliveries. Apply its queue
+audit before voluntarily yielding; one PR watch does not complete the backlog.
+In backlog-burn, issue fixes use implement leads; the parent does not implement
+them inline. The optional implement choice below applies to standalone ship.
 
 Use T3's parent plan/todo panel before implementation, through the host's native
 plan/todo tool or an exposed T3 MCP API that writes that list. Discover the

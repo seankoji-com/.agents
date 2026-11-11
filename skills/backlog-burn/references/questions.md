@@ -18,6 +18,14 @@ question that does not change what happens next is noise.
 - If the request was inventory or triage only, stop after classification. Do not
   dispatch or merge without clear, burn-down or implement wording.
 - After the answers, restate the decisions in the ledger before acting.
+- Dispatch newly ready issues before returning to unrelated triage or reporting.
+  A released hold or approved fix without a task receipt is still actionable.
+- Before a question that blocks or ends the turn, fill available slots with ready
+  independent work and record dispatch receipts. If dispatch itself requires a
+  yield, preserve the unsent question and submit it on the next permitted turn.
+- If the owner requests evidence before choosing, investigate it, then explicitly
+  submit the remaining decision. A recommendation ending "say the word" is not
+  a pending question unless the question was actually asked.
 
 Recommended question shape:
 
@@ -80,10 +88,21 @@ Stop asking about an issue only when the owner declares a hold for it. Every
 blocker the agent cannot resolve becomes a question first. Continue independent
 work; do not turn the round into a status request.
 
-An open question round is a pause in the run, not completion. End the turn with
-the questions and watches active. Without a question tool, ask the same batch as
-plain text. If every remaining issue waits on an answer, report "awaiting owner";
-silence is not approval.
+An unanswered question pauses only its dependent work. Continue discovery,
+dispatch and delivery for independent issues where the host permits. Before a
+voluntary yield, apply backlog-burn's queue audit. If a tool requires yielding,
+preserve the discovery cursor, ready queue and task/watch receipts for the next
+wake. Follow that instruction rather than claiming background progress.
+
+Report "awaiting owner" only when all remaining issues are explicitly held or
+await actually submitted questions, with at least one unanswered. Keep questions
+and continuation active; without a question tool, ask the same batch explicitly
+as plain text. Unexamined work, approved-but-undispatched work, investigations,
+live steps without exact approval questions and active PRs cannot justify this
+pause. For externally owned work, submit the ownership decision from the
+classification rubric instead of claiming to own or monitor it. If that is the
+only unheld work left, its unanswered ownership question permits awaiting-owner.
+Silence is not approval, and a status report is not completion.
 
 ## Anti-patterns
 
@@ -93,3 +112,4 @@ silence is not approval.
 - Treating silence as approval.
 - Calling an agent blocker an owner hold.
 - Asking for a blanket "yes to all live changes" instead of per-action approval.
+- Stopping a whole backlog because one issue needs an answer or one PR is watched.

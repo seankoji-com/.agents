@@ -91,11 +91,12 @@ flowchart TD
 
     <section id="backlog" aria-labelledby="backlog-title">
       <h2 id="backlog-title">Deliver a backlog through ship</h2>
-      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> owns inventory, classification, owner questions and issue closure. It uses ship for each ready change, with one parent plan and one final retrospective across the run. Its approval limits still apply.</p>
+      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> dispatches fixes as issues become ready, without waiting to classify the whole backlog. It uses ship for delivery, with one parent plan and one final retrospective across the run. Its approval limits still apply.</p>
       <pre class="mermaid">
 flowchart TD
     classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
-    backlog["backlog-burn&lt;br/&gt;Classify and unblock issues"]:::skill
+    backlog["backlog-burn&lt;br/&gt;Discover and refill available slots"]:::skill
+    candidate["Next candidate&lt;br/&gt;Verify acceptance and ownership"]
     questions["Owner decisions&lt;br/&gt;Pause dependent work"]
     ship["ship&lt;br/&gt;Proof, review and delivery"]:::skill
     implement["implement&lt;br/&gt;Parallel isolated leads"]:::skill
@@ -103,11 +104,13 @@ flowchart TD
     inventory["Refresh open issues"]
     retrospective["One final retrospective&lt;br/&gt;Parent and all owned delegates"]
 
-    backlog -. "Decision missing" .-&gt; questions
-    questions --&gt;|"Answer recorded"| backlog
-    backlog --&gt;|"Dev-ready"| ship
+    backlog --&gt; candidate
+    candidate -. "Decision missing" .-&gt; questions
+    questions --&gt;|"Answer recorded, dispatch newly ready work"| backlog
+    candidate --&gt;|"Ready: dispatch now"| ship
     ship --&gt; implement
     implement --&gt;|"Reviewed commits"| ship
+    ship -. "Continue discovery when host permits" .-&gt; backlog
     ship --&gt;|"Delivery evidence"| acceptance
     acceptance --&gt; inventory
     inventory --&gt;|"Actionable work remains"| backlog
@@ -115,7 +118,7 @@ flowchart TD
     inventory --&gt;|"Zero or every remaining issue held"| retrospective
     retrospective --&gt;|"New target issues filed, preserve retrospective"| backlog
       </pre>
-      <p>The main coordinator owns PR delivery and native watches. Coding leads use implement's cost-aware model policy and return reviewed commits. A merge closes only issues whose acceptance is satisfied. Unanswered questions pause the run with the retrospective pending, including when other issues are held. Newly filed target issues re-enter the queue while preserving the same retrospective and its budgets. Direct publication needs existing authority or an owner decision first.</p>
+      <p>The main coordinator owns PR delivery and native watches. Coding leads use implement's cost-aware model policy and return reviewed commits; the parent does not implement issue fixes inline. Ready independent work starts before blocking questions. A watched PR, one unanswered question or a blocked push does not finish other ready work. Unexamined issues and unasked live approvals still need action. Externally owned work gets an explicit hold, takeover or outside-trigger decision. Awaiting-owner applies only when all remaining work is explicitly held or awaits an actual unanswered question. A required host yield preserves the queue and its next action. A merge closes only issues whose acceptance is satisfied; direct publication needs authorization.</p>
     </section>
 
     <section id="cards" aria-labelledby="cards-title">

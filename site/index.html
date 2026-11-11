@@ -214,7 +214,7 @@ const SKILLS = [
     try: "Babysit PR 42 through to merge.",
     uses: ["review", "raise-pr", "github-writing"] },
   { name: "backlog-burn", group: "build", t3prep: true, t3: true,
-    text: "Sort open issues, use ship to deliver ready changes, and answer a short batch of questions to unblock the rest. One coordinator owns delivery and finishes with one retrospective across the run. The target is zero open issues; owner holds keep issues open, and unanswered questions pause the run.",
+    text: "Start fixing issues as soon as they are ready, while investigating and asking questions about the rest. Ship handles delivery with isolated coding leads. One coordinator keeps available slots filled and owns each fix through acceptance. A watched PR or one unanswered question does not stop independent work. The target is zero issues; explicit owner holds keep issues open.",
     try: "Clear the backlog. Ask me what you need to unblock, then implement and merge the ready issues.",
     uses: ["ship", "implement"] },
   { name: "raise-issue", group: "build", t3prep: true, t3: true,
