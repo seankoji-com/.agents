@@ -153,6 +153,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
 - [raise-issue](skills/raise-issue/SKILL.md): Prepare and file a bug, feature, or task asynchronously, preserving the evidence and returning a verified issue URL. Requires T3 delegation.
+- [backlog-burn](skills/backlog-burn/SKILL.md): Classify a repository's open issues, dispatch the dev-ready ones, ask the owner batched questions to unblock the rest, and drive the open count toward zero. Requires T3 delegation.
 
 ### Writing and conversation
 
@@ -362,6 +363,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | --- | --- |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Use when the user asks to audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery. |
 | [babysitter](skills/babysitter/SKILL.md) | Autonomously repair requested pull requests through verified merge. Use when asked to babysit, merge, watch or monitor PRs; honour explicit read-only and no-merge limits. |
+| [backlog-burn](skills/backlog-burn/SKILL.md) | Clear or burn down a repository's issue backlog. Use when asked to clear or burn down the backlog, unblock issues by asking the owner questions, dispatch implementation delegates for open issues, or drive the open issue count toward zero, including phrases like "clear the backlog", "burn down issues", "unblock the backlog" or "get open issues to zero". |
 | [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation. |
 | [choose-design](skills/choose-design/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
 | [design-loop](skills/design-loop/SKILL.md) | Improve a product's UI through reference research, direct interaction and scored cross-lineage judging, with annotated HTML reports each round and a final PR. Use for autonomous design iteration toward a score target, rather than operator-selected mockup options. |
@@ -435,7 +437,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 640e7b7fb464556fcf8bc5058cb0a16019b62aed9c8673001065a24274c50f37 -->
+<!-- skills-review: 93bdf837b912d41c4c498d60909319b868918b234b2b5bb7343b639f33459c42 -->
 
 ### Owner maintenance
 
