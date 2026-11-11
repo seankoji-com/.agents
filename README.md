@@ -153,7 +153,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
 - [raise-issue](skills/raise-issue/SKILL.md): Prepare and file a bug, feature, or task asynchronously, preserving the evidence and returning a verified issue URL. Requires T3 delegation.
-- [backlog-burn](skills/backlog-burn/SKILL.md): Classify a repository's open issues, dispatch the dev-ready ones, ask the owner batched questions to unblock the rest, and drive the open count toward zero. Requires T3 delegation.
+- [backlog-burn](skills/backlog-burn/SKILL.md): Classify open issues, use ship to deliver dev-ready changes, ask batched owner questions, and drive the open count toward zero. Requires T3 delegation.
 
 ### Writing and conversation
 
@@ -336,6 +336,12 @@ on the skills site shows the handoffs with diagrams: decisions, implementation
 in a separate worktree, review, delivery, deferred-bug filing and the T3
 permission workarounds. Each skill's own file holds the exact rules.
 
+`backlog-burn` manages triage, owner decisions and issue closure. It uses `ship`
+for delivery, with isolated `implement` leads and their cost-aware model policy.
+The main coordinator owns PR delivery and watches across the run, keeps the
+backlog's approval limits, and finishes with one consolidated retrospective.
+An unanswered owner question pauses the run; it does not complete it.
+
 A strong model coordinates each workflow. The reviewers and workers it starts
 can be cheaper models. They read a short role card instead of a whole skill:
 
@@ -374,7 +380,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [raise-pr](skills/raise-pr/SKILL.md) | Use whenever creating or updating a pull request, including during implementation, review-loop, ship and PR maintenance. |
 | [review](skills/review/SKILL.md) | Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and think's stop-condition check. |
 | [review-loop](skills/review-loop/SKILL.md) | Use when the user requests an iterative implementation, independent review and repair loop, or invokes review-loop to carry a goal to an agreed endpoint. |
-| [ship](skills/ship/SKILL.md) | Use when the user explicitly asks to ship a change through delivery, visible progress tracking and a final workflow retrospective. |
+| [ship](skills/ship/SKILL.md) | Use when the user explicitly asks to ship a change, or backlog-burn invokes delivery, with visible progress tracking and a final workflow retrospective. |
 | [test-writer](skills/test-writer/SKILL.md) | Use when writing or reviewing tests, choosing regression coverage, or assessing test value, reliability and CI runtime. |
 | [think](skills/think/SKILL.md) | Think a plan, decision or idea through with focused questions until it is ready to build. Use when the user says think or thinking about a plan, decision or idea, such as think this through, think about it or keep thinking, asks to interrogate or stress-test it, or wants an interview to clarify their thinking. |
 
@@ -437,7 +443,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 93bdf837b912d41c4c498d60909319b868918b234b2b5bb7343b639f33459c42 -->
+<!-- skills-review: d7c99a6e54a665016836fa0a38367e5867fd51006a23bf85bb44bcfc6b914a23 -->
 
 ### Owner maintenance
 

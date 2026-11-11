@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How the .agents skills work together</title>
-<meta name="description" content="How think, choose-design, implement, review-loop, raise-pr and babysitter hand work to each other in T3 Code, from an idea to a verified merge.">
+<meta name="description" content="How backlog-burn, ship, think, choose-design, implement, review-loop, raise-pr and babysitter hand work to each other in T3 Code, from an idea or issue backlog to verified delivery.">
 <link rel="canonical" href="https://seankoji-com.github.io/.agents/workflows.html">
 <meta property="og:title" content="How the .agents skills work together">
 <meta property="og:description" content="The handoffs between skills, from an idea to a verified merge.">
@@ -87,6 +87,35 @@ flowchart TD
           <p>The coordinator can fix a finding, decline an invalid or out-of-scope request with reasons, or file a minor one as a linked issue. Required approvals and changes-requested reviews still block the merge.</p>
         </div>
       </div>
+    </section>
+
+    <section id="backlog" aria-labelledby="backlog-title">
+      <h2 id="backlog-title">Deliver a backlog through ship</h2>
+      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> owns inventory, classification, owner questions and issue closure. It uses ship for each ready change, with one parent plan and one final retrospective across the run. Its approval limits still apply.</p>
+      <pre class="mermaid">
+flowchart TD
+    classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
+    backlog["backlog-burn&lt;br/&gt;Classify and unblock issues"]:::skill
+    questions["Owner decisions&lt;br/&gt;Pause dependent work"]
+    ship["ship&lt;br/&gt;Proof, review and delivery"]:::skill
+    implement["implement&lt;br/&gt;Parallel isolated leads"]:::skill
+    acceptance["Backlog coordinator&lt;br/&gt;Verify issue acceptance and closure"]
+    inventory["Refresh open issues"]
+    retrospective["One final retrospective&lt;br/&gt;Parent and all owned delegates"]
+
+    backlog -. "Decision missing" .-&gt; questions
+    questions --&gt;|"Answer recorded"| backlog
+    backlog --&gt;|"Dev-ready"| ship
+    ship --&gt; implement
+    implement --&gt;|"Reviewed commits"| ship
+    ship --&gt;|"Delivery evidence"| acceptance
+    acceptance --&gt; inventory
+    inventory --&gt;|"Actionable work remains"| backlog
+    inventory -. "Unanswered questions, including mixed holds" .-&gt; questions
+    inventory --&gt;|"Zero or every remaining issue held"| retrospective
+    retrospective --&gt;|"New target issues filed, preserve retrospective"| backlog
+      </pre>
+      <p>The main coordinator owns PR delivery and native watches. Coding leads use implement's cost-aware model policy and return reviewed commits. A merge closes only issues whose acceptance is satisfied. Unanswered questions pause the run with the retrospective pending, including when other issues are held. Newly filed target issues re-enter the queue while preserving the same retrospective and its budgets. Direct publication needs existing authority or an owner decision first.</p>
     </section>
 
     <section id="cards" aria-labelledby="cards-title">
@@ -178,7 +207,7 @@ flowchart TD
         </div>
         <div>
           <h3>A retrospective from the logs</h3>
-          <p>The last stage reads the run's activity across the parent and every delegate, including failed attempts. Missing logs are reported as a gap. Proposed skill changes go to the operator's own configured repository as issues, never automatically into the skills.</p>
+          <p>The last stage reads the run's activity across the parent and every delegate, including failed attempts. Missing logs are reported as a gap. With posting authority, proposed skill changes go to the operator's own configured repository as issues. Otherwise they remain drafts and the retrospective stays incomplete with an owner question. Proposals do not automatically change the skills.</p>
         </div>
         <div>
           <h3>AI-written text is labelled</h3>

@@ -15,6 +15,9 @@ Current count: N
 Board read: yes | no (<reason>)
 Authority: standing merge on gates; duplicate auto-close; other closures batched;
 live writes per action.
+Ship plan and execution manifest: <parent plan and task/thread evidence>
+Retrospective: pending | complete | incomplete; <history boundary, coverage,
+remaining read/time budget, proposal URLs or drafts>
 ```
 
 ## Table
@@ -49,6 +52,11 @@ After each question round, record the decisions and their consequences:
 4. Confirm one watch per open PR; release watches for merged or closed PRs.
 5. Continue the oldest actionable row first; do not re-ask a settled question.
 6. Report any ledger row that has no owner and no next action.
+7. Resume the same ship plan and manifest; preserve retrospective coverage,
+   cursors and budgets. An owner-question pause does not finish that stage.
+   Record it as pending; missing authority or blocked filing for warranted
+   proposals is incomplete, with drafts and an owner question. Newly filed target issues
+   re-enter the queue without starting another retrospective or resetting budgets.
 
 ## Handoff
 

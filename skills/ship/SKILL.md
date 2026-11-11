@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Use when the user explicitly asks to ship a change through delivery, visible progress tracking and a final workflow retrospective.
+description: Use when the user explicitly asks to ship a change, or backlog-burn invokes delivery, with visible progress tracking and a final workflow retrospective.
 ---
 
 # Ship
@@ -31,6 +31,14 @@ Production changes, data deletion, unrelated changes, closing PRs and force-push
 other branches remain outside this grant without separate authority.
 
 ## Make the work visible
+
+When backlog-burn invokes ship, use its existing authority and narrower limits;
+this invocation adds no permissions from the explicit ship grant above. Keep one
+parent plan and execution manifest across its delivery batches. Apply proof and
+merge gates to each change, then perform one consolidated retrospective at final
+handback. Question-round pauses leave it pending. Missing authority for warranted
+proposals leaves it incomplete with drafts and an owner question. Backlog-burn retains
+owner decisions, issue closure and the queue's stop condition.
 
 Use T3's parent plan/todo panel before implementation, through the host's native
 plan/todo tool or an exposed T3 MCP API that writes that list. Discover the

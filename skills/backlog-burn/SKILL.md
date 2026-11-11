@@ -70,34 +70,37 @@ Use [the classification rubric](references/classification.md). The short form:
 Do not classify an issue as dev-ready because it is old, short, or labelled
 `complexity:low`. Ambiguity is a decision or an evidence gap.
 
-## 3. Dispatch the dev-ready work
+## 3. Ship the dev-ready work
 
-Use [implement](../implement/SKILL.md) for new work, [raise-pr](../raise-pr/SKILL.md)
-to push and open the PR, and [babysitter](../babysitter/SKILL.md) for PR
-maintenance. implement returns reviewed commits and does not push or open the PR
-itself; the coordinator integrates them and raises the PR. Give each delegate the
-repository, exact base, issue and acceptance criteria, authority, review model and
-the skills it must read. One issue, one PR unless the repository explicitly allows
-a combined change. If T3 delegation or an eligible review route is unavailable,
-report the blocker; do not substitute a shell launcher or self-review. The
-coordinator records every deferred-bug packet a lead returns and files it through
-[raise-issue](../raise-issue/SKILL.md) before declaring the parent complete.
-Material decisions a lead returns become question-round items; send the owner's
-answer back to that lead's thread rather than starting a new delegate.
+Invoke [ship](../ship/SKILL.md) in the main thread to deliver each dev-ready change
+within the authority above. Keep one parent plan and execution manifest across
+the backlog run. Ship owns proof, review, PR preparation, maintenance, merge and
+deferred-bug tracking; this skill owns classification, owner questions and issue
+closure. One issue, one PR unless repository policy permits combining. Direct
+publication requires existing or explicit owner authorization.
+
+Use [implement](../implement/SKILL.md) as ship's coding route. Give each isolated
+lead the repository, exact base, issue, acceptance criteria, authority, model
+selection context and required skills. Its cost-aware selection, reviewer
+reservation and one-upgrade limit apply per implementation task, including every
+review round. The main coordinator accepts and integrates returned commits;
+reused review must remain eligible against it and all material authors. Return
+material decisions through question rounds to the same lead. Unavailable required
+delegation or review blocks dependent delivery; continue independent work.
 
 - Up to 10 top-level implementation delegates may run at once; each may own
   reviewer or worker children. Lower the cap when runner queue time grows. Watch
   the shared runner
   pool: serialise workflows known to contend, and treat a job cancelled by
   capacity as a rerun, not a code defect.
-- Delegated children do not hold PR watches. The coordinator links each PR and
-  owns the native watch, repair dispatch and merge until GitHub confirms it.
+- The main coordinator runs ship and owns its PR links, native watches, repair
+  dispatch and verified merges. Delegate coding and review, not separate ship
+  lifecycles or PR watches.
 - If nested review dispatch is unavailable, obtain the cross-lineage review
   yourself against the exact committed HEAD. Self-review does not satisfy the
   gate.
-- Merge only when the current head has green required checks, an eligible
-  cross-lineage review, no unresolved threads, and no applicable hold. Use the
-  repository's permitted merge method; squash when that is the rule.
+- Apply ship's delivery gates and sole babysitter lifecycle. Record each result
+  in the ledger before applying this skill's issue-closure rules.
 
 ## 4. Ask the owner, in batches
 
@@ -149,17 +152,25 @@ the parent complete. Read back every closure and issue URL.
 
 ## 7. Loop to zero
 
-Re-inventory after each batch. Repeat dispatch, merge, question and closure rounds
-until zero issues remain open, or until the owner has explicitly held every
-remaining issue or every remaining issue awaits an unanswered question. Report
-"not zero" honestly when a hold or an open question remains; name the gate and
-owner rather than implying completion.
+Re-inventory after each batch and filing. Repeat until zero or every remaining
+issue is owner-held. If no actionable work remains and any issue awaits an answer,
+report "awaiting owner" and retrospective pending, including mixtures of holds
+and unanswered questions. This is a resumable pause, not final handback. Report
+"not zero" with each gate and owner whenever issues remain.
 
 ## 8. Report
+
+For delivery runs, finish ship's consolidated retrospective at zero or an all-held
+endpoint, after required tracking. Terminal blocked handbacks use ship's blocked
+retrospective rules. Missing coverage or blocked filing of warranted proposals
+leaves it incomplete; preserve drafts and ask the owner. Re-inventory after
+filings; new target issues return to step 7, extending the same retrospective
+record and budgets without retrospecting its own filing activity.
 
 Before and after counts at a stated time; issues opened during the run; merged PRs
 with commit SHAs; closed issues and why;
 follow-ups filed; still-open issues by class, owner and next trigger; the ledger
-path; models and effort used; and verification separated into local checks,
+path; models and effort used; retrospective coverage and proposals; verification
+separated into local checks,
 current-head CI, merge, deployment and live acceptance. A code merge is not a
 deployment or a live acceptance result.

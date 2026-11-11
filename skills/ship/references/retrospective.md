@@ -8,6 +8,13 @@ delivery and coverage gaps. File supported proposals from that history within
 the same established posting authority, unless cancelled or posting is prohibited.
 An incomplete delivery does not require suppressing useful workflow proposals.
 
+For backlog-burn, an awaiting-owner pause leaves this stage pending. If filings
+add issues to its target backlog, it resumes delivery and extends the same
+retrospective's cutoff, manifest and coverage within the remaining inspection
+budget. Include new delivery activity, without retrospecting the proposal filing
+itself or resetting budgets. Missing authority to file warranted proposals leaves
+drafts and an incomplete stage with an owner question, not completed tracking.
+
 ## Establish coverage
 
 1. At ship start, record the parent thread/run and the request's starting item
