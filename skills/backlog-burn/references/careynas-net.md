@@ -107,7 +107,12 @@ list issues opened during the run. Add `changelog.d/YYYY-MM-DD-<slug>.md`, never
 edit `changelog.md`. Keep branches rebased on `origin/main`; never add a merge
 commit. Duplicate folding shares the org-wide ten-per-day maintenance budget in
 `runbooks/issue-routing.md`; treat it as a ceiling unless the owner confirms it
-applies only to Hermes. File confirmed deferred bugs
+applies only to Hermes. Verify the current runbook's scope before applying it to
+autonomous triage closures, completed or not-planned; pending clarification, count
+them against the same ceiling.
+When the budget is exhausted, record pending closures and the next budget trigger,
+or ask about its scope. This is unfinished work, not an owner hold or a closure.
+File confirmed delivery-review bugs
 with `raise-issue` and the repository's labels before declaring the parent
 complete. Report local checks, hosted CI, merge, deployment and live acceptance
 separately.

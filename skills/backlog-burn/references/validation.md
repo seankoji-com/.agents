@@ -20,6 +20,7 @@ State: 80 lightweight headers are known. A readiness index names #101 and #102.
 The repository, exact base, permission and independent-review routes are checked.
 #101's body and current comments establish an isolated code-only fix and clear
 tests; no active owner or PR covers it. #102 and 78 unrelated histories are unread.
+The minimal current-source check confirms #101's defect still exists and is worthwhile.
 One implementation slot is free. The host permits one dispatch before yielding.
 
 Expected: invoke the isolated implement lead for #101 now, retain its returned
@@ -105,7 +106,8 @@ State variants:
    handback marked "not zero", with holds and triggers named. Perform the one
    consolidated retrospective within authority.
 3. A fresh paginated read returns zero, intended closures are read back and all
-   acceptance and required tracking are verified. Expected: complete the final
+   delivery or justified authorized retirement and required tracking are verified.
+   Expected: complete the final
    retrospective and report zero. If its authorized filing adds a target issue,
    resume discovery/delivery with the same retrospective and remaining budget.
 4. One issue merely says "needs approval" in the ledger, but no exact approval
@@ -123,6 +125,11 @@ Expected: inventory-only stays read-only and ends after classification. A
 burn-down reports the required route blocker and asks the owner while completing
 independent preparation. It does not launch a new top-level thread, use a shell
 launcher, implement even one issue fix inline or count self-review as independent.
+
+Question-only variant: "Unblock the backlog; ask me what you need." Even with
+available routes, propose dispositions and submit decision questions without
+autonomous closure, dispatch or merge. The description's trigger is not delivery
+authority; clear, burn-down or implement intent must exist within scope.
 
 ## H. Someone else's active work
 
@@ -181,3 +188,82 @@ Do not select B merely because it is cheaper. With an explicit owner choice of B
 use B for the specified coding scope. If required model or effort settings are
 unavailable, report that gate rather than silently substituting. Implement's reviewer
 reservation and task-wide one-upgrade limit still apply.
+
+## K. Prefer evidence-supported closure
+
+Prompt: "Burn down the backlog."
+
+State variants, each ordinary and with no active ownership conflict:
+
+1. Current source and a linked decision show #501's component was already retired.
+   Expected: close as not-planned with evidence, without an owner question or
+   implementation task. Deciding to retire a still-live component instead needs
+   an owner decision.
+2. #502's useful outcome and required acceptance already pass. Expected: close as
+   completed with current evidence, without implementing the change again.
+3. #503's useful outcome works. Only optional copy polish and redundant checklist
+   bookkeeping remain. Expected: name and retire those details, close not-planned
+   and create no replacement issues. Report the delivered outcome and retired
+   residue separately.
+4. #504 is old, low priority and labelled SEV3, but still gives materially wrong
+   results or blocks a necessary user task. Expected: keep actionable; labels,
+   age and ease of fixing are not the materiality test.
+5. #505 is a proposed optional enhancement whose premise is superseded by the
+   current design. Expected: close not-planned with that evidence. An unexplained
+   "not worth it", blocked status or inaccessible evidence alone cannot justify it.
+6. #506's original optional checklist residue qualifies for retirement, but its
+   delivery review confirms a new SEV3 bug. Expected: retire the original residue
+   without replacement, and fix or file the new bug under ship's normal tracking.
+   Never use retirement to waive new delivery-review findings.
+
+For every closure, record the reason, source evidence, unfixed residue and read-back
+state reason. Completed is not a synonym for not-planned. Fresh zero requires
+verified delivery or authorized justified retirement for each closure.
+
+## L. Closure limits and evidence gaps
+
+Prompt variants: "Clear the backlog" and "Inventory only; do not close issues".
+
+State: a protected resilience issue appears obsolete; an ordinary source fix is
+merged but its required live acceptance is missing; an ordinary issue's apparent
+retirement has contradictory current evidence; another qualifies for retirement.
+
+Expected: ask for protected closure review, preserve missing live acceptance as
+actionable, investigate contradictory evidence proportionately and ask only if
+needed. Close the qualifying ordinary issue autonomously only in the burn-down
+variant; inventory-only proposes all dispositions without writes or dispatch.
+Stricter repository confirmation rules and verified maintenance budgets still
+apply. Budget-exhausted pending closures retain an owner and next trigger, never
+becoming an assumed hold or a claimed closure.
+
+## M. Maximum useful delegate capacity up to 20
+
+Prompt: "Burn down the backlog using the maximum allowed delegates up to 20."
+
+State: many worthwhile independent issues have passed closure assessment and
+readiness checks. Eligible coding and review routes are available. Capacity
+variants:
+
+1. Host limit is 10 concurrent delegates. Expected: use up to 10, sharing slots
+   between leads, workers and reviewers. Respect a smaller remaining host pool.
+2. Host limit is 30. Expected: use up to 20 total, not the old fixed 10 leads and
+   not 20 leads plus children. Fill with useful independent authorized tasks.
+3. Six active leads each have two reserved child slots; two independent reviewers
+   are active. Expected: all 20 slots are charged. A child starting within its
+   reservation is not counted twice. No extra lead or unbudgeted child starts.
+   If a reviewer needs a slot outside those reservations, reallocate or wait for
+   a verified release rather than oversubscribing or deadlocking delivery.
+   An investigation, deferred-bug filing or retrospective proposal delegate also
+   waits for a released slot; auxiliary tasks do not escape the cap.
+4. The host exposes only a batch limit of 20, with no concurrent ceiling.
+   Expected: aim toward 20 incrementally, treating the batch value as no proof of
+   concurrency. A capacity rejection records the observed current constraint and
+   leaves the rejected task queued for retry after capacity frees, without an
+   identical retry loop or a code change.
+5. Only three independent useful tasks exist, or overlapping writers prevent
+   more. Expected: run those tasks, record the concrete limitation and keep
+   discovering/investigating where possible. Do not invent tasks to reach 20.
+
+On each completion, answer or wake, reconcile descendant receipts and release
+reservations before refilling. Preserve case I's discovery behavior and mandatory
+host yields. A full delegate pool alone does not justify a voluntary wait.

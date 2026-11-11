@@ -3,6 +3,52 @@
 Classify from the issue body, its comments, linked PRs and the repository's own
 triage rules. Record the evidence for the class, not just the label.
 
+## Closure first
+
+Before dispatching work, ask whether the issue still earns a place in the backlog.
+Strongly prefer closure when current evidence shows the useful outcome is already
+delivered, the issue is obsolete, or the remaining work adds too little value.
+Ordinary qualifying issues close without a per-issue owner question during an
+authorized burn-down. Inventory, triage-only and no-close requests propose the
+disposition without writing it.
+
+1. Read the body and comments, check ownership and linked work, then inspect the
+   minimum current code, documentation or delivery evidence needed to classify.
+   Reconcile an active owner or PR before closing its issue; ask about genuine
+   conflicts instead of disrupting active work.
+2. Identify the useful outcome and any remaining material gap. Seek concrete
+   present value, rather than hypothetical future usefulness or perfect completion
+   of stale checklists. Investigate missing evidence proportionately; uncertainty
+   alone does not prove obsolescence.
+3. Prefer one of these dispositions:
+   - **Already done:** verify the required outcome and close as completed.
+   - **Obsolete:** link evidence of a retired component, superseding design or
+     requirement that no longer applies, then close as not-planned.
+   - **Substantially done:** verify the useful outcome, name the trivial residue
+     being retired and close as not-planned without replacement issues.
+   - **No remaining value:** explain why the work no longer justifies pursuing
+     and close as not-planned. Record an unfixed nonmaterial defect honestly.
+4. Record the reason, evidence, delivered outcome and retired residue in the
+   closure comment and ledger. Read back the issue state and state reason.
+
+Judge materiality by actual user and operational impact. Severity, priority,
+complexity, age, effort, blocked status or inability to reproduce alone never
+decide closure. Material wrong output, data loss, security or reliability gaps,
+blocked necessary user tasks and failed necessary outcomes remain actionable
+whatever their labels. Cosmetic polish, redundant bookkeeping and stale optional
+checklist items can retire. Required deployment or runtime acceptance is not
+trivial, and a merge does not prove it passed.
+
+Retirement without replacement applies only to trivial leftovers from the
+original requested scope of the existing issue being closed. It is a final
+not-planned disposition, not deferred implementation. Defects found or introduced
+during implementation or delivery review still follow ship's deferred-bug
+tracking unchanged, including fixing or filing new SEV3 findings.
+
+Protected issues and stricter repository rules retain owner confirmation.
+Retiring an already-obsolete issue differs from deciding to retire a live
+component or accept a material risk; those decisions still need the owner.
+
 ## Dev-ready
 
 All of these must hold:
@@ -15,6 +61,7 @@ All of these must hold:
 - No unresolved product, scope, compatibility or risk decision.
 - Not already covered by an open PR or an active owner.
 - Not superseded by a newer issue or an accepted design.
+- The closure-first assessment leaves a worthwhile material outcome to deliver.
 
 Complexity labels are estimates, not readiness. A `complexity:low` issue with an
 open product question is not dev-ready.
@@ -22,8 +69,9 @@ open product question is not dev-ready.
 ## Needs decision
 
 The owner must choose something: behaviour, scope, compatibility, priority,
-whether to accept a risk, whether to split an epic, or whether to retire a
-component. Prepare the options and a recommendation; do not dispatch
+whether to accept a material risk, whether to split an epic, or whether to retire
+a live component. Already-retired components need no new retirement decision.
+Prepare the options and a recommendation; do not dispatch
 implementation that would pre-empt the answer.
 
 ## Needs evidence
@@ -65,10 +113,10 @@ evidence. An unasked question or unexamined issue cannot justify awaiting-owner.
 
 ## Obsolete or wontfix
 
-The outcome no longer applies, the component is retired, or the owner has
-accepted the risk. Propose closure with evidence and a one-line reason. Close
-only after the owner confirms in a question round. An accepted hold is not the
-same as a fix.
+Apply closure first. Ordinary obsolete or low-value issues may close with evidence
+and a recorded reason. Protected cases and material risk acceptance require owner
+confirmation. An owner hold keeps the issue open; retirement closes as not-planned
+and never claims an unfixed outcome was delivered.
 
 ## In flight
 

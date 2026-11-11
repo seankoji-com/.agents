@@ -16,7 +16,9 @@ question that does not change what happens next is noise.
 - Do not ask what the code, issue body, comments or repository docs already
   answer.
 - If the request was inventory or triage only, stop after classification. Do not
-  dispatch or merge without clear, burn-down or implement wording.
+  close issues, dispatch or merge.
+- Question-only requests also propose actions. Autonomous closure, dispatch and
+  merge require clear, burn-down or implement intent within the requested scope.
 - After the answers, restate the decisions in the ledger before acting.
 - Dispatch newly ready issues before returning to unrelated triage or reporting.
   A released hold or approved fix without a task receipt is still actionable.
@@ -41,14 +43,20 @@ Recommended question shape:
 Name the missing choice, the two or three viable answers, the evidence, and what
 each answer unblocks. Offer "defer" when the owner may not want the work now.
 
-### Confirmation to close
+### Protected closure or material risk decision
 
-> **#456 — close as wontfix?**
-> Evidence: the component was retired in #400; the issue's acceptance path no
-> longer exists. Recommended: close as not planned, link this evidence, and keep
-> the tracker's history. Alternative: keep open as a documentation task.
+Ordinary evidence-supported obsolete, already-done and low-value closures need
+no question during burn-down. Apply the classification rubric and report the
+verified closure. Ask when a protected issue, stricter repository rule or material
+risk decision requires owner review.
 
-Never present a closure as already done. The owner's answer is the authority.
+> **#456 — retire this protected issue about an already-retired component?**
+> Evidence: current source and #400 confirm retirement; the protected label
+> requires your review. Recommended: close as not-planned with this evidence.
+> Alternative: keep open if a related live risk remains.
+
+For these cases, wait for the answer before closure. Never present a proposed
+closure as already done.
 
 ### A live-write approval
 
@@ -84,7 +92,7 @@ decides. Only the owner's answer can end the loop.
 
 ## Stop condition
 
-Stop asking about an issue only when the owner declares a hold for it. Every
+Stop asking once the issue closes under the rubric or the owner declares a hold. Every
 blocker the agent cannot resolve becomes a question first. Continue independent
 work; do not turn the round into a status request.
 
@@ -108,6 +116,7 @@ Silence is not approval, and a status report is not completion.
 
 - Asking one question per turn when ten independent decisions are ready.
 - Asking the owner to choose something the code already settles.
+- Asking for confirmation of an ordinary closure already authorized by the rubric.
 - Presenting a recommendation without the tradeoff.
 - Treating silence as approval.
 - Calling an agent blocker an owner hold.

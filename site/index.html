@@ -214,7 +214,7 @@ const SKILLS = [
     try: "Babysit PR 42 through to merge.",
     uses: ["review", "raise-pr", "github-writing"] },
   { name: "backlog-burn", group: "build", t3prep: true, t3: true,
-    text: "Keep independent fixes running in parallel while investigating and asking questions about the rest. Ship handles delivery with isolated coding leads, using the main thread's model and effort by default and independent reviewers. The coordinator refills capacity on every wake, keeps discovering issues when the ready queue is empty, and continues classification and questions when all coding slots are full. It owns each fix through acceptance. The target is zero issues; explicit owner holds keep issues open.",
+    text: "Prefer closing obsolete, already-done or low-value issues with evidence. Retire trivial leftovers without replacement issues; keep material defects actionable and protected closures under owner review. Use the maximum allowed concurrency up to 20 delegates, including nested workers and reviewers. Ship handles worthwhile fixes through isolated leads, using the main thread's model and effort by default and independent reviewers. Refill on every wake, keep discovering issues when the ready queue is empty, and continue classification and questions when slots are full. Report completed outcomes separately from retired work. Explicit owner holds keep issues open.",
     try: "Clear the backlog. Ask me what you need to unblock, then implement and merge the ready issues.",
     uses: ["ship", "implement"] },
   { name: "raise-issue", group: "build", t3prep: true, t3: true,

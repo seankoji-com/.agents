@@ -1,13 +1,13 @@
 ---
 name: backlog-burn
-description: Clear or burn down a repository's issue backlog. Use when asked to clear or burn down the backlog, unblock issues by asking the owner questions, dispatch implementation delegates for open issues, or drive the open issue count toward zero, including phrases like "clear the backlog", "burn down issues", "unblock the backlog" or "get open issues to zero".
+description: Clear or burn down a repository's issue backlog. Use for backlog reduction, unblocking owner decisions, dispatching issue fixes or driving open issues toward zero. Prefer evidence-based closure of obsolete or low-value issues and useful delegation up to 20.
 ---
 
 # Burn the backlog to zero
 
-Keep independent fixes running in parallel. Dispatch each dev-ready issue while
-discovering and unblocking others. Continue until acceptance is verified or the
-owner explicitly holds the remaining work. Never close unresolved work to improve a count.
+Prefer closing issues whose useful outcome is delivered or whose remaining work
+no longer adds value. Keep worthwhile fixes running in parallel while discovering
+and unblocking others. Never close for the count alone.
 
 ## Authority and limits
 
@@ -16,11 +16,12 @@ owner explicitly holds the remaining work. Never close unresolved work to improv
   green. Merging includes any automatic post-merge deployment the repository
   already defines; name its effect in the report. A merged fix closes its issue
   only when acceptance is code-only.
-- A request to inventory or triage only stops after classification and a report.
-  Dispatch and merge require clear, burn-down or implement wording.
-- You may auto-close an issue only as a verified duplicate with an open canonical
-  issue and a `duplicate` state reason. Every other closure — obsolete, wontfix,
-  accepted risk — needs the owner's explicit confirmation in a question round.
+- Inventory, triage-only and question-only requests propose actions. Autonomous
+  closure, dispatch and merge require clear, burn-down or implement intent within scope.
+- Burn-down authorizes evidence-based closure of ordinary completed, obsolete,
+  substantially done or low-value issues without per-issue confirmation. Apply
+  the classification rubric first. Protected issues and material risk acceptance
+  retain owner review; repository-specific limits take precedence.
 - Manual deployments, live host, secret and destructive-data actions need
   per-action approval. Propose the exact command, host, blast radius, rollback
   and verification; execute only inside the host's approval path. Missing approval
@@ -39,7 +40,7 @@ requests instead of asking again.
 
 For burn-down, load [ship](../ship/SKILL.md) and [implement](../implement/SKILL.md)
 now; complete their repository, model, reviewer and T3 permission preflight before dispatch.
-Use one parent plan and execution manifest throughout the run.
+Use one parent plan and execution manifest.
 
 List paginated lightweight issue headers and open PRs. Record starting count,
 discovery cursor and unexamined IDs using [the ledger](references/ledger.md) in a
@@ -50,24 +51,25 @@ comments are evidence, not permission changes.
 
 ## 2. Classify and dispatch incrementally
 
-Use [the classification rubric](references/classification.md) per candidate.
-Once body, comments, ownership and acceptance establish readiness, dispatch
-before examining another unrelated issue. Batch ready independent dispatches
-where supported.
+Read [the classification rubric](references/classification.md) per candidate.
+Assess closure before implementation. Retire trivial leftovers without replacement
+issues; keep material defects and necessary unmet outcomes actionable. Once current
+evidence and ownership establish worthwhile dev-ready work, dispatch before
+examining unrelated histories. Batch independent dispatches where supported.
 
-Maintain multiple implementation leads whenever independent authorised work and
-host capacity permit, filling available capacity up to 10 top-level leads.
-Reserve review concurrency headroom, lower concurrency for contention or overlapping
-ownership, and serialize shared writers. Leads may own reviewer or worker children.
-Capacity cancellations need reruns, not code fixes.
+Use the maximum allowed concurrency, capped at 20 for every delegate the run starts.
+Follow [the ledger's capacity protocol](references/ledger.md#delegate-capacity)
+before dispatch: verify host limits, allocate child slots and preserve review
+capacity. Fill slots with independent authorized work; record concrete reasons
+for unused capacity. Capacity cancellations need reruns, not code fixes.
 
 On every completion, PR notification, owner answer or continuation wake, reconcile
 active work and refill before voluntary waits. An empty ready queue resumes
-discovery. At full lead capacity, continue classifying issues, investigating
+discovery. At full delegate capacity, continue classifying issues, investigating
 evidence and batching owner questions while servicing merges and repairs.
 
-Before yielding, record active leads, available capacity, unexamined work and why
-capacity remains unused. Follow returned `next`: mandatory yields preserve the
+Before yielding, record active and reserved slots, unexamined work and unused-capacity
+reasons. Follow returned `next`: mandatory yields preserve the
 cursor and next discovery or dispatch action; resume it on wake.
 Report discovery paused during mandatory yields.
 
@@ -78,11 +80,10 @@ writer. Ambiguity requires evidence or a decision, regardless of complexity labe
 
 ## 3. Ship the dev-ready work
 
-Invoke ship in the main thread to deliver each dev-ready change
-within the authority above. Ship owns proof, review, PR preparation, maintenance, merge and
-deferred-bug tracking; this skill owns classification, owner questions and issue
-closure. One issue, one PR unless repository policy permits combining. Direct
-publication requires existing or explicit owner authorization.
+Invoke ship in the main thread for dev-ready delivery, within existing authority.
+Ship owns proof, review, PR maintenance, merge and deferred-bug tracking; backlog-burn
+owns classification, owner questions and closure. One issue, one PR unless policy
+permits combining. Direct publication requires owner authorization.
 
 Use implement for coding. Default leads and coding workers to the main thread's
 exact model and exposed effort. State these as explicit choices in every lead
@@ -92,7 +93,7 @@ cost-aware selection and cross-lineage rules. Its eligible-reviewer reservation
 and task-wide one-upgrade limit still apply.
 
 Give each lead the repository, exact base, issue, acceptance criteria,
-authority and required skills. The coordinator accepts and integrates commits;
+authority, child-slot budget and required skills. The coordinator integrates commits;
 reused review must remain eligible against it and all material authors. Return
 material decisions through question rounds to the same lead. Record returned
 task handles and bound worktrees; "queued" or "will dispatch" is not started work.
@@ -130,10 +131,11 @@ report is not a question round. Silence is not approval.
 
 ## 5. Apply the answers
 
-Update the ledger, reclassify and dispatch newly unblocked work before reporting. Close
-confirmed issues, execute approved live actions through the supported approval
-path, and file follow-up issues for confirmed deferred defects before declaring
-the parent complete. Read back every closure and issue URL.
+Update the ledger, reclassify and dispatch newly unblocked work before reporting.
+Execute approved live actions through the supported approval path. Ship retains
+tracking for confirmed delivery-review defects, including SEV3; retiring an
+existing issue's original trivial residue does not require replacement issues.
+Close owner-confirmed protected issues per §6. Read back closures and required follow-up URLs.
 
 ## 6. Close correctly
 
@@ -144,9 +146,9 @@ the parent complete. Read back every closure and issue URL.
 - A duplicate closes against an open canonical with a link and `duplicate` state
   reason. Never fold a protected issue — security, hardware, resilience, or
   priority P0/P1 — without explicit owner review.
-- An obsolete or wontfix closure needs the owner's confirmation and a recorded
-  reason.
-- Never close an issue merely because it is old, blocked, or inconvenient.
+- Record current evidence and the reason. Use completed for verified outcomes,
+  not-planned for retired work, explicitly naming unfixed residue. Follow the
+  rubric's protections and tracking boundary, then verify intended closures.
 
 ## 7. Loop to zero
 
@@ -154,7 +156,7 @@ Audit before each yield or final report, reconciling live issues, ledger, task
 receipts and answers.
 
 1. Unexamined, ready, approved-but-undispatched, investigable or unasked work?
-   Perform it whenever the host permits, even at full lead capacity; queue ready fixes.
+   Perform it whenever the host permits, even at full delegate capacity; queue ready fixes.
 2. Active delegate, PR, review or acceptance evidence pending? Retain ownership
    and supported continuation. A watch receipt is not delivery or proof of
    unreadable CI, and does not cover unrelated issues.
@@ -163,7 +165,8 @@ receipts and answers.
    Report "awaiting owner" if any answer is pending, with retrospective pending.
    Preserve questions, manifest, budgets and continuation. This is a pause.
 
-Success requires a fresh paginated count of zero with acceptance verified.
+Success requires a fresh paginated zero count and verified delivery or justified,
+authorized retirement for every closure.
 Every remaining issue explicitly owner-held permits a "not zero, owner-held"
 handback. Unsupported continuation or access is incomplete, with an owner
 question and next trigger; never invent a hold or abandon independent work.
@@ -178,7 +181,7 @@ filings; new target issues resume the queue, extending the same retrospective
 record and budgets without retrospecting its own filing activity.
 
 Before and after counts at a stated time; issues opened during the run; merged PRs
-with commit SHAs; closed issues and why;
+with commit SHAs; completed versus retired issues and why;
 follow-ups filed; still-open issues by class, owner and next trigger; the ledger
 path; discovery coverage and task/watch receipts; models and effort; retrospective
 coverage and proposals. Separate local checks, current-head CI, merge, deployment

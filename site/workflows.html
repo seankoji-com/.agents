@@ -90,21 +90,22 @@ flowchart TD
     </section>
 
     <section id="backlog" aria-labelledby="backlog-title">
-      <h2 id="backlog-title">Deliver a backlog through ship</h2>
-      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> keeps independent fixes running in parallel, refilling capacity on every wake and discovering more issues when the ready queue is empty. It uses ship for delivery, with one parent plan and one final retrospective across the run. Its approval limits still apply.</p>
+      <h2 id="backlog-title">Retire low-value issues and deliver worthwhile fixes</h2>
+      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> assesses closure first. It strongly prefers closing ordinary obsolete, already-done or low-value issues with evidence, and retires trivial leftovers without replacement issues. Material defects remain actionable and protected closures need owner review. It fills host-supported concurrency up to 20 delegates, including nested workers and reviewers, and refills on every wake. Ship delivers worthwhile fixes under one parent plan and one final retrospective.</p>
       <pre class="mermaid">
 flowchart TD
     classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
     backlog["backlog-burn&lt;br/&gt;Discover and refill on every wake"]:::skill
-    candidate["Next candidate&lt;br/&gt;Verify acceptance and ownership"]
+    candidate["Next candidate&lt;br/&gt;Assess closure, value and ownership"]
     questions["Owner decisions&lt;br/&gt;Pause dependent work"]
     ship["ship&lt;br/&gt;Proof, review and delivery"]:::skill
-    implement["implement&lt;br/&gt;Parallel isolated leads"]:::skill
-    acceptance["Backlog coordinator&lt;br/&gt;Verify issue acceptance and closure"]
+    implement["implement&lt;br/&gt;Shared delegate cap up to 20"]:::skill
+    acceptance["Backlog coordinator&lt;br/&gt;Verify delivery or justified retirement"]
     inventory["Refresh open issues"]
     retrospective["One final retrospective&lt;br/&gt;Parent and all owned delegates"]
 
     backlog --&gt; candidate
+    candidate --&gt;|"Ordinary done, obsolete or low-value: close with evidence"| acceptance
     candidate -. "Decision missing" .-&gt; questions
     questions --&gt;|"Answer recorded, dispatch newly ready work"| backlog
     candidate --&gt;|"Ready: dispatch now"| ship
@@ -118,7 +119,7 @@ flowchart TD
     inventory --&gt;|"Zero or every remaining issue held"| retrospective
     retrospective --&gt;|"New target issues filed, preserve retrospective"| backlog
       </pre>
-      <p>The main coordinator owns PR delivery and native watches. Coding leads and workers default to the main thread's model and effort unless the owner selects another. Reviewers retain implement's cost-aware selection and cross-lineage eligibility. Leads return reviewed commits; the parent does not implement issue fixes inline. The coordinator records why capacity is unused and continues classification, investigation and owner questions when coding slots are full. Ready independent work starts before blocking questions. A watched PR, one unanswered question or a blocked push does not finish other ready work. Unexamined issues and unasked live approvals still need action. Externally owned work gets an explicit hold, takeover or outside-trigger decision. Awaiting-owner applies only when all remaining work is explicitly held or awaits an actual unanswered question. A required host yield preserves the queue and its next action. A merge closes only issues whose acceptance is satisfied; direct publication needs authorization.</p>
+      <p>The main coordinator owns PR delivery and native watches. Coding leads and workers default to the main thread's model and effort unless the owner selects another. Reviewers retain implement's cost-aware selection and cross-lineage eligibility. Leads return reviewed commits; the parent does not implement issue fixes inline. Child-slot budgets keep the entire run within the host limit and the cap of 20, with room for review. The coordinator records why capacity is unused and continues classification, investigation and owner questions when slots are full. Ready independent work starts before blocking questions. A watched PR, one unanswered question or a blocked push does not finish other ready work. Unexamined issues and unasked live approvals still need action. Externally owned work gets an explicit hold, takeover or outside-trigger decision. Awaiting-owner applies only when all remaining work is explicitly held or awaits an actual unanswered question. A required host yield preserves the queue and its next action. Reports separate completed outcomes from work retired as not planned. New delivery-review bugs still need fixing or tracking. Missing required live acceptance keeps issues open; direct publication needs authorization.</p>
     </section>
 
     <section id="cards" aria-labelledby="cards-title">

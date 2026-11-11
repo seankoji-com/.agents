@@ -153,7 +153,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
 - [raise-issue](skills/raise-issue/SKILL.md): Prepare and file a bug, feature, or task asynchronously, preserving the evidence and returning a verified issue URL. Requires T3 delegation.
-- [backlog-burn](skills/backlog-burn/SKILL.md): Dispatch fixes as issues become ready, use ship for delivery, and keep investigating and asking owner questions until acceptance or explicit holds. Requires T3 delegation.
+- [backlog-burn](skills/backlog-burn/SKILL.md): Close obsolete or low-value issues with evidence, retire trivial leftovers, and fill available delegate capacity up to 20 for worthwhile work through ship. Requires T3 delegation.
 
 ### Writing and conversation
 
@@ -336,12 +336,26 @@ on the skills site shows the handoffs with diagrams: decisions, implementation
 in a separate worktree, review, delivery, deferred-bug filing and the T3
 permission workarounds. Each skill's own file holds the exact rules.
 
-`backlog-burn` dispatches each verified ready issue before reading unrelated
+`backlog-burn` assesses closure before dispatch. It strongly prefers closing ordinary
+issues that are obsolete, already done or no longer worth pursuing, with a short
+evidence-based reason and no per-issue confirmation. It retires trivial leftovers
+without replacement issues. Material defects and necessary unmet outcomes remain
+actionable; protected issues retain owner review. Reports distinguish completed
+outcomes from work retired as not planned. New delivery-review defects still
+require fixing or tracking, including SEV3 findings.
+Inventory, triage-only and question-only requests propose actions without closure,
+implementation or merge.
+
+It dispatches each worthwhile verified ready issue before reading unrelated
 histories, while continuing discovery and owner questions where the host permits.
 It uses `ship` for delivery and isolated `implement` leads. Coding leads and
 workers default to the main thread's model and effort unless the owner selects another;
 reviewers retain cost-aware selection and cross-lineage eligibility. The main
-coordinator refills available capacity on every completion, PR notification,
+coordinator uses the maximum host-supported concurrency up to 20 across every
+delegate it starts, including nested work, investigations and issue filing, with
+child-slot budgets and review headroom.
+It records host limits and concrete reasons for unused slots, then refills
+available capacity on every completion, PR notification,
 answer or continuation wake. An empty ready queue resumes discovery. At full
 capacity, the coordinator continues classification and owner questions. It retains
 PR delivery and watches, records why capacity is unused, and finishes with one
@@ -378,7 +392,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | --- | --- |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Use when the user asks to audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery. |
 | [babysitter](skills/babysitter/SKILL.md) | Autonomously repair requested pull requests through verified merge. Use when asked to babysit, merge, watch or monitor PRs; honour explicit read-only and no-merge limits. |
-| [backlog-burn](skills/backlog-burn/SKILL.md) | Clear or burn down a repository's issue backlog. Use when asked to clear or burn down the backlog, unblock issues by asking the owner questions, dispatch implementation delegates for open issues, or drive the open issue count toward zero, including phrases like "clear the backlog", "burn down issues", "unblock the backlog" or "get open issues to zero". |
+| [backlog-burn](skills/backlog-burn/SKILL.md) | Clear or burn down a repository's issue backlog. Use for backlog reduction, unblocking owner decisions, dispatching issue fixes or driving open issues toward zero. Prefer evidence-based closure of obsolete or low-value issues and useful delegation up to 20. |
 | [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation. |
 | [choose-design](skills/choose-design/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
 | [design-loop](skills/design-loop/SKILL.md) | Improve a product's UI through reference research, direct interaction and scored cross-lineage judging, with annotated HTML reports each round and a final PR. Use for autonomous design iteration toward a score target, rather than operator-selected mockup options. |
@@ -452,7 +466,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 528b514abfcdefae63b3ded45858a91adfbce60cb40976c5df222f3d82384556 -->
+<!-- skills-review: 04a69569efa4be89a4db9c7f5bf1820e0dd7b804561513034d6a2124d948c119 -->
 
 ### Owner maintenance
 
