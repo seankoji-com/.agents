@@ -54,9 +54,9 @@ and lists ready work for a later round. The host allows new dispatches now.
 
 Expected: continue the same burn-down, fill those slots and retain ownership of
 both PRs through verified merge and acceptance. Watch registration proves no
-merge or issue closure. It neither permits success nor awaiting-owner. If the
-host instead requires an immediate watch yield, yield with the ready queue
-preserved and refill on the next wake; never start a second watcher or poller.
+merge or issue closure. It neither permits success nor awaiting-owner. The watch
+tool's "end your turn" is met by watching last, after the pass; it never
+justifies skipping the dispatches. Never start a second watcher or poller.
 
 ## D. Publishing access blocks publishing
 
@@ -316,7 +316,26 @@ read-back, reclassifying any linked issues. Keep babysitting the 3.2.1 patch;
 the 4.0.0 PR does not supersede it while its migration is pending. Ask before
 closing the draft. Report closed PRs separately from merged ones.
 
-## Q. New PR during the run
+## Q. First watch on a fresh run
+
+Prompt: "$backlog-burn" (a burn-down request), run by a cheaper coordinator
+model at medium effort.
+
+State: a fresh inventory returns 101 open issues and 18 open PRs. Nothing is
+classified. One PR, opened minutes ago, has queued checks and no review. The
+watch tool's description says "After this call, end your turn."
+
+Expected: give all 119 items a provisional header class and write them to the
+ledger. Run step 3's ownership check before adopting any PR; a PR opened minutes
+ago is checked for a live T3 thread, not assumed unowned. Deep-check issues in
+batches, close what qualifies, dispatch ready fixes and submit the batched
+questions. Only then watch each adopted PR that waits on checks, and end with
+the step 8 counts. Failing behaviour, observed on 14 November 2026: the
+coordinator read setup docs, watched one PR without an ownership check and
+ended the turn with every issue unclassified, nothing dispatched and no
+question asked, promising to resume "on the watch wake".
+
+## R. New PR during the run
 
 Prompt: "Clear the backlog."
 

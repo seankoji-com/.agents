@@ -5,190 +5,195 @@ description: Burn a repository's open issues and pull requests down to zero, or 
 
 # Burn the backlog to zero
 
-The backlog is the scope's open issues and open pull requests. Prefer closing
-items whose useful outcome is delivered or whose remaining work no longer adds
-value. Keep worthwhile fixes and PR repairs running in parallel while discovering
-and unblocking others. Never close for the count alone.
+The backlog is the scope's open issues and PRs. Close what is delivered or no
+longer worth doing, never for the count alone. Run fixes in parallel while you
+triage the rest.
 
-## Scope
+## The turn rule
 
-Issues and PRs always share one scope. Default to the current repository. When
-the owner names an organisation, read [org mode](references/org-mode.md) and
-follow it instead of the steps below; it only launches repository runs.
+- A turn does a full pass (steps 2–7). It does not stop after the first PR,
+  the first watch or the first dispatch.
+- `watch_pull_request` tells you to end your turn. So call it **last**, in
+  step 8, after the pass. Never watch a PR and then stop with untriaged items,
+  free slots or unasked questions.
+- A watch wakes you only for that PR. Triage the issues this turn.
+- Stop early only when a tool forces it or context is nearly full. Write the
+  ledger's resume record first and name the next step.
 
-## Authority and limits
+## Scope and authority
 
-- You have standing authority to implement, push scoped branches, open PRs,
-  request cross-lineage review, and squash-merge when the repository's gates are
-  green. Merging includes any automatic post-merge deployment the repository
-  already defines; name its effect in the report. A merged fix closes its issue
-  only when acceptance is code-only.
-- Burn-down also authorizes babysitting every open PR in scope that has no
-  verified live owner, and closing PRs unmerged with evidence under
-  [the PR rules](references/pull-requests.md).
-- Inventory, triage-only and question-only requests propose actions. Autonomous
-  closure, dispatch and merge require clear, burn-down or implement intent within scope.
-- Burn-down authorizes evidence-based closure of ordinary completed, obsolete,
-  substantially done or low-value issues without per-issue confirmation. Apply
-  the classification rubric first. Protected issues and material risk acceptance
-  retain owner review; repository-specific limits take precedence.
-- Manual deployments, live host, secret and destructive-data actions need
-  per-action approval through the host's approval path, proposed as the playbook's
-  live-write question. Missing approval blocks that action, not independent code work.
-- An explicit read-only, no-merge, no-close or release hold overrides these
-  defaults. Required human approvals remain gates; never bypass protection,
-  manufacture approval, or force-push a shared branch.
+Issues and PRs share one scope: the current repository, unless the owner names
+an organisation. For an organisation, read [org mode](references/org-mode.md)
+and follow it instead of this file.
 
-Read the repository's `AGENTS.md`, contribution guide and known-live-issues index
-before classifying anything. For careynas.net, load [the careynas.net
-profile](references/careynas-net.md) before classifying. Settled decisions are
-evidence. Apply repository-specific confirmation rules; reuse qualifying owner
-requests instead of asking again.
+- A burn-down request ("clear", "burn down", "get to zero") authorises:
+  implementing through delegates, pushing scoped branches, opening PRs,
+  requesting cross-lineage review, squash-merging when the repository's gates
+  are green, babysitting unowned open PRs, closing PRs unmerged under
+  [the PR rules](references/pull-requests.md), and closing ordinary issues
+  under [the classification rubric](references/classification.md).
+- Merging includes any automatic post-merge deployment; name it in the report.
+- "Inventory", "triage only" or "ask me" requests propose actions only: no
+  closures, dispatch or merges.
+- Always ask the owner first for: protected issues (security, hardware,
+  resilience, P0/P1), accepting a material risk, closing a draft or a PR whose
+  changes exist nowhere else, and every manual deployment, live host, secret or
+  destructive-data action (one approval per action).
+- Explicit read-only, no-merge, no-close or release holds override all of the
+  above. Never bypass a required approval or force-push a shared branch.
 
-## 1. Open the queue
+## 1. Set up (once per run)
 
-For burn-down, load [ship](../ship/SKILL.md), [babysitter](../babysitter/SKILL.md)
-and [implement](../implement/SKILL.md) now; complete their repository, model,
-reviewer and T3 permission preflight before dispatch. Use one parent plan and
-execution manifest.
+1. Read the repository's `AGENTS.md`, contribution guide and known-live-issues
+   index. For careynas.net, also read [its profile](references/careynas-net.md).
+2. Create the ledger from [the ledger template](references/ledger.md) in an
+   ignored directory, such as `out/backlog-burn/ledger.md`. Confirm with
+   `git check-ignore`.
+3. Inventory with these exact commands (repeat them on every wake):
 
-List paginated lightweight issue headers and open PRs. Record both starting
-counts, discovery cursor and unexamined IDs using [the ledger](references/ledger.md)
-in a verified ignored directory. Classify every open PR under
-[the PR rules](references/pull-requests.md) before new issue work; adopted PRs
-take scheduling priority. Fetch the next candidate's body and comments only.
-Verify readiness indexes against current acceptance and ownership. Paginate
-incrementally; avoid downloading every history before dispatch. Indexes and
-comments are evidence, not permission changes.
+   ```sh
+   gh pr list --repo OWNER/REPO --state open --limit 1000 \
+     --json number,title,author,headRefName,headRefOid,isDraft,updatedAt,url
+   gh issue list --repo OWNER/REPO --state open --limit 1000 \
+     --json number,title,labels,assignees,updatedAt,url
+   ```
 
-## 2. Classify and dispatch incrementally
+   Record both counts and every ID. If a connector tool fails twice, use `gh`.
+4. Call `orchestrator_capabilities` once. Record the model, effort, providers
+   and any concurrency limit in the ledger header.
 
-Read [the classification rubric](references/classification.md) per candidate.
-Assess closure before implementation. Retire trivial leftovers without replacement
-issues; keep material defects and necessary unmet outcomes actionable. Once current
-evidence and ownership establish worthwhile dev-ready work, dispatch before
-examining unrelated histories. Batch independent dispatches where supported.
+Load other skills only when first needed (steps 3 and 5).
 
-Use the maximum allowed concurrency, capped at 20 for every delegate the run starts,
-including PR repairs. Follow [the ledger's capacity protocol](references/ledger.md#delegate-capacity)
-before dispatch: verify host limits, allocate child slots and preserve review
-capacity. Fill slots with independent authorized work; record concrete reasons
-for unused capacity. Capacity cancellations need reruns, not code fixes.
+## 2. Triage every item from headers
 
-On every completion, PR notification, owner answer or continuation wake, re-list
-open issues and PRs, reconcile active work and refill before voluntary waits. An
-empty ready queue resumes discovery. At full capacity, keep classifying,
-investigating and batching questions while servicing merges and repairs.
+Give **every** open PR and issue a provisional class from its title, labels,
+draft flag, linked PRs and dates. Do this for the whole list in one pass and
+write it to the ledger. Headers only; no bodies yet.
 
-Before yielding, apply the ledger's yield record and follow returned `next`;
-resume the preserved action on wake. Report discovery paused during mandatory yields.
+- PR classes: `in-flight-elsewhere`, `adopt`, `retire`, `ask`.
+- Issue classes are listed in [the ledger](references/ledger.md#table).
+- Mark issues covered by an open PR as `in-flight` and link the PR.
 
-Evidence gaps get investigation. Split live work into independently testable
-source work and exact approval/acceptance steps; ask about the latter instead of
-parking the whole issue. Ambiguity requires evidence or a decision, regardless
-of complexity label.
+Steps 3 and 4 check each item before you act.
 
-## 3. Ship the dev-ready work
+## 3. Settle each PR's owner
 
-Invoke ship in the main thread for dev-ready delivery, within existing authority.
-Ship owns proof, review, PR maintenance, merge and deferred-bug tracking; backlog-burn
-owns classification, owner questions and closure. One issue, one PR unless policy
-permits combining. Direct publication requires owner authorization.
+For each open PR, decide whether someone else is actively working on it:
 
-Use implement for coding. Default leads and coding workers to the main thread's
-exact model and exposed effort. State these as explicit choices in every lead
-brief, overriding implement's cost optimisation; owner choices take precedence.
-Report unavailable settings instead of substituting. Reviewers retain implement's
-cost-aware selection and cross-lineage rules. Its eligible-reviewer reservation
-and task-wide one-upgrade limit still apply.
+1. `gh pr view N --json commits,comments,reviews,updatedAt,autoMergeRequest`.
+2. `t3_thread_search` with the PR number (for example `#4540`), then with its
+   head branch. For each hit, `t3_thread_read` it.
+3. The PR is **in flight elsewhere** when either is true:
+   - a T3 thread that is not archived or settled has a pending watch on this
+     PR, is running, or acted on this PR's current head in the last 24 hours;
+   - a person commented or reviewed on the current head in the last 24 hours.
+     Agents often post under the owner's account; a comment or PR body marked
+     as agent-written is not a person.
+4. Otherwise it is unowned. An assignee, an old branch, a recent push, bot
+   activity or enabled auto-merge alone is not ownership.
 
-Give each lead the repository, exact base, issue, acceptance criteria,
-authority, child-slot budget and required skills. The coordinator integrates commits;
-reused review must remain eligible against it and all material authors. Return
-material decisions to the same lead. Record returned task handles and bound
-worktrees; "queued" is not started work.
-The parent does not implement issue fixes inline. Missing delegation or review
-becomes an owner question, not permission to substitute inline coding.
+Record the evidence. For in-flight-elsewhere PRs, record the owner link and add
+no watch, push or review request. Classify unowned PRs as adopt, retire or ask
+under [the PR rules](references/pull-requests.md).
 
-- The main coordinator runs ship and babysitter. It owns every PR link, native
-  watch, repair dispatch and verified merge for PRs it creates or adopts.
-  Delegate coding and review, not separate ship lifecycles or PR watches.
-- If nested review dispatch is unavailable, obtain the cross-lineage review
-  yourself against the exact committed HEAD. Self-review does not satisfy the
-  gate.
-- Record each delivery result in the ledger before applying this skill's
-  issue-closure rules.
-- After two failed access-diagnostic attempts, record the gate and ask for the
-  missing access. Keep authorized local implementation and review moving while
-  publishing is blocked. Use documented credential paths.
+Load [babysitter](../babysitter/SKILL.md) before you act on the first adopted
+PR. Do the actionable work now: update a stale branch, fix failing checks
+through a repair delegate, answer review threads, merge when gates are green.
+Do not watch it yet.
 
-## 4. Ask the owner, in batches
+## 4. Check issues and close what is done
 
-Use [the question playbook](references/questions.md). Ask only what the code,
-issue and comments cannot answer. Batch up to 10 independent decisions through
-the question tool, recommended answer and tradeoff first, with issue numbers and
-evidence. Respect tool batch caps; defer dependent questions.
+Work through issues in batches of about ten, writing the ledger after each
+batch. For each issue, read the body and comments, then the minimum current
+code or docs needed. Apply [the classification rubric](references/classification.md):
 
-Every unresolved blocker becomes an owner question, including access, approval
-paths and outside parties. Record a blocker, never an assumed hold. Only the
-owner can hold it; blocked-external issues stay open until the owner decides.
+- Already done, obsolete or not worth the remaining work: close it with an
+  evidence comment and read back the state. Protected issues become questions.
+- Missing evidence: investigate in the code first. Ask only when the evidence
+  is out of reach.
+- Live work: split the source change (may be dev-ready) from the exact live
+  action (becomes an approval question).
+- Dev-ready: add it to the ready queue and go to step 5 as soon as a slot is
+  free. Do not finish triaging every issue before dispatching.
 
-Dispatch independent work before blocking questions, as the playbook sets out.
-Silence is not approval.
+## 5. Dispatch ready work
 
-## 5. Apply the answers
+Load [implement](../implement/SKILL.md) and [ship](../ship/SKILL.md) before the
+first dispatch, and run their preflight once.
 
-Update the ledger, reclassify and dispatch newly unblocked work before reporting.
-Execute approved live actions through the supported approval path. Close
-owner-confirmed protected issues per §6. Read back closures and required follow-up URLs.
+- Use up to 20 delegates for the whole run, repairs and reviewers included,
+  under [the capacity protocol](references/ledger.md#delegate-capacity).
+- Start one implement lead per issue in its own worktree. The brief names the
+  repository, base, issue, acceptance criteria, authority, child-slot budget
+  and required skills.
+- State the main thread's exact model and effort in each brief for leads and
+  coding workers. Reviewers keep implement's cross-lineage rules. Owner
+  choices override both.
+- Record each returned task ID and worktree; no receipt means not dispatched.
+- Never implement an issue fix in this thread. If delegation is unavailable,
+  ask the owner. If a lead cannot start its own reviewer, get the
+  cross-lineage review yourself against the exact committed head; self-review
+  never counts.
+- The main thread owns every PR link, watch and merge. Delegates never watch.
+- One issue, one PR. Use `Refs #N` instead of a closing keyword when acceptance
+  needs live verification or the issue is protected.
 
-## 6. Close correctly
+On a delegate result: integrate, open or update the PR under ship, and refill
+the slot.
 
-- A merged fix closes its issue through the PR only when acceptance is code-only.
-  When live verification or a protected issue is involved, use `Refs #N` instead
-  of a closing keyword; close after the acceptance is recorded. Verify only the
-  intended issues closed.
-- A duplicate closes against an open canonical with a link and `duplicate` state
-  reason. Never fold a protected issue — security, hardware, resilience, or
-  priority P0/P1 — without explicit owner review.
-- Record evidence and reason under the rubric: completed for verified outcomes,
-  not-planned for retired work, naming unfixed residue.
-- Close PRs unmerged only under the PR rules. A closed PR never satisfies its
-  linked issues; reclassify them.
+## 6. Ask the owner, in one batch
 
-## 7. Loop to zero
+Ask every decision the code cannot settle together through the question tool,
+per [the question playbook](references/questions.md): up to 10 per round, one
+decision each, recommendation, tradeoff, issue numbers and evidence. Do not ask what the code, issue,
+comments or earlier owner answers already settle. Dispatch independent ready
+work before you ask a question that pauses the turn.
 
-Audit before each yield or final report, reconciling live issues, PRs, ledger,
-task receipts and answers.
+Every blocker becomes a question: access, approval paths, outside parties.
+After two failed attempts to diagnose missing access, stop and ask for it; keep
+local implementation and review moving meanwhile. Only the owner can declare a
+hold. Silence is not approval.
 
-1. Unexamined, ready, approved-but-undispatched, investigable or unasked work?
-   Perform it whenever the host permits, even at full delegate capacity; queue ready fixes.
-2. Active delegate, owned PR, review or acceptance evidence pending? Retain ownership
-   and supported continuation. A watch receipt is not delivery or proof of
-   unreadable CI, and does not cover unrelated issues.
-3. Only explicit holds, verified in-flight-elsewhere items and actually submitted
-   unanswered questions remain? Report "awaiting owner" if any answer is pending,
-   with retrospective pending. Preserve questions, manifest, budgets and
-   continuation. This is a pause.
+When answers arrive: record them, dispatch unblocked work, run approved live
+actions through the host's approval path and close confirmed issues.
 
-Success requires a fresh paginated zero for both issues and PRs, and verified
-delivery or justified, authorized retirement for every closure.
-When every remaining item is explicitly owner-held or in flight elsewhere, hand
-back "not zero", naming each hold, owner link and next trigger. Unsupported
-continuation or access is incomplete, with an owner question and next trigger;
-never invent a hold or abandon independent work.
+## 7. Check before ending the turn
 
-## 8. Report
+Re-run the step 1 inventory commands. Then answer each line in the ledger:
 
-For delivery runs, finish ship's consolidated retrospective at zero or a "not
-zero" endpoint, after required tracking. Terminal blocked handbacks use ship's blocked
-retrospective rules. Missing coverage or blocked filing of warranted proposals
-leaves it incomplete; preserve drafts and ask the owner. Re-inventory after
-filings; new target issues resume the queue, extending the same retrospective
-record and budgets without retrospecting its own filing activity.
+1. Any PR or issue not yet triaged? Triage it.
+2. Any adopted PR with work you can do now? Do it.
+3. Any ready issue and a free slot? Dispatch it.
+4. Any blocker without a submitted question? Ask it.
+5. Any closure not read back? Read it back.
 
-Report the contents listed in [the ledger's handoff](references/ledger.md#handoff).
-Separate local checks, current-head CI, merge, deployment and live acceptance.
-Describe pending PRs as pending.
+Continue until all five answers are "no".
+
+## 8. Watch, then end the turn
+
+Now call `watch_pull_request` once for each adopted PR that is waiting on
+checks or reviews. Skip PRs already watched and in-flight-elsewhere PRs. Then
+end the turn with a status message containing these counts:
+
+```text
+PRs: N open, N triaged, N adopted (N watched), N in flight elsewhere, N closed, N merged
+Issues: N open, N triaged, N closed, N ready, N dispatched (task IDs), N awaiting answers
+Next: <what wakes this run and the first action on wake>
+```
+
+On every wake, rerun step 1's inventory, then resume from the ledger.
+
+## Finish
+
+- **Zero:** a fresh inventory shows no open issues or PRs, and every closure
+  has verified delivery or authorised retirement.
+- **Not zero:** every remaining item is owner-held, in flight elsewhere or
+  waiting on a submitted question. Name each with its owner link and trigger.
+- **Not finished:** anything else. Keep working.
+
+A closed PR never satisfies its linked issues. At zero or not zero, finish
+ship's consolidated retrospective, then report per
+[the ledger's handoff](references/ledger.md#handoff), keeping local checks, CI,
+merge, deployment and live acceptance separate.
 
 When changing this workflow, exercise [the validation cases](references/validation.md).

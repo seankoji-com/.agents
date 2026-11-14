@@ -108,9 +108,10 @@ work; do not turn the round into a status request.
 
 An unanswered question pauses only its dependent work. Continue discovery,
 dispatch and delivery for independent issues where the host permits. Before a
-voluntary yield, apply backlog-burn's queue audit. If a tool requires yielding,
-preserve the discovery cursor, ready queue and task/watch receipts for the next
-wake. Follow that instruction rather than claiming background progress.
+voluntary yield, apply backlog-burn's queue audit. A watch tool that says "end
+your turn" is called last, after the audit, not first. If a tool forces an
+earlier yield, preserve the discovery cursor, ready queue and task/watch
+receipts for the next wake rather than claiming background progress.
 
 Report "awaiting owner" only when all remaining issues and PRs are explicitly
 held, in flight elsewhere or await actually submitted questions, with at least

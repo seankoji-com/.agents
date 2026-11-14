@@ -135,7 +135,8 @@ After each question round, record the decisions and their consequences:
 ## Yield and completion audit
 
 Record the reason for each yield: host-required continuation, actual unanswered
-owner questions, or a terminal blocker. Preserve cursor, queued issue IDs, active
+owner questions, or a terminal blocker. Registering a PR watch is not a
+host-required yield by itself: the watch call comes last, after the pass. Preserve cursor, queued issue IDs, active
 receipts and the first action on wake. Voluntary awaiting-owner requires no
 unexamined, ready, approved-but-undispatched, investigable, unasked or actionable
 owned work. An owned PR waiting only on a submitted question keeps its watch and

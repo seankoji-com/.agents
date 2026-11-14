@@ -358,6 +358,12 @@ nothing stays covered after handback without a scheduled sweep. Naming an
 organisation launches one independent repository run per repository with open
 work, skips repositories that already have one, and hands back.
 
+The entrypoint is a numbered runbook that cheaper coordinator models can follow.
+Each turn triages every open item from its headers, checks PR ownership against
+T3 threads and recent human activity, closes, dispatches and asks, and only then
+registers PR watches. The watch tool ends the turn, so watching first would
+stop the run with the backlog untouched.
+
 It dispatches each worthwhile verified ready issue before reading unrelated
 histories, while continuing discovery and owner questions where the host permits.
 It uses `ship` for delivery and isolated `implement` leads. Coding leads and
@@ -481,7 +487,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: ee66d527144a141f889d8541468e860024c01985a9aaf5ff0eef0abcd986bc39 -->
+<!-- skills-review: a77ee4bce89869507fee6e2c37dc14718d2bb7a5c3fed06cc9b780af3d849592 -->
 
 ### Owner maintenance
 
