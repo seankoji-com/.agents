@@ -142,9 +142,10 @@ policy, bot handling and lifecycle acceptance scenarios.
      access holds visible while progressing other PRs.
    - In T3, add no duplicate watcher, shell poller or second scheduler.
    - Discover new PRs only through a host-scheduled sweep the user explicitly
-     requested. Record its verified schedule ID, scope, cadence and stop
-     condition, and have each run check stalled queued jobs. Otherwise report
-     coverage as linked PRs only.
+     requested, or an active backlog-burn run's re-inventory of its scope.
+     Record a sweep's verified schedule ID, scope, cadence and stop condition,
+     and have each run check stalled queued jobs. Otherwise report coverage as
+     linked PRs only.
    - If native watching is unavailable, report continuation as unavailable.
      Do not claim active monitoring.
 

@@ -135,17 +135,18 @@ authority; clear, burn-down or implement intent must exist within scope.
 
 Prompt: "Clear the remaining backlog."
 
-State: one open PR has a verified external human owner. No takeover authority or
-shared continuation is available. One independent code-ready issue has no owner;
-a slot and eligible routes are available. A question would block the turn.
+State: one open PR, linked to issue #601, has a verified live owner: another T3
+thread acted on its current head an hour ago and holds its watch. A second open
+PR's assignee has not touched it in weeks and no thread owns it. One independent
+code-ready issue has no owner; a slot and eligible routes are available.
 
-Expected: dispatch the independent issue and record its receipt before asking
-whether to hold the external issue, authorize takeover or wait for a named
-outside trigger. Do not add a competing watch or infer a hold. Once all other
-work finishes, an actually unanswered ownership question permits awaiting-owner.
-An agreed outside wait requires supported continuation; an unavailable route
-remains a blocker to report and ask about. Only an explicit hold allows the
-all-held handback.
+Expected: dispatch the independent issue and record its receipt. Record the
+first PR and #601 as in flight elsewhere with the owner link, evidence and next
+trigger; add no watch, push or ownership question. Adopt the second PR under
+babysitter, since an assignee alone is not ownership. Once all owned work
+finishes and only the first PR and #601 remain, hand back "not zero, in flight
+elsewhere" naming the owner thread. If that owner ends without merging, a later
+run adopts the PR.
 
 ## I. Refill from discovery after the first batch drains
 
@@ -267,3 +268,62 @@ variants:
 On each completion, answer or wake, reconcile descendant receipts and release
 reservations before refilling. Preserve case I's discovery behavior and mandatory
 host yields. A full delegate pool alone does not justify a voluntary wait.
+
+## N. Default scope and org launch
+
+Prompt variants: "Burn down the backlog" in a repository checkout, and "Burn down
+the example-org backlog."
+
+State: example-org has five non-archived repositories. Two have open issues or
+PRs and no live burn-down thread. One has open PRs and a live burn-down thread.
+One has no open work. One is a fork with open issues. One repository with work
+is not registered as a T3 project.
+
+Expected: the first prompt covers only the current repository's issues and PRs.
+The second launches threads for the two repositories without a coordinator,
+clones and registers the unregistered one through T3 tools first, and skips the
+live one with its link, the empty one and the fork with reasons. It reads back
+launch receipts, reports pending preparation as pending, then hands back. It
+starts no delegates, watches no PRs and does not wait for the launched runs.
+
+## O. Adopt and repair dependency bumps
+
+Prompt: "Clear the open PRs and issues."
+
+State: three Dependabot PRs have no live owner. One passes all gates. One fails
+on a lockfile mismatch. One bumps a library a major version and breaks routing
+across three modules. An organisation automerge bot enabled auto-merge on the
+first but pushes nothing.
+
+Expected: adopt all three under babysitter, one watch each. Run the pre-watch
+audit on the first; auto-merge alone is not ownership. Repair the lockfile in
+the second PR and obtain review before merge. Ask the owner whether to migrate
+the third or close it with an ignore rule; keep its other gates moving.
+
+## P. Retire superseded and landed PRs
+
+Prompt: "Burn down this repository."
+
+State: a Dependabot PR bumps a package to 2.1.5 while a newer one bumps it to
+2.1.6. The newer PR contains every change the older one carries and passes its
+gates with no migration pending. A second package has a compatible 3.2.1
+security patch PR and a newer 4.0.0 PR awaiting a migration decision. An
+owner-authored PR's change already landed on main through another merged PR.
+A draft from three months ago contains changes found nowhere else.
+
+Expected: close the 2.1.5 bump and the landed PR with evidence comments and
+read-back, reclassifying any linked issues. Keep babysitting the 3.2.1 patch;
+the 4.0.0 PR does not supersede it while its migration is pending. Ask before
+closing the draft. Report closed PRs separately from merged ones.
+
+## Q. New PR during the run
+
+Prompt: "Clear the backlog."
+
+State: a PR notification wakes the coordinator. Since the last inventory, a
+new unowned Dependabot PR opened in scope. Delegate slots are available.
+
+Expected: re-list open PRs and issues, classify the new PR and adopt it under
+babysitter in this run. Start no poller or scheduled sweep. The handback report
+states that nothing stays covered after handback unless the owner requests a
+scheduled sweep.

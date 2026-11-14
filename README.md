@@ -153,7 +153,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
 - [raise-issue](skills/raise-issue/SKILL.md): Prepare and file a bug, feature, or task asynchronously, preserving the evidence and returning a verified issue URL. Requires T3 delegation.
-- [backlog-burn](skills/backlog-burn/SKILL.md): Close obsolete or low-value issues with evidence, retire trivial leftovers, and fill available delegate capacity up to 20 for worthwhile work through ship. Requires T3 delegation.
+- [backlog-burn](skills/backlog-burn/SKILL.md): Drive a repository's open issues and PRs to zero. It closes obsolete issues and superseded PRs with evidence, babysits unowned PRs to merge, and fills available delegate capacity up to 20 for worthwhile work through ship. Naming an organisation launches one run per repository. Requires T3 delegation.
 
 ### Writing and conversation
 
@@ -346,6 +346,18 @@ require fixing or tracking, including SEV3 findings.
 Inventory, triage-only and question-only requests propose actions without closure,
 implementation or merge.
 
+Open PRs are part of the backlog, and issues and PRs always share one scope. The
+default is the current repository. The coordinator babysits every PR without a
+verified live owner through merge, including dependency bumps, and makes small
+repairs inside the PR. A bump that needs a real migration becomes an owner
+question. It closes superseded, duplicate or already-landed PRs with an evidence
+comment, and asks before closing drafts or PRs with unique changes. PRs that
+another live thread or person already owns are recorded with their owner and
+left alone. Each wake re-lists the scope, so PRs opened mid-run are adopted;
+nothing stays covered after handback without a scheduled sweep. Naming an
+organisation launches one independent repository run per repository with open
+work, skips repositories that already have one, and hands back.
+
 It dispatches each worthwhile verified ready issue before reading unrelated
 histories, while continuing discovery and owner questions where the host permits.
 It uses `ship` for delivery and isolated `implement` leads. Coding leads and
@@ -362,8 +374,11 @@ PR delivery and watches, records why capacity is unused, and finishes with one
 consolidated retrospective. Ready independent work
 starts before blocking questions.
 One unanswered question or watched PR cannot stop independent
-work. Awaiting-owner requires every remaining issue to be explicitly held or
-await an actual unanswered question; a host-required yield preserves the queue.
+work. Awaiting-owner requires every remaining issue and PR to be explicitly held,
+owned by a live owner elsewhere or awaiting an actual unanswered question; a
+host-required yield preserves the queue. Success is a fresh zero for both issues
+and PRs. When only held items and work owned elsewhere remain, the run hands
+back "not zero" with each owner and next trigger.
 
 A strong model coordinates each workflow. The reviewers and workers it starts
 can be cheaper models. They read a short role card instead of a whole skill:
@@ -392,7 +407,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | --- | --- |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Use when the user asks to audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery. |
 | [babysitter](skills/babysitter/SKILL.md) | Autonomously repair requested pull requests through verified merge. Use when asked to babysit, merge, watch or monitor PRs; honour explicit read-only and no-merge limits. |
-| [backlog-burn](skills/backlog-burn/SKILL.md) | Clear or burn down a repository's issue backlog. Use for backlog reduction, unblocking owner decisions, dispatching issue fixes or driving open issues toward zero. Prefer evidence-based closure of obsolete or low-value issues and useful delegation up to 20. |
+| [backlog-burn](skills/backlog-burn/SKILL.md) | Burn a repository's open issues and pull requests down to zero, or launch one run per repository for a named organisation. Use for backlog reduction, clearing open PRs, unblocking owner decisions or dispatching issue fixes. Prefer evidence-based closure and useful delegation up to 20. |
 | [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation. |
 | [choose-design](skills/choose-design/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
 | [design-loop](skills/design-loop/SKILL.md) | Improve a product's UI through reference research, direct interaction and scored cross-lineage judging, with annotated HTML reports each round and a final PR. Use for autonomous design iteration toward a score target, rather than operator-selected mockup options. |
@@ -466,7 +481,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 04a69569efa4be89a4db9c7f5bf1820e0dd7b804561513034d6a2124d948c119 -->
+<!-- skills-review: ee66d527144a141f889d8541468e860024c01985a9aaf5ff0eef0abcd986bc39 -->
 
 ### Owner maintenance
 

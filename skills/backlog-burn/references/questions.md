@@ -77,6 +77,16 @@ stop at the proposal and record the blocker.
 > **#789 is three independent outcomes. Split into #789a/b/c and implement a first?**
 > Recommended: split, because each has a separate acceptance test and owner.
 
+### A pull request closure or dependency migration
+
+Ask before closing a draft or a PR whose changes exist nowhere else, giving the
+evidence and the recommended disposition. For a dependency bump that needs a
+real migration, offer: migrate now, or close with an ignore rule for that version.
+
+> **#46 — the hono 4.13 → 5.0 bump breaks routing across three modules.**
+> Recommended: close with an ignore rule for 5.x until the router migration is
+> planned. Cost: the service stays on 4.x. Alternative: migrate in this PR.
+
 ### An explicit hold
 
 If the owner does not want the work, record an owner hold with the reason, owner
@@ -102,14 +112,15 @@ voluntary yield, apply backlog-burn's queue audit. If a tool requires yielding,
 preserve the discovery cursor, ready queue and task/watch receipts for the next
 wake. Follow that instruction rather than claiming background progress.
 
-Report "awaiting owner" only when all remaining issues are explicitly held or
-await actually submitted questions, with at least one unanswered. Keep questions
+Report "awaiting owner" only when all remaining issues and PRs are explicitly
+held, in flight elsewhere or await actually submitted questions, with at least
+one unanswered. Keep questions
 and continuation active; without a question tool, ask the same batch explicitly
 as plain text. Unexamined work, approved-but-undispatched work, investigations,
-live steps without exact approval questions and active PRs cannot justify this
-pause. For externally owned work, submit the ownership decision from the
-classification rubric instead of claiming to own or monitor it. If that is the
-only unheld work left, its unanswered ownership question permits awaiting-owner.
+live steps without exact approval questions and owned PRs with actionable gates
+cannot justify this pause. An owned PR whose only remaining action depends on a
+submitted unanswered question may pause with its watch and ownership retained. Work with a verified live owner elsewhere needs no ownership question:
+record its owner link and next trigger without claiming to own or monitor it.
 Silence is not approval, and a status report is not completion.
 
 ## Anti-patterns

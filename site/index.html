@@ -214,9 +214,9 @@ const SKILLS = [
     try: "Babysit PR 42 through to merge.",
     uses: ["review", "raise-pr", "github-writing"] },
   { name: "backlog-burn", group: "build", t3prep: true, t3: true,
-    text: "Prefer closing obsolete, already-done or low-value issues with evidence. Retire trivial leftovers without replacement issues; keep material defects actionable and protected closures under owner review. Use the maximum allowed concurrency up to 20 delegates, including nested workers and reviewers. Ship handles worthwhile fixes through isolated leads, using the main thread's model and effort by default and independent reviewers. Refill on every wake, keep discovering issues when the ready queue is empty, and continue classification and questions when slots are full. Report completed outcomes separately from retired work. Explicit owner holds keep issues open.",
-    try: "Clear the backlog. Ask me what you need to unblock, then implement and merge the ready issues.",
-    uses: ["ship", "implement"] },
+    text: "Drive a repository's open issues and pull requests to zero. Close obsolete, already-done or low-value issues and superseded PRs with evidence; keep material defects actionable and protected closures under owner review. Babysit every PR without a live owner through merge, including dependency bumps, and ask before a real migration. Use the maximum allowed concurrency up to 20 delegates, including nested workers and reviewers. Ship handles worthwhile fixes through isolated leads, using the main thread's model and effort by default and independent reviewers. Refill on every wake and pick up PRs opened mid-run. Name an organisation to launch one run per repository. Explicit owner holds keep items open.",
+    try: "Clear the backlog and the open PRs. Ask me what you need to unblock, then implement and merge the ready work.",
+    uses: ["ship", "babysitter", "implement"] },
   { name: "raise-issue", group: "build", t3prep: true, t3: true,
     text: "File a bug, feature request or task in the background, with the evidence attached. You get back a link to the issue once it exists.",
     try: "Raise an issue for the flaky login test with the failing logs.",
@@ -250,6 +250,7 @@ const JOBS = [
   ["ship this change", "ship"],
   ["babysit my pull request", "babysitter"],
   ["merge my pull request", "babysitter"],
+  ["clear my open issues and PRs", "backlog-burn"],
   ["write better tests", "test-writer"],
 ];
 

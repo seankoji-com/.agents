@@ -100,7 +100,8 @@ recovery path. Similar symptoms or shared labels are not enough.
 ## Hold and blocker
 
 An **owner hold** is the owner saying "not now" to a specific issue, with a
-reason and a review trigger. Only an owner hold can end the zero loop. An **agent
+reason and a review trigger. When the loop ends, an item may remain open only
+under an owner hold or a verified live owner elsewhere. An **agent
 blocker** is something the agent cannot resolve — live access, an unavailable
 approval path, an outside party, missing evidence. A blocker becomes a question,
 not a hold. A `blocked-external` issue stays open and is reported until the owner
@@ -120,18 +121,17 @@ and never claims an unfixed outcome was delivered.
 
 ## In flight
 
-An open PR or verified active owner already covers it. Record current ownership,
-task/PR evidence and its next trigger, then reconcile delivery instead of adding
-a second writer. An assignee or old remote branch alone does not prove activity.
-If work is abandoned, record that and reclassify. An open PR is unfinished work,
-not a completed issue or an owner hold.
+An open PR or verified active owner already covers it. An open PR is unfinished
+work, not a completed issue or an owner hold. Classify the PR itself under
+[the PR rules](pull-requests.md):
 
-If the coordinator cannot own that work, ask the owner to hold it, authorize
-takeover, or wait for a named outside trigger. Do not assume ownership or add a
-competing watch. An unanswered ownership question can pause this issue; an
-agreed outside wait stays unfinished with supported continuation. If that route
-is unavailable, report it and ask how to proceed. Only an explicit hold permits
-an all-held handback.
+- An adopted PR stays with this coordinator through merge or closure; the issue
+  follows that delivery.
+- A verified live owner outside this run keeps the work. Record the owner link,
+  evidence and next trigger, and add no second writer or watch. The issue may
+  remain at a "not zero, in flight elsewhere" handback.
+- An assignee or old remote branch alone does not prove activity. Abandoned or
+  unverified ownership makes the PR adoptable; record that and reclassify.
 
 ## Protected issues
 

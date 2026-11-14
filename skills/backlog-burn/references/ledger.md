@@ -10,10 +10,10 @@ session-owned temporary directory and record its absolute path in the report.
 ```markdown
 # Backlog burn — <owner/repo> — <YYYY-MM-DD>
 
-Start count: N
-Current count: N
+Start count: N issues, N PRs
+Current count: N issues, N PRs
 Discovery cursor: <page/cursor or complete>
-Unexamined issue IDs: <IDs; never imply the backlog is fully classified>
+Unexamined issue and PR IDs: <IDs; never imply the backlog is fully classified>
 Ready queue: <issue IDs, acceptance scope and overlap constraints>
 Slots: <host ceiling and scope/evidence; run cap <=20; active leads/workers/reviewers;
 child-slot allocations; available capacity; review headroom; contention limits>
@@ -39,6 +39,16 @@ Classes: `unexamined`, `dev-ready`, `decision`, `evidence`, `live-only`, `duplic
 
 States: `queued`, `dispatched`, `in-review`, `checks`, `mergeable`, `merged`,
 `acceptance-pending`, `closed`, `question`, `blocked`.
+
+Keep open PRs in a second table:
+
+| PR | Title | Author | Head SHA | Class | Evidence | Owner / watch | Next action |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+
+PR classes follow [the PR rules](pull-requests.md): `in-flight-elsewhere`,
+`adopted`, `retire`, `ask`. For in-flight-elsewhere rows record the owner link,
+the evidence it is live and the next trigger. For adopted rows record the watch
+receipt. For closed rows record the evidence comment and read-back state.
 
 For dispatched work record the task/thread handle, bound worktree, base/head,
 model/effort and scoped owner. For a question record the actual submitted prompt
@@ -102,9 +112,12 @@ After each question round, record the decisions and their consequences:
 ## Resume checklist
 
 1. Refresh GitHub: issue states, PR heads, checks, reviews and threads.
-2. Reconcile the ledger against the live count; mark stale rows.
-3. Re-check every open PR's current head and base; discard stale-head results.
-4. Confirm one watch per open PR; release watches for merged or closed PRs.
+2. Re-list open issues and PRs and reconcile the ledger against both live
+   counts; mark stale rows. Classify new PRs and recheck in-flight-elsewhere
+   owners under the PR rules.
+3. Re-check every owned PR's current head and base; discard stale-head results.
+4. Confirm one watch per owned PR; release watches for merged or closed PRs.
+   Hold no watch on in-flight-elsewhere PRs.
 5. On every completion, PR notification, answer or continuation wake, reconcile
    active and reserved slots and refill capacity. Apply settled answers and dispatch ready
    work before submitting blocking questions. If the ready queue is empty,
@@ -124,21 +137,33 @@ After each question round, record the decisions and their consequences:
 Record the reason for each yield: host-required continuation, actual unanswered
 owner questions, or a terminal blocker. Preserve cursor, queued issue IDs, active
 receipts and the first action on wake. Voluntary awaiting-owner requires no
-unexamined, ready, approved-but-undispatched, investigable, unasked or owned in-flight
-work. External work needs an actual ownership question or an agreed outside
-trigger with supported continuation, not an assumed watch or hold.
-Every residual issue must instead have an explicit hold or an actual
-unanswered question; silence and a status recommendation do not qualify.
+unexamined, ready, approved-but-undispatched, investigable, unasked or actionable
+owned work. An owned PR waiting only on a submitted question keeps its watch and
+ownership through the pause. Work with a verified live owner elsewhere needs its owner link, evidence
+and next trigger, not an assumed watch or hold.
+Every residual item must instead have an explicit hold, a verified live owner
+elsewhere or an actual unanswered question; silence and a status recommendation
+do not qualify.
 
-Zero requires a fresh paginated issue list and verified delivery or justified,
-authorized retirement for every closure. An all-held
-handback stays "not zero". A watched PR, an acceptance-pending issue or an
-unavailable continuation remains unfinished and retains its owner and next trigger.
+Zero requires fresh paginated issue and PR lists and verified delivery or
+justified, authorized retirement for every closure. A handback where every
+remaining item is held or in flight elsewhere stays "not zero". An owned PR,
+an acceptance-pending issue or an unavailable continuation remains unfinished
+and retains its owner and next trigger.
 
 ## Handoff
 
 The ledger stays with the task artifacts until the run ends. Because the worktree
-may be pruned, the final report must contain the complete open-item table, not
-just a pointer to the ledger. Preserve the ledger while any issue, PR, follow-up
+may be pruned, the final report must contain the complete open-item tables, not
+just a pointer to the ledger.
+
+The final report states:
+
+- before and after issue and PR counts at a stated time, and items opened during the run;
+- merged PRs with commit SHAs, and PRs closed unmerged with their reasons;
+- completed versus retired issues and why, and follow-ups filed;
+- still-open items by class, owner and next trigger, including in-flight-elsewhere owner links;
+- the ledger path, discovery coverage and task/watch receipts;
+- models and effort, retrospective coverage and proposals. Preserve the ledger while any issue, PR, follow-up
 filing or hold remains. Remove it only after the final report and any required
 issue URLs are verified.

@@ -90,20 +90,29 @@ flowchart TD
     </section>
 
     <section id="backlog" aria-labelledby="backlog-title">
-      <h2 id="backlog-title">Retire low-value issues and deliver worthwhile fixes</h2>
-      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> assesses closure first. It strongly prefers closing ordinary obsolete, already-done or low-value issues with evidence, and retires trivial leftovers without replacement issues. Material defects remain actionable and protected closures need owner review. It fills host-supported concurrency up to 20 delegates, including nested workers and reviewers, and refills on every wake. Ship delivers worthwhile fixes under one parent plan and one final retrospective.</p>
+      <h2 id="backlog-title">Drive open issues and pull requests to zero</h2>
+      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> treats a repository's open issues and open pull requests as one backlog. It assesses closure first. It strongly prefers closing ordinary obsolete, already-done or low-value issues, and superseded or already-landed PRs, with evidence. Material defects remain actionable and protected closures need owner review. Every PR without a live owner goes to <a href="https://github.com/seankoji-com/.agents/blob/main/skills/babysitter/SKILL.md">babysitter</a> through merge. PRs another live thread or person owns are recorded and left alone. It fills host-supported concurrency up to 20 delegates, including nested workers and reviewers, and refills on every wake. Ship delivers worthwhile fixes under one parent plan and one final retrospective.</p>
+      <p>Naming an organisation changes the job. Org mode launches one independent repository run per repository with open work, skips repositories that already have one, reports the thread links and hands back. It does not watch or wait for those runs.</p>
       <pre class="mermaid">
 flowchart TD
     classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
     backlog["backlog-burn&lt;br/&gt;Discover and refill on every wake"]:::skill
-    candidate["Next candidate&lt;br/&gt;Assess closure, value and ownership"]
+    prs["Open PRs&lt;br/&gt;Classify ownership first"]
+    babysitter["babysitter&lt;br/&gt;Repair and merge unowned PRs"]:::skill
+    elsewhere["Live owner elsewhere&lt;br/&gt;Record owner and next trigger"]
+    candidate["Next issue&lt;br/&gt;Assess closure, value and ownership"]
     questions["Owner decisions&lt;br/&gt;Pause dependent work"]
     ship["ship&lt;br/&gt;Proof, review and delivery"]:::skill
     implement["implement&lt;br/&gt;Shared delegate cap up to 20"]:::skill
     acceptance["Backlog coordinator&lt;br/&gt;Verify delivery or justified retirement"]
-    inventory["Refresh open issues"]
+    inventory["Refresh open issues and PRs"]
     retrospective["One final retrospective&lt;br/&gt;Parent and all owned delegates"]
 
+    backlog --&gt; prs
+    prs --&gt;|"No live owner: adopt"| babysitter
+    prs --&gt;|"Superseded or landed: close with evidence"| acceptance
+    prs -. "Owned elsewhere" .-&gt; elsewhere
+    babysitter --&gt;|"Merged"| acceptance
     backlog --&gt; candidate
     candidate --&gt;|"Ordinary done, obsolete or low-value: close with evidence"| acceptance
     candidate -. "Decision missing" .-&gt; questions
@@ -116,10 +125,10 @@ flowchart TD
     acceptance --&gt; inventory
     inventory --&gt;|"Actionable work remains"| backlog
     inventory -. "Unanswered questions, including mixed holds" .-&gt; questions
-    inventory --&gt;|"Zero or every remaining issue held"| retrospective
+    inventory --&gt;|"Zero, or only held or owned-elsewhere items"| retrospective
     retrospective --&gt;|"New target issues filed, preserve retrospective"| backlog
       </pre>
-      <p>The main coordinator owns PR delivery and native watches. Coding leads and workers default to the main thread's model and effort unless the owner selects another. Reviewers retain implement's cost-aware selection and cross-lineage eligibility. Leads return reviewed commits; the parent does not implement issue fixes inline. Child-slot budgets keep the entire run within the host limit and the cap of 20, with room for review. The coordinator records why capacity is unused and continues classification, investigation and owner questions when slots are full. Ready independent work starts before blocking questions. A watched PR, one unanswered question or a blocked push does not finish other ready work. Unexamined issues and unasked live approvals still need action. Externally owned work gets an explicit hold, takeover or outside-trigger decision. Awaiting-owner applies only when all remaining work is explicitly held or awaits an actual unanswered question. A required host yield preserves the queue and its next action. Reports separate completed outcomes from work retired as not planned. New delivery-review bugs still need fixing or tracking. Missing required live acceptance keeps issues open; direct publication needs authorization.</p>
+      <p>The main coordinator owns PR delivery and native watches. Coding leads and workers default to the main thread's model and effort unless the owner selects another. Reviewers retain implement's cost-aware selection and cross-lineage eligibility. Leads return reviewed commits; the parent does not implement issue fixes inline. Child-slot budgets keep the entire run within the host limit and the cap of 20, with room for review. The coordinator records why capacity is unused and continues classification, investigation and owner questions when slots are full. Ready independent work starts before blocking questions. A watched PR, one unanswered question or a blocked push does not finish other ready work. Unexamined issues and unasked live approvals still need action. Work with a verified live owner elsewhere is recorded with that owner and left alone; an assignee or old branch is not ownership. Each wake re-lists the scope, so PRs opened mid-run are adopted. Dependency bumps get small in-PR repairs, and a real migration becomes an owner question. Awaiting-owner applies only when all remaining work is explicitly held, owned elsewhere or awaits an actual unanswered question. Success is a fresh zero for both issues and PRs. A required host yield preserves the queue and its next action. Reports separate completed outcomes from work retired as not planned. New delivery-review bugs still need fixing or tracking. Missing required live acceptance keeps issues open; direct publication needs authorization.</p>
     </section>
 
     <section id="cards" aria-labelledby="cards-title">
