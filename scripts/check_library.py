@@ -19,8 +19,6 @@ RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents
                      r'scripts/(?:install|agents_bootstrap|source_runtime)|'
                      r'migration/|agents start|\.local/share/t3-plugins')
 LINK = re.compile(r'\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
-# Skills stand alone, so the reviewer order is copied; every bold copy must match.
-ORDER = re.compile(r'\*\*([^*,\n]+(?:, [^*,\n]+){3,})\*\*')
 RETIRED_ROOTS = {'core', 'shared', 'plugins', 'bin', 'bench', 'conformance',
                  'migration', 'docs', 'overrides', 'roles', 'packaging'}
 # A dispatched child reads one card instead of a skill and everything it links to.
@@ -229,7 +227,6 @@ def check(root, update_readme=False, acknowledge_docs=False):
                and Path(p).name == 'SKILL.md' and Path(p).parts[1] != 'synced'}
     for name in sorted(entries - set(SKILLS)):
         errors.append(f'unregistered skill: {name}; add it to SKILLS and update the README')
-    orders = {}
     descriptions = {}
     for name in SKILLS:
         folder = root / 'skills' / name
@@ -267,9 +264,6 @@ def check(root, update_readme=False, acknowledge_docs=False):
             continue
         if path.suffix == '.md':
             text = path.read_text(encoding='utf-8')
-            if not relative.startswith('skills/synced/'):
-                for order in ORDER.findall(text):
-                    orders.setdefault(order, []).append(relative)
             for number, line in enumerate(text.splitlines(), 1):
                 # pstack's public repository name overlaps a retired local folder.
                 local_text = re.sub(r'https://github\.com/cursor/plugins/[^\s<>)]+', '', line)
@@ -296,10 +290,6 @@ def check(root, update_readme=False, acknowledge_docs=False):
                 for module in imports:
                     if module.split('.')[0] not in sys.stdlib_module_names:
                         errors.append(f'{relative}: non-stdlib import {module}')
-    if len(orders) > 1:
-        found = '; '.join(f'{order} in {", ".join(sorted(files))}'
-                          for order, files in sorted(orders.items()))
-        errors.append(f'reviewer order differs: {found}')
     return errors
 
 

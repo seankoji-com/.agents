@@ -127,7 +127,7 @@ first dispatch, and run their preflight once.
   repository, base, issue, acceptance criteria, authority, child-slot budget
   and required skills.
 - State the main thread's exact model and effort in each brief for leads and
-  coding workers. Reviewers keep implement's cross-lineage rules. Owner
+  coding workers. Reviewers follow review's selection and eligibility rules. Owner
   choices override both.
 - Record each returned task ID and worktree; no receipt means not dispatched.
 - Never implement an issue fix in this thread. If delegation is unavailable,

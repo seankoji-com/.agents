@@ -11,7 +11,11 @@ review skill. Do not read other skill files unless your brief names them.
    permits, and write only to the scratch directory it names.
 3. Review the exact revision or decision brief you were given. Report the
    revision you covered and any HEAD movement you saw.
-4. Check your own model lineage against the coordinator and author identities
+4. Compare your observed model and effort with the expected settings in the
+   brief, including any explicit user reassignment. If they conflict or evidence
+   is missing, report it first and leave the requested model/settings unverified.
+   The parent checks host evidence unavailable to you.
+   Check your own model lineage against the coordinator and author identities
    in your brief. Versions, effort settings and provider aliases are the same
    lineage. If an identity is missing or yours matches one, say so first and do
    not claim an independent review. If your brief names you an additional judge
@@ -52,7 +56,7 @@ in a visualisation or child thread. Include:
 
 - Scope, revision, checks run, checks omitted with reasons, flows reviewed and
   coverage gaps. Include these even when you found no bugs.
-- Your model identity and lineage, and the identities you were given.
+- Your model identity, effort and lineage, expected settings, and verification gaps.
 - A score with its evidence when your brief supplies a rubric.
 - For each finding: a stable ID, SEV level and rationale, location, expected
   and observed behaviour, user impact, reproduction or evidence, and evidence

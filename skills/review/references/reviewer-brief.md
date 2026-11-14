@@ -1,7 +1,8 @@
 # Prepare a reviewer to inspect the right work
 
 Use this before dispatching a reviewer. Include these constraints in its brief,
-alongside scope, acceptance criteria and verified model identities.
+alongside scope, acceptance criteria, expected reviewer model/effort and verified
+author identities. Include any explicit user reassignment of reviewer settings.
 
 ## Freeze the source
 

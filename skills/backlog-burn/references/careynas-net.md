@@ -29,11 +29,9 @@ of these. A source-only merge does not close a live incident.
   history; every review thread resolved; no direct pushes to `main`.
 - When the implementation model is DeepSeek, the Grumpy Engineer bot is the same
   family and is not the independent review. It is not the review gate. Choose the
-  reviewer under `review`'s eligibility rules; do not pin a model. Opus 5.5
-  (`claudeAgent`, effort medium) is the working choice only when the user names
-  it or it is the first eligible option, and a stronger model is appropriate for
-  `complexity:hard`. Never choose a reviewer that shares the coordinator's or a
-  material author's lineage.
+  reviewer under [review's model selection](../../review/references/model-selection.md)
+  and eligibility rules. Read them before reviewer dispatch; this profile has no
+  separate model or effort default.
 - If the required gatekeeper context is missing or stuck `in_progress`, run the
   supported recovery:
   `gh workflow run call-reusable-pr-gatekeeper.yml --repo seankoji-com/careynas.net --ref main -f head_sha=<sha>`.

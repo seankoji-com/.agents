@@ -496,17 +496,6 @@ class Library(unittest.TestCase):
                     self.assertIn('non-stdlib import', '\n'.join(checker.check(root)))
                     p.unlink()
 
-    def test_reviewer_order_copies_must_match(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            self.fixture(root)
-            self.assertEqual(checker.check(root), [])
-            p = root / 'skills/review/SKILL.md'
-            text = p.read_text()
-            self.assertIn('**Sol, Opus,', text)
-            p.write_text(text.replace('**Sol, Opus,', '**Sol, Argon, Opus,', 1))
-            self.assertIn('reviewer order differs', '\n'.join(checker.check(root)))
-
     def test_external_installs_stay_local_but_force_added_copies_fail(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

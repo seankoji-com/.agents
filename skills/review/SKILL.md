@@ -22,18 +22,16 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    a verified lineage differing from the coordinator and every material model
    author, except for additional judges below. Versions, effort settings and
    provider aliases do not change lineage. Record identities and lineage evidence.
-   Preserve eligible named models/options. For unavailable or ineligible choices,
-   report the conflict and first eligible alternative; hold dependent review
-   until the user accepts it or names another eligible reviewer.
-   With no named reviewer, use implement's cost-aware selection when running
-   inside implement; otherwise choose the first eligible available
-   reviewer in this order: **Sol, Opus, Wonder Full, Argon, Grok 4.7**.
+   Apply [reviewer model selection](references/model-selection.md) to every
+   review, recheck and additional opinion, including inside implement. Preserve
+   named choices and apply its authorised credit/lineage fallbacks and holds.
    **Additional-judge exception:** In review-loop and design-loop, an additional
    judge may share the lineage of the coordinator, implementor or another judge
    when its verified reasoning level is strictly higher than every material
    implementor's. Record exact model/effort settings and supported ordering;
    unknown or incomparable levels require cross-lineage judges. This includes
-   named additional judges, selection, reuse and identity checks. It never replaces
+   named additional judges, selection, reuse and identity checks. Higher effort
+   needs explicit user selection under the model-selection rules. It never replaces
    primary cross-lineage review or required independent code review.
 3. Reuse completed reviews only when eligible against all current authors,
    including repairers, and covering the current head or decision brief.

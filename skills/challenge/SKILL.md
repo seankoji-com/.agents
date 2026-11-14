@@ -46,8 +46,9 @@ reproduced. Preserve disagreement with evidence; do not automatically accept or
 discard a finding because of its reviewer or rarity.
 
 Default to one pass. Add one fresh, targeted second opinion only for a concrete
-unresolved consequential risk or disagreement. Unless explicitly named, choose the
-next eligible unused reviewer lineage in review's ordered list; report unavailable choices.
+unresolved consequential risk or disagreement. Apply review's model-selection
+rules, including their conditional fallbacks, to obtain an eligible unused lineage;
+otherwise report the gap for the user's choice.
 Report unresolved decisions after that; do not loop to unanimity. Follow explicit
 user limits and stop task-owned work when complete or cancelled.
 

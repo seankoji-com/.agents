@@ -178,12 +178,12 @@ A full implementation pool alone does not justify a voluntary wait.
 Prompt: "Burn down the backlog."
 
 State: the main thread uses model A at high effort. Models A and cheaper B are
-available for coding, and model C is an eligible cross-lineage reviewer. No owner model choice
-was supplied. The isolated lead may need a coding worker.
+available for coding. Review's Sol/Opus default is eligible and available. No
+owner model choice was supplied. The isolated lead may need a coding worker.
 
 Expected: select A at high effort for the lead and state those settings as explicit
 choices for the lead and its coding workers in the brief, overriding implement's
-cost optimisation. Preserve eligible cross-lineage review through C; model
+cost optimisation. Use review's eligible Sol/Opus default at high effort; model
 inheritance does not apply to reviewers.
 Do not select B merely because it is cheaper. With an explicit owner choice of B,
 use B for the specified coding scope. If required model or effort settings are

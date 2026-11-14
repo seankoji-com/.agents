@@ -104,6 +104,13 @@ the same way:
 
 The [review](skills/review/SKILL.md) skill applies this in a few rules:
 
+- Reviewers default to Sol at high effort, or Opus at high effort when Sol
+  materially authored the work or shares the coordinator's lineage. On exhausted
+  credits, Sol falls back to Opus, then Sonnet via AGY; Opus falls back to Sonnet
+  via AGY, then Sol. All three use high effort. Only lineage conflicts unlock
+  Grok 4.7, then DeepSeek Flash V4.1 high, then Hydrogen high. Other models require
+  your explicit selection. The [selection rules](skills/review/references/model-selection.md)
+  apply inside `implement` too. If no eligible authorised route remains, review stays pending.
 - The primary reviewer's lineage must differ from the coordinator's and from every
   model that materially wrote the work. A new version, effort setting or provider
   alias of the same model is still the same lineage.
@@ -114,6 +121,7 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
 - When several judges score a loop round, the round takes the lowest score.
 - In `review-loop` and `design-loop`, an additional judge may share a lineage
   when its reasoning level is strictly higher than every implementor's. That
+  may require your explicit choice of higher effort or another model. The
   exception is this library's own judgment, made to widen the judge pool. The
   research above does not test it, and it never replaces the primary
   cross-lineage review.
@@ -368,7 +376,7 @@ It dispatches each worthwhile verified ready issue before reading unrelated
 histories, while continuing discovery and owner questions where the host permits.
 It uses `ship` for delivery and isolated `implement` leads. Coding leads and
 workers default to the main thread's model and effort unless the owner selects another;
-reviewers retain cost-aware selection and cross-lineage eligibility. The main
+reviewers use review's Sol/Opus defaults and cross-lineage eligibility. The main
 coordinator uses the maximum host-supported concurrency up to 20 across every
 delegate it starts, including nested work, investigations and issue filing, with
 child-slot budgets and review headroom.
@@ -386,8 +394,8 @@ host-required yield preserves the queue. Success is a fresh zero for both issues
 and PRs. When only held items and work owned elsewhere remain, the run hands
 back "not zero" with each owner and next trigger.
 
-A strong model coordinates each workflow. The reviewers and workers it starts
-can be cheaper models. They read a short role card instead of a whole skill:
+A strong model coordinates each workflow. Coding workers can use cheaper models;
+reviewers use the defaults above. They read a short role card instead of a whole skill:
 
 - [assigned-reviewer card](skills/review/references/assigned-reviewer.md) for a
   dispatched reviewer or judge.
@@ -487,7 +495,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: a77ee4bce89869507fee6e2c37dc14718d2bb7a5c3fed06cc9b780af3d849592 -->
+<!-- skills-review: 97b1cf6a9684898bc79dff2f928eb3d77c8c98e4738f89ad7d47cd518c3ae6f8 -->
 
 ### Owner maintenance
 

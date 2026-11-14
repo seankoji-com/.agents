@@ -50,8 +50,8 @@ automatically need this loop.
    checks and next action. Use one cross-lineage evaluator per round. Add another
    opinion only for a concrete unresolved risk or disagreement. Additional judges
    may share a lineage under review's higher-reasoning exception. Apply review's
-   selection policy; report unavailable choices. Inside implement, that policy
-   remains cost-aware across all rounds and additional opinions. Routine rechecks
+   selection policy across all rounds and additional opinions, including inside
+   implement; report unavailable choices. Routine rechecks
    can use the original reviewer's lineage
    while it remains eligible under review, including after repairs by new authors.
    Keep the rubric and target fixed; agreement alone is not acceptance.

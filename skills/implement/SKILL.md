@@ -39,9 +39,9 @@ main thread owns acceptance, integration and shipping.
 ## Model and effort selection
 
 Optimise expected total cost across implementation, context, review, retries and
-repairs while meeting the quality bar. Apply this policy to the lead, workers
-and every review round or additional opinion inside implement. Other workflows
-retain review's default preferences.
+repairs while meeting the quality bar. Apply this policy to the lead and coding
+workers. Every reviewer, recheck and additional opinion uses
+[review's model selection](../review/references/model-selection.md).
 
 - Discover provider/model identities, options and tool support; apply
   [T3 preflight](../agent-tuneup/references/t3-dispatch.md) before dispatch. Preserve
@@ -79,8 +79,8 @@ retain review's default preferences.
    the affected work, recommendation and evidence. Continue only independent
    work; do not ask the user directly from a delegate or settle the decision by
    expanding scope. A pending decision makes the handoff incomplete.
-4. Run review-loop as its coordinator, using this skill's model-selection policy
-   and review's shared evidence, severity and eligibility rules. Supply that
+4. Run review-loop as its coordinator, using review's model selection,
+   evidence, severity and eligibility rules. Supply that
    selection context in every review brief. Reviewers work read-only against the
    lead's frozen current state; they do not need a separate coding worktree.
    Include all integrated changes and acceptance criteria. Preserve findings,
@@ -112,8 +112,9 @@ establish readiness.
 
 ## One automatic upgrade
 
-Allow one model or effort upgrade for the whole task, shared by the lead,
-workers and reviewers. It requires evidence of a capability failure or diagnosed
+Allow one model or effort upgrade for the whole task, shared by the lead and
+coding workers. Reviewer changes require review's selection rules.
+It requires evidence of a capability failure or diagnosed
 lack of progress, with a reason the stronger choice should help. An expected
 failing regression test alone is not an escalation reason. Start high-risk work
 at a suitable level rather than relying on a cheap failed attempt.
