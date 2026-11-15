@@ -327,7 +327,7 @@ section{padding-top:22px}.chip{display:inline-block;border:1px solid var(--line)
 .swatch{background:var(--mc)}.ghost-key{background:var(--ghost);border:1px dashed var(--quiet)}.projection-key{border:1px dashed var(--link)}.over-key{border-top:3px solid var(--red)}
 .chart-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
 .chart{min-width:760px;position:relative;padding:0 12px 12px}.plot{position:relative}.chart-row{display:grid;grid-template-columns:214px minmax(0,1fr);position:relative}
-.label{padding:6px 10px 6px 0;min-width:0;position:sticky;left:0;z-index:3;background:var(--panel)}
+.label{padding:6px 10px 6px 0;min-width:0;position:sticky;left:0;z-index:6;background:var(--panel)}
 .task-head .label{font-weight:650}.task-head{border-top:1px solid var(--line)}.task-head .label small{display:block;font-weight:400}
 .task-block.critical-task>.task-head{border-left:3px solid var(--red);padding-left:5px}.lane-name{font-size:12px;font-weight:650}.lane-meta{display:block;color:var(--quiet);font-size:11px}
 .lane.build .label{border-left:2px solid var(--line);padding-left:8px}.lane.review .label{border-left:2px dashed var(--line);padding-left:8px}
