@@ -11,9 +11,10 @@ and decisions; it does not dispatch work or replace the host's task panel.
 
 ## Cadence and ownership
 
-1. Render at plan proposal, at final handback and on request. During a coordinated
-   run with delegates, render on every turn that made progress. Render solo
-   progress only when asked. Skip no-progress turns. Whole-run timelines appear
+1. Render at proposal, task completion, final handback and on request, including
+   solo tasks. Task completion means the agreed endpoint, such as merge or close,
+   not each review or fix round; those get short chat updates. Apply an adopted
+   project's `report_cadence` override when present. Whole-run timelines appear
    only at proposal and final handback; progress reports show the recent timeline.
 2. The main-thread coordinator is the sole ledger writer and presenter. Delegates
    return segment start/completion timestamps, actual model/provider/effort,
@@ -57,8 +58,13 @@ unknown. A recommendation or silence is not a decision. Do not re-prompt every
 progress turn or ask again after an answer is recorded. The coordinator owns
 asking and recording replies; the renderer only displays the ledger.
 
-1. Update as-of, statuses, forecasts, observed segments, review rounds/results,
+1. Read the real clock at render time and set as-of to that observation in
+   Australia/Sydney with its correct offset. Never advance it to a forecast or
+   imagined task completion. Historical observation boundaries remain valid.
+   Update statuses, forecasts, observed segments, review rounds/results,
    decisions and events. Record each change of model or effort as a new segment.
+   Refresh `forecast.end` for every running/review task on every coordinator
+   update, even when no report is due; never invent an ETA to hide a stale forecast.
    Open segments end at as-of for the current view. Mark waiting periods as scoped
    events; do not silently charge them as build/review time.
 2. Copy cost only from exposed host observations. Preserve the source and whether
@@ -84,6 +90,9 @@ asking and recording replies; the renderer only displays the ledger.
    timezone labels; source offsets and DST arithmetic stay intact. The renderer
    is a single relocatable file. Invalid ledgers
    exit nonzero with a useful message; correct the ledger before presenting.
+   Future as-of is rejected against the renderer's clock. Only synthetic replay
+   fixtures may use `--allow-future-fixture`; their output is visibly marked and
+   cannot serve as live evidence. Past fixtures need no exception.
 5. In T3 the main thread uses `html_preview` then `html_render` on the generated
    file. Outside T3 use the host's equivalent artifact or an accessible file link.
    Reports are self-contained and make no network requests. Inspect the timelines

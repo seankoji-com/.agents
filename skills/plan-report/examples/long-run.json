@@ -735,6 +735,7 @@
     {
       "id": "T09",
       "title": "Exercise recovery",
+      "value": "People can resume interrupted work without losing progress.",
       "stream": "Review",
       "dependencies": [
         "T01"

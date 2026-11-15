@@ -32,9 +32,15 @@ other branches remain outside this grant without separate authority.
 
 ## Make the work visible
 
-Apply [plan-report](../plan-report/SKILL.md) at proposal, on each progress turn
-with delegates, at final handback and on request. Skip no-progress turns; solo
-progress needs a request. The main thread presents the report and feeds final
+Read [project settings](references/project-settings.md) at start for routing,
+review limits and ready-work capacity refill. Ship owns the
+[up-front blocker batch](references/start-and-blockers.md) before dispatch;
+read it for manual follow-ups and other runs' processes.
+
+Apply [plan-report](../plan-report/SKILL.md) at proposal, task completion, final
+handback and on request. Review/fix rounds get short chat updates. When completed
+work changes something visible, show a captioned screenshot through the host's
+image tool alongside the completion report. The main thread feeds final
 estimate/actual, model, effort, segment and review-round calibration into the
 retrospective, preserving unknown cost coverage.
 
@@ -138,8 +144,9 @@ current-head check runs do not count as passing. Ship additionally requires:
 
 - Proof covering the current behavior diff, from observed behavior rather than
   mocks alone.
-- raise-pr's current-diff independent review gate passes, and material review
-  findings are addressed.
+- raise-pr's independent review gate passes, including an adopted
+  [single-round exception](../review/references/single-round.md) when applicable;
+  material findings are addressed.
 - Every confirmed bug left unfixed has a verified issue URL or an owned filing
   request under review's tracking rules. Pending filing for bugs already judged
   non-blocking does not block merge; keep the workflow open until required issue

@@ -1,6 +1,7 @@
 """Synthetic plan reporting arithmetic and rejection cases; no host/model calls."""
 import copy
 import ast
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 import importlib.util
 import json
@@ -11,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("plan_ledger", ROOT / "skills/plan-report/scripts/render.py")
@@ -182,6 +184,81 @@ class Disclosures(HTMLParser):
 
 
 class Renderer(unittest.TestCase):
+    def test_running_table_has_stakeholder_value_and_legacy_fallback(self):
+        data = fixture()
+        active = [t for t in data['tasks'] if any(s.get('end') is None for s in t['segments'])]
+        active[0]['value'] = 'Customers can resume interrupted work <safely>.'
+        html = ledger.render(data)
+        rows = Tables(html).cells['running']
+        expected = [[s['model'], t['id'], t.get('value', t['title'])]
+                    for t in active for s in t['segments'] if s.get('end') is None]
+        self.assertEqual(rows, expected)
+        self.assertEqual(re.findall(r'<th\b[^>]*>(.*?)</th>', section_fragment(html, 'running')),
+                         ['Model', 'Task ID', 'Value'])
+        self.assertNotIn('<safely>', html)
+        active[0].pop('value')
+        self.assertEqual(Tables(ledger.render(data)).cells['running'][0][-1], active[0]['title'])
+        for invalid in ('', None, 7):
+            active[0]['value'] = invalid
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(ValueError, 'value'):
+                ledger.render(data)
+
+    def test_completion_history_is_omitted_only_in_report_mode(self):
+        for mode in ('propose', 'report', 'final'):
+            self.assertEqual('recently-completed' in Disclosures(ledger.render(fixture(), mode)).sections,
+                             mode != 'report')
+
+    def test_renderer_clock_rejects_future_but_accepts_history_and_marks_fixture_override(self):
+        data = fixture()
+        boundary = ledger.timestamp(data['project']['as_of'])
+        with mock.patch.object(ledger, 'datetime', wraps=datetime) as clock:
+            clock.now.return_value = boundary
+            ledger.render(data)  # equality at the real observed boundary is allowed
+            clock.now.return_value = ledger.timestamp('2026-10-03T14:59:59Z')
+            with self.assertRaisesRegex(ValueError, 'as_of.*future'):
+                ledger.render(data)
+            html = ledger.render(data, allow_future_fixture=True)
+            self.assertIn('Synthetic fixture', html)
+            self.assertIn('not live evidence', html)
+        self.assertNotIn('Synthetic fixture', ledger.render(fixture()))
+
+    def test_joined_rows_keep_gaps_overlap_and_every_identity(self):
+        data = fixture()
+        task = data['tasks'][0]
+        task.update(status='done', dependencies=[])
+        task['segments'] = [
+            dict(task['segments'][0], id='build-a', start='2026-10-03T00:00:00Z', end='2026-10-03T00:30:00Z'),
+            dict(task['segments'][1], id='review-a', start='2026-10-03T00:30:00Z', end='2026-10-03T01:00:00Z'),
+            dict(task['segments'][0], id='build-gap', start='2026-10-03T02:00:00Z', end='2026-10-03T03:00:00Z'),
+            dict(task['segments'][1], id='review-overlap', start='2026-10-03T02:15:00Z', end='2026-10-03T02:45:00Z', model='Reviewer overlap'),
+        ]
+        data['tasks'] = [task]
+        for collection in ('milestones', 'events', 'decisions', 'rebaselines', 'needs_owner'):
+            data[collection] = []
+        html = section_fragment(ledger.render(data, 'final'), 'whole')
+        lanes = re.findall(r'<div class="chart-row lane joined"[^>]*>(.*?)</div></div>', html, re.S)
+        self.assertEqual(len(lanes), 2)
+        bars = [re.findall(r'<span class="bar (build|review)[^"]*" style="--x:([\d.]+)%;--w:([\d.]+)%', lane) for lane in lanes]
+        self.assertEqual([b[0] for b in bars[0]], ['build', 'review', 'build'])
+        self.assertEqual([b[0] for b in bars[1]], ['review'])
+        first, second, third = bars[0]
+        self.assertAlmostEqual(float(first[1])+float(first[2]), float(second[1]), places=5)
+        self.assertLess(float(second[1])+float(second[2]), float(third[1]))
+        overlap = bars[1][0]
+        self.assertGreater(float(overlap[1]), float(third[1]))
+        self.assertLess(float(overlap[1])+float(overlap[2]), float(third[1])+float(third[2]))
+        for segment in task['segments']:
+            self.assertIn(segment['model'], html)
+
+    def test_active_forecasts_show_eta_and_hatching(self):
+        html = ledger.render(fixture())
+        recent = section_fragment(html, 'recent')
+        self.assertIn('class="eta"', recent)
+        self.assertIn('ETA 04 Oct 2026 04:30', recent)
+        projection_style = re.search(r'\.bar\.projection\{([^}]+)', ledger.CSS).group(1)
+        self.assertIn('dashed', projection_style)
+        self.assertIn('repeating-linear-gradient', projection_style)
+
     def test_whole_run_only_at_run_boundaries_and_links_resolve(self):
         for mode in ('propose', 'report', 'final'):
             with self.subTest(mode=mode):
@@ -400,9 +477,14 @@ class Renderer(unittest.TestCase):
         first = html.split('id="whole-task-0"',1)[1].split('id="whole-task-1"',1)[0]
         self.assertNotIn('data-event="E1"', first)  # finished before provider outage
         affected = html.split('id="whole-task-3"',1)[1].split('id="whole-task-4"',1)[0]
-        build, review = affected.split('class="chart-row lane review"',1)
-        self.assertIn('data-event="E1"', build)
-        self.assertNotIn('data-event="E1"', review)  # different provider
+        # Joined rows retain per-segment attribution instead of shading review
+        # merely because build on the same row experienced the provider event.
+        metadata = re.findall(r'<span class="lane-meta">([^<]*)</span>', affected)
+        build = [label for label in metadata if label.startswith('synthetic-build')]
+        review = [label for label in metadata if label.startswith('synthetic-review')]
+        self.assertTrue(any('events E1' in label for label in build))
+        self.assertTrue(review)
+        self.assertFalse(any('events E1' in label for label in review))
         for width_case in ('light','dark','auto'):
             self.assertIn(f'class="report {width_case}"', ledger.render(data, theme=width_case))
 
@@ -447,6 +529,7 @@ class Renderer(unittest.TestCase):
                 (lambda d:d['tasks'][0]['dependencies'].append('absent'),'unknown dependency id: absent'),
                 (lambda d:d['tasks'][0]['segments'][0].update(end='2026-10-02T00:00:00Z'),'ends before it starts'),
                 (lambda d:d['tasks'][0].pop('baseline'),'missing approved baseline'),
+                (lambda d:d['project'].update(as_of='2099-01-01T00:00:00Z'),'as_of is in the future'),
             ]:
                 data=fixture()
                 mutate(data)
@@ -456,6 +539,10 @@ class Renderer(unittest.TestCase):
                 self.assertIn(expected,result.stderr)
                 self.assertNotIn('Traceback',result.stderr)
                 self.assertEqual(output.read_bytes(),saved)
+            replay = subprocess.run(command+['--allow-future-fixture'], cwd=foreign,
+                                    text=True, capture_output=True)
+            self.assertEqual(replay.returncode, 0, replay.stderr)
+            self.assertIn('Synthetic fixture replay, not live evidence.', output.read_text())
 
     def test_renderer_syntax_is_compatible_with_minimum_python(self):
         source=(ROOT/'skills/plan-report/scripts/render.py').read_text()

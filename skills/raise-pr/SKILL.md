@@ -90,9 +90,11 @@ the missing review, waiver and remaining risk in the PR. A draft request alone
 is not a review waiver. Waivers do not bypass repository protections.
 
 Address actionable findings within authorization and obtain review of material
-code changes made afterward. For existing PRs, material changes may be pushed
+code changes made afterward, except repairs covered by the adopted
+[single-round procedure](../review/references/single-round.md); read it before
+claiming coordinator verification instead of re-review. For existing PRs, material changes may be pushed
 for hosted checks, previews and independent review. Disclose pending review and
-require it before merge. Existing eligible agent reviewers can review after the
+require applicable review or coordinator verification before merge. Existing eligible agent reviewers can review after the
 push; this does not require the repairing agent to dispatch a reviewer. If no
 eligible reviewer is available, report the merge gate and who must supply review.
 Treat changes to tests, CI workflows and configuration as material when they

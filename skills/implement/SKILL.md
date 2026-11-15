@@ -10,9 +10,11 @@ codes directly, delegates substantial independent parts when useful, and runs
 [review-loop](../review-loop/SKILL.md) before returning reviewed commits. The
 main thread owns acceptance, integration and shipping.
 
+Read [project settings](../ship/references/project-settings.md) at start for
+routing, review limits and ready-work capacity refill.
 The main thread applies [plan-report](../plan-report/SKILL.md) at proposal,
-on each progress turn with delegates, at final handback and on request. Skip
-no-progress turns; solo progress needs a request. Leads return timing and cost
+task completion, final handback and on request. Review/fix rounds get short chat
+updates. Leads return timing and cost
 observations; only the main thread presents the report.
 
 ## Main-thread responsibilities
@@ -98,7 +100,8 @@ The main thread returns the settled answer to the same lead child thread through
 `t3_thread_send`, restating the coordinator role, dispatch authority, scores,
 counters and explicit limits, and recording the returned task handle. Before resuming, the lead
 verifies its existing worktree, branch, HEAD and ledger against the handoff.
-Resume the existing lead; never create a replacement checkout or lead. If its
+Resume the existing lead for a settled decision; owner routing changes use the
+[routing handoff](references/routing-changes.md). Never create a replacement checkout. If its
 bound checkout cannot be recovered, report the blocker.
 
 If nested reviewer dispatch is unavailable, the lead returns checkpointed work
@@ -113,30 +116,13 @@ establish readiness.
 
 ## One automatic upgrade
 
-Allow one model or effort upgrade for the whole task, shared by the lead and
-coding workers. Reviewer changes require review's selection rules.
-It requires evidence of a capability failure or diagnosed
-lack of progress, with a reason the stronger choice should help. An expected
-failing regression test alone is not an escalation reason. Start high-risk work
-at a suitable level rather than relying on a cheap failed attempt.
-
-Record the consumed upgrade before dispatching it. Preserve the worktree state,
-author identities, findings, review-loop scores and stagnation counter; changing models
-does not reset any budget. Stop replaced tasks through T3 before handing their
-ownership to another writer. Cancelling a lead also stops its descendants.
-For stronger implementation, the lead may use the upgrade on a worker launched
-from its current committed checkpoint and remain the coordinator. Do not pretend
-the running lead's model changed. If the coordinator itself must be replaced
-and T3 cannot preserve its checkout through a supported route, return a blocker
-with the checkpoint handoff rather than starting again from the parent's base.
-
-If the upgraded attempt is still stuck, or safe escalation is unsupported,
-return the blocker and preserved work. Do not launch a second upgrade or label
-budget exhaustion as success.
+Read [routing changes](references/routing-changes.md) before an upgrade,
+owner-directed reassignment or moved-base conflict. It owns the single automatic
+upgrade, checkpoint/cancellation handoff and preservation of the owning checkout.
 
 ## Ready work and return
 
-Create scoped local commits and complete review-loop against the returned
+Create scoped local commits and complete the applicable review policy against the returned
 revision. Ready means the agreed criteria, required checks and applicable
 runtime/UI evidence are met, with an eligible completed cross-lineage review
 and finding dispositions allowed by review. Missing material evidence or

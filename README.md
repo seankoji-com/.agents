@@ -195,14 +195,36 @@ Final calibration compares estimates, actual work and review rounds by model
 and effort, with known costs and unknown coverage kept explicit. Changed models
 are marked not comparable rather than inheriting another model's estimate.
 
-`ship`, `backlog-burn` and `implement` use it at proposal, on every progress turn
-with delegates, at final handback and on request. Solo progress needs a request;
-no-progress turns are skipped. Whole-run timelines appear only at proposal and
+`ship`, `backlog-burn` and `implement` use it at proposal, task completion,
+final handback and on request, including solo tasks. Review and fix rounds get
+short chat updates. Whole-run timelines appear only at proposal and
 final handback; progress reports show the recent timeline. Empty collapsible
 sections are omitted. Only the main thread presents the report. The
 ledger and reports stay in a verified ignored worktree directory, outside GitHub;
 removing that worktree loses them. Host cost capabilities and their limits are
 documented in the skill's [cost evidence](skills/plan-report/references/host-costs.md).
+
+Task bars join solid build and striped review sections, preserve waiting gaps
+and put overlapping work on additional rows. Running forecasts have dashed,
+hatched sections labelled ETA. The recent view covers the last four and next
+four hours. Running now shows model, task ID and the value of the work; completed
+history stays out of progress reports. Future observation timestamps are rejected.
+
+`ship` batches foreseeable owner decisions before dispatch. Agreed owner-only
+manual follow-ups remain unverified and tracked, while required gates still
+block delivery. Completed visible work gets a captioned screenshot in the thread.
+The project's [Delegation settings](skills/ship/references/project-settings.md)
+can name routes, capacity ceilings, cadence and screenshot commit permission.
+Ready independent work refills available capacity within authority. Routing
+changes preserve checkpoints and checkout ownership; they add a new model segment.
+Lineage rules and DeepSeek's OCR-only restriction still apply. Opting into
+`review_rounds: 1` keeps primary and companion coverage and permits coordinator
+verification of that round's repairs, disclosed as not independently re-reviewed.
+The original score stays reported; coordinator verification replaces that score
+gate for eligible repairs.
+New behavior and later CI/bot findings retain normal review. Before each merge,
+fresh rules determine the explicit method; named-check exceptions need actual
+authority and their scope appears in the merge message and read-back.
 
 Suppose you want to add a replay to a browser game. You know the outcome, but
 have not decided how replay timing should work.
@@ -529,7 +551,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 313dba00913a8f53c1e248a3f5ebaaabdf7a0bd6a299037ceae353c2f7cfe6da -->
+<!-- skills-review: 1a730c6cdd54f82122dd8e62b74bb8d0a96176823c83adf7549f7ae777c5b89c -->
 
 ### Owner maintenance
 

@@ -28,6 +28,33 @@ an appropriate bootstrap or configuration repair; explicit owner-approved bypass
 or exclusion is a separate option only where supported. Do not change rules,
 create synthetic success statuses or bypass protections under this preflight.
 
+## Immediately before every merge
+
+Refresh effective rulesets, classic protection and repository merge settings,
+even when the base and policy appear unchanged. Reconcile the exact head/base,
+current-head checks, approvals, thread dispositions and applicable review
+exceptions. Failed reads leave requirements unknown. Pass the explicit allowed
+merge method and expected head SHA where supported; honor queues.
+
+A dead required check is a concrete owner question. Identify its producer,
+current evidence, affected head and proposed repair or exception. Existing
+authority must name the check and scope before bypass. Never infer permission
+from runner delay or manufacture a success status. A general admin bypass may
+waive more than one check: if the host cannot restrict it, establish that all
+other gates pass and obtain explicit authority for the actual broader mechanism,
+or hold. Do not alter rules or waive human gates under a named-check exception.
+Record the named exception and owner authority in the merge/squash commit
+message, and read back that message. If the API cannot preserve the required
+message, report the limitation before merging.
+
+Read back GitHub's merged state, landed commit, parents, message and resulting
+base. Compare them with the requested method and source. Two parents identify a
+merge commit; one parent is consistent with squash but also with rebase or
+fast-forward. Confirm the method using the merge action and landed changes,
+not parent count alone. Queue-generated results follow the queue's semantics.
+Unexpected results remain an explicit delivery discrepancy; never rewrite
+shared history to disguise them.
+
 ## Check validation skipped by a stacked base
 
 For a non-default base, inspect relevant validation workflows against the scoped

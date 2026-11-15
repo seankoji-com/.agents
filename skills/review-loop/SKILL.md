@@ -90,17 +90,21 @@ automatically need this loop.
    appeasing the reviewer. Preserve original finding IDs and append fixed,
    rejected or deferred evidence. Track diff growth as a prompt to examine scope,
    not a line-count target.
-6. Later rounds use fresh read-only evaluation tasks focused on changed behavior
-   and unresolved findings. Supply the full scoped diff, the delta since the last
+6. For adopted `review_rounds: 1`, apply bounded
+   [coordinator verification](../review/references/single-round.md); read it before using that exception.
+   Otherwise later rounds use fresh read-only evaluation tasks focused on changed
+   behavior and unresolved findings. Supply the full scoped diff, the delta since the last
    review, checks and finding ledger. Broaden review when a change affects shared
    assumptions, interfaces or previously reviewed behavior. Keep the phase's base
    and scope explicit; if either changes, record why and reassess affected evidence.
    Re-review material behavior changes, unresolved consequential findings or gaps
    in acceptance coverage. Editorial corrections and declined nits need no new
    round. Never transfer approval across unreviewed behavior or shop for reviewers.
-7. Accept when the score meets target, evidence covers current behavior, criteria are met
+7. Accept when evidence covers current behavior, criteria are met
    and remaining findings have explicit dispositions consistent with
-   review's release treatment. An approved exception does not mean the bug is fixed. Incomplete
+   review's release treatment. Require the score target unless the adopted
+   [single-round exception](../review/references/single-round.md) replaces that score gate.
+   An approved exception does not mean the bug is fixed. Incomplete
    visual review remains an evidence gap in the release recommendation.
    Reviewer verdicts inform that decision; agreement alone does not prove it.
    The parent decides deferrals and retains severity and supporting evidence.

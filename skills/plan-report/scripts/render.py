@@ -98,6 +98,8 @@ def validate(data):
     by_id = {}
     for task in tasks:
         text_fields(task, ("id", "title", "stream", "status"), "task")
+        if 'value' in task:
+            text_fields(task, ('value',), 'task')
         tid = task["id"]
         require(tid not in by_id, f"duplicate task id: {tid}")
         by_id[tid] = task
@@ -358,15 +360,16 @@ section{padding-top:22px}.chip{display:inline-block;border:1px solid var(--line)
 .label{padding:6px 10px 6px 0;min-width:0;position:sticky;left:0;z-index:6;background:var(--panel)}
 .task-head .label{font-weight:650}.task-head{border-top:1px solid var(--line)}.task-head .label small{display:block;font-weight:400}
 .task-block.critical-task>.task-head{border-left:3px solid var(--red);padding-left:5px}.lane-name{font-size:12px;font-weight:650}.lane-meta{display:block;color:var(--quiet);font-size:11px}
-.lane.build .label{border-left:2px solid var(--line);padding-left:8px}.lane.review .label{border-left:2px dashed var(--line);padding-left:8px}
+.lane.joined .label{border-left:2px solid var(--line);padding-left:8px}.segment-label{display:block;margin-bottom:5px}
 .track{position:relative;min-height:34px;background:repeating-linear-gradient(to right,var(--line) 0 1px,transparent 1px 20%);border-bottom:1px dotted var(--line)}
 .task-head .track{min-height:42px}.axis .label{font-size:11px}.axis .track{height:48px;position:relative;background:none;border:0}
 .tick{position:absolute;left:var(--x);font-size:10px;line-height:1.2;white-space:nowrap;transform:translateX(-50%);top:6px;color:var(--quiet)}
 .tick.first{transform:none}.tick.last{transform:translateX(-100%)}.now{position:absolute;left:var(--x);top:0;bottom:0;border-left:1.5px solid var(--ink);z-index:4;pointer-events:none}
 .bar,.baseline,.overrun,.event-band{position:absolute;left:var(--x);width:var(--w)}
-.bar{top:10px;height:18px;border:1px solid var(--mc);border-radius:2px;background:var(--mc);z-index:2;min-width:2px}
+.bar{top:10px;height:18px;border:1px solid var(--mc);border-radius:0;background:var(--mc);z-index:2;min-width:2px}
 .bar.review{background-image:repeating-linear-gradient(135deg,transparent 0 4px,#ffffff50 4px 5px)}
-.bar.open{outline:2px solid var(--ink);outline-offset:1px}.bar.projection{background:transparent;border:1.5px dashed var(--mc)}
+.bar.open{outline:2px solid var(--ink);outline-offset:1px}.bar.projection{background:repeating-linear-gradient(135deg,transparent 0 5px,var(--mc) 5px 6px);border:1.5px dashed var(--mc)}
+.eta{position:absolute;left:var(--x);top:30px;transform:translateX(-100%);font-size:10px;white-space:nowrap;background:var(--panel);color:var(--ink);z-index:5}.lane .track{min-height:48px}
 .baseline{top:8px;height:9px;border:1px dashed var(--quiet);background:var(--ghost);min-width:2px}
 .overrun{top:27px;border-top:3px solid var(--red);min-width:2px}.overrun.projected{border-top-style:dashed}
 .event-band{top:2px;bottom:2px;background:#e4b24238;border:1px dotted var(--amber);z-index:1;min-width:2px}
@@ -389,10 +392,10 @@ function connect(){document.querySelectorAll('.chart').forEach(chart=>{
  const box=plot.getBoundingClientRect();if(!(box.width>0&&box.height>0))return;
  const viewBox=`0 0 ${box.width} ${box.height}`;if(svg.getAttribute('viewBox')!==viewBox)svg.setAttribute('viewBox',viewBox);
  const rows=Array.from(plot.querySelectorAll('.task-block'));
- function point(row,finish){const lanes=row.querySelectorAll('.lane .track');
-  const track=lanes.length?lanes[finish?lanes.length-1:0]:row.querySelector('.task-head .track');
+ function point(row,finish){const lane=row.querySelector(`.lane[data-lane="${row.dataset[finish?'finishLane':'beginLane']}"]`);
+  const track=lane?lane.querySelector('.track'):row.querySelector('.task-head .track');
   const r=track.getBoundingClientRect(), f=Number(row.dataset[finish?'finish':'begin']);
-  return [r.left-box.left+f*r.width,r.top-box.top+r.height/2];}
+  return [r.left-box.left+f*r.width,r.top-box.top+19];}
  svg.querySelectorAll('.dependency').forEach(path=>{const a=rows.find(r=>r.dataset.node===path.dataset.from),b=rows.find(r=>r.dataset.node===path.dataset.to);
   if(!a||!b)return;const [x,y]=point(a,true),[u,v]=point(b,false),mid=(y+v)/2;
   path.setAttribute('d',`M${x},${y} V${mid} H${u} V${v}`);});
@@ -400,7 +403,8 @@ function connect(){document.querySelectorAll('.chart').forEach(chart=>{
   const lanes=Array.from(row.querySelectorAll('.lane[data-lane]'));
   const a=lanes.find(r=>r.dataset.lane===path.dataset.fromLane), b=lanes.find(r=>r.dataset.lane===path.dataset.toLane);if(!a||!b)return;
   const p=a.querySelector('.track').getBoundingClientRect(),q=b.querySelector('.track').getBoundingClientRect();const x=q.left-box.left+Number(path.dataset.x)*q.width;
-  path.setAttribute('d',`M${x},${p.top-box.top+p.height/2} V${q.top-box.top+q.height/2}`);});
+  const y=p.top-box.top+19,v=q.top-box.top+19;
+  path.setAttribute('d',a===b?`M${x},${y-12} V${y+12}`:`M${x},${y} V${v}`);});
  });}
 let connectFrame=0;
 function scheduleConnect(){if(connectFrame)return;connectFrame=requestAnimationFrame(()=>{connectFrame=0;connect();});}
@@ -502,6 +506,23 @@ def projection(task, now):
     return output
 
 
+def segment_rows(task, now):
+    """Pack actual intervals without closing gaps or covering concurrent work."""
+    entries = [(s, False, f'a{i}') for i, s in enumerate(task['segments'])]
+    entries += [(s, True, f'f{i}') for i, s in enumerate(projection(task, now))]
+    entries.sort(key=lambda entry: (*interval(entry[0], 'segment', now), entry[2]))
+    rows, ends = [], []
+    for entry in entries:
+        start, end = interval(entry[0], 'segment', now)
+        row = next((i for i, finish in enumerate(ends) if finish <= start), len(rows))
+        if row == len(rows):
+            rows.append([])
+            ends.append(end)
+        rows[row].append(entry)
+        ends[row] = end
+    return rows
+
+
 def timeline(data, name, lo, hi, palette):
     now = timestamp(data["project"]["as_of"])
     span = max(1, (hi-lo).total_seconds())
@@ -554,30 +575,35 @@ def timeline(data, name, lo, hi, palette):
                     header_marks += f'<i class="overrun {"projected" if projected else ""}" style="{style}" title="{fmt(over)}m past original finish"></i>'
         deptext = ', '.join(task["dependencies"]) or 'none'
         over_chip = f'<span class="chip over">+{fmt(over)}m finish</span>' if over else ''
-        rows.append(f'<div class="task-block {"critical-task" if task["id"] in critical else ""}" data-node="{index}" data-begin="{fraction(begin)}" data-finish="{fraction(end)}" id="{name}-task-{index}">'
+        packed = segment_rows(task, now)
+        boundaries = [(interval(s, 'segment', now), f'j{ri}') for ri, row in enumerate(packed) for s, _, _ in row]
+        begin_lane = min(boundaries, key=lambda x: x[0][0])[1] if boundaries else ''
+        finish_lane = max(boundaries, key=lambda x: x[0][1])[1] if boundaries else ''
+        rows.append(f'<div class="task-block {"critical-task" if task["id"] in critical else ""}" data-node="{index}" data-begin="{fraction(begin)}" data-finish="{fraction(end)}" data-begin-lane="{begin_lane}" data-finish-lane="{finish_lane}" id="{name}-task-{index}">'
                     f'<div class="chart-row task-head"><div class="label">{esc(task["id"])} · {esc(task["title"])} {chip(task["status"])} '
                     f'{over_chip}'
                     f'<small>{esc(task["stream"])} · Depends on {esc(deptext)}</small></div><div class="track">{header_marks}{now_line()}</div></div>')
         rendered, marked_events = [], set()
-        for kind in ("build", "review"):
-            lanes = [(s, False, f'a{si}') for si,s in enumerate(observed) if s["kind"] == kind] + [(s, True, f'f{si}') for si,s in enumerate(future) if s["kind"] == kind]
-            if not lanes:
-                rows.append(f'<div class="chart-row lane {kind}"><div class="label"><span class="lane-name">{kind.title()}</span><span class="lane-meta">No segment recorded</span></div><div class="track">{now_line()}</div></div>')
-            for segment, projected, lane_id in lanes:
+        for ri, lane in enumerate(packed):
+            labels, marks, projected_ends = [], '', []
+            lane_id = f'j{ri}'
+            for segment, projected, _ in lane:
                 a, b = interval(segment, "segment", now)
                 if name == "recent" and (b <= lo or a >= hi):
                     continue
                 rendered.append((segment, projected, lane_id))
+                kind = segment['kind']
                 colour = palette[(segment["provider"], segment["model"])]
                 code = f'R{segment["round"]}' if kind == "review" else 'B'
                 status = 'planned' if projected else 'running' if segment.get("end") is None else 'done'
                 label = f'Projection {code}' if projected else code
                 clipped = ' · clipped at window edge' if a < lo or b > hi else ''
                 desc = f'{kind.title()} {code} · {segment["model"]} · {segment["effort"]} · {display_time(segment["start"])} to {display_time(b.isoformat())}{clipped}'
-                marks = ''
                 style = position(a, b)
                 if style:
                     marks += f'<span class="bar {kind} {"projection" if projected else "open" if segment.get("end") is None else ""}" style="{style};--mc:{colour}" title="{esc(desc)}" aria-label="{esc(desc)}"></span>'
+                    if projected:
+                        projected_ends.append(b)
                 event_ids = []
                 for ei, event in enumerate(data.get("events", [])):
                     scope = event["scope"]
@@ -593,8 +619,15 @@ def timeline(data, name, lo, hi, palette):
                             marked_events.add(ei)
                             marks += f'<i class="event-band" data-event="E{ei+1}" style="{style}" title="E{ei+1}: {esc(event["kind"]+": "+event["note"])}"></i>'
                 result = '' if projected else f'<span class="lane-meta">{esc(segment.get("result", ""))}</span>'
-                rows.append(f'<div class="chart-row lane {kind}" data-lane="{lane_id}"><div class="label"><span class="lane-name">{label} · {esc(segment["model"])} · {esc(segment["effort"])}</span> {chip(status)}'
-                            f'<span class="lane-meta">{esc(segment["provider"])}{esc(clipped)}{esc(" · events " + ", ".join(event_ids)) if event_ids else ""}</span>{result}</div><div class="track">{marks}{now_line()}</div></div>')
+                labels.append(f'<span class="segment-label"><span class="lane-name">{label} · {esc(segment["model"])} · {esc(segment["effort"])}</span> {chip(status)}'
+                              f'<span class="lane-meta">{esc(segment["provider"])}{esc(clipped)}{esc(" · events " + ", ".join(event_ids)) if event_ids else ""}</span>{result}</span>')
+            if not labels:
+                continue
+            if projected_ends and task['status'] in {'running', 'review'}:
+                at = min(max(projected_ends), hi)
+                outside = ' · outside window' if timestamp(task['forecast']['end']) > hi else ''
+                marks += f'<span class="eta" style="--x:{fraction(at)*100:.6f}%">ETA {esc(display_time(task["forecast"]["end"]))}{outside}</span>'
+            rows.append(f'<div class="chart-row lane joined" data-lane="{lane_id}"><div class="label">{"".join(labels)}</div><div class="track">{marks}{now_line()}</div></div>')
         # Waiting is visible without inventing a build/review segment or cost.
         for ei, event in task_events:
             if ei in marked_events:
@@ -634,7 +667,7 @@ def timeline(data, name, lo, hi, palette):
             '<p class="chart-note">Solid build; striped review. Each segment has its full model, effort, round and status beside it. '
             'Grey ghost: original estimate. Red rail: finish past original (dashed = forecast). Thin navy tick: build/review handoff. Dotted arrows: dependencies. '
             'Amber bands: scoped events; E numbers refer to the events table. Vertical navy line: now. '
-            'Dashed bars divide the remaining forecast in proportion to original allocations; they are estimates. Scroll horizontally on narrow screens.</p>')
+            'Joined sections preserve gaps; concurrent work uses additional rows. Dashed, hatched bars divide the remaining forecast in proportion to original allocations; ETA is the expected task finish. Scroll horizontally on narrow screens.</p>')
     return section_html('Whole-run timeline' if name=='whole' else 'Recent timeline', body, name, collapsed=name!='recent')
 
 
@@ -691,7 +724,7 @@ def calibration_html(data):
     return content + table('Cost by model', ['Model / provider', 'Tokens', 'Turns', 'USD'], costrows, 'costs', True)
 
 
-def render(data, mode="report", theme="auto", recent_hours=4):
+def render(data, mode="report", theme="auto", recent_hours=4, allow_future_fixture=False):
     validate(data)
     require(mode in {"propose", "report", "final"}, "mode must be propose, report or final")
     require(theme in {"auto", "light", "dark"}, "theme must be auto, light or dark")
@@ -699,6 +732,8 @@ def render(data, mode="report", theme="auto", recent_hours=4):
             "recent-hours must be positive and finite")
     project, tasks = data["project"], data["tasks"]
     now = timestamp(project["as_of"])
+    require(allow_future_fixture or now <= datetime.now(timezone.utc),
+            'project.as_of is in the future relative to renderer clock')
     identities = {(s["provider"], s["model"]) for t in tasks for s in t["segments"]}
     identities |= {(t["owner"]["provider"], t["owner"]["model"]) for t in tasks}
     identities |= {(a["provider"], a["model"]) for t in tasks for a in t.get("baseline", {}).get("allocations", [])}
@@ -713,6 +748,8 @@ def render(data, mode="report", theme="auto", recent_hours=4):
         cp_refs.append(f'<a href="#whole-task-{index}">{esc(tid)}</a>' if boundary
                        else f'<span class="task-ref">{esc(tid)}</span>')
     content = f'<main class="report {theme}"><header><div class="topline"><span>Plan report · {mode}</span><span>{esc(project["status"])}</span></div><h1>{esc(project["name"])}</h1><p>As of <strong>{esc(display_time(project["as_of"]))}</strong></p>'
+    if allow_future_fixture:
+        content += '<p role="note">Synthetic fixture replay, not live evidence.</p>'
     content += f'<div class="facts"><div><strong>Next milestone / gate</strong>{next_text}</div><div><strong>Original plan</strong>{"Approved " + esc(display_time(data["approval"]["at"])) + " · " + esc(data["approval"]["approver"]) if data.get("approval") else "Proposal · approval pending"}</div>'
     content += '<div class="critical"><strong>Current critical path · remaining forecast durations</strong>' + (' → '.join(cp_refs) or 'No remaining tasks') + '</div></div></header>'
     stale = [t['id'] for t in tasks if t['status'] not in {'done','cancelled'} and timestamp(t['forecast']['end']) < now]
@@ -739,8 +776,8 @@ def render(data, mode="report", theme="auto", recent_hours=4):
     content += '<div class="tables">'
     content += decision_table(decisions)
     running = [(t,s) for t in tasks for s in t['segments'] if s.get('end') is None]
-    content += table('Running now', ['Model / effort', 'Task / lane', 'Observed minutes'],
-                     [[identity_label(s), esc(t['id']+' · '+t['title'])+f'<small>{esc(s["kind"])} · round {s["round"]} · {esc(s["host_id"])}</small>', fmt(segment_minutes(s, project['as_of']))] for t,s in running], 'running')
+    content += table('Running now', ['Model', 'Task ID', 'Value'],
+                     [[esc(s['model']), esc(t['id']), esc(t.get('value', t['title']))] for t,s in running], 'running')
     overruns = []
     for task in tasks:
         if task.get('baseline'):
@@ -752,7 +789,8 @@ def render(data, mode="report", theme="auto", recent_hours=4):
     content += table('Events', ['Time / source', 'Event', 'Scope'],
                      [[esc(display_time(e['start']))+f'<small>to {esc(display_time(e["end"]) if e.get("end") else "as of (open)")} · {esc(e["source"])}</small>', f'E{i+1} · {esc(e["kind"])}<small>{esc(e["note"])}</small>', esc(json.dumps(e['scope'],ensure_ascii=False))] for i,e in enumerate(data.get('events', []))], 'events')
     completions = sorted([(t,s) for t in tasks for s in t['segments'] if s.get('end')], key=lambda x: timestamp(x[1]['end']), reverse=True)[:20]
-    content += table('Recently completed', ['Finished', 'Task / lane / round', 'Model / result'],
+    if mode != 'report':
+        content += table('Recently completed', ['Finished', 'Task / lane / round', 'Model / result'],
                      [[esc(display_time(s['end'])), esc(t['id']+' · '+t['title'])+f'<small>{esc(s["kind"])} · round {s["round"]}</small>', identity_label(s)+f'<small>{esc(s.get("result", ""))}</small>'] for t,s in completions], 'recently-completed', True)
     content += table('Milestones and gates', ['Name / status', 'Target', 'Tasks / required reviewers'],
                      [[esc(m['id']+' · '+m['name'])+f'<small>{esc(m["kind"])} · {esc(m["status"])}</small>', esc(display_time(m['target'])), esc(', '.join(m['tasks']))+f'<small>{esc(", ".join(m["required_reviewers"]))}</small>'] for m in data.get('milestones', [])], 'milestones', True)
@@ -774,11 +812,12 @@ def main():
     parser.add_argument('--mode', choices=('propose','report','final'), default='report')
     parser.add_argument('--theme', choices=('auto','light','dark'), default='auto')
     parser.add_argument('--recent-hours', type=float, default=4, help='Hours before and after as-of in the recent timeline (default: 4 each)')
+    parser.add_argument('--allow-future-fixture', action='store_true', help='Allow future synthetic fixtures and visibly mark output as not live evidence')
     args = parser.parse_args()
     try:
         require(args.ledger.resolve() != args.output.resolve(), 'output must not overwrite ledger')
         data = json.loads(args.ledger.read_text(encoding='utf-8'))
-        html = render(data, args.mode, args.theme, args.recent_hours)
+        html = render(data, args.mode, args.theme, args.recent_hours, args.allow_future_fixture)
         args.output.write_text(html, encoding='utf-8')
     except (ValueError, OSError, OverflowError, TypeError, KeyError, RecursionError) as exc:
         print(f'plan-report: {exc}', file=sys.stderr)

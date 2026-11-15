@@ -9,8 +9,8 @@ Review the requested scope against its requirements. Cross-lineage restrictions
 apply only to written code and its material model authors. The orchestrator's
 lineage is irrelevant unless it also wrote that code. Plans, prose and visual
 judgments have no lineage exclusion.
-This skill also owns review evidence and severity; it
-grants no authority to repair, file issues or release.
+Read [project settings](../ship/references/project-settings.md) at start.
+This skill owns review evidence and severity; it grants no repair, filing or release authority.
 
 ## Obtain an independent review
 
@@ -45,7 +45,9 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    limits. OCR runs through its library CLI, not host-agent model dispatch.
    External reviews must meet these identity, scope and reporting rules;
    otherwise report the specific review gate.
-4. Follow the caller's stopping rule across repairs and resumes. Review-loop
+4. For adopted `review_rounds: 1`, apply the
+   [single-round procedure](references/single-round.md) before repairs.
+   Otherwise follow the caller's stopping rule across repairs and resumes. Review-loop
    and design-loop use score targets and two-round stagnation without a required
    cap; their evaluations do not inherit the standalone limit. A
    standalone review allows at most three rounds, including failed attempts.

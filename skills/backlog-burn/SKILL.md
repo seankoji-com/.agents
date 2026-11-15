@@ -7,9 +7,9 @@ description: Burn a repository's open issues and pull requests down to zero, or 
 
 Close delivered or obsolete issues and PRs with evidence; run fixes while triaging.
 
-Apply [plan-report](../plan-report/SKILL.md) at proposal, on each progress turn
-with delegates, at final handback and on request. Skip no-progress turns; solo
-progress needs a request. The main thread presents the report.
+Apply [plan-report](../plan-report/SKILL.md) at proposal, task completion, final
+handback and on request. Review/fix rounds get short chat updates.
+The main thread presents the report.
 
 ## The turn rule
 

@@ -12,9 +12,9 @@ Elapsed arithmetic uses UTC across daylight-saving transitions. Durations are mi
 | Object | Fields |
 | --- | --- |
 | Root | `version: 1`, `project`, `approval` (null before approval), nonempty `tasks`; arrays `milestones`, `events`, `decisions`, `rebaselines` (default empty). Legacy `needs_owner` is still accepted. |
-| Project | `name`, `timezone: "Australia/Sydney"`, `start`, `as_of`, human-readable `status`. As-of is the observation boundary. |
+| Project | `name`, `timezone: "Australia/Sydney"`, `start`, `as_of`, human-readable `status`. As-of is the observed clock boundary, never later than the renderer's clock. Historical boundaries are valid. |
 | Approval | `at`, `approver`. Every task then requires an original `baseline`. Preserve approved values. |
-| Task | Unique `id`, `title`, `stream`, `dependencies` (task IDs), `owner` identity, `status`, `forecast`, `segments`, optional `baseline`, `cost`, `issues` and `prs` (text reference arrays). Status: planned, ready, running, review, blocked, done, cancelled. |
+| Task | Unique `id`, `title`, `stream`, `dependencies` (task IDs), `owner` identity, `status`, `forecast`, `segments`, optional `value` (nonempty one-sentence stakeholder benefit), `baseline`, `cost`, `issues` and `prs` (text reference arrays). Status: planned, ready, running, review, blocked, done, cancelled. Running now uses Model, Task ID and Value columns, falling back to title when value is absent. Effort remains in segment detail and calibration. |
 | Identity | Nonempty `provider`, `model`, `effort`. Record actual identities; use the literal `unknown` where unexposed. |
 | Baseline | `start`, `allocations` (nonempty), `review_rounds` (nonnegative integer). The baseline finish is start plus allocation minutes. The original is immutable by convention; a standalone file cannot prove its own edit history. |
 | Allocation | `kind` (build/review), `minutes` (nonnegative), identity fields. Multiple allocations allow known model changes. Use sequential wall-clock budgets; do not hide parallel work in one task. |
@@ -81,9 +81,10 @@ accuracy uses segment duration, not the task's start-to-finish span, so recorded
 waiting time does not inflate model performance metrics. Overlapping delegates
 do not make their summed minutes a project wall-clock duration.
 
-The renderer adopts the Lane Ledger design: separate labelled build/review
-lanes and status chips. Full identities
-sit outside bars so short or clipped segments remain readable. The header has a
+The renderer joins chronological solid build and striped review sections on a
+task row, leaving real gaps empty. Overlapping work uses additional rows, never
+summed or serialized durations. Full identities and round/status labels sit
+outside bars so short or clipped segments remain readable. The header has a
 compact pending-question indicator linked to Decision record, rather than a prompt
 form. Recent is first and expanded, with `--recent-hours` hours of lookback and the
 same lookahead (four each by default). Each later user-facing section has its own
@@ -98,8 +99,13 @@ events likewise intersect those lanes. Model colour is supported by explicit tex
 An event during a task's waiting period gets a separate event-only row; it does
 not invent build/review work or cost. Active blocked tasks remain in the recent view.
 Milestones and rebaseline markers each get a separate row to avoid label collisions.
-Forecast bars divide the remaining forecast interval in proportion to original
-allocations (review only during an active review); they do not infer new budgets.
+Forecast bars use dashed outlines and hatching, with a visible ETA clock label
+for running/review tasks. They divide the remaining forecast interval in
+proportion to original allocations (review only during an active review); they
+do not infer new budgets. Refresh active forecasts at every coordinator update.
+Report mode omits Recently completed; final mode retains completion detail and
+calibration. Future-fixture replay requires an explicit flag and visible warning;
+it is never live evidence.
 
 The synthetic example under `examples/long-run.json` exercises multi-stream
 work, model changes, unknown costs, rebaselines, outages and owner gates. Copy it
