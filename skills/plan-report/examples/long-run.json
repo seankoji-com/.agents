@@ -983,15 +983,32 @@
       }
     }
   ],
-  "needs_owner": [
+  "decisions": [
     {
+      "id": "D1",
+      "question": "Which migration approach should we use?",
+      "owner": "Synthetic owner",
+      "status": "decided",
+      "asked_at": "2026-10-02T23:40:00+00:00",
+      "decided_at": "2026-10-03T00:00:00+00:00",
+      "answer": "Use online migration with no planned downtime.",
+      "tasks": ["T03", "T07"],
+      "rationale": "Keep the synthetic service available during migration.",
+      "source": "Synthetic owner reply D1"
+    },
+    {
+      "id": "D2",
       "question": "Approve retention period?",
       "owner": "Synthetic owner",
-      "status": "open",
+      "status": "pending",
+      "asked_at": "2026-10-03T12:40:00+00:00",
+      "decided_at": "unknown",
+      "answer": "unknown",
       "tasks": [
         "T10"
       ],
-      "recommendation": "Keep 30 days"
+      "recommendation": "Keep 30 days",
+      "source": "Synthetic host question D2; no reply received"
     }
   ],
   "rebaselines": [

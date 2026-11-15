@@ -34,7 +34,7 @@ def timestamp(value):
 
 def display_time(value):
     return timestamp(value).astimezone(ZoneInfo("Australia/Sydney")).strftime(
-        "%d %b %Y %H:%M %Z (UTC%z)")
+        "%d %b %Y %H:%M")
 
 
 def text_fields(record, fields, label):
@@ -139,7 +139,7 @@ def validate(data):
                     or all(s.get("cost", {}).get(metric, "unknown") == "unknown" for s in segments),
                     f"{tid}: {metric} supplied at both task and segment scope")
     dependency_order(tasks)
-    for collection in ("milestones", "events", "needs_owner", "rebaselines"):
+    for collection in ("milestones", "events", "needs_owner", "decisions", "rebaselines"):
         require(isinstance(data.get(collection, []), list), f"{collection} must be a list")
     marker_ids = set()
     for marker in data.get("milestones", []):
@@ -162,10 +162,25 @@ def validate(data):
                 or (set(scope) == {"provider"} and isinstance(scope["provider"], str) and bool(scope["provider"]))
                 or (set(scope) == {"tasks"} and isinstance(scope["tasks"], list)
                     and bool(scope["tasks"]) and all(isinstance(x, str) and x in by_id for x in scope["tasks"])), "invalid event scope")
-    for item in data.get("needs_owner", []):
-        text_fields(item, ("question", "owner", "status"), "needs_owner item")
-        require(isinstance(item.get("tasks"), list)
-                and all(isinstance(x, str) and x in by_id for x in item["tasks"]), "needs_owner has unknown task id")
+    for collection in ('needs_owner', 'decisions'):
+        for item in data.get(collection, []):
+            text_fields(item, ("question", "owner", "status"), f"{collection} item")
+            require(isinstance(item.get("tasks"), list)
+                    and all(isinstance(x, str) and x in by_id for x in item["tasks"]), f"{collection} has unknown task id")
+            for field in ('answer','rationale','source','recommendation','id'):
+                if field in item:
+                    text_fields(item, (field,), f'{collection} item')
+            for field in ('asked_at','decided_at'):
+                if item.get(field, 'unknown') != 'unknown':
+                    require(timestamp(item[field]) <= now, f'{collection}.{field} is after as_of')
+            if item.get('asked_at','unknown') != 'unknown' and item.get('decided_at','unknown') != 'unknown':
+                require(timestamp(item['decided_at']) >= timestamp(item['asked_at']), 'decision precedes question')
+            if collection == 'decisions':
+                text_fields(item, ('id',), 'decision')
+                require(item['status'] in {'pending','decided'}, 'decision status must be pending or decided')
+                answered = item.get('answer','unknown') != 'unknown'
+                require(answered == (item['status']=='decided'), 'decided record needs an actual answer; pending answer must be unknown')
+                require(item['status']=='decided' or item.get('decided_at','unknown')=='unknown', 'pending decision cannot have decided_at')
     last = start
     for change in data.get("rebaselines", []):
         text_fields(change, ("reason", "approver"), "rebaseline")
@@ -237,6 +252,19 @@ def event_affects(event, task):
     providers = {task["owner"]["provider"]} | {s["provider"] for s in task["segments"]}
     return (scope.get("all") is True or task["id"] in scope.get("tasks", [])
             or scope.get("provider") in providers)
+
+
+def decision_records(data):
+    """Keep appended history; only the last snapshot per question is current."""
+    records = []
+    for index, item in enumerate(data.get('needs_owner', [])):
+        record = dict(item, id=item.get('id', f'legacy-{index+1}'))
+        resolved = item['status'] in {'done','decided','closed','answered','resolved','cancelled'}
+        record['status'] = ('decided' if item.get('answer','unknown')!='unknown' else 'unknown') if resolved else 'pending'
+        records.append(record)
+    records.extend(dict(item) for item in data.get('decisions', []))
+    latest = {record['id']: index for index,record in enumerate(records)}
+    return [(record, latest[record['id']]==index) for index,record in enumerate(records)]
 
 
 def cost_totals(data):
@@ -350,14 +378,16 @@ section{padding-top:22px}.chip{display:inline-block;border:1px solid var(--line)
 .tables{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 24px}.wide{grid-column:1/-1}.table-scroll{overflow-x:auto}
 table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}th{font-size:10px;color:var(--quiet);font-weight:500}td,th{padding:8px 8px 8px 0;border-bottom:1px solid var(--line);vertical-align:top}td small{display:block}
 .num{font-variant-numeric:tabular-nums;white-space:nowrap}.ratio-plot{min-width:120px;position:relative;height:14px;background:var(--ghost)}.ratio-bar{display:block;height:100%;width:var(--w);background:var(--link)}
-.ratio-one{position:absolute;left:var(--one);top:-3px;bottom:-3px;border-left:2px solid #101820;box-shadow:1px 0 #fff,-1px 0 #fff}details{margin:12px 0}summary{cursor:pointer;font-weight:650}footer{font-size:11px;color:var(--quiet);border-top:1px solid var(--line);margin-top:22px;padding-top:10px}
+.ratio-one{position:absolute;left:var(--one);top:-3px;bottom:-3px;border-left:2px solid #101820;box-shadow:1px 0 #fff,-1px 0 #fff}details{margin:0}summary{cursor:pointer;font-weight:650;padding:8px 0;border-bottom:1px solid var(--line)}summary h2{display:inline;font-size:17px;margin:0}summary:focus-visible{outline:2px solid var(--link);outline-offset:3px}.section-body{padding-top:10px}footer{font-size:11px;color:var(--quiet);border-top:1px solid var(--line);margin-top:22px;padding-top:10px}
 @media(max-width:600px){.facts,.tables{grid-template-columns:minmax(0,1fr)}h1{font-size:24px}.report{padding:12px}.table-scroll table{min-width:450px}}
 """
 
 SCRIPT = """
 function connect(){document.querySelectorAll('.chart').forEach(chart=>{
+ if(chart.closest('details:not([open])'))return;
  const plot=chart.querySelector('.plot'), svg=chart.querySelector('.connections');
- const box=plot.getBoundingClientRect();svg.setAttribute('viewBox',`0 0 ${box.width} ${box.height}`);
+ const box=plot.getBoundingClientRect();if(!(box.width>0&&box.height>0))return;
+ const viewBox=`0 0 ${box.width} ${box.height}`;if(svg.getAttribute('viewBox')!==viewBox)svg.setAttribute('viewBox',viewBox);
  const rows=Array.from(plot.querySelectorAll('.task-block'));
  function point(row,finish){const lanes=row.querySelectorAll('.lane .track');
   const track=lanes.length?lanes[finish?lanes.length-1:0]:row.querySelector('.task-head .track');
@@ -372,8 +402,17 @@ function connect(){document.querySelectorAll('.chart').forEach(chart=>{
   const p=a.querySelector('.track').getBoundingClientRect(),q=b.querySelector('.track').getBoundingClientRect();const x=q.left-box.left+Number(path.dataset.x)*q.width;
   path.setAttribute('d',`M${x},${p.top-box.top+p.height/2} V${q.top-box.top+q.height/2}`);});
  });}
-window.addEventListener('load',connect);window.addEventListener('resize',connect);
-if(window.ResizeObserver)new ResizeObserver(connect).observe(document.querySelector('.report'));
+let connectFrame=0;
+function scheduleConnect(){if(connectFrame)return;connectFrame=requestAnimationFrame(()=>{connectFrame=0;connect();});}
+function revealTarget(hash){let target;try{target=document.getElementById(decodeURIComponent(hash.slice(1)));}catch{return;}
+ if(!target)return;let revealed=false;for(let node=target.parentElement;node;node=node.parentElement){if(node.tagName==='DETAILS'&&!node.open){node.open=true;revealed=true;}}
+ const detail=target.firstElementChild;if(target.tagName==='SECTION'&&detail&&detail.tagName==='DETAILS'&&!detail.open){detail.open=true;revealed=true;}
+ if(revealed)requestAnimationFrame(()=>{connect();target.scrollIntoView({block:'start'});});}
+document.querySelectorAll('details').forEach(detail=>detail.addEventListener('toggle',scheduleConnect));
+document.querySelectorAll('.report a[href^="#"]').forEach(link=>link.addEventListener('click',()=>revealTarget(link.hash)));
+window.addEventListener('hashchange',()=>revealTarget(location.hash));
+window.addEventListener('load',()=>{revealTarget(location.hash);scheduleConnect();});window.addEventListener('resize',scheduleConnect);
+if(window.ResizeObserver){const observer=new ResizeObserver(scheduleConnect);document.querySelectorAll('.chart-scroll').forEach(chart=>observer.observe(chart));}
 """
 
 
@@ -392,18 +431,51 @@ def chip(status):
     return f'<span class="chip {css}">{symbols.get(status, "◷")} {esc(status)}</span>'
 
 
-def table(title, headers, rows, section_id, wide=False):
+def section_html(title, body, section_id, wide=False, collapsed=True):
+    heading = f'<h2>{esc(title)}</h2>'
+    if collapsed:
+        body = f'<details><summary>{heading}</summary><div class="section-body">{body}</div></details>'
+    else:
+        body = heading + body
+    return f'<section id="{section_id}" class="{"wide" if wide else ""}">{body}</section>'
+
+
+def table(title, headers, rows, section_id, wide=False, note=None):
     content = ''.join('<tr>' + ''.join(f'<td>{cell}</td>' for cell in row) + '</tr>' for row in rows)
     if not content:
         content = f'<tr><td colspan="{len(headers)}" class="muted">None recorded</td></tr>'
-    return (f'<section id="{section_id}" class="{"wide" if wide else ""}"><h2>{esc(title)}</h2>'
-            '<div class="table-scroll"><table><thead><tr>' +
+    body = ('<div class="table-scroll"><table><thead><tr>' +
             ''.join(f'<th scope="col">{esc(h)}</th>' for h in headers) +
-            f'</tr></thead><tbody>{content}</tbody></table></div></section>')
+            f'</tr></thead><tbody>{content}</tbody></table></div>')
+    if note:
+        body += f'<p class="muted">{esc(note)}</p>'
+    return section_html(title, body, section_id, wide)
 
 
 def identity_label(item):
     return f'{esc(item["model"])} · {esc(item["effort"])}<small>{esc(item["provider"])}</small>'
+
+
+def decision_table(records):
+    def observed_time(value):
+        return 'unknown' if value == 'unknown' else display_time(value)
+
+    rows = []
+    for record, current in records:
+        state = {'pending':'Awaiting answer', 'decided':'Decided', 'unknown':'Answer not recorded'}[record['status']]
+        if not current:
+            state = 'Earlier decision' if record['status']=='decided' else 'Earlier question'
+        question = f'{esc(record["id"])} · {esc(record["question"])}<small>{esc(record["owner"])}</small>'
+        if record.get('recommendation'):
+            question += f'<small>Recommendation: {esc(record["recommendation"])}</small>'
+        answer = esc(record.get('answer','unknown'))
+        if record.get('rationale'):
+            answer += f'<small>{esc(record["rationale"])}</small>'
+        times = f'Asked: {esc(observed_time(record.get("asked_at","unknown")))}<small>Decided: {esc(observed_time(record.get("decided_at","unknown")))}</small>'
+        affected = esc(', '.join(record['tasks'])) + f'<small>Source: {esc(record.get("source","unknown"))}</small>'
+        rows.append([question, state, answer, times, affected])
+    return table('Decision record', ['Question / owner','Record','Actual answer / rationale','Asked / decided','Affected work / source'], rows, 'owner', True,
+                 note='The coordinator asks through the host input tool and records actual replies here. Pending records are not decisions; recommendations are not answers. Earlier records remain in the history.')
 
 
 def projection(task, now):
@@ -452,7 +524,7 @@ def timeline(data, name, lo, hi, palette):
     for i in range(6):
         time = lo + (hi-lo)*i/5
         local = time.astimezone(ZoneInfo("Australia/Sydney"))
-        ticks.append(f'<span class="tick {"first" if i==0 else "last" if i==5 else ""}" style="--x:{i*20}%">{local:%H:%M}<br>{local:%d %b %Z}</span>')
+        ticks.append(f'<span class="tick {"first" if i==0 else "last" if i==5 else ""}" style="--x:{i*20}%">{local:%H:%M}<br>{local:%d %b %Y}</span>')
     rows, visible, handoffs = [], [], []
     critical = critical_path(data)
     for index, task in enumerate(tasks):
@@ -541,6 +613,8 @@ def timeline(data, name, lo, hi, palette):
         rows.append('</div>')
     for marker in data.get("milestones", []):
         at = timestamp(marker["target"])
+        if name == 'recent' and not lo <= at < hi:
+            continue
         rows.append(f'<div class="chart-row marker-row"><div class="label"><strong>{esc(marker["id"])} · {esc(marker["name"])}</strong> {chip(marker["status"])}'
                     f'<span class="lane-meta">{esc(display_time(marker["target"]))} · {esc(", ".join(marker["required_reviewers"]))}{" · outside window" if not lo<=at<=hi else ""}</span></div>'
                     f'<div class="track"><i class="marker {esc(marker["kind"])}" style="--x:{fraction(at)*100:.6f}%" title="{esc(marker["name"])}{" (outside window)" if not lo<=at<=hi else ""}"></i>{now_line()}</div></div>')
@@ -552,8 +626,7 @@ def timeline(data, name, lo, hi, palette):
     paths = ''.join(f'<path class="dependency" data-from="{indices[dep]}" data-to="{i}" marker-end="url(#{name}-arrow)"><title>{esc(dep)} → {esc(tasks[i]["id"])}</title></path>'
                     for i in visible for dep in tasks[i]["dependencies"] if indices[dep] in visible)
     paths += ''.join(handoffs)
-    return (f'<section id="{name}"><h2>{"Whole-run timeline" if name=="whole" else "Recent timeline"}</h2>'
-            f'<p class="muted">{esc(display_time(lo.isoformat()))} – {esc(display_time(hi.isoformat()))}</p>'
+    body = (f'<p class="muted">{esc(display_time(lo.isoformat()))} – {esc(display_time(hi.isoformat()))}</p>'
             '<p class="muted">Scrollable timeline: swipe or scroll horizontally to see all times. Task and lane labels stay visible.</p>'
             '<div class="chart-scroll" tabindex="0" role="region" aria-label="Scrollable timeline"><div class="chart">'
             '<div class="chart-row axis"><div class="label">Task · lane · model · effort · status</div><div class="track">' + ''.join(ticks) + '</div></div>'
@@ -561,7 +634,8 @@ def timeline(data, name, lo, hi, palette):
             '<p class="chart-note">Solid build; striped review. Each segment has its full model, effort, round and status beside it. '
             'Grey ghost: original estimate. Red rail: finish past original (dashed = forecast). Thin navy tick: build/review handoff. Dotted arrows: dependencies. '
             'Amber bands: scoped events; E numbers refer to the events table. Vertical navy line: now. '
-            'Dashed bars divide the remaining forecast in proportion to original allocations; they are estimates. Scroll horizontally on narrow screens.</p></section>')
+            'Dashed bars divide the remaining forecast in proportion to original allocations; they are estimates. Scroll horizontally on narrow screens.</p>')
+    return section_html('Whole-run timeline' if name=='whole' else 'Recent timeline', body, name, collapsed=name!='recent')
 
 
 def calibration_html(data):
@@ -576,8 +650,8 @@ def calibration_html(data):
                 f'<span class="ratio-bar" style="--w:{(ratio or 0)/scale*100}%"></span></div>')
         rows.append([f'{esc(model)}<small>{esc(provider)}</small>', esc(effort), esc(kind),
                      fmt(row["estimated_minutes"]), fmt(row["actual_minutes"]), f'{ratio_text}{plot}'])
-    content = table('Final calibration', ['Model / provider', 'Effort', 'Kind', 'Original min', 'Actual min', 'Actual / original'], rows, 'calibration', True)
-    content += '<p class="muted">Completed tasks only; ratios use summed segment minutes for comparable identities. Black/white reference = 1×. Waiting and parallel task spans are not model effort. Incomplete/cancelled tasks are excluded.</p>'
+    content = table('Final calibration', ['Model / provider', 'Effort', 'Kind', 'Original min', 'Actual min', 'Actual / original'], rows, 'calibration', True,
+                    note='Completed tasks only; ratios use summed segment minutes for comparable identities. Black/white reference = 1×. Waiting and parallel task spans are not model effort. Incomplete/cancelled tasks are excluded.')
     # Separate dimension summaries keep effort and kind comparisons explicit.
     for dimension, offset in (("model", 1), ("effort", 2), ("kind", 3)):
         totals = defaultdict(lambda: [0, 0])
@@ -638,9 +712,10 @@ def render(data, mode="report", theme="auto", recent_hours=4):
     stale = [t['id'] for t in tasks if t['status'] not in {'done','cancelled'} and timestamp(t['forecast']['end']) < now]
     if stale:
         content += '<p class="muted">Stale forecasts: ' + esc(', '.join(stale)) + '. Finish overruns are lower bounds at as-of; update forecasts before relying on the schedule.</p>'
-    pending = [d for d in data.get("needs_owner", []) if d["status"] not in {"done", "decided", "closed", "cancelled"}]
+    decisions = decision_records(data)
+    pending = [record for record,current in decisions if current and record['status']=='pending']
     if pending:
-        content += '<aside class="decision-strip" aria-label="Blocking owner decisions"><strong>Needs the owner</strong>' + ''.join(f'<p>{chip("blocked")} {esc(d["question"])}<small> · {esc(d["owner"])} · affects {esc(", ".join(d["tasks"]))}</small></p>' for d in pending) + '</aside>'
+        content += '<aside class="decision-strip" aria-label="Pending decision questions"><strong>Awaiting answer</strong>' + ''.join(f'<p>{esc(d["id"])} · {esc(d["owner"])} · affects {esc(", ".join(d["tasks"]))}</p>' for d in pending) + '<a href="#owner">Decision record</a></aside>'
     content += '<div class="key"><span><i class="ghost-key"></i>Original baseline</span><span><i class="over-key"></i>Overrun</span><span><i class="projection-key"></i>Projection</span>'
     content += ''.join(f'<span><i class="swatch" style="--mc:{colour}"></i>{esc(model)} · {esc(provider)}</span>' for (provider, model), colour in sorted(palette.items())) + '</div>'
     points = [now, timestamp(project["start"])]
@@ -652,11 +727,10 @@ def render(data, mode="report", theme="auto", recent_hours=4):
     lo, hi = min(points), max(points)
     if hi == lo:
         hi += timedelta(hours=1)
+    content += timeline(data, 'recent', now-timedelta(hours=recent_hours), now+timedelta(hours=recent_hours), palette)
     content += timeline(data, 'whole', lo, hi, palette)
-    content += timeline(data, 'recent', max(timestamp(project["start"]), now-timedelta(hours=recent_hours)), now+timedelta(hours=recent_hours/4), palette)
     content += '<div class="tables">'
-    content += table('Needs the owner', ['Question / owner', 'Status', 'Affected tasks'],
-                     [[esc(d['question'])+f'<small>{esc(d["owner"])} · {esc(d.get("recommendation", ""))}</small>', esc(d['status']), esc(', '.join(d['tasks']))] for d in data.get('needs_owner', [])], 'owner')
+    content += decision_table(decisions)
     running = [(t,s) for t in tasks for s in t['segments'] if s.get('end') is None]
     content += table('Running now', ['Model / effort', 'Task / lane', 'Observed minutes'],
                      [[identity_label(s), esc(t['id']+' · '+t['title'])+f'<small>{esc(s["kind"])} · round {s["round"]} · {esc(s["host_id"])}</small>', fmt(segment_minutes(s, project['as_of']))] for t,s in running], 'running')
@@ -677,9 +751,9 @@ def render(data, mode="report", theme="auto", recent_hours=4):
                      [[esc(m['id']+' · '+m['name'])+f'<small>{esc(m["kind"])} · {esc(m["status"])}</small>', esc(display_time(m['target'])), esc(', '.join(m['tasks']))+f'<small>{esc(", ".join(m["required_reviewers"]))}</small>'] for m in data.get('milestones', [])], 'milestones', True)
     content += table('Rebaseline history', ['Time / approver', 'Reason', 'Changed estimates'],
                      [[esc(display_time(c['at']))+f'<small>{esc(c["approver"])}</small>', esc(c['reason']), '<br>'.join(f'{esc(tid)}: {esc(display_time(p["start"]))} · '+esc('; '.join(f'{a["kind"]} {a["model"]} {a["effort"]}: {fmt(a["minutes"])}m' for a in p['allocations'])) for tid,p in c['tasks'].items())] for c in data.get('rebaselines', [])], 'rebaselines', True)
-    content += '</div><details><summary>Original task allocations and references</summary>'
-    content += table('Original baseline', ['Task', 'Original allocations', 'Review rounds / references'],
-                     [[esc(t['id']+' · '+t['title']), '<br>'.join(esc(f'{a["kind"]}: {a["provider"]} / {a["model"]} / {a["effort"]} · {fmt(a["minutes"])}m') for a in t.get('baseline',{}).get('allocations',[])) or 'No baseline', esc(str(t.get('baseline',{}).get('review_rounds','unknown')))+f'<small>{esc("; ".join(t.get("issues",[])+t.get("prs",[])))}</small>'] for t in tasks], 'original', True) + '</details>'
+    content += '</div>'
+    content += table('Original baseline · task allocations and references', ['Task', 'Original allocations', 'Review rounds / references'],
+                     [[esc(t['id']+' · '+t['title']), '<br>'.join(esc(f'{a["kind"]}: {a["provider"]} / {a["model"]} / {a["effort"]} · {fmt(a["minutes"])}m') for a in t.get('baseline',{}).get('allocations',[])) or 'No baseline', esc(str(t.get('baseline',{}).get('review_rounds','unknown')))+f'<small>{esc("; ".join(t.get("issues",[])+t.get("prs",[])))}</small>'] for t in tasks], 'original', True)
     if mode == 'final':
         content += calibration_html(data)
     content += '<footer>Private ledger report · forecasts are estimates · original approved allocations remain frozen. Rebaselines record decisions; event bands show exposure, not proven causation.</footer></main>'
@@ -692,7 +766,7 @@ def main():
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--mode', choices=('propose','report','final'), default='report')
     parser.add_argument('--theme', choices=('auto','light','dark'), default='auto')
-    parser.add_argument('--recent-hours', type=float, default=4)
+    parser.add_argument('--recent-hours', type=float, default=4, help='Hours before and after as-of in the recent timeline (default: 4 each)')
     args = parser.parse_args()
     try:
         require(args.ledger.resolve() != args.output.resolve(), 'output must not overwrite ledger')

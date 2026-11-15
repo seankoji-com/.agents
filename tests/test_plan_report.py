@@ -93,8 +93,8 @@ class Ledger(unittest.TestCase):
     def test_dst_display_and_elapsed_time_use_real_instants(self):
         before = ledger.display_time("2026-10-04T01:30:00+10:00")
         after = ledger.display_time("2026-10-04T03:30:00+11:00")
-        self.assertEqual(before, "04 Oct 2026 01:30 AEST (UTC+1000)")
-        self.assertEqual(after, "04 Oct 2026 03:30 AEDT (UTC+1100)")
+        self.assertEqual(before, "04 Oct 2026 01:30")
+        self.assertEqual(after, "04 Oct 2026 03:30")
         self.assertEqual(ledger.segment_minutes(dict(start="2026-10-04T01:30:00+10:00", end="2026-10-04T03:30:00+11:00"),
                                                "2026-10-04T05:00:00+11:00"), 60)
         self.assertEqual(ledger.segment_minutes(dict(start="2026-04-05T01:30:00+11:00", end="2026-04-05T03:30:00+10:00"),
@@ -115,7 +115,7 @@ class Ledger(unittest.TestCase):
             task = copy.deepcopy(template)
             task.update(id=str(i), dependencies=[str(i-1)] if i else [])
             data['tasks'].append(task)
-        for name in ('events','milestones','needs_owner','rebaselines'):
+        for name in ('events','milestones','needs_owner','decisions','rebaselines'):
             data[name] = []
         self.assertEqual(len(ledger.critical_path(ledger.validate(data))), 1200)
 
@@ -152,10 +152,148 @@ class Tables(HTMLParser):
             self.cell.append(data)
 
 
+def section_fragment(html, section_id):
+    return re.search(r'<section id="'+section_id+r'"[^>]*>.*?</section>',html,re.S).group(0)
+
+
+class Disclosures(HTMLParser):
+    def __init__(self, html):
+        super().__init__()
+        self.sections, self.details, self.summaries = [], {}, {}
+        self.current, self.depth = None, 0
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        attrs=dict(attrs)
+        if tag=='section':
+            self.current=attrs['id']
+            self.sections.append(self.current)
+        elif tag=='details':
+            self.depth+=1
+            self.details.setdefault(self.current,[]).append((attrs,self.depth))
+        elif tag=='summary':
+            self.summaries[self.current]=attrs
+
+    def handle_endtag(self, tag):
+        if tag=='details':
+            self.depth-=1
+        elif tag=='section':
+            self.current=None
+
+
 class Renderer(unittest.TestCase):
-    def test_waiting_events_and_handoffs_show_real_boundaries(self):
+    def test_recent_first_and_each_following_section_independently_closed(self):
+        data=fixture()
+        before=copy.deepcopy(data)
+        metrics=ledger.calibration(data)
+        html=ledger.render(data,'final')
+        layout=Disclosures(html)
+        self.assertEqual(layout.sections, ['recent','whole','owner','running','overruns','events',
+                                          'recently-completed','milestones','rebaselines','original',
+                                          'calibration','by-model','by-effort','by-kind','not-comparable',
+                                          'review-rounds','costs'])
+        self.assertNotIn('recent',layout.details)
+        for section in layout.sections[1:]:
+            self.assertEqual(layout.details[section], [({},1)],section)
+            self.assertEqual(layout.summaries[section], {},section)  # native focus/keyboard, no role overrides
+        self.assertEqual(data,before)
+        self.assertEqual(ledger.calibration(data),metrics)
+        tables=Tables(html).cells
+        self.assertEqual(tables['calibration'][0][3:],[ '420','630','1.5×'])
+        self.assertEqual(len(tables['original']),12)
+        self.assertIn('id="whole-task-8"',section_fragment(html,'whole'))
+        self.assertIn('href="#whole-task-8"',html)
+
+    def test_recent_future_horizon_clips_half_open_boundaries_across_dst(self):
         html=ledger.render(fixture())
-        recent=html.split('id="recent"',1)[1].split('<div class="tables">',1)[0]
+        recent=section_fragment(html,'recent')
+        self.assertIn('03 Oct 2026 21:00 – 04 Oct 2026 06:00',recent)  # eight elapsed hours across the missing local hour
+        self.assertIn('id="recent-task-10"',recent)
+        self.assertIn('id="recent-task-11"',recent)
+        self.assertIn('class="bar review projection"',recent)
+        self.assertIn('Owner acceptance',recent)
+        self.assertIn('clipped at window edge',recent)
+        now_positions=re.findall(r'class="now" style="--x:([\d.]+)%"',recent)
+        self.assertTrue(now_positions)
+        self.assertEqual(set(now_positions),{'50.000000'})
+        data=fixture()
+        data['tasks'][11]['forecast'].update(start='2026-10-03T19:00:00Z',end='2026-10-03T20:00:00Z')
+        boundary=copy.deepcopy(data['milestones'][1])
+        boundary.update(id='edge',name='At excluded horizon boundary',target='2026-10-03T19:00:00Z')
+        data['milestones'].append(boundary)
+        recent=section_fragment(ledger.render(data),'recent')
+        self.assertNotIn('id="recent-task-11"',recent)
+        self.assertNotIn('At excluded horizon boundary',recent)
+        short=section_fragment(ledger.render(fixture(),recent_hours=1),'recent')
+        self.assertIn('04 Oct 2026 00:00 – 04 Oct 2026 03:00',short)
+        self.assertNotIn('id="recent-task-10"',short)
+
+    def test_local_labels_omit_zone_suffixes_but_preserve_source_offsets(self):
+        data=fixture()
+        before=copy.deepcopy(data)
+        html=ledger.render(data,'final')
+        self.assertNotRegex(html,r'AEST|AEDT|UTC[+-]|Australia/Sydney')
+        self.assertIn('As of <strong>04 Oct 2026 01:00</strong>',html)
+        self.assertIn('title="As of 04 Oct 2026 01:00"',html)
+        self.assertEqual(data,before)
+        data['decisions'][0]['source']='Synthetic source UTC+1000 (literal evidence label)'
+        self.assertIn('Synthetic source UTC+1000',ledger.render(data,'final'))
+
+    def test_decision_record_shows_real_answer_and_pending_without_recommendation_as_answer(self):
+        data=fixture()
+        before=copy.deepcopy(data)
+        html=ledger.render(data,'final')
+        self.assertNotIn('Needs the owner',html)
+        self.assertIn('<h2>Decision record</h2>',html)
+        rows=Tables(html).cells['owner']
+        self.assertEqual(rows[0][1],'Decided')
+        self.assertIn('Use online migration with no planned downtime.',rows[0][2])
+        self.assertEqual(rows[0][3],'Asked: 03 Oct 2026 09:40 Decided: 03 Oct 2026 10:00')
+        self.assertIn('T03, T07',rows[0][4])
+        self.assertEqual(rows[1][1:3],['Awaiting answer','unknown'])
+        self.assertIn('Recommendation: Keep 30 days',rows[1][0])
+        self.assertIn('Decided: unknown',rows[1][3])
+        self.assertEqual(data,before)
+        reply=dict(data['decisions'][1], status='decided',answer='Keep seven days.',decided_at='2026-10-03T14:00:00Z')
+        data['decisions'].append(reply)
+        html=ledger.render(data,'final')
+        rows=Tables(html).cells['owner']
+        self.assertEqual(len(rows),3)
+        self.assertEqual(rows[1][1:3],['Earlier question','unknown'])
+        self.assertEqual(rows[2][1:3],['Decided','Keep seven days.'])
+        self.assertNotIn('class="decision-strip"',html)
+        data['decisions'].append(dict(data['decisions'][0],answer='Use an offline migration.',decided_at='2026-10-03T14:30:00Z'))
+        rows=Tables(ledger.render(data,'final')).cells['owner']
+        self.assertEqual(rows[0][1],'Earlier decision')
+        self.assertIn('no planned downtime',rows[0][2])
+        self.assertTrue(rows[-1][2].startswith('Use an offline migration.'))
+
+    def test_legacy_question_data_does_not_invent_a_decision(self):
+        data=fixture()
+        data.pop('decisions')
+        data['needs_owner']=[dict(question='Legacy choice',owner='Synthetic owner',status='closed',tasks=['T10'],recommendation='Suggested only')]
+        row=Tables(ledger.render(data,'final')).cells['owner'][0]
+        self.assertEqual(row[1:4],['Answer not recorded','unknown','Asked: unknown Decided: unknown'])
+        data['needs_owner'][0]['id']='legacy-choice'
+        data['decisions']=[dict(id='legacy-choice',question='Legacy choice',owner='Synthetic owner',
+                                status='decided',answer='Actual later reply',tasks=['T10'])]
+        rows=Tables(ledger.render(data,'final')).cells['owner']
+        self.assertEqual(rows[0][1:3],['Earlier question','unknown'])
+        self.assertEqual(rows[1][1:3],['Decided','Actual later reply'])
+
+    def test_decision_validation_rejects_fabricated_pending_answers_and_time_reversal(self):
+        for change,error in [({'answer':'Keep 30 days'},'actual answer'),
+                             ({'decided_at':'2026-10-03T14:00:00Z'},'pending decision'),
+                             ({'status':'decided','answer':'Approved','decided_at':'2026-10-03T12:00:00Z'},'precedes question')]:
+            with self.subTest(change=change):
+                data=fixture()
+                data['decisions'][1].update(change)
+                with self.assertRaisesRegex(ValueError,error):
+                    ledger.validate(data)
+
+    def test_waiting_events_and_handoffs_show_real_boundaries(self):
+        html=ledger.render(fixture(), recent_hours=1)
+        recent=section_fragment(html,'recent')
         self.assertIn('id="recent-task-9"',recent)
         self.assertIn('data-event="E2"',recent)
         self.assertNotIn('id="recent-task-10"',recent)  # starts exactly at window end

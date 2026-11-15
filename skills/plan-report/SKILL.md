@@ -35,7 +35,7 @@ and decisions; it does not dispatch work or replace the host's task panel.
 3. Record project name/status, Australia/Sydney timezone, run start and as-of;
    tasks, streams, dependencies, owner identities, forecasts, build/review
    allocations and planned review rounds; milestones/gates with required reviewers;
-   owner questions and relevant external events. Estimates are wall-clock minutes,
+   decision records and relevant external events. Estimates are wall-clock minutes,
    separate from tokens, turns and USD.
 4. Render proposal mode and present it. Record actual owner approval, its timestamp
    and approver. Freeze each task's original baseline at that point. A proposal
@@ -43,6 +43,18 @@ and decisions; it does not dispatch work or replace the host's task panel.
    decision is pending.
 
 ## Report
+
+Before asking a material owner question, check the latest decision record and
+settled answers. Batch foreseeable questions through the host-native question or
+input tool, with the recommendation first. Continue independent authorised work
+while an answer is pending. Rendering a report is not asking the question.
+
+Record the actual prompt, owner, observed asked time and affected tasks as pending.
+On a real reply, append a decided snapshot with the actual answer, observed decision
+time and optional rationale/source, keeping earlier records. Unknown times stay
+unknown. A recommendation or silence is not a decision. Do not re-prompt every
+progress turn or ask again after an answer is recorded. The coordinator owns
+asking and recording replies; the renderer only displays the ledger.
 
 1. Update as-of, statuses, forecasts, observed segments, review rounds/results,
    decisions and events. Record each change of model or effort as a new segment.
@@ -63,8 +75,11 @@ and decisions; it does not dispatch work or replace the host's task panel.
    ```
 
    Use `--mode propose` or `--mode final` for those boundaries. `--theme light`,
-   `dark` or `auto` controls appearance; `--recent-hours 4` controls the recent
-   timeline. The renderer is a single relocatable file. Invalid ledgers
+   `dark` or `auto` controls appearance; `--recent-hours 4` shows four hours before
+   and after as-of. Recent comes first and stays expanded; each later section has
+   its own closed caret. Dates show absolute Sydney local clocks without repeated
+   timezone labels; source offsets and DST arithmetic stay intact. The renderer
+   is a single relocatable file. Invalid ledgers
    exit nonzero with a useful message; correct the ledger before presenting.
 5. In T3 the main thread uses `html_preview` then `html_render` on the generated
    file. Outside T3 use the host's equivalent artifact or an accessible file link.

@@ -2,15 +2,16 @@
 
 Read before writing a ledger or interpreting its calculations. The coordinator
 is the sole writer. JSON must contain finite numbers; timestamps use ISO 8601
-with an explicit UTC offset or `Z`. All displayed times use Australia/Sydney,
-absolute dates, AEST/AEDT and UTC offset. Elapsed arithmetic uses UTC, including
-across daylight-saving transitions. Durations are minutes.
+with an explicit UTC offset or `Z`. Displayed absolute dates and local clocks
+convert to Australia/Sydney but omit zone names and offsets, including tooltips
+and axes. Source timestamps and literal sources keep their original offsets/text.
+Elapsed arithmetic uses UTC across daylight-saving transitions. Durations are minutes.
 
 ## Objects
 
 | Object | Fields |
 | --- | --- |
-| Root | `version: 1`, `project`, `approval` (null before approval), nonempty `tasks`; arrays `milestones`, `events`, `needs_owner`, `rebaselines` (default empty). |
+| Root | `version: 1`, `project`, `approval` (null before approval), nonempty `tasks`; arrays `milestones`, `events`, `decisions`, `rebaselines` (default empty). Legacy `needs_owner` is still accepted. |
 | Project | `name`, `timezone: "Australia/Sydney"`, `start`, `as_of`, human-readable `status`. As-of is the observation boundary. |
 | Approval | `at`, `approver`. Every task then requires an original `baseline`. Preserve approved values. |
 | Task | Unique `id`, `title`, `stream`, `dependencies` (task IDs), `owner` identity, `status`, `forecast`, `segments`, optional `baseline`, `cost`, `issues` and `prs` (text reference arrays). Status: planned, ready, running, review, blocked, done, cancelled. |
@@ -21,7 +22,8 @@ across daylight-saving transitions. Durations are minutes.
 | Segment | Unique task-local `id`, `start`, `end` (null while open), `kind`, `round` (build: 0; review: positive integer), identity fields, `host_id`, optional `result` text and `cost`. All observed segments lie between run start and as-of. Terminal tasks have no open segments. Split segments at identity changes and pauses. |
 | Milestone/gate | Unique `id`, `name`, `kind` (milestone/gate), `target`, human-readable `status`, `required_reviewers` (text array), `tasks` (task IDs). Targets may be future. |
 | Event | `start`, optional `end`, `kind`, `note`, `source`, `scope`. Kind examples: outage, rate limit, credit exhaustion, host bug, user away, waiting on decision, other external. Scope is exactly one of `{"all": true}`, `{"provider": "provider-id"}`, `{"tasks": ["task-id"]}`. Provider scope covers tasks owned by or containing segments from that provider. Events annotate exposure, not proven causation or automatic deductions. |
-| Needs owner | `question`, `owner`, human-readable `status`, `tasks` (task IDs). Optional `recommendation` text. |
+| Decision record | Stable question `id`, `question` (actual prompt), `owner`, `status` (pending/decided), `tasks` (task IDs). `answer`, `asked_at`, `decided_at` default to `"unknown"`; known timestamps need offsets. Decided records require the actual nonempty answer. Pending records have unknown answer/decision time. Optional `recommendation`, `rationale`, `source` text. Append snapshots with the same ID for replies or amendments; earlier snapshots stay in history and the last is current. |
+| Legacy owner item | `needs_owner` entries retain `question`, `owner`, human-readable `status`, `tasks`, optional `recommendation`. Decision metadata above may be added. A closed legacy item without an actual answer is shown as answer not recorded, never a fabricated decision. Add a stable `id` before appending a corresponding `decisions` snapshot. |
 | Rebaseline | `at`, `reason`, `approver`, `tasks` mapping task IDs to complete replacement baseline objects. Append chronologically after approval. Preserve the original task baseline and every previous entry; update the task forecast separately. |
 
 Dependencies must name tasks in this ledger and form a directed acyclic graph.
@@ -30,6 +32,18 @@ remaining dependency chain weighted by remaining forecast duration; completed
 and cancelled tasks contribute zero. This is a forecast, not a scheduler or a
 resource-constrained finish guarantee. Unfinished forecasts behind as-of are
 stale and should be updated by the coordinator.
+
+## Asking and recording decisions
+
+The coordinator batches material questions with its recommendation first through
+the host-native input/question tool and records the real prompt and observed time.
+It checks current records before asking, continues independent authorised work
+while pending, then appends the actual reply and decision time when observed.
+Keep old records; a changed answer is another snapshot, not an overwritten decision.
+Unknown metadata stays unknown. Recommendations and silence are not replies.
+The renderer neither asks questions nor calls a model, input API or scheduler.
+A render never substitutes for prompting the owner. The report calls this section
+**Decision record** and distinguishes pending questions from recorded answers.
 
 ## Cost observations
 
@@ -68,9 +82,14 @@ waiting time does not inflate model performance metrics. Overlapping delegates
 do not make their summed minutes a project wall-clock duration.
 
 The renderer adopts the Lane Ledger design: separate labelled build/review
-lanes, status chips and an owner-decision strip above both charts. Full identities
-sit outside bars so short or clipped segments remain readable. Provider events
-shade only matching-provider lanes during intersecting segment times; task/all
+lanes and status chips. Full identities
+sit outside bars so short or clipped segments remain readable. The header has a
+compact pending-question indicator linked to Decision record, rather than a prompt
+form. Recent is first and expanded, with `--recent-hours` hours of lookback and the
+same lookahead (four each by default). Each later user-facing section has its own
+closed native disclosure; opening one does not open the others. Original section
+IDs and links remain intact. Hidden chart geometry is measured only after reveal.
+Provider events shade only matching-provider lanes during intersecting segment times; task/all
 events likewise intersect those lanes. Model colour is supported by explicit text.
 An event during a task's waiting period gets a separate event-only row; it does
 not invent build/review work or cost. Active blocked tasks remain in the recent view.
