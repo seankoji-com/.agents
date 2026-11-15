@@ -32,6 +32,12 @@ other branches remain outside this grant without separate authority.
 
 ## Make the work visible
 
+Apply [plan-report](../plan-report/SKILL.md) at proposal, on each progress turn
+with delegates, at final handback and on request. Skip no-progress turns; solo
+progress needs a request. The main thread presents the report and feeds final
+estimate/actual, model, effort, segment and review-round calibration into the
+retrospective, preserving unknown cost coverage.
+
 When backlog-burn invokes ship, use its existing authority and narrower limits;
 this invocation adds no permissions from the explicit ship grant above. Keep one
 parent plan and execution manifest across its delivery batches. Apply proof and

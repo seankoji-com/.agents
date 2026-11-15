@@ -5,14 +5,15 @@ description: Burn a repository's open issues and pull requests down to zero, or 
 
 # Burn the backlog to zero
 
-The backlog is the scope's open issues and PRs. Close what is delivered or no
-longer worth doing, never for the count alone. Run fixes in parallel while you
-triage the rest.
+Close delivered or obsolete issues and PRs with evidence; run fixes while triaging.
+
+Apply [plan-report](../plan-report/SKILL.md) at proposal, on each progress turn
+with delegates, at final handback and on request. Skip no-progress turns; solo
+progress needs a request. The main thread presents the report.
 
 ## The turn rule
 
-- A turn does a full pass (steps 2–7). It does not stop after the first PR,
-  the first watch or the first dispatch.
+- Each turn completes steps 2–7 before watching or yielding.
 - `watch_pull_request` tells you to end your turn. So call it **last**, in
   step 8, after the pass. Never watch a PR and then stop with untriaged items,
   free slots or unasked questions.
@@ -61,8 +62,6 @@ and follow it instead of this file.
    Record both counts and every ID. If a connector tool fails twice, use `gh`.
 4. Call `orchestrator_capabilities` once. Record the model, effort, providers
    and any concurrency limit in the ledger header.
-
-Load other skills only when first needed (steps 3 and 5).
 
 ## 2. Triage every item from headers
 
@@ -181,7 +180,7 @@ Issues: N open, N triaged, N closed, N ready, N dispatched (task IDs), N awaitin
 Next: <what wakes this run and the first action on wake>
 ```
 
-On every wake, rerun step 1's inventory, then resume from the ledger.
+On wake, repeat the inventory and resume from the ledger.
 
 ## Finish
 

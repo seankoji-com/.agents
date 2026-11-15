@@ -83,7 +83,7 @@
         </div>
         <div>
           <h3>Progress and designs you can see</h3>
-          <p><code>ship</code> keeps its task list in T3's plan panel. <code>choose-design</code> shows mockups side by side in T3's preview frames.</p>
+          <p><code>ship</code> keeps its task list in T3's plan panel. <code>plan-report</code> shows the plan, progress and overruns on a timeline. <code>choose-design</code> shows mockups side by side in T3's preview frames.</p>
         </div>
         <div>
           <h3>Other agents still work</h3>
@@ -188,7 +188,11 @@ const SKILLS = [
   { name: "ship", group: "build", t3prep: true,
     text: "Hand over a change and have it delivered. Your agent builds it, runs the checks, gets an independent review and takes it through merge, keeping a task list you can watch. It ends with a short look back at what went well and what to change.",
     try: "Ship the agreed replay feature. Verify it in the browser first.",
-    uses: ["think", "choose-design", "implement", "review-loop", "review", "raise-pr", "babysitter", "raise-issue", "github-writing"] },
+    uses: ["think", "choose-design", "plan-report", "implement", "review-loop", "review", "raise-pr", "babysitter", "raise-issue", "github-writing"] },
+  { name: "plan-report", group: "build",
+    text: "See the proposed plan and its progress on a timeline: estimates, overruns, dependencies, milestones, models, review rounds and events. The main thread reports at proposal, on progress turns with delegates, at final handback and on request. Solo progress needs a request; turns without progress are skipped. A private ignored ledger preserves approved estimates and replans. Final calibration compares estimates and actual work, with sourced costs or unknown coverage; changed models are marked not comparable.",
+    try: "Use plan-report to show this coordinated run and the decisions waiting on me.",
+    uses: [] },
   { name: "review", group: "build", t3prep: true,
     text: "Have work checked against the goal. Code reviewers must differ in family from the code authors; the orchestrator's family is irrelevant unless it wrote code. Plans, prose and visual judgments have no family restriction. Review defaults to Sol high, or Opus high for Sol-authored code, with credit fallbacks. OCR runs alongside the primary for nonvisual changes; Hydrogen high runs alongside it for UI/visual changes. DeepSeek is available only through OCR. The reviewers return findings tied to evidence and ranked by severity.",
     try: "Use review to check this branch against the brief. Do not edit files.",
@@ -200,7 +204,7 @@ const SKILLS = [
   { name: "implement", group: "build", t3prep: true, t3: true,
     text: "Move a large coding job into a separate workspace so your main conversation stays clear. You get back reviewed commits to accept and merge.",
     try: "Implement the export feature from this brief.",
-    uses: ["review-loop", "review", "raise-issue"] },
+    uses: ["plan-report", "review-loop", "review", "raise-issue"] },
   { name: "test-writer", group: "build",
     text: "Choose tests that catch the failures that matter, without flaky runs or slow CI. Check that test data reflects the real system and that results came from the run being reported. Also useful for reviewing whether existing tests earn their keep.",
     try: "Use test-writer to add regression tests for the date parsing bug.",
@@ -216,7 +220,7 @@ const SKILLS = [
   { name: "backlog-burn", group: "build", t3prep: true, t3: true,
     text: "Drive a repository's open issues and pull requests to zero. Close obsolete, already-done or low-value issues and superseded PRs with evidence; keep material defects actionable and protected closures under owner review. Babysit every PR without a live owner through merge, including dependency bumps, and ask before a real migration. Use the maximum allowed concurrency up to 20 delegates, including nested workers and reviewers. Ship handles worthwhile fixes through isolated leads, using the main thread's model and effort by default and independent reviewers. Refill on every wake and pick up PRs opened mid-run. Name an organisation to launch one run per repository. Explicit owner holds keep items open.",
     try: "Clear the backlog and the open PRs. Ask me what you need to unblock, then implement and merge the ready work.",
-    uses: ["ship", "babysitter", "implement"] },
+    uses: ["ship", "plan-report", "babysitter", "implement"] },
   { name: "raise-issue", group: "build", t3prep: true, t3: true,
     text: "File a bug, feature request or task in the background, with the evidence attached. You get back a link to the issue once it exists.",
     try: "Raise an issue for the flaky login test with the failing logs.",

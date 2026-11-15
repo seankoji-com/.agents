@@ -10,6 +10,11 @@ codes directly, delegates substantial independent parts when useful, and runs
 [review-loop](../review-loop/SKILL.md) before returning reviewed commits. The
 main thread owns acceptance, integration and shipping.
 
+The main thread applies [plan-report](../plan-report/SKILL.md) at proposal,
+on each progress turn with delegates, at final handback and on request. Skip
+no-progress turns; solo progress needs a request. Leads return timing and cost
+observations; only the main thread presents the report.
+
 ## Main-thread responsibilities
 
 1. Read the repository rules and working tree. Give the lead a compact brief:
@@ -17,12 +22,10 @@ main thread owns acceptance, integration and shipping.
    acceptance criteria, verification, repository identity, exact source HEAD and
    the main thread's model identity/lineage.
    Include the paths to this skill, review-loop and [review](../review/SKILL.md).
-   Delegates receive their task, not the parent conversation.
 2. Isolated delegates start from the parent's committed HEAD, without its dirty
    changes. Identify required uncommitted prerequisites before dispatch. Commit
    them only with existing or newly obtained authority; otherwise report the
-   blocker. Do not silently omit them, copy unrelated work or invent a handoff
-   route. Verify the prepared worktree's actual base before editing.
+   blocker. Preserve unrelated work. Verify the prepared worktree's base before editing.
 3. Select the working lead using the model-selection rules below. Discover exact
    T3 capabilities and use `delegate_task` with `isolation: 'worktree'`. Explicitly
    authorise the lead in its task to act as the implementation coordinator and
@@ -49,7 +52,7 @@ workers. Every reviewer, recheck and additional opinion uses
 - Match capability to the work. A bounded mechanical edit with deterministic
   checks can use a smaller model and lower supported effort. Ambiguous behavior,
   shared interfaces, security or state/concurrency work needs stronger reasoning
-  from the start. A low price does not establish suitability.
+  from the start.
 - Compare feasible choices using available cost and capability evidence, including
   likely extra attempts and coordination overhead. If reliable prices or task
   performance are unavailable, state the heuristic and uncertainty. Do not invent
@@ -95,9 +98,8 @@ The main thread returns the settled answer to the same lead child thread through
 `t3_thread_send`, restating the coordinator role, dispatch authority, scores,
 counters and explicit limits, and recording the returned task handle. Before resuming, the lead
 verifies its existing worktree, branch, HEAD and ledger against the handoff.
-Do not launch a new isolated lead from the main thread's original base as a
-resume route. If the bound checkout cannot be recovered, report the blocker;
-do not set up a replacement checkout in the shell or a child's prompt.
+Resume the existing lead; never create a replacement checkout or lead. If its
+bound checkout cannot be recovered, report the blocker.
 
 If nested reviewer dispatch is unavailable, the lead returns checkpointed work
 marked review-pending. The main thread obtains review against that worktree's

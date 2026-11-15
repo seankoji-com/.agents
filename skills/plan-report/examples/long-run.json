@@ -1,0 +1,1026 @@
+{
+  "version": 1,
+  "project": {
+    "name": "Synthetic migration programme",
+    "timezone": "Australia/Sydney",
+    "start": "2026-10-02T22:00:00+00:00",
+    "as_of": "2026-10-03T15:00:00+00:00",
+    "status": "Build active; owner decision pending"
+  },
+  "approval": {
+    "at": "2026-10-02T22:00:00+00:00",
+    "approver": "Synthetic owner"
+  },
+  "tasks": [
+    {
+      "id": "T01",
+      "title": "Clarify import contract",
+      "stream": "Contract",
+      "dependencies": [],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "done",
+      "baseline": {
+        "start": "2026-10-02T22:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-02T22:00:00+00:00",
+        "end": "2026-10-03T00:00:00+00:00"
+      },
+      "segments": [
+        {
+          "id": "0-a",
+          "start": "2026-10-02T22:00:00+00:00",
+          "end": "2026-10-02T23:30:00+00:00",
+          "kind": "build",
+          "round": 0,
+          "host_id": "synthetic-task-0-a",
+          "result": "checkpoint",
+          "cost": {
+            "tokens": {
+              "value": 3000,
+              "source": "synthetic host receipt",
+              "basis": "reported"
+            },
+            "usd": {
+              "value": 0.12,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Builder A",
+          "effort": "high",
+          "provider": "synthetic-build"
+        },
+        {
+          "id": "0-b",
+          "start": "2026-10-02T23:30:00+00:00",
+          "end": "2026-10-03T00:00:00+00:00",
+          "kind": "review",
+          "round": 1,
+          "host_id": "synthetic-task-0-b",
+          "result": "approved",
+          "cost": {
+            "usd": {
+              "value": 0.06,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Reviewer B",
+          "effort": "high",
+          "provider": "synthetic-review"
+        }
+      ],
+      "issues": [
+        "synthetic issue 1"
+      ],
+      "prs": []
+    },
+    {
+      "id": "T02",
+      "title": "Build parser",
+      "stream": "Build",
+      "dependencies": [
+        "T01"
+      ],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "done",
+      "baseline": {
+        "start": "2026-10-03T00:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-03T00:00:00+00:00",
+        "end": "2026-10-03T02:00:00+00:00"
+      },
+      "segments": [
+        {
+          "id": "1-a",
+          "start": "2026-10-03T00:00:00+00:00",
+          "end": "2026-10-03T01:30:00+00:00",
+          "kind": "build",
+          "round": 0,
+          "host_id": "synthetic-task-1-a",
+          "result": "checkpoint",
+          "cost": {
+            "tokens": {
+              "value": 3000,
+              "source": "synthetic host receipt",
+              "basis": "reported"
+            },
+            "usd": {
+              "value": 0.12,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Builder A",
+          "effort": "high",
+          "provider": "synthetic-build"
+        },
+        {
+          "id": "1-b",
+          "start": "2026-10-03T01:30:00+00:00",
+          "end": "2026-10-03T02:00:00+00:00",
+          "kind": "review",
+          "round": 1,
+          "host_id": "synthetic-task-1-b",
+          "result": "approved",
+          "cost": {
+            "usd": {
+              "value": 0.06,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Reviewer B",
+          "effort": "high",
+          "provider": "synthetic-review"
+        }
+      ],
+      "issues": [
+        "synthetic issue 2"
+      ],
+      "prs": []
+    },
+    {
+      "id": "T03",
+      "title": "Prepare migration",
+      "stream": "Review",
+      "dependencies": [
+        "T01"
+      ],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "done",
+      "baseline": {
+        "start": "2026-10-03T00:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-03T00:00:00+00:00",
+        "end": "2026-10-03T02:00:00+00:00"
+      },
+      "segments": [
+        {
+          "id": "2-a",
+          "start": "2026-10-03T00:00:00+00:00",
+          "end": "2026-10-03T01:30:00+00:00",
+          "kind": "build",
+          "round": 0,
+          "host_id": "synthetic-task-2-a",
+          "result": "checkpoint",
+          "cost": {
+            "tokens": {
+              "value": 3000,
+              "source": "synthetic host receipt",
+              "basis": "reported"
+            },
+            "usd": {
+              "value": 0.12,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Builder A",
+          "effort": "high",
+          "provider": "synthetic-build"
+        },
+        {
+          "id": "2-b",
+          "start": "2026-10-03T01:30:00+00:00",
+          "end": "2026-10-03T02:00:00+00:00",
+          "kind": "review",
+          "round": 1,
+          "host_id": "synthetic-task-2-b",
+          "result": "approved",
+          "cost": {
+            "usd": {
+              "value": 0.06,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Reviewer B",
+          "effort": "high",
+          "provider": "synthetic-review"
+        }
+      ],
+      "issues": [
+        "synthetic issue 3"
+      ],
+      "prs": []
+    },
+    {
+      "id": "T04",
+      "title": "Repair retry logic",
+      "stream": "Contract",
+      "dependencies": [
+        "T03"
+      ],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "done",
+      "baseline": {
+        "start": "2026-10-03T03:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-03T03:00:00+00:00",
+        "end": "2026-10-03T05:00:00+00:00"
+      },
+      "segments": [
+        {
+          "id": "3-a",
+          "start": "2026-10-03T03:00:00+00:00",
+          "end": "2026-10-03T03:45:00+00:00",
+          "kind": "build",
+          "round": 0,
+          "host_id": "synthetic-task-3-a",
+          "result": "checkpoint",
+          "cost": {
+            "tokens": {
+              "value": 3000,
+              "source": "synthetic host receipt",
+              "basis": "reported"
+            },
+            "usd": {
+              "value": 0.12,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Builder A",
+          "effort": "high",
+          "provider": "synthetic-build"
+        },
+        {
+          "id": "3-switch",
+          "start": "2026-10-03T03:45:00+00:00",
+          "end": "2026-10-03T04:30:00+00:00",
+          "kind": "build",
+          "round": 0,
+          "host_id": "synthetic-task-3-switch",
+          "result": "checkpoint",
+          "cost": {},
+          "model": "Builder C",
+          "effort": "high",
+          "provider": "synthetic-build"
+        },
+        {
+          "id": "3-b",
+          "start": "2026-10-03T04:30:00+00:00",
+          "end": "2026-10-03T05:00:00+00:00",
+          "kind": "review",
+          "round": 1,
+          "host_id": "synthetic-task-3-b",
+          "result": "approved",
+          "cost": {
+            "usd": {
+              "value": 0.06,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Reviewer B",
+          "effort": "high",
+          "provider": "synthetic-review"
+        }
+      ],
+      "issues": [
+        "synthetic issue 4"
+      ],
+      "prs": []
+    },
+    {
+      "id": "T05",
+      "title": "Add audit trail",
+      "stream": "Build",
+      "dependencies": [
+        "T01"
+      ],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "done",
+      "baseline": {
+        "start": "2026-10-03T03:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-03T03:00:00+00:00",
+        "end": "2026-10-03T05:00:00+00:00"
+      },
+      "segments": [
+        {
+          "id": "4-a",
+          "start": "2026-10-03T03:00:00+00:00",
+          "end": "2026-10-03T04:30:00+00:00",
+          "kind": "build",
+          "round": 0,
+          "host_id": "synthetic-task-4-a",
+          "result": "checkpoint",
+          "cost": {
+            "tokens": {
+              "value": 3000,
+              "source": "synthetic host receipt",
+              "basis": "reported"
+            },
+            "usd": {
+              "value": 0.12,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Builder A",
+          "effort": "high",
+          "provider": "synthetic-build"
+        },
+        {
+          "id": "4-b",
+          "start": "2026-10-03T04:30:00+00:00",
+          "end": "2026-10-03T05:00:00+00:00",
+          "kind": "review",
+          "round": 1,
+          "host_id": "synthetic-task-4-b",
+          "result": "approved",
+          "cost": {
+            "usd": {
+              "value": 0.06,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Reviewer B",
+          "effort": "high",
+          "provider": "synthetic-review"
+        }
+      ],
+      "issues": [
+        "synthetic issue 5"
+      ],
+      "prs": []
+    },
+    {
+      "id": "T06",
+      "title": "Verify permissions",
+      "stream": "Review",
+      "dependencies": [
+        "T01"
+      ],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "done",
+      "baseline": {
+        "start": "2026-10-03T06:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-03T06:00:00+00:00",
+        "end": "2026-10-03T08:00:00+00:00"
+      },
+      "segments": [
+        {
+          "id": "5-a",
+          "start": "2026-10-03T06:00:00+00:00",
+          "end": "2026-10-03T07:30:00+00:00",
+          "kind": "build",
+          "round": 0,
+          "host_id": "synthetic-task-5-a",
+          "result": "checkpoint",
+          "cost": {
+            "tokens": {
+              "value": 3000,
+              "source": "synthetic host receipt",
+              "basis": "reported"
+            },
+            "usd": {
+              "value": 0.12,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Builder A",
+          "effort": "high",
+          "provider": "synthetic-build"
+        },
+        {
+          "id": "5-b",
+          "start": "2026-10-03T07:30:00+00:00",
+          "end": "2026-10-03T08:00:00+00:00",
+          "kind": "review",
+          "round": 1,
+          "host_id": "synthetic-task-5-b",
+          "result": "approved",
+          "cost": {
+            "usd": {
+              "value": 0.06,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Reviewer B",
+          "effort": "high",
+          "provider": "synthetic-review"
+        }
+      ],
+      "issues": [
+        "synthetic issue 6"
+      ],
+      "prs": []
+    },
+    {
+      "id": "T07",
+      "title": "Integrate streams",
+      "stream": "Contract",
+      "dependencies": [
+        "T06"
+      ],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "done",
+      "baseline": {
+        "start": "2026-10-03T08:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-03T08:00:00+00:00",
+        "end": "2026-10-03T10:00:00+00:00"
+      },
+      "segments": [
+        {
+          "id": "6-a",
+          "start": "2026-10-03T08:00:00+00:00",
+          "end": "2026-10-03T09:30:00+00:00",
+          "kind": "build",
+          "round": 0,
+          "host_id": "synthetic-task-6-a",
+          "result": "checkpoint",
+          "cost": {
+            "tokens": {
+              "value": 3000,
+              "source": "synthetic host receipt",
+              "basis": "reported"
+            },
+            "usd": {
+              "value": 0.12,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Builder A",
+          "effort": "high",
+          "provider": "synthetic-build"
+        },
+        {
+          "id": "6-b",
+          "start": "2026-10-03T09:30:00+00:00",
+          "end": "2026-10-03T10:00:00+00:00",
+          "kind": "review",
+          "round": 1,
+          "host_id": "synthetic-task-6-b",
+          "result": "approved",
+          "cost": {
+            "usd": {
+              "value": 0.06,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Reviewer B",
+          "effort": "high",
+          "provider": "synthetic-review"
+        },
+        {
+          "id": "6-recheck",
+          "start": "2026-10-03T10:00:00+00:00",
+          "end": "2026-10-03T10:30:00+00:00",
+          "kind": "review",
+          "round": 2,
+          "host_id": "synthetic-task-6-recheck",
+          "result": "approved",
+          "cost": {},
+          "model": "Reviewer B",
+          "effort": "high",
+          "provider": "synthetic-review"
+        }
+      ],
+      "issues": [
+        "synthetic issue 7"
+      ],
+      "prs": []
+    },
+    {
+      "id": "T08",
+      "title": "Review concurrency",
+      "stream": "Build",
+      "dependencies": [
+        "T01"
+      ],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "done",
+      "baseline": {
+        "start": "2026-10-03T10:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-03T10:00:00+00:00",
+        "end": "2026-10-03T12:00:00+00:00"
+      },
+      "segments": [
+        {
+          "id": "7-a",
+          "start": "2026-10-03T10:00:00+00:00",
+          "end": "2026-10-03T11:30:00+00:00",
+          "kind": "build",
+          "round": 0,
+          "host_id": "synthetic-task-7-a",
+          "result": "checkpoint",
+          "cost": {
+            "tokens": {
+              "value": 3000,
+              "source": "synthetic host receipt",
+              "basis": "reported"
+            },
+            "usd": {
+              "value": 0.12,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Builder A",
+          "effort": "high",
+          "provider": "synthetic-build"
+        },
+        {
+          "id": "7-b",
+          "start": "2026-10-03T11:30:00+00:00",
+          "end": "2026-10-03T12:00:00+00:00",
+          "kind": "review",
+          "round": 1,
+          "host_id": "synthetic-task-7-b",
+          "result": "approved",
+          "cost": {
+            "usd": {
+              "value": 0.06,
+              "source": "synthetic host receipt",
+              "basis": "host-estimate"
+            }
+          },
+          "model": "Reviewer B",
+          "effort": "high",
+          "provider": "synthetic-review"
+        }
+      ],
+      "issues": [
+        "synthetic issue 8"
+      ],
+      "prs": []
+    },
+    {
+      "id": "T09",
+      "title": "Exercise recovery",
+      "stream": "Review",
+      "dependencies": [
+        "T01"
+      ],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "running",
+      "baseline": {
+        "start": "2026-10-03T12:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-03T12:00:00+00:00",
+        "end": "2026-10-03T17:30:00+00:00"
+      },
+      "segments": [
+        {
+          "id": "8-open",
+          "start": "2026-10-03T12:00:00+00:00",
+          "end": null,
+          "kind": "build",
+          "round": 0,
+          "host_id": "synthetic-task-8-open",
+          "result": "checkpoint",
+          "cost": {},
+          "model": "Builder A",
+          "effort": "high",
+          "provider": "synthetic-build"
+        }
+      ],
+      "issues": [
+        "synthetic issue 9"
+      ],
+      "prs": []
+    },
+    {
+      "id": "T10",
+      "title": "Write owner guide",
+      "stream": "Contract",
+      "dependencies": [
+        "T09"
+      ],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "blocked",
+      "baseline": {
+        "start": "2026-10-03T12:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-03T12:00:00+00:00",
+        "end": "2026-10-03T14:00:00+00:00"
+      },
+      "segments": [],
+      "issues": [
+        "synthetic issue 10"
+      ],
+      "prs": []
+    },
+    {
+      "id": "T11",
+      "title": "Accept release candidate",
+      "stream": "Build",
+      "dependencies": [
+        "T01"
+      ],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "planned",
+      "baseline": {
+        "start": "2026-10-03T16:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-03T16:00:00+00:00",
+        "end": "2026-10-03T18:00:00+00:00"
+      },
+      "segments": [],
+      "issues": [
+        "synthetic issue 11"
+      ],
+      "prs": []
+    },
+    {
+      "id": "T12",
+      "title": "Deliver local handback",
+      "stream": "Review",
+      "dependencies": [
+        "T01"
+      ],
+      "owner": {
+        "model": "Builder A",
+        "effort": "high",
+        "provider": "synthetic-build"
+      },
+      "status": "planned",
+      "baseline": {
+        "start": "2026-10-03T18:00:00+00:00",
+        "allocations": [
+          {
+            "kind": "build",
+            "minutes": 60,
+            "model": "Builder A",
+            "effort": "high",
+            "provider": "synthetic-build"
+          },
+          {
+            "kind": "review",
+            "minutes": 30,
+            "model": "Reviewer B",
+            "effort": "high",
+            "provider": "synthetic-review"
+          }
+        ],
+        "review_rounds": 1
+      },
+      "forecast": {
+        "start": "2026-10-03T18:00:00+00:00",
+        "end": "2026-10-03T20:00:00+00:00"
+      },
+      "segments": [],
+      "issues": [
+        "synthetic issue 12"
+      ],
+      "prs": []
+    }
+  ],
+  "milestones": [
+    {
+      "id": "M1",
+      "name": "Contract accepted",
+      "kind": "milestone",
+      "target": "2026-10-03T00:00:00+00:00",
+      "status": "done",
+      "tasks": [
+        "T01"
+      ],
+      "required_reviewers": [
+        "Reviewer B"
+      ]
+    },
+    {
+      "id": "G1",
+      "name": "Owner acceptance",
+      "kind": "gate",
+      "target": "2026-10-03T18:00:00+00:00",
+      "status": "pending",
+      "tasks": [
+        "T09",
+        "T10",
+        "T11"
+      ],
+      "required_reviewers": [
+        "Synthetic owner",
+        "Reviewer B"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "start": "2026-10-03T03:40:00+00:00",
+      "end": "2026-10-03T04:40:00+00:00",
+      "kind": "outage",
+      "note": "Synthetic provider maintenance",
+      "source": "synthetic status notice",
+      "scope": {
+        "provider": "synthetic-build"
+      }
+    },
+    {
+      "start": "2026-10-03T12:40:00+00:00",
+      "kind": "waiting on decision",
+      "note": "Choose retention period",
+      "source": "synthetic owner question",
+      "scope": {
+        "tasks": [
+          "T10"
+        ]
+      }
+    },
+    {
+      "start": "2026-10-03T08:50:00+00:00",
+      "end": "2026-10-03T09:20:00+00:00",
+      "kind": "host bug",
+      "note": "Synthetic runner restart",
+      "source": "synthetic runner receipt",
+      "scope": {
+        "all": true
+      }
+    }
+  ],
+  "needs_owner": [
+    {
+      "question": "Approve retention period?",
+      "owner": "Synthetic owner",
+      "status": "open",
+      "tasks": [
+        "T10"
+      ],
+      "recommendation": "Keep 30 days"
+    }
+  ],
+  "rebaselines": [
+    {
+      "at": "2026-10-03T09:40:00+00:00",
+      "reason": "Recovery scenarios expanded",
+      "approver": "Synthetic owner",
+      "tasks": {
+        "T09": {
+          "start": "2026-10-03T12:00:00+00:00",
+          "allocations": [
+            {
+              "kind": "build",
+              "minutes": 240,
+              "model": "Builder A",
+              "effort": "high",
+              "provider": "synthetic-build"
+            },
+            {
+              "kind": "review",
+              "minutes": 60,
+              "model": "Reviewer B",
+              "effort": "high",
+              "provider": "synthetic-review"
+            }
+          ],
+          "review_rounds": 1
+        }
+      }
+    }
+  ]
+}

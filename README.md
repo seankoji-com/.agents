@@ -66,7 +66,8 @@ one app. They use what T3 provides:
 - **PR watching without polling.** `babysitter` uses T3's pull request watch, which
   wakes the agent when checks or reviews change.
 - **Progress and previews you can see.** `ship` keeps its task list in T3's plan
-  panel, and `choose-design` shows mockups side by side in T3's preview frames.
+  panel, `plan-report` shows estimates and progress on a timeline, and
+  `choose-design` shows mockups side by side in T3's preview frames.
 
 Most skills still work in Claude Code, Codex or another host that supports
 skills, using what that host offers instead. Outside T3, `babysitter` waits with
@@ -179,6 +180,22 @@ Maintain the instructions and configuration your agents depend on.
 - [agent-tuneup](skills/agent-tuneup/SKILL.md): Diagnose settings, permissions, connections, or missing skills. Separate saved configuration from observed behavior.
 
 ## What it looks like in practice
+
+For a longer run, [plan-report](skills/plan-report/SKILL.md) keeps the proposed
+plan and its progress in a private JSON ledger and generates a self-contained
+HTML timeline. It shows dependencies, milestones, model-labelled build and
+review segments, overruns, external events and decisions waiting on you.
+Approval freezes the original estimates; recorded replans preserve that history.
+Final calibration compares estimates, actual work and review rounds by model
+and effort, with known costs and unknown coverage kept explicit. Changed models
+are marked not comparable rather than inheriting another model's estimate.
+
+`ship`, `backlog-burn` and `implement` use it at proposal, on every progress turn
+with delegates, at final handback and on request. Solo progress needs a request;
+no-progress turns are skipped. Only the main thread presents the report. The
+ledger and reports stay in a verified ignored worktree directory, outside GitHub;
+removing that worktree loses them. Host cost capabilities and their limits are
+documented in the skill's [cost evidence](skills/plan-report/references/host-costs.md).
 
 Suppose you want to add a replay to a browser game. You know the outcome, but
 have not decided how replay timing should work.
@@ -437,6 +454,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [focus-group](skills/focus-group/SKILL.md) | Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study. |
 | [github-writing](skills/github-writing/SKILL.md) | Use whenever drafting or editing LLM-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
 | [implement](skills/implement/SKILL.md) | Use when the user invokes implement or requests implementation through T3 delegates, returning reviewed commits for the main thread to integrate and ship. |
+| [plan-report](skills/plan-report/SKILL.md) | Propose a project plan or report progress and final calibration as a Gantt-style HTML report from a private JSON ledger. Use for coordinated runs, explicit timeline requests, or when ship, backlog-burn or implement calls for plan reporting. |
 | [raise-issue](skills/raise-issue/SKILL.md) | Use when the user or an authorised workflow asks to investigate, prepare, file or follow up on a bug, feature or task issue in an owned, organisation or external repository, using an asynchronous T3 delegate. |
 | [raise-pr](skills/raise-pr/SKILL.md) | Use whenever creating or updating a pull request, including during implementation, review-loop, ship and PR maintenance. |
 | [review](skills/review/SKILL.md) | Use for independent reviews of plans, code, UI, backend and releases, including review-loop participants and think's stop-condition check. Code review must differ in lineage from the code authors. |
@@ -504,7 +522,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 14fe8a52ccdf9b62e9e69bbe9ad06d2413b1b259d5103dc1af2b598d845539bf -->
+<!-- skills-review: f737f61c3af3213145f0c73ef7b1a554c6b096f38945dfb95d4e14f5e65073b0 -->
 
 ### Owner maintenance
 
